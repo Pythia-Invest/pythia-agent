@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": true,
+    "module": "NodeNext",
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["eodhd.ts"]
+}

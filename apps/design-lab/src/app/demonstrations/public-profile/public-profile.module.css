@@ -1,0 +1,274 @@
+.publicStudy {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  border: var(--py-border-width) solid var(--py-border-default);
+  border-radius: var(--py-radius-container);
+  background: var(--py-surface-canvas);
+  color: var(--py-text-primary);
+}
+
+.publicStudy::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 82% 7%,
+    var(--py-profile-atmosphere),
+    transparent 58%
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.canvas {
+  display: grid;
+  padding-block: clamp(var(--py-space-8), 8vw, var(--py-space-16));
+  gap: var(--py-profile-section-gap);
+}
+
+.identityLine {
+  display: flex;
+  padding-block-end: var(--py-space-6);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--py-space-6);
+  border-block-end: var(--py-border-width) solid var(--py-border-default);
+}
+
+.lockup {
+  flex: none;
+  font-size: clamp(1.65rem, 4vw, 2.4rem);
+}
+
+.studyLabel {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(15rem, 0.6fr);
+  align-items: end;
+  gap: clamp(var(--py-space-8), 7vw, var(--py-space-16));
+}
+
+.heroCopy {
+  min-inline-size: 0;
+}
+
+.eyebrow,
+.hero h2,
+.lede,
+.sectionHeading h2,
+.sectionHeading p,
+.excerptHeading h3,
+.excerptHeading p,
+.excerptCopy,
+.studyFooter p {
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--py-signal-foreground);
+  font-size: var(--py-font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.hero h2 {
+  max-inline-size: 11ch;
+  overflow-wrap: anywhere;
+  font-size: var(--py-profile-display-size);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.lede {
+  max-inline-size: 58ch;
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-reading-size);
+  line-height: var(--py-line-height-reading);
+}
+
+.actions {
+  align-items: stretch;
+}
+
+.intentCard {
+  align-self: end;
+  background: color-mix(in srgb, var(--py-surface-raised) 88%, transparent);
+}
+
+.intentList {
+  display: grid;
+  margin: 0;
+  gap: 0;
+}
+
+.intentList > div {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.65fr) minmax(0, 1fr);
+  padding-block: var(--py-space-3);
+  gap: var(--py-space-4);
+  border-block-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.intentList dt,
+.intentList dd {
+  margin: 0;
+}
+
+.intentList dt {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+}
+
+.intentList dd {
+  font-size: var(--py-font-size-14);
+  font-weight: 600;
+}
+
+.conceptSection {
+  display: grid;
+  gap: clamp(var(--py-space-8), 6vw, var(--py-space-16));
+}
+
+.sectionHeading {
+  display: grid;
+  max-inline-size: var(--py-profile-content-measure);
+  gap: var(--py-space-4);
+}
+
+.sectionHeading h2 {
+  max-inline-size: 18ch;
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: var(--py-line-height-tight);
+}
+
+.sectionHeading > p:last-child {
+  max-inline-size: 58ch;
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-reading-size);
+  line-height: var(--py-line-height-reading);
+}
+
+.conceptGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr);
+  align-items: start;
+  gap: var(--py-profile-group-gap);
+}
+
+.excerptCard,
+.signal {
+  min-inline-size: 0;
+}
+
+.excerptCard {
+  background: var(--py-surface-raised);
+}
+
+.excerptHeading {
+  display: grid;
+  gap: var(--py-space-4);
+}
+
+.excerptHeading > div {
+  display: grid;
+  gap: var(--py-space-1);
+}
+
+.excerptHeading h3 {
+  overflow-wrap: anywhere;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: var(--py-line-height-tight);
+}
+
+.excerptHeading p,
+.excerptCopy {
+  color: var(--py-text-secondary);
+  line-height: var(--py-line-height-reading);
+}
+
+.excerptHeading p {
+  font-size: var(--py-font-size-12);
+}
+
+.excerptCopy {
+  max-inline-size: 58ch;
+  font-size: var(--py-profile-body-size);
+}
+
+.signal {
+  align-self: center;
+}
+
+.studyFooter {
+  display: flex;
+  padding-block-start: var(--py-space-8);
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--py-space-8);
+  border-block-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.studyFooter > div {
+  display: grid;
+  max-inline-size: 56ch;
+  gap: var(--py-space-3);
+}
+
+.studyFooter > div > p:last-child {
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-reading);
+}
+
+@media (max-width: 48rem) {
+  .hero,
+  .conceptGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .intentCard,
+  .signal {
+    inline-size: 100%;
+  }
+}
+
+@media (max-width: 30rem) {
+  .identityLine,
+  .studyFooter {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .studyLabel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .actions {
+    inline-size: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions > * {
+    inline-size: 100%;
+  }
+
+  .intentList > div {
+    grid-template-columns: 1fr;
+    gap: var(--py-space-1);
+  }
+}

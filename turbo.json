@@ -1,0 +1,36 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    ".node-version",
+    ".npmrc",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.base.json"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "check": {
+      "dependsOn": ["^check"],
+      "outputs": []
+    },
+    "test:unit": {
+      "dependsOn": ["^test:unit"],
+      "outputs": []
+    },
+    "test:integration": {
+      "cache": false,
+      "outputs": []
+    },
+    "test:acceptance": {
+      "cache": false,
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

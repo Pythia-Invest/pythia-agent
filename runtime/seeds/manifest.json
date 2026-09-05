@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "policy": "create-if-absent",
+  "entries": [
+    { "source": "profile/config.yaml", "destination": "hermes-profile/config.yaml", "mode": "0600" },
+    { "source": "profile/SOUL.md", "destination": "hermes-profile/SOUL.md", "mode": "0600" },
+    { "source": "workspace/AGENTS.md", "destination": "workspace/AGENTS.md", "mode": "0600" },
+    { "source": "workspace/DATA_SOURCES.md", "destination": "workspace/DATA_SOURCES.md", "mode": "0600" },
+    { "source": "workspace/README.md", "destination": "workspace/README.md", "mode": "0600" },
+    { "source": "workspace/portfolio/README.md", "destination": "workspace/portfolio/README.md", "mode": "0600" },
+    { "source": "workspace/cases/README.md", "destination": "workspace/cases/README.md", "mode": "0600" },
+    { "source": "workspace/scratch/README.md", "destination": "workspace/scratch/README.md", "mode": "0600" },
+    { "source": "investment-knowledge/README.md", "destination": "knowledge/README.md", "mode": "0600" }
+  ]
+}

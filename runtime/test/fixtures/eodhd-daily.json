@@ -1,0 +1,20 @@
+[
+  {
+    "date": "2025-01-02",
+    "open": 10,
+    "high": 12,
+    "low": 9,
+    "close": 11,
+    "adjusted_close": 10.5,
+    "volume": 1234
+  },
+  {
+    "date": "2025-01-03",
+    "open": 11,
+    "high": 13,
+    "low": 10,
+    "close": 12,
+    "adjusted_close": 11.5,
+    "volume": 2345
+  }
+]

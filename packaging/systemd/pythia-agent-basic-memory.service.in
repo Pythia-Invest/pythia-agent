@@ -1,0 +1,17 @@
+[Unit]
+Description=Pythia Agent Basic Memory
+After=network-online.target
+Wants=network-online.target
+PartOf=pythia-agent.target
+
+[Service]
+Type=simple
+EnvironmentFile=@@BASIC_MEMORY_ENVIRONMENT_FILE@@
+UnsetEnvironment=API_SERVER_KEY EODHD_API_TOKEN EDGAR_IDENTITY
+WorkingDirectory=@@WORKSPACE@@
+ExecStart=@@BASIC_MEMORY@@ mcp --transport streamable-http --host 127.0.0.1 --port 8643 --path /mcp --project production
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=pythia-agent.target

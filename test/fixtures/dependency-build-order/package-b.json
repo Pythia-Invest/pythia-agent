@@ -1,0 +1,11 @@
+{
+  "name": "@pythia/qualification-dependency-order",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:runtime": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@pythia/qualification-contract": "file:./contract-b"
+  }
+}

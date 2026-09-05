@@ -1,0 +1,249 @@
+.py-card {
+  display: grid;
+  gap: var(--py-profile-group-gap);
+  padding: var(--py-space-4);
+  color: var(--py-text-primary);
+  background: var(--py-profile-container-surface);
+  border: var(--py-border-width) solid transparent;
+  border-radius: var(--py-radius-group);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+}
+
+[data-pythia-profile="public"] .py-card {
+  padding: var(--py-space-6);
+}
+
+.py-card[data-variant="outlined"] {
+  background: transparent;
+  border-color: var(--py-border-default);
+}
+
+.py-card[data-variant="subtle"] {
+  background: var(--py-surface-subtle);
+}
+
+.py-card__header,
+.py-card__content,
+.py-card__footer {
+  min-inline-size: 0;
+}
+
+.py-card__title {
+  font-size: var(--py-profile-reading-size);
+  font-weight: 600;
+  line-height: var(--py-line-height-tight);
+}
+
+.py-card__description {
+  margin-block-start: var(--py-space-1);
+  color: var(--py-text-secondary);
+}
+
+.py-card__footer {
+  padding-block-start: var(--py-space-3);
+  border-block-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.py-table__viewport {
+  inline-size: 100%;
+  overflow-x: auto;
+  border: var(--py-border-width) solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+}
+
+.py-table {
+  inline-size: 100%;
+  border-spacing: 0;
+  border-collapse: collapse;
+  color: var(--py-text-primary);
+  background: var(--py-surface-raised);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+  text-align: start;
+}
+
+.py-table__caption {
+  padding: var(--py-space-3) var(--py-space-4);
+  color: var(--py-text-secondary);
+  text-align: start;
+  caption-side: bottom;
+}
+
+.py-table__header {
+  background: var(--py-surface-subtle);
+}
+
+.py-table__row:not(:last-child) {
+  border-block-end: var(--py-border-width) solid var(--py-border-default);
+}
+
+.py-table__body .py-table__row:hover {
+  background: var(--py-interaction-hover);
+}
+
+.py-table__head,
+.py-table__cell {
+  padding: var(--py-space-2) var(--py-space-3);
+  text-align: start;
+  vertical-align: middle;
+}
+
+[data-pythia-profile="public"] :where(.py-table__head, .py-table__cell) {
+  padding: var(--py-space-3) var(--py-space-4);
+}
+
+.py-table__head {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.py-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--py-profile-control-height);
+  block-size: var(--py-profile-control-height);
+  overflow: hidden;
+  color: var(--py-text-secondary);
+  background: var(--py-surface-subtle);
+  border: var(--py-border-width) solid var(--py-border-default);
+  border-radius: 50%;
+  font-size: var(--py-font-size-14);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.py-avatar[data-size="small"] {
+  inline-size: calc(var(--py-profile-control-height) - var(--py-space-1));
+  block-size: calc(var(--py-profile-control-height) - var(--py-space-1));
+  font-size: var(--py-font-size-12);
+}
+
+.py-avatar[data-size="large"] {
+  inline-size: calc(var(--py-profile-control-height) + var(--py-space-4));
+  block-size: calc(var(--py-profile-control-height) + var(--py-space-4));
+  font-size: var(--py-font-size-18);
+}
+
+.py-avatar__image {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.py-avatar__fallback {
+  text-transform: uppercase;
+}
+
+.py-scroll-area {
+  position: relative;
+  overflow: hidden;
+  color: var(--py-text-primary);
+  background: var(--py-surface-raised);
+  border: var(--py-border-width) solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+}
+
+.py-scroll-area__viewport {
+  inline-size: 100%;
+  block-size: 100%;
+  overscroll-behavior: contain;
+}
+
+.py-scroll-area__content {
+  min-inline-size: 100%;
+}
+
+.py-scroll-area__scrollbar {
+  display: flex;
+  padding: 2px;
+  background: var(--py-surface-subtle);
+  touch-action: none;
+  user-select: none;
+}
+
+.py-scroll-area__scrollbar[data-orientation="vertical"] {
+  inline-size: var(--py-space-3);
+}
+
+.py-scroll-area__scrollbar[data-orientation="horizontal"] {
+  flex-direction: column;
+  block-size: var(--py-space-3);
+}
+
+.py-scroll-area__thumb {
+  min-inline-size: 1rem;
+  min-block-size: 1rem;
+  background: var(--py-border-strong);
+  border-radius: var(--py-radius-pill);
+}
+
+.py-scroll-area__corner {
+  background: var(--py-surface-subtle);
+}
+
+.py-separator {
+  flex: none;
+  background: var(--py-border-default);
+}
+
+.py-separator[data-orientation="horizontal"] {
+  inline-size: 100%;
+  block-size: var(--py-border-width);
+}
+
+.py-separator[data-orientation="vertical"] {
+  inline-size: var(--py-border-width);
+  block-size: 100%;
+}
+
+.py-empty-state {
+  display: grid;
+  place-items: center;
+  gap: var(--py-space-2);
+  padding: var(--py-space-8) var(--py-space-4);
+  color: var(--py-text-primary);
+  text-align: center;
+  background: var(--py-surface-subtle);
+  border: var(--py-border-width) dashed var(--py-border-default);
+  border-radius: var(--py-radius-group);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+}
+
+[data-pythia-profile="public"] .py-empty-state {
+  padding-block: var(--py-space-12);
+}
+
+.py-empty-state__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  color: var(--py-text-secondary);
+}
+
+.py-empty-state__icon > svg {
+  inline-size: 2rem;
+  block-size: 2rem;
+}
+
+.py-empty-state__title {
+  font-size: var(--py-profile-reading-size);
+  font-weight: 600;
+}
+
+.py-empty-state__description {
+  max-inline-size: var(--py-profile-content-measure);
+  color: var(--py-text-secondary);
+}
+
+.py-empty-state__action {
+  margin-block-start: var(--py-space-2);
+}

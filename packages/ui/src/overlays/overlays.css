@@ -1,0 +1,317 @@
+.py-overlay-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  background: color-mix(in srgb, var(--py-text-primary) 45%, transparent);
+  opacity: 1;
+  transition: opacity var(--py-motion-standard) var(--py-motion-easing);
+}
+
+.py-overlay-backdrop[data-starting-style],
+.py-overlay-backdrop[data-ending-style] {
+  opacity: 0;
+}
+
+.py-drawer-backdrop {
+  opacity: calc(1 - var(--drawer-swipe-progress, 0));
+}
+
+.py-dialog-viewport {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  overflow-y: auto;
+  place-items: center;
+  padding: var(--py-profile-page-gutter);
+}
+
+.py-dialog-popup,
+.py-drawer-popup,
+.py-floating-popup {
+  border: var(--py-border-width) solid var(--py-border-default);
+  background: var(--py-surface-overlay);
+  color: var(--py-text-primary);
+  box-shadow: 0 1rem 3rem
+    color-mix(in srgb, var(--py-text-primary) 18%, transparent);
+}
+
+.py-dialog-popup {
+  width: min(32rem, 100%);
+  max-height: min(44rem, calc(100dvh - 2 * var(--py-profile-page-gutter)));
+  overflow-y: auto;
+  border-radius: var(--py-radius-group);
+  padding: var(--py-space-6);
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity var(--py-motion-standard) var(--py-motion-easing),
+    transform var(--py-motion-standard) var(--py-motion-easing);
+}
+
+.py-dialog-popup[data-starting-style],
+.py-dialog-popup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.py-overlay-title {
+  margin: 0;
+  color: var(--py-text-primary);
+  font-size: var(--py-profile-reading-size);
+  font-weight: 600;
+  line-height: var(--py-line-height-tight);
+}
+
+.py-overlay-description {
+  margin: var(--py-space-2) 0 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+}
+
+.py-overlay-close {
+  min-block-size: var(--py-profile-control-height);
+  border: 0;
+  border-radius: var(--py-radius-interactive);
+  background: transparent;
+  color: var(--py-text-secondary);
+  cursor: pointer;
+}
+
+.py-overlay-close:hover {
+  background: var(--py-interaction-hover);
+  color: var(--py-text-primary);
+}
+
+.py-overlay-close:active {
+  background: var(--py-interaction-active);
+}
+
+.py-drawer-viewport {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  pointer-events: none;
+}
+
+.py-drawer-popup {
+  position: fixed;
+  display: flex;
+  max-width: 100%;
+  max-height: 100%;
+  flex-direction: column;
+  pointer-events: auto;
+  transition:
+    transform calc(var(--py-motion-standard) * var(--drawer-swipe-strength, 1))
+    var(--py-motion-easing),
+    opacity var(--py-motion-standard) var(--py-motion-easing);
+}
+
+.py-drawer-popup[data-swipe-direction="down"] {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  max-height: calc(100dvh - var(--py-space-4));
+  border-radius: var(--py-radius-group) var(--py-radius-group) 0 0;
+  transform: translateY(
+    calc(
+      var(--drawer-swipe-movement-y, 0px) +
+      var(--drawer-snap-point-offset, 0px)
+    )
+  );
+}
+
+.py-drawer-popup[data-swipe-direction="up"] {
+  top: 0;
+  right: 0;
+  left: 0;
+  max-height: calc(100dvh - var(--py-space-4));
+  border-radius: 0 0 var(--py-radius-group) var(--py-radius-group);
+  transform: translateY(
+    calc(
+      var(--drawer-swipe-movement-y, 0px) +
+      var(--drawer-snap-point-offset, 0px)
+    )
+  );
+}
+
+.py-drawer-popup[data-swipe-direction="left"] {
+  inset: 0 0 0 auto;
+  width: min(28rem, calc(100vw - var(--py-space-4)));
+  border-radius: var(--py-radius-group) 0 0 var(--py-radius-group);
+  transform: translateX(var(--drawer-swipe-movement-x, 0px));
+}
+
+.py-drawer-popup[data-swipe-direction="right"] {
+  inset: 0 auto 0 0;
+  width: min(28rem, calc(100vw - var(--py-space-4)));
+  border-radius: 0 var(--py-radius-group) var(--py-radius-group) 0;
+  transform: translateX(var(--drawer-swipe-movement-x, 0px));
+}
+
+.py-drawer-popup[data-starting-style][data-swipe-direction="down"],
+.py-drawer-popup[data-ending-style][data-swipe-direction="down"] {
+  transform: translateY(100%);
+}
+
+.py-drawer-popup[data-starting-style][data-swipe-direction="up"],
+.py-drawer-popup[data-ending-style][data-swipe-direction="up"] {
+  transform: translateY(-100%);
+}
+
+.py-drawer-popup[data-starting-style][data-swipe-direction="left"],
+.py-drawer-popup[data-ending-style][data-swipe-direction="left"] {
+  transform: translateX(100%);
+}
+
+.py-drawer-popup[data-starting-style][data-swipe-direction="right"],
+.py-drawer-popup[data-ending-style][data-swipe-direction="right"] {
+  transform: translateX(-100%);
+}
+
+.py-drawer-popup[data-swiping] {
+  transition: none;
+  user-select: none;
+}
+
+.py-drawer-content {
+  overflow-y: auto;
+  padding: var(--py-space-6);
+}
+
+.py-drawer-swipe-area {
+  position: fixed;
+  z-index: 49;
+}
+
+.py-drawer-swipe-area[data-swipe-direction="left"] {
+  inset: 0 0 0 auto;
+  width: var(--py-space-6);
+}
+
+.py-drawer-swipe-area[data-swipe-direction="right"] {
+  inset: 0 auto 0 0;
+  width: var(--py-space-6);
+}
+
+.py-drawer-swipe-area[data-swipe-direction="up"] {
+  inset: auto 0 0;
+  height: var(--py-space-6);
+}
+
+.py-drawer-swipe-area[data-swipe-direction="down"] {
+  inset: 0 0 auto;
+  height: var(--py-space-6);
+}
+
+.py-floating-positioner {
+  z-index: 60;
+  outline: 0;
+}
+
+.py-floating-popup {
+  width: max-content;
+  max-width: min(24rem, calc(100vw - 2 * var(--py-space-4)));
+  border-radius: var(--py-radius-group);
+  padding: var(--py-space-4);
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--py-motion-fast) var(--py-motion-easing),
+    transform var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.py-floating-popup[data-starting-style],
+.py-floating-popup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
+.py-floating-arrow {
+  fill: var(--py-surface-overlay);
+  stroke: var(--py-border-default);
+}
+
+.py-tooltip-popup {
+  z-index: 60;
+  max-width: min(18rem, calc(100vw - 2 * var(--py-space-4)));
+  border-radius: var(--py-radius-interactive);
+  background: var(--py-text-primary);
+  color: var(--py-surface-canvas);
+  padding: var(--py-space-1) var(--py-space-2);
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+  opacity: 1;
+  transition: opacity var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.py-tooltip-popup[data-starting-style],
+.py-tooltip-popup[data-ending-style] {
+  opacity: 0;
+}
+
+.py-tooltip-arrow {
+  fill: var(--py-text-primary);
+}
+
+.py-menu-popup {
+  min-width: 12rem;
+  padding: var(--py-space-1);
+}
+
+.py-menu-item {
+  position: relative;
+  display: flex;
+  min-height: var(--py-profile-control-height);
+  align-items: center;
+  gap: var(--py-space-2);
+  border-radius: var(--py-radius-interactive);
+  padding: var(--py-space-2) var(--py-space-3);
+  color: var(--py-text-primary);
+  cursor: default;
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+  outline: 0;
+  user-select: none;
+}
+
+.py-menu-item[data-highlighted] {
+  background: var(--py-interaction-hover);
+}
+
+.py-menu-item[data-disabled] {
+  opacity: var(--py-disabled-opacity);
+  pointer-events: none;
+}
+
+.py-menu-choice-item {
+  padding-inline-start: var(--py-space-8);
+}
+
+.py-menu-indicator {
+  position: absolute;
+  inset-inline-start: var(--py-space-3);
+  display: grid;
+  inline-size: 1rem;
+  place-items: center;
+}
+
+.py-menu-group-label {
+  padding: var(--py-space-2) var(--py-space-3) var(--py-space-1);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+}
+
+.py-menu-separator {
+  height: var(--py-border-width);
+  margin: var(--py-space-1) var(--py-space-2);
+  background: var(--py-border-default);
+}
+
+.py-menu-submenu-trigger::after {
+  margin-inline-start: auto;
+  content: "›";
+}

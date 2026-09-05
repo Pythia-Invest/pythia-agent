@@ -1,0 +1,39 @@
+{
+  "name": "@pythia/ui",
+  "private": true,
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "node ./build.mjs",
+    "check": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run test"
+  },
+  "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@date-fns/tz": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "cmdk": "catalog:",
+    "date-fns": "catalog:",
+    "lucide-react": "catalog:",
+    "react-day-picker": "catalog:",
+    "react-resizable-panels": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

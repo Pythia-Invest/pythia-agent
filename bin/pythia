@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+umask 077
+
+home=${HOME:?HOME is required}
+state_base=${XDG_STATE_HOME:-"$home/.local/state"}
+data_base=${XDG_DATA_HOME:-"$home/.local/share"}
+config_base=${XDG_CONFIG_HOME:-"$home/.config"}
+state_root=${PYTHIA_INSTALL_STATE_HOME:-"$state_base"}/pythia
+runtime_root=${PYTHIA_INSTALL_DATA_HOME:-"$data_base"}/pythia/runtime
+config_root=${PYTHIA_INSTALL_CONFIG_HOME:-"$config_base"}/pythia
+node="$runtime_root/node/22.16.0/bin/node"
+installation="$state_root/installation.json"
+
+[ -x "$node" ] || {
+  printf 'Pythia runtime is missing. Run ./install.sh again from its checkout.\n' >&2
+  exit 1
+}
+[ ! -L "$state_root" ] && [ ! -L "$installation" ] || {
+  printf 'Pythia state and installation metadata must not be symlinks.\n' >&2
+  exit 1
+}
+[ -f "$installation" ] || {
+  printf 'Pythia installation metadata is missing. Run ./install.sh again.\n' >&2
+  exit 1
+}
+checkout=$(
+  "$node" -e '
+    const fs = require("node:fs");
+    const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (value.schema_version !== 1 || typeof value.checkout !== "string") process.exit(1);
+    process.stdout.write(value.checkout);
+  ' "$installation"
+)
+[ -f "$checkout/scripts/install/cli.mjs" ] || {
+  printf 'The managed Pythia checkout is unavailable: %s\n' "$checkout" >&2
+  exit 1
+}
+
+command=${1:-help}
+case "$command" in
+  check-update|status|doctor|paths|auth-status|help)
+    exec env PYTHIA_CHECKOUT="$checkout" "$node" "$checkout/scripts/install/cli.mjs" "$@"
+    ;;
+esac
+
+mkdir -p "$state_root"
+chmod 700 "$state_root"
+[ ! -L "$state_root/lifecycle.lock" ] || {
+  printf 'Pythia lifecycle lock must not be a symlink.\n' >&2
+  exit 1
+}
+: >"$state_root/lifecycle.lock"
+chmod 600 "$state_root/lifecycle.lock"
+exec 9>"$state_root/lifecycle.lock"
+flock -n 9 || {
+  printf 'Another Pythia install, update, rebuild, start, stop, or uninstall is running.\n' >&2
+  exit 1
+}
+exec env PYTHIA_CHECKOUT="$checkout" "$node" "$checkout/scripts/install/cli.mjs" "$@"

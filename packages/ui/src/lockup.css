@@ -1,0 +1,25 @@
+.pythia-lockup {
+  display: inline-block;
+  inline-size: 4.8em;
+  aspect-ratio: 640 / 232;
+  background-image: url("./assets/lockup-full-light-640.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  font-size: inherit;
+  vertical-align: middle;
+}
+
+.pythia-lockup--compact {
+  inline-size: 4.6em;
+  aspect-ratio: 480 / 169;
+  background-image: url("./assets/lockup-compact-light-480.png");
+}
+
+[data-theme="dark"] .pythia-lockup {
+  background-image: url("./assets/lockup-full-dark-640.png");
+}
+
+[data-theme="dark"] .pythia-lockup--compact {
+  background-image: url("./assets/lockup-compact-dark-480.png");
+}

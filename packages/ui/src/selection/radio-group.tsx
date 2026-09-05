@@ -1,0 +1,52 @@
+"use client";
+
+import { Radio as RadioPrimitive } from "@base-ui/react/radio";
+import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group";
+import { mergeStatefulClassName } from "./class-name";
+
+export type RadioGroupProps<Value = unknown> = RadioGroupPrimitive.Props<Value>;
+export type RadioProps<Value = unknown> = Omit<
+  RadioPrimitive.Root.Props<Value>,
+  "children"
+>;
+
+/**
+ * Coordinates a mutually exclusive set of `Radio` controls.
+ *
+ * Generic value, controlled/uncontrolled, disabled, read-only, required, and
+ * orientation attributes pass to Base UI. Semantic tokens adapt its spacing to
+ * Public/Product and colors to light/dark. Base UI owns roving focus, arrow-key
+ * selection, form values, and accessibility. Give the group a visible or ARIA
+ * label; do not encode application validation here.
+ */
+export function RadioGroup<Value>({
+  className,
+  ...props
+}: RadioGroupProps<Value>) {
+  return (
+    <RadioGroupPrimitive
+      className={mergeStatefulClassName("pythia-radio-group", className)}
+      {...props}
+    />
+  );
+}
+
+/**
+ * One option inside a `RadioGroup`.
+ *
+ * Its generic value and disabled/read-only/required props are native Base UI
+ * props. Selected, focus, Public/Product, and light/dark presentation uses
+ * neutral semantic tokens. Base UI supplies radio semantics, hidden form input,
+ * pointer handling, and group keyboard behavior. Put human-readable label text
+ * beside the control; do not use standalone radios outside a group.
+ */
+export function Radio<Value>({ className, ...props }: RadioProps<Value>) {
+  return (
+    <RadioPrimitive.Root
+      className={mergeStatefulClassName("pythia-radio", className)}
+      {...props}
+    >
+      <RadioPrimitive.Indicator className="pythia-radio__indicator" />
+    </RadioPrimitive.Root>
+  );
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@pythia/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=22.16.0 <23",
+    "pnpm": ">=10.20.0 <11"
+  },
+  "scripts": {
+    "build": "pnpm run build:runtime && node tooling/run-turbo.mjs build",
+    "build:runtime": "tsc --project runtime/managed/runner/tsconfig.json",
+    "check": "node tooling/run-turbo.mjs check",
+    "check:boundaries": "node tooling/check-boundaries.mjs",
+    "check:structure": "node tooling/check-structure.mjs",
+    "check:types": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project runtime/managed/runner/tsconfig.json",
+    "dev": "node tooling/run-turbo.mjs dev --parallel",
+    "lint": "biome check .",
+    "test": "pnpm run test:unit && pnpm run test:integration && pnpm run test:acceptance && pnpm run test:runtime",
+    "test:acceptance": "vitest run --config vitest.root.config.mts test/acceptance --passWithNoTests && node tooling/run-turbo.mjs test:acceptance",
+    "test:integration": "vitest run --config vitest.root.config.mts test/integration --passWithNoTests && node tooling/run-turbo.mjs test:integration",
+    "test:runtime": "vitest run --config vitest.root.config.mts runtime/test/eodhd.test.ts && python3 -m unittest discover -s runtime/test/python -p 'test_*.py'",
+    "test:unit": "vitest run --config vitest.root.config.mts test/unit && node tooling/run-turbo.mjs test:unit"
+  },
+  "dependencies": {
+    "eodhd": "catalog:"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/node": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,146 @@
+.py-container {
+  inline-size: 100%;
+  max-inline-size: calc(
+    1.5 *
+    var(--py-profile-content-measure) +
+    2 *
+    var(--py-profile-page-gutter)
+  );
+  margin-inline: auto;
+  padding-inline: var(--py-profile-page-gutter);
+}
+
+.py-container[data-size="reading"] {
+  max-inline-size: calc(
+    var(--py-profile-content-measure) +
+    2 *
+    var(--py-profile-page-gutter)
+  );
+}
+
+.py-container[data-size="wide"] {
+  max-inline-size: calc(
+    2 *
+    var(--py-profile-content-measure) +
+    2 *
+    var(--py-profile-page-gutter)
+  );
+}
+
+.py-container[data-size="full"] {
+  max-inline-size: none;
+}
+
+.py-stack,
+.py-inline {
+  display: flex;
+}
+
+.py-stack {
+  flex-direction: column;
+}
+
+.py-inline {
+  flex-direction: row;
+}
+
+.py-inline[data-wrap="true"] {
+  flex-wrap: wrap;
+}
+
+:where(.py-stack, .py-inline)[data-align="start"] {
+  align-items: flex-start;
+}
+
+:where(.py-stack, .py-inline)[data-align="center"] {
+  align-items: center;
+}
+
+:where(.py-stack, .py-inline)[data-align="end"] {
+  align-items: flex-end;
+}
+
+:where(.py-stack, .py-inline)[data-align="stretch"] {
+  align-items: stretch;
+}
+
+:where(.py-stack, .py-inline)[data-gap="1"] {
+  gap: var(--py-space-1);
+}
+
+:where(.py-stack, .py-inline)[data-gap="2"] {
+  gap: var(--py-space-2);
+}
+
+:where(.py-stack, .py-inline)[data-gap="3"] {
+  gap: var(--py-space-3);
+}
+
+:where(.py-stack, .py-inline)[data-gap="4"] {
+  gap: var(--py-space-4);
+}
+
+:where(.py-stack, .py-inline)[data-gap="6"] {
+  gap: var(--py-space-6);
+}
+
+:where(.py-stack, .py-inline)[data-gap="8"] {
+  gap: var(--py-space-8);
+}
+
+.py-resizable-group {
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  border: var(--py-border-width) solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+}
+
+.py-resizable-panel {
+  min-inline-size: 0;
+  min-block-size: 0;
+  color: var(--py-text-primary);
+  background: var(--py-surface-raised);
+}
+
+.py-resizable-separator {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--py-border-default);
+  outline-offset: -2px;
+  transition: background var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.py-resizable-separator[aria-orientation="vertical"] {
+  inline-size: var(--py-border-width);
+}
+
+.py-resizable-separator[aria-orientation="horizontal"] {
+  block-size: var(--py-border-width);
+}
+
+.py-resizable-separator:hover,
+.py-resizable-separator[data-separator="active"] {
+  background: var(--py-border-strong);
+}
+
+.py-resizable-separator:focus-visible {
+  outline: var(--py-focus-width) solid var(--py-focus-ring);
+}
+
+.py-resizable-grip {
+  position: absolute;
+  z-index: 1;
+  inline-size: var(--py-space-2);
+  block-size: var(--py-space-6);
+  background: var(--py-surface-raised);
+  border: var(--py-border-width) solid var(--py-border-default);
+  border-radius: var(--py-radius-pill);
+}
+
+.py-resizable-separator[aria-orientation="horizontal"] .py-resizable-grip {
+  inline-size: var(--py-space-6);
+  block-size: var(--py-space-2);
+}

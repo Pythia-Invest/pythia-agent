@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "name": "technical-preview-a",
+  "purpose": "A local-only runnable predecessor from before EODHD skill guidance and explicit Desk-to-Basic-Memory startup ordering.",
+  "remove": ["runtime/managed/skills/eodhd-market-data/SKILL.md"],
+  "replace": [
+    {
+      "path": "packaging/systemd/pythia-agent-desk.service.in",
+      "from": "After=pythia-agent-hermes.service pythia-agent-basic-memory.service\nWants=pythia-agent-hermes.service pythia-agent-basic-memory.service",
+      "to": "After=pythia-agent-hermes.service\nWants=pythia-agent-hermes.service"
+    }
+  ]
+}

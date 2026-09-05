@@ -1,0 +1,168 @@
+.composition {
+  display: grid;
+  gap: var(--py-profile-section-gap);
+  color: var(--py-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.section {
+  display: grid;
+  gap: var(--py-profile-group-gap);
+}
+
+.section + .section {
+  padding-block-start: var(--py-profile-section-gap);
+  border-block-start: 1px solid var(--py-border-default);
+}
+
+.sectionHeading {
+  display: grid;
+  max-inline-size: var(--py-profile-content-measure);
+  gap: var(--py-space-2);
+}
+
+.sectionHeading h3,
+.sectionHeading p,
+.claim h4,
+.claim p,
+.judgment h4,
+.judgment p,
+.supportLabel {
+  margin: 0;
+}
+
+.sectionHeading h3 {
+  max-inline-size: 28ch;
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: var(--py-line-height-tight);
+}
+
+.sectionHeading > p:not(.eyebrow) {
+  max-inline-size: 66ch;
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-reading-size);
+  line-height: var(--py-line-height-reading);
+}
+
+.eyebrow,
+.supportLabel {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: var(--py-line-height-ui);
+  text-transform: uppercase;
+}
+
+.claimEvidencePair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  border-block: 1px solid var(--py-border-strong);
+}
+
+.claim,
+.evidence {
+  display: grid;
+  min-inline-size: 0;
+  align-content: start;
+  gap: var(--py-space-3);
+  padding-block: var(--py-space-6);
+}
+
+.claim {
+  padding-inline-end: var(--py-space-8);
+}
+
+.evidence {
+  padding-inline-start: var(--py-space-8);
+  border-inline-start: 1px solid var(--py-border-default);
+  background: var(--py-surface-subtle);
+}
+
+.claim h4,
+.judgment h4 {
+  font-size: var(--py-font-size-18);
+  font-weight: 600;
+  line-height: var(--py-line-height-tight);
+}
+
+.claim > p,
+.judgment > p {
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-reading);
+}
+
+.judgmentGrid,
+.financeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--py-profile-group-gap);
+}
+
+.judgment {
+  display: grid;
+  min-inline-size: 0;
+  align-content: start;
+  gap: var(--py-space-3);
+  padding-block: var(--py-space-4);
+  border-block: 1px solid var(--py-border-default);
+}
+
+.financialValue,
+.marketEvidence {
+  display: grid;
+  min-inline-size: 0;
+  align-content: start;
+  gap: var(--py-space-3);
+}
+
+.marketEvidence {
+  padding-inline-start: var(--py-profile-group-gap);
+  border-inline-start: 1px solid var(--py-border-default);
+}
+
+.marketEvidence > div {
+  display: grid;
+  gap: var(--py-space-3);
+}
+
+.knowledgeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--py-profile-group-gap);
+}
+
+.knowledgeGrid > :last-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 44rem) {
+  .claimEvidencePair,
+  .judgmentGrid,
+  .financeGrid,
+  .knowledgeGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .claim {
+    padding-inline-end: 0;
+  }
+
+  .evidence,
+  .marketEvidence {
+    padding-inline-start: 0;
+    border-block-start: 1px solid var(--py-border-default);
+    border-inline-start: 0;
+  }
+
+  .evidence {
+    padding-inline: var(--py-space-3);
+  }
+
+  .knowledgeGrid > :last-child {
+    grid-column: auto;
+  }
+}

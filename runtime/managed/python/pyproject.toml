@@ -1,0 +1,12 @@
+[project]
+name = "pythia-managed-runtime"
+version = "0.1.0"
+requires-python = "==3.12.*"
+dependencies = [
+  "basic-memory==0.23.2",
+  "edgartools==5.56.0",
+  "fastmcp==4.0.0b1",
+]
+
+[tool.uv]
+constraint-dependencies = ["fastmcp-slim==4.0.0b1"]

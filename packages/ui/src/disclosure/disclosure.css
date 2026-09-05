@@ -1,0 +1,143 @@
+.py-accordion,
+.py-collapsible,
+.py-details {
+  color: var(--py-text-primary);
+}
+
+.py-details {
+  border-block-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.py-collapsible {
+  border: var(--py-border-width) solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+  background: var(--py-surface-raised);
+  overflow: hidden;
+}
+
+.py-accordion-item,
+.py-details {
+  border-block-end: var(--py-border-width) solid var(--py-border-default);
+}
+
+.py-accordion-header {
+  margin: 0;
+}
+
+.py-accordion-trigger,
+.py-collapsible-trigger,
+.py-details-summary {
+  display: flex;
+  width: 100%;
+  min-height: var(--py-profile-control-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--py-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--py-text-primary);
+  cursor: pointer;
+  font-size: var(--py-profile-body-size);
+  font-weight: 600;
+  line-height: var(--py-line-height-ui);
+  padding: var(--py-space-3) var(--py-space-2);
+  text-align: start;
+}
+
+.py-collapsible-trigger {
+  padding-inline: var(--py-space-4);
+}
+
+.py-details-summary::after {
+  flex: none;
+  color: var(--py-text-secondary);
+  content: "+";
+  font-weight: 400;
+  transition: transform var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.py-details[open] > .py-details-summary::after {
+  transform: rotate(45deg);
+}
+
+.py-details-summary:hover {
+  background: var(--py-interaction-hover);
+}
+
+.py-accordion-trigger:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.py-collapsible-trigger:hover {
+  background: var(--py-interaction-hover);
+}
+
+.py-accordion-trigger:active,
+.py-collapsible-trigger:active,
+.py-details-summary:active {
+  background: var(--py-interaction-active);
+}
+
+.py-accordion-trigger[data-disabled] {
+  cursor: not-allowed;
+  opacity: var(--py-disabled-opacity);
+}
+
+.py-collapsible[data-disabled] {
+  opacity: var(--py-disabled-opacity);
+}
+
+.py-collapsible-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.py-accordion-icon,
+.py-collapsible-icon {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--py-text-secondary);
+  transition: transform var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.py-accordion-trigger[data-panel-open] > .py-accordion-icon,
+.py-collapsible-trigger[data-panel-open] > .py-collapsible-icon {
+  transform: rotate(180deg);
+}
+
+.py-accordion-panel,
+.py-collapsible-panel {
+  height: var(--accordion-panel-height, var(--collapsible-panel-height));
+  overflow: hidden;
+  transition: height var(--py-motion-standard) var(--py-motion-easing);
+}
+
+.py-accordion-panel[data-starting-style],
+.py-accordion-panel[data-ending-style],
+.py-collapsible-panel[data-starting-style],
+.py-collapsible-panel[data-ending-style] {
+  height: 0;
+}
+
+.py-accordion-panel-content,
+.py-collapsible-panel-content,
+.py-details-content {
+  padding: 0 var(--py-space-2) var(--py-space-4);
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+}
+
+.py-collapsible-panel-content {
+  border-block-start: var(--py-border-width) solid var(--py-border-default);
+  padding: var(--py-space-4);
+}
+
+.py-details-summary {
+  list-style: none;
+}
+
+.py-details-summary::-webkit-details-marker {
+  display: none;
+}

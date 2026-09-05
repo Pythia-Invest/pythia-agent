@@ -1,0 +1,3 @@
+# Stable installation is intentionally disabled until the release owner adds
+# the first published SSH signing principal and public key.
+# Format: <principal> namespaces="git" <ssh-public-key>

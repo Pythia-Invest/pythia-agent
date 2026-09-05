@@ -1,0 +1,394 @@
+.stage {
+  container-name: product-demo;
+  container-type: inline-size;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--py-text-primary);
+  background: var(--py-surface-canvas);
+  border: var(--py-border-width) solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+}
+
+.eyebrow {
+  margin: 0 0 var(--py-space-1);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: var(--py-line-height-ui);
+  text-transform: uppercase;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  min-block-size: 34rem;
+  min-inline-size: 0;
+}
+
+.stage .sidebar {
+  min-inline-size: 0;
+}
+
+.sidebarHeader {
+  display: grid;
+  gap: var(--py-space-2);
+}
+
+.lockup {
+  font-size: var(--py-font-size-18);
+}
+
+.staticNote {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 500;
+  line-height: var(--py-line-height-ui);
+}
+
+.navSection {
+  min-inline-size: 0;
+}
+
+.navList {
+  min-inline-size: 0;
+}
+
+.workspace {
+  container-name: product-workspace;
+  container-type: inline-size;
+  min-inline-size: 0;
+  background: var(--py-surface-canvas);
+}
+
+.workspaceHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--py-space-4);
+  padding: var(--py-space-4);
+  background: var(--py-surface-raised);
+  border-block-end: var(--py-border-width) solid var(--py-border-default);
+}
+
+.entityHeading {
+  min-inline-size: 0;
+}
+
+.entityHeading h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--py-font-size-18);
+  font-weight: 600;
+  line-height: var(--py-line-height-tight);
+}
+
+.entityHeading > p:last-child {
+  max-inline-size: 60ch;
+  margin: var(--py-space-1) 0 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+}
+
+.workspaceBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.42fr);
+  min-inline-size: 0;
+}
+
+.primaryColumn {
+  min-inline-size: 0;
+}
+
+.snapshotSection,
+.notesSection,
+.conversationColumn {
+  min-inline-size: 0;
+  padding: var(--py-space-6);
+}
+
+.notesSection {
+  border-block-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--py-space-4);
+}
+
+.sectionHeader h5,
+.railHeader h5 {
+  margin: 0;
+  font-size: var(--py-font-size-18);
+  font-weight: 600;
+  line-height: var(--py-line-height-tight);
+}
+
+.sectionDescription {
+  max-inline-size: 58ch;
+  margin: var(--py-space-2) 0 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-14);
+  line-height: var(--py-line-height-ui);
+}
+
+.metricStrip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-inline-size: 0;
+  margin-block-start: var(--py-space-6);
+}
+
+.metricStrip > * {
+  min-inline-size: 0;
+  padding-block: var(--py-space-4);
+}
+
+.metricStrip > * + * {
+  padding-inline-start: var(--py-space-6);
+  border-inline-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.contextList {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+}
+
+.contextList > div {
+  min-inline-size: 0;
+  padding-block: var(--py-space-4);
+}
+
+.contextList > div + div {
+  padding-inline-start: var(--py-space-4);
+  border-inline-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.contextList dt {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 500;
+  line-height: var(--py-line-height-ui);
+}
+
+.contextList dd {
+  margin: var(--py-space-1) 0 0;
+  overflow-wrap: anywhere;
+  font-size: var(--py-font-size-14);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: var(--py-line-height-ui);
+}
+
+.coverageNotice {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.35fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--py-space-6);
+  min-inline-size: 0;
+  padding-block-start: var(--py-space-4);
+  border-block-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.coverageNotice .coverageState {
+  padding-block: 0;
+  border-block-width: 0;
+}
+
+.notesEmptyState {
+  min-block-size: 12rem;
+}
+
+.supportLabel {
+  margin: 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: var(--py-line-height-ui);
+  text-transform: uppercase;
+}
+
+.conversationColumn {
+  align-self: stretch;
+  background: var(--py-surface-subtle);
+  border-inline-start: var(--py-border-width) solid var(--py-border-default);
+}
+
+.railHeader {
+  padding-block-end: var(--py-space-6);
+  border-block-end: var(--py-border-width) solid var(--py-border-default);
+}
+
+.railBody {
+  margin-block-start: var(--py-space-6);
+}
+
+.conversationContext {
+  display: grid;
+  gap: var(--py-space-1);
+  padding-block: var(--py-space-4);
+  border-block: var(--py-border-width) solid var(--py-border-default);
+}
+
+.conversationContext span {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+  line-height: var(--py-line-height-ui);
+}
+
+.conversationContext strong {
+  overflow-wrap: anywhere;
+  font-size: var(--py-font-size-14);
+  font-weight: 600;
+  line-height: var(--py-line-height-ui);
+}
+
+.conversationContext p {
+  margin: 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+}
+
+.conversationInput {
+  color: var(--py-text-primary);
+  background: var(--py-surface-raised);
+}
+
+@container product-workspace (max-width: 62rem) {
+  .workspaceBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .conversationColumn {
+    display: grid;
+    grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+    gap: var(--py-space-6);
+    border-block-start: var(--py-border-width) solid var(--py-border-default);
+    border-inline-start: 0;
+  }
+
+  .railHeader {
+    padding-block-end: 0;
+    border-block-end: 0;
+  }
+
+  .railBody {
+    margin-block-start: 0;
+  }
+}
+
+@container product-workspace (max-width: 50rem) {
+  .contextList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contextList > div:nth-child(3) {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
+
+  .contextList > div:nth-child(n + 3) {
+    border-block-start: var(--py-border-width) solid var(--py-border-default);
+  }
+}
+
+@container product-demo (max-width: 46rem) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    min-block-size: 0;
+  }
+
+  .stage .sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    border-inline-end: 0;
+    border-block-end: var(--py-border-width) solid var(--py-border-default);
+  }
+
+  .sidebarHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sidebarContent {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  .navList {
+    display: grid;
+    grid-auto-columns: max-content;
+    grid-auto-flow: column;
+    overflow-x: auto;
+    padding-block-end: var(--py-space-1);
+  }
+}
+
+@container product-workspace (max-width: 46rem) {
+  .workspaceHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .conversationColumn {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--py-space-4);
+  }
+
+  .railHeader {
+    padding-block-end: var(--py-space-4);
+    border-block-end: var(--py-border-width) solid var(--py-border-default);
+  }
+}
+
+@container product-workspace (max-width: 34rem) {
+  .workspaceHeader,
+  .snapshotSection,
+  .notesSection,
+  .conversationColumn {
+    padding: var(--py-space-3);
+  }
+
+  .sectionHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .metricStrip,
+  .contextList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metricStrip > * + *,
+  .contextList > div + div {
+    padding-inline: 0;
+    border-inline-start: 0;
+  }
+
+  .metricStrip > * + *,
+  .contextList > div + div {
+    border-block-start: var(--py-border-width) solid var(--py-border-default);
+  }
+
+  .coverageNotice {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--py-space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage *,
+  .stage *::before,
+  .stage *::after {
+    scroll-behavior: auto;
+  }
+}

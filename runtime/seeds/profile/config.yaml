@@ -1,0 +1,53 @@
+skills:
+  external_dirs:
+    - "${PYTHIA_MANAGED_SKILLS_DIR}"
+  disabled: []
+plugins:
+  enabled:
+    - pythia
+platform_toolsets:
+  cli:
+    - cronjob
+    - delegation
+    - file
+    - memory
+    - session_search
+    - skills
+    - terminal
+    - todo
+    - vision
+    - web
+  cron:
+    - cronjob
+    - delegation
+    - file
+    - memory
+    - session_search
+    - skills
+    - terminal
+    - todo
+    - vision
+    - web
+  api_server:
+    - cronjob
+    - delegation
+    - file
+    - memory
+    - session_search
+    - skills
+    - terminal
+    - todo
+    - vision
+    - web
+auxiliary:
+  free_only: true
+mcp_servers:
+  basic-memory:
+    url: "${PYTHIA_BASIC_MEMORY_MCP_URL}"
+    enabled: true
+    timeout: 30
+    connect_timeout: 10
+    supports_parallel_tool_calls: false
+    tools:
+      resources: true
+      prompts: true

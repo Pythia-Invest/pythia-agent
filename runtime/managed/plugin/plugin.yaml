@@ -1,0 +1,7 @@
+name: pythia
+version: 0.1.0
+description: Bounded Pythia investment tools and operating context
+license: Apache-2.0
+provides_tools:
+  - pythia_sec_company
+  - pythia_eod_prices

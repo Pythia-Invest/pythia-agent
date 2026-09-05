@@ -1,0 +1,125 @@
+"use client";
+
+import {
+  DayFlag,
+  DayPicker,
+  SelectionState,
+  UI,
+  type Matcher,
+} from "react-day-picker";
+import {
+  calendarDateToUTCDate,
+  type CalendarDateString,
+  parseCalendarDate,
+  utcDateToCalendarDate,
+} from "./calendar-date";
+
+/** Props for the UTC-safe, single-date calendar pattern. */
+export interface CalendarProps {
+  /** Accessible name for the calendar container. */
+  "aria-label"?: string | undefined;
+  className?: string | undefined;
+  /** Disables the entire calendar without changing its selected value. */
+  disabled?: boolean | undefined;
+  /** Calendar dates unavailable for selection. */
+  disabledDates?: readonly CalendarDateString[] | undefined;
+  /** Explicit initial visible month, as a validated calendar date. */
+  month: CalendarDateString;
+  /** Emits a selected calendar date; applications own state and validation. */
+  onValueChange?: ((value: CalendarDateString | undefined) => void) | undefined;
+  /** Explicit date carrying today's presentation; no ambient clock is read. */
+  today: CalendarDateString;
+  /** Controlled selected calendar date. */
+  value?: CalendarDateString | undefined;
+}
+
+const calendarClassNames = {
+  [UI.Root]: "relative w-fit text-sm text-[var(--py-text-primary)]",
+  [UI.Months]: "flex flex-col gap-4 sm:flex-row",
+  [UI.Month]: "space-y-3",
+  [UI.MonthCaption]: "flex h-9 items-center justify-center px-10",
+  [UI.CaptionLabel]: "text-sm font-semibold",
+  [UI.Nav]:
+    "pointer-events-none absolute inset-x-0 top-0 flex h-9 items-center justify-between",
+  [UI.PreviousMonthButton]:
+    "pointer-events-auto inline-flex size-9 items-center justify-center rounded-[var(--py-radius-interactive)] border border-transparent text-[var(--py-text-secondary)] hover:bg-[var(--py-interaction-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] disabled:opacity-[var(--py-disabled-opacity)]",
+  [UI.NextMonthButton]:
+    "pointer-events-auto inline-flex size-9 items-center justify-center rounded-[var(--py-radius-interactive)] border border-transparent text-[var(--py-text-secondary)] hover:bg-[var(--py-interaction-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] disabled:opacity-[var(--py-disabled-opacity)]",
+  [UI.Chevron]: "size-4 fill-current",
+  [UI.MonthGrid]: "w-full border-collapse",
+  [UI.Weekdays]: "flex",
+  [UI.Weekday]:
+    "flex size-9 items-center justify-center text-xs font-medium text-[var(--py-text-secondary)]",
+  [UI.Weeks]: "block",
+  [UI.Week]: "mt-1 flex",
+  [UI.Day]: "relative size-9 p-0 text-center",
+  [UI.DayButton]:
+    "inline-flex size-9 items-center justify-center rounded-[var(--py-radius-interactive)] text-sm hover:bg-[var(--py-interaction-hover)] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)]",
+  [SelectionState.selected]:
+    "[&>button]:bg-[var(--py-action-primary-background)] [&>button]:font-semibold [&>button]:text-[var(--py-action-primary-foreground)] [&>button:hover]:bg-[var(--py-action-primary-background)] [&>button:hover]:text-[var(--py-action-primary-foreground)] [&[data-today]]:after:bg-[var(--py-action-primary-foreground)]",
+  [DayFlag.today]:
+    "after:pointer-events-none after:absolute after:bottom-0.5 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-[var(--py-text-primary)]",
+  [DayFlag.outside]: "text-[var(--py-text-disabled)] opacity-55",
+  [DayFlag.disabled]: "pointer-events-none",
+  [DayFlag.hidden]: "invisible",
+} as const;
+
+/**
+ * Single-date calendar backed entirely by React DayPicker selection mechanics.
+ *
+ * It accepts only validated `YYYY-MM-DD` value/month/today/disabled dates and
+ * emits the same boundary type. Selected, today, disabled, and focus states use
+ * semantic tokens across Public/Product and both themes. DayPicker owns grid,
+ * arrow/PageUp/PageDown keyboard navigation, focus, and selection. Do supply
+ * explicit `today` and `month`; don't pass native Date or add calendar logic.
+ */
+export function Calendar({
+  "aria-label": ariaLabel = "Choose date",
+  className,
+  disabled = false,
+  disabledDates = [],
+  month,
+  onValueChange,
+  today,
+  value,
+}: CalendarProps) {
+  const selectedDate = value
+    ? calendarDateToUTCDate(parseCalendarDate(value))
+    : undefined;
+  const todayDate = calendarDateToUTCDate(parseCalendarDate(today));
+  const initialMonth = calendarDateToUTCDate(parseCalendarDate(month));
+  const unavailableDates = disabledDates.map((date) =>
+    calendarDateToUTCDate(parseCalendarDate(date)),
+  );
+  const disabledMatcher: Matcher | Matcher[] | undefined = disabled
+    ? true
+    : unavailableDates.length > 0
+      ? unavailableDates
+      : undefined;
+
+  return (
+    <DayPicker
+      aria-label={ariaLabel}
+      className={`rounded-[var(--py-radius-group)] border border-[var(--py-border-default)] bg-[var(--py-surface-raised)] p-3 shadow-sm ${disabled ? "opacity-[var(--py-disabled-opacity)]" : ""} ${className ?? ""}`}
+      classNames={{
+        ...calendarClassNames,
+        [DayFlag.disabled]: disabled
+          ? calendarClassNames[DayFlag.disabled]
+          : `${calendarClassNames[DayFlag.disabled]} opacity-[var(--py-disabled-opacity)]`,
+      }}
+      defaultMonth={initialMonth}
+      disableNavigation={disabled}
+      disabled={disabledMatcher}
+      mode="single"
+      onSelect={(nextValue) =>
+        onValueChange?.(
+          nextValue ? utcDateToCalendarDate(nextValue) : undefined,
+        )
+      }
+      selected={selectedDate}
+      showOutsideDays
+      timeZone="UTC"
+      today={todayDate}
+    />
+  );
+}

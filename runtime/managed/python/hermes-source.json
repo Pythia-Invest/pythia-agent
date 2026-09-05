@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "release": "v2026.8.31",
+  "commit": "29112bef099274229cadff79cdff7bf7b99c4b77",
+  "archive_url": "https://api.github.com/repos/NousResearch/hermes-agent/tarball/refs/tags/v2026.8.31",
+  "archive_sha256": "896fce580dd81539abf46a279430eb749fca7dd4217dfdf36d0825231fd27b7b",
+  "install": {
+    "kind": "verified-source",
+    "command": ["uv", "sync", "--frozen", "--extra", "all"],
+    "lock_owner": "upstream-source"
+  }
+}

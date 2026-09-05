@@ -1,0 +1,17 @@
+[Unit]
+Description=Pythia Agent Hermes runtime
+After=network-online.target pythia-agent-basic-memory.service
+Wants=network-online.target pythia-agent-basic-memory.service
+PartOf=pythia-agent.target
+
+[Service]
+Type=simple
+EnvironmentFile=@@HERMES_ENVIRONMENT_FILE@@
+UnsetEnvironment=API_SERVER_KEY EODHD_API_TOKEN EDGAR_IDENTITY
+WorkingDirectory=@@WORKSPACE@@
+ExecStart=@@PYTHON@@ @@SERVICE_LAUNCHER@@ hermes @@HERMES@@ -p pythia gateway run --external-supervisor
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=pythia-agent.target

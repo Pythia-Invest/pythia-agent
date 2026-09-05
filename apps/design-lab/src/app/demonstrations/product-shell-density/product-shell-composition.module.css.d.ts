@@ -1,0 +1,34 @@
+declare const styles: {
+  readonly contextList: string;
+  readonly conversationColumn: string;
+  readonly conversationContext: string;
+  readonly conversationInput: string;
+  readonly coverageNotice: string;
+  readonly coverageState: string;
+  readonly entityHeading: string;
+  readonly eyebrow: string;
+  readonly lockup: string;
+  readonly metricStrip: string;
+  readonly navList: string;
+  readonly navSection: string;
+  readonly notesEmptyState: string;
+  readonly notesSection: string;
+  readonly primaryColumn: string;
+  readonly railBody: string;
+  readonly railHeader: string;
+  readonly sectionDescription: string;
+  readonly sectionHeader: string;
+  readonly shell: string;
+  readonly sidebar: string;
+  readonly sidebarContent: string;
+  readonly sidebarHeader: string;
+  readonly stage: string;
+  readonly staticNote: string;
+  readonly supportLabel: string;
+  readonly snapshotSection: string;
+  readonly workspace: string;
+  readonly workspaceBody: string;
+  readonly workspaceHeader: string;
+};
+
+export default styles;
