@@ -325,7 +325,7 @@ describe("installed packaging", () => {
     expect(calls.slice(0, 3)).toEqual([
       ["disable", "pythia-agent.target"],
       ["is-enabled", "pythia-agent.target"],
-      ["stop", "pythia-agent.target"],
+      ["stop", ...UNIT_NAMES],
     ]);
     expect(calls.map((args) => args.join(" ")).join("\n")).not.toMatch(
       /(^|\s)pythia-(desk|hermes|basic-memory)\.service($|\s)|(^|\s)pythia\.target($|\s)/u,
@@ -358,6 +358,23 @@ describe("installed packaging", () => {
           return "";
         },
       }),
+    ).toThrow("did not stop");
+  });
+
+  it("accepts a failed exit only after systemd confirms every process is gone", () => {
+    const control = (group: string) => (args: string[]) => {
+      if (args[0] === "is-enabled") return "disabled";
+      if (args[0] === "is-active") return "failed";
+      if (args.includes("--property=MainPID")) return "0";
+      if (args.includes("--property=ControlPID")) return "0";
+      if (args.includes("--property=ControlGroup")) return group;
+      return "";
+    };
+    expect(() =>
+      serviceAction("stop", { systemctl: control("") }),
+    ).not.toThrow();
+    expect(() =>
+      serviceAction("stop", { systemctl: control("/remaining-processes") }),
     ).toThrow("did not stop");
   });
 

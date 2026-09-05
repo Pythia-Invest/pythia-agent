@@ -339,11 +339,21 @@ export function serviceAction(action, options = {}) {
         "The owned pythia-agent.target disablement was not confirmed.",
       );
     }
-    control(["stop", "pythia-agent.target"], { allowedStatuses: [0, 5] });
+    // Stopping the target queues PartOf jobs, but does not wait for each one.
+    control(["stop", ...UNIT_NAMES], { allowedStatuses: [0, 5] });
     for (const name of UNIT_NAMES) {
       const state = control(["is-active", name], {
         allowedStatuses: [0, 3, 4],
       });
+      // Native processes can exit nonzero on SIGTERM. A failed unit is stopped
+      // only when systemd reports no main/control process or remaining cgroup.
+      if (
+        state === "failed" &&
+        control(["show", name, "--property=MainPID", "--value"]) === "0" &&
+        control(["show", name, "--property=ControlPID", "--value"]) === "0" &&
+        control(["show", name, "--property=ControlGroup", "--value"]) === ""
+      )
+        continue;
       if (!["inactive", "unknown"].includes(state)) {
         throw new Error(`The owned systemd unit did not stop: ${name}.`);
       }
