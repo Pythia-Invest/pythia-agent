@@ -24,6 +24,17 @@ function systemdQuote(value) {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%")}"`;
 }
 
+// Single-path directives do not use ExecStart's shell-like word parser.
+function systemdPath(value) {
+  if (
+    !value.startsWith("/") ||
+    /[\r\n\0]/u.test(value) ||
+    value.trim() !== value
+  )
+    throw new Error("Unsafe systemd directive path.");
+  return value.replaceAll("%", "%%");
+}
+
 function environmentValue(value) {
   if (/\r|\n|\0/u.test(value))
     throw new Error("Unsafe service environment value.");
@@ -117,16 +128,16 @@ export function serviceEnvironments(paths, executables) {
 
 function replacements(paths, executables) {
   return {
-    "@@HERMES_ENVIRONMENT_FILE@@": systemdQuote(
+    "@@HERMES_ENVIRONMENT_FILE@@": systemdPath(
       paths.serviceEnvironments.hermes,
     ),
-    "@@BASIC_MEMORY_ENVIRONMENT_FILE@@": systemdQuote(
+    "@@BASIC_MEMORY_ENVIRONMENT_FILE@@": systemdPath(
       paths.serviceEnvironments.basicMemory,
     ),
-    "@@DESK_ENVIRONMENT_FILE@@": systemdQuote(paths.serviceEnvironments.desk),
-    "@@CHECKOUT@@": systemdQuote(paths.checkout),
-    "@@DESK_ROOT@@": systemdQuote(join(paths.checkout, "apps", "desk")),
-    "@@WORKSPACE@@": systemdQuote(paths.workspace),
+    "@@DESK_ENVIRONMENT_FILE@@": systemdPath(paths.serviceEnvironments.desk),
+    "@@CHECKOUT@@": systemdPath(paths.checkout),
+    "@@DESK_ROOT@@": systemdPath(join(paths.checkout, "apps", "desk")),
+    "@@WORKSPACE@@": systemdPath(paths.workspace),
     "@@SERVICE_LAUNCHER@@": systemdQuote(paths.serviceLauncher),
     "@@HERMES@@": systemdQuote(executables.hermes),
     "@@BASIC_MEMORY@@": systemdQuote(executables.basicMemory),

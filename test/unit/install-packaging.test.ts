@@ -279,13 +279,13 @@ describe("installed packaging", () => {
     );
     expect(text).not.toContain("PRIVATE_BEARER");
     const hermesUnit = units["pythia-agent-hermes.service"] ?? "";
-    expect(hermesUnit).toContain(`WorkingDirectory="${paths.workspace}"`);
-    expect(hermesUnit).not.toContain(`WorkingDirectory="${paths.checkout}"`);
+    expect(hermesUnit).toContain(`WorkingDirectory=${paths.workspace}\n`);
+    expect(hermesUnit).not.toContain(`WorkingDirectory=${paths.checkout}\n`);
     const deskUnit = units["pythia-agent-desk.service"] ?? "";
     expect(deskUnit).toContain(
-      `WorkingDirectory="${join(paths.checkout, "apps", "desk")}"`,
+      `WorkingDirectory=${join(paths.checkout, "apps", "desk")}\n`,
     );
-    expect(deskUnit).not.toContain(`WorkingDirectory="${paths.checkout}"`);
+    expect(deskUnit).not.toContain(`WorkingDirectory=${paths.checkout}\n`);
     expect(deskUnit).not.toContain(".agents");
   });
 
