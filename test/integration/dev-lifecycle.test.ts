@@ -64,6 +64,7 @@ import {
   waitForNoReuseAddressPortRelease,
 } from "../../scripts/dev/supervisor.mjs";
 import { verifyBasicMemoryNativeProject } from "../../scripts/install/basic-memory-readiness.mjs";
+import { copySourceSnapshot } from "../../tooling/source-snapshot.mjs";
 
 const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
   /\/$/u,
@@ -79,10 +80,15 @@ function temporaryRoot() {
   return root;
 }
 
-function environment(root: string, repo = repositoryRoot) {
+function environment(root: string, repo?: string) {
+  const checkout = repo ?? join(root, "checkout");
+  // Port identity follows the checkout, not XDG roots. Give each fixture its
+  // own source path so running tests never claims an open developer stack.
+  if (repo === undefined && !existsSync(checkout))
+    copySourceSnapshot(repositoryRoot, checkout);
   return {
     ...process.env,
-    PYTHIA_DEV_REPO_ROOT: repo,
+    PYTHIA_DEV_REPO_ROOT: checkout,
     PYTHIA_DEV_CONFIG_HOME: join(root, "config"),
     PYTHIA_DEV_STATE_HOME: join(root, "state"),
     PYTHIA_DEV_DATA_HOME: join(root, "data"),
@@ -1732,7 +1738,7 @@ describe("foreground supervision", () => {
     expect(stackStatus(first.paths).status).toBe("stopped");
     expect(stackStatus(second.paths).status).toBe("running");
     await stopStack(second.paths);
-  });
+  }, 20_000);
 
   it("tears down the full stack when a sibling exits during Hermes restart", async () => {
     const root = temporaryRoot();

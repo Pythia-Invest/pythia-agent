@@ -305,16 +305,20 @@ export function runNativeContractProbe(input, repository = REPOSITORY) {
 }
 
 function git(repository, args) {
-  return run("git", args, {
-    cwd: repository,
-    environment: {
-      ...process.env,
-      GIT_CONFIG_GLOBAL: "/dev/null",
-      GIT_CONFIG_NOSYSTEM: "1",
-      GIT_AUTHOR_DATE: "2026-09-05T00:00:00Z",
-      GIT_COMMITTER_DATE: "2026-09-05T00:00:00Z",
+  return run(
+    "git",
+    ["-c", "maintenance.auto=false", "-c", "gc.auto=0", ...args],
+    {
+      cwd: repository,
+      environment: {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_AUTHOR_DATE: "2026-09-05T00:00:00Z",
+        GIT_COMMITTER_DATE: "2026-09-05T00:00:00Z",
+      },
     },
-  });
+  );
 }
 
 function qualificationRoot(value) {
@@ -941,7 +945,7 @@ try {
       `Refusing cleanup because an owned port is not clear: ${(portProbe.stderr || portProbe.stdout).trim()}`,
     );
   }
-  rmSync(root, { recursive: true });
+  rmSync(root, { recursive: true, maxRetries: 3, retryDelay: 100 });
   rmSync(shortOwner, { recursive: true });
   return {
     cleaned: !existsSync(root) && !existsSync(shortOwner),
