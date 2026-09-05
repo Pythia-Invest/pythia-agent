@@ -6,8 +6,9 @@ you bought or passed. You remain responsible for the judgment and the trade.
 
 This repository is an early technical preview. Its current front doors are
 local feature development and explicit preview installation from a Git checkout.
-There is no stable release yet, and assembled host behavior and usefulness with
-real model, SEC, or EODHD credentials have not been qualified.
+There is no stable release yet. See [supported environments](docs/support.md)
+for the exercised installation and browser surfaces. Research usefulness with
+real model, SEC, or EODHD credentials has not been qualified.
 
 ## Try the Git preview on Ubuntu
 
