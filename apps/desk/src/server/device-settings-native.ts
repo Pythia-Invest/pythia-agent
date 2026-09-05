@@ -72,6 +72,7 @@ function commandEnvironment(environment: NodeJS.ProcessEnv) {
 
 export function lifecycleCommandEnvironment(environment: NodeJS.ProcessEnv) {
   return allowlistedEnvironment(environment, [
+    "DBUS_SESSION_BUS_ADDRESS",
     "HOME",
     "LANG",
     "LC_ALL",
@@ -83,6 +84,7 @@ export function lifecycleCommandEnvironment(environment: NodeJS.ProcessEnv) {
     "XDG_CONFIG_HOME",
     "XDG_DATA_HOME",
     "XDG_STATE_HOME",
+    "XDG_RUNTIME_DIR",
     "HERMES_HOME",
     "PYTHIA_CONFIG_ROOT",
     "PYTHIA_DEV_CACHE_HOME",

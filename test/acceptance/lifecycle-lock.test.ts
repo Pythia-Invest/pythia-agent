@@ -62,7 +62,7 @@ function lockFixture() {
     fakeNode,
     [
       "#!/usr/bin/env node",
-      'const fs = require("node:fs");',
+      'const fs = await import("node:fs");',
       'if (process.argv[2] === "-e") {',
       "  process.stdout.write(process.env.PYTHIA_TEST_CHECKOUT);",
       "  process.exit(0);",

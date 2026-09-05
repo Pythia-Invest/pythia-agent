@@ -321,6 +321,8 @@ describe("device settings", () => {
 
   it("passes only non-secret identity to the lifecycle restart command", () => {
     const environment = lifecycleCommandEnvironment({
+      DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/1000/bus",
+      XDG_RUNTIME_DIR: "/run/user/1000",
       API_SERVER_KEY: "PRIVATE_BEARER",
       EDGAR_IDENTITY: "PRIVATE_IDENTITY",
       EODHD_API_TOKEN: "PRIVATE_TOKEN",
@@ -335,6 +337,8 @@ describe("device settings", () => {
       PYTHIA_STATE_ROOT: "/private/state",
     });
     expect(environment).toEqual({
+      DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/1000/bus",
+      XDG_RUNTIME_DIR: "/run/user/1000",
       HERMES_HOME: "/private/config/hermes",
       NODE_ENV: "test",
       PATH: "/usr/bin",

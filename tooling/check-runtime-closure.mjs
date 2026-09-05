@@ -109,10 +109,10 @@ if (unitPayload.includes("CLOSURE_CANARY_SECRET")) {
   violations.push("systemd: embeds the private service bearer");
 }
 const expectedUnitFragments = [
-  `WorkingDirectory="${paths.workspace}"`,
+  `WorkingDirectory=${paths.workspace}\n`,
   `ExecStart="${executables.python}" "${paths.serviceLauncher}" hermes "${executables.hermes}" -p pythia gateway run --external-supervisor`,
   `ExecStart="${executables.basicMemory}" mcp --transport streamable-http --host 127.0.0.1`,
-  `WorkingDirectory="${join(paths.checkout, "apps", "desk")}"`,
+  `WorkingDirectory=${join(paths.checkout, "apps", "desk")}\n`,
   `ExecStart="${executables.python}" "${paths.serviceLauncher}" desk "${executables.node}" "${executables.next}" start --hostname 127.0.0.1 --port 8644`,
 ];
 for (const fragment of expectedUnitFragments) {
