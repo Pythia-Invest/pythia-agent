@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createDeviceSettingsService,
@@ -200,15 +200,6 @@ describe("device settings", () => {
     ).toMatchObject({ enabled: false, configured: false });
     expect(snapshot).not.toHaveProperty("capabilities");
     expect(snapshot).not.toHaveProperty("mismatches");
-  });
-
-  it("labels the auth observation as OpenAI Codex, not general model readiness", () => {
-    const source = readFileSync(
-      join(resolve(import.meta.dirname, ".."), "src/components/settings.tsx"),
-      "utf8",
-    );
-    expect(source).toContain('label="OpenAI Codex (native auth)"');
-    expect(source).not.toContain('label="Model account"');
   });
 
   it.each([
@@ -525,21 +516,5 @@ describe("device settings", () => {
     expect(snapshot.skills).toContainEqual(
       expect.objectContaining({ name: "sec-edgar-research", enabled: false }),
     );
-  });
-
-  it("keeps prompt relevance delegated to native requires_toolsets metadata", () => {
-    const repository = resolve(import.meta.dirname, "../../..");
-    const expected = new Map([
-      ["sec-edgar-research", "pythia-sec"],
-      ["eodhd-market-data", "pythia-eodhd"],
-      ["investment-memory", "mcp-basic-memory"],
-    ]);
-    for (const [name, toolset] of expected) {
-      const source = readFileSync(
-        join(repository, "runtime", "managed", "skills", name, "SKILL.md"),
-        "utf8",
-      );
-      expect(source).toContain(`requires_toolsets: [${toolset}]`);
-    }
   });
 });

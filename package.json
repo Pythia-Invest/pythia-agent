@@ -16,11 +16,13 @@
     "check:structure": "node tooling/check-structure.mjs",
     "check:types": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project runtime/managed/runner/tsconfig.json",
     "dev": "node tooling/run-turbo.mjs dev --parallel",
-    "lint": "biome check .",
-    "test": "pnpm run test:unit && pnpm run test:integration && pnpm run test:acceptance && pnpm run test:runtime",
-    "test:acceptance": "vitest run --config vitest.root.config.mts test/acceptance --passWithNoTests && node tooling/run-turbo.mjs test:acceptance",
+    "lint": "node tooling/run-biome.mjs",
+    "test": "pnpm run test:fast && pnpm run test:system",
+    "test:fast": "pnpm run test:unit && pnpm run test:integration && pnpm run test:runtime",
     "test:integration": "vitest run --config vitest.root.config.mts test/integration --passWithNoTests && node tooling/run-turbo.mjs test:integration",
+    "test:qualification": "pnpm run build && vitest run --config vitest.root.config.mts test/qualification --passWithNoTests && node tooling/qualification/run-assembled.mjs",
     "test:runtime": "vitest run --config vitest.root.config.mts runtime/test/eodhd.test.ts && python3 -m unittest discover -s runtime/test/python -p 'test_*.py'",
+    "test:system": "vitest run --config vitest.root.config.mts test/system --passWithNoTests",
     "test:unit": "vitest run --config vitest.root.config.mts test/unit && node tooling/run-turbo.mjs test:unit"
   },
   "dependencies": {

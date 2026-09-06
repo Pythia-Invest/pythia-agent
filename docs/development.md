@@ -40,13 +40,18 @@ Run these commands from the repository root:
 ```sh
 just bootstrap # hydrate the exact pnpm lockfile
 just check     # deterministic syntax, structure, dependency, lint, type, build
-just test      # automated tests
+just test      # ordinary pull-request tests, including the platform smoke
+just qualify   # broad install, update, and assembled-runtime qualification
 just audit     # registry/network dependency audit
 ```
 
 `just check` does not run tests or contact a package registry. `just audit` is
 the only registry audit and checks the production dependency surface. Tests
-and CI are credential-free and use synthetic provider fixtures.
+and CI are credential-free and use synthetic provider fixtures. Use
+`just test-fast` for the deterministic behavior suite and `just test-system`
+for the small real-process lifecycle smoke. Qualification runs after changes
+land on `main` and on explicit release-oriented runs; it is intentionally not
+part of every pull request.
 
 ## Foreground stack
 

@@ -20,7 +20,7 @@ const rootFiles = [
   "turbo.json",
   "vitest.root.config.mts",
 ];
-const extension = /\.(?:[cm]?[jt]sx?|jsonc?)$/u;
+const extension = /\.(?:[cm]?[jt]sx?|css|jsonc?)$/u;
 const ignoredDirectories = new Set([
   ".next",
   ".turbo",
@@ -55,7 +55,11 @@ function files(path) {
 }
 
 const targets = [...rootFiles, ...roots.flatMap(files)];
-const result = spawnSync("pnpm", ["exec", "biome", "check", ...targets], {
-  stdio: "inherit",
-});
+const result = spawnSync(
+  "pnpm",
+  ["exec", "biome", "check", "--error-on-warnings", ...targets],
+  {
+    stdio: "inherit",
+  },
+);
 process.exit(result.status ?? 1);

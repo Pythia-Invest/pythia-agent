@@ -28,6 +28,11 @@
       "semicolons": "always"
     }
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -35,6 +40,9 @@
       "suspicious": {
         "noExplicitAny": "error",
         "noTsIgnore": "error"
+      },
+      "style": {
+        "noDescendingSpecificity": "off"
       }
     }
   },

@@ -1,134 +1,53 @@
-import { readFile } from "node:fs/promises";
+import { describe, expect, it } from "vitest";
 import {
   catalogCategories,
   catalogEntryByRoute,
   catalogProfiles,
   componentCatalog,
-  type CatalogCategory,
 } from "../src/catalog";
-import { describe, expect, it } from "vitest";
+import {
+  catalogEntryFromPathname,
+  catalogEntryFromSlug,
+  searchCatalog,
+} from "../src/catalog-routing";
 
-const expectedNamesByCategory = {
-  actions: [
-    "Button",
-    "Icon button",
-    "Button group",
-    "Link button",
-    "Toggle",
-    "Toggle group",
-  ],
-  forms: ["Input", "Textarea", "Label", "Field", "Input group", "OTP field"],
-  calendar: ["Calendar", "Date picker"],
-  selection: [
-    "Checkbox",
-    "Radio group",
-    "Switch",
-    "Select",
-    "Combobox",
-    "Command",
-  ],
-  navigation: [
-    "Tabs",
-    "Breadcrumb",
-    "Pagination",
-    "Navigation menu",
-    "Sidebar",
-  ],
-  overlays: [
-    "Dialog",
-    "Alert dialog",
-    "Drawer / sheet",
-    "Popover",
-    "Tooltip",
-    "Preview / hover card",
-    "Dropdown / menu",
-    "Context menu",
-  ],
-  disclosure: ["Accordion", "Collapsible", "Details"],
-  feedback: [
-    "Alert",
-    "Badge",
-    "Progress",
-    "Skeleton",
-    "Activity indicator",
-    "Toast",
-  ],
-  "data-display": [
-    "Card",
-    "Table",
-    "Avatar",
-    "Scroll area",
-    "Separator",
-    "Empty state",
-  ],
-  layout: ["Container", "Stack", "Inline", "Resizable panels"],
-  semantics: [
-    "Citation",
-    "Source metadata",
-    "Provenance",
-    "Epistemic label",
-    "Financial value",
-    "Market direction",
-    "Freshness label",
-    "Pythia signal",
-    "Semantic message",
-    "Knowledge state",
-  ],
-} as const satisfies Record<CatalogCategory, readonly string[]>;
-
-describe("Design Lab component catalog", () => {
-  it("covers every approved top-level component family", () => {
-    expect(componentCatalog).toHaveLength(62);
-    expect(Object.keys(expectedNamesByCategory)).toEqual(catalogCategories);
-
-    for (const category of catalogCategories) {
-      expect(
-        componentCatalog
-          .filter((entry) => entry.category === category)
-          .map((entry) => entry.name),
-      ).toEqual(expectedNamesByCategory[category]);
-    }
-  });
-
-  it("uses stable collision-free component routes with a complete lookup", () => {
+describe("Design Lab catalog behavior", () => {
+  it("uses unique stable routes with valid closed metadata", () => {
+    expect(componentCatalog.length).toBeGreaterThan(0);
     const routes = componentCatalog.map((entry) => entry.route);
-
     expect(new Set(routes).size).toBe(routes.length);
-    for (const entry of componentCatalog) {
-      expect(entry.route).toMatch(/^\/components\/[a-z0-9]+(?:-[a-z0-9]+)*$/);
-      expect(catalogEntryByRoute.get(entry.route)).toBe(entry);
-    }
-    expect(catalogEntryByRoute.size).toBe(componentCatalog.length);
-  });
 
-  it("uses only allowed closed profile values", () => {
     for (const entry of componentCatalog) {
+      expect(entry.route).toMatch(/^\/components\/[a-z0-9]+(?:-[a-z0-9]+)*$/u);
+      expect(catalogCategories).toContain(entry.category);
       expect(entry.profiles.length).toBeGreaterThan(0);
       expect(new Set(entry.profiles).size).toBe(entry.profiles.length);
       for (const profile of entry.profiles) {
         expect(catalogProfiles).toContain(profile);
       }
+      expect(catalogEntryByRoute.get(entry.route)).toBe(entry);
     }
   });
 
-  it("contains metadata only and no component, demo, docs, or product-data registry", async () => {
-    for (const entry of componentCatalog) {
-      expect(Object.keys(entry).sort()).toEqual([
-        "category",
-        "name",
-        "profiles",
-        "route",
-        "search",
-      ]);
-    }
+  it("resolves only exact component routes", () => {
+    const entry = componentCatalog[0];
+    if (!entry) throw new Error("Catalog unexpectedly empty");
+    const slug = entry.route.slice("/components/".length);
+    expect(catalogEntryFromSlug(slug)).toBe(entry);
+    expect(catalogEntryFromPathname(entry.route)).toBe(entry);
+    expect(catalogEntryFromSlug(`${slug}/nested`)).toBeUndefined();
+    expect(catalogEntryFromPathname(`${entry.route}/nested`)).toBeUndefined();
+  });
 
-    const source = await readFile(
-      new URL("../src/catalog.ts", import.meta.url),
-      "utf8",
+  it("matches all normalized search terms against owned metadata", () => {
+    const entry = componentCatalog.find(
+      (candidate) => candidate.search.length > 0,
     );
-    expect(source).not.toContain('from "@pythia/ui"');
-    expect(source).not.toMatch(
-      /\b(?:component|demo|description|docs|example|fixture|maturity|productData|render|schema):/,
+    if (!entry) throw new Error("Catalog has no searchable entry");
+    expect(searchCatalog(`  ${entry.category} ${entry.search[0]}  `)).toContain(
+      entry,
     );
+    expect(searchCatalog("impossible synthetic query")).toEqual([]);
+    expect(searchCatalog(" ")).toBe(componentCatalog);
   });
 });

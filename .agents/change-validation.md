@@ -4,10 +4,10 @@ Use the cheapest current evidence that can disprove a change:
 
 1. run the smallest focused deterministic check or test;
 2. run affected workspace checks and tests;
-3. run `just check` for shared code or tooling and `just test` for the complete
-   automated suite; and
-4. qualify an assembled runtime seam only when unit-level evidence cannot prove
-   it.
+3. run `just check` for shared code or tooling and `just test` for the ordinary
+   pull-request suite; and
+4. run `just qualify` only for broad installation, update, or assembled-runtime
+   evidence that focused tests cannot prove.
 
 Keep network/registry auditing in `just audit`. Provider calls, credentials,
 external writes, host services, destructive actions, and long-lived processes

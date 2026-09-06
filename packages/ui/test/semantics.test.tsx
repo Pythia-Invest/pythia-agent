@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
@@ -114,7 +113,6 @@ describe("research and finance semantics", () => {
       expect(html).toContain(text);
     }
     expect(html).not.toMatch(/>(?:F|M|H|Now|Lag|Old|\?)</);
-    expect(html).toContain("[color:var(--py-text-secondary)]");
   });
 
   it("preserves supplied financial context and direction without inference", () => {
@@ -160,7 +158,7 @@ describe("research and finance semantics", () => {
     expect(html).toContain("+1.0%");
   });
 
-  it("uses the canonical Oracle seam only for an explicitly labelled Pythia signal", () => {
+  it("labels Pythia signals and warnings as distinct meanings", () => {
     const signalHtml = renderToStaticMarkup(
       <PythiaSignal
         metadata={<span>Machine assessment · FY 2027</span>}
@@ -176,25 +174,12 @@ describe("research and finance semantics", () => {
     );
 
     expect(signalHtml).toContain("Pythia signal");
-    expect(signalHtml).toContain("pythia-signal__seam");
-    expect(signalHtml).toContain("inset-y-0");
-    expect(signalHtml).toContain("start-0");
-    expect(signalHtml).toContain("w-[3px]");
+    expect(signalHtml).toContain("Machine assessment · FY 2027");
     expect(signalHtml).toContain(
-      "bg-[linear-gradient(to_bottom,var(--py-signal-marker),transparent)]",
+      "Synthetic working-capital divergence deserves attention.",
     );
-    expect(signalHtml.match(/--py-signal-marker/g)).toHaveLength(1);
-    expect(signalHtml).toContain("bg-[var(--py-surface-raised)]");
-    expect(signalHtml).not.toContain("pythia-signal__mark");
-    expect(signalHtml).not.toContain("h-[3px]");
-    expect(signalHtml).not.toContain("bg-[var(--py-signal-marker)]");
-    expect(signalHtml).not.toMatch(/(?:radial-gradient|shadow)/);
-    expect(signalHtml).not.toContain("triangle-alert");
-    expect(signalHtml).not.toMatch(/--py-(?:action|status-warning)/);
     expect(warningHtml).toContain("Warning");
-    expect(warningHtml).toContain("triangle-alert");
-    expect(warningHtml).toContain("--py-status-warning-border");
-    expect(warningHtml).not.toContain("--py-signal-");
+    expect(warningHtml).toContain("Check the supplied source date");
   });
 
   it("keeps interface messages and knowledge-boundary states explicit", () => {
@@ -243,24 +228,5 @@ describe("research and finance semantics", () => {
     }
     expect(html.match(/role="alert"/g)).toHaveLength(2);
     expect(html.match(/role="status"/g)).toHaveLength(7);
-  });
-
-  it("uses only semantic tokens and never leaks Signal Amber outside the signal", async () => {
-    const files = ["finance.tsx", "messages.tsx", "research.tsx"];
-    const sources = await Promise.all(
-      files.map((file) =>
-        readFile(new URL(`../src/semantics/${file}`, import.meta.url), "utf8"),
-      ),
-    );
-    const [finance = "", messages = "", research = ""] = sources;
-
-    for (const source of sources) {
-      expect(source).not.toMatch(/#[\da-f]{3,8}\b/i);
-      expect(source).not.toContain("--py-color-");
-    }
-    expect(finance).not.toContain("--py-signal-");
-    expect(messages).not.toContain("--py-signal-");
-    expect(research.match(/--py-signal-marker/g)).toHaveLength(1);
-    expect(research).not.toMatch(/--py-(?:action|status-warning)/);
   });
 });

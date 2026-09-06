@@ -29,6 +29,16 @@ function assertRelative(path) {
   return path;
 }
 
+function existsInWorkingTree(repository, path) {
+  try {
+    lstatSync(join(repository, path));
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 function gitSourcePaths(repository) {
   const output = execFileSync(
     "git",
@@ -48,6 +58,7 @@ function gitSourcePaths(repository) {
     .split("\0")
     .filter(Boolean)
     .map(assertRelative)
+    .filter((path) => existsInWorkingTree(repository, path))
     .sort((left, right) => left.localeCompare(right, "en"));
 }
 
