@@ -118,7 +118,10 @@ Once the checkout is dirty, `pythia update` fails closed, while
 `pythia rebuild` remains available to activate the chosen local source. Commit
 the fork and reconcile upstream changes yourself, or restore a clean recorded
 `main` checkout by a method that preserves any work you want to keep. Pythia
-deliberately has no automatic conflict resolver or worktree manager.
+deliberately has no automatic conflict resolver, and its installed lifecycle
+does not manage worktrees. The source repository has contributor-only worktree
+recipes; `just worktree` wraps native Git for sibling development checkouts and
+is never invoked by install, rebuild, update, or runtime commands.
 
 Prefer local Hermes skills, plugins, and profile configuration when a native
 extension is sufficient. They survive ordinary updates without modifying the

@@ -20,6 +20,25 @@ just dev-init
 just dev
 ```
 
+For sibling worktrees managed under one predictable directory, run these from
+the main checkout:
+
+```sh
+just worktree <branch>        # create or attach an existing local/remote branch
+just worktree-list            # list every registered worktree
+just worktree-remove <branch> # remove its clean managed worktree
+just worktree-prune           # offer to remove clean worktrees with no remote branch
+```
+
+Managed worktrees default to `~/worktrees-pythia-agent`. Set
+`PYTHIA_AGENT_WORKTREE_BASE` to another absolute or `~`-prefixed directory when
+needed. The helper wraps native Git for contributor checkouts only; it is not
+part of installation, updating, or the Pythia runtime. Predictable sibling
+paths support the repository's worktree-isolated development stacks and make
+cleanup targetable. Direct Git commands remain supported. Runtime-integrated
+worktree management and automatic branch or conflict cleanup remain outside the
+product because source checkout policy belongs to the contributor.
+
 `just dev-init` downloads and hydrates the exact pinned Hermes, Basic Memory,
 EdgarTools, and EODHD dependencies. `just dev` prints the local Desk URL and
 runs the stack in the foreground; it does not install services, enable linger,
@@ -264,5 +283,5 @@ Working plans, interviews, test runbooks, results, and raw receipts belong in
 ignored `.private/plans/<branch>/`. Before material work is complete, record
 accepted product or architecture decisions in public documentation or an ADR,
 including context, ruling, rationale, consequences, and relevant rejected
-alternatives. Ordinary development uses native Git worktrees directly; Pythia
-does not add a worktree manager.
+alternatives. The contributor-only worktree recipes wrap native Git for managed
+sibling checkouts; they do not enter Pythia's runtime or installed lifecycle.

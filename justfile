@@ -4,6 +4,22 @@ export NEXT_TELEMETRY_DISABLED := "1"
 default:
     @just --list
 
+# Create or attach a managed sibling worktree for an existing branch.
+worktree branch:
+    node scripts/worktree.mjs create {{branch}}
+
+# List this repository's registered Git worktrees.
+worktree-list:
+    node scripts/worktree.mjs list
+
+# Remove a clean managed sibling worktree for a branch.
+worktree-remove branch:
+    node scripts/worktree.mjs remove {{branch}}
+
+# Find clean managed worktrees whose remote branch is gone and offer to remove them.
+worktree-prune:
+    node scripts/worktree.mjs prune
+
 # Hydrate exactly the committed JavaScript development dependency graph.
 bootstrap:
     pnpm install --frozen-lockfile
@@ -30,6 +46,10 @@ test:
 # The only registry/network dependency check.
 audit:
     pnpm audit --prod --audit-level high
+
+# Run the repository's focused Biome check.
+lint:
+    node tooling/run-biome.mjs
 
 # Prepare the exact pinned runtimes and this worktree's isolated native state.
 dev-init:
@@ -79,13 +99,25 @@ dev-paths:
 ai-sync:
     node scripts/ai-sync.mjs
 
+# Check the installed Claude skill projection without changing it.
+check-skills:
+    node scripts/ai-sync.mjs --check
+
 # Project canonical builder roles into ignored Claude Code and Codex files.
 sync-agents:
     node scripts/sync-agents.mjs
 
+# Check the installed Claude and Codex role projections without changing them.
+check-agents:
+    node scripts/sync-agents.mjs --check
+
 # Project canonical builder rules into ignored Claude Code and Cursor files.
 sync-rules:
     node scripts/sync-rules.mjs
+
+# Check the installed Claude and Cursor rule projections without changing them.
+check-rules:
+    node scripts/sync-rules.mjs --check
 
 # Project every adapter needed by locally installed builder tools.
 builder-sync: ai-sync sync-agents sync-rules
