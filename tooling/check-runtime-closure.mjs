@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
 import { runtimeEnvironment } from "../scripts/dev/environment.mjs";
 import {
@@ -13,59 +13,15 @@ import {
 } from "../scripts/install/systemd.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
 
-const root = resolve(import.meta.dirname, "..");
-const violations = [];
-const forbiddenSourcePrefixes = [
-  ".agents/",
-  "apps/design-lab/",
-  "docs/",
-  "runtime/test/",
-  "test/",
-];
-const personalName = ["ra", "lph"].join("");
-const privateRepository = ["pythia", "-invest"].join("");
-const forbiddenPayloadText = [
-  `/Users/${personalName}/${privateRepository}`,
-  `/home/${personalName}/`,
-  "plans/main",
-  "grilling-",
-  "Design Lab",
-  ".agents/",
-  "runtime/test/fixtures",
-];
-
-function walk(path) {
-  if (!existsSync(path)) return [];
-  return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
-    const child = join(path, entry.name);
-    return entry.isDirectory() ? walk(child) : entry.isFile() ? [child] : [];
-  });
-}
-
-function normalized(path) {
-  return path.split(sep).join("/");
-}
-
-function isBuilderInstructionSource(sourcePath) {
-  if (sourcePath === "AGENTS.md" || sourcePath.startsWith(".agents/")) {
-    return true;
-  }
-  return (
-    sourcePath.endsWith("/AGENTS.md") &&
-    !sourcePath.startsWith("runtime/seeds/") &&
-    !sourcePath.startsWith("runtime/managed/skills/")
-  );
-}
-
-function rejectSourcePath(path, owner) {
-  const sourcePath = normalized(relative(root, path));
-  if (
-    isBuilderInstructionSource(sourcePath) ||
-    forbiddenSourcePrefixes.some((prefix) => sourcePath.startsWith(prefix))
-  ) {
-    violations.push(`${owner}: reaches development-only source ${sourcePath}`);
-  }
-}
+import {
+  forbiddenPayloadText,
+  isBuilderInstructionSource,
+  normalized,
+  rejectSourcePath,
+  root,
+  violations,
+  walk,
+} from "./runtime-closure-policy.mjs";
 
 const syntheticEnvironment = {
   HOME: "/home/pythia-test",

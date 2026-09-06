@@ -1,0 +1,261 @@
+.composition-demo {
+  display: grid;
+  gap: var(--py-profile-section-gap);
+}
+
+.composition-demo-header {
+  display: grid;
+  max-inline-size: var(--py-profile-content-measure);
+  gap: var(--py-space-3);
+}
+
+.composition-demo-header h2,
+.composition-demo-header p {
+  margin: 0;
+}
+
+.composition-demo-header h2 {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.composition-demo-header
+  > p:not(.composition-demo-kind, .composition-demo-fixture-notice) {
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+}
+
+.composition-demo-kind {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.composition-demo-fixture-notice {
+  padding: var(--py-space-3) var(--py-space-4);
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+  background: var(--py-surface-subtle);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+}
+
+.composition-demo-body {
+  min-block-size: 12rem;
+  padding-block-start: var(--py-space-6);
+  border-block-start: 1px solid var(--py-border-default);
+}
+
+.catalog-specimen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: var(--py-profile-group-gap);
+}
+
+.catalog-specimen {
+  display: grid;
+  min-inline-size: 0;
+  padding: clamp(1rem, 3vw, 2rem);
+  align-content: start;
+  gap: var(--py-space-4);
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+  background: var(--py-surface-raised);
+}
+
+.catalog-specimen > h2 {
+  margin: 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.catalog-specimen-stage {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--py-space-4);
+  overflow-x: auto;
+  padding: calc(var(--py-focus-width) + 2px);
+}
+
+.catalog-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--py-space-3);
+}
+
+.catalog-demo-note,
+.catalog-panel-copy {
+  margin: 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+}
+
+.catalog-demo-icon {
+  display: inline-grid;
+  min-inline-size: 1em;
+  place-items: center;
+  font-weight: 700;
+}
+
+.catalog-field-list,
+.catalog-choice-list,
+.catalog-feedback-list,
+.catalog-separator-stack {
+  display: grid;
+  gap: var(--py-space-3);
+}
+
+.catalog-choice-row {
+  display: flex;
+  align-items: center;
+  gap: var(--py-space-3);
+  color: var(--py-text-primary);
+  font-size: var(--py-font-size-14);
+}
+
+.catalog-choice-row[data-disabled] > [data-disabled-label] {
+  opacity: var(--py-disabled-opacity);
+}
+
+.catalog-date-picker {
+  inline-size: min(100%, 24rem);
+}
+
+.catalog-panel-copy,
+.catalog-layout-block,
+.catalog-resizable-panel {
+  padding: var(--py-space-4);
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-interactive);
+  background: var(--py-surface-subtle);
+}
+
+.catalog-menu-links {
+  display: grid;
+  min-inline-size: 10.5rem;
+  gap: var(--py-space-1);
+}
+
+.catalog-sidebar-stage {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.65fr) minmax(12rem, 1fr);
+  min-block-size: 20rem;
+  overflow: hidden;
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+}
+
+.catalog-sidebar-stage > .pythia-sidebar {
+  min-block-size: 100%;
+}
+
+.catalog-overlay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--py-space-3);
+}
+
+.catalog-trigger {
+  display: inline-flex;
+  min-block-size: var(--py-profile-control-height);
+  padding-inline: var(--py-space-4);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-interactive);
+  background: var(--py-surface-raised);
+  color: var(--py-text-primary);
+  font: inherit;
+  font-size: var(--py-font-size-14);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.catalog-trigger:hover {
+  background: var(--py-interaction-hover);
+}
+
+.catalog-trigger:focus-visible,
+.catalog-preview-link:focus-visible,
+.catalog-context-target:focus-visible {
+  outline: var(--py-focus-width) solid var(--py-focus-ring);
+  outline-offset: 2px;
+}
+
+.catalog-trigger-primary {
+  border-color: var(--py-action-primary-background);
+  background: var(--py-action-primary-background);
+  color: var(--py-action-primary-foreground);
+  transition:
+    opacity var(--py-motion-fast) var(--py-motion-easing),
+    translate var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.catalog-trigger-primary:hover {
+  background: var(--py-action-primary-background);
+  color: var(--py-action-primary-foreground);
+  opacity: 0.85;
+}
+
+.catalog-trigger-primary:active {
+  background: var(--py-action-primary-background);
+  color: var(--py-action-primary-foreground);
+  opacity: 0.75;
+  translate: 0 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-trigger-primary:active {
+    translate: none;
+  }
+}
+
+.catalog-trigger-danger {
+  border-color: var(--py-status-error-border);
+  background: var(--py-status-error-surface);
+  color: var(--py-status-error-foreground);
+  transition:
+    opacity var(--py-motion-fast) var(--py-motion-easing),
+    translate var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.catalog-trigger-danger:hover {
+  border-color: var(--py-status-error-border);
+  background: var(--py-status-error-surface);
+  color: var(--py-status-error-foreground);
+  opacity: 0.85;
+}
+
+.catalog-trigger-danger:active {
+  border-color: var(--py-status-error-border);
+  background: var(--py-status-error-surface);
+  color: var(--py-status-error-foreground);
+  opacity: 0.75;
+  translate: 0 1px;
+}
+
+.catalog-preview-link {
+  inline-size: fit-content;
+  justify-self: start;
+  color: var(--py-text-primary);
+  font-weight: 600;
+  text-decoration-color: var(--py-border-strong);
+  text-underline-offset: 0.2em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-trigger-danger:active {
+    translate: none;
+  }
+}

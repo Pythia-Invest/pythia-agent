@@ -1,0 +1,240 @@
+.lab-action.primary {
+  border-color: var(--py-action-primary-background);
+  background: var(--py-action-primary-background);
+  color: var(--py-action-primary-foreground);
+}
+
+.lab-meaning-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  overflow: hidden;
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+  background: var(--py-surface-raised);
+}
+
+.lab-signal-specimen {
+  min-block-size: 20rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  align-content: space-between;
+  gap: clamp(2.5rem, 6vw, 5rem);
+}
+
+.lab-signal-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--py-space-4);
+}
+
+.lab-warning-demo {
+  display: grid;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  align-content: center;
+  gap: var(--py-space-4);
+  border-inline-start: 1px solid var(--py-border-default);
+  background: var(--py-surface-subtle);
+}
+
+.lab-warning-notice {
+  display: flex;
+  padding: var(--py-space-4);
+  align-items: flex-start;
+  gap: var(--py-space-3);
+  border: 1px solid var(--py-status-warning-border);
+  border-radius: var(--py-radius-interactive);
+  background: var(--py-status-warning-surface);
+}
+
+[data-theme="dark"] .lab-warning-notice {
+  background: color-mix(
+    in srgb,
+    var(--py-status-warning-surface) 35%,
+    var(--py-surface-raised)
+  );
+}
+
+.lab-warning-icon {
+  display: grid;
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  place-items: center;
+  color: var(--py-status-warning-foreground);
+}
+
+.lab-warning-icon svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.lab-warning-notice > div {
+  display: grid;
+  gap: var(--py-space-1);
+}
+
+.lab-warning-notice strong {
+  color: var(--py-status-warning-foreground);
+  font-size: var(--py-font-size-14);
+  font-weight: 700;
+}
+
+.lab-warning-notice p {
+  margin: 0;
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+}
+
+.lab-warning-notice p {
+  color: var(--py-text-primary);
+}
+
+.lab-semantic-secondary-heading {
+  padding-block-start: var(--py-space-4);
+}
+
+.lab-semantic-secondary-heading h3 {
+  margin: 0;
+  font-size: var(--py-profile-reading-size);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.lab-semantic-reference {
+  border-block: 1px solid var(--py-border-default);
+}
+
+.lab-semantic-group {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.45fr) minmax(0, 1fr);
+  padding-block: var(--py-space-4);
+  align-items: center;
+  gap: var(--py-space-6);
+}
+
+.lab-semantic-group + .lab-semantic-group {
+  border-block-start: 1px solid var(--py-border-default);
+}
+
+.lab-semantic-group-heading {
+  display: grid;
+  gap: var(--py-space-1);
+}
+
+.lab-semantic-group-heading h3,
+.lab-semantic-group-heading p {
+  margin: 0;
+}
+
+.lab-semantic-group-heading h3 {
+  font-size: var(--py-font-size-14);
+  font-weight: 700;
+}
+
+.lab-semantic-group-heading p {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+}
+
+.lab-semantic-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--py-space-3) var(--py-space-6);
+}
+
+.lab-semantic-swatch {
+  display: flex;
+  min-inline-size: 7rem;
+  align-items: flex-start;
+  gap: var(--py-space-2);
+}
+
+.lab-semantic-cue {
+  flex: none;
+  min-inline-size: 1.25rem;
+  font-size: var(--py-font-size-14);
+  font-weight: 700;
+  text-align: center;
+}
+
+.lab-semantic-swatch > span:last-child {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.lab-semantic-swatch strong {
+  font-size: var(--py-font-size-12);
+  font-weight: 700;
+}
+
+.lab-semantic-swatch small {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+}
+
+.lab-type-specimen {
+  display: grid;
+  gap: var(--py-space-4);
+}
+
+.lab-type-display {
+  font-size: var(--py-profile-display-size);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.lab-type-reading {
+  max-inline-size: var(--py-profile-content-measure);
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-reading-size);
+  line-height: var(--py-line-height-reading);
+}
+
+.lab-type-ui {
+  font-size: var(--py-profile-body-size);
+  font-weight: 600;
+}
+
+@media (max-width: 54rem) {
+  .lab-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lab-controls {
+    inline-size: 100%;
+    justify-content: flex-start;
+  }
+
+  .lab-meaning-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .lab-warning-demo {
+    border-block-start: 1px solid var(--py-border-default);
+    border-inline-start: 0;
+  }
+}
+
+@media (max-width: 34rem) {
+  .lab-control-viewport {
+    display: none;
+  }
+
+  .lab-segments button {
+    padding-inline: 0.45rem;
+  }
+
+  .lab-semantic-group {
+    grid-template-columns: 1fr;
+    gap: var(--py-space-3);
+  }
+
+  .lab-signal-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--py-space-1);
+  }
+}

@@ -1,0 +1,254 @@
+.catalog-shell {
+  min-block-size: 100vh;
+  background:
+    radial-gradient(
+      circle at 92% 4%,
+      var(--py-profile-atmosphere),
+      transparent 24rem
+    ),
+    var(--py-surface-canvas);
+  color: var(--py-text-primary);
+}
+
+.catalog-toolbar {
+  position: sticky;
+  z-index: 20;
+  inset-block-start: 0;
+  display: flex;
+  min-block-size: 4.5rem;
+  padding: 0.65rem clamp(0.75rem, 2vw, 1.5rem);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--py-space-4);
+  border-block-end: 1px solid var(--py-border-default);
+  background: var(--lab-control-surface);
+  backdrop-filter: blur(18px);
+}
+
+.catalog-brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--py-space-3);
+  color: var(--py-text-primary);
+  text-decoration: none;
+}
+
+.catalog-brand .pythia-lockup {
+  font-size: 1.45rem;
+}
+
+.catalog-brand-label {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.catalog-select-demo {
+  inline-size: min(100%, 22rem);
+}
+
+.catalog-body {
+  display: grid;
+  grid-template-columns: 17rem minmax(0, 1fr);
+  min-block-size: calc(100vh - 4.5rem);
+}
+
+.catalog-navigation {
+  min-inline-size: 0;
+  border-inline-end: 1px solid var(--py-border-default);
+  background: var(--py-surface-raised);
+}
+
+.catalog-navigation-disclosure > summary {
+  display: none;
+}
+
+.catalog-navigation-disclosure {
+  display: none;
+}
+
+.catalog-navigation-panel {
+  position: sticky;
+  inset-block-start: 4.5rem;
+  display: grid;
+  max-block-size: calc(100vh - 4.5rem);
+  padding: var(--py-space-4);
+  gap: var(--py-space-4);
+  overflow: auto;
+}
+
+.catalog-search {
+  display: grid;
+  gap: var(--py-space-2);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+}
+
+.catalog-search input {
+  min-block-size: var(--py-profile-control-height);
+  inline-size: 100%;
+  padding-inline: var(--py-space-3);
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-interactive);
+  outline: none;
+  background: var(--py-surface-subtle);
+  color: var(--py-text-primary);
+  font: inherit;
+  font-weight: 400;
+}
+
+.catalog-search input:focus-visible {
+  border-color: var(--py-border-strong);
+  outline: var(--py-focus-width) solid var(--py-focus-ring);
+  outline-offset: 2px;
+}
+
+.catalog-destinations {
+  display: grid;
+  gap: var(--py-space-4);
+}
+
+.catalog-nav-group {
+  display: grid;
+  gap: var(--py-space-1);
+}
+
+.catalog-nav-group h2 {
+  margin: 0;
+  padding-inline: var(--py-space-2);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.catalog-nav-group ul {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 0.1rem;
+  list-style: none;
+}
+
+.catalog-nav-group a,
+.catalog-foundation-link {
+  display: flex;
+  min-block-size: 2.15rem;
+  padding-inline: var(--py-space-2);
+  align-items: center;
+  border-radius: var(--py-radius-control);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-14);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.catalog-nav-group a:hover,
+.catalog-foundation-link:hover {
+  background: var(--py-interaction-hover);
+  color: var(--py-text-primary);
+}
+
+.catalog-nav-group a[aria-current="page"] {
+  background: var(--py-interaction-active);
+  color: var(--py-text-primary);
+  font-weight: 600;
+}
+
+.catalog-composition-navigation {
+  padding-block-end: var(--py-space-4);
+  border-block-end: 1px solid var(--py-border-default);
+}
+
+.catalog-composition-navigation p {
+  margin: 0;
+  padding-inline: var(--py-space-2);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  line-height: var(--py-line-height-ui);
+}
+
+.catalog-foundation-link {
+  border-block-start: 1px solid var(--py-border-default);
+  border-radius: 0;
+}
+
+.catalog-no-results {
+  margin: 0;
+  padding: var(--py-space-4) var(--py-space-2);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-14);
+}
+
+.catalog-main {
+  min-inline-size: 0;
+  padding: clamp(1.25rem, 4vw, 3.5rem);
+}
+
+.catalog-page-heading {
+  display: flex;
+  inline-size: min(100%, 78rem);
+  margin-inline: auto;
+  padding-block-end: clamp(1.5rem, 4vw, 3rem);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--py-space-4);
+}
+
+.catalog-page-heading > div {
+  display: grid;
+  gap: var(--py-space-2);
+}
+
+.catalog-page-heading h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 4.5rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.catalog-category {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.catalog-synthetic-label {
+  padding: var(--py-space-2) var(--py-space-3);
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-pill);
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.catalog-preview-frame {
+  inline-size: 100%;
+  max-inline-size: 78rem;
+  margin-inline: auto;
+  transition: max-inline-size var(--py-motion-standard) var(--py-motion-easing);
+}
+
+.catalog-preview-frame[data-lab-viewport="tablet"] {
+  max-inline-size: 48rem;
+}
+
+.catalog-preview-frame[data-lab-viewport="phone"] {
+  max-inline-size: 20rem;
+}
+
+.catalog-preview-canvas {
+  min-block-size: 32rem;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-container);
+  background: var(--py-profile-container-surface);
+}

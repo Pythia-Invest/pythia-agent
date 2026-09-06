@@ -27,7 +27,8 @@ bootstrap:
 # Deterministic local checks only: never tests or contacts a package registry.
 check:
     node tooling/run-biome.mjs
-    PYTHONPYCACHEPREFIX=.local/pycache python3 -m py_compile tooling/qualification/native-hermes-skills.py
+    PYTHONPYCACHEPREFIX=.local/pycache python3 -m compileall -q runtime/managed tooling
+    bash -n install.sh scripts/install/platform.sh scripts/install/preflight.sh
     node tooling/check-structure.mjs
     node tooling/check-boundaries.mjs
     pnpm run check:types
@@ -39,9 +40,21 @@ check:
     just check-ai-workspace
     node tooling/check-workflows.mjs
 
-# Automated root and workspace tests; stateful workspace tasks remain uncached.
+# Ordinary pull-request tests: focused behavior plus the platform lifecycle smoke.
 test:
     pnpm run test
+
+# Deterministic behavior and contract tests without the platform smoke.
+test-fast:
+    pnpm run test:fast
+
+# Real-process lifecycle behavior selected for macOS and Ubuntu.
+test-system:
+    pnpm run test:system
+
+# Broad assembled, installation and update evidence outside the ordinary PR loop.
+qualify:
+    pnpm run test:qualification
 
 # The only registry/network dependency check.
 audit:
