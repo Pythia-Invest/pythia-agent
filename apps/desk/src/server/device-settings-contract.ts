@@ -1,4 +1,5 @@
 import type { HermesClient, HermesSkill, HermesToolset } from "./types";
+import type { ModelSelection } from "./model-catalog";
 
 export const MODEL_PROVIDER = "openai-codex" as const;
 
@@ -27,6 +28,7 @@ export type DeviceSettingsSnapshot = {
 };
 
 export interface DeviceSettingsService {
+  initializeModel(selection: ModelSelection): Promise<void>;
   snapshot(): Promise<DeviceSettingsSnapshot>;
   setSecIdentity(value: string | null): Promise<{ status: Readiness }>;
   setEodhdToken(value: string | null): Promise<{ status: Readiness }>;

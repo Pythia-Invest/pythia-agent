@@ -66,7 +66,7 @@ function installationStatus(paths) {
   };
 }
 
-function nativeAuth(paths, provider, statusOnly) {
+export function nativeAuth(paths, provider, statusOnly, run = spawnSync) {
   const supported = new Set([
     "anthropic",
     "nous",
@@ -84,7 +84,7 @@ function nativeAuth(paths, provider, statusOnly) {
   const args = statusOnly
     ? ["auth", "status", provider]
     : ["auth", "add", "--type", "oauth", provider];
-  const result = spawnSync(executable, args, {
+  const result = run(executable, ["-p", "default", ...args], {
     cwd: paths.checkout,
     env: { ...process.env, HERMES_HOME: paths.hermesRoot },
     stdio: statusOnly ? ["ignore", "pipe", "inherit"] : "inherit",

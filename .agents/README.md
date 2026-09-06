@@ -47,6 +47,11 @@ instructions without symlinks or machine configuration.
 
 ## Consequences
 
+Start builder sessions in this repository or its worktree. A session opened in
+another project may retain that project's instructions and skill catalog after
+a shell directory change; start a fresh session in the intended project when
+that happens. Treat other repositories as reference unless explicitly in scope.
+
 Ordinary development and verification do not require a plan or runbook.
 `create-plan`, `implement-plan`, `create-test-plan` and `run-test-plan` are
 explicit-only workflows, including their cross-skill handoffs. Use the native

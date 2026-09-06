@@ -56,7 +56,6 @@ secret.txt
 *.secret
 *.secrets
 !*.example
-!**/examples/**
 
 # Generated databases, search indexes, caches, and model artifacts
 *.db

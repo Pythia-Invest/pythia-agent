@@ -289,8 +289,15 @@ Native inventory discovery may contact model catalogs; it does not run inference
 validated selection fields, not arbitrary options, URLs, keys or commands.
 The native effort ladder is `none`, `minimal`, `low`, `medium`, `high`, `xhigh`,
 `max`, `ultra`; transport-specific clamping remains Hermes-owned. An omitted
-selection uses native defaults. This adds no configuration write, process
-restart, or alternative model registry. Native session-route locks still apply.
+selection uses native defaults. Native session-route locks still apply.
+The pinned `_create_agent` resolves the global runtime before applying request
+overrides: an empty profile can therefore fail with `No inference provider
+configured` even with an authenticated per-request selection. On the first
+explicit send only, Desk initializes an empty profile using native dotted
+provider/model setters, verifies their readback, and restarts Hermes before
+starting the run. It checks the native authenticated catalog first and never
+overwrites an existing or partial selection. Shared root defaults and
+credentials remain untouched. Later requests use ordinary native overrides.
 Evidence: the pinned `api_server.py` handlers `_handle_model_options`,
 `_request_agent_overrides`, `_request_reasoning_config`, and the run handler in
 `api_server_runs.py`; catalog shape is owned by `hermes_cli/inventory.py`.

@@ -1,13 +1,20 @@
 # Change validation
 
-Use the cheapest current evidence that can disprove a change:
+Select the cheapest sufficient evidence for the changed behavior; these are
+choices by scope, not a ladder every task must climb:
 
-1. run the smallest focused deterministic check or test;
-2. run affected workspace checks and tests;
-3. run `just check` for shared code or tooling and `just test` for the ordinary
-   pull-request suite; and
-4. run `just qualify` only for broad installation, update, or assembled-runtime
-   evidence that focused tests cannot prove.
+- Small isolated changes need focused deterministic checks or tests.
+- Shared contracts, lifecycle, credentials, packaging and cross-workspace
+  changes need checks of affected consumers and failure boundaries.
+- Use `just check` and `just test` for broad integration or publication
+  readiness, and whenever the affected scope requires the full gates. Required
+  CI and explicitly agreed acceptance checks still apply.
+- Qualify a changed assembled runtime seam only when narrower evidence cannot
+  prove it, after deterministic checks and within existing authorization.
+
+Add regressions for meaningful behavior, not tests that merely mirror the
+implementation or match instruction wording. Once sufficient checks pass, finish;
+broaden or repeat them only for new edits, failures or unresolved concerns.
 
 Keep network/registry auditing in `just audit`. Provider calls, credentials,
 external writes, host services, destructive actions, and long-lived processes

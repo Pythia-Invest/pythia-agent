@@ -20,6 +20,25 @@ just dev-init
 just dev
 ```
 
+For sibling worktrees managed under one predictable directory, run these from
+the main checkout:
+
+```sh
+just worktree <branch>        # create or attach an existing local/remote branch
+just worktree-list            # list every registered worktree
+just worktree-remove <branch> # remove its clean managed worktree
+just worktree-prune           # offer to remove clean worktrees with no remote branch
+```
+
+Managed worktrees default to `~/worktrees-pythia-agent`. Set
+`PYTHIA_AGENT_WORKTREE_BASE` to another absolute or `~`-prefixed directory when
+needed. The helper wraps native Git for contributor checkouts only; it is not
+part of installation, updating, or the Pythia runtime. Predictable sibling
+paths support the repository's worktree-isolated development stacks and make
+cleanup targetable. Direct Git commands remain supported. Runtime-integrated
+worktree management and automatic branch or conflict cleanup remain outside the
+product because source checkout policy belongs to the contributor.
+
 `just dev-init` downloads and hydrates the exact pinned Hermes, Basic Memory,
 EdgarTools, and EODHD dependencies. `just dev` prints the local Desk URL and
 runs the stack in the foreground; it does not install services, enable linger,
@@ -138,11 +157,14 @@ and model must be selected; Pythia does not guess from available accounts or
 switch to a paid provider. Endpoints containing embedded credentials, query
 parameters, or fragments are rejected.
 
-For ordinary chat, use Desk's provider/model/reasoning picker instead. It passes
-a native per-message override without changing those shared defaults or
-restarting the stack. The choice stays in this open Desk and resets to the
-profile default on reload. `just model` remains the optional central-default
-setup command, not a prerequisite for selecting an authenticated provider in UI.
+For ordinary chat, use Desk's provider/model/reasoning picker instead. On the
+first send from an empty profile, Desk saves the explicitly selected,
+authenticated provider and model through native profile config commands and
+restarts Hermes before starting the run. This initializes only that profile,
+not shared defaults or credentials. Later choices are native per-message
+overrides without a restart and reset to the profile default on reload.
+Existing or partial profile choices are preserved. `just model` remains an
+optional central-default setup command, not a prerequisite for UI selection.
 
 This is seed-once defaulting, not synchronized configuration. Any existing
 model choice, including a partial choice, is preserved. Changing shared
@@ -266,5 +288,5 @@ Working plans, interviews, test runbooks, results, and raw receipts belong in
 ignored `.private/plans/<branch>/`. Before material work is complete, record
 accepted product or architecture decisions in public documentation or an ADR,
 including context, ruling, rationale, consequences, and relevant rejected
-alternatives. Ordinary development uses native Git worktrees directly; Pythia
-does not add a worktree manager.
+alternatives. The contributor-only worktree recipes wrap native Git for managed
+sibling checkouts; they do not enter Pythia's runtime or installed lifecycle.

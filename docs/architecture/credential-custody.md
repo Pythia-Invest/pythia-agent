@@ -30,3 +30,11 @@ The Pythia settings service admits only server-side validated requests and is
 the atomic writer for its two files. It cannot modify native Hermes or Basic
 Memory stores directly. Missing optional provider configuration never prevents
 ordinary startup.
+
+Desk may initialize an empty profile's native `model.provider` and
+`model.default` from the user's first explicit authenticated model selection.
+The settings service holds its mutation lock, invokes native dotted setters,
+checks config readback, and restarts Hermes before submitting the run. It never
+writes YAML directly or changes existing/partial selections, shared defaults,
+or credentials. If interrupted between setters, complete the partial selection
+through native Hermes configuration; no automatic repair guesses user intent.

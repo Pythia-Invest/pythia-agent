@@ -15,6 +15,22 @@ Ordinary development is direct: inspect the relevant owner, make the scoped
 change, verify it, and report evidence. Planning and test-plan workflows are
 explicit-only; an existing plan or a request to continue does not start one.
 
+Carry requested changes through proportionate verification; audits, explanations
+and diagnoses do not authorize implementation. Resolve routine choices from
+evidence and continue independent authorized work while a material question is
+pending. User instructions take precedence over repository workflow preferences,
+within the session's higher-priority instructions and permission boundaries.
+If guidance blocks or redirects requested work, link the exact instruction and
+explain the conflict rather than silently adding a gate.
+
+Delegate only when the user or an explicitly selected workflow calls for it.
+Use bounded independent tasks and inherit the selected model unless instructed
+otherwise; ordinary development needs neither a plan nor a fixed agent count.
+
+Lead contributor responses with the result, explain consequential tradeoffs,
+and report verification and gaps. Use plain language and only as much formatting
+as the task needs; avoid repetitive summaries and canned phrasing.
+
 Build for users, not the contributor's machine. Keep personal paths, accounts,
 hostnames, and preferences in local configuration. Generalize a demonstrated
 need through the smallest supported capability, not speculative infrastructure.
@@ -40,6 +56,7 @@ decision into public documentation or an ADR under `docs/decisions/`, including
 its context, ruling, rationale, consequences, and relevant rejected
 alternatives. The public repository must remain understandable without the
 private record.
+Routine implementation choices within existing decisions do not require an ADR.
 
 Builder instructions are public source but are not ordinary Pythia runtime
 context. Startup, installation, and runtime discovery must not automatically
@@ -55,5 +72,7 @@ explicitly authorizes that action.
 
 Ask before changing credentials, exposing a listener, starting long-lived
 services, or deleting user data. Authorization is specific to the requested
-target and action; preserve other stacks and services. Enforce mechanical
+target and action; do not ask again while that authorization remains applicable
+and unchanged. New scope or consequences require a new decision. Preserve other
+stacks and services. Enforce mechanical
 security boundaries in code, not by adding stronger prompt wording.

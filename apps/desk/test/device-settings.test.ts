@@ -105,10 +105,10 @@ function harness(
         "hermes_command_failed",
       );
     }
-    if (args[0] === "auth") {
+    if (args[2] === "auth") {
       if (options.authOutput !== undefined)
         return { stdout: options.authOutput };
-      const provider = args[2] ?? "openai-codex";
+      const provider = args[4] ?? "openai-codex";
       const status = options.authStatuses?.[provider] ?? "logged out";
       return { stdout: `${provider}: ${status}\n` };
     }
@@ -170,7 +170,13 @@ describe("device settings", () => {
       status: "missing",
       setup_command: "just auth openai-codex",
     });
-    expect(commandCalls).toContainEqual(["auth", "status", "openai-codex"]);
+    expect(commandCalls).toContainEqual([
+      "-p",
+      "default",
+      "auth",
+      "status",
+      "openai-codex",
+    ]);
     expect(snapshot.sec_identity.status).toBe("missing");
     expect(snapshot.eodhd_credential.status).toBe("missing");
     expect(snapshot.basic_memory.status).toBe("ready");
@@ -215,7 +221,13 @@ describe("device settings", () => {
         provider: "openai-codex",
         status: expected === "present" ? "configured" : "missing",
       });
-      expect(commandCalls).toContainEqual(["auth", "status", "openai-codex"]);
+      expect(commandCalls).toContainEqual([
+        "-p",
+        "default",
+        "auth",
+        "status",
+        "openai-codex",
+      ]);
       expect(snapshot).not.toHaveProperty("model_ready");
       expect(snapshot).not.toHaveProperty("provider_readiness");
     },
@@ -237,8 +249,8 @@ describe("device settings", () => {
       status: "missing",
       setup_command: "just auth openai-codex",
     });
-    expect(commandCalls.filter((args) => args[0] === "auth")).toEqual([
-      ["auth", "status", "openai-codex"],
+    expect(commandCalls.filter((args) => args[2] === "auth")).toEqual([
+      ["-p", "default", "auth", "status", "openai-codex"],
     ]);
     expect(commandCalls).not.toContainEqual(["auth", "status", "anthropic"]);
     expect(snapshot).not.toHaveProperty("model_ready");
@@ -260,11 +272,15 @@ describe("device settings", () => {
     await second.service.snapshot();
 
     expect(first.commandCalls).toContainEqual([
+      "-p",
+      "default",
       "auth",
       "status",
       "openai-codex",
     ]);
     expect(second.commandCalls).toContainEqual([
+      "-p",
+      "default",
       "auth",
       "status",
       "openai-codex",

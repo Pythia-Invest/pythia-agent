@@ -54,6 +54,37 @@ elsewhere. Do not make every observed mistake a permanent checklist, require
 every tool on every task, or create another review process without a concrete
 need. Apply these principles to this document too.
 
+## Maintain builder guidance
+
+When changing a skill, role, rule or `AGENTS.md`, inspect the affected instruction
+chain: entrypoints, adjacent guidance, selected references and generated delivery.
+Resolve conflicting gates at their owner instead of adding stronger wording.
+Keep activation separate from execution, preserve explicit-only workflow controls,
+and avoid cross-skill handoffs that require an unrequested plan or review process.
+
+Keep shared guidance model-neutral. Before adopting model-specific advice, check
+current primary documentation and identify the observed behavior it addresses.
+Retain useful constraints for other supported models; isolate a model-specific
+exception only when evidence requires one. A model upgrade is not permission to
+change runtime models, broaden tool authority or add an orchestration layer.
+
+Edit canonical files and refresh only the relevant repository adapters. Use
+`just check-ai-workspace` for structure and fresh projections, plus the relevant
+`just check-skills`, `just check-agents` or `just check-rules` for local delivery.
+Verify the client actually loaded the intended project and instruction paths;
+generated files passing checks do not prove an existing session refreshed them.
+Do not overwrite personal settings or unrelated installed skills to fix discovery.
+
+For a substantial behavioral revision, propose a small before/after comparison
+using representative requests: a bounded fix, a UI change, an audit-only request,
+an explicit plan, and an already-authorized operation. Select only relevant cases;
+record unwanted activation, unnecessary pauses, verification scope and correctness.
+When cross-model behavior is claimed, compare the affected models with the same
+task inputs. Model runs require authorization; static review alone leaves that
+behavior unverified. No new benchmark service or mandatory per-edit model run is
+needed. Revisit guidance after a demonstrated failure or meaningful model/client
+change, removing obsolete advice rather than accumulating permanent checklists.
+
 ## Evidence and limits
 
 Retained project experiments found that unrelated procedures could interrupt
@@ -64,6 +95,10 @@ Private traces are not required to use this public reference.
 
 External sources support a cautious, testable approach:
 
+- [OpenAI: GPT-6 Astra prompting guidance](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra)
+  (consulted 2026-09-06) identifies sensitivity to conflicting skills,
+  unnecessary pauses and excessive verification. We adopt scoped autonomy and
+  proportionate checks, not blanket delegation or expanded external authority.
 - [Anthropic: context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
   explains attention budgets and selecting small, relevant context.
 - [Claude project instructions](https://code.claude.com/docs/en/memory)

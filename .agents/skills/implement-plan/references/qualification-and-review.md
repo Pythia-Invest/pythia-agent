@@ -2,9 +2,11 @@
 
 ## Runtime qualification
 
-Run assembled qualification after deterministic checks and before freezing the
-review target. The supervisor selects scenarios and judges evidence; delegated
-executors only run bounded checks.
+Qualify changed assembled runtime seams only when narrower evidence cannot
+prove them, following `.agents/change-validation.md`. When needed, run this
+after deterministic checks and before freezing the review target. The supervisor
+selects scenarios and judges evidence; delegated executors run bounded checks.
+Documentation-only changes do not require a runtime qualification.
 
 Record one representative path per changed assembled seam plus a failure path
 only when failure behavior changed. Capture exact criteria, source scope,

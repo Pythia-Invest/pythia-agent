@@ -1,5 +1,39 @@
-import { describe, expect, it } from "vitest";
-import { lifecycleFailureGuidance } from "../../scripts/install/cli.mjs";
+import { describe, expect, it, vi } from "vitest";
+import {
+  lifecycleFailureGuidance,
+  nativeAuth,
+} from "../../scripts/install/cli.mjs";
+
+it("pins installed authentication and status to the root profile", () => {
+  vi.stubEnv("PYTHIA_PYTHON_EXECUTABLE", "/fixture/python");
+  const run = vi.fn(() => ({ status: 0, stdout: "" }));
+  try {
+    for (const status of [false, true]) {
+      nativeAuth(
+        {
+          runtimeRoot: "/fixture/runtime",
+          managedPython: "/fixture/managed-python",
+          hermesSource: "/fixture/hermes-source",
+          hermesRoot: "/fixture/hermes",
+          checkout: "/fixture/source",
+        },
+        "openai-codex",
+        status,
+        run,
+      );
+      expect(run.mock.lastCall?.[1]).toEqual([
+        "-p",
+        "default",
+        "auth",
+        ...(status
+          ? ["status", "openai-codex"]
+          : ["add", "--type", "oauth", "openai-codex"]),
+      ]);
+    }
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 
 describe("installed lifecycle failure guidance", () => {
   it("routes each failed mutation to its owning recovery command", () => {
