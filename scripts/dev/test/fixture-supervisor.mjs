@@ -14,6 +14,9 @@ const fixture = join(
   "fixture-service.mjs",
 );
 const failName = process.env.PYTHIA_TEST_FAIL_SERVICE;
+const hermesReleaseQuietMs = Number(
+  process.env.PYTHIA_TEST_HERMES_RELEASE_QUIET_MS ?? "100",
+);
 
 async function fixtureHermesReleaseProof({ phase }) {
   if (phase === "initial") {
@@ -31,7 +34,7 @@ async function fixtureHermesReleaseProof({ phase }) {
     try {
       await assertPortsFree({ hermes: paths.ports.hermes });
       freeSince ??= Date.now();
-      if (Date.now() - freeSince >= 1_500) return;
+      if (Date.now() - freeSince >= hermesReleaseQuietMs) return;
     } catch {
       freeSince = undefined;
     }

@@ -306,6 +306,7 @@ describe("foreground supervision refresh", () => {
   it("waits through a transient free/reclaim before starting replacement", async () => {
     const root = temporaryRoot();
     const fixture = await startFixture(root, {
+      PYTHIA_TEST_HERMES_RELEASE_QUIET_MS: "1500",
       PYTHIA_TEST_TRANSIENT_HERMES_RECLAIM: "100:350",
     });
     await waitUntil(() =>
