@@ -1700,7 +1700,9 @@ describe("foreground supervision", () => {
     await waitUntil(() =>
       existsSync(join(fixture.paths.stateRoot, "fixture-ready")),
     );
-    await expect(requestHermesRestart(fixture.paths, 8_000)).rejects.toThrow(
+    // Shutdown itself allows eight seconds for process-group exit. The client
+    // must outlive that cleanup plus port-release/startup on a loaded runner.
+    await expect(requestHermesRestart(fixture.paths, 20_000)).rejects.toThrow(
       /foreground supervisor (?:stopped|identity changed)/u,
     );
     await waitUntil(() => fixture.child.exitCode !== null);
@@ -1710,7 +1712,7 @@ describe("foreground supervision", () => {
     ).toBe(false);
     expect(existsSync(fixture.paths.receipt)).toBe(false);
     await assertPortsFree(fixture.paths.ports);
-  }, 10_000);
+  }, 30_000);
 
   it("starts two independent stacks and stops only the selected owner", async () => {
     const firstRoot = temporaryRoot();
