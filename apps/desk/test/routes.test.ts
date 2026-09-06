@@ -51,6 +51,7 @@ function fakeClient() {
 
 function fakeSettings() {
   return {
+    initializeModel: vi.fn(async () => {}),
     snapshot: vi.fn(async () => ({
       model_auth: {
         provider: "openai-codex" as const,
@@ -160,7 +161,8 @@ describe("Desk routes", () => {
   });
   it("admits catalog reads and validates selections before starting a run", async () => {
     const client = fakeClient();
-    const routes = createDeskRoutes(client);
+    const settings = fakeSettings();
+    const routes = createDeskRoutes(client, settings);
     expect(
       (
         await routes.modelOptions(
@@ -185,6 +187,7 @@ describe("Desk routes", () => {
       ).status,
     ).toBe(202);
     expect(client.startRun).toHaveBeenCalledWith("s", "hello", selection);
+    expect(settings.initializeModel).toHaveBeenCalledWith(selection);
     client.startRun.mockClear();
     expect(
       (

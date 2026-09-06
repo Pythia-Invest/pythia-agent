@@ -1,6 +1,7 @@
 import { admitBrowserRequest, issueBrowserSession } from "./admission";
 import {
   deviceSettingsService,
+  DeviceSettingsError,
   type DeviceSettingsService,
 } from "./device-settings";
 import { HermesApiError, hermesClient } from "./hermes";
@@ -22,7 +23,7 @@ function result(body: unknown, status = 200, headers?: HeadersInit) {
 }
 
 function routeError(error: unknown) {
-  if (error instanceof HermesApiError) {
+  if (error instanceof HermesApiError || error instanceof DeviceSettingsError) {
     return result(
       { error: { code: error.code ?? "hermes_error", message: error.message } },
       error.status,
@@ -268,6 +269,7 @@ export function createDeskRoutes(
             400,
           );
         }
+        if (selection) await settings.initializeModel(selection);
         return result(await client.startRun(sessionId, input, selection), 202);
       } catch (error) {
         return routeError(error);

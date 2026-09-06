@@ -133,11 +133,14 @@ and model must be selected; Pythia does not guess from available accounts or
 switch to a paid provider. Endpoints containing embedded credentials, query
 parameters, or fragments are rejected.
 
-For ordinary chat, use Desk's provider/model/reasoning picker instead. It passes
-a native per-message override without changing those shared defaults or
-restarting the stack. The choice stays in this open Desk and resets to the
-profile default on reload. `just model` remains the optional central-default
-setup command, not a prerequisite for selecting an authenticated provider in UI.
+For ordinary chat, use Desk's provider/model/reasoning picker instead. On the
+first send from an empty profile, Desk saves the explicitly selected,
+authenticated provider and model through native profile config commands and
+restarts Hermes before starting the run. This initializes only that profile,
+not shared defaults or credentials. Later choices are native per-message
+overrides without a restart and reset to the profile default on reload.
+Existing or partial profile choices are preserved. `just model` remains an
+optional central-default setup command, not a prerequisite for UI selection.
 
 This is seed-once defaulting, not synchronized configuration. Any existing
 model choice, including a partial choice, is preserved. Changing shared

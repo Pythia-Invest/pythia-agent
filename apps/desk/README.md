@@ -18,7 +18,8 @@ worktree.
 
 Choose a provider, model and reasoning effort beside the message box. The list
 comes from Hermes, including its configured subscription and API-key providers.
-The choice applies to the next message without restarting services. It stays
+The first send in an empty profile initializes its native provider/model default
+and restarts Hermes; subsequent choices need no restart. The selection stays
 selected while this Desk is open (including when switching conversations);
 reloading returns to the native profile default. Selecting `Default` also uses
 that default without sending an override. It never rewrites shared development

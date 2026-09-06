@@ -28,6 +28,7 @@ import {
 } from "./device-settings-store";
 import { hermesClient } from "./hermes";
 import type { HermesToolset } from "./types";
+import { initializeProfileModel } from "./model-initialization";
 
 export {
   DeviceSettingsError,
@@ -83,7 +84,13 @@ export function createDeviceSettingsService(
 
   async function modelAuth() {
     try {
-      const result = await command(["auth", "status", MODEL_PROVIDER]);
+      const result = await command([
+        "-p",
+        "default",
+        "auth",
+        "status",
+        MODEL_PROVIDER,
+      ]);
       const first = result.stdout.trim().split(/\r?\n/u, 1)[0] ?? "";
       if (first === `${MODEL_PROVIDER}: logged in`)
         return "configured" as const;
@@ -173,6 +180,18 @@ export function createDeviceSettingsService(
   }
 
   return {
+    async initializeModel(selection) {
+      await withFileLock(paths().lock, async () => {
+        const profile = profileFrom(environment, options.profile);
+        await initializeProfileModel(
+          selection,
+          profile,
+          command,
+          client,
+          restartHermes,
+        );
+      });
+    },
     async snapshot() {
       const current = paths();
       let profile: string | null = null;
