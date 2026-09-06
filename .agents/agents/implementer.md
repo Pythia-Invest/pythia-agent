@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Implements one bounded task from an approved plan.
+description: Implements one bounded, authorized task.
 model: inherit
 permissionMode: default
 compatibility: [claude-code, codex]

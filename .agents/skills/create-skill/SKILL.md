@@ -5,6 +5,10 @@ description: Create or update a reusable repository skill with valid frontmatter
 
 # Create skill
 
+Read [instruction maintenance](../../../docs/prompting.md#maintain-builder-guidance)
+before changing a skill; preserve its activation policy and check adjacent
+guidance for conflicting requirements.
+
 Use a skill for a repeatable multi-step workflow that has a specific structure
 and is easy to execute incorrectly. Use docs or a rule for one-step knowledge.
 

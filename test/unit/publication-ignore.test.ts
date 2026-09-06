@@ -22,6 +22,9 @@ it("keeps device artifacts private without hiding model API source", () => {
       "nested/.env.local",
       "auth.json",
       "nested/auth.json",
+      "docs/examples/auth.json",
+      "docs/examples/.env.local",
+      "docs/examples/private.key",
       "logs/run.log",
       "state.sqlite3",
       "models/weights.bin",
@@ -34,6 +37,8 @@ it("keeps device artifacts private without hiding model API source", () => {
       "apps/desk/test/model-catalog.test.ts",
       ".env.example",
       "docs/development.md",
+      "docs/examples/client.ts",
+      "docs/examples/.env.example",
     ])
       expect(ignored(path), path).toBe(false);
   } finally {

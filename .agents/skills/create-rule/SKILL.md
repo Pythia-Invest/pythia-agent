@@ -5,6 +5,10 @@ description: Add or update reusable project guidance in its narrowest reliable i
 
 # Create rule
 
+Read [instruction maintenance](../../../docs/prompting.md#maintain-builder-guidance)
+before changing guidance. Improve the existing owner without turning a local
+failure or model-specific suggestion into an unnecessary universal procedure.
+
 ## Classify and place
 
 Extract the behavior, reason, observed failure, audience, affected paths, and
