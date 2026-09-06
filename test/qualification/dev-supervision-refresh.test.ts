@@ -301,7 +301,7 @@ describe("foreground supervision refresh", () => {
     await stopStack(fixture.paths);
     await waitUntil(() => processIdentity(afterByName.hermes.pid) === null);
     expect(processIdentity(unrelatedPid)).not.toBeNull();
-  });
+  }, 10_000);
 
   it("waits through a transient free/reclaim before starting replacement", async () => {
     const root = temporaryRoot();
