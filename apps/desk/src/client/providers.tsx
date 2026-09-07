@@ -6,10 +6,18 @@ import { DeskApi, DeskApiError } from "./api";
 
 const DeskApiContext = createContext<DeskApi | null>(null);
 
-/** Hermes availability is not something a retry fixes within a second. */
+/**
+ * Client errors are final. Upstream and network failures get two quick
+ * retries with backoff, which covers a Hermes restart or a Desk reload
+ * without hiding a real outage behind endless spinners.
+ */
 function retry(failureCount: number, error: unknown) {
   if (error instanceof DeskApiError && error.status < 500) return false;
-  return failureCount < 1;
+  return failureCount < 2;
+}
+
+function retryDelay(attempt: number) {
+  return Math.min(500 * 2 ** attempt, 3_000);
 }
 
 /**
@@ -23,7 +31,12 @@ export function DeskProviders({ children }: { children: ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { retry, staleTime: 10_000, refetchOnWindowFocus: false },
+          queries: {
+            retry,
+            retryDelay,
+            staleTime: 10_000,
+            refetchOnWindowFocus: false,
+          },
         },
       }),
   );

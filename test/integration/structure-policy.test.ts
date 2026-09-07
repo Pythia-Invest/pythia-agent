@@ -57,6 +57,21 @@ describe("source structure policy", () => {
     ]);
   });
 
+  it("skips tool-owned state such as virtual environments and caches", () => {
+    const root = fixture();
+    for (const directory of [
+      "runtime/managed/python/.venv/lib/site-packages/pkg",
+      "runtime/managed/python/venv/lib",
+      "tooling/.ruff_cache",
+      "tooling/.pytest_cache",
+      "tooling/.mypy_cache",
+      "apps/desk/node_modules/dep",
+    ]) {
+      write(root, `${directory}/large.py`, "value = 1\n".repeat(401));
+    }
+    expect(collectStructureViolations(root)).toEqual([]);
+  });
+
   it("covers CSS and Python and keeps tests out of production source", () => {
     const root = fixture();
     write(root, "apps/desk/src/large.css", ".rule {}\n".repeat(401));

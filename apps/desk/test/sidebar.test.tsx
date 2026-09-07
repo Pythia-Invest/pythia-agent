@@ -96,12 +96,17 @@ describe("DeskSidebar", () => {
   });
 
   it("explains loading and unavailable states instead of showing an empty list", () => {
-    expect(render({ sessions: [], state: "loading" })).toContain(
-      "Loading chats…",
-    );
+    const loading = render({ sessions: [], state: "loading" });
+    expect(loading).toContain("Loading chats…");
+    expect(loading).toContain('aria-busy="true"');
+    expect(loading.match(/data-slot="skeleton"/g)).toHaveLength(7);
+    expect(loading).not.toContain("No chats yet.");
     expect(render({ sessions: [], state: "unavailable" })).toContain(
       "Hermes is offline",
     );
+    const stale = render({ state: "unavailable" });
+    expect(stale).toContain("Showing the last chat list");
+    expect(stale).toContain("Newest");
     expect(render({ sessions: [] })).toContain("No chats yet.");
   });
 });

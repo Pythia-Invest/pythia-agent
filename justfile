@@ -139,6 +139,11 @@ check-rules:
 # Project every adapter needed by locally installed builder tools.
 builder-sync: ai-sync sync-agents sync-rules
 
+# Opt in to repository Git hooks that re-run builder-sync after checkout and merge.
+setup-hooks:
+    git config core.hooksPath .githooks
+    just builder-sync
+
 # Check canonical builder source and exercise every adapter in a disposable root.
 check-ai-workspace:
     node tooling/check-ai-workspace.mjs

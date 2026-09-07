@@ -57,11 +57,16 @@ export function DeskShell({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // A failed refetch keeps the last good list on screen and offers a retry.
   const state: ChatListState = sessions.isPending
     ? "loading"
     : sessions.isError
       ? "unavailable"
       : "ready";
+  const refetchSessions = sessions.refetch;
+  const handleRetry = useCallback(() => {
+    void refetchSessions();
+  }, [refetchSessions]);
 
   return (
     <div className="grid h-dvh grid-cols-[260px_minmax(0,1fr)] overflow-hidden max-md:grid-cols-[minmax(0,1fr)]">
@@ -82,6 +87,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
         )}
         id="desk-navigation"
         onNewChat={() => router.push("/")}
+        onRetry={handleRetry}
         onTogglePin={handleTogglePin}
         pinnedIds={pinnedIds}
         sessions={sessions.data ?? []}
@@ -99,7 +105,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
             <PanelLeft />
           </IconButton>
         </div>
-        <div className="min-h-0 flex-1">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
       </main>
     </div>
   );

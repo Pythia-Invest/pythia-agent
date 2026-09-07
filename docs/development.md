@@ -304,10 +304,16 @@ just sync-rules    # Claude and Cursor rules
 just builder-sync  # all three adapters
 ```
 
-The adapters write ignored local destinations, refuse unowned collisions, and
-do not activate hooks. `just check-ai-workspace` validates the canonical source
-and exercises fresh projections in disposable destinations, so a new clone
-needs no generated adapter files or existing tool configuration.
+The adapters write ignored local destinations and refuse unowned collisions.
+Nothing runs them for you by default, so a fresh clone or worktree has no
+`.claude/skills` until you do. To keep them current automatically, opt in once
+per repository with `just setup-hooks`: it points `core.hooksPath` at the
+tracked `.githooks/` directory, whose `post-checkout` and `post-merge` hooks
+re-run the three adapters after branch checkouts, worktree creation, pulls,
+and merges. The setting is shared by every worktree of the clone and never
+blocks a Git operation. `just check-ai-workspace` validates the canonical
+source and exercises fresh projections in disposable destinations, so CI needs
+no generated adapter files, tool configuration, or hooks.
 
 Working plans, interviews, test runbooks, results, and raw receipts belong in
 ignored `.private/plans/<branch>/`. Before material work is complete, record

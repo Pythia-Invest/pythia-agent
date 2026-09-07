@@ -20,7 +20,11 @@ only imports Tailwind and the shared theme. Application routes, state,
 validation, and workflows stay in this app. Chats are App Router routes under
 `(shell)/c/[sessionId]`; read server state through the TanStack Query hooks in
 `src/client/queries.ts`, never with ad-hoc `fetch` effects
-([ADR 0008](../../docs/decisions/0008-desk-client-conventions.md)). Unit
+([ADR 0008](../../docs/decisions/0008-desk-client-conventions.md)). The chat
+window uses the AI SDK `useChat`; Hermes event and transcript shapes stay
+inside `src/client/hermes-transport.ts` and `src/client/chat-message.ts`,
+and components consume only `UIMessage` parts
+([ADR 0009](../../docs/decisions/0009-chat-surface-on-ai-sdk-transport.md)). Unit
 tests live in `test/`; Playwright smoke tests in `e2e/` run against a running
 Desk named by `PYTHIA_DESK_URL` and must not start or reconfigure the stack.
 

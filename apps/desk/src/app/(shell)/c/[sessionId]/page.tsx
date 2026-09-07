@@ -1,9 +1,11 @@
-/** An existing Hermes chat; the conversation surface renders here next. */
+import { ChatView } from "@/components/chat/chat-view";
+
+/** An existing Hermes chat. */
 export default async function ChatPage({
   params,
 }: {
   params: Promise<{ sessionId: string }>;
 }) {
-  await params;
-  return null;
+  const { sessionId } = await params;
+  return <ChatView sessionId={sessionId} />;
 }

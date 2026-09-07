@@ -1,0 +1,6 @@
+#!/bin/sh
+# Refresh the ignored builder adapters (.claude, .codex, .cursor) after a
+# branch checkout or worktree creation. Canonical source: .agents/.
+# $3 is 1 for a branch checkout and 0 for a file checkout.
+[ "$3" = "1" ] || exit 0
+exec "$(dirname "$0")/lib/builder-sync.sh"

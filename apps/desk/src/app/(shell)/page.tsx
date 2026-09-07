@@ -1,4 +1,6 @@
-/** New chat: the composer and empty conversation surface land here next. */
+import { NewChat } from "@/components/chat/new-chat";
+
+/** New chat: the empty surface whose first prompt creates a Hermes session. */
 export default function NewChatPage() {
-  return null;
+  return <NewChat />;
 }

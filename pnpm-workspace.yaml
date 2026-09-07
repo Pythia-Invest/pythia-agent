@@ -28,3 +28,7 @@ catalog:
   turbo: 2.10.9
   typescript: 5.9.3
   vitest: 4.0.16
+  "@ai-sdk/react": 4.0.96
+  ai: 7.0.93
+  streamdown: 2.6.0
+  zod: 4.5.4

@@ -21,11 +21,17 @@ The current shell is the left navigation: the Pythia wordmark, app
 destinations starting with **New chat**, pinned chats, and recent chats
 sorted newest first from the native Hermes session list. Pins are a
 browser-local preference kept in `localStorage`; Hermes has no pin concept and
-Desk does not add a session store for it. The chat surface is the next step.
+Desk does not add a session store for it.
 
 Chats have their own routes (`/c/<session id>`); the root is the new-chat
-surface. Server state is read through TanStack Query hooks in
-`src/client/queries.ts`. See [ADR 0008](../../docs/decisions/0008-desk-client-conventions.md).
+surface whose first prompt creates the Hermes session. Server state is read
+through TanStack Query hooks in `src/client/queries.ts`. The conversation
+itself runs on the AI SDK's `useChat` with a Hermes `ChatTransport`
+(`src/client/hermes-transport.ts`): streamed text, reasoning, tool activity,
+approvals, and stop all flow through that one seam, so a different harness
+only needs a different transport. See
+[ADR 0008](../../docs/decisions/0008-desk-client-conventions.md) and
+[ADR 0009](../../docs/decisions/0009-chat-surface-on-ai-sdk-transport.md).
 
 Run focused checks with:
 
