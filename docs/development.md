@@ -63,13 +63,18 @@ Run these commands from the repository root:
 ```sh
 just bootstrap # hydrate the exact pnpm lockfile
 just check     # deterministic syntax, structure, dependency, lint, type, build
-just test      # automated tests
+just test      # ordinary pull-request tests, including the platform smoke
+just qualify   # broad install, update, and assembled-runtime qualification
 just audit     # registry/network dependency audit
 ```
 
 `just check` does not run tests or contact a package registry. `just audit` is
 the only registry audit and checks the production dependency surface. Tests
-and CI are credential-free and use synthetic provider fixtures.
+and CI are credential-free and use synthetic provider fixtures. Use
+`just test-fast` for the deterministic behavior suite and `just test-system`
+for the small real-process lifecycle smoke. Qualification runs after changes
+land on `main` and on explicit release-oriented runs; it is intentionally not
+part of every pull request.
 
 ### Browser smoke tests
 
@@ -85,7 +90,7 @@ just test-e2e http://127.0.0.1:<desk-port>
 
 A Tailscale Serve origin works as well. Traces for failures land under
 `.local/playwright/desk`. See
-[ADR 0007](decisions/0007-desk-client-conventions.md) for the routing, data
+[ADR 0008](decisions/0008-desk-client-conventions.md) for the routing, data
 fetching, and testing conventions the suite relies on.
 
 ## Foreground stack
@@ -269,10 +274,10 @@ uses Next's native `allowedDevOrigins` for remote hot reload.
 
 - `apps/desk` is the installed local interface; its routing, data fetching,
   and browser-test conventions are in
-  [ADR 0007](decisions/0007-desk-client-conventions.md).
+  [ADR 0008](decisions/0008-desk-client-conventions.md).
 - `packages/ui` owns reusable interface primitives and the one token
   stylesheet that Tailwind utilities draw from (see
-  [ADR 0006](decisions/0006-tailwind-styling-layer.md)).
+  [ADR 0007](decisions/0007-tailwind-styling-layer.md)).
 - `apps/design-lab` is a development-only component workshop.
 - `runtime/managed` owns the Pythia skills, plugin, instructions, and bounded
   data runners shipped with a release.

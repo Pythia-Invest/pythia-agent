@@ -25,7 +25,7 @@ Desk does not add a session store for it. The chat surface is the next step.
 
 Chats have their own routes (`/c/<session id>`); the root is the new-chat
 surface. Server state is read through TanStack Query hooks in
-`src/client/queries.ts`. See [ADR 0007](../../docs/decisions/0007-desk-client-conventions.md).
+`src/client/queries.ts`. See [ADR 0008](../../docs/decisions/0008-desk-client-conventions.md).
 
 Run focused checks with:
 

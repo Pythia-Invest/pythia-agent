@@ -172,6 +172,28 @@ function checkInstructionTopology(root) {
       fail(`${skill}/SKILL.md declares name ${JSON.stringify(name)}`);
   }
 
+  for (const skill of [
+    "create-plan",
+    "implement-plan",
+    "create-test-plan",
+    "run-test-plan",
+  ]) {
+    const markdown = readFileSync(
+      path.join(skillRoot, skill, "SKILL.md"),
+      "utf8",
+    );
+    const policy = readFileSync(
+      path.join(skillRoot, skill, "agents", "openai.yaml"),
+      "utf8",
+    );
+    if (!/^disable-model-invocation: true$/m.test(markdown)) {
+      fail(`${skill} must disable implicit Claude invocation`);
+    }
+    if (!/^policy:\n {2}allow_implicit_invocation: false\n$/m.test(policy)) {
+      fail(`${skill} must disable implicit Codex invocation`);
+    }
+  }
+
   const agentFiles = readdirSync(path.join(agentRoot, "agents"))
     .filter((name) => name.endsWith(".md"))
     .sort();

@@ -17,14 +17,11 @@
       "outputs": []
     },
     "test:unit": {
+      "cache": false,
       "dependsOn": ["^test:unit"],
       "outputs": []
     },
     "test:integration": {
-      "cache": false,
-      "outputs": []
-    },
-    "test:acceptance": {
       "cache": false,
       "outputs": []
     },

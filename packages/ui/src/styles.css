@@ -1,3 +1,4 @@
+/* pythia-structure-ignore: the single token sheet keeps every --py-* role, theme mapping, and variant together so the design contract stays auditable in one place */
 /*
  * Pythia design tokens and Tailwind theme.
  *
@@ -450,7 +451,15 @@
     font: inherit;
   }
 
-  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  :where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [tabindex]
+  ):focus-visible {
     outline: var(--py-focus-width) solid var(--py-focus-ring);
     outline-offset: 2px;
   }

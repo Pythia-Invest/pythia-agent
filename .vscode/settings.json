@@ -1,0 +1,22 @@
+{
+  "editor.defaultFormatter": "biomejs.biome",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.biome": "explicit",
+    "source.organizeImports.biome": "explicit"
+  },
+  "[css]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "tailwindCSS.experimental.configFile": {
+    "apps/desk/src/app/globals.css": "apps/desk/src/**",
+    "apps/design-lab/src/app/globals.css": "apps/design-lab/src/**",
+    "packages/ui/src/styles.css": "packages/ui/src/**"
+  },
+  "tailwindCSS.classFunctions": ["cn", "cnState", "cva", "clsx"],
+  "files.associations": {
+    "*.css": "tailwindcss"
+  }
+}

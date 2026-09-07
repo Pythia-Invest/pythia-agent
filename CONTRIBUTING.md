@@ -4,6 +4,25 @@ Pythia Agent is in technical preview. Small, well-scoped fixes and discussions
 are welcome. For a substantial change, open an issue first so the product and
 ownership boundaries are clear before implementation.
 
+Search existing issues before opening a bug report or feature request. Include
+reproduction steps and your revision for bugs, or a concrete user need for
+features. Use synthetic examples and redact private information. Keep discussion
+respectful and on topic; spam, harassment, and malicious submissions may be
+removed or blocked. This is a small project with no guaranteed response time.
+
+External contributions use fork pull requests. Maintainers can push directly to
+`main`; the branch rules block deletion and force pushes without requiring a PR
+or passing checks before each push. This keeps solo development lightweight;
+maintainers remain responsible for checking changes and following up on CI.
+
+GitHub Actions uses read-only default tokens and requires approval for all
+outside contributors' fork workflows. Inspect the proposed code, scripts, and
+workflow changes before approving a run. Secret scanning, push protection, and
+dependency vulnerability alerts provide repository-level signals; private
+vulnerability reporting is the security intake. These settings live on GitHub
+and must be configured separately for forks. We do not require review counts or
+automated dependency-update PRs for routine solo work.
+
 ## Set up and check a change
 
 Start with [AGENTS.md](AGENTS.md) for shared working boundaries and topic-specific

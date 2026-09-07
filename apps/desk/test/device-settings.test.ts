@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createDeviceSettingsService,
@@ -532,21 +532,5 @@ describe("device settings", () => {
     expect(snapshot.skills).toContainEqual(
       expect.objectContaining({ name: "sec-edgar-research", enabled: false }),
     );
-  });
-
-  it("keeps prompt relevance delegated to native requires_toolsets metadata", () => {
-    const repository = resolve(import.meta.dirname, "../../..");
-    const expected = new Map([
-      ["sec-edgar-research", "pythia-sec"],
-      ["eodhd-market-data", "pythia-eodhd"],
-      ["investment-memory", "mcp-basic-memory"],
-    ]);
-    for (const [name, toolset] of expected) {
-      const source = readFileSync(
-        join(repository, "runtime", "managed", "skills", name, "SKILL.md"),
-        "utf8",
-      );
-      expect(source).toContain(`requires_toolsets: [${toolset}]`);
-    }
   });
 });

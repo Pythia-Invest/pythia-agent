@@ -1,0 +1,337 @@
+:root {
+  --lab-control-surface: color-mix(
+    in srgb,
+    var(--py-surface-raised) 92%,
+    transparent
+  );
+}
+
+.lab-shell {
+  min-block-size: 100vh;
+  background:
+    radial-gradient(
+      circle at 84% 8%,
+      var(--py-profile-atmosphere),
+      transparent 28rem
+    ),
+    var(--py-surface-canvas);
+  color: var(--py-text-primary);
+  transition:
+    background-color var(--py-motion-standard) var(--py-motion-easing),
+    color var(--py-motion-standard) var(--py-motion-easing);
+}
+
+.lab-toolbar-wrap {
+  position: sticky;
+  z-index: 10;
+  inset-block-start: 0;
+  border-block-end: 1px solid var(--py-border-default);
+  background: var(--lab-control-surface);
+  backdrop-filter: blur(18px);
+}
+
+.lab-toolbar {
+  display: flex;
+  inline-size: min(100%, 96rem);
+  min-block-size: 4.25rem;
+  margin-inline: auto;
+  padding: 0.75rem clamp(1rem, 3vw, 2rem);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--py-space-4);
+}
+
+.lab-title {
+  display: flex;
+  align-items: center;
+  gap: var(--py-space-3);
+  white-space: nowrap;
+}
+
+.lab-title-mark {
+  inline-size: 0.6rem;
+  block-size: 0.6rem;
+  border-radius: var(--py-radius-pill);
+  background: var(--py-signal-marker);
+}
+
+.lab-title strong {
+  font-size: var(--py-font-size-14);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lab-title span:last-child {
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+}
+
+.lab-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--py-space-3);
+}
+
+.lab-control {
+  display: flex;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+  gap: var(--py-space-2);
+  border: 0;
+}
+
+.lab-control legend {
+  position: absolute;
+  overflow: hidden;
+  inline-size: 1px;
+  block-size: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.lab-segments {
+  display: flex;
+  padding: 0.2rem;
+  gap: 0.15rem;
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-control);
+  background: var(--py-surface-subtle);
+}
+
+.lab-segments button {
+  min-block-size: 1.8rem;
+  padding-inline: 0.6rem;
+  border: 0;
+  border-radius: calc(var(--py-radius-control) - 0.2rem);
+  background: transparent;
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--py-motion-fast) var(--py-motion-easing),
+    color var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.lab-segments button:hover {
+  color: var(--py-text-primary);
+}
+
+.lab-segments button[aria-pressed="true"] {
+  background: var(--py-surface-raised);
+  color: var(--py-text-primary);
+  box-shadow: 0 1px 2px
+    color-mix(in srgb, var(--py-text-primary) 10%, transparent);
+}
+
+.lab-viewport-stage {
+  inline-size: 100%;
+  margin-inline: auto;
+  transition: max-inline-size var(--py-motion-standard) var(--py-motion-easing);
+}
+
+.lab-viewport-stage[data-lab-viewport="tablet"] {
+  max-inline-size: 48rem;
+  border-inline: 1px solid var(--py-border-default);
+}
+
+.lab-viewport-stage[data-lab-viewport="phone"] {
+  max-inline-size: 20rem;
+  border-inline: 1px solid var(--py-border-default);
+}
+
+.lab-page {
+  display: grid;
+  inline-size: min(100%, 96rem);
+  margin-inline: auto;
+  padding: clamp(2rem, 6vw, 6rem) var(--py-profile-page-gutter) 8rem;
+  gap: var(--py-profile-section-gap);
+}
+
+.lab-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--py-space-2);
+  color: var(--py-signal-foreground);
+  font-size: var(--py-font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lab-eyebrow::before {
+  inline-size: 1.5rem;
+  block-size: 2px;
+  content: "";
+  background: var(--py-signal-marker);
+}
+
+.lab-hero {
+  display: grid;
+  max-inline-size: var(--py-profile-content-measure);
+  gap: var(--py-profile-group-gap);
+}
+
+.lab-hero h1 {
+  max-inline-size: 13ch;
+  margin: 0;
+  font-size: var(--py-profile-display-size);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.lab-hero p {
+  max-inline-size: 58ch;
+  margin: 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-reading-size);
+  line-height: var(--py-line-height-reading);
+}
+
+.lab-section {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.lab-section-heading {
+  display: grid;
+  max-inline-size: var(--py-profile-content-measure);
+  gap: var(--py-space-2);
+}
+
+.lab-section-heading h2,
+.lab-section-heading p {
+  margin: 0;
+}
+
+.lab-section-heading h2 {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.lab-section-heading p {
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+}
+
+.lab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--py-profile-group-gap);
+}
+
+.lab-card {
+  display: grid;
+  min-inline-size: 0;
+  padding: clamp(1.1rem, 3vw, 2rem);
+  gap: var(--py-space-4);
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-group);
+  background: var(--py-profile-container-surface);
+}
+
+.lab-card-kicker {
+  margin: 0;
+  color: var(--py-text-secondary);
+  font-size: var(--py-font-size-12);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lab-card h3,
+.lab-card p {
+  margin: 0;
+}
+
+.lab-card h3 {
+  font-size: var(--py-profile-reading-size);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.lab-card p {
+  color: var(--py-text-secondary);
+  font-size: var(--py-profile-body-size);
+  line-height: var(--py-line-height-ui);
+}
+
+.lab-identity {
+  min-block-size: 10rem;
+  align-content: space-between;
+}
+
+.lab-lockup {
+  font-size: clamp(1.65rem, 4vw, 2.4rem);
+}
+
+.lab-lockup.compact {
+  font-size: clamp(1.35rem, 3vw, 1.9rem);
+}
+
+.lab-rhythm {
+  display: flex;
+  min-block-size: 7rem;
+  align-items: flex-end;
+  gap: var(--py-space-2);
+}
+
+.lab-rhythm span {
+  flex: 1;
+  min-inline-size: 0.5rem;
+  border-radius: var(--py-radius-control) var(--py-radius-control) 0 0;
+  background: var(--py-interaction-active);
+}
+
+.lab-rhythm span:nth-child(1) {
+  block-size: var(--py-space-2);
+}
+.lab-rhythm span:nth-child(2) {
+  block-size: var(--py-space-4);
+}
+.lab-rhythm span:nth-child(3) {
+  block-size: var(--py-space-8);
+}
+.lab-rhythm span:nth-child(4) {
+  block-size: var(--py-space-12);
+}
+.lab-rhythm span:nth-child(5) {
+  block-size: var(--py-space-16);
+}
+
+.lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--py-profile-group-gap);
+}
+
+.lab-action {
+  min-block-size: var(--py-profile-control-height);
+  padding-inline: 1rem;
+  border: 1px solid var(--py-border-default);
+  border-radius: var(--py-radius-interactive);
+  background: var(--py-surface-raised);
+  color: var(--py-text-primary);
+  font-size: var(--py-profile-body-size);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--py-motion-fast) var(--py-motion-easing),
+    transform var(--py-motion-fast) var(--py-motion-easing);
+}
+
+.lab-action:hover {
+  background: var(--py-interaction-hover);
+}
+
+.lab-action:active {
+  background: var(--py-interaction-active);
+  transform: translateY(1px);
+}

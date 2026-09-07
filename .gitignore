@@ -100,7 +100,7 @@ venv/
 Thumbs.db
 Desktop.ini
 .idea/
-.vscode/
+.vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
 *.swp

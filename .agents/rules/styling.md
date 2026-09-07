@@ -12,7 +12,7 @@ globs:
 
 # Styling
 
-Read [ADR 0006](../../docs/decisions/0006-tailwind-styling-layer.md) and the
+Read [ADR 0007](../../docs/decisions/0007-tailwind-styling-layer.md) and the
 [design direction](../../docs/design.md) before changing appearance.
 
 Style in the component with Tailwind utilities. `packages/ui/src/styles.css`

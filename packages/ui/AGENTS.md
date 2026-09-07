@@ -12,7 +12,7 @@ behavior. Keep `"use client"` on browser-only modules rather than the package
 barrel.
 
 Style with Tailwind utilities in the component, following the
-[styling rule](../../.agents/rules/styling.md) and [ADR 0006](../../docs/decisions/0006-tailwind-styling-layer.md).
+[styling rule](../../.agents/rules/styling.md) and [ADR 0007](../../docs/decisions/0007-tailwind-styling-layer.md).
 `src/styles.css` is the only stylesheet: it owns the `--py-*` tokens and maps
 them into Tailwind's theme. Use those theme names, merge classes with `cn`,
 and give every root a `data-slot`. Do not add consumer palettes or make color
