@@ -1,3 +1,6 @@
+import { brandAssetUrls } from "./assets";
+import { cn } from "./class-name";
+
 export type PythiaLockupVariant = "full" | "compact";
 
 interface PythiaLockupBaseProps {
@@ -21,6 +24,23 @@ export type PythiaLockupProps = PythiaLockupBaseProps &
       }
   );
 
+const variants = {
+  full: {
+    light: brandAssetUrls.lockupFullLight,
+    dark: brandAssetUrls.lockupFullDark,
+    width: 640,
+    height: 232,
+    className: "w-[4.8em]",
+  },
+  compact: {
+    light: brandAssetUrls.lockupCompactLight,
+    dark: brandAssetUrls.lockupCompactDark,
+    width: 480,
+    height: 169,
+    className: "w-[4.6em]",
+  },
+} as const;
+
 /**
  * Pythia identity lockup for approved Public and Product surfaces.
  *
@@ -39,13 +59,30 @@ export function PythiaLockup({
   label,
   variant = "full",
 }: PythiaLockupProps) {
-  const classes = ["pythia-lockup", `pythia-lockup--${variant}`, className]
-    .filter(Boolean)
-    .join(" ");
+  const asset = variants[variant];
+  const image = (theme: "light" | "dark") => (
+    <img
+      alt={decorative ? "" : label}
+      className={cn(
+        "h-auto",
+        asset.className,
+        theme === "light" ? "dark:hidden" : "hidden dark:block",
+      )}
+      height={asset.height}
+      src={asset[theme]}
+      width={asset.width}
+    />
+  );
 
-  if (decorative) {
-    return <span aria-hidden="true" className={classes} />;
-  }
-
-  return <span aria-label={label} className={classes} role="img" />;
+  return (
+    <span
+      aria-hidden={decorative || undefined}
+      className={cn("inline-block align-middle leading-none", className)}
+      data-slot="pythia-lockup"
+      data-variant={variant}
+    >
+      {image("light")}
+      {image("dark")}
+    </span>
+  );
 }

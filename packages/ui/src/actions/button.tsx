@@ -3,24 +3,25 @@
 import { Button as BaseButton } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ComponentPropsWithRef, ReactNode, Ref } from "react";
+import { cn } from "../class-name";
 
 const buttonClasses = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--py-radius-interactive)] border text-sm font-semibold leading-none transition-[background-color,border-color,color,opacity,translate] duration-[var(--py-motion-fast)] ease-[var(--py-motion-easing)] active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-[var(--py-disabled-opacity)] motion-reduce:translate-none motion-reduce:active:translate-none motion-reduce:transition-none",
+  "motion-fast motion-reduce:translate-none motion-reduce:active:translate-none inline-flex shrink-0 items-center justify-center gap-2 rounded-control border font-semibold text-sm leading-none transition-[background-color,border-color,color,opacity,translate] active:translate-y-px disabled:pointer-events-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-disabled motion-reduce:transition-none",
   {
     variants: {
       variant: {
         primary:
-          "border-transparent bg-[var(--py-action-primary-background)] text-[var(--py-action-primary-foreground)] hover:opacity-85 active:opacity-75",
+          "border-transparent bg-primary text-primary-foreground hover:opacity-85 active:opacity-75",
         secondary:
-          "border-[var(--py-border-default)] bg-[var(--py-surface-raised)] text-[var(--py-text-primary)] hover:bg-[var(--py-interaction-hover)] active:bg-[var(--py-interaction-active)]",
+          "border-border bg-raised text-foreground hover:bg-interaction-hover active:bg-interaction-active",
         ghost:
-          "border-transparent bg-transparent text-[var(--py-text-primary)] hover:bg-[var(--py-interaction-hover)] active:bg-[var(--py-interaction-active)]",
+          "border-transparent bg-transparent text-foreground hover:bg-interaction-hover active:bg-interaction-active",
         danger:
-          "border-[var(--py-status-error-border)] bg-[var(--py-status-error-surface)] text-[var(--py-status-error-foreground)] hover:opacity-85 active:opacity-75",
+          "border-error-border bg-error-surface text-error hover:opacity-85 active:opacity-75",
       },
       size: {
         sm: "h-8 px-3 text-xs",
-        md: "h-[var(--py-profile-control-height)] px-4",
+        md: "h-control px-4",
         lg: "h-12 px-5 text-base",
       },
     },
@@ -45,8 +46,15 @@ interface ButtonStyleOptions {
 }
 
 function getButtonClassName({ className, size, variant }: ButtonStyleOptions) {
-  return buttonClasses({ className, size, variant });
+  return cn(buttonClasses({ size, variant }), className);
 }
+
+const spinner = (
+  <span
+    aria-hidden="true"
+    className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent motion-reduce:animate-none"
+  />
+);
 
 /** Props for the shared labelled action button. */
 export interface ButtonProps
@@ -83,14 +91,10 @@ export function Button({
       {...props}
       aria-busy={loading || undefined}
       className={getButtonClassName({ className, size, variant })}
+      data-slot="button"
       disabled={disabled || loading}
     >
-      {loading ? (
-        <span
-          aria-hidden="true"
-          className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent motion-reduce:animate-none"
-        />
-      ) : null}
+      {loading ? spinner : null}
       <span>{children}</span>
     </BaseButton>
   );
@@ -104,6 +108,12 @@ export interface IconButtonProps
   label: string;
   size?: ButtonSize;
 }
+
+const iconButtonSizes: Record<ButtonSize, string> = {
+  sm: "size-8",
+  md: "size-control",
+  lg: "size-12",
+};
 
 /**
  * Compact icon-only button for familiar actions where space is constrained.
@@ -123,30 +133,21 @@ export function IconButton({
   variant = "ghost",
   ...props
 }: IconButtonProps) {
-  const squareSize =
-    size === "sm"
-      ? "size-8"
-      : size === "lg"
-        ? "size-12"
-        : "size-[var(--py-profile-control-height)]";
-
   return (
     <BaseButton
       {...props}
       aria-busy={loading || undefined}
       aria-label={label}
       className={getButtonClassName({
-        className: `${squareSize} p-0 ${className ?? ""}`,
+        className: cn(iconButtonSizes[size], "p-0", className),
         size,
         variant,
       })}
+      data-slot="icon-button"
       disabled={props.disabled || loading}
     >
       {loading ? (
-        <span
-          aria-hidden="true"
-          className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent motion-reduce:animate-none"
-        />
+        spinner
       ) : (
         <span
           aria-hidden="true"
@@ -181,16 +182,19 @@ export function ButtonGroup({
   orientation = "horizontal",
   ...props
 }: ButtonGroupProps) {
-  const orientationClasses =
-    orientation === "vertical"
-      ? "flex-col [&>*:not(:first-child)]:-mt-px [&>*:not(:first-child)]:rounded-t-none [&>*:not(:last-child)]:rounded-b-none"
-      : "flex-row [&>*:not(:first-child)]:-ml-px [&>*:not(:first-child)]:rounded-l-none [&>*:not(:last-child)]:rounded-r-none";
-
   return (
     <fieldset
       {...props}
       aria-label={label}
-      className={`m-0 inline-flex min-w-0 border-0 p-0 ${orientationClasses} ${className ?? ""}`}
+      className={cn(
+        "m-0 inline-flex min-w-0 border-0 p-0",
+        orientation === "vertical"
+          ? "flex-col [&>*:not(:first-child)]:-mt-px [&>*:not(:first-child)]:rounded-t-none [&>*:not(:last-child)]:rounded-b-none"
+          : "flex-row [&>*:not(:first-child)]:-ml-px [&>*:not(:first-child)]:rounded-l-none [&>*:not(:last-child)]:rounded-r-none",
+        className,
+      )}
+      data-orientation={orientation}
+      data-slot="button-group"
     >
       {children}
     </fieldset>
@@ -224,7 +228,12 @@ export function LinkButton({
   return (
     <a
       {...props}
-      className={getButtonClassName({ className, size, variant })}
+      className={cn(
+        getButtonClassName({ size, variant }),
+        "no-underline",
+        className,
+      )}
+      data-slot="link-button"
     />
   );
 }

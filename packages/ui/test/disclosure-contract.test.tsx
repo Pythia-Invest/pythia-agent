@@ -24,9 +24,9 @@ describe("disclosure contracts", () => {
 
     expect(BaseAccordion.Root).toBeDefined();
     expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain("py-accordion-trigger");
-    expect(markup).toContain("py-accordion-icon");
-    expect(markup).toContain("py-accordion-panel-content");
+    expect(markup).toContain('data-slot="accordion-trigger"');
+    expect(markup).toContain('data-slot="accordion-icon"');
+    expect(markup).toContain('data-slot="accordion-panel-content"');
     expect(markup).toContain("Supporting context");
   });
 
@@ -42,41 +42,40 @@ describe("disclosure contracts", () => {
 
     expect(typeof BaseCollapsible.Root).toBe("object");
     expect(markup).toMatch(
-      /<div data-open="" data-disabled="" class="py-collapsible">/,
+      /<div data-open="" data-disabled="" [^>]*data-slot="collapsible"/,
     );
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain("disabled");
-    expect(markup).toContain("py-collapsible-panel");
-    expect(markup).toContain("py-collapsible-icon");
-    expect(markup).toContain("py-collapsible-panel-content");
+    expect(markup).toContain('data-slot="collapsible-panel"');
+    expect(markup).toContain('data-slot="collapsible-icon"');
+    expect(markup).toContain('data-slot="collapsible-panel-content"');
     expect(markup).toContain("Method details");
   });
 
   it("keeps accordion and collapsible visual anatomy distinct", async () => {
-    const css = await readFile(
-      new URL("../src/disclosure/disclosure.css", import.meta.url),
-      "utf8",
+    const [accordion, collapsible, details] = await Promise.all(
+      ["accordion", "collapsible", "details"].map((file) =>
+        readFile(
+          new URL(`../src/disclosure/${file}.tsx`, import.meta.url),
+          "utf8",
+        ),
+      ),
     );
-    expect(css).not.toMatch(/\.py-accordion\s*\{[^}]*border-block-start:/);
-    expect(css).toMatch(
-      /\.py-collapsible\s*\{[^}]*border:[^}]*border-radius:[^}]*background:\s*var\(--py-surface-raised\)/,
+    // The accordion root has no top border; items separate themselves.
+    expect(accordion).not.toMatch(/cnState\("[^"]*border-t/);
+    expect(accordion).toContain("border-border border-b");
+    // The collapsible is one bordered, raised container that fades once when disabled.
+    expect(collapsible).toContain(
+      "rounded-container border border-border bg-raised text-foreground data-disabled:opacity-disabled",
     );
-    expect(css).toMatch(
-      /\.py-collapsible\[data-disabled\]\s*\{[^}]*opacity:\s*var\(--py-disabled-opacity\)/,
+    expect(collapsible).toContain("px-4 hover:bg-interaction-hover");
+    expect(collapsible).toContain("border-border border-t p-4");
+    expect(collapsible).not.toContain(
+      "disabled:opacity-disabled disabled:cursor",
     );
-    expect(css).toMatch(
-      /\.py-collapsible-trigger:hover\s*\{[^}]*background:\s*var\(--py-interaction-hover\)/,
-    );
-    expect(css).toMatch(
-      /\.py-collapsible-trigger\s*\{[^}]*padding-inline:\s*var\(--py-space-4\)/,
-    );
-    expect(css).toMatch(
-      /\.py-collapsible-panel-content\s*\{[^}]*padding:\s*var\(--py-space-4\)/,
-    );
-    expect(css).not.toMatch(
-      /\.py-collapsible-trigger:disabled\s*\{[^}]*opacity:/,
-    );
-    expect(css).toContain(".py-details-summary::after");
+    // Native details shows its own plus marker.
+    expect(details).toContain("after:content-['+']");
+    expect(details).toContain("group-open/details:after:rotate-45");
   });
 
   it("uses native details and summary elements without a client state owner", () => {
@@ -87,10 +86,12 @@ describe("disclosure contracts", () => {
       </Details.Root>,
     );
 
-    expect(markup).toContain('<details class="py-details" open="">');
-    expect(markup).toContain(
-      '<summary class="py-details-summary">Assumptions</summary>',
+    expect(markup).toMatch(
+      /<details class="[^"]*" data-slot="details" open="">/,
     );
-    expect(markup).toContain("py-details-content");
+    expect(markup).toMatch(
+      /<summary class="[^"]*" data-slot="details-summary">Assumptions<\/summary>/,
+    );
+    expect(markup).toContain('data-slot="details-content"');
   });
 });

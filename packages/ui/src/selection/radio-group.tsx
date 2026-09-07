@@ -2,7 +2,7 @@
 
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group";
-import { mergeStatefulClassName } from "./class-name";
+import { cnState } from "../class-name";
 
 export type RadioGroupProps<Value = unknown> = RadioGroupPrimitive.Props<Value>;
 export type RadioProps<Value = unknown> = Omit<
@@ -25,7 +25,11 @@ export function RadioGroup<Value>({
 }: RadioGroupProps<Value>) {
   return (
     <RadioGroupPrimitive
-      className={mergeStatefulClassName("pythia-radio-group", className)}
+      className={cnState(
+        "grid gap-group data-[orientation=horizontal]:flex data-[orientation=horizontal]:flex-wrap data-[orientation=horizontal]:items-center",
+        className,
+      )}
+      data-slot="radio-group"
       {...props}
     />
   );
@@ -43,10 +47,17 @@ export function RadioGroup<Value>({
 export function Radio<Value>({ className, ...props }: RadioProps<Value>) {
   return (
     <RadioPrimitive.Root
-      className={mergeStatefulClassName("pythia-radio", className)}
+      className={cnState(
+        "motion-fast inline-flex size-[1.125rem] flex-none items-center justify-center rounded-pill border border-border-strong bg-raised text-foreground transition-colors hover:bg-interaction-hover data-disabled:cursor-not-allowed data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground data-disabled:opacity-disabled",
+        className,
+      )}
+      data-slot="radio"
       {...props}
     >
-      <RadioPrimitive.Indicator className="pythia-radio__indicator" />
+      <RadioPrimitive.Indicator
+        className="size-[0.45rem] rounded-pill bg-primary-foreground"
+        data-slot="radio-indicator"
+      />
     </RadioPrimitive.Root>
   );
 }

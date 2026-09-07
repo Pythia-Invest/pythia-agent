@@ -74,9 +74,9 @@ describe("Design Lab interactive explorer", () => {
       readFile(new URL("../src/app/globals.css", import.meta.url), "utf8"),
     ]);
 
-    expect(html.match(/pythia-signal(?:\s|&quot;)/g)).toHaveLength(1);
+    expect(html.match(/data-slot="pythia-signal"/g)).toHaveLength(1);
     expect(html).toContain("Pythia signal");
-    expect(html).toContain("pythia-signal__seam");
+    expect(html).toContain('data-slot="pythia-signal-seam"');
     expect(preview).toContain('Specimen label="Canonical Oracle seam"');
     expect(`${preview}\n${css}`).not.toMatch(
       /(?:Provisional Pythia Signal directions|A\/B\/C|Inference node|Lens field|catalog-signal-direction)/,

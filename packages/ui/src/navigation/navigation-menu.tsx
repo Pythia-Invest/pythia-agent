@@ -2,7 +2,7 @@
 
 import { NavigationMenu as NavigationMenuPrimitive } from "@base-ui/react/navigation-menu";
 import { ChevronDown } from "lucide-react";
-import { mergeStatefulClassName } from "./class-name";
+import { cnState } from "../class-name";
 
 export type NavigationMenuProps<Value = unknown> =
   NavigationMenuPrimitive.Root.Props<Value>;
@@ -22,7 +22,11 @@ export function NavigationMenu<Value>({
 }: NavigationMenuProps<Value>) {
   return (
     <NavigationMenuPrimitive.Root
-      className={mergeStatefulClassName("pythia-navigation-menu", className)}
+      className={cnState(
+        "group/navigation-menu relative text-body text-foreground",
+        className,
+      )}
+      data-slot="navigation-menu"
       {...props}
     />
   );
@@ -44,10 +48,11 @@ export function NavigationMenuList({
 }: NavigationMenuListProps) {
   return (
     <NavigationMenuPrimitive.List
-      className={mergeStatefulClassName(
-        "pythia-navigation-menu__list",
+      className={cnState(
+        "m-0 flex list-none items-center gap-1 p-0 group-data-[orientation=vertical]/navigation-menu:flex-col group-data-[orientation=vertical]/navigation-menu:items-stretch",
         className,
       )}
+      data-slot="navigation-menu-list"
       {...props}
     />
   );
@@ -69,14 +74,16 @@ export function NavigationMenuItem({
 }: NavigationMenuItemProps) {
   return (
     <NavigationMenuPrimitive.Item
-      className={mergeStatefulClassName(
-        "pythia-navigation-menu__item",
-        className,
-      )}
+      className={cnState("", className)}
+      data-slot="navigation-menu-item"
       {...props}
     />
   );
 }
+
+/** Row treatment shared by triggers and links. */
+const navigationRow =
+  "inline-flex min-h-control items-center gap-1 rounded-control border-0 bg-transparent px-3 py-1 text-foreground no-underline transition-colors motion-fast hover:bg-interaction-hover";
 
 export type NavigationMenuTriggerProps = NavigationMenuPrimitive.Trigger.Props;
 
@@ -96,14 +103,18 @@ export function NavigationMenuTrigger({
 }: NavigationMenuTriggerProps) {
   return (
     <NavigationMenuPrimitive.Trigger
-      className={mergeStatefulClassName(
-        "pythia-navigation-menu__trigger",
+      className={cnState(
+        `${navigationRow} data-popup-open:bg-interaction-active`,
         className,
       )}
+      data-slot="navigation-menu-trigger"
       {...props}
     >
       {children}
-      <NavigationMenuPrimitive.Icon className="pythia-navigation-menu__icon">
+      <NavigationMenuPrimitive.Icon
+        className="motion-standard inline-flex items-center text-foreground-secondary transition-transform data-popup-open:rotate-180 [&>svg]:size-3.5"
+        data-slot="navigation-menu-icon"
+      >
         <ChevronDown aria-hidden="true" />
       </NavigationMenuPrimitive.Icon>
     </NavigationMenuPrimitive.Trigger>
@@ -126,10 +137,8 @@ export function NavigationMenuContent({
 }: NavigationMenuContentProps) {
   return (
     <NavigationMenuPrimitive.Content
-      className={mergeStatefulClassName(
-        "pythia-navigation-menu__content",
-        className,
-      )}
+      className={cnState("p-3", className)}
+      data-slot="navigation-menu-content"
       {...props}
     />
   );
@@ -164,11 +173,9 @@ export function NavigationMenuPositioner({
 }: NavigationMenuPositionerProps) {
   return (
     <NavigationMenuPrimitive.Positioner
-      className={mergeStatefulClassName(
-        "pythia-navigation-menu__positioner",
-        className,
-      )}
+      className={cnState("z-50", className)}
       align={align}
+      data-slot="navigation-menu-positioner"
       sideOffset={sideOffset}
       {...props}
     />
@@ -191,10 +198,11 @@ export function NavigationMenuPopup({
 }: NavigationMenuPopupProps) {
   return (
     <NavigationMenuPrimitive.Popup
-      className={mergeStatefulClassName(
-        "pythia-navigation-menu__popup",
+      className={cnState(
+        "overflow-hidden rounded-container border border-border bg-overlay text-foreground shadow-popup",
         className,
       )}
+      data-slot="navigation-menu-popup"
       {...props}
     />
   );
@@ -217,10 +225,11 @@ export function NavigationMenuViewport({
 }: NavigationMenuViewportProps) {
   return (
     <NavigationMenuPrimitive.Viewport
-      className={mergeStatefulClassName(
-        "pythia-navigation-menu__viewport",
+      className={cnState(
+        "motion-standard h-(--popup-height) min-h-12 w-(--popup-width) min-w-48 transition-[height,width]",
         className,
       )}
+      data-slot="navigation-menu-viewport"
       {...props}
     />
   );
@@ -243,10 +252,11 @@ export function NavigationMenuLink({
 }: NavigationMenuLinkProps) {
   return (
     <NavigationMenuPrimitive.Link
-      className={mergeStatefulClassName(
-        "pythia-navigation-menu__link",
+      className={cnState(
+        `${navigationRow} data-active:bg-interaction-active data-active:font-semibold`,
         className,
       )}
+      data-slot="navigation-menu-link"
       {...props}
     />
   );

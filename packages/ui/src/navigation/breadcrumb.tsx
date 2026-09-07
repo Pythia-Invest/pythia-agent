@@ -1,6 +1,6 @@
-import { MoreHorizontal, ChevronRight } from "lucide-react";
+import { ChevronRight, MoreHorizontal } from "lucide-react";
 import type { ComponentProps } from "react";
-import { joinClassNames } from "./class-name";
+import { cn } from "../class-name";
 
 export type BreadcrumbProps = ComponentProps<"nav">;
 
@@ -20,7 +20,8 @@ export function Breadcrumb({
   return (
     <nav
       aria-label={ariaLabel}
-      className={joinClassNames("pythia-breadcrumb", className)}
+      className={cn("text-body text-foreground-secondary", className)}
+      data-slot="breadcrumb"
       {...props}
     />
   );
@@ -39,7 +40,11 @@ export type BreadcrumbListProps = ComponentProps<"ol">;
 export function BreadcrumbList({ className, ...props }: BreadcrumbListProps) {
   return (
     <ol
-      className={joinClassNames("pythia-breadcrumb__list", className)}
+      className={cn(
+        "m-0 flex list-none flex-wrap items-center gap-2 p-0",
+        className,
+      )}
+      data-slot="breadcrumb-list"
       {...props}
     />
   );
@@ -58,7 +63,8 @@ export type BreadcrumbItemProps = ComponentProps<"li">;
 export function BreadcrumbItem({ className, ...props }: BreadcrumbItemProps) {
   return (
     <li
-      className={joinClassNames("pythia-breadcrumb__item", className)}
+      className={cn("inline-flex items-center", className)}
+      data-slot="breadcrumb-item"
       {...props}
     />
   );
@@ -77,7 +83,11 @@ export type BreadcrumbLinkProps = ComponentProps<"a">;
 export function BreadcrumbLink({ className, ...props }: BreadcrumbLinkProps) {
   return (
     <a
-      className={joinClassNames("pythia-breadcrumb__link", className)}
+      className={cn(
+        "text-foreground-secondary no-underline underline-offset-[0.2em] hover:text-foreground hover:underline",
+        className,
+      )}
+      data-slot="breadcrumb-link"
       {...props}
     />
   );
@@ -95,7 +105,8 @@ export type BreadcrumbPageProps = ComponentProps<"span">;
 export function BreadcrumbPage({ className, ...props }: BreadcrumbPageProps) {
   return (
     <span
-      className={joinClassNames("pythia-breadcrumb__page", className)}
+      className={cn("font-medium text-foreground", className)}
+      data-slot="breadcrumb-page"
       {...props}
       aria-current="page"
     />
@@ -119,7 +130,11 @@ export function BreadcrumbSeparator({
 }: BreadcrumbSeparatorProps) {
   return (
     <li
-      className={joinClassNames("pythia-breadcrumb__separator", className)}
+      className={cn(
+        "inline-flex items-center justify-center text-foreground-secondary [&>svg]:size-4",
+        className,
+      )}
+      data-slot="breadcrumb-separator"
       {...props}
       aria-hidden="true"
     >
@@ -145,11 +160,15 @@ export function BreadcrumbEllipsis({
 }: BreadcrumbEllipsisProps) {
   return (
     <span
-      className={joinClassNames("pythia-breadcrumb__ellipsis", className)}
+      className={cn(
+        "inline-flex items-center justify-center text-foreground-secondary [&>svg]:size-4",
+        className,
+      )}
+      data-slot="breadcrumb-ellipsis"
       {...props}
     >
       <MoreHorizontal aria-hidden="true" />
-      <span className="pythia-visually-hidden">{children ?? "More pages"}</span>
+      <span className="sr-only">{children ?? "More pages"}</span>
     </span>
   );
 }

@@ -1,4 +1,5 @@
 import type { ComponentPropsWithoutRef } from "react";
+import { cn } from "../class-name";
 
 /** Maximum content measures supported by the shared Container. */
 export type ContainerSize = "reading" | "content" | "wide" | "full";
@@ -7,6 +8,13 @@ export type ContainerSize = "reading" | "content" | "wide" | "full";
 export interface ContainerProps extends ComponentPropsWithoutRef<"div"> {
   size?: ContainerSize;
 }
+
+const containerSizes: Record<ContainerSize, string> = {
+  reading: "max-w-[calc(var(--container-measure)+2*var(--spacing-gutter))]",
+  content: "max-w-[calc(1.5*var(--container-measure)+2*var(--spacing-gutter))]",
+  wide: "max-w-[calc(2*var(--container-measure)+2*var(--spacing-gutter))]",
+  full: "max-w-none",
+};
 
 /**
  * Centers content within reading, content, wide, or full measure and applies
@@ -22,8 +30,13 @@ export function Container({
 }: ContainerProps) {
   return (
     <div
-      className={["py-container", className].filter(Boolean).join(" ")}
+      className={cn(
+        "mx-auto w-full px-gutter",
+        containerSizes[size],
+        className,
+      )}
       data-size={size}
+      data-slot="container"
       {...props}
     />
   );
@@ -34,6 +47,22 @@ export type LayoutGap = "1" | "2" | "3" | "4" | "6" | "8";
 
 /** Cross-axis alignment options shared by Stack and Inline. */
 export type LayoutAlign = "start" | "center" | "end" | "stretch";
+
+const gaps: Record<LayoutGap, string> = {
+  "1": "gap-1",
+  "2": "gap-2",
+  "3": "gap-3",
+  "4": "gap-4",
+  "6": "gap-6",
+  "8": "gap-8",
+};
+
+const alignments: Record<LayoutAlign, string> = {
+  start: "items-start",
+  center: "items-center",
+  end: "items-end",
+  stretch: "items-stretch",
+};
 
 /** Props for a vertical composition with token-backed gap and alignment. */
 export interface StackProps extends ComponentPropsWithoutRef<"div"> {
@@ -55,9 +84,8 @@ export function Stack({
 }: StackProps) {
   return (
     <div
-      className={["py-stack", className].filter(Boolean).join(" ")}
-      data-align={align}
-      data-gap={gap}
+      className={cn("flex flex-col", gaps[gap], alignments[align], className)}
+      data-slot="stack"
       {...props}
     />
   );
@@ -85,10 +113,14 @@ export function Inline({
 }: InlineProps) {
   return (
     <div
-      className={["py-inline", className].filter(Boolean).join(" ")}
-      data-align={align}
-      data-gap={gap}
-      data-wrap={wrap ? "true" : "false"}
+      className={cn(
+        "flex flex-row",
+        wrap && "flex-wrap",
+        gaps[gap],
+        alignments[align],
+        className,
+      )}
+      data-slot="inline"
       {...props}
     />
   );

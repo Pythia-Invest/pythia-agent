@@ -14,8 +14,15 @@ Every browser API route must enter through `src/server/routes.ts`. Admission in
 Do not add a bypass route. Keep upstream response handling narrow and tolerant
 of absent optional fields; unknown Hermes events are ignored.
 
-Use `@pythia/ui` through its public entrypoint. Application routes, state,
-validation, and workflows stay in this app. Tests live in `test/`.
+Use `@pythia/ui` through its public entrypoint. Style with Tailwind utilities
+and `cn` per the [styling rule](../../.agents/rules/styling.md); `globals.css`
+only imports Tailwind and the shared theme. Application routes, state,
+validation, and workflows stay in this app. Chats are App Router routes under
+`(shell)/c/[sessionId]`; read server state through the TanStack Query hooks in
+`src/client/queries.ts`, never with ad-hoc `fetch` effects
+([ADR 0007](../../docs/decisions/0007-desk-client-conventions.md)). Unit
+tests live in `test/`; Playwright smoke tests in `e2e/` run against a running
+Desk named by `PYTHIA_DESK_URL` and must not start or reconfigure the stack.
 
 Check affected workflows with keyboard navigation, narrow viewports and their
 loading, empty and failure states. Use the supported-environment scope in

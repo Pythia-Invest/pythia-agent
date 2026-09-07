@@ -76,6 +76,8 @@ export class DeskApi {
   async #json<T>(path: string, init: RequestInit = {}) {
     const headers = new Headers(init.headers);
     if (init.body !== undefined) {
+      // Mutations need the browser-session token; reads do not.
+      if (!this.#csrfToken) await this.initialize();
       headers.set("Content-Type", "application/json");
       headers.set("X-Pythia-CSRF", this.#csrfToken);
     }

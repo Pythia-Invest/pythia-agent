@@ -3,6 +3,8 @@
 import { Field as BaseField } from "@base-ui/react/field";
 import { OTPField as BaseOTPField } from "@base-ui/react/otp-field";
 import type { ReactNode, Ref } from "react";
+import { cn } from "../class-name";
+import { fieldClasses } from "./field";
 
 /** Props for the complete Base UI one-time-password field pattern. */
 export interface OTPFieldProps
@@ -49,16 +51,15 @@ export function OTPField({
 
   return (
     <BaseField.Root
-      className={`py-field grid gap-1.5 text-[var(--py-text-primary)] ${className ?? ""}`}
+      className={cn(fieldClasses.root, className)}
+      data-slot="otp-field"
       disabled={props.disabled}
       invalid={invalid}
       name={props.name}
     >
-      <BaseField.Label className="text-sm font-semibold leading-[var(--py-line-height-ui)]">
-        {label}
-      </BaseField.Label>
+      <BaseField.Label className={fieldClasses.label}>{label}</BaseField.Label>
       {description ? (
-        <BaseField.Description className="m-0 text-xs leading-[var(--py-line-height-ui)] text-[var(--py-text-secondary)]">
+        <BaseField.Description className={fieldClasses.description}>
           {description}
         </BaseField.Description>
       ) : null}
@@ -73,17 +74,14 @@ export function OTPField({
             aria-label={
               index === 0 ? undefined : `Character ${index + 1} of ${length}`
             }
-            className="py-field-control size-11 rounded-[var(--py-radius-interactive)] border border-[var(--py-border-default)] bg-[var(--py-surface-raised)] text-center font-mono text-lg font-semibold text-[var(--py-text-primary)] caret-[var(--py-focus-ring)] focus-visible:border-[var(--py-border-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] aria-invalid:border-[var(--py-status-error-border)] aria-invalid:bg-[var(--py-status-error-surface)]"
+            className="numeric size-11 rounded-control border border-border bg-raised text-center font-semibold text-foreground text-lg caret-ring focus-visible:border-border-strong disabled:cursor-not-allowed disabled:opacity-disabled aria-invalid:border-error-border aria-invalid:bg-error-surface group-data-disabled:disabled:opacity-100"
             // biome-ignore lint/suspicious/noArrayIndexKey: each fixed OTP slot's position is its identity.
             key={index}
           />
         ))}
       </BaseOTPField.Root>
       {error ? (
-        <BaseField.Error
-          className="text-xs font-medium leading-[var(--py-line-height-ui)] text-[var(--py-status-error-foreground)]"
-          match
-        >
+        <BaseField.Error className={fieldClasses.error} match>
           {error}
         </BaseField.Error>
       ) : null}

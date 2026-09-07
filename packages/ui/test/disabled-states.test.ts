@@ -20,48 +20,48 @@ describe("uniform disabled presentation", () => {
       [
         "../src/actions/button.tsx",
         "../src/actions/toggle.tsx",
-        "../src/forms/forms.css",
+        "../src/forms/field.tsx",
         "../src/calendar/calendar.tsx",
-        "../src/selection/selection.css",
-        "../src/navigation/navigation.css",
-        "../src/overlays/overlays.css",
-        "../src/disclosure/disclosure.css",
+        "../src/selection/checkbox.tsx",
+        "../src/selection/select.tsx",
+        "../src/selection/shared.ts",
+        "../src/navigation/tabs.tsx",
+        "../src/overlays/menu.tsx",
+        "../src/disclosure/accordion.tsx",
+        "../src/disclosure/collapsible.tsx",
       ].map(source),
     );
 
     for (const file of files) {
-      expect(file).toContain("var(--py-disabled-opacity)");
+      expect(file).toContain("opacity-disabled");
     }
 
     const disabledSources = files.join("\n");
     expect(disabledSources).not.toMatch(/disabled:opacity-(?:45|55|72|75)/);
-    expect(disabledSources).not.toMatch(/opacity:\s*0\.(?:45|55|72|75)/);
+    expect(disabledSources).not.toMatch(/opacity-\[/);
     expect(disabledSources).not.toMatch(
-      /disabled:(?:bg-\[var\(--py-surface-subtle\)\]|text-\[var\(--py-text-disabled\)\])/,
+      /disabled:(?:bg-subtle|text-foreground-disabled)/,
     );
   });
 
   it("fades field-owned content once and keeps outside-month dates separate", async () => {
-    const [forms, field, otp, datePicker, calendar] = await Promise.all([
-      source("../src/forms/forms.css"),
+    const [field, otp, datePicker, calendar] = await Promise.all([
       source("../src/forms/field.tsx"),
       source("../src/forms/otp-field.tsx"),
       source("../src/calendar/date-picker.tsx"),
       source("../src/calendar/calendar.tsx"),
     ]);
 
-    expect(forms).toMatch(
-      /\.py-field\[data-disabled\]\s*\{[^}]*opacity:\s*var\(--py-disabled-opacity\)/,
-    );
-    expect(forms).toMatch(
-      /\.py-field\[data-disabled\] \.py-field-control:disabled\s*\{[^}]*opacity:\s*1/,
-    );
-    expect(field).toContain("py-field grid");
-    expect(otp).toContain("py-field grid");
+    // The field root fades once; a disabled control inside it stays at full opacity.
+    expect(field).toContain("data-disabled:opacity-disabled");
+    expect(field).toContain("group-data-disabled:disabled:opacity-100");
+    expect(otp).toContain("fieldClasses.root");
+    expect(otp).toContain("group-data-disabled:disabled:opacity-100");
+    expect(datePicker).toContain("fieldClasses.root");
     expect(datePicker).toContain('data-disabled={disabled ? "" : undefined}');
     expect(calendar).toContain(
-      '[DayFlag.outside]: "text-[var(--py-text-disabled)] opacity-55"',
+      '[DayFlag.outside]: "text-foreground-disabled opacity-55"',
     );
-    expect(calendar).toContain("opacity-[var(--py-disabled-opacity)]`,");
+    expect(calendar).toContain("opacity-disabled`,");
   });
 });

@@ -101,6 +101,8 @@ Thumbs.db
 Desktop.ini
 .idea/
 .vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
 *.swp
 *.swo
 *~

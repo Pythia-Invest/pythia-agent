@@ -61,19 +61,13 @@ describe("calendar-date boundary", () => {
     expect(html).toContain('aria-selected="true"');
     expect(html).toContain('data-today="true"');
     expect(html).toContain("March 2024");
-    expect(html).toContain("bg-[var(--py-action-primary-background)]");
-    expect(html).toContain("text-[var(--py-action-primary-foreground)]");
-    expect(html).toContain(
-      "[&amp;&gt;button:hover]:bg-[var(--py-action-primary-background)]",
-    );
-    expect(html).toContain(
-      "[&amp;&gt;button:hover]:text-[var(--py-action-primary-foreground)]",
-    );
-    expect(html).toContain(
-      "[&amp;[data-today]]:after:bg-[var(--py-action-primary-foreground)]",
-    );
+    expect(html).toContain("bg-primary");
+    expect(html).toContain("text-primary-foreground");
+    expect(html).toContain("[&amp;&gt;button:hover]:bg-primary");
+    expect(html).toContain("[&amp;&gt;button:hover]:text-primary-foreground");
+    expect(html).toContain("[&amp;[data-today]]:after:bg-primary-foreground");
     expect(html).not.toContain("ring-inset");
-    expect(html).not.toContain("--py-signal-");
+    expect(html).not.toContain("signal");
   });
 
   it("keeps UTC and explicit clock inputs fixed in the DayPicker adapter", async () => {

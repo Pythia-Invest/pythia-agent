@@ -40,6 +40,8 @@ Read additional guidance by the surface being changed:
 
 | Work | Read first |
 | --- | --- |
+| Desk or shared UI appearance, layout, theming or components | [Design direction](docs/design.md), [ADR 0003](docs/decisions/0003-ui-and-design-lab.md), [ADR 0006](docs/decisions/0006-tailwind-styling-layer.md), the [styling rule](.agents/rules/styling.md) and the Design Lab |
+| Desk routes, client data fetching or browser tests | [ADR 0007](docs/decisions/0007-desk-client-conventions.md) and [test allocation](.agents/testing.md) |
 | Model-visible text, including skills, tool descriptions and builder rules | [Prompting guidance](docs/prompting.md) and [instruction rule](.agents/rules/agent-instruction-design.md) |
 | Platform, browser or hosting behavior | [Supported environments](docs/support.md) and [hosting](docs/hosting.md) |
 | Settings, credentials, lifecycle or updates | [Credential custody](docs/architecture/credential-custody.md) and [development](docs/development.md) |

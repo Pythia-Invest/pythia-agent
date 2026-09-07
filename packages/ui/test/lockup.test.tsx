@@ -16,11 +16,13 @@ describe("PythiaLockup", () => {
       <PythiaLockup label="Pythia Invest home" />,
     );
 
-    expect(markup).toContain('role="img"');
-    expect(markup).toContain('aria-label="Pythia Invest home"');
-    expect(markup).toContain('class="pythia-lockup pythia-lockup--full"');
+    expect(markup).toContain('alt="Pythia Invest home"');
+    expect(markup).toContain('data-slot="pythia-lockup"');
+    expect(markup).toContain('data-variant="full"');
+    expect(markup).toContain("lockup-full-light-640.png");
+    expect(markup).toContain("lockup-full-dark-640.png");
     expect(markup).not.toContain("<svg");
-    expect(markup).not.toContain("pythia-lockup__wordmark");
+    expect(markup).not.toContain("aria-hidden");
   });
 
   it("removes decorative identity from the accessibility tree", () => {
@@ -29,16 +31,16 @@ describe("PythiaLockup", () => {
     );
 
     expect(markup).toContain('aria-hidden="true"');
-    expect(markup).toContain(
-      'class="pythia-lockup pythia-lockup--compact consumer-mark"',
-    );
+    expect(markup).toContain('data-variant="compact"');
+    expect(markup).toContain("consumer-mark");
+    expect(markup).toContain('alt=""');
     expect(markup).not.toContain("aria-label=");
     expect(markup).not.toContain("role=");
   });
 
   it("uses bounded complete-lockup exports rather than a runtime font or 2048 master", async () => {
     const css = await readFile(
-      new URL("../src/lockup.css", import.meta.url),
+      new URL("../src/assets.ts", import.meta.url),
       "utf8",
     );
 

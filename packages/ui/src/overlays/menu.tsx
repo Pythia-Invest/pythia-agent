@@ -2,7 +2,14 @@
 
 import { Menu as BaseMenu } from "@base-ui/react/menu";
 import type { ComponentProps } from "react";
-import { mergeClassName } from "./class-names";
+import { cnState } from "../class-name";
+import { overlayClasses } from "./shared";
+
+const menuItem =
+  "relative flex min-h-control cursor-default select-none items-center gap-2 rounded-control px-3 py-2 text-body leading-ui text-foreground outline-0 data-highlighted:bg-interaction-hover data-disabled:pointer-events-none data-disabled:opacity-disabled";
+const menuChoiceItem = `${menuItem} ps-8`;
+const menuIndicator =
+  "absolute start-3 grid w-4 place-items-center [&>svg]:size-3.5";
 
 function MenuPositioner({
   className,
@@ -10,7 +17,8 @@ function MenuPositioner({
 }: ComponentProps<typeof BaseMenu.Positioner>) {
   return (
     <BaseMenu.Positioner
-      className={mergeClassName("py-floating-positioner", className)}
+      className={cnState(overlayClasses.positioner, className)}
+      data-slot="menu-positioner"
       sideOffset={6}
       {...props}
     />
@@ -23,7 +31,11 @@ function MenuPopup({
 }: ComponentProps<typeof BaseMenu.Popup>) {
   return (
     <BaseMenu.Popup
-      className={mergeClassName("py-floating-popup py-menu-popup", className)}
+      className={cnState(
+        `${overlayClasses.surface} ${overlayClasses.floating} min-w-48 p-1`,
+        className,
+      )}
+      data-slot="menu-popup"
       {...props}
     />
   );
@@ -35,7 +47,8 @@ function MenuArrow({
 }: ComponentProps<typeof BaseMenu.Arrow>) {
   return (
     <BaseMenu.Arrow
-      className={mergeClassName("py-floating-arrow", className)}
+      className={cnState(overlayClasses.arrow, className)}
+      data-slot="menu-arrow"
       {...props}
     />
   );
@@ -47,7 +60,8 @@ function MenuItem({
 }: ComponentProps<typeof BaseMenu.Item>) {
   return (
     <BaseMenu.Item
-      className={mergeClassName("py-menu-item", className)}
+      className={cnState(menuItem, className)}
+      data-slot="menu-item"
       {...props}
     />
   );
@@ -59,7 +73,8 @@ function MenuLinkItem({
 }: ComponentProps<typeof BaseMenu.LinkItem>) {
   return (
     <BaseMenu.LinkItem
-      className={mergeClassName("py-menu-item", className)}
+      className={cnState(`${menuItem} no-underline`, className)}
+      data-slot="menu-link-item"
       {...props}
     />
   );
@@ -71,7 +86,8 @@ function MenuCheckboxItem({
 }: ComponentProps<typeof BaseMenu.CheckboxItem>) {
   return (
     <BaseMenu.CheckboxItem
-      className={mergeClassName("py-menu-item py-menu-choice-item", className)}
+      className={cnState(menuChoiceItem, className)}
+      data-slot="menu-checkbox-item"
       {...props}
     />
   );
@@ -83,7 +99,8 @@ function MenuRadioItem({
 }: ComponentProps<typeof BaseMenu.RadioItem>) {
   return (
     <BaseMenu.RadioItem
-      className={mergeClassName("py-menu-item py-menu-choice-item", className)}
+      className={cnState(menuChoiceItem, className)}
+      data-slot="menu-radio-item"
       {...props}
     />
   );
@@ -95,7 +112,8 @@ function MenuIndicator({
 }: ComponentProps<typeof BaseMenu.CheckboxItemIndicator>) {
   return (
     <BaseMenu.CheckboxItemIndicator
-      className={mergeClassName("py-menu-indicator", className)}
+      className={cnState(menuIndicator, className)}
+      data-slot="menu-indicator"
       {...props}
     />
   );
@@ -107,7 +125,8 @@ function MenuRadioIndicator({
 }: ComponentProps<typeof BaseMenu.RadioItemIndicator>) {
   return (
     <BaseMenu.RadioItemIndicator
-      className={mergeClassName("py-menu-indicator", className)}
+      className={cnState(menuIndicator, className)}
+      data-slot="menu-indicator"
       {...props}
     />
   );
@@ -119,7 +138,11 @@ function MenuGroupLabel({
 }: ComponentProps<typeof BaseMenu.GroupLabel>) {
   return (
     <BaseMenu.GroupLabel
-      className={mergeClassName("py-menu-group-label", className)}
+      className={cnState(
+        "px-3 pt-2 pb-1 font-semibold text-foreground-secondary text-xs",
+        className,
+      )}
+      data-slot="menu-group-label"
       {...props}
     />
   );
@@ -131,7 +154,8 @@ function MenuSeparator({
 }: ComponentProps<typeof BaseMenu.Separator>) {
   return (
     <BaseMenu.Separator
-      className={mergeClassName("py-menu-separator", className)}
+      className={cnState("mx-2 my-1 h-px bg-border", className)}
+      data-slot="menu-separator"
       {...props}
     />
   );
@@ -143,10 +167,11 @@ function MenuSubmenuTrigger({
 }: ComponentProps<typeof BaseMenu.SubmenuTrigger>) {
   return (
     <BaseMenu.SubmenuTrigger
-      className={mergeClassName(
-        "py-menu-item py-menu-submenu-trigger",
+      className={cnState(
+        `${menuItem} after:ms-auto after:content-['›']`,
         className,
       )}
+      data-slot="menu-submenu-trigger"
       {...props}
     />
   );

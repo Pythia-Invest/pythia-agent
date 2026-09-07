@@ -2,7 +2,8 @@
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { Check, ChevronDown } from "lucide-react";
-import { mergeStatefulClassName } from "./class-name";
+import { cnState } from "../class-name";
+import { pickerClasses } from "./shared";
 
 /**
  * Native Base UI searchable selection state owner for typed values.
@@ -34,10 +35,11 @@ export function ComboboxInputGroup({
 }: ComboboxInputGroupProps) {
   return (
     <ComboboxPrimitive.InputGroup
-      className={mergeStatefulClassName(
-        "pythia-combobox__input-group",
+      className={cnState(
+        `${pickerClasses.controlHeight} motion-fast inline-flex min-w-48 items-center rounded-control border border-border bg-raised text-foreground text-sm transition-colors focus-within:border-border-strong focus-within:outline-2 focus-within:outline-ring focus-within:outline-offset-2 hover:border-border-strong hover:bg-interaction-hover data-disabled:cursor-not-allowed data-disabled:opacity-disabled`,
         className,
       )}
+      data-slot="combobox-input-group"
       {...props}
     />
   );
@@ -57,7 +59,11 @@ export type ComboboxInputProps = ComboboxPrimitive.Input.Props;
 export function ComboboxInput({ className, ...props }: ComboboxInputProps) {
   return (
     <ComboboxPrimitive.Input
-      className={mergeStatefulClassName("pythia-combobox__input", className)}
+      className={cnState(
+        "min-h-[calc(var(--spacing-control)-2px)] min-w-0 flex-1 border-0 bg-transparent px-3 text-foreground outline-0 placeholder:text-foreground-secondary focus-visible:outline-none",
+        className,
+      )}
+      data-slot="combobox-input"
       {...props}
     />
   );
@@ -80,7 +86,11 @@ export function ComboboxTrigger({
 }: ComboboxTriggerProps) {
   return (
     <ComboboxPrimitive.Trigger
-      className={mergeStatefulClassName("pythia-combobox__trigger", className)}
+      className={cnState(
+        `${pickerClasses.chevron} self-stretch border-0 border-border border-l bg-transparent px-2 focus-visible:outline-none`,
+        className,
+      )}
+      data-slot="combobox-trigger"
       {...props}
     >
       {children ?? <ChevronDown aria-hidden="true" />}
@@ -114,10 +124,8 @@ export function ComboboxPositioner({
 }: ComboboxPositionerProps) {
   return (
     <ComboboxPrimitive.Positioner
-      className={mergeStatefulClassName(
-        "pythia-combobox__positioner",
-        className,
-      )}
+      className={cnState(pickerClasses.positioner, className)}
+      data-slot="combobox-positioner"
       sideOffset={sideOffset}
       {...props}
     />
@@ -137,7 +145,11 @@ export type ComboboxPopupProps = ComboboxPrimitive.Popup.Props;
 export function ComboboxPopup({ className, ...props }: ComboboxPopupProps) {
   return (
     <ComboboxPrimitive.Popup
-      className={mergeStatefulClassName("pythia-combobox__popup", className)}
+      className={cnState(
+        `${pickerClasses.popup} max-h-[min(20rem,var(--available-height))]`,
+        className,
+      )}
+      data-slot="combobox-popup"
       {...props}
     />
   );
@@ -156,7 +168,8 @@ export type ComboboxListProps = ComboboxPrimitive.List.Props;
 export function ComboboxList({ className, ...props }: ComboboxListProps) {
   return (
     <ComboboxPrimitive.List
-      className={mergeStatefulClassName("pythia-combobox__list", className)}
+      className={cnState(pickerClasses.list, className)}
+      data-slot="combobox-list"
       {...props}
     />
   );
@@ -179,10 +192,17 @@ export function ComboboxItem({
 }: ComboboxItemProps) {
   return (
     <ComboboxPrimitive.Item
-      className={mergeStatefulClassName("pythia-combobox__item", className)}
+      className={cnState(
+        `${pickerClasses.item} data-selected:bg-interaction-active`,
+        className,
+      )}
+      data-slot="combobox-item"
       {...props}
     >
-      <ComboboxPrimitive.ItemIndicator className="pythia-combobox__item-indicator">
+      <ComboboxPrimitive.ItemIndicator
+        className={pickerClasses.indicator}
+        data-slot="combobox-item-indicator"
+      >
         <Check aria-hidden="true" />
       </ComboboxPrimitive.ItemIndicator>
       {children}
@@ -203,7 +223,8 @@ export type ComboboxEmptyProps = ComboboxPrimitive.Empty.Props;
 export function ComboboxEmpty({ className, ...props }: ComboboxEmptyProps) {
   return (
     <ComboboxPrimitive.Empty
-      className={mergeStatefulClassName("pythia-combobox__empty", className)}
+      className={cnState(`${pickerClasses.empty} empty:hidden`, className)}
+      data-slot="combobox-empty"
       {...props}
     />
   );
@@ -221,7 +242,8 @@ export type ComboboxGroupProps = ComboboxPrimitive.Group.Props;
 export function ComboboxGroup({ className, ...props }: ComboboxGroupProps) {
   return (
     <ComboboxPrimitive.Group
-      className={mergeStatefulClassName("pythia-combobox__group", className)}
+      className={cnState("py-2", className)}
+      data-slot="combobox-group"
       {...props}
     />
   );
@@ -242,10 +264,8 @@ export function ComboboxGroupLabel({
 }: ComboboxGroupLabelProps) {
   return (
     <ComboboxPrimitive.GroupLabel
-      className={mergeStatefulClassName(
-        "pythia-combobox__group-label",
-        className,
-      )}
+      className={cnState(pickerClasses.groupLabel, className)}
+      data-slot="combobox-group-label"
       {...props}
     />
   );

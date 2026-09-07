@@ -22,7 +22,8 @@
     "date-fns": "catalog:",
     "lucide-react": "catalog:",
     "react-day-picker": "catalog:",
-    "react-resizable-panels": "catalog:"
+    "react-resizable-panels": "catalog:",
+    "tailwind-merge": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.2.0",

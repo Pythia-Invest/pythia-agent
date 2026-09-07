@@ -6,7 +6,9 @@ root `test/` tree. Keep production and test type surfaces separate.
 
 Unit tests own deterministic local behavior. Integration tests own real process,
 filesystem, HTTP, or native-tool boundaries. Acceptance tests own assembled
-cross-workspace behavior. A guided local runbook under
+cross-workspace behavior. Desk browser smoke tests (`apps/desk/e2e/`, Playwright)
+own routing, keyboard, theme, and narrow-viewport behavior against a running
+Desk named by `PYTHIA_DESK_URL`; they never start the stack or create sessions. A guided local runbook under
 `.private/plans/<branch>/test-plan.md` is reserved for a representative workflow
 or user judgment that automation cannot supply, when explicitly requested.
 Ordinary tests and previews do not require a test-plan document.

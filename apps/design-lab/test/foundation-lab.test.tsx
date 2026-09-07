@@ -7,11 +7,11 @@ describe("Foundation Lab consumer specimens", () => {
   it("uses shared lockups and separates signal from warning by structure", () => {
     const html = renderToStaticMarkup(<FoundationLab />);
 
-    expect(html).toContain("pythia-lockup--full");
-    expect(html).toContain("pythia-lockup--compact");
+    expect(html).toContain('data-slot="pythia-lockup" data-variant="full"');
+    expect(html).toContain('data-slot="pythia-lockup" data-variant="compact"');
     expect(html).toContain("Color with a job");
     expect(html).toContain("Pythia signal");
-    expect(html).toContain("pythia-signal__seam");
+    expect(html).toContain('data-slot="pythia-signal-seam"');
     expect(html).toContain("Working capital is absorbing more cash.");
     expect(html).toContain("Machine assessment · synthetic");
     expect(html).toContain("confidence not supplied");

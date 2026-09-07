@@ -3,7 +3,8 @@
 import { Accordion as BaseAccordion } from "@base-ui/react/accordion";
 import { ChevronDown } from "lucide-react";
 import type { ComponentProps } from "react";
-import { mergeClassName } from "../overlays/class-names";
+import { cnState } from "../class-name";
+import { disclosureClasses } from "./shared";
 
 function AccordionRoot({
   className,
@@ -11,7 +12,8 @@ function AccordionRoot({
 }: ComponentProps<typeof BaseAccordion.Root>) {
   return (
     <BaseAccordion.Root
-      className={mergeClassName("py-accordion", className)}
+      className={cnState("text-foreground", className)}
+      data-slot="accordion"
       {...props}
     />
   );
@@ -23,7 +25,8 @@ function AccordionItem({
 }: ComponentProps<typeof BaseAccordion.Item>) {
   return (
     <BaseAccordion.Item
-      className={mergeClassName("py-accordion-item", className)}
+      className={cnState("border-border border-b", className)}
+      data-slot="accordion-item"
       {...props}
     />
   );
@@ -35,7 +38,8 @@ function AccordionHeader({
 }: ComponentProps<typeof BaseAccordion.Header>) {
   return (
     <BaseAccordion.Header
-      className={mergeClassName("py-accordion-header", className)}
+      className={cnState("m-0", className)}
+      data-slot="accordion-header"
       {...props}
     />
   );
@@ -48,11 +52,19 @@ function AccordionTrigger({
 }: ComponentProps<typeof BaseAccordion.Trigger>) {
   return (
     <BaseAccordion.Trigger
-      className={mergeClassName("py-accordion-trigger", className)}
+      className={cnState(
+        `group ${disclosureClasses.trigger} hover:underline hover:underline-offset-[0.2em] data-disabled:cursor-not-allowed data-disabled:opacity-disabled`,
+        className,
+      )}
+      data-slot="accordion-trigger"
       {...props}
     >
       <span>{children}</span>
-      <ChevronDown aria-hidden="true" className="py-accordion-icon" />
+      <ChevronDown
+        aria-hidden="true"
+        className={`${disclosureClasses.icon} group-data-panel-open:rotate-180`}
+        data-slot="accordion-icon"
+      />
     </BaseAccordion.Trigger>
   );
 }
@@ -64,10 +76,19 @@ function AccordionPanel({
 }: ComponentProps<typeof BaseAccordion.Panel>) {
   return (
     <BaseAccordion.Panel
-      className={mergeClassName("py-accordion-panel", className)}
+      className={cnState(
+        `${disclosureClasses.panel} h-(--accordion-panel-height)`,
+        className,
+      )}
+      data-slot="accordion-panel"
       {...props}
     >
-      <div className="py-accordion-panel-content">{children}</div>
+      <div
+        className={disclosureClasses.content}
+        data-slot="accordion-panel-content"
+      >
+        {children}
+      </div>
     </BaseAccordion.Panel>
   );
 }

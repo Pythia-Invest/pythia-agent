@@ -18,12 +18,6 @@ const sourceFiles = [
   "../src/layout/resizable-panels.tsx",
 ] as const;
 
-const cssFiles = [
-  "../src/feedback/feedback.css",
-  "../src/data-display/data-display.css",
-  "../src/layout/layout.css",
-] as const;
-
 describe("public-source and token contract", () => {
   it("keeps behavior-bearing wrappers client-only and static primitives server-compatible", async () => {
     for (const file of [
@@ -71,14 +65,16 @@ describe("public-source and token contract", () => {
     }
   });
 
-  it("styles through semantic/profile tokens without a component palette or theme fork", async () => {
-    for (const file of cssFiles) {
-      const css = await readFile(new URL(file, import.meta.url), "utf8");
-      expect(css, file).toContain("var(--py-");
-      expect(css, file).not.toMatch(/#[\da-f]{3,8}|\b(?:rgb|hsl|oklch)\(/i);
-      expect(css, file).not.toContain('[data-theme="light"]');
-      expect(css, file).not.toContain('[data-theme="dark"]');
-      expect(css, file).not.toContain("--py-selected-");
+  it("styles through semantic theme names without a component palette or theme fork", async () => {
+    for (const file of sourceFiles) {
+      const source = await readFile(new URL(file, import.meta.url), "utf8");
+      expect(source, file).toContain("className={cn(");
+      expect(source, file).not.toMatch(
+        /#[\da-f]{3,8}\b|\b(?:rgb|hsl|oklch)\(/i,
+      );
+      expect(source, file).not.toContain("--py-color-");
+      expect(source, file).not.toContain("data-theme");
+      expect(source, file).not.toMatch(/\[var\(--py-/);
     }
   });
 });

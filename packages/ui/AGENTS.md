@@ -11,9 +11,13 @@ their native keyboard, focus, dismissal, selection, calendar, and resize
 behavior. Keep `"use client"` on browser-only modules rather than the package
 barrel.
 
-Use the semantic and profile tokens in `src/styles.css`. Do not add consumer
-palettes or make color the only status cue. Signal Amber identifies a Pythia
-signal; warnings and general interaction use their own semantic roles.
+Style with Tailwind utilities in the component, following the
+[styling rule](../../.agents/rules/styling.md) and [ADR 0006](../../docs/decisions/0006-tailwind-styling-layer.md).
+`src/styles.css` is the only stylesheet: it owns the `--py-*` tokens and maps
+them into Tailwind's theme. Use those theme names, merge classes with `cn`,
+and give every root a `data-slot`. Do not add consumer palettes or make color
+the only status cue. Signal Amber identifies a Pythia signal; warnings and
+general interaction use their own semantic roles.
 
 Tests belong in `test/`. Every public component should document its purpose,
 props and variants, meaningful states, profile/theme behavior, accessibility,

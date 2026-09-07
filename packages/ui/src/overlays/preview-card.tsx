@@ -2,7 +2,8 @@
 
 import { PreviewCard as BasePreviewCard } from "@base-ui/react/preview-card";
 import type { ComponentProps } from "react";
-import { mergeClassName } from "./class-names";
+import { cnState } from "../class-name";
+import { overlayClasses } from "./shared";
 
 function PreviewCardPositioner({
   className,
@@ -10,7 +11,8 @@ function PreviewCardPositioner({
 }: ComponentProps<typeof BasePreviewCard.Positioner>) {
   return (
     <BasePreviewCard.Positioner
-      className={mergeClassName("py-floating-positioner", className)}
+      className={cnState(overlayClasses.positioner, className)}
+      data-slot="preview-card-positioner"
       sideOffset={8}
       {...props}
     />
@@ -23,10 +25,11 @@ function PreviewCardPopup({
 }: ComponentProps<typeof BasePreviewCard.Popup>) {
   return (
     <BasePreviewCard.Popup
-      className={mergeClassName(
-        "py-floating-popup py-preview-card-popup",
+      className={cnState(
+        `${overlayClasses.surface} ${overlayClasses.floating}`,
         className,
       )}
+      data-slot="preview-card-popup"
       {...props}
     />
   );
@@ -38,7 +41,8 @@ function PreviewCardArrow({
 }: ComponentProps<typeof BasePreviewCard.Arrow>) {
   return (
     <BasePreviewCard.Arrow
-      className={mergeClassName("py-floating-arrow", className)}
+      className={cnState(overlayClasses.arrow, className)}
+      data-slot="preview-card-arrow"
       {...props}
     />
   );

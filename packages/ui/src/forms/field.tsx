@@ -4,20 +4,33 @@ import { Field as BaseField } from "@base-ui/react/field";
 import { Input as BaseInput } from "@base-ui/react/input";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ComponentPropsWithRef, ReactNode, Ref } from "react";
+import { cn } from "../class-name";
 
-const controlClasses = cva(
-  "py-field-control w-full rounded-[var(--py-radius-interactive)] border border-[var(--py-border-default)] bg-[var(--py-surface-raised)] px-3 text-[var(--py-text-primary)] placeholder:text-[var(--py-text-disabled)] transition-colors duration-[var(--py-motion-fast)] hover:border-[var(--py-border-strong)] focus-visible:border-[var(--py-border-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] aria-invalid:border-[var(--py-status-error-border)] aria-invalid:bg-[var(--py-status-error-surface)]",
+/**
+ * Shared text-entry surface. `group-data-disabled:opacity-100` keeps a disabled
+ * control at full opacity inside a disabled Field, so the field fades once.
+ */
+export const controlClasses = cva(
+  "motion-fast w-full rounded-control border border-border bg-raised px-3 text-foreground transition-colors placeholder:text-foreground-disabled hover:border-border-strong focus-visible:border-border-strong disabled:cursor-not-allowed disabled:opacity-disabled aria-invalid:border-error-border aria-invalid:bg-error-surface group-data-disabled:disabled:opacity-100",
   {
     variants: {
       size: {
         sm: "min-h-8 text-xs",
-        md: "min-h-[var(--py-profile-control-height)] text-sm",
+        md: "min-h-control text-sm",
         lg: "min-h-12 text-base",
       },
     },
     defaultVariants: { size: "md" },
   },
 );
+
+/** Layout and typography shared by Field, OTPField and DatePicker. */
+export const fieldClasses = {
+  root: "group grid gap-1.5 text-foreground data-disabled:opacity-disabled",
+  label: "text-sm font-semibold leading-ui",
+  description: "m-0 text-xs leading-ui text-foreground-secondary",
+  error: "m-0 text-xs font-medium leading-ui text-error",
+} as const;
 
 /** Density choices for text-entry controls. */
 export type FieldControlSize = NonNullable<
@@ -53,7 +66,8 @@ export function Input({
     <BaseInput
       {...props}
       aria-invalid={invalid || undefined}
-      className={controlClasses({ className, size })}
+      className={cn(controlClasses({ size }), className)}
+      data-slot="input"
     />
   );
 }
@@ -86,10 +100,12 @@ export function Textarea({
     <textarea
       {...props}
       aria-invalid={invalid || undefined}
-      className={controlClasses({
-        className: `resize-y py-2 leading-[var(--py-line-height-ui)] ${className ?? ""}`,
-        size,
-      })}
+      className={cn(
+        controlClasses({ size }),
+        "resize-y py-2 leading-ui",
+        className,
+      )}
+      data-slot="textarea"
       rows={rows}
     />
   );
@@ -115,7 +131,8 @@ export function Label({ children, className, htmlFor, ...props }: LabelProps) {
   return (
     <label
       {...props}
-      className={`text-sm font-semibold leading-[var(--py-line-height-ui)] text-[var(--py-text-primary)] ${className ?? ""}`}
+      className={cn(fieldClasses.label, "text-foreground", className)}
+      data-slot="label"
       htmlFor={htmlFor}
     >
       {children}
@@ -164,22 +181,18 @@ export function Field({
   return (
     <BaseField.Root
       {...props}
-      className={`py-field grid gap-1.5 text-[var(--py-text-primary)] ${className ?? ""}`}
+      className={cn(fieldClasses.root, className)}
+      data-slot="field"
     >
-      <BaseField.Label className="text-sm font-semibold leading-[var(--py-line-height-ui)]">
-        {label}
-      </BaseField.Label>
+      <BaseField.Label className={fieldClasses.label}>{label}</BaseField.Label>
       {description ? (
-        <BaseField.Description className="m-0 text-xs leading-[var(--py-line-height-ui)] text-[var(--py-text-secondary)]">
+        <BaseField.Description className={fieldClasses.description}>
           {description}
         </BaseField.Description>
       ) : null}
       {children}
       {error ? (
-        <BaseField.Error
-          className="text-xs font-medium leading-[var(--py-line-height-ui)] text-[var(--py-status-error-foreground)]"
-          match
-        >
+        <BaseField.Error className={fieldClasses.error} match>
           {error}
         </BaseField.Error>
       ) : null}
@@ -216,17 +229,21 @@ export function InputGroup({
   return (
     <div
       {...props}
-      className={`flex min-h-[var(--py-profile-control-height)] items-stretch overflow-hidden rounded-[var(--py-radius-interactive)] border border-[var(--py-border-default)] bg-[var(--py-surface-raised)] text-[var(--py-text-secondary)] focus-within:border-[var(--py-border-strong)] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--py-focus-ring)] data-[invalid]:border-[var(--py-status-error-border)] [&_input]:min-h-full [&_input]:rounded-none [&_input]:border-0 [&_input]:outline-none ${className ?? ""}`}
+      className={cn(
+        "flex min-h-control items-stretch overflow-hidden rounded-control border border-border bg-raised text-foreground-secondary focus-within:border-border-strong focus-within:outline-2 focus-within:outline-ring focus-within:outline-offset-2 data-invalid:border-error-border [&_input]:min-h-full [&_input]:rounded-none [&_input]:border-0 [&_input]:outline-none",
+        className,
+      )}
       data-invalid={invalid ? "" : undefined}
+      data-slot="input-group"
     >
       {start ? (
-        <span className="inline-flex items-center border-r border-[var(--py-border-default)] px-3 text-sm">
+        <span className="inline-flex items-center border-border border-r px-3 text-sm">
           {start}
         </span>
       ) : null}
       <span className="flex min-w-0 flex-1 items-stretch">{children}</span>
       {end ? (
-        <span className="inline-flex items-center border-l border-[var(--py-border-default)] px-3 text-sm">
+        <span className="inline-flex items-center border-border border-l px-3 text-sm">
           {end}
         </span>
       ) : null}

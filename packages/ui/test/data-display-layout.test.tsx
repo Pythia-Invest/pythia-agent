@@ -82,7 +82,7 @@ describe("data display", () => {
 
     expect(avatar).toContain('data-size="large"');
     expect(avatar).toContain("PI");
-    expect(scroll).toContain("py-scroll-area__viewport");
+    expect(scroll).toContain('data-slot="scroll-area-viewport"');
     expect(scroll).toContain("Scrollable evidence");
     expect(separator).toContain('role="separator"');
     expect(separator).toContain('aria-orientation="vertical"');
@@ -103,9 +103,11 @@ describe("layout", () => {
     );
 
     expect(markup).toContain('data-size="reading"');
-    expect(markup).toContain('data-align="start"');
-    expect(markup).toContain('data-gap="6"');
-    expect(markup).toContain('data-wrap="false"');
+    expect(markup).toContain('data-slot="stack"');
+    expect(markup).toContain("items-start");
+    expect(markup).toContain("gap-6");
+    expect(markup).toContain('data-slot="inline"');
+    expect(markup).not.toContain("flex-wrap");
   });
 
   it("renders v4 Group, Panel, and Separator as direct native children", () => {
@@ -131,14 +133,13 @@ describe("layout", () => {
   });
 
   it("keeps transient resize feedback on the neutral strong border", async () => {
-    const css = await readFile(
-      new URL("../src/layout/layout.css", import.meta.url),
+    const source = await readFile(
+      new URL("../src/layout/resizable-panels.tsx", import.meta.url),
       "utf8",
     );
 
-    expect(css).toMatch(
-      /\.py-resizable-separator:hover,[^}]*\[data-separator="active"\]\s*\{[^}]*background:\s*var\(--py-border-strong\)/,
-    );
-    expect(css).not.toContain("--py-action-primary-background");
+    expect(source).toContain("hover:bg-border-strong");
+    expect(source).toContain("data-[separator=active]:bg-border-strong");
+    expect(source).not.toMatch(/\bbg-primary\b/);
   });
 });

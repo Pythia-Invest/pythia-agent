@@ -74,9 +74,9 @@ describe("selection controls", () => {
     expect(markup).toContain('name="accepted"');
     expect(markup).toContain('name="cadence"');
     expect(markup).toContain('name="alerts"');
-    expect(markup).toContain("pythia-checkbox__mixed");
-    expect(markup).toContain("pythia-radio__indicator");
-    expect(markup).toContain("pythia-switch__thumb");
+    expect(markup).toContain('data-slot="checkbox-mixed"');
+    expect(markup).toContain('data-slot="radio-indicator"');
+    expect(markup).toContain('data-slot="switch-thumb"');
   });
 
   it("keeps Base UI select and combobox composition native", () => {
@@ -106,11 +106,11 @@ describe("selection controls", () => {
 
     expect(selectMarkup).toContain('role="combobox"');
     expect(selectMarkup).toContain('aria-expanded="false"');
-    expect(selectMarkup).toContain("pythia-select__trigger");
+    expect(selectMarkup).toContain('data-slot="select-trigger"');
     expect(selectMarkup).toContain("Quality");
     expect(comboboxMarkup).toContain('role="combobox"');
     expect(comboboxMarkup).toContain('aria-label="Style"');
-    expect(comboboxMarkup).toContain("pythia-combobox__input");
+    expect(comboboxMarkup).toContain('data-slot="combobox-input"');
   });
 
   it("delegates command filtering and selection markup to cmdk", () => {
@@ -129,70 +129,86 @@ describe("selection controls", () => {
     expect(markup).toContain('cmdk-item=""');
     expect(markup).toContain(">Find an action</label>");
     expect(markup).toContain('aria-labelledby="');
-    expect(markup).toContain("pythia-command__search-icon");
+    expect(markup).toContain('data-slot="command-search-icon"');
   });
 
   it("separates transient highlight from persistent selection", async () => {
-    const css = await readFile(
-      new URL("../src/selection/selection.css", import.meta.url),
-      "utf8",
+    const files = [
+      "checkbox",
+      "radio-group",
+      "switch",
+      "select",
+      "combobox",
+      "command",
+      "shared",
+    ];
+    const sources = await Promise.all(
+      files.map((file) =>
+        readFile(
+          new URL(
+            `../src/selection/${file}.${file === "shared" ? "ts" : "tsx"}`,
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ),
     );
+    const [
+      checkbox = "",
+      radio = "",
+      switchSource = "",
+      select = "",
+      combobox = "",
+      command = "",
+      shared = "",
+    ] = sources;
+    const all = sources.join("\n");
 
-    expect(css).toContain("var(--py-interaction-active)");
-    expect(css).toContain("var(--py-action-primary-background)");
-    expect(css).not.toMatch(/\.pythia-select__item\[data-selected\]/);
-    expect(css).toMatch(
-      /\.pythia-select__item\[data-highlighted\][^}]*background:\s*var\(--py-interaction-hover\)/,
-    );
-    expect(css).toContain(
-      "block-size: min(var(--py-profile-control-height), 2.25rem)",
-    );
-    expect(css).toMatch(
-      /\.pythia-combobox__input-group\s*\{[^}]*block-size:\s*min\(var\(--py-profile-control-height\), 2\.25rem\);[^}]*font-size:\s*var\(--py-font-size-14\);[^}]*min-block-size:\s*min\(var\(--py-profile-control-height\), 2\.25rem\)/,
-    );
-    expect(css).toMatch(
-      /\.pythia-combobox__input-group:focus-within\s*\{[^}]*outline:\s*var\(--py-focus-width\) solid var\(--py-focus-ring\);[^}]*outline-offset:\s*2px/,
-    );
-    expect(css).toMatch(
-      /\.pythia-combobox__input:focus-visible,[^}]*\.pythia-combobox__trigger:focus-visible\s*\{[^}]*outline:\s*none/,
-    );
-    expect(css).toMatch(
-      /\.pythia-combobox__empty:empty\s*\{[^}]*display:\s*none/,
-    );
-    expect(css).toMatch(
-      /\.pythia-command__input-row:focus-within\s*\{[^}]*outline:\s*var\(--py-focus-width\) solid var\(--py-focus-ring\)/,
-    );
-    expect(css).toContain("min-inline-size: 10.5rem");
-    expect(css).toContain("min-block-size: 2rem");
-    expect(css).toContain("padding: 0.375rem 2rem 0.375rem var(--py-space-2)");
-    expect(css).toMatch(
-      /\.pythia-select__item-indicator\s*\{[^}]*position:\s*absolute;[^}]*inset-inline-end:\s*var\(--py-space-2\)/,
-    );
-    expect(css).toMatch(
-      /\.pythia-select__item-indicator,[^}]*\.pythia-combobox__item-indicator\s*\{[^}]*color:\s*var\(--py-action-primary-background\)/,
-    );
-    expect(css).toMatch(
-      /\.pythia-checkbox\[data-checked\],[^}]*background:\s*var\(--py-action-primary-background\);[^}]*border-color:\s*var\(--py-action-primary-background\);[^}]*color:\s*var\(--py-action-primary-foreground\)/,
-    );
-    expect(css).toMatch(
-      /\.pythia-switch\[data-checked\]\s*\{[^}]*background:\s*var\(--py-action-primary-background\);[^}]*border-color:\s*var\(--py-action-primary-background\)/,
-    );
-    expect(css).toMatch(
-      /\.pythia-radio__indicator\s*\{[^}]*background:\s*var\(--py-action-primary-foreground\)/,
-    );
-    expect(css).toMatch(
-      /\.pythia-switch__thumb\[data-checked\]\s*\{[^}]*background:\s*var\(--py-action-primary-foreground\)/,
-    );
-    const committedComboboxStyle = css.match(
-      /\.pythia-combobox__item\[data-selected\]\s*\{[^}]*\}/,
-    )?.[0];
-    expect(committedComboboxStyle).toContain("--py-interaction-active");
-    expect(committedComboboxStyle).not.toContain(
-      "--py-action-primary-background",
-    );
-    expect(css).not.toMatch(/--py-selection-[\w-]+/);
-    expect(css).toContain("var(--py-interaction-hover)");
-    expect(css).not.toContain("--py-signal-");
-    expect(css).not.toContain("--py-color-");
+    // Highlight (keyboard/pointer position) is the quiet hover fill; committed selection is the active fill.
+    expect(select).toContain("data-highlighted:bg-interaction-hover");
+    expect(select).not.toContain("data-selected:");
+    expect(combobox).toContain("data-selected:bg-interaction-active");
+    expect(combobox).not.toContain("data-selected:bg-primary");
+    expect(command).toContain("data-[selected=true]:bg-interaction-hover");
+    // Compact picker geometry shared by Select and Combobox.
+    expect(shared).toContain("min(var(--spacing-control),2.25rem)");
+    expect(select).toContain("min-w-42");
+    expect(select).toContain("min-h-8");
+    expect(select).toContain("pr-8 pl-2");
+    expect(select).toContain("absolute end-2");
+    expect(shared).toContain("text-primary [&>svg]:size-3.5");
+    // Focus lives on the group, not the inner input or trigger.
+    for (const token of [
+      "focus-within:outline-2",
+      "focus-within:outline-offset-2",
+      "focus-within:outline-ring",
+    ]) {
+      expect(combobox).toContain(token);
+    }
+    expect(combobox.match(/focus-visible:outline-none/g)).toHaveLength(2);
+    expect(combobox).toContain("empty:hidden");
+    for (const token of [
+      "focus-within:outline-2",
+      "focus-within:-outline-offset-2",
+      "focus-within:outline-ring",
+    ]) {
+      expect(command).toContain(token);
+    }
+    // Checked controls fill with the primary action color and its foreground.
+    for (const token of [
+      "data-checked:border-primary",
+      "data-checked:bg-primary",
+      "data-checked:text-primary-foreground",
+    ]) {
+      expect(checkbox).toContain(token);
+    }
+    expect(switchSource).toContain("data-checked:border-primary");
+    expect(switchSource).toContain("data-checked:bg-primary");
+    expect(radio).toContain("bg-primary-foreground");
+    expect(switchSource).toContain("data-checked:bg-primary-foreground");
+    expect(all).not.toMatch(/--py-selection-[\w-]+/);
+    expect(all).toContain("bg-interaction-hover");
+    expect(all).not.toMatch(/\b(?:bg|text|border|from|to|via)-signal\b/);
+    expect(all).not.toContain("--py-color-");
   });
 });

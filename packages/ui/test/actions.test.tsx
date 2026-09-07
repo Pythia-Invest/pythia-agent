@@ -11,10 +11,10 @@ import { Toggle, ToggleGroup } from "../src/actions/toggle";
 
 describe("actions", () => {
   it.each([
-    ["primary", "--py-action-primary-background"],
-    ["secondary", "--py-surface-raised"],
+    ["primary", "bg-primary"],
+    ["secondary", "bg-raised"],
     ["ghost", "bg-transparent"],
-    ["danger", "--py-status-error-surface"],
+    ["danger", "bg-error-surface"],
   ] as const)(
     "renders the %s hierarchy through semantic tokens",
     (variant, token) => {
@@ -29,7 +29,7 @@ describe("actions", () => {
 
   it.each([
     ["sm", "h-8"],
-    ["md", "--py-profile-control-height"],
+    ["md", "h-control"],
     ["lg", "h-12"],
   ] as const)("renders the %s action size", (size, className) => {
     const html = renderToStaticMarkup(<Button size={size}>Size</Button>);
@@ -46,7 +46,7 @@ describe("actions", () => {
     expect(html).toContain("Delete thesis");
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain("disabled");
-    expect(html).toContain("--py-status-error-surface");
+    expect(html).toContain("bg-error-surface");
     expect(html).toContain("h-12");
   });
 
@@ -88,7 +88,7 @@ describe("actions", () => {
       /(?:^|\n)([^{}]+)\{\s*block-size:\s*auto;\s*max-inline-size:\s*100%;\s*\}/,
     )?.[1];
 
-    expect(autoBlockSizeReset?.trim()).toBe("img,\nvideo");
+    expect(autoBlockSizeReset?.replace(/\s+/g, " ").trim()).toBe("img, video");
     expect(autoBlockSizeReset).not.toContain("svg");
   });
 
@@ -121,10 +121,10 @@ describe("actions", () => {
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain("Comfortable");
     expect(html).toContain("Compact");
-    expect(html).toContain("data-[pressed]:bg-[var(--py-interaction-active)]");
-    expect(html).toContain("data-[pressed]:font-semibold");
-    expect(html).not.toContain("data-[pressed]:border-");
-    expect(html).not.toContain("--py-signal-");
+    expect(html).toContain("data-pressed:bg-interaction-active");
+    expect(html).toContain("data-pressed:font-semibold");
+    expect(html).not.toContain("data-pressed:border-");
+    expect(html).not.toContain("signal");
   });
 
   it("reflects vertical group orientation without replacing native focus", () => {

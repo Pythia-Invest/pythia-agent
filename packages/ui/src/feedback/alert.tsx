@@ -1,8 +1,10 @@
 import { CircleAlert, CircleCheck, CircleX, Info } from "lucide-react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { cn } from "../class-name";
+import { type StatusTone, statusTones } from "./tones";
 
 /** Status meanings available to Alert in every profile and theme. */
-export type AlertTone = "info" | "success" | "warning" | "error";
+export type AlertTone = StatusTone;
 
 /** Props for the shared status message, including its tone, title, and optional detail or action. */
 export interface AlertProps
@@ -38,21 +40,30 @@ export function Alert({
   ...props
 }: AlertProps) {
   const Icon = icons[tone];
+  const presentation = statusTones[tone];
   return (
     <div
-      className={["py-alert", className].filter(Boolean).join(" ")}
+      className={cn(
+        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-container border px-4 py-3 text-body text-foreground leading-ui",
+        presentation.surface,
+        className,
+      )}
+      data-slot="alert"
       data-tone={tone}
       role={role ?? (tone === "error" ? "alert" : "status")}
       {...props}
     >
-      <Icon aria-hidden="true" className="py-alert__icon" />
-      <div className="py-alert__content">
-        <div className="py-alert__title">{title}</div>
+      <Icon
+        aria-hidden="true"
+        className={cn("mt-0.5 size-[1.125rem]", presentation.accent)}
+      />
+      <div className="min-w-0">
+        <div className="font-semibold">{title}</div>
         {children ? (
-          <div className="py-alert__description">{children}</div>
+          <div className="mt-1 text-foreground-secondary">{children}</div>
         ) : null}
       </div>
-      {action ? <div className="py-alert__action">{action}</div> : null}
+      {action ? <div className="self-center">{action}</div> : null}
     </div>
   );
 }

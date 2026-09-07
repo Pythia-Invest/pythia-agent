@@ -35,6 +35,16 @@
       "suspicious": {
         "noExplicitAny": "error",
         "noTsIgnore": "error"
+      },
+      "nursery": {
+        "useSortedClasses": {
+          "level": "error",
+          "fix": "safe",
+          "options": {
+            "attributes": ["className"],
+            "functions": ["cn", "cnState", "cva", "clsx"]
+          }
+        }
       }
     }
   },

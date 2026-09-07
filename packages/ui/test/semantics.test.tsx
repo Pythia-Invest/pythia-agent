@@ -114,7 +114,7 @@ describe("research and finance semantics", () => {
       expect(html).toContain(text);
     }
     expect(html).not.toMatch(/>(?:F|M|H|Now|Lag|Old|\?)</);
-    expect(html).toContain("[color:var(--py-text-secondary)]");
+    expect(html).toContain("text-foreground-secondary");
   });
 
   it("preserves supplied financial context and direction without inference", () => {
@@ -176,25 +176,22 @@ describe("research and finance semantics", () => {
     );
 
     expect(signalHtml).toContain("Pythia signal");
-    expect(signalHtml).toContain("pythia-signal__seam");
+    expect(signalHtml).toContain('data-slot="pythia-signal-seam"');
     expect(signalHtml).toContain("inset-y-0");
     expect(signalHtml).toContain("start-0");
     expect(signalHtml).toContain("w-[3px]");
-    expect(signalHtml).toContain(
-      "bg-[linear-gradient(to_bottom,var(--py-signal-marker),transparent)]",
-    );
-    expect(signalHtml.match(/--py-signal-marker/g)).toHaveLength(1);
-    expect(signalHtml).toContain("bg-[var(--py-surface-raised)]");
-    expect(signalHtml).not.toContain("pythia-signal__mark");
+    expect(signalHtml).toContain("bg-linear-to-b from-signal to-transparent");
+    expect(signalHtml.match(/from-signal/g)).toHaveLength(1);
+    expect(signalHtml).toContain("bg-raised");
     expect(signalHtml).not.toContain("h-[3px]");
-    expect(signalHtml).not.toContain("bg-[var(--py-signal-marker)]");
-    expect(signalHtml).not.toMatch(/(?:radial-gradient|shadow)/);
+    expect(signalHtml).not.toMatch(/\bbg-signal\b/);
+    expect(signalHtml).not.toMatch(/(?:radial|shadow)/);
     expect(signalHtml).not.toContain("triangle-alert");
-    expect(signalHtml).not.toMatch(/--py-(?:action|status-warning)/);
+    expect(signalHtml).not.toMatch(/\b(?:bg|text|border)-(?:primary|warning)/);
     expect(warningHtml).toContain("Warning");
     expect(warningHtml).toContain("triangle-alert");
-    expect(warningHtml).toContain("--py-status-warning-border");
-    expect(warningHtml).not.toContain("--py-signal-");
+    expect(warningHtml).toContain("border-warning-border");
+    expect(warningHtml).not.toContain("signal");
   });
 
   it("keeps interface messages and knowledge-boundary states explicit", () => {
@@ -258,9 +255,9 @@ describe("research and finance semantics", () => {
       expect(source).not.toMatch(/#[\da-f]{3,8}\b/i);
       expect(source).not.toContain("--py-color-");
     }
-    expect(finance).not.toContain("--py-signal-");
-    expect(messages).not.toContain("--py-signal-");
-    expect(research.match(/--py-signal-marker/g)).toHaveLength(1);
-    expect(research).not.toMatch(/--py-(?:action|status-warning)/);
+    expect(finance).not.toMatch(/\b(?:bg|text|border|from|to|via)-signal\b/);
+    expect(messages).not.toMatch(/\b(?:from|to|via|bg|text|border)-signal\b/);
+    expect(research.match(/from-signal/g)).toHaveLength(1);
+    expect(research).not.toMatch(/\b(?:bg|text|border)-(?:primary|warning)/);
   });
 });

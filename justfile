@@ -43,6 +43,10 @@ check:
 test:
     pnpm run test
 
+# Desk browser smoke tests against a Desk that is already running (see `just dev-paths`).
+test-e2e desk_url:
+    PYTHIA_DESK_URL="{{desk_url}}" pnpm --filter @pythia/desk test:e2e
+
 # The only registry/network dependency check.
 audit:
     pnpm audit --prod --audit-level high

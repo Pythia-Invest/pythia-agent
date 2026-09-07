@@ -50,7 +50,11 @@ For reusable interface work, run the development-only Design Lab separately:
 pnpm --filter @pythia/design-lab dev
 ```
 
-The Lab uses synthetic examples and is not part of the installed runtime.
+The Lab uses synthetic examples and is not part of the installed runtime. To
+reach it through Tailscale Serve, set `PYTHIA_DESIGN_LAB_DEV_ORIGIN` to the
+exact HTTPS origin you forward (for example
+`https://your-machine.your-tailnet.ts.net:9444`) so Next allows hot reload from
+that host; the Lab has no API identity check, so keep it on a trusted tailnet.
 
 ## Repository checks
 
@@ -66,6 +70,23 @@ just audit     # registry/network dependency audit
 `just check` does not run tests or contact a package registry. `just audit` is
 the only registry audit and checks the production dependency surface. Tests
 and CI are credential-free and use synthetic provider fixtures.
+
+### Browser smoke tests
+
+Desk has a Playwright smoke suite in `apps/desk/e2e/` that drives a Desk you
+already started with `just dev`. It is not part of `just test`. Install the
+pinned Chromium once (the workspace sets `ignore-scripts`, so Playwright does
+not download it on install), then pass the Desk origin from `just dev-paths`:
+
+```sh
+pnpm --filter @pythia/desk exec playwright install chromium
+just test-e2e http://127.0.0.1:<desk-port>
+```
+
+A Tailscale Serve origin works as well. Traces for failures land under
+`.local/playwright/desk`. See
+[ADR 0007](decisions/0007-desk-client-conventions.md) for the routing, data
+fetching, and testing conventions the suite relies on.
 
 ## Foreground stack
 
@@ -246,8 +267,12 @@ uses Next's native `allowedDevOrigins` for remote hot reload.
 
 ## Where changes belong
 
-- `apps/desk` is the installed local interface.
-- `packages/ui` owns reusable interface primitives.
+- `apps/desk` is the installed local interface; its routing, data fetching,
+  and browser-test conventions are in
+  [ADR 0007](decisions/0007-desk-client-conventions.md).
+- `packages/ui` owns reusable interface primitives and the one token
+  stylesheet that Tailwind utilities draw from (see
+  [ADR 0006](decisions/0006-tailwind-styling-layer.md)).
 - `apps/design-lab` is a development-only component workshop.
 - `runtime/managed` owns the Pythia skills, plugin, instructions, and bounded
   data runners shipped with a release.

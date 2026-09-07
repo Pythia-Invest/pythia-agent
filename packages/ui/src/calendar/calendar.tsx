@@ -7,6 +7,7 @@ import {
   UI,
   type Matcher,
 } from "react-day-picker";
+import { cn } from "../class-name";
 import {
   calendarDateToUTCDate,
   type CalendarDateString,
@@ -33,33 +34,35 @@ export interface CalendarProps {
   value?: CalendarDateString | undefined;
 }
 
+const navButton =
+  "pointer-events-auto inline-flex size-9 items-center justify-center rounded-control border border-transparent text-foreground-secondary hover:bg-interaction-hover disabled:opacity-disabled";
+
 const calendarClassNames = {
-  [UI.Root]: "relative w-fit text-sm text-[var(--py-text-primary)]",
+  [UI.Root]: "relative w-fit text-sm text-foreground",
   [UI.Months]: "flex flex-col gap-4 sm:flex-row",
   [UI.Month]: "space-y-3",
   [UI.MonthCaption]: "flex h-9 items-center justify-center px-10",
   [UI.CaptionLabel]: "text-sm font-semibold",
   [UI.Nav]:
     "pointer-events-none absolute inset-x-0 top-0 flex h-9 items-center justify-between",
-  [UI.PreviousMonthButton]:
-    "pointer-events-auto inline-flex size-9 items-center justify-center rounded-[var(--py-radius-interactive)] border border-transparent text-[var(--py-text-secondary)] hover:bg-[var(--py-interaction-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] disabled:opacity-[var(--py-disabled-opacity)]",
-  [UI.NextMonthButton]:
-    "pointer-events-auto inline-flex size-9 items-center justify-center rounded-[var(--py-radius-interactive)] border border-transparent text-[var(--py-text-secondary)] hover:bg-[var(--py-interaction-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] disabled:opacity-[var(--py-disabled-opacity)]",
+  [UI.PreviousMonthButton]: navButton,
+  [UI.NextMonthButton]: navButton,
   [UI.Chevron]: "size-4 fill-current",
   [UI.MonthGrid]: "w-full border-collapse",
   [UI.Weekdays]: "flex",
   [UI.Weekday]:
-    "flex size-9 items-center justify-center text-xs font-medium text-[var(--py-text-secondary)]",
+    "flex size-9 items-center justify-center text-xs font-medium text-foreground-secondary",
   [UI.Weeks]: "block",
   [UI.Week]: "mt-1 flex",
   [UI.Day]: "relative size-9 p-0 text-center",
   [UI.DayButton]:
-    "inline-flex size-9 items-center justify-center rounded-[var(--py-radius-interactive)] text-sm hover:bg-[var(--py-interaction-hover)] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)]",
+    "inline-flex size-9 items-center justify-center rounded-control text-sm hover:bg-interaction-hover focus-visible:relative focus-visible:z-10",
   [SelectionState.selected]:
-    "[&>button]:bg-[var(--py-action-primary-background)] [&>button]:font-semibold [&>button]:text-[var(--py-action-primary-foreground)] [&>button:hover]:bg-[var(--py-action-primary-background)] [&>button:hover]:text-[var(--py-action-primary-foreground)] [&[data-today]]:after:bg-[var(--py-action-primary-foreground)]",
+    "[&>button]:bg-primary [&>button]:font-semibold [&>button]:text-primary-foreground [&>button:hover]:bg-primary [&>button:hover]:text-primary-foreground [&[data-today]]:after:bg-primary-foreground",
   [DayFlag.today]:
-    "after:pointer-events-none after:absolute after:bottom-0.5 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-[var(--py-text-primary)]",
-  [DayFlag.outside]: "text-[var(--py-text-disabled)] opacity-55",
+    "after:pointer-events-none after:absolute after:bottom-0.5 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-foreground",
+  // Outside-month dates are quieter than disabled ones on purpose.
+  [DayFlag.outside]: "text-foreground-disabled opacity-55",
   [DayFlag.disabled]: "pointer-events-none",
   [DayFlag.hidden]: "invisible",
 } as const;
@@ -100,13 +103,19 @@ export function Calendar({
   return (
     <DayPicker
       aria-label={ariaLabel}
-      className={`rounded-[var(--py-radius-group)] border border-[var(--py-border-default)] bg-[var(--py-surface-raised)] p-3 shadow-sm ${disabled ? "opacity-[var(--py-disabled-opacity)]" : ""} ${className ?? ""}`}
+      className={cn(
+        "rounded-container border border-border bg-raised p-3",
+        disabled && "opacity-disabled",
+        className,
+      )}
       classNames={{
         ...calendarClassNames,
+        // A fully disabled calendar fades once at the root; single dates fade individually.
         [DayFlag.disabled]: disabled
           ? calendarClassNames[DayFlag.disabled]
-          : `${calendarClassNames[DayFlag.disabled]} opacity-[var(--py-disabled-opacity)]`,
+          : `${calendarClassNames[DayFlag.disabled]} opacity-disabled`,
       }}
+      data-slot="calendar"
       defaultMonth={initialMonth}
       disableNavigation={disabled}
       disabled={disabledMatcher}

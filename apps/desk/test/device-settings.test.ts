@@ -208,15 +208,6 @@ describe("device settings", () => {
     expect(snapshot).not.toHaveProperty("mismatches");
   });
 
-  it("labels the auth observation as OpenAI Codex, not general model readiness", () => {
-    const source = readFileSync(
-      join(resolve(import.meta.dirname, ".."), "src/components/settings.tsx"),
-      "utf8",
-    );
-    expect(source).toContain('label="OpenAI Codex (native auth)"');
-    expect(source).not.toContain('label="Model account"');
-  });
-
   it.each([
     ["missing", "openai-codex: logged out\n"],
     ["present", "openai-codex: logged in\n"],

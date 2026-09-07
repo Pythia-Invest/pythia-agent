@@ -16,20 +16,16 @@ The foreground command prints this worktree's Desk URL. `Ctrl-C` stops Desk,
 Hermes, and Basic Memory together. Development state and ports are isolated per
 worktree.
 
-Choose a provider, model and reasoning effort beside the message box. The list
-comes from Hermes, including its configured subscription and API-key providers.
-The first send in an empty profile initializes its native provider/model default
-and restarts Hermes; subsequent choices need no restart. The selection stays
-selected while this Desk is open (including when switching conversations);
-reloading returns to the native profile default. Selecting `Default` also uses
-that default without sending an override. It never rewrites shared development
-defaults, another worktree, or model credentials. Account setup still uses native
-Hermes authentication; this is a model picker, not a new credential manager.
+Desk is being rebuilt from the [design direction](../../docs/design.md).
+The current shell is the left navigation: the Pythia wordmark, app
+destinations starting with **New chat**, pinned chats, and recent chats
+sorted newest first from the native Hermes session list. Pins are a
+browser-local preference kept in `localStorage`; Hermes has no pin concept and
+Desk does not add a session store for it. The chat surface is the next step.
 
-Unknown reasoning capabilities follow Hermes's permissive catalog behavior;
-unsupported reasoning controls are disabled when Hermes explicitly reports
-them. Hermes owns the final provider-specific effort mapping. A model appearing
-in the catalog is not proof that the connected account can run it.
+Chats have their own routes (`/c/<session id>`); the root is the new-chat
+surface. Server state is read through TanStack Query hooks in
+`src/client/queries.ts`. See [ADR 0007](../../docs/decisions/0007-desk-client-conventions.md).
 
 Run focused checks with:
 
@@ -38,6 +34,18 @@ pnpm --filter @pythia/desk check
 pnpm --filter @pythia/desk test:unit
 pnpm --filter @pythia/desk build
 ```
+
+Browser smoke tests in `e2e/` run against a Desk that is already running.
+Install the browser once (the workspace disables install scripts), then point
+`PYTHIA_DESK_URL` at the Desk origin printed by `just dev-paths`:
+
+```sh
+pnpm --filter @pythia/desk exec playwright install chromium
+PYTHIA_DESK_URL=http://127.0.0.1:<desk-port> pnpm --filter @pythia/desk test:e2e
+```
+
+The suite never starts or reconfigures the stack; tests that need a chat skip
+when the profile has none.
 
 The browser never calls Hermes directly. Every privileged Desk route first
 checks the loopback Host (or explicitly configured Tailscale access)

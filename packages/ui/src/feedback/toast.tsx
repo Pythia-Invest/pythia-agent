@@ -3,9 +3,11 @@
 import { Toast as BaseToast } from "@base-ui/react/toast";
 import { CircleAlert, CircleCheck, CircleX, Info, X } from "lucide-react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { cn } from "../class-name";
+import { type StatusTone, statusTones } from "./tones";
 
 /** The four explicitly labelled Pythia toast meanings. */
-export type ToastTone = "info" | "success" | "warning" | "error";
+export type ToastTone = StatusTone;
 
 /** A Pythia toast message passed through the native Base UI manager. */
 export interface ToastMessage {
@@ -103,6 +105,25 @@ const icons = {
   error: CircleX,
 } as const;
 
+/**
+ * Stacking math over the variables Base UI sets on each toast. Toasts behind
+ * the frontmost one shrink and peek out by 0.75rem per index; expanding lays
+ * them out with a 0.75rem gap using Base UI's measured offsets.
+ */
+const toastStack = [
+  "[--toast-scale:calc(max(0,1-(var(--toast-index)*0.08)))]",
+  "[--toast-shrink:calc(1-var(--toast-scale))]",
+  "[--toast-stack-height:var(--toast-frontmost-height,var(--toast-height))]",
+  "[--toast-expanded-y:calc(var(--toast-offset-y)*-1+var(--toast-index)*0.75rem*-1+var(--toast-swipe-movement-y))]",
+  "h-(--toast-stack-height) origin-top",
+  "[transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-var(--toast-index)*0.75rem-var(--toast-shrink)*var(--toast-stack-height)))_scale(var(--toast-scale))]",
+  "data-expanded:h-(--toast-height) data-expanded:[transform:translateX(var(--toast-swipe-movement-x))_translateY(var(--toast-expanded-y))]",
+  "data-limited:opacity-0 data-ending-style:opacity-0",
+  "data-starting-style:[transform:translateY(-150%)] data-ending-style:not-data-swipe-direction:[transform:translateY(-150%)]",
+  "data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))]",
+  "data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
+].join(" ");
+
 function ToastQueue() {
   const { toasts } = BaseToast.useToastManager();
   return toasts.map((toast) => {
@@ -110,24 +131,31 @@ function ToastQueue() {
     const Icon = icons[tone] ?? Info;
     return (
       <BaseToast.Root
-        className="py-toast"
+        className={cn(
+          "motion-standard absolute top-0 left-0 z-[calc(100-var(--toast-index))] w-full overflow-hidden rounded-container border border-border bg-overlay text-foreground shadow-popup transition-[transform,opacity,height]",
+          toastStack,
+        )}
+        data-slot="toast"
         data-tone={tone}
         key={toast.id}
         swipeDirection={["up", "right"]}
         toast={toast}
       >
-        <BaseToast.Content className="py-toast__content">
-          <Icon aria-hidden="true" className="py-toast__icon" />
-          <div className="py-toast__copy">
-            <BaseToast.Title className="py-toast__title" />
-            <BaseToast.Description className="py-toast__description" />
+        <BaseToast.Content className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-start gap-3 p-4">
+          <Icon
+            aria-hidden="true"
+            className={cn("mt-0.5 size-[1.125rem]", statusTones[tone].accent)}
+          />
+          <div className="min-w-0 text-body leading-ui">
+            <BaseToast.Title className="font-semibold" />
+            <BaseToast.Description className="text-foreground-secondary" />
           </div>
           {toast.actionProps ? (
-            <BaseToast.Action className="py-toast__action" />
+            <BaseToast.Action className="inline-grid h-control cursor-pointer place-items-center rounded-control border border-primary bg-primary px-3 font-semibold text-primary-foreground hover:opacity-88" />
           ) : null}
           <BaseToast.Close
             aria-label="Dismiss notification"
-            className="py-toast__close"
+            className="inline-grid size-control cursor-pointer place-items-center rounded-control border-0 bg-transparent p-0 text-foreground-secondary hover:bg-interaction-hover hover:text-foreground [&>svg]:size-4"
           >
             <X aria-hidden="true" />
           </BaseToast.Close>
@@ -159,7 +187,10 @@ export function PythiaToastProvider({
     >
       {children}
       <BaseToast.Portal container={portalContainer}>
-        <BaseToast.Viewport className="py-toast__viewport">
+        <BaseToast.Viewport
+          className="fixed top-[max(1rem,env(safe-area-inset-top))] left-1/2 z-100 m-0 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2"
+          data-slot="toast-viewport"
+        >
           <ToastQueue />
         </BaseToast.Viewport>
       </BaseToast.Portal>

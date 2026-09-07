@@ -2,7 +2,8 @@
 
 import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
 import type { ComponentProps } from "react";
-import { mergeClassName } from "./class-names";
+import { cnState } from "../class-name";
+import { overlayClasses } from "./shared";
 
 function TooltipPositioner({
   className,
@@ -10,7 +11,8 @@ function TooltipPositioner({
 }: ComponentProps<typeof BaseTooltip.Positioner>) {
   return (
     <BaseTooltip.Positioner
-      className={mergeClassName("py-floating-positioner", className)}
+      className={cnState(overlayClasses.positioner, className)}
+      data-slot="tooltip-positioner"
       sideOffset={6}
       {...props}
     />
@@ -23,7 +25,11 @@ function TooltipPopup({
 }: ComponentProps<typeof BaseTooltip.Popup>) {
   return (
     <BaseTooltip.Popup
-      className={mergeClassName("py-tooltip-popup", className)}
+      className={cnState(
+        "motion-fast z-60 max-w-[min(18rem,calc(100vw-2rem))] rounded-control bg-foreground px-2 py-1 text-canvas text-xs leading-ui transition-opacity data-ending-style:opacity-0 data-starting-style:opacity-0",
+        className,
+      )}
+      data-slot="tooltip-popup"
       {...props}
     />
   );
@@ -35,7 +41,8 @@ function TooltipArrow({
 }: ComponentProps<typeof BaseTooltip.Arrow>) {
   return (
     <BaseTooltip.Arrow
-      className={mergeClassName("py-tooltip-arrow", className)}
+      className={cnState("fill-foreground", className)}
+      data-slot="tooltip-arrow"
       {...props}
     />
   );

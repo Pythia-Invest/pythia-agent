@@ -25,15 +25,19 @@ import {
 import {
   Sidebar,
   SidebarItem,
-  SidebarLink,
   SidebarList,
   SidebarNav,
 } from "../src/navigation/sidebar";
+import { SidebarLink } from "../src/navigation/sidebar-link";
 import { Tab, TabPanel, Tabs, TabsList } from "../src/navigation/tabs";
 
 describe("navigation controls", () => {
   it("isolates interactive navigation from server-compatible helpers", async () => {
-    for (const file of ["tabs.tsx", "navigation-menu.tsx"] as const) {
+    for (const file of [
+      "tabs.tsx",
+      "navigation-menu.tsx",
+      "sidebar-link.tsx",
+    ] as const) {
       const source = await readFile(
         new URL(`../src/navigation/${file}`, import.meta.url),
         "utf8",
@@ -72,7 +76,7 @@ describe("navigation controls", () => {
     expect(markup).toContain('aria-selected="true"');
     expect(markup).toContain('data-active=""');
     expect(markup).toContain('role="tabpanel"');
-    expect(markup).toContain("pythia-tabs__tab");
+    expect(markup).toContain('data-slot="tab"');
   });
 
   it("adds only current-page translation to breadcrumb and pagination links", () => {
@@ -134,8 +138,8 @@ describe("navigation controls", () => {
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain('data-base-ui-navigation-menu-trigger=""');
     expect(markup).toContain('data-active=""');
-    expect(markup).toContain("pythia-navigation-menu__trigger");
-    expect(markup).toContain("pythia-navigation-menu__link");
+    expect(markup).toContain('data-slot="navigation-menu-trigger"');
+    expect(markup).toContain('data-slot="navigation-menu-link"');
   });
 
   it("defaults navigation-menu popup alignment to the trigger start edge", async () => {
@@ -170,49 +174,36 @@ describe("navigation controls", () => {
   });
 
   it("separates transient open state from persistent navigation", async () => {
-    const css = await readFile(
-      new URL("../src/navigation/navigation.css", import.meta.url),
-      "utf8",
+    const [tabs, menu, sidebar, pagination] = await Promise.all(
+      [
+        "tabs.tsx",
+        "navigation-menu.tsx",
+        "sidebar-row.ts",
+        "pagination.tsx",
+      ].map((file) =>
+        readFile(new URL(`../src/navigation/${file}`, import.meta.url), "utf8"),
+      ),
     );
+    const all = [tabs, menu, sidebar, pagination].join("\n");
 
-    expect(css).toContain("var(--py-interaction-active)");
-    expect(css).toContain("var(--py-action-primary-background)");
-    expect(css).toContain("var(--py-interaction-hover)");
-    expect(css).toMatch(
-      /\.pythia-tabs__tab\[data-active\]\s*\{[^}]*background:\s*transparent;[^}]*border-color:\s*var\(--py-action-primary-background\)/,
-    );
-    expect(css).not.toMatch(
-      /\.pythia-tabs__tab\[data-active\]\s*\{[^}]*background:\s*var\(--py-interaction-active\)/,
-    );
-    expect(css).toMatch(
-      /\.pythia-navigation-menu__trigger\[data-popup-open\]\s*\{[^}]*background:\s*var\(--py-interaction-active\)/,
-    );
-    const openTriggerStyle = css.match(
-      /\.pythia-navigation-menu__trigger\[data-popup-open\]\s*\{[^}]*\}/,
-    )?.[0];
-    expect(openTriggerStyle).toContain("--py-interaction-active");
-    for (const selector of [
-      ".pythia-navigation-menu__link[data-active]",
-      ".pythia-sidebar__link[data-active]",
-    ]) {
-      const lowEmphasisStyle = css.match(
-        new RegExp(
-          `${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{[^}]*\\}`,
-        ),
-      )?.[0];
-      expect(lowEmphasisStyle).toContain("--py-interaction-active");
-      expect(lowEmphasisStyle).toContain("font-weight: 600");
-      expect(lowEmphasisStyle).not.toContain("--py-action-primary-background");
-      expect(lowEmphasisStyle).not.toContain("box-shadow");
+    // An active tab is an underline in the primary color, not a filled row.
+    expect(tabs).toContain("data-active:border-primary");
+    expect(tabs).toContain("data-active:bg-transparent");
+    expect(tabs).not.toContain("data-active:bg-interaction-active");
+    // Open menu triggers and active links use the quiet interaction fill.
+    expect(menu).toContain("data-popup-open:bg-interaction-active");
+    for (const source of [menu, sidebar]) {
+      expect(source).toContain("data-active:bg-interaction-active");
+      expect(source).toContain("data-active:font-semibold");
+      expect(source).not.toContain("data-active:bg-primary");
+      expect(source).not.toContain("data-active:shadow");
     }
-    const paginationStyle = css.match(
-      /\.pythia-pagination__link\[data-current\]\s*\{[^}]*\}/,
-    )?.[0];
-    expect(paginationStyle).toContain("--py-interaction-active");
-    expect(paginationStyle).toContain("border-color: var(--py-border-default)");
-    expect(paginationStyle).toContain("font-weight: 600");
-    expect(css).not.toMatch(/--py-selection-[\w-]+/);
-    expect(css).not.toContain("--py-signal-");
-    expect(css).not.toContain("--py-color-");
+    expect(sidebar).not.toContain("shadow");
+    expect(pagination).toContain("data-current:bg-interaction-active");
+    expect(pagination).toContain("data-current:border-border");
+    expect(pagination).toContain("data-current:font-semibold");
+    expect(all).not.toMatch(/--py-selection-[\w-]+/);
+    expect(all).not.toMatch(/\b(?:bg|text|border|from|to|via)-signal\b/);
+    expect(all).not.toContain("--py-color-");
   });
 });

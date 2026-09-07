@@ -3,7 +3,8 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 import type { ComponentProps } from "react";
-import { joinClassNames } from "./class-name";
+import { cn } from "../class-name";
+import { pickerClasses } from "./shared";
 
 export type CommandProps = ComponentProps<typeof CommandPrimitive>;
 
@@ -19,7 +20,8 @@ export type CommandProps = ComponentProps<typeof CommandPrimitive>;
 export function Command({ className, ...props }: CommandProps) {
   return (
     <CommandPrimitive
-      className={joinClassNames("pythia-command", className)}
+      className={cn(pickerClasses.popup, "min-w-[min(100%,18rem)]", className)}
+      data-slot="command"
       {...props}
     />
   );
@@ -37,10 +39,21 @@ export type CommandInputProps = ComponentProps<typeof CommandPrimitive.Input>;
  */
 export function CommandInput({ className, ...props }: CommandInputProps) {
   return (
-    <div className="pythia-command__input-row">
-      <Search aria-hidden="true" className="pythia-command__search-icon" />
+    <div
+      className="flex min-h-control items-center gap-2 border-border border-b px-3 focus-within:outline-2 focus-within:outline-ring focus-within:-outline-offset-2"
+      data-slot="command-input-row"
+    >
+      <Search
+        aria-hidden="true"
+        className="size-4 flex-none text-foreground-secondary"
+        data-slot="command-search-icon"
+      />
       <CommandPrimitive.Input
-        className={joinClassNames("pythia-command__input", className)}
+        className={cn(
+          "min-w-0 flex-1 border-0 bg-transparent text-foreground outline-0 placeholder:text-foreground-secondary",
+          className,
+        )}
+        data-slot="command-input"
         {...props}
       />
     </div>
@@ -60,7 +73,8 @@ export type CommandListProps = ComponentProps<typeof CommandPrimitive.List>;
 export function CommandList({ className, ...props }: CommandListProps) {
   return (
     <CommandPrimitive.List
-      className={joinClassNames("pythia-command__list", className)}
+      className={cn(pickerClasses.list, className)}
+      data-slot="command-list"
       {...props}
     />
   );
@@ -79,7 +93,12 @@ export type CommandItemProps = ComponentProps<typeof CommandPrimitive.Item>;
 export function CommandItem({ className, ...props }: CommandItemProps) {
   return (
     <CommandPrimitive.Item
-      className={joinClassNames("pythia-command__item", className)}
+      className={cn(
+        // cmdk writes `data-selected="true"` and `data-disabled="true"` rather than boolean attributes.
+        "flex min-h-control cursor-default items-center gap-2 rounded-control px-2 py-1 text-foreground data-[disabled=true]:cursor-not-allowed data-[selected=true]:bg-interaction-hover data-[disabled=true]:opacity-disabled",
+        className,
+      )}
+      data-slot="command-item"
       {...props}
     />
   );
@@ -98,7 +117,11 @@ export type CommandGroupProps = ComponentProps<typeof CommandPrimitive.Group>;
 export function CommandGroup({ className, ...props }: CommandGroupProps) {
   return (
     <CommandPrimitive.Group
-      className={joinClassNames("pythia-command__group", className)}
+      className={cn(
+        "py-2 [&_[cmdk-group-heading]]:p-2 [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-foreground-secondary [&_[cmdk-group-heading]]:text-xs",
+        className,
+      )}
+      data-slot="command-group"
       {...props}
     />
   );
@@ -117,7 +140,8 @@ export type CommandEmptyProps = ComponentProps<typeof CommandPrimitive.Empty>;
 export function CommandEmpty({ className, ...props }: CommandEmptyProps) {
   return (
     <CommandPrimitive.Empty
-      className={joinClassNames("pythia-command__empty", className)}
+      className={cn(pickerClasses.empty, className)}
+      data-slot="command-empty"
       {...props}
     />
   );
@@ -138,7 +162,8 @@ export type CommandLoadingProps = ComponentProps<
 export function CommandLoading({ className, ...props }: CommandLoadingProps) {
   return (
     <CommandPrimitive.Loading
-      className={joinClassNames("pythia-command__loading", className)}
+      className={cn(pickerClasses.empty, className)}
+      data-slot="command-loading"
       {...props}
     />
   );
@@ -161,7 +186,8 @@ export function CommandSeparator({
 }: CommandSeparatorProps) {
   return (
     <CommandPrimitive.Separator
-      className={joinClassNames("pythia-command__separator", className)}
+      className={cn(pickerClasses.separator, "m-1", className)}
+      data-slot="command-separator"
       {...props}
     />
   );

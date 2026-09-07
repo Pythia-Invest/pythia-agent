@@ -4,20 +4,19 @@ import { Toggle as BaseToggle } from "@base-ui/react/toggle";
 import { ToggleGroup as BaseToggleGroup } from "@base-ui/react/toggle-group";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode, Ref } from "react";
+import { cn } from "../class-name";
 
 const toggleClasses = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--py-radius-interactive)] border text-sm font-medium text-[var(--py-text-secondary)] transition-colors duration-[var(--py-motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-[var(--py-disabled-opacity)] data-[pressed]:bg-[var(--py-interaction-active)] data-[pressed]:font-semibold data-[pressed]:text-[var(--py-text-primary)]",
+  "motion-fast inline-flex shrink-0 items-center justify-center gap-2 rounded-control border font-medium text-foreground-secondary text-sm transition-colors disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-disabled data-pressed:bg-interaction-active data-pressed:font-semibold data-pressed:text-foreground",
   {
     variants: {
       appearance: {
-        outline:
-          "border-[var(--py-border-default)] bg-[var(--py-surface-raised)] hover:bg-[var(--py-interaction-hover)]",
-        ghost:
-          "border-transparent bg-transparent hover:bg-[var(--py-interaction-hover)]",
+        outline: "border-border bg-raised hover:bg-interaction-hover",
+        ghost: "border-transparent bg-transparent hover:bg-interaction-hover",
       },
       size: {
         sm: "h-8 px-3 text-xs",
-        md: "h-[var(--py-profile-control-height)] px-4",
+        md: "h-control px-4",
         lg: "h-12 px-5 text-base",
       },
     },
@@ -68,7 +67,8 @@ export function Toggle<Value extends string = string>({
   return (
     <BaseToggle
       {...props}
-      className={toggleClasses({ appearance, className, size })}
+      className={cn(toggleClasses({ appearance, size }), className)}
+      data-slot="toggle"
     >
       {icon ? <span aria-hidden="true">{icon}</span> : null}
       <span>{label}</span>
@@ -104,7 +104,12 @@ export function ToggleGroup<Value extends string = string>({
     <BaseToggleGroup
       {...props}
       aria-label={label}
-      className={`inline-flex gap-1 rounded-[var(--py-radius-group)] bg-[var(--py-surface-subtle)] p-1 ${orientation === "vertical" ? "flex-col" : "flex-row"} ${className ?? ""}`}
+      className={cn(
+        "inline-flex gap-1 rounded-container bg-subtle p-1",
+        orientation === "vertical" ? "flex-col" : "flex-row",
+        className,
+      )}
+      data-slot="toggle-group"
       orientation={orientation}
     >
       {children}

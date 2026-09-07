@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import * as publicUi from "../src/index";
 import { describe, expect, it } from "vitest";
 
@@ -88,17 +88,6 @@ const categoryIndexes = [
   "semantics",
 ] as const;
 
-const componentStyles = [
-  "./lockup.css",
-  "./selection/selection.css",
-  "./navigation/navigation.css",
-  "./overlays/overlays.css",
-  "./disclosure/disclosure.css",
-  "./feedback/feedback.css",
-  "./data-display/data-display.css",
-  "./layout/layout.css",
-] as const;
-
 describe("@pythia/ui public integration", () => {
   it("exports every approved component family from the package root", () => {
     for (const exportName of approvedRuntimeExports) {
@@ -123,16 +112,26 @@ describe("@pythia/ui public integration", () => {
     }
   });
 
-  it("loads every package component stylesheet from the canonical CSS entry only", async () => {
+  it("ships one token stylesheet and no per-component CSS", async () => {
     const styles = await readFile(
       new URL("../src/styles.css", import.meta.url),
       "utf8",
     );
+    const cssFiles: string[] = [];
+    const walk = async (directory: URL) => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          await walk(new URL(`${entry.name}/`, directory));
+        } else if (entry.name.endsWith(".css")) {
+          cssFiles.push(entry.name);
+        }
+      }
+    };
+    await walk(new URL("../src/", import.meta.url));
 
-    for (const stylesheet of componentStyles) {
-      expect(
-        styles.match(new RegExp(`@import "${stylesheet}";`, "g")),
-      ).toHaveLength(1);
-    }
+    expect(cssFiles).toEqual(["styles.css"]);
+    expect(styles).not.toMatch(/@import "\.\//);
+    expect(styles).toContain("@theme inline");
+    expect(styles).toContain("--color-signal: var(--py-signal-marker)");
   });
 });

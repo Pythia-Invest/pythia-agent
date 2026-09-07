@@ -621,7 +621,7 @@
   text-decoration: none;
 }
 
-.catalog-brand .pythia-lockup {
+.catalog-brand [data-slot="pythia-lockup"] {
   font-size: 1.45rem;
 }
 
@@ -997,7 +997,7 @@
   border-radius: var(--py-radius-group);
 }
 
-.catalog-sidebar-stage > .pythia-sidebar {
+.catalog-sidebar-stage > [data-slot="sidebar"] {
   min-block-size: 100%;
 }
 

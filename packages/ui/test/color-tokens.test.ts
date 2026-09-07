@@ -153,19 +153,30 @@ describe("semantic color mechanics", () => {
         [
           "../src/actions/toggle.tsx",
           "../src/calendar/calendar.tsx",
-          "../src/selection/selection.css",
-          "../src/navigation/navigation.css",
+          "../src/selection/checkbox.tsx",
+          "../src/selection/radio-group.tsx",
+          "../src/selection/switch.tsx",
+          "../src/selection/select.tsx",
+          "../src/selection/combobox.tsx",
+          "../src/selection/command.tsx",
+          "../src/navigation/tabs.tsx",
+          "../src/navigation/sidebar.tsx",
+          "../src/navigation/pagination.tsx",
+          "../src/navigation/navigation-menu.tsx",
         ].map((path) => readFile(new URL(path, import.meta.url), "utf8")),
       )
     ).join("\n");
 
-    expect(recipes).toContain("--py-interaction-active");
-    expect(recipes).toContain("--py-action-primary-background");
-    expect(recipes).toContain("--py-action-primary-foreground");
-    expect(recipes).not.toContain("--py-signal-");
-    expect(recipes).not.toContain("--py-status-warning-");
-    expect(recipes).not.toContain("--py-color-signal-amber");
-    expect(recipes).not.toContain("--py-color-copper-");
+    expect(recipes).toContain("bg-interaction-active");
+    expect(recipes).toContain("bg-primary");
+    expect(recipes).toContain("text-primary-foreground");
+    expect(recipes).not.toMatch(
+      /\b(?:bg|text|border|from|to|via|fill|stroke)-signal\b/,
+    );
+    expect(recipes).not.toMatch(/\b(?:bg|text|border)-warning/);
+    expect(recipes).not.toContain("--py-color-");
+    expect(recipes).not.toMatch(/\bamber-/);
+    expect(recipes).not.toContain("copper");
   });
 
   it("keeps Signal Amber exact and warning in its own orange treatment", () => {

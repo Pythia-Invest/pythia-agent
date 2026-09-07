@@ -2,7 +2,8 @@
 
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { ComponentProps } from "react";
-import { mergeClassName } from "./class-names";
+import { cnState } from "../class-name";
+import { overlayClasses } from "./shared";
 
 function PopoverPositioner({
   className,
@@ -10,7 +11,8 @@ function PopoverPositioner({
 }: ComponentProps<typeof BasePopover.Positioner>) {
   return (
     <BasePopover.Positioner
-      className={mergeClassName("py-floating-positioner", className)}
+      className={cnState(overlayClasses.positioner, className)}
+      data-slot="popover-positioner"
       sideOffset={8}
       {...props}
     />
@@ -23,10 +25,11 @@ function PopoverPopup({
 }: ComponentProps<typeof BasePopover.Popup>) {
   return (
     <BasePopover.Popup
-      className={mergeClassName(
-        "py-floating-popup py-popover-popup",
+      className={cnState(
+        `${overlayClasses.surface} ${overlayClasses.floating}`,
         className,
       )}
+      data-slot="popover-popup"
       {...props}
     />
   );
@@ -38,7 +41,8 @@ function PopoverArrow({
 }: ComponentProps<typeof BasePopover.Arrow>) {
   return (
     <BasePopover.Arrow
-      className={mergeClassName("py-floating-arrow", className)}
+      className={cnState(overlayClasses.arrow, className)}
+      data-slot="popover-arrow"
       {...props}
     />
   );
@@ -50,7 +54,8 @@ function PopoverTitle({
 }: ComponentProps<typeof BasePopover.Title>) {
   return (
     <BasePopover.Title
-      className={mergeClassName("py-overlay-title", className)}
+      className={cnState(overlayClasses.title, className)}
+      data-slot="popover-title"
       {...props}
     />
   );
@@ -62,7 +67,8 @@ function PopoverDescription({
 }: ComponentProps<typeof BasePopover.Description>) {
   return (
     <BasePopover.Description
-      className={mergeClassName("py-overlay-description", className)}
+      className={cnState(overlayClasses.description, className)}
+      data-slot="popover-description"
       {...props}
     />
   );
@@ -74,7 +80,8 @@ function PopoverClose({
 }: ComponentProps<typeof BasePopover.Close>) {
   return (
     <BasePopover.Close
-      className={mergeClassName("py-overlay-close", className)}
+      className={cnState(overlayClasses.close, className)}
+      data-slot="popover-close"
       {...props}
     />
   );

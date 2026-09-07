@@ -1,4 +1,5 @@
 import { Progress as BaseProgress } from "@base-ui/react/progress";
+import { cn } from "../class-name";
 
 /** Props for a determinate progress bar with a real supplied value and label. */
 export interface ProgressProps {
@@ -27,17 +28,21 @@ export function Progress({
 }: ProgressProps) {
   return (
     <BaseProgress.Root
-      className={["py-progress", className].filter(Boolean).join(" ")}
+      className={cn(
+        "grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2 text-body text-foreground leading-ui",
+        className,
+      )}
+      data-slot="progress"
       max={max}
       min={min}
       value={value}
     >
-      <BaseProgress.Label className="py-progress__label">
-        {label}
-      </BaseProgress.Label>
-      {showValue ? <BaseProgress.Value className="py-progress__value" /> : null}
-      <BaseProgress.Track className="py-progress__track">
-        <BaseProgress.Indicator className="py-progress__indicator" />
+      <BaseProgress.Label className="font-medium">{label}</BaseProgress.Label>
+      {showValue ? (
+        <BaseProgress.Value className="text-foreground-secondary tabular-nums" />
+      ) : null}
+      <BaseProgress.Track className="col-span-full h-2 overflow-hidden rounded-pill bg-subtle">
+        <BaseProgress.Indicator className="motion-standard h-full rounded-[inherit] bg-foreground transition-[width]" />
       </BaseProgress.Track>
     </BaseProgress.Root>
   );

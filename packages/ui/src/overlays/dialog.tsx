@@ -3,7 +3,8 @@
 import { AlertDialog as BaseAlertDialog } from "@base-ui/react/alert-dialog";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import type { ComponentProps } from "react";
-import { mergeClassName } from "./class-names";
+import { cnState } from "../class-name";
+import { overlayClasses } from "./shared";
 
 function DialogBackdrop({
   className,
@@ -11,7 +12,8 @@ function DialogBackdrop({
 }: ComponentProps<typeof BaseDialog.Backdrop>) {
   return (
     <BaseDialog.Backdrop
-      className={mergeClassName("py-overlay-backdrop", className)}
+      className={cnState(overlayClasses.backdrop, className)}
+      data-slot="dialog-backdrop"
       {...props}
     />
   );
@@ -23,7 +25,11 @@ function DialogViewport({
 }: ComponentProps<typeof BaseDialog.Viewport>) {
   return (
     <BaseDialog.Viewport
-      className={mergeClassName("py-dialog-viewport", className)}
+      className={cnState(
+        "fixed inset-0 z-50 grid place-items-center overflow-y-auto p-gutter",
+        className,
+      )}
+      data-slot="dialog-viewport"
       {...props}
     />
   );
@@ -35,7 +41,11 @@ function DialogPopup({
 }: ComponentProps<typeof BaseDialog.Popup>) {
   return (
     <BaseDialog.Popup
-      className={mergeClassName("py-dialog-popup", className)}
+      className={cnState(
+        `${overlayClasses.surface} motion-standard max-h-[min(44rem,calc(100dvh-2*var(--spacing-gutter)))] w-[min(32rem,100%)] overflow-y-auto rounded-container p-6 transition-[opacity,transform] data-ending-style:scale-[0.98] data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:opacity-0`,
+        className,
+      )}
+      data-slot="dialog-popup"
       {...props}
     />
   );
@@ -47,7 +57,8 @@ function DialogTitle({
 }: ComponentProps<typeof BaseDialog.Title>) {
   return (
     <BaseDialog.Title
-      className={mergeClassName("py-overlay-title", className)}
+      className={cnState(overlayClasses.title, className)}
+      data-slot="dialog-title"
       {...props}
     />
   );
@@ -59,7 +70,8 @@ function DialogDescription({
 }: ComponentProps<typeof BaseDialog.Description>) {
   return (
     <BaseDialog.Description
-      className={mergeClassName("py-overlay-description", className)}
+      className={cnState(overlayClasses.description, className)}
+      data-slot="dialog-description"
       {...props}
     />
   );
@@ -71,7 +83,8 @@ function DialogClose({
 }: ComponentProps<typeof BaseDialog.Close>) {
   return (
     <BaseDialog.Close
-      className={mergeClassName("py-overlay-close", className)}
+      className={cnState(overlayClasses.close, className)}
+      data-slot="dialog-close"
       {...props}
     />
   );

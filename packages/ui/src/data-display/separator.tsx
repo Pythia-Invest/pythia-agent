@@ -1,4 +1,5 @@
 import { Separator as BaseSeparator } from "@base-ui/react/separator";
+import { cn } from "../class-name";
 
 /** Props for an accessible horizontal or vertical content separator. */
 export interface SeparatorProps {
@@ -19,7 +20,12 @@ export function Separator({
 }: SeparatorProps) {
   return (
     <BaseSeparator
-      className={["py-separator", className].filter(Boolean).join(" ")}
+      className={cn(
+        "flex-none bg-border",
+        orientation === "vertical" ? "h-full w-px" : "h-px w-full",
+        className,
+      )}
+      data-slot="separator"
       orientation={orientation}
     />
   );

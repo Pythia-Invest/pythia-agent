@@ -6,7 +6,7 @@ import { OTPField } from "../src/forms/otp-field";
 describe("forms", () => {
   it.each([
     ["sm", "min-h-8"],
-    ["md", "--py-profile-control-height"],
+    ["md", "min-h-control"],
     ["lg", "min-h-12"],
   ] as const)("renders the %s text-control size", (size, className) => {
     const html = renderToStaticMarkup(
@@ -32,7 +32,7 @@ describe("forms", () => {
     expect(html).toContain("Enter a valid address.");
     expect(html).toContain('aria-invalid="true"');
     expect(html).toContain('type="email"');
-    expect(html).toContain("--py-status-error-foreground");
+    expect(html).toContain("text-error");
   });
 
   it("preserves native label, textarea, and disabled input behavior", () => {
@@ -62,8 +62,8 @@ describe("forms", () => {
     expect(html).toContain("Position value");
     expect(html).toContain("EUR");
     expect(html).toContain("focus-within:outline");
-    expect(html).toContain("focus-within:border-[var(--py-border-strong)]");
-    expect(html).not.toContain("--py-signal-");
+    expect(html).toContain("focus-within:border-border-strong");
+    expect(html).not.toContain("signal");
   });
 
   it("assembles Base UI OTP slots with persistent labelling and native states", () => {
@@ -85,14 +85,14 @@ describe("forms", () => {
     expect(html).toContain('aria-label="Character 6 of 6"');
     expect(html).not.toContain('aria-label="Character 1 of 6"');
     expect(html.match(/aria-label="Character [2-6] of 6"/g)).toHaveLength(5);
-    expect(html.match(/class="py-field-control /g)).toHaveLength(6);
+    expect(html.match(/size-11 rounded-control/g)).toHaveLength(6);
     const firstSlotId = html.match(/<label[^>]*for="([^"]+)"/)?.[1];
     expect(firstSlotId).toBeTruthy();
     expect(html).toContain(`id="${firstSlotId}" type="text"`);
     expect(html.match(/<input/g)).toHaveLength(7);
     expect(html).toContain('autoComplete="one-time-code"');
-    expect(html).toContain("focus-visible:border-[var(--py-border-strong)]");
-    expect(html).not.toContain("--py-signal-");
+    expect(html).toContain("focus-visible:border-border-strong");
+    expect(html).not.toContain("signal");
   });
 
   it("rejects invalid OTP shape configuration without owning code validation", () => {

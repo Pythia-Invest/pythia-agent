@@ -1,4 +1,3 @@
-import { clsx } from "clsx";
 import {
   CircleAlert,
   CircleCheck,
@@ -10,81 +9,77 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { cn } from "../class-name";
 import type { KnowledgeStateKind, SemanticMessageTone } from "./types";
 
-const messagePresentation = {
+type Presentation = {
+  icon: typeof CircleAlert;
+  label: string;
+  /** Border and surface of the container. */
+  surface: string;
+  /** Icon and label color; text stays primary for legibility. */
+  accent: string;
+};
+
+const messagePresentation: Record<SemanticMessageTone, Presentation> = {
   information: {
     icon: CircleAlert,
     label: "Information",
-    classes:
-      "[border-color:var(--py-status-info-border)] bg-[var(--py-status-info-surface)] [--message-accent:var(--py-status-info-foreground)]",
+    surface: "border-info-border bg-info-surface",
+    accent: "text-info",
   },
   success: {
     icon: CircleCheck,
     label: "Success",
-    classes:
-      "[border-color:var(--py-status-success-border)] bg-[var(--py-status-success-surface)] [--message-accent:var(--py-status-success-foreground)]",
+    surface: "border-success-border bg-success-surface",
+    accent: "text-success",
   },
   warning: {
     icon: TriangleAlert,
     label: "Warning",
-    classes:
-      "[border-color:var(--py-status-warning-border)] bg-[var(--py-status-warning-surface)] [--message-accent:var(--py-status-warning-foreground)]",
+    surface: "border-warning-border bg-warning-surface",
+    accent: "text-warning",
   },
   error: {
     icon: CircleX,
     label: "Error",
-    classes:
-      "[border-color:var(--py-status-error-border)] bg-[var(--py-status-error-surface)] [--message-accent:var(--py-status-error-foreground)]",
+    surface: "border-error-border bg-error-surface",
+    accent: "text-error",
   },
-} satisfies Record<
-  SemanticMessageTone,
-  {
-    icon: typeof CircleAlert;
-    label: string;
-    classes: string;
-  }
->;
+};
 
-const knowledgePresentation = {
+const knowledgePresentation: Record<KnowledgeStateKind, Presentation> = {
   "no-evidence": {
     icon: SearchX,
     label: "No evidence found",
-    classes:
-      "[border-color:var(--py-border-default)] [--knowledge-accent:var(--py-text-secondary)]",
+    surface: "border-border",
+    accent: "text-foreground-secondary",
   },
   "insufficient-coverage": {
     icon: ShieldAlert,
     label: "Insufficient coverage",
-    classes:
-      "[border-color:var(--py-status-info-border)] [--knowledge-accent:var(--py-status-info-foreground)]",
+    surface: "border-info-border",
+    accent: "text-info",
   },
   stale: {
     icon: ClockAlert,
     label: "Stale source",
-    classes:
-      "[border-color:var(--py-border-default)] [--knowledge-accent:var(--py-freshness-stale)]",
+    surface: "border-border",
+    accent: "text-freshness-stale",
   },
   unavailable: {
     icon: FileQuestion,
     label: "Calculation unavailable",
-    classes:
-      "[border-color:var(--py-border-default)] [--knowledge-accent:var(--py-text-secondary)]",
+    surface: "border-border",
+    accent: "text-foreground-secondary",
   },
   failed: {
     icon: CircleX,
     label: "Operation failed",
-    classes:
-      "[border-color:var(--py-status-error-border)] [--knowledge-accent:var(--py-status-error-foreground)]",
+    surface: "border-error-border",
+    accent: "text-error",
   },
-} satisfies Record<
-  KnowledgeStateKind,
-  {
-    icon: typeof CircleAlert;
-    label: string;
-    classes: string;
-  }
->;
+};
 
 export interface SemanticMessageProps {
   /** Supplied interface meaning; warning remains separate from Pythia signal. */
@@ -115,29 +110,32 @@ export function SemanticMessage({
   const Icon = presentation.icon;
   return (
     <div
-      className={clsx(
-        "flex items-start gap-[var(--py-space-3)] rounded-[var(--py-radius-interactive)] border border-solid p-[var(--py-space-4)] [color:var(--py-text-primary)]",
-        presentation.classes,
+      className={cn(
+        "flex items-start gap-3 rounded-control border p-4 text-foreground",
+        presentation.surface,
         className,
       )}
+      data-slot="semantic-message"
+      data-tone={tone}
       role={tone === "error" ? "alert" : "status"}
     >
       <Icon
         aria-hidden="true"
-        className="mt-0.5 size-5 shrink-0 [color:var(--message-accent)]"
+        className={cn("mt-0.5 size-5 shrink-0", presentation.accent)}
         strokeWidth={2}
       />
-      <div className="grid gap-[var(--py-space-1)]">
-        <span className="text-[length:var(--py-font-size-12)] font-bold uppercase tracking-[0.06em] [color:var(--message-accent)]">
+      <div className="grid gap-1">
+        <span
+          className={cn(
+            "font-bold text-xs uppercase tracking-[0.06em]",
+            presentation.accent,
+          )}
+        >
           {presentation.label}
         </span>
-        <strong className="text-[length:var(--py-font-size-14)] font-semibold">
-          {title}
-        </strong>
+        <strong className="font-semibold text-sm">{title}</strong>
         {children === undefined ? null : (
-          <div className="text-[length:var(--py-font-size-12)] leading-[var(--py-line-height-ui)]">
-            {children}
-          </div>
+          <div className="text-xs leading-ui">{children}</div>
         )}
       </div>
     </div>
@@ -169,24 +167,24 @@ export function KnowledgeState({
   const Icon = presentation.icon;
   return (
     <div
-      className={clsx(
-        "flex items-start gap-[var(--py-space-3)] border-y border-solid bg-transparent py-[var(--py-space-3)] [color:var(--py-text-primary)]",
-        presentation.classes,
+      className={cn(
+        "flex items-start gap-3 border-y bg-transparent py-3 text-foreground",
+        presentation.surface,
         className,
       )}
+      data-slot="knowledge-state"
+      data-state={state}
       role={state === "failed" ? "alert" : "status"}
     >
       <Icon
         aria-hidden="true"
-        className="mt-0.5 size-5 shrink-0 [color:var(--knowledge-accent)]"
+        className={cn("mt-0.5 size-5 shrink-0", presentation.accent)}
         strokeWidth={2}
       />
-      <div className="grid gap-[var(--py-space-1)]">
-        <strong className="text-[length:var(--py-font-size-14)] font-semibold">
-          {presentation.label}
-        </strong>
+      <div className="grid gap-1">
+        <strong className="font-semibold text-sm">{presentation.label}</strong>
         {children === undefined ? null : (
-          <div className="text-[length:var(--py-font-size-12)] leading-[var(--py-line-height-ui)] [color:var(--py-text-secondary)]">
+          <div className="text-foreground-secondary text-xs leading-ui">
             {children}
           </div>
         )}

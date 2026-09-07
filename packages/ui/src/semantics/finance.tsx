@@ -1,27 +1,15 @@
-import { clsx } from "clsx";
 import type { ReactNode } from "react";
+import { cn } from "../class-name";
 import { FreshnessLabel } from "./research";
 import type { FreshnessKind, MarketDirectionKind } from "./types";
 
 const directionPresentation: Record<
   MarketDirectionKind,
-  { cue: string; label: string; token: string }
+  { cue: string; label: string; tone: string }
 > = {
-  up: {
-    cue: "↑",
-    label: "Up",
-    token: "[color:var(--py-market-up)]",
-  },
-  down: {
-    cue: "↓",
-    label: "Down",
-    token: "[color:var(--py-market-down)]",
-  },
-  unchanged: {
-    cue: "→",
-    label: "Unchanged",
-    token: "[color:var(--py-market-flat)]",
-  },
+  up: { cue: "↑", label: "Up", tone: "text-market-up" },
+  down: { cue: "↓", label: "Down", tone: "text-market-down" },
+  unchanged: { cue: "→", label: "Unchanged", tone: "text-market-flat" },
 };
 
 export interface MarketDirectionProps {
@@ -51,11 +39,13 @@ export function MarketDirection({
   const presentation = directionPresentation[direction];
   return (
     <span
-      className={clsx(
-        "inline-flex flex-wrap items-baseline gap-x-[var(--py-space-2)] gap-y-[var(--py-space-1)] text-[length:var(--py-font-size-14)] font-semibold",
-        presentation.token,
+      className={cn(
+        "inline-flex flex-wrap items-baseline gap-x-2 gap-y-1 font-semibold text-sm",
+        presentation.tone,
         className,
       )}
+      data-direction={direction}
+      data-slot="market-direction"
     >
       <span aria-hidden="true" className="font-bold">
         {presentation.cue}
@@ -63,7 +53,7 @@ export function MarketDirection({
       <span>{presentation.label}</span>
       <span className="font-bold tabular-nums">{value}</span>
       {context === undefined ? null : (
-        <span className="text-[length:var(--py-font-size-12)] font-normal [color:var(--py-text-secondary)]">
+        <span className="font-normal text-foreground-secondary text-xs">
           {context}
         </span>
       )}
@@ -106,31 +96,23 @@ export function FinancialValue({
 }: FinancialValueProps) {
   return (
     <figure
-      className={clsx(
-        "m-0 grid gap-[var(--py-space-3)] border-y border-solid [border-color:var(--py-border-default)] py-[var(--py-space-4)]",
-        className,
-      )}
+      className={cn("m-0 grid gap-3 border-border border-y py-4", className)}
+      data-slot="financial-value"
     >
       <figcaption className="sr-only">{label}</figcaption>
-      <div className="flex flex-wrap items-baseline gap-x-[var(--py-space-2)] gap-y-[var(--py-space-1)] [color:var(--py-text-primary)]">
-        <strong className="text-[length:var(--py-font-size-18)] font-semibold tabular-nums">
-          {value}
-        </strong>
-        <span className="text-[length:var(--py-font-size-12)] font-semibold [color:var(--py-text-secondary)]">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-foreground">
+        <strong className="font-semibold text-lg tabular-nums">{value}</strong>
+        <span className="font-semibold text-foreground-secondary text-xs">
           {currencyOrUnit}
         </span>
       </div>
-      <dl className="flex flex-wrap gap-x-[var(--py-space-4)] gap-y-[var(--py-space-1)] text-[length:var(--py-font-size-12)] [color:var(--py-text-secondary)]">
-        <div className="flex gap-[var(--py-space-1)]">
-          <dt className="font-semibold [color:var(--py-text-primary)]">
-            Period
-          </dt>
+      <dl className="flex flex-wrap gap-x-4 gap-y-1 text-foreground-secondary text-xs">
+        <div className="flex gap-1">
+          <dt className="font-semibold text-foreground">Period</dt>
           <dd className="m-0">{period}</dd>
         </div>
-        <div className="flex gap-[var(--py-space-1)]">
-          <dt className="font-semibold [color:var(--py-text-primary)]">
-            Basis
-          </dt>
+        <div className="flex gap-1">
+          <dt className="font-semibold text-foreground">Basis</dt>
           <dd className="m-0">{basis}</dd>
         </div>
       </dl>

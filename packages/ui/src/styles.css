@@ -1,12 +1,17 @@
-@import "./lockup.css";
-@import "./forms/forms.css";
-@import "./selection/selection.css";
-@import "./navigation/navigation.css";
-@import "./overlays/overlays.css";
-@import "./disclosure/disclosure.css";
-@import "./feedback/feedback.css";
-@import "./data-display/data-display.css";
-@import "./layout/layout.css";
+/*
+ * Pythia design tokens and Tailwind theme.
+ *
+ * Consumers import Tailwind first, then this file, then `@source` this
+ * package so component utilities are generated:
+ *
+ *   @import "tailwindcss";
+ *   @import "@pythia/ui/styles.css";
+ *   @source "../path/to/packages/ui/src";
+ *
+ * Layers: primitive values -> semantic roles (light/dark) -> profile aliases
+ * -> Tailwind theme names. Components use the Tailwind names; the `--py-*`
+ * variables stay the single place where a value is decided.
+ */
 
 @font-face {
   font-family: "IBM Plex Sans";
@@ -290,76 +295,179 @@
   );
 }
 
+/*
+ * Tailwind theme. Every name here is a semantic role, never a raw color, so
+ * `bg-raised`, `text-foreground-secondary`, `border-border`, `h-control` and
+ * friends follow the active theme and profile automatically.
+ */
 @theme inline {
   --font-sans: var(--py-font-body);
-  --color-background: var(--py-surface-canvas);
+
+  /* Surfaces */
+  --color-canvas: var(--py-surface-canvas);
+  --color-raised: var(--py-surface-raised);
+  --color-subtle: var(--py-surface-subtle);
+  --color-overlay: var(--py-surface-overlay);
+  --color-container: var(--py-profile-container-surface);
+  --color-atmosphere: var(--py-profile-atmosphere);
+
+  /* Text */
   --color-foreground: var(--py-text-primary);
-  --color-card: var(--py-surface-raised);
-  --color-card-foreground: var(--py-text-primary);
-  --color-muted: var(--py-surface-subtle);
-  --color-muted-foreground: var(--py-text-secondary);
+  --color-foreground-secondary: var(--py-text-secondary);
+  --color-foreground-disabled: var(--py-text-disabled);
+
+  /* Borders, interaction, focus */
   --color-border: var(--py-border-default);
+  --color-border-strong: var(--py-border-strong);
+  --color-interaction-hover: var(--py-interaction-hover);
+  --color-interaction-active: var(--py-interaction-active);
+  --color-ring: var(--py-focus-ring);
+
+  /* Primary action */
   --color-primary: var(--py-action-primary-background);
   --color-primary-foreground: var(--py-action-primary-foreground);
-  --color-accent: var(--py-interaction-hover);
-  --color-accent-foreground: var(--py-text-primary);
-  --color-ring: var(--py-focus-ring);
+
+  /* Pythia signal: only for "Pythia found the signal", never status or emphasis. */
   --color-signal: var(--py-signal-marker);
+  --color-signal-foreground: var(--py-signal-foreground);
+  --color-signal-atmosphere: var(--py-signal-atmosphere);
+
+  /* Interface status */
+  --color-info: var(--py-status-info-foreground);
+  --color-info-border: var(--py-status-info-border);
+  --color-info-surface: var(--py-status-info-surface);
+  --color-success: var(--py-status-success-foreground);
+  --color-success-border: var(--py-status-success-border);
+  --color-success-surface: var(--py-status-success-surface);
+  --color-warning: var(--py-status-warning-foreground);
+  --color-warning-border: var(--py-status-warning-border);
+  --color-warning-surface: var(--py-status-warning-surface);
+  --color-error: var(--py-status-error-foreground);
+  --color-error-border: var(--py-status-error-border);
+  --color-error-surface: var(--py-status-error-surface);
+
+  /* Research semantics */
+  --color-market-up: var(--py-market-up);
+  --color-market-down: var(--py-market-down);
+  --color-market-flat: var(--py-market-flat);
+  --color-impact-favorable: var(--py-impact-favorable);
+  --color-impact-unfavorable: var(--py-impact-unfavorable);
+  --color-impact-neutral: var(--py-impact-neutral);
+  --color-impact-unresolved: var(--py-impact-unresolved);
+  --color-freshness-current: var(--py-freshness-current);
+  --color-freshness-delayed: var(--py-freshness-delayed);
+  --color-freshness-stale: var(--py-freshness-stale);
+  --color-freshness-unknown: var(--py-freshness-unknown);
+  --color-epistemic-fact: var(--py-epistemic-fact);
+  --color-epistemic-machine: var(--py-epistemic-machine);
+  --color-epistemic-human: var(--py-epistemic-human);
+  --color-epistemic-unknown: var(--py-epistemic-unknown);
+
+  /* Geometry */
+  --radius-control: var(--py-radius-interactive);
+  --radius-container: var(--py-radius-group);
+  --radius-pill: var(--py-radius-pill);
+  --spacing-control: var(--py-profile-control-height);
+  --spacing-gutter: var(--py-profile-page-gutter);
+  --spacing-section: var(--py-profile-section-gap);
+  --spacing-group: var(--py-profile-group-gap);
+  --container-measure: var(--py-profile-content-measure);
+
+  /* Type */
+  --text-body: var(--py-profile-body-size);
+  --text-reading: var(--py-profile-reading-size);
+  --text-display: var(--py-profile-display-size);
+  --leading-tight: var(--py-line-height-tight);
+  --leading-ui: var(--py-line-height-ui);
+  --leading-reading: var(--py-line-height-reading);
+
+  /* Elevation, only for genuinely floating surfaces. */
+  --shadow-popup: 0 0.5rem 1.25rem
+    color-mix(in srgb, var(--py-text-primary) 12%, transparent);
+  --shadow-overlay: 0 1rem 3rem
+    color-mix(in srgb, var(--py-text-primary) 18%, transparent);
+
+  /* Motion */
+  --ease-standard: var(--py-motion-easing);
+  --animate-spin-slow: spin 900ms linear infinite;
+  --animate-shimmer: shimmer 1.5s var(--py-motion-easing) infinite;
+
+  @keyframes shimmer {
+    to {
+      transform: translateX(100%);
+    }
+  }
 }
 
-html {
-  min-inline-size: 20rem;
-  background: var(--py-surface-canvas);
-  color: var(--py-text-primary);
-  font-family: var(--py-font-body);
-  font-size: 100%;
-  text-rendering: optimizeLegibility;
+/* The theme is an attribute on the root, not a media query. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@custom-variant public (
+  &:where([data-pythia-profile="public"], [data-pythia-profile="public"] *)
+);
+
+/* Token-bound utilities that Tailwind has no theme namespace for. */
+@utility opacity-disabled {
+  opacity: var(--py-disabled-opacity);
 }
 
-body {
-  margin: 0;
-  background: var(--py-surface-canvas);
-  color: var(--py-text-primary);
+@utility motion-fast {
+  transition-duration: var(--py-motion-fast);
+  transition-timing-function: var(--py-motion-easing);
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@utility motion-standard {
+  transition-duration: var(--py-motion-standard);
+  transition-timing-function: var(--py-motion-easing);
 }
 
-img,
-video {
-  block-size: auto;
-  max-inline-size: 100%;
-}
-
-:where(button, input, select, textarea) {
-  font: inherit;
-}
-
-:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: var(--py-focus-width) solid var(--py-focus-ring);
-  outline-offset: 2px;
-}
-
-.pythia-numeric {
+@utility numeric {
   font-family: var(--py-font-numeric);
   font-variant-numeric: lining-nums tabular-nums;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --py-motion-fast: 0.01ms;
-    --py-motion-standard: 0.01ms;
+@layer base {
+  html {
+    min-inline-size: 20rem;
+    background: var(--py-surface-canvas);
+    color: var(--py-text-primary);
+    font-family: var(--py-font-body);
+    font-size: 100%;
+    text-rendering: optimizeLegibility;
   }
 
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto;
-    animation-duration: 0.01ms;
-    animation-iteration-count: 1;
-    transition-duration: 0.01ms;
+  body {
+    background: var(--py-surface-canvas);
+    color: var(--py-text-primary);
+  }
+
+  img,
+  video {
+    block-size: auto;
+    max-inline-size: 100%;
+  }
+
+  :where(button, input, select, textarea) {
+    font: inherit;
+  }
+
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: var(--py-focus-width) solid var(--py-focus-ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --py-motion-fast: 0.01ms;
+      --py-motion-standard: 0.01ms;
+    }
+
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto;
+      animation-duration: 0.01ms;
+      animation-iteration-count: 1;
+      transition-duration: 0.01ms;
+    }
   }
 }

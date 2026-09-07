@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
-import { joinClassNames } from "./class-name";
+import { cn } from "../class-name";
+import { sidebarRow } from "./sidebar-row";
 
 export type SidebarProps = ComponentProps<"aside">;
 
@@ -14,7 +15,14 @@ export type SidebarProps = ComponentProps<"aside">;
  */
 export function Sidebar({ className, ...props }: SidebarProps) {
   return (
-    <aside className={joinClassNames("pythia-sidebar", className)} {...props} />
+    <aside
+      className={cn(
+        "flex min-h-0 min-w-56 flex-col border-border border-r bg-container text-body text-foreground",
+        className,
+      )}
+      data-slot="sidebar"
+      {...props}
+    />
   );
 }
 
@@ -31,7 +39,8 @@ export type SidebarHeaderProps = ComponentProps<"header">;
 export function SidebarHeader({ className, ...props }: SidebarHeaderProps) {
   return (
     <header
-      className={joinClassNames("pythia-sidebar__header", className)}
+      className={cn("border-border border-b p-3", className)}
+      data-slot="sidebar-header"
       {...props}
     />
   );
@@ -50,7 +59,8 @@ export type SidebarContentProps = ComponentProps<"div">;
 export function SidebarContent({ className, ...props }: SidebarContentProps) {
   return (
     <div
-      className={joinClassNames("pythia-sidebar__content", className)}
+      className={cn("min-h-0 flex-1 overflow-y-auto p-2", className)}
+      data-slot="sidebar-content"
       {...props}
     />
   );
@@ -69,7 +79,8 @@ export type SidebarFooterProps = ComponentProps<"footer">;
 export function SidebarFooter({ className, ...props }: SidebarFooterProps) {
   return (
     <footer
-      className={joinClassNames("pythia-sidebar__footer", className)}
+      className={cn("border-border border-t p-3", className)}
+      data-slot="sidebar-footer"
       {...props}
     />
   );
@@ -88,7 +99,8 @@ export type SidebarSectionProps = ComponentProps<"section">;
 export function SidebarSection({ className, ...props }: SidebarSectionProps) {
   return (
     <section
-      className={joinClassNames("pythia-sidebar__section", className)}
+      className={cn("grid gap-1 py-2", className)}
+      data-slot="sidebar-section"
       {...props}
     />
   );
@@ -110,7 +122,11 @@ export function SidebarSectionLabel({
 }: SidebarSectionLabelProps) {
   return (
     <h2
-      className={joinClassNames("pythia-sidebar__section-label", className)}
+      className={cn(
+        "m-0 p-2 font-semibold text-foreground-secondary text-xs",
+        className,
+      )}
+      data-slot="sidebar-section-label"
       {...props}
     />
   );
@@ -127,12 +143,7 @@ export type SidebarNavProps = ComponentProps<"nav">;
  * exist; do not infer destinations from children.
  */
 export function SidebarNav({ className, ...props }: SidebarNavProps) {
-  return (
-    <nav
-      className={joinClassNames("pythia-sidebar__nav", className)}
-      {...props}
-    />
-  );
+  return <nav className={cn(className)} data-slot="sidebar-nav" {...props} />;
 }
 
 export type SidebarListProps = ComponentProps<"ul">;
@@ -148,7 +159,8 @@ export type SidebarListProps = ComponentProps<"ul">;
 export function SidebarList({ className, ...props }: SidebarListProps) {
   return (
     <ul
-      className={joinClassNames("pythia-sidebar__list", className)}
+      className={cn("m-0 grid list-none gap-1 p-0", className)}
+      data-slot="sidebar-list"
       {...props}
     />
   );
@@ -164,38 +176,34 @@ export type SidebarItemProps = ComponentProps<"li">;
  * labelled control per item; do not make the list item itself clickable.
  */
 export function SidebarItem({ className, ...props }: SidebarItemProps) {
-  return (
-    <li
-      className={joinClassNames("pythia-sidebar__item", className)}
-      {...props}
-    />
-  );
+  return <li className={cn(className)} data-slot="sidebar-item" {...props} />;
 }
 
-export interface SidebarLinkProps extends ComponentProps<"a"> {
-  /** Marks the app-owned destination as active with neutral navigation styling. */
-  active?: boolean;
-}
+export type SidebarButtonProps = ComponentProps<"button">;
 
 /**
- * Native sidebar destination link with optional active-page semantics.
+ * Sidebar row that performs an action instead of navigating.
  *
- * Anchor props and app-owned `href` pass through; `active` adds
- * `aria-current="page"` and neutral selection styling. Public/Product density
- * and light/dark colors use semantic tokens. Browser focus and activation stay
- * native. Mark only the real current route; do not store routing state here.
+ * Native button props pass through and it shares the link row geometry, hover,
+ * and focus treatment across Public/Product and light/dark. The browser keeps
+ * native Enter/Space activation. Use it for commands that belong in the
+ * navigation column, such as starting something new; do not use it for a real
+ * destination that deserves a link.
  */
-export function SidebarLink({
-  "aria-current": ariaCurrent,
-  active = false,
+export function SidebarButton({
   className,
+  type = "button",
   ...props
-}: SidebarLinkProps) {
+}: SidebarButtonProps) {
   return (
-    <a
-      aria-current={active ? "page" : ariaCurrent}
-      className={joinClassNames("pythia-sidebar__link", className)}
-      data-active={active ? "" : undefined}
+    <button
+      className={cn(
+        sidebarRow,
+        "cursor-pointer border-0 bg-transparent",
+        className,
+      )}
+      data-slot="sidebar-button"
+      type={type}
       {...props}
     />
   );

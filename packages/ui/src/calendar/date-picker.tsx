@@ -2,7 +2,9 @@
 
 import { Popover } from "@base-ui/react/popover";
 import { CalendarDays } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { type ReactNode, useId } from "react";
+import { cn } from "../class-name";
+import { controlClasses, fieldClasses } from "../forms/field";
 import { Calendar, type CalendarProps } from "./calendar";
 import { type CalendarDateString, parseCalendarDate } from "./calendar-date";
 
@@ -68,17 +70,13 @@ export function DatePicker({
 
   return (
     <div
-      className={`py-field grid gap-1.5 text-[var(--py-text-primary)] ${className ?? ""}`}
+      className={cn(fieldClasses.root, className)}
       data-disabled={disabled ? "" : undefined}
+      data-slot="date-picker"
     >
-      <span className="text-sm font-semibold leading-[var(--py-line-height-ui)]">
-        {label}
-      </span>
+      <span className={fieldClasses.label}>{label}</span>
       {description ? (
-        <p
-          className="m-0 text-xs leading-[var(--py-line-height-ui)] text-[var(--py-text-secondary)]"
-          id={descriptionId}
-        >
+        <p className={fieldClasses.description} id={descriptionId}>
           {description}
         </p>
       ) : null}
@@ -87,19 +85,21 @@ export function DatePicker({
           aria-describedby={describedBy || undefined}
           aria-invalid={Boolean(error) || undefined}
           aria-label={`${label}: ${value ?? placeholder}`}
-          className="py-field-control inline-flex min-h-[var(--py-profile-control-height)] w-full items-center justify-between gap-3 rounded-[var(--py-radius-interactive)] border border-[var(--py-border-default)] bg-[var(--py-surface-raised)] px-3 text-left text-sm text-[var(--py-text-primary)] hover:bg-[var(--py-interaction-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--py-focus-ring)] aria-invalid:border-[var(--py-status-error-border)]"
+          className={cn(
+            controlClasses(),
+            "inline-flex items-center justify-between gap-3 text-left hover:bg-interaction-hover",
+          )}
+          data-slot="date-picker-trigger"
           disabled={disabled}
         >
-          <span
-            className={value ? undefined : "text-[var(--py-text-disabled)]"}
-          >
+          <span className={value ? undefined : "text-foreground-disabled"}>
             {visibleValue}
           </span>
           <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Positioner align="start" className="z-50" sideOffset={8}>
-            <Popover.Popup className="rounded-[var(--py-radius-group)] bg-[var(--py-surface-overlay)] shadow-xl outline-none">
+            <Popover.Popup className="rounded-container bg-overlay shadow-overlay outline-none">
               <Calendar
                 disabled={disabled}
                 disabledDates={disabledDates}
@@ -113,11 +113,7 @@ export function DatePicker({
         </Popover.Portal>
       </Popover.Root>
       {error ? (
-        <p
-          className="m-0 text-xs font-medium leading-[var(--py-line-height-ui)] text-[var(--py-status-error-foreground)]"
-          id={errorId}
-          role="alert"
-        >
+        <p className={fieldClasses.error} id={errorId} role="alert">
           {error}
         </p>
       ) : null}
