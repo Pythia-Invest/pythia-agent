@@ -22,12 +22,21 @@ the interview; the only file output is the ignored working record.
 5. Recompute the frontier after every batch. Questions that depend on an open
    answer wait.
 6. When the frontier is empty, summarize the shared understanding and ask the
-   user to confirm it. Finalize the private record and wait for the user's
+   user to confirm it, unless they already explicitly confirmed that summary.
+   Finalize the private record and wait for the user's
    next request; do not automatically start planning or implementation.
 
 Use the active coding tool's native question UI when available. Otherwise use
 `❓ Q<number>. <question>`, compact lettered options, and
 `➡️ Recommendation: <option> — <reason>`.
+
+On resumption, read the existing record and continue its numbering. Persist
+each answered batch before asking the next; record partial answers, user
+corrections and deliberate deferrals without inferring unanswered choices.
+When a fact is still being investigated, hold only dependent questions and
+continue independent ones. Resolve routine engineering choices the user has
+delegated; do not turn every implementation detail into another interview.
+A request to explain a question is a request for an example, not an answer.
 
 If evidence reopens a settled decision, read
 `.agents/decision-challenges.md`, revisit only the affected branch, and retain
