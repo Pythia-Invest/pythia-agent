@@ -28,7 +28,15 @@ Rules use frontmatter with a concise `description` and identical `paths` and
 `.codex/rules` for Markdown instructions. Give every nested `AGENTS.md` a thin
 `CLAUDE.md` containing `@AGENTS.md`.
 
-Preserve every substantive instruction and repair inbound links when moving
-guidance. Run the rule sync and builder checker using the repository's current
+Before moving or consolidating guidance, map each substantive instruction,
+exception and inbound reference to its destination. Update pointers before
+removing an old owner; inspect the diff for lost boundaries or evidence. A
+rejected obsolete instruction needs an explicit reason, not a silent omission.
+Historical results retain their original meaning. Critical guidance must also
+be reachable through root/nested instruction pointers for clients that do not
+consume path-rule projections. Do not duplicate full bodies for delivery.
+
+Preserve every substantive instruction that remains applicable and repair
+inbound links when moving guidance. Run the rule sync and builder checker using the repository's current
 commands. Report canonical owner, pointers, visibility, preservation, and
 validation. Do not edit user-level tool configuration or runtime seeds.
