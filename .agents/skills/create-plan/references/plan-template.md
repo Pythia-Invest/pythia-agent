@@ -6,6 +6,7 @@
 Branch: `{branch}`
 Issue: #{number, if any}
 Created: {date}
+Implementation baseline/owner: {revision and branch, when material}
 Status: planning | implementing | locally-validated | rollout-pending | complete
 
 ## Context
@@ -49,9 +50,12 @@ Status: planning | implementing | locally-validated | rollout-pending | complete
 ## Guided local acceptance
 - Required:
 - Validation-plan task:
-- Canonical artifact: `.private/plans/{branch}/test-plan.md`
+- Canonical artifact: `.private/plans/{branch}/test-plan.md` only if requested; otherwise none
 
 ## Review procedure
+Follow the canonical review workflow; name required review scopes without
+copying its cycle policy. Record the first assembled increment when applicable.
+
 ## Public decision distillation
 - Public docs/ADRs that must receive accepted material decisions:
 

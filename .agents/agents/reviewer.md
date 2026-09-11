@@ -9,8 +9,11 @@ codexSandbox: read-only
 
 # Reviewer
 
-Review a frozen target in fresh context. Start from the request, acceptance
-criteria, diff, and repository rules, not the implementer's claims.
+Follow the independence, briefing and finding thresholds in
+`.agents/skills/review/SKILL.md` for the assigned seat. `model: inherit` inherits
+capability, never the implementation transcript. Receive a self-contained brief
+and inspect the frozen target in isolated context. Do not silently approve a
+target that changed during the review.
 
 - Trace changed behavior through callers, consumers, persistence, permissions,
   failure handling, and promotion.

@@ -17,14 +17,18 @@ Create a plan another agent can execute without reconstructing the design.
 
 1. Resolve the real branch (use `current` if unborn or detached) and write to
    `.private/plans/<branch>/<feature>.md`. Ask before replacing an existing
-   plan.
+   plan unless the user has already requested that revision or replacement.
+   Read linked issue context when provided; do not invent an issue dependency.
 2. Read root and nested `AGENTS.md`, `docs/product.md`, applicable architecture
    docs and ADRs, matching `.agents/rules/*.md`, current owning code, and any
    relevant private working record. Public product contracts outrank a private
    note unless the user explicitly changes them.
 3. State the trust boundary. Record each material user ruling as an invariant
    with its source, rationale, and rejected alternatives. Do not silently
-   strengthen or weaken it.
+   strengthen or weaken it. Rejected alternatives remain excluded unless the
+   user changes the ruling. Record exact revisions/owners of moving branches
+   and a reconciliation checkpoint before integrated qualification; adopting
+   their decisions does not imply their code is already integrated.
 4. Ask one or two questions at a time only for choices that materially change
    behavior, scope, architecture, authority, or validation. Repository and
    native-contract facts are not user questions.
@@ -37,7 +41,12 @@ Create a plan another agent can execute without reconstructing the design.
 Give every task one coherent responsibility, explicit dependencies and write
 ownership, observable old-versus-new criteria, narrow verification, and any
 approval boundary. Cite the decisions it realizes. Assign waves only when
-writers and generated outputs are disjoint; serialize shared contracts.
+writers, generated outputs and persistent-state transitions are disjoint;
+serialize shared contracts. Include packaging, configuration and immediate
+consumers in the task graph. For work adding several adapters, exercise the
+first usable assembled path before copying its design into later adapters.
+Keep task capability needs separate from concrete model names; execution uses
+the current repository/user model policy.
 
 End implementation with one bundled independent review. Classify autonomous
 runtime qualification separately from guided local acceptance. Add a test-plan
@@ -50,10 +59,18 @@ them during planning.
 
 ## Compliance and completion
 
-Freeze the draft and have a fresh reviewer inspect the request, plan, governing
-public sources, owning code, task graph, authority boundaries, and rejected
-alternatives. Correct material findings in their owning sections and obtain a
-focused closure review; do not turn preferences into requirements.
+Check dependencies, owners, observable criteria and authority locally, then
+freeze the draft. Use the independence, reviewer allocation and finding
+thresholds in `.agents/skills/review/SKILL.md`, adapted to reviewing a plan.
+Give reviewers a self-contained request/criteria brief and governing-source
+locations, with no inherited planning transcript or author conclusions. They
+inspect the plan, current owners and native contracts independently.
+
+Keep the target frozen until every first-pass report is complete. Correct
+material findings in their owning plan sections and obtain focused closure
+from the same reviewers; do not turn preferences into requirements. If required
+independent review is unavailable, report the plan as drafted with review
+pending rather than self-certifying it ready.
 
 Before declaring the plan ready, identify every accepted product or
 architecture decision that the implementation must distill into public docs or

@@ -58,6 +58,39 @@ explicit-only workflows, including their cross-skill handoffs. Use the native
 invocation controls as well as precise descriptions; do not re-enable implicit
 selection while updating a skill.
 
+### What selecting a workflow does
+
+The skills retain different boundaries deliberately. Reading, explaining or
+comparing one does not execute it. The user’s requested scope and existing
+session authority take precedence; accepted authorization does not expire
+between tasks. These are builder workflows, not investor-facing Hermes skills.
+
+| Skill | Expected result and stopping point |
+| --- | --- |
+| [grill-me](./skills/grill-me/SKILL.md) | Interview and private decision record; derive facts and delegated engineering details without extra votes. Wait for answers and the next requested action. |
+| [create-plan](./skills/create-plan/SKILL.md) | Source-backed private plan with dependencies, ownership, qualification and independent compliance review; no implementation. |
+| [implement-plan](./skills/implement-plan/SKILL.md) | Supervised bounded implementation, assembled evidence, public decisions and independent review; no commit/push or implied rollout. |
+| [review](./skills/review/SKILL.md) | Frozen independent findings and focused closure; no fixes. Isolated context inherits model capability, never the author's transcript. |
+| [create-test-plan](./skills/create-test-plan/SKILL.md) | One draft/finalized private runbook for an explicitly requested walkthrough; no execution. |
+| [run-test-plan](./skills/run-test-plan/SKILL.md) | Execute the authorized finalized runbook, show evidence, collect named user judgments and clean up; no product fixes during an attempt. |
+| [commit](./skills/commit/SKILL.md) | Commit exactly the intended changes while preserving unrelated staged/worktree content; push only when separately authorized. |
+| [create-pr](./skills/create-pr/SKILL.md) | Commit relevant work, integrate the resolved base, push and create/update the matching issue-linked PR; no merge or CI-wait loop. |
+| [mergeprep](./skills/mergeprep/SKILL.md) | Inspect/fix/push, handle review and wait for current-head readiness, including authorized replies; stop before human merge. |
+| [resolve-conflicts](./skills/resolve-conflicts/SKILL.md) | Reconcile both sides' intent and semantic contracts; completing history-changing operations needs applicable authority. |
+| [create-skill](./skills/create-skill/SKILL.md) | Update the canonical workflow and relevant adapters; verify activation, references and intentional behavior changes. |
+| [create-rule](./skills/create-rule/SKILL.md) | Place guidance in its narrowest owner, preserving applicable exceptions and delivery pointers. |
+
+Model selection follows root contributor guidance: inherit the selected model
+unless instructed otherwise. More detailed delegation applies only inside a
+selected workflow; ordinary development remains direct. Review allocates extra
+independent perspectives to consequential boundaries and prompt changes, without
+creating a standing panel for every edit. See the review skill for allocation.
+
+These choices preserve scoped autonomy and independent evidence while avoiding
+unrequested workflow transitions. They do not claim that static instruction
+checks prove model behavior. Representative live comparisons remain opt-in, as
+explained by the prompting reference.
+
 Detailed instruction design lives in [prompting guidance](../docs/prompting.md).
 Root and nested `AGENTS.md` files route to it so access does not depend on a
 tool automatically interpreting `.agents/rules`. The existing adapters deliver

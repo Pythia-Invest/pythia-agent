@@ -13,8 +13,8 @@ Stop applying this workflow when the user switches back to free development.
 
 ## Preflight
 
-Read `.private/plans/<branch>/test-plan.md` (or `current` when no branch), the
-implementation plan, public product docs, root and nested `AGENTS.md`,
+Read `.private/plans/<branch>/test-plan.md` (or `current` when no branch), any
+existing implementation plan, public product docs, root and nested `AGENTS.md`,
 `.agents/change-validation.md`, and matching rules. If the runbook is missing,
 draft, contains placeholders, or lacks criteria, scopes, bounds, evidence, or
 cleanup, explain what is missing and ask whether the user wants the runbook
@@ -28,7 +28,11 @@ stale.
 
 Validate commands and targets without mutation, then batch all missing
 approvals once. The agent owns setup, execution, evidence capture, and cleanup;
-the user owns only approvals and named product judgments.
+the user owns only approvals and named product judgments. Reuse applicable
+authorization rather than asking again. Missing authority blocks only dependent
+scenarios; when the user has not narrowed the run, execute every authorized,
+ready scenario within its bounds. No required product judgment is inferred from
+silence or from an agent observation.
 
 ## Execute
 
@@ -41,17 +45,32 @@ For each selected scenario:
 4. Classify non-passes as hard stop, product failure, evidence gap, or runbook
    defect. Only unsafe, unowned, unauthorized, stale, or out-of-bound state
    forces immediate cleanup.
-5. Make the live surface or a bounded trace visible before asking the exact
-   verdict question. Never claim the user saw or tried something that was not
-   actually shown.
+5. Present the faithful surface or a bounded trace in the verdict request
+   itself, with the criterion and exact question. Agent-only terminal output
+   and “it passed” are not evidence visible to the user. For a core walkthrough,
+   let the user see/try the feature when practical; do not substitute a log
+   summary for an available UI. Never claim an unshown surface was seen. Keep
+   required judgments pending until the user answers.
 6. Record deterministic proof as `PASS`, `PARTIAL`, `FAIL`, `BLOCKED`, or
    `STALE`, separately from `ACCEPT`, `ACCEPT WITH GAP`, `REJECT`, or
-   `NOT REQUIRED`.
+   `NOT REQUIRED`. Overall `PASS` requires passing deterministic proof and
+   `ACCEPT` for every required judgment. `ACCEPT WITH GAP` keeps the result
+   `PARTIAL` with the original expectation, actual gap and rationale; it does
+   not rewrite the product requirement.
+7. Reuse valid inputs and approved task-owned services across independent
+   scenarios. Capture evidence before shared cleanup at the declared session
+   endpoint. Abort/withdrawn authority, unsafe or unowned state, or an exhausted
+   bound requires immediate safe cleanup. Verify only owned resources were
+   stopped/removed and record cleanup even after failures.
 
 Preserve test integrity. Do not edit product code during the run. A narrow
 runbook-command correction may be recorded when criteria, scope, authority,
 bounds, and behavior do not change. Evidence challenging an accepted ruling
-uses `.agents/decision-challenges.md`.
+uses `.agents/decision-challenges.md`. If the user redirects to fixing product
+code, end the affected attempt and preserve its failure evidence before the
+fix. A later attempt records its new source state and reruns affected scopes;
+a commit is still not required. Unchanged scenarios retain valid evidence.
+Never relabel a product failure as a command defect or silently expand retries.
 
 Write `.private/plans/<branch>/test-results.md` with source under test, scenario
 summary, evidence, failures/blockers, cleanup, and stale or untested gaps. Do
