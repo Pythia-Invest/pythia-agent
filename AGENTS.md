@@ -45,6 +45,7 @@ Read additional guidance by the surface being changed:
 | Model-visible text, including skills, tool descriptions and builder rules | [Prompting guidance](docs/prompting.md) and [instruction rule](.agents/rules/agent-instruction-design.md) |
 | Platform, browser or hosting behavior | [Supported environments](docs/support.md) and [hosting](docs/hosting.md) |
 | Settings, credentials, lifecycle or updates | [Credential custody](docs/architecture/credential-custody.md) and [development](docs/development.md) |
+| The Claude Design export of `@pythia/ui` | [Design-system sync rule](.agents/rules/design-system-sync.md) and `.design-sync/NOTES.md` |
 | Tests | [Test allocation](.agents/testing.md) |
 
 Use the pinned dependency's documented native surface; inspect its relevant

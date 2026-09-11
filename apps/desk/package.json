@@ -7,8 +7,8 @@
     "check": "next typegen && tsc --noEmit --project tsconfig.json",
     "dev": "next dev --webpack",
     "test": "pnpm run test:unit && pnpm run test:integration",
-    "test:integration": "vitest run test/device-settings.test.ts test/model-initialization.test.ts",
-    "test:unit": "tsc --noEmit --project tsconfig.test.json && vitest run --passWithNoTests --exclude test/device-settings.test.ts --exclude test/model-initialization.test.ts",
+    "test:integration": "vitest run test/device-settings.test.ts test/model-initialization.test.ts test/attachments.test.ts",
+    "test:unit": "tsc --noEmit --project tsconfig.test.json && vitest run --passWithNoTests --exclude test/device-settings.test.ts --exclude test/model-initialization.test.ts --exclude test/attachments.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

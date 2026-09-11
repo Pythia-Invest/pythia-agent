@@ -11,6 +11,29 @@ function json(body: unknown, status = 200) {
 }
 
 describe("Hermes adapter", () => {
+  it("uses Hermes' native cache-busting model refresh only when requested", async () => {
+    const paths: string[] = [];
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      paths.push(
+        new URL(String(input)).pathname + new URL(String(input)).search,
+      );
+      return json({ provider: "", model: "", providers: [] });
+    });
+    const client = createHermesClient({
+      apiKey: "local-key-1234567890",
+      baseUrl: "http://127.0.0.1:8642",
+      fetch: fetcher as typeof fetch,
+    });
+
+    await client.modelOptions();
+    await client.modelOptions(true);
+
+    expect(paths).toEqual([
+      "/api/model/options",
+      "/api/model/options?refresh=true",
+    ]);
+  });
+
   it("omits an absent suggested title for native untitled creation", async () => {
     const fetcher = vi.fn(async (_url: unknown, init?: RequestInit) => {
       expect(JSON.parse(String(init?.body))).toEqual({});
@@ -77,6 +100,8 @@ describe("Hermes adapter", () => {
           );
         if (path.endsWith("/approval"))
           return json({ run_id: "r-1", choice: "once", resolved: 1 });
+        if (path.endsWith("/steer"))
+          return json({ run_id: "r-1", accepted: true });
         return json({ run_id: "r-1", status: "stopping" });
       },
     );
@@ -88,6 +113,7 @@ describe("Hermes adapter", () => {
     await client.createSession("Apple");
     await client.startRun("s-1", "Review Apple");
     await client.respondToApproval("r-1", "once", "a-1");
+    await client.steerRun("r-1", "Focus on the filing");
     await client.stopRun("r-1");
     expect(calls).toEqual([
       { path: "/api/sessions", body: { title: "Apple" }, method: "POST" },
@@ -101,8 +127,36 @@ describe("Hermes adapter", () => {
         body: { choice: "once", request_id: "a-1" },
         method: "POST",
       },
+      {
+        path: "/v1/runs/r-1/steer",
+        body: { input: "Focus on the filing" },
+        method: "POST",
+      },
       { path: "/v1/runs/r-1/stop", body: {}, method: "POST" },
     ]);
+  });
+
+  it("requests newest-first message pages and keeps native pagination", async () => {
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toContain(
+        "/api/sessions/s-1/messages?limit=100&offset=200&order=latest",
+      );
+      return json({
+        data: [{ id: "m-1", role: "assistant", content: "Recent" }],
+        pagination: { limit: 100, offset: 200, returned: 1 },
+      });
+    });
+    const client = createHermesClient({
+      apiKey: "local-key-1234567890",
+      baseUrl: "http://127.0.0.1:8642",
+      fetch: fetcher as typeof fetch,
+    });
+    await expect(client.listMessages("s-1", 100, 200)).resolves.toEqual({
+      data: [{ id: "m-1", role: "assistant", content: "Recent" }],
+      limit: 100,
+      offset: 200,
+      returned: 1,
+    });
   });
 
   it("reads only the qualified native skill and API Server toolset fields", async () => {
@@ -162,7 +216,7 @@ describe("Hermes adapter", () => {
     ]);
   });
 
-  it("never reflects the Hermes bearer or arbitrary upstream failure text", async () => {
+  it("redacts the Hermes bearer without replacing upstream failure text", async () => {
     const secret = "secret-local-bearer-value";
     const client = createHermesClient({
       apiKey: secret,
@@ -181,11 +235,11 @@ describe("Hermes adapter", () => {
     }
     expect(caught).toBeInstanceOf(HermesApiError);
     expect(String(caught)).not.toContain(secret);
-    expect(String(caught)).not.toContain("SENSITIVE_PROVIDER_VALUE");
-    expect(String(caught)).toContain("local Hermes runtime");
+    expect(String(caught)).toContain("[redacted]");
+    expect(String(caught)).toContain("SENSITIVE_PROVIDER_VALUE");
   });
 
-  it("maps model authentication failure to fixed onboarding guidance", async () => {
+  it("preserves a model authentication failure from Hermes", async () => {
     const client = createHermesClient({
       apiKey: "local-key-1234567890",
       baseUrl: "http://127.0.0.1:8642",
@@ -199,9 +253,9 @@ describe("Hermes adapter", () => {
           400,
         )) as typeof fetch,
     });
-    await expect(client.startRun("s-1", "hello")).rejects.toMatchObject({
-      code: "model_auth_missing",
-    });
+    await expect(client.startRun("s-1", "hello")).rejects.toThrow(
+      "Provider authentication failed: No model credentials",
+    );
   });
 
   it("refuses to send the server bearer to a non-loopback runtime address", async () => {
@@ -260,6 +314,25 @@ describe("Hermes adapter", () => {
     ]);
   });
 
+  it("passes the upstream-redacted command through for informed approval", () => {
+    expect(
+      mapHermesEvent({
+        event: "approval.request",
+        request_id: "a",
+        command: "rm /tmp/generated.txt",
+        description: "Delete a file",
+        choices: ["once", "deny"],
+        private_field: "ignored",
+      }),
+    ).toEqual({
+      event: "approval.request",
+      request_id: "a",
+      command: "rm /tmp/generated.txt",
+      description: "Delete a file",
+      choices: ["once", "deny"],
+    });
+  });
+
   it("keeps approval, responded, cancellation, and disconnect semantics distinct", () => {
     expect(
       mapHermesEvent({
@@ -283,12 +356,14 @@ describe("Hermes adapter", () => {
       mapHermesEvent({
         event: "run.failed",
         run_id: "r",
-        error: "provider leaked SENSITIVE_PROVIDER_VALUE",
+        error: "Error from provider: Model is unavailable.",
+        code: "provider_error",
       }),
     ).toEqual({
       event: "run.failed",
       run_id: "r",
-      error: "The Hermes run failed.",
+      error: "Error from provider: Model is unavailable.",
+      code: "provider_error",
     });
     expect(
       mapHermesEvent({ event: "stream.disconnected", run_id: "r" }),

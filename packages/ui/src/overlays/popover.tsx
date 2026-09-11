@@ -3,6 +3,7 @@
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { ComponentProps } from "react";
 import { cnState } from "../class-name";
+import { OverlayArrowShape, overlayArrowClasses } from "./arrow";
 import { overlayClasses } from "./shared";
 
 function PopoverPositioner({
@@ -36,15 +37,21 @@ function PopoverPopup({
 }
 
 function PopoverArrow({
+  children,
   className,
   ...props
 }: ComponentProps<typeof BasePopover.Arrow>) {
   return (
     <BasePopover.Arrow
-      className={cnState(overlayClasses.arrow, className)}
+      className={cnState(
+        `${overlayArrowClasses} ${overlayClasses.arrow}`,
+        className,
+      )}
       data-slot="popover-arrow"
       {...props}
-    />
+    >
+      {children ?? <OverlayArrowShape />}
+    </BasePopover.Arrow>
   );
 }
 
@@ -74,14 +81,23 @@ function PopoverDescription({
   );
 }
 
+/*
+ * `render` means the caller brought their own styled component. Base UI's
+ * mergeProps concatenates class names rather than tailwind-merging them, so
+ * applying the close recipe on top would let its `bg-transparent`/`border-0`
+ * beat that component's own variant on CSS source order alone. Style the bare
+ * close affordance; step aside for a supplied one.
+ */
 function PopoverClose({
   className,
+  render,
   ...props
 }: ComponentProps<typeof BasePopover.Close>) {
   return (
     <BasePopover.Close
-      className={cnState(overlayClasses.close, className)}
+      className={render ? className : cnState(overlayClasses.close, className)}
       data-slot="popover-close"
+      render={render}
       {...props}
     />
   );

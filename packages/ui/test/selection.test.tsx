@@ -4,10 +4,12 @@ import { Checkbox } from "../src/selection/checkbox";
 import {
   Combobox,
   ComboboxInput,
+  ComboboxInputGroup,
   ComboboxItem,
   ComboboxList,
 } from "../src/selection/combobox";
 import { Radio, RadioGroup } from "../src/selection/radio-group";
+import { SearchSelect } from "../src/selection/search-select";
 import {
   Select,
   SelectItem,
@@ -59,16 +61,39 @@ describe("selection semantics", () => {
     );
     const comboboxMarkup = renderToStaticMarkup(
       <Combobox defaultValue="quality">
-        <ComboboxInput aria-label="Style" />
+        <ComboboxInputGroup>
+          <ComboboxInput aria-label="Style" />
+        </ComboboxInputGroup>
         <ComboboxList>
           <ComboboxItem value="quality">Quality</ComboboxItem>
         </ComboboxList>
       </Combobox>,
+    );
+    const searchSelectMarkup = renderToStaticMarkup(
+      <SearchSelect.Root defaultValue="quality" items={["quality"]}>
+        <SearchSelect.Trigger appearance="inline" aria-label="Style">
+          <SearchSelect.Value />
+        </SearchSelect.Trigger>
+        <SearchSelect.Portal keepMounted>
+          <SearchSelect.Positioner>
+            <SearchSelect.Popup aria-label="Choose style">
+              <SearchSelect.Input aria-label="Search styles" />
+              <SearchSelect.List>
+                <SearchSelect.Item value="quality">Quality</SearchSelect.Item>
+              </SearchSelect.List>
+            </SearchSelect.Popup>
+          </SearchSelect.Positioner>
+        </SearchSelect.Portal>
+      </SearchSelect.Root>,
     );
     expect(selectMarkup).toContain('role="combobox"');
     expect(selectMarkup).toContain('aria-expanded="false"');
     expect(selectMarkup).toContain("Quality");
     expect(comboboxMarkup).toContain('role="combobox"');
     expect(comboboxMarkup).toContain('aria-label="Style"');
+    expect(searchSelectMarkup).toContain('role="combobox"');
+    expect(searchSelectMarkup).toContain('aria-expanded="false"');
+    expect(searchSelectMarkup).toContain('aria-haspopup="dialog"');
+    expect(searchSelectMarkup).toContain("quality");
   });
 });

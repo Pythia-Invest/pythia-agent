@@ -122,9 +122,9 @@ export function FoundationLab() {
             <div className="lab-section-heading">
               <h2>Identity at working scales</h2>
               <p>
-                Approved full and compact lockups adapt to the resolved theme.
-                Both use the shared package component; neither is recreated by
-                the consumer.
+                Approved full, compact and mark exports adapt to the resolved
+                theme. All three use the shared package component; none is
+                recreated by the consumer.
               </p>
             </div>
             <div className="lab-grid">
@@ -144,6 +144,18 @@ export function FoundationLab() {
                   variant="compact"
                 />
                 <p>Recognizable at constrained and application scales.</p>
+              </article>
+              <article className="lab-card lab-identity">
+                <p className="lab-card-kicker">Mark</p>
+                <PythiaLockup
+                  className="lab-lockup mark"
+                  label="Pythia mark specimen"
+                  variant="mark"
+                />
+                <p>
+                  The pictogram alone, where the surface already names Pythia in
+                  words.
+                </p>
               </article>
             </div>
           </section>

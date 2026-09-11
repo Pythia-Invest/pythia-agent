@@ -109,19 +109,24 @@ const icons = {
  * Stacking math over the variables Base UI sets on each toast. Toasts behind
  * the frontmost one shrink and peek out by 0.75rem per index; expanding lays
  * them out with a 0.75rem gap using Base UI's measured offsets.
+ *
+ * Every Base UI-supplied variable carries a resting fallback. Base UI writes
+ * these at runtime, so without one the declaration is invalid until the first
+ * measurement, and any tool reading the compiled stylesheet sees a dangling
+ * reference. The fallbacks are the single-toast resting state.
  */
 const toastStack = [
-  "[--toast-scale:calc(max(0,1-(var(--toast-index)*0.08)))]",
+  "[--toast-scale:calc(max(0,1-(var(--toast-index,0)*0.08)))]",
   "[--toast-shrink:calc(1-var(--toast-scale))]",
-  "[--toast-stack-height:var(--toast-frontmost-height,var(--toast-height))]",
-  "[--toast-expanded-y:calc(var(--toast-offset-y)*-1+var(--toast-index)*0.75rem*-1+var(--toast-swipe-movement-y))]",
+  "[--toast-stack-height:var(--toast-frontmost-height,var(--toast-height,auto))]",
+  "[--toast-expanded-y:calc(var(--toast-offset-y,0px)*-1+var(--toast-index,0)*0.75rem*-1+var(--toast-swipe-movement-y,0px))]",
   "h-(--toast-stack-height) origin-top",
-  "[transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-var(--toast-index)*0.75rem-var(--toast-shrink)*var(--toast-stack-height)))_scale(var(--toast-scale))]",
-  "data-expanded:h-(--toast-height) data-expanded:[transform:translateX(var(--toast-swipe-movement-x))_translateY(var(--toast-expanded-y))]",
+  "[transform:translateX(var(--toast-swipe-movement-x,0px))_translateY(calc(var(--toast-swipe-movement-y,0px)-var(--toast-index,0)*0.75rem-var(--toast-shrink)*var(--toast-stack-height)))_scale(var(--toast-scale))]",
+  "data-expanded:h-[var(--toast-height,auto)] data-expanded:[transform:translateX(var(--toast-swipe-movement-x,0px))_translateY(var(--toast-expanded-y))]",
   "data-limited:opacity-0 data-ending-style:opacity-0",
   "data-starting-style:[transform:translateY(-150%)] data-ending-style:not-data-swipe-direction:[transform:translateY(-150%)]",
-  "data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))]",
-  "data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
+  "data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x,0px)+150%))]",
+  "data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y,0px)-150%))]",
 ].join(" ");
 
 function ToastQueue() {
@@ -132,7 +137,7 @@ function ToastQueue() {
     return (
       <BaseToast.Root
         className={cn(
-          "motion-standard absolute top-0 left-0 z-[calc(100-var(--toast-index))] w-full overflow-hidden rounded-container border border-border bg-overlay text-foreground shadow-popup transition-[transform,opacity,height]",
+          "motion-standard absolute top-0 left-0 z-[calc(100-var(--toast-index,0))] w-full overflow-hidden rounded-container border border-border bg-overlay text-foreground shadow-popup transition-[transform,opacity,height]",
           toastStack,
         )}
         data-slot="toast"

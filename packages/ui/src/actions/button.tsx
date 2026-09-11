@@ -95,7 +95,7 @@ export function Button({
       disabled={disabled || loading}
     >
       {loading ? spinner : null}
-      <span>{children}</span>
+      {children}
     </BaseButton>
   );
 }

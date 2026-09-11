@@ -4,7 +4,15 @@ import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group";
 import { cnState } from "../class-name";
 
-export type RadioGroupProps<Value = unknown> = RadioGroupPrimitive.Props<Value>;
+export type RadioGroupProps<Value = unknown> =
+  RadioGroupPrimitive.Props<Value> & {
+    /**
+     * Lays the options out as a wrapping row instead of a stack. Base UI owns no
+     * orientation prop and writes no `data-orientation`, so the attribute the
+     * layout styles read is written here.
+     */
+    orientation?: "horizontal" | "vertical";
+  };
 export type RadioProps<Value = unknown> = Omit<
   RadioPrimitive.Root.Props<Value>,
   "children"
@@ -13,14 +21,15 @@ export type RadioProps<Value = unknown> = Omit<
 /**
  * Coordinates a mutually exclusive set of `Radio` controls.
  *
- * Generic value, controlled/uncontrolled, disabled, read-only, required, and
- * orientation attributes pass to Base UI. Semantic tokens adapt its spacing to
+ * Generic value, controlled/uncontrolled, disabled, read-only and required
+ * props pass to Base UI; `orientation` is owned here. Semantic tokens adapt its spacing to
  * Public/Product and colors to light/dark. Base UI owns roving focus, arrow-key
  * selection, form values, and accessibility. Give the group a visible or ARIA
  * label; do not encode application validation here.
  */
 export function RadioGroup<Value>({
   className,
+  orientation = "vertical",
   ...props
 }: RadioGroupProps<Value>) {
   return (
@@ -29,6 +38,7 @@ export function RadioGroup<Value>({
         "grid gap-group data-[orientation=horizontal]:flex data-[orientation=horizontal]:flex-wrap data-[orientation=horizontal]:items-center",
         className,
       )}
+      data-orientation={orientation}
       data-slot="radio-group"
       {...props}
     />

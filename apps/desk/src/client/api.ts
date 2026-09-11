@@ -1,7 +1,9 @@
+import type { Attachment } from "@/attachments";
 import type {
   ApprovalChoice,
   DeskRunEvent,
-  HermesMessage,
+  HermesMessagePage,
+  HermesCapabilities,
   HermesSession,
   RunStart,
   RunStatus,
@@ -91,8 +93,12 @@ export class DeskApi {
     );
   }
 
-  async listSessions() {
-    return (await this.#json<{ data: HermesSession[] }>("/api/sessions")).data;
+  async listSessions(limit = 60, offset = 0) {
+    return (
+      await this.#json<{ data: HermesSession[] }>(
+        `/api/sessions?limit=${limit}&offset=${offset}`,
+      )
+    ).data;
   }
 
   settings() {
@@ -153,21 +159,58 @@ export class DeskApi {
     ).session;
   }
 
-  async listMessages(sessionId: string) {
-    return (
-      await this.#json<{ data: HermesMessage[] }>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/messages`,
-      )
-    ).data;
+  listMessages(sessionId: string, limit = 100, offset = 0) {
+    return this.#json<HermesMessagePage>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}&offset=${offset}`,
+    );
   }
 
-  modelOptions() {
-    return this.#json<ModelCatalog>("/api/models");
+  capabilities() {
+    return this.#json<HermesCapabilities>("/api/capabilities");
   }
 
-  startRun(sessionId: string, input: string, selection?: ModelSelection) {
+  modelOptions(refresh = false) {
+    return this.#json<ModelCatalog>(
+      `/api/models${refresh ? "?refresh=true" : ""}`,
+    );
+  }
+
+  async downloadAttachment(id: string) {
+    const response = await fetch(
+      `/api/attachments/${encodeURIComponent(id)}?download=true`,
+      { credentials: "same-origin", cache: "no-store" },
+    );
+    if (!response.ok) {
+      const error = await bodyError(response);
+      throw new DeskApiError(error.message, response.status, error.code);
+    }
+    return response.blob();
+  }
+
+  uploadAttachment(
+    file: { name: string; mediaType: string; data: string },
+    signal?: AbortSignal,
+  ) {
+    return this.#json<Attachment>("/api/attachments", {
+      method: "POST",
+      body: JSON.stringify(file),
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  startRun(
+    sessionId: string,
+    input: string,
+    selection?: ModelSelection,
+    attachments?: string[],
+  ) {
     return this.#json<RunStart>("/api/runs", {
-      body: JSON.stringify({ session_id: sessionId, input, selection }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        input,
+        selection,
+        ...(attachments?.length ? { attachments } : {}),
+      }),
       method: "POST",
     });
   }
@@ -184,6 +227,13 @@ export class DeskApi {
       }),
       method: "POST",
     });
+  }
+
+  steerRun(runId: string, input: string) {
+    return this.#json<{ run_id: string; accepted: boolean }>(
+      `/api/runs/${encodeURIComponent(runId)}/steer`,
+      { body: JSON.stringify({ input }), method: "POST" },
+    );
   }
 
   stopRun(runId: string) {

@@ -17,6 +17,7 @@ const SOURCE_EXTENSIONS = new Set([
 // Tool-owned state that lives inside the tree but is never hand-authored.
 // Mirrors the directory names in .gitignore; extend both together.
 const IGNORED_DIRECTORIES = new Set([
+  ".ds-sync",
   ".git",
   ".local",
   ".mypy_cache",
@@ -29,6 +30,7 @@ const IGNORED_DIRECTORIES = new Set([
   "__pycache__",
   "coverage",
   "dist",
+  "ds-bundle",
   "node_modules",
   "venv",
 ]);

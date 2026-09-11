@@ -3,6 +3,7 @@
 import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
 import type { ComponentProps } from "react";
 import { cnState } from "../class-name";
+import { OverlayArrowShape, overlayArrowClasses } from "./arrow";
 import { overlayClasses } from "./shared";
 
 function TooltipPositioner({
@@ -36,15 +37,21 @@ function TooltipPopup({
 }
 
 function TooltipArrow({
+  children,
   className,
   ...props
 }: ComponentProps<typeof BaseTooltip.Arrow>) {
   return (
     <BaseTooltip.Arrow
-      className={cnState("fill-foreground", className)}
+      className={cnState(
+        `${overlayArrowClasses} fill-foreground stroke-foreground`,
+        className,
+      )}
       data-slot="tooltip-arrow"
       {...props}
-    />
+    >
+      {children ?? <OverlayArrowShape />}
+    </BaseTooltip.Arrow>
   );
 }
 

@@ -18,12 +18,27 @@ export type HermesMessage = {
   tool_name?: string | null;
   tool_calls?: unknown;
   finish_reason?: string | null;
+  reasoning?: string | null;
+  /** Hermes presentation hint for rows a person did not type. */
+  display_kind?: string | null;
 };
 
 export type RunUsage = {
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
+};
+
+export type HermesMessagePage = {
+  data: HermesMessage[];
+  limit: number;
+  offset: number;
+  returned: number;
+};
+
+export type HermesCapabilities = {
+  runSteer: boolean;
+  modelOptions: boolean;
 };
 
 export type ApprovalChoice = "once" | "session" | "always" | "deny";
@@ -39,6 +54,7 @@ export type DeskRunEvent = {
   duration?: number;
   error?: string | boolean;
   description?: string;
+  command?: string;
   request_id?: string;
   choices?: ApprovalChoice[];
   choice?: ApprovalChoice;
@@ -48,11 +64,21 @@ export type DeskRunEvent = {
   summary?: string;
   goal?: string;
   child_session_id?: string;
-  code?:
-    | "model_auth_missing"
-    | "model_selection_missing"
-    | "model_provider_failed"
-    | "stream_disconnected";
+  task_count?: number;
+  task_index?: number;
+  subagent_id?: string;
+  model?: string;
+  tool_count?: number;
+  duration_seconds?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  reasoning_tokens?: number;
+  api_calls?: number;
+  cost_usd?: number;
+  files_read?: string[];
+  files_written?: string[];
+  pending_steer?: string;
+  code?: string;
 };
 
 export type RunStart = {
@@ -67,12 +93,10 @@ export type RunStatus = {
   session_id?: string;
   output?: string;
   error?: string;
-  code?:
-    | "model_auth_missing"
-    | "model_selection_missing"
-    | "model_provider_failed";
+  code?: string;
   approval?: DeskRunEvent;
   usage?: RunUsage;
+  pending_steer?: string;
 };
 
 export type HermesSkill = {
@@ -90,15 +114,30 @@ export type HermesToolset = {
   tools: string[];
 };
 
+export type HermesInput =
+  | string
+  | {
+      role: "user";
+      content: (
+        | { type: "text"; text: string }
+        | { type: "image_url"; image_url: { url: string } }
+      )[];
+    }[];
+
 export interface HermesClient {
-  modelOptions(): Promise<ModelCatalog>;
+  capabilities(): Promise<HermesCapabilities>;
+  modelOptions(refresh?: boolean): Promise<ModelCatalog>;
   listSessions(limit: number, offset: number): Promise<HermesSession[]>;
   createSession(title?: string): Promise<HermesSession>;
   renameSession(sessionId: string, title: string): Promise<HermesSession>;
-  listMessages(sessionId: string): Promise<HermesMessage[]>;
+  listMessages(
+    sessionId: string,
+    limit: number,
+    offset: number,
+  ): Promise<HermesMessagePage>;
   startRun(
     sessionId: string,
-    input: string,
+    input: HermesInput,
     selection?: ModelSelection,
   ): Promise<RunStart>;
   getRun(runId: string): Promise<RunStatus>;
@@ -108,6 +147,10 @@ export interface HermesClient {
     choice: ApprovalChoice,
     requestId?: string,
   ): Promise<{ run_id: string; choice: ApprovalChoice; resolved: number }>;
+  steerRun(
+    runId: string,
+    input: string,
+  ): Promise<{ run_id: string; accepted: boolean }>;
   stopRun(runId: string): Promise<RunStatus>;
   listSkills(): Promise<HermesSkill[]>;
   listToolsets(): Promise<HermesToolset[]>;

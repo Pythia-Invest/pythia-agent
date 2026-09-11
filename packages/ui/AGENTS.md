@@ -19,6 +19,11 @@ and give every root a `data-slot`. Do not add consumer palettes or make color
 the only status cue. Signal Amber identifies a Pythia signal; warnings and
 general interaction use their own semantic roles.
 
+This package is exported to a Claude Design project so that tool composes
+screens from the real components; re-sync after changing it, and keep the
+token theme, `theme-scale.ts` and the export in step. See the
+[design-system sync rule](../../.agents/rules/design-system-sync.md).
+
 Tests belong in `test/`. Every public component should document its purpose,
 props and variants, meaningful states, profile/theme behavior, accessibility,
 and one concise ownership boundary beside the export.

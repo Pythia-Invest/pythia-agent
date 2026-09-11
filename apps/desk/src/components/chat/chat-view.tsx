@@ -2,16 +2,31 @@
 
 import { useChat } from "@ai-sdk/react";
 import { Alert, Skeleton } from "@pythia/ui";
-import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { DeskUIMessage } from "@/client/chat-message";
-import { HermesChatTransport } from "@/client/hermes-transport";
-import { useDeskApi } from "@/client/providers";
-import { deskKeys, useMessages } from "@/client/queries";
+import { useDeskApi, useDeskChats } from "@/client/providers";
+import {
+  useCapabilities,
+  useMessages,
+  useModelOptions,
+} from "@/client/queries";
 import type { ApprovalChoice } from "@/server/types";
+import {
+  type ModelSelection,
+  normalizeModelSelection,
+} from "@/server/model-catalog";
+import { CHAT_MEASURE_CLASS, ChatOpeningLayout } from "./chat-opening";
+import { CatalogError, ConnectionNote } from "./chat-status";
 import { Composer } from "./composer";
 import { Conversation } from "./conversation";
+import { ErrorMessage } from "./message-parts";
 import { takePendingPrompt } from "./pending-prompt";
+import {
+  defaultSelection,
+  ModelPicker,
+  readModelPreference,
+  writeModelPreference,
+} from "./model-picker";
 
 function HistorySkeleton() {
   return (
@@ -34,47 +49,63 @@ function HistorySkeleton() {
 
 function ChatSession({
   history,
+  hasEarlier,
+  loadEarlier,
+  loadingEarlier,
   sessionId,
 }: {
   history: DeskUIMessage[];
+  hasEarlier: boolean;
+  loadEarlier: () => Promise<unknown>;
+  loadingEarlier: boolean;
   sessionId: string;
 }) {
   const api = useDeskApi();
-  const queryClient = useQueryClient();
-  const transport = useMemo(
-    () =>
-      new HermesChatTransport(api, {
-        onRunFinished: (finished) => {
-          void queryClient.invalidateQueries({ queryKey: deskKeys.sessions });
-          void queryClient.invalidateQueries({
-            queryKey: deskKeys.messages(finished),
-          });
-        },
-      }),
-    [api, queryClient],
+  const chats = useDeskChats();
+  const [session] = useState(() => chats.get(sessionId, history));
+  const {
+    connection,
+    startedAt: turnStartedAt,
+    stopError,
+  } = useSyncExternalStore(
+    session.subscribe,
+    session.snapshot,
+    session.snapshot,
   );
-  const chat = useChat<DeskUIMessage>({
-    id: sessionId,
-    messages: history,
-    transport,
-    throttle: 40,
-  });
+  const models = useModelOptions();
+  const capabilities = useCapabilities();
+  const [selection, setSelection] = useState<ModelSelection | undefined>(() =>
+    readModelPreference(sessionId),
+  );
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelManagerOpen, setModelManagerOpen] = useState(false);
+  const resolvedSelection =
+    selection && models.data
+      ? normalizeModelSelection(models.data, selection)
+      : selection;
+  session.selection = resolvedSelection;
+  useEffect(() => {
+    if (!models.data) return;
+    const next = resolvedSelection ?? defaultSelection(models.data);
+    if (next && next !== selection) {
+      setSelection(next);
+      writeModelPreference(next, sessionId);
+    }
+  }, [models.data, resolvedSelection, selection, sessionId]);
+  useEffect(() => {
+    if (selection) writeModelPreference(selection, sessionId);
+  }, [selection, sessionId]);
+  const chat = useChat<DeskUIMessage>({ chat: session.chat, throttle: 40 });
   const [approvalPending, setApprovalPending] = useState(false);
   const [approvalError, setApprovalError] = useState<string | null>(null);
-  const sentPending = useRef(false);
-
-  const send = useCallback(
-    (text: string) => chat.sendMessage({ text }),
-    [chat.sendMessage],
-  );
-
-  // A prompt typed on the new-chat surface is sent once the session route mounts.
+  const send = session.send;
+  const retry = session.retry;
   useEffect(() => {
-    if (sentPending.current) return;
-    sentPending.current = true;
-    const pending = takePendingPrompt(sessionId);
-    if (pending) void send(pending);
-  }, [sessionId, send]);
+    session.addHistory(history);
+  }, [history, session]);
+  useEffect(() => {
+    session.initialize(() => takePendingPrompt(sessionId));
+  }, [session, sessionId]);
 
   const respondToApproval = useCallback(
     async (runId: string, choice: ApprovalChoice, requestId?: string) => {
@@ -82,6 +113,20 @@ function ChatSession({
       setApprovalError(null);
       try {
         await api.respondToApproval(runId, choice, requestId);
+        // A recovered run may be observed only through status polling. Record
+        // the successful native response even when no SSE acknowledgement arrives.
+        chat.setMessages((messages) =>
+          messages.map((message) => ({
+            ...message,
+            parts: message.parts.map((part) =>
+              part.type === "data-approval" &&
+              part.data.runId === runId &&
+              part.data.requestId === requestId
+                ? { ...part, data: { ...part.data, responded: choice } }
+                : part,
+            ),
+          })),
+        );
       } catch (error) {
         setApprovalError(
           error instanceof Error
@@ -92,52 +137,105 @@ function ChatSession({
         setApprovalPending(false);
       }
     },
-    [api],
+    [api, chat.setMessages],
   );
 
-  const streaming = chat.status === "streaming";
-  const busy = streaming || chat.status === "submitted";
-  const lastMessage = chat.messages.at(-1);
-  const thinking =
-    busy &&
-    (lastMessage?.role === "user" ||
-      (lastMessage?.role === "assistant" && lastMessage.parts.length === 0));
+  const busy = chat.status === "streaming" || chat.status === "submitted";
+  const steer = useCallback(
+    (text: string) =>
+      session.transport.steer(sessionId, text).then(() => undefined),
+    [sessionId, session],
+  );
+
+  /*
+   * A chat Hermes has but nothing has been said in yet looks like a new one:
+   * the question and the composer together, with the room left underneath.
+   */
+  const opening = chat.messages.length === 0 && !busy;
+  const composer = (
+    <div className={CHAT_MEASURE_CLASS}>
+      {chat.error ? (
+        <ErrorMessage
+          className="mb-3"
+          message={chat.error.message}
+          model={resolvedSelection?.model}
+          onRetry={retry}
+          provider={resolvedSelection?.provider}
+        />
+      ) : null}
+      {stopError ? (
+        <Alert className="mb-3" title="Reply not stopped." tone="error">
+          {stopError}
+        </Alert>
+      ) : null}
+      {approvalError ? (
+        <Alert className="mb-3" title="Approval not recorded." tone="error">
+          {approvalError}
+        </Alert>
+      ) : null}
+      <Composer
+        notes={<ConnectionNote state={connection} />}
+        controls={
+          models.data && resolvedSelection ? (
+            <ModelPicker
+              catalog={models.data}
+              disabled={busy}
+              managerOpen={modelManagerOpen}
+              onChange={(next) => {
+                setSelection(next);
+                writeModelPreference(next, sessionId);
+              }}
+              onManagerOpenChange={setModelManagerOpen}
+              onPickerOpenChange={setModelPickerOpen}
+              onRefresh={models.refreshModels}
+              pickerOpen={modelPickerOpen}
+              refreshing={models.isFetching || models.isRefreshing}
+              selection={resolvedSelection}
+            />
+          ) : models.isError ? (
+            <CatalogError
+              onRetry={() => models.refreshModels()}
+              retrying={models.isFetching || models.isRefreshing}
+            />
+          ) : undefined
+        }
+        onSend={send}
+        onSteer={capabilities.data?.runSteer ? steer : undefined}
+        onStop={() => void session.stop()}
+        streaming={busy}
+      />
+    </div>
+  );
+
+  if (opening)
+    return (
+      <div
+        className="@container/chat flex min-h-0 flex-1 flex-col text-body"
+        data-slot="chat-view"
+      >
+        <ChatOpeningLayout composer={composer} />
+      </div>
+    );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-slot="chat-view">
+    <div
+      className="@container/chat flex min-h-0 flex-1 flex-col text-body"
+      data-slot="chat-view"
+    >
       <Conversation
         approvalPending={approvalPending}
         messages={chat.messages}
+        hasEarlier={hasEarlier}
+        loadingEarlier={loadingEarlier}
+        onLoadEarlier={loadEarlier}
+        onRetry={retry}
         onRespondToApproval={(runId, choice, requestId) =>
           void respondToApproval(runId, choice, requestId)
         }
-        streaming={streaming}
-        thinking={thinking}
+        streaming={busy}
+        turnStartedAt={turnStartedAt}
       />
-      <div className="mx-auto w-full max-w-3xl px-4 pb-4">
-        {chat.error ? (
-          <Alert
-            className="mb-3"
-            title="This message could not be sent."
-            tone="error"
-          >
-            {chat.error.message}
-          </Alert>
-        ) : null}
-        {approvalError ? (
-          <Alert className="mb-3" title="Approval not recorded." tone="error">
-            {approvalError}
-          </Alert>
-        ) : null}
-        <Composer
-          onSend={send}
-          onStop={() => void chat.stop()}
-          streaming={busy}
-        />
-        <p className="m-0 mt-2 text-center text-foreground-disabled text-xs">
-          Pythia can be wrong. Verify anything you act on.
-        </p>
-      </div>
+      <div className="flex-none @[48rem]/chat:px-6 px-4 pb-2.5">{composer}</div>
     </div>
   );
 }
@@ -147,7 +245,7 @@ export function ChatView({ sessionId }: { sessionId: string }) {
   const history = useMessages(sessionId);
 
   if (history.isPending) return <HistorySkeleton />;
-  if (history.isError) {
+  if (history.isError && !history.data) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 pt-6">
         <Alert title="This chat could not be loaded." tone="error">
@@ -157,6 +255,13 @@ export function ChatView({ sessionId }: { sessionId: string }) {
     );
   }
   return (
-    <ChatSession history={history.data} key={sessionId} sessionId={sessionId} />
+    <ChatSession
+      hasEarlier={history.hasNextPage}
+      history={history.data.pages}
+      key={sessionId}
+      loadEarlier={history.fetchNextPage}
+      loadingEarlier={history.isFetchingNextPage}
+      sessionId={sessionId}
+    />
   );
 }

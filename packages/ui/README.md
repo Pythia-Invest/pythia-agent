@@ -37,6 +37,11 @@ approved identity rather than copying or recomposing image assets.
   inside the DayPicker adapter.
 - Preserve the native accessibility behavior of Base UI, `cmdk`, React
   DayPicker, and `react-resizable-panels`.
+- Use the combobox list-level `density` variant for compact result sets; items
+  inherit their list density.
+- Use `SearchSelect` when the closed control should display its value and the
+  search input should appear at the top of the popup. Its result list is compact
+  by default.
 - Keep browser-only entrypoints narrowly marked `"use client"`; the package
   barrel remains server-compatible.
 - Keep labelled synthetic showcase data in the consuming app, never here.
@@ -47,7 +52,8 @@ runtime dependency.
 
 ## Assets
 
-The package contains four IBM Plex Sans webfont weights, four bounded Pythia
+The package contains four IBM Plex Sans webfont weights, the Inter variable
+reading face (Latin subsets, upright and italic, `src/assets/OFL-Inter.txt`), four bounded Pythia
 lockups, and a favicon. It does not contain brand masters or a general asset
 kit. The font files are distributed under the SIL Open Font License 1.1; see
 `src/assets/OFL.txt`.

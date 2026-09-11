@@ -147,7 +147,10 @@ configurable blank canvas.
 
 ### Typography
 
-Use **IBM Plex Sans** throughout both profiles. Do not introduce a second
+Use **IBM Plex Sans** for the interface in both profiles. The one sanctioned
+exception is conversation text in the application: what the person types and
+what Pythia answers are set in **Inter**, a neutral reading face that
+separates the exchange from the chrome around it. Do not introduce any further
 display, serif, or monospace family merely to make the product feel premium.
 Hierarchy should come from disciplined size, weight, line height, measure,
 spacing, and placement.

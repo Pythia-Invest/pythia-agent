@@ -77,7 +77,7 @@ function AccordionPanel({
   return (
     <BaseAccordion.Panel
       className={cnState(
-        `${disclosureClasses.panel} h-(--accordion-panel-height)`,
+        `${disclosureClasses.panel} h-[var(--accordion-panel-height,auto)]`,
         className,
       )}
       data-slot="accordion-panel"

@@ -22,7 +22,7 @@ export function Separator({
     <BaseSeparator
       className={cn(
         "flex-none bg-border",
-        orientation === "vertical" ? "h-full w-px" : "h-px w-full",
+        orientation === "vertical" ? "w-px self-stretch" : "h-px w-full",
         className,
       )}
       data-slot="separator"

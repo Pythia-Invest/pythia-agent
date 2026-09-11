@@ -1,15 +1,17 @@
+import { splitAttachmentNote, IMAGE_TYPES } from "@/attachments";
 import type { DynamicToolUIPart, UIMessage } from "ai";
-import type { ApprovalChoice, HermesMessage } from "@/server/types";
+import type { ApprovalChoice, HermesMessage, RunUsage } from "@/server/types";
 
 /**
  * The browser's conversation model is the AI SDK `UIMessage`. Everything
- * Hermes-specific is confined to two custom data parts and to the transport
+ * Hermes-specific is confined to custom data parts and to the transport
  * that produces them, so another harness only needs a new transport.
  */
 export type ApprovalData = {
   runId: string;
   requestId?: string;
   description?: string;
+  command?: string;
   choices: ApprovalChoice[];
   responded?: ApprovalChoice;
 };
@@ -18,14 +20,52 @@ export type RunStatusData = {
   state: "failed" | "cancelled" | "disconnected";
   message?: string;
   code?: string;
+  provider?: string;
+  model?: string;
 };
 
 export type DeskDataParts = {
   approval: ApprovalData;
   "run-status": RunStatusData;
+  steer: { text: string };
 };
 
-export type DeskUIMessage = UIMessage<unknown, DeskDataParts>;
+/**
+ * Hermes stores some rows with the user role that no person typed: the
+ * runtime switched model, continued on its own, reported a delegated task, or
+ * injected a skill. They become system notes rather than user bubbles.
+ */
+export const NOTE_COPY = {
+  async_delegation_complete: "A delegated task finished",
+  auto_continue: "Continued automatically",
+  internal_notification: "Runtime notification",
+  model_switch: "Model switched",
+  personality_switch: "Personality switched",
+  skill_invocation: "Skill loaded",
+} as const;
+
+export type NoteKind = keyof typeof NOTE_COPY;
+
+export type DeskMetadata = {
+  /** Native rows folded into this message, in transcript order. */
+  historyRows?: string[];
+  note?: NoteKind;
+  outcome?: "completed";
+  run?: {
+    usage?: RunUsage;
+    model?: string;
+    provider?: string;
+    /** Wall-clock seconds from the run's first event to its terminal one. */
+    durationSeconds?: number;
+  };
+};
+
+export type DeskUIMessage = UIMessage<DeskMetadata, DeskDataParts>;
+
+function noteKind(row: HermesMessage): NoteKind | null {
+  const kind = row.display_kind;
+  return kind && kind in NOTE_COPY ? (kind as NoteKind) : null;
+}
 
 /** Plain text of a Hermes message body, whatever shape the provider stored. */
 export function messageText(value: unknown): string {
@@ -83,8 +123,7 @@ function parseToolCalls(value: unknown, messageId: string): ToolCallRecord[] {
 
 function toolPart(
   call: ToolCallRecord,
-  output: unknown,
-  hasOutput: boolean,
+  result?: { output: string },
 ): DynamicToolUIPart {
   const base = {
     type: "dynamic-tool" as const,
@@ -92,8 +131,8 @@ function toolPart(
     toolName: call.name,
     input: call.input,
   };
-  return hasOutput
-    ? { ...base, state: "output-available", output }
+  return result
+    ? { ...base, state: "output-available", output: result.output }
     : { ...base, state: "input-available" };
 }
 
@@ -115,14 +154,43 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
   };
 
   for (const row of history) {
+    // Compaction carriers and interrupt placeholders: Hermes projects them to
+    // empty hidden rows so every transcript surface drops them.
+    if (row.display_kind === "hidden") continue;
     if (row.role === "user") {
       closeTurn();
-      const text = messageText(row.content);
-      if (!text) continue;
+      const content = splitAttachmentNote(messageText(row.content));
+      const text = content.text;
+      const note = noteKind(row);
+      if (note) {
+        messages.push({
+          id: row.id,
+          role: "system",
+          metadata: { note, historyRows: [row.id] },
+          parts: text ? [{ type: "text", text }] : [],
+        });
+        continue;
+      }
+      const files = content.files;
+      // Native images from another Hermes surface may have no Desk receipt.
+      if (!files.length && Array.isArray(row.content)) {
+        for (const part of row.content) {
+          const url =
+            part?.type === "image_url" ? part.image_url?.url : undefined;
+          const mediaType =
+            typeof url === "string"
+              ? /^data:([^;]+);base64,/u.exec(url)?.[1]
+              : undefined;
+          if (mediaType && IMAGE_TYPES.has(mediaType))
+            files.push({ type: "file", mediaType, url, filename: "Image" });
+        }
+      }
+      if (!text && !files.length) continue;
       messages.push({
         id: row.id,
         role: "user",
-        parts: [{ type: "text", text }],
+        metadata: { historyRows: [row.id] },
+        parts: [...(text ? [{ type: "text" as const, text }] : []), ...files],
       });
       continue;
     }
@@ -130,14 +198,13 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
 
     if (row.role === "tool") {
       if (!turn) continue;
+      turn.message.metadata?.historyRows?.push(row.id);
       const callId = row.tool_call_id ?? "";
       const pending = turn.calls.get(callId);
       if (pending) {
-        turn.message.parts[pending.index] = toolPart(
-          pending.call,
-          messageText(row.content),
-          true,
-        );
+        turn.message.parts[pending.index] = toolPart(pending.call, {
+          output: messageText(row.content),
+        });
         turn.calls.delete(callId);
       }
       continue;
@@ -145,18 +212,34 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
 
     if (!turn) {
       turn = {
-        message: { id: row.id, role: "assistant", parts: [] },
+        message: {
+          id: row.id,
+          role: "assistant",
+          parts: [],
+          metadata: { historyRows: [] },
+        },
         calls: new Map(),
       };
     }
+    turn.message.metadata?.historyRows?.push(row.id);
+    const reasoning = row.reasoning?.trim();
+    if (reasoning) {
+      turn.message.parts.push({
+        type: "reasoning",
+        text: reasoning,
+        state: "done",
+      });
+    }
     const text = messageText(row.content);
-    if (text) turn.message.parts.push({ type: "text", text, state: "done" });
+    if (text) {
+      turn.message.parts.push({ type: "text", text, state: "done" });
+    }
     for (const call of parseToolCalls(row.tool_calls, row.id)) {
       turn.calls.set(call.id, {
         call,
         index: turn.message.parts.length,
       });
-      turn.message.parts.push(toolPart(call, undefined, false));
+      turn.message.parts.push(toolPart(call));
     }
   }
   closeTurn();

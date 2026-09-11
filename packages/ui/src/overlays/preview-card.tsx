@@ -3,6 +3,7 @@
 import { PreviewCard as BasePreviewCard } from "@base-ui/react/preview-card";
 import type { ComponentProps } from "react";
 import { cnState } from "../class-name";
+import { OverlayArrowShape, overlayArrowClasses } from "./arrow";
 import { overlayClasses } from "./shared";
 
 function PreviewCardPositioner({
@@ -36,15 +37,21 @@ function PreviewCardPopup({
 }
 
 function PreviewCardArrow({
+  children,
   className,
   ...props
 }: ComponentProps<typeof BasePreviewCard.Arrow>) {
   return (
     <BasePreviewCard.Arrow
-      className={cnState(overlayClasses.arrow, className)}
+      className={cnState(
+        `${overlayArrowClasses} ${overlayClasses.arrow}`,
+        className,
+      )}
       data-slot="preview-card-arrow"
       {...props}
-    />
+    >
+      {children ?? <OverlayArrowShape />}
+    </BasePreviewCard.Arrow>
   );
 }
 

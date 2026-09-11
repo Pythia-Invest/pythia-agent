@@ -104,14 +104,23 @@ function DrawerDescription({
   );
 }
 
+/*
+ * `render` means the caller brought their own styled component. Base UI's
+ * mergeProps concatenates class names rather than tailwind-merging them, so
+ * applying the close recipe on top would let its `bg-transparent`/`border-0`
+ * beat that component's own variant on CSS source order alone. Style the bare
+ * close affordance; step aside for a supplied one.
+ */
 function DrawerClose({
   className,
+  render,
   ...props
 }: ComponentProps<typeof BaseDrawer.Close>) {
   return (
     <BaseDrawer.Close
-      className={cnState(overlayClasses.close, className)}
+      className={render ? className : cnState(overlayClasses.close, className)}
       data-slot="drawer-close"
+      render={render}
       {...props}
     />
   );

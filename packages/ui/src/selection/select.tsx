@@ -1,6 +1,7 @@
 "use client";
 
 import { Select as SelectPrimitive } from "@base-ui/react/select";
+import { cva, type VariantProps } from "class-variance-authority";
 import { Check, ChevronDown } from "lucide-react";
 import { cnState } from "../class-name";
 import { pickerClasses } from "./shared";
@@ -16,27 +17,48 @@ import { pickerClasses } from "./shared";
  */
 export const Select = SelectPrimitive.Root;
 
-export type SelectTriggerProps = SelectPrimitive.Trigger.Props;
+const triggerClasses = cva(
+  "motion-fast inline-flex cursor-pointer items-center text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 data-disabled:cursor-not-allowed data-disabled:opacity-disabled",
+  {
+    variants: {
+      appearance: {
+        field: `${pickerClasses.controlHeight} min-w-42 justify-between gap-2 rounded-control border border-border bg-transparent px-2.5 text-sm hover:border-border-strong`,
+        inline:
+          "h-8 min-w-0 justify-start gap-1.5 rounded-control border-0 bg-transparent px-2 text-body hover:bg-interaction-hover data-popup-open:bg-interaction-hover [&_[data-slot=select-icon]>svg]:size-3 [&_[data-slot=select-icon]]:shrink-0",
+      },
+    },
+    defaultVariants: { appearance: "field" },
+  },
+);
+
+/** Visual treatment for the select trigger. */
+export type SelectTriggerAppearance = NonNullable<
+  VariantProps<typeof triggerClasses>["appearance"]
+>;
+
+export type SelectTriggerProps = SelectPrimitive.Trigger.Props & {
+  appearance?: SelectTriggerAppearance;
+};
 
 /**
  * Button that opens a `Select` popup and displays its value.
  *
- * It accepts native Base UI trigger props and supports disabled, placeholder,
- * and open states. Semantic tokens provide Public/Product sizing and light/dark
- * treatment. Base UI supplies button semantics and keyboard/focus behavior.
- * Render `SelectValue` inside it; do not replace it with a bespoke popup button.
+ * `field` is the ordinary bordered form control; `inline` is the compact
+ * labelled chip for toolbars. It accepts native Base UI trigger props and
+ * supports disabled, placeholder, and open states. Semantic tokens provide
+ * Public/Product sizing and light/dark treatment. Base UI supplies button
+ * semantics and keyboard/focus behavior. Render `SelectValue` inside it; do
+ * not replace it with a bespoke popup button.
  */
 export function SelectTrigger({
+  appearance = "field",
   children,
   className,
   ...props
 }: SelectTriggerProps) {
   return (
     <SelectPrimitive.Trigger
-      className={cnState(
-        `${pickerClasses.controlHeight} motion-fast inline-flex min-w-42 items-center justify-between gap-2 rounded-control border border-border bg-transparent px-2.5 text-foreground text-sm transition-colors hover:border-border-strong data-disabled:cursor-not-allowed data-disabled:opacity-disabled`,
-        className,
-      )}
+      className={cnState(triggerClasses({ appearance }), className)}
       data-slot="select-trigger"
       {...props}
     >
@@ -170,7 +192,7 @@ export function SelectItem({ children, className, ...props }: SelectItemProps) {
   return (
     <SelectPrimitive.Item
       className={cnState(
-        "relative flex min-h-8 items-center rounded-control py-1.5 pr-8 pl-2 text-foreground text-sm leading-ui data-disabled:cursor-not-allowed data-highlighted:bg-interaction-hover data-disabled:opacity-disabled",
+        "relative flex min-h-8 cursor-pointer items-center rounded-control py-1.5 pr-8 pl-2 text-foreground text-sm leading-ui data-disabled:cursor-not-allowed data-highlighted:bg-interaction-hover data-disabled:opacity-disabled",
         className,
       )}
       data-slot="select-item"

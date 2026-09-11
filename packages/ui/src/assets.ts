@@ -15,4 +15,6 @@ export const brandAssetUrls = {
     "./assets/lockup-compact-dark-480.png",
     import.meta.url,
   ).href,
+  markLight: new URL("./assets/mark-light-256.png", import.meta.url).href,
+  markDark: new URL("./assets/mark-dark-256.png", import.meta.url).href,
 } as const;

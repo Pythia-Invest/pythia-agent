@@ -25,7 +25,8 @@ Use theme names, not raw values or token variables:
 
 - Surfaces `bg-canvas`, `bg-raised`, `bg-subtle`, `bg-overlay`, `bg-container`.
 - Text `text-foreground`, `text-foreground-secondary`,
-  `text-foreground-disabled`; type `text-body`, `text-reading`, `text-xs`.
+  `text-foreground-disabled`; type `text-body`, `text-reading`, `text-xs`;
+  `font-reading` only for conversation text, never for chrome.
 - Borders and interaction `border-border`, `border-border-strong`,
   `bg-interaction-hover`, `bg-interaction-active`, `outline-ring`.
 - Actions `bg-primary` with `text-primary-foreground`.
@@ -43,7 +44,12 @@ acceptable only for geometry Tailwind cannot express, such as a library's own
 CSS variables.
 
 Merge class names with `cn` from `@pythia/ui`, consumer `className` last, so
-overrides win. Express variants with `cva` or a typed record, and drive state
+overrides win. `cn` knows the theme scale through `theme-scale.ts`; when you
+add a non-color `@theme` name, register it there too or the contract test
+fails, and update the Claude Design export as the
+[design-system sync rule](./design-system-sync.md) describes. Third-party components that merge classes themselves (Streamdown, for
+example) do not know our names, so set theme typography on a wrapper element
+rather than passing it through their `className`. Express variants with `cva` or a typed record, and drive state
 from the primitive's own attributes (`data-checked:`, `data-active:`,
 `aria-invalid:`, `disabled:`) rather than component state classes. Give every
 component root a `data-slot` attribute and target that in tests and consumer

@@ -98,6 +98,7 @@ export function serviceEnvironmentValues(paths, executables) {
     PATH: path,
   };
   const desk = {
+    PYTHIA_WORKSPACE: paths.workspace,
     HOME: process.env.HOME ?? "",
     HERMES_HOME: paths.hermesRoot,
     PYTHIA_CONFIG_ROOT: paths.configRoot,

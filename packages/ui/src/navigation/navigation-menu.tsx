@@ -10,14 +10,17 @@ export type NavigationMenuProps<Value = unknown> =
 /**
  * Base UI navigation-menu state owner for grouped destination links.
  *
- * Generic controlled/uncontrolled value, orientation, and open/close delay
- * props remain native. Root and parts use semantic Public/Product and
+ * Generic controlled/uncontrolled value and open/close delay props remain
+ * native. `orientation` is native too, but Base UI keeps it in context for
+ * arrow-key handling without writing `data-orientation`, so the attribute the
+ * list layout reads is written here. Root and parts use semantic Public/Product and
  * light/dark tokens, with open/active treatment neutral. Base UI owns hover,
  * focus, arrow keys, dismissal, and nested-menu behavior. Supply destinations
  * from the app; do not use it for workflow commands or product data.
  */
 export function NavigationMenu<Value>({
   className,
+  orientation = "horizontal",
   ...props
 }: NavigationMenuProps<Value>) {
   return (
@@ -26,7 +29,9 @@ export function NavigationMenu<Value>({
         "group/navigation-menu relative text-body text-foreground",
         className,
       )}
+      data-orientation={orientation}
       data-slot="navigation-menu"
+      orientation={orientation}
       {...props}
     />
   );

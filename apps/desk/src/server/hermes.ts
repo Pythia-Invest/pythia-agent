@@ -1,125 +1,21 @@
-import type {
-  HermesClient,
-  HermesMessage,
-  HermesSession,
-  RunStart,
-  RunStatus,
-  RunUsage,
-} from "./types";
+import type { HermesClient, RunStart, RunStatus } from "./types";
 import { mapHermesEvent, readHermesSse } from "./hermes-events";
 import { parseHermesSkill, parseHermesToolset } from "./hermes-inventory";
-import { modelError } from "./model-error";
+import {
+  boolean,
+  HermesApiError,
+  message,
+  number,
+  object,
+  runError,
+  session,
+  string,
+  usage,
+} from "./hermes-records";
 import { modelCatalog } from "./model-catalog";
 
+export { HermesApiError } from "./hermes-records";
 export { mapHermesEvent, readHermesSse } from "./hermes-events";
-
-const DEFAULT_ERROR =
-  "The local Hermes runtime could not complete the request.";
-const SAFE_ERROR_MESSAGES: Record<string, string> = {
-  approval_not_active: "This run no longer has an active approval request.",
-  approval_not_pending: "This approval request has already been resolved.",
-  invalid_approval_choice: "Hermes rejected that approval choice.",
-  invalid_approval_request: "Hermes rejected that approval request identifier.",
-  invalid_title: "Choose a different conversation title.",
-  run_not_active: "This run is no longer active in Hermes.",
-  run_not_found: "Hermes could not find this run.",
-  session_not_found: "Hermes could not find this conversation.",
-};
-
-export class HermesApiError extends Error {
-  readonly status: number;
-  readonly code: string | undefined;
-
-  constructor(message: string, status: number, code?: string) {
-    super(message);
-    this.name = "HermesApiError";
-    this.status = status;
-    this.code = code;
-  }
-}
-
-function object(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function string(value: unknown) {
-  return typeof value === "string" ? value : undefined;
-}
-
-function number(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
-}
-
-function boolean(value: unknown) {
-  return typeof value === "boolean" ? value : undefined;
-}
-
-function nullableString(value: unknown) {
-  return value === null ? null : string(value);
-}
-
-function usage(value: unknown): RunUsage | undefined {
-  const source = object(value);
-  const result: RunUsage = {};
-  const input = number(source.input_tokens);
-  const output = number(source.output_tokens);
-  const total = number(source.total_tokens);
-  if (input !== undefined) result.input_tokens = input;
-  if (output !== undefined) result.output_tokens = output;
-  if (total !== undefined) result.total_tokens = total;
-  return Object.keys(result).length ? result : undefined;
-}
-
-function safeRunError(value: unknown) {
-  const classified = modelError(value);
-  if (classified) return classified;
-  return { error: "The Hermes run failed." };
-}
-
-function session(value: unknown): HermesSession {
-  const source = object(value);
-  const id = string(source.id);
-  if (!id)
-    throw new HermesApiError(
-      "Hermes returned a session without an identifier.",
-      502,
-    );
-  const result: HermesSession = { id };
-  const title = nullableString(source.title);
-  const lastActive = number(source.last_active);
-  const preview = nullableString(source.preview);
-  const messageCount = number(source.message_count);
-  const endedAt = number(source.ended_at);
-  if (title !== undefined) result.title = title;
-  if (lastActive !== undefined) result.last_active = lastActive;
-  if (preview !== undefined) result.preview = preview;
-  if (messageCount !== undefined) result.message_count = messageCount;
-  if (endedAt !== undefined) result.ended_at = endedAt;
-  return result;
-}
-
-function message(value: unknown, index: number): HermesMessage {
-  const source = object(value);
-  const result: HermesMessage = {
-    id: String(source.id ?? `message-${index}`),
-    role: string(source.role) ?? "assistant",
-    content: source.content ?? "",
-  };
-  const timestamp = number(source.timestamp);
-  const toolCallId = nullableString(source.tool_call_id);
-  const toolName = nullableString(source.tool_name);
-  const finishReason = nullableString(source.finish_reason);
-  if (timestamp !== undefined) result.timestamp = timestamp;
-  if (toolCallId !== undefined) result.tool_call_id = toolCallId;
-  if (toolName !== undefined) result.tool_name = toolName;
-  if (source.tool_calls !== undefined) result.tool_calls = source.tool_calls;
-  if (finishReason !== undefined) result.finish_reason = finishReason;
-  return result;
-}
 
 type HermesClientOptions = {
   baseUrl?: string;
@@ -203,25 +99,11 @@ export function createHermesClient(
     } catch {
       upstream = "";
     }
-    if (response.status === 401) {
-      throw new HermesApiError(
-        "Desk cannot authenticate with its local Hermes runtime.",
-        503,
-      );
-    }
-    const classified = modelError(upstream);
-    if (classified) {
-      throw new HermesApiError(
-        classified.error,
-        response.status,
-        classified.code,
-      );
-    }
+    const message = upstream
+      ? upstream.replaceAll(apiKey, "[redacted]")
+      : `Hermes returned HTTP ${response.status}.`;
     throw new HermesApiError(
-      SAFE_ERROR_MESSAGES[upstreamCode] ??
-        (response.status === 429
-          ? "Hermes is temporarily busy. Try again shortly."
-          : DEFAULT_ERROR),
+      message,
       response.status,
       upstreamCode || undefined,
     );
@@ -232,6 +114,14 @@ export function createHermesClient(
   }
 
   return {
+    async capabilities() {
+      const body = await json("/v1/capabilities");
+      const features = object(body.features);
+      return {
+        runSteer: features.run_steer === true,
+        modelOptions: features.model_options === true,
+      };
+    },
     async listSessions(limit, offset) {
       const query = new URLSearchParams({
         include_children: "false",
@@ -258,15 +148,22 @@ export function createHermesClient(
       );
       return session(body.session);
     },
-    async listMessages(sessionId) {
+    async listMessages(sessionId, limit, offset) {
       const body = await json(
-        `/api/sessions/${encodeURIComponent(sessionId)}/messages?limit=500&offset=0`,
+        `/api/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}&offset=${offset}&order=latest`,
       );
-      return Array.isArray(body.data) ? body.data.map(message) : [];
+      const pagination = object(body.pagination);
+      const data = Array.isArray(body.data) ? body.data.map(message) : [];
+      return {
+        data,
+        limit: number(pagination.limit) ?? limit,
+        offset: number(pagination.offset) ?? offset,
+        returned: number(pagination.returned) ?? data.length,
+      };
     },
-    async modelOptions() {
+    async modelOptions(refresh = false) {
       return modelCatalog(
-        await json("/api/model/options", {
+        await json(`/api/model/options${refresh ? "?refresh=true" : ""}`, {
           signal: AbortSignal.timeout(30_000),
         }),
       );
@@ -314,9 +211,10 @@ export function createHermesClient(
       const runUsage = usage(body.usage);
       if (sessionId) result.session_id = sessionId;
       if (output !== undefined) result.output = output;
-      if (body.error !== undefined)
-        Object.assign(result, safeRunError(body.error));
+      if (body.error !== undefined) Object.assign(result, runError(body.error));
       if (runUsage) result.usage = runUsage;
+      const pendingSteer = string(body.pending_steer);
+      if (pendingSteer) result.pending_steer = pendingSteer;
       const approval = mapHermesEvent({
         ...object(body.approval),
         event: "approval.request",
@@ -350,6 +248,16 @@ export function createHermesClient(
         run_id: string(body.run_id) ?? runId,
         choice,
         resolved: number(body.resolved) ?? 0,
+      };
+    },
+    async steerRun(runId, input) {
+      const body = await json(`/v1/runs/${encodeURIComponent(runId)}/steer`, {
+        body: JSON.stringify({ input }),
+        method: "POST",
+      });
+      return {
+        run_id: string(body.run_id) ?? runId,
+        accepted: boolean(body.accepted) ?? false,
       };
     },
     async stopRun(runId) {

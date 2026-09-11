@@ -227,6 +227,9 @@ describe("installed packaging", () => {
       'BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED="false"',
     );
     expect(environments.desk).toContain('NEXT_TELEMETRY_DISABLED="1"');
+    expect(
+      serviceEnvironmentValues(paths, executables).desk.PYTHIA_WORKSPACE,
+    ).toBe(paths.workspace);
     expect(environments.hermes).toContain('HERMES_DISABLE_LAZY_INSTALLS="1"');
     expect(environments.desk).toContain(
       `PYTHIA_LIFECYCLE_COMMAND="${paths.installedCommand}"`,

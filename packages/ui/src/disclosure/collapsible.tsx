@@ -57,7 +57,7 @@ function CollapsiblePanel({
   return (
     <BaseCollapsible.Panel
       className={cnState(
-        `${disclosureClasses.panel} h-(--collapsible-panel-height)`,
+        `${disclosureClasses.panel} h-[var(--collapsible-panel-height,auto)]`,
         className,
       )}
       data-slot="collapsible-panel"
