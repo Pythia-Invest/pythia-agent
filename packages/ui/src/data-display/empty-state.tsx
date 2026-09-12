@@ -1,4 +1,5 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { cn } from "../class-name";
 
 /** Props for a bounded empty-state explanation and optional next action. */
 export interface EmptyStateProps
@@ -26,19 +27,28 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div
-      className={["py-empty-state", className].filter(Boolean).join(" ")}
+      className={cn(
+        "grid place-items-center gap-2 rounded-container border border-border border-dashed bg-subtle px-4 public:py-12 py-8 text-center text-body text-foreground leading-ui",
+        className,
+      )}
+      data-slot="empty-state"
       {...props}
     >
       {icon ? (
-        <div aria-hidden="true" className="py-empty-state__icon">
+        <div
+          aria-hidden="true"
+          className="grid size-12 place-items-center text-foreground-secondary [&>svg]:size-8"
+        >
           {icon}
         </div>
       ) : null}
-      <div className="py-empty-state__title">{title}</div>
+      <div className="font-semibold text-reading">{title}</div>
       {description ? (
-        <div className="py-empty-state__description">{description}</div>
+        <div className="max-w-measure text-foreground-secondary">
+          {description}
+        </div>
       ) : null}
-      {action ? <div className="py-empty-state__action">{action}</div> : null}
+      {action ? <div className="mt-2">{action}</div> : null}
     </div>
   );
 }

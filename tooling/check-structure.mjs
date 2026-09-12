@@ -14,16 +14,25 @@ const SOURCE_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
 ]);
+// Tool-owned state that lives inside the tree but is never hand-authored.
+// Mirrors the directory names in .gitignore; extend both together.
 const IGNORED_DIRECTORIES = new Set([
+  ".ds-sync",
   ".git",
   ".local",
+  ".mypy_cache",
   ".next",
   ".private",
+  ".pytest_cache",
+  ".ruff_cache",
   ".turbo",
+  ".venv",
   "__pycache__",
   "coverage",
   "dist",
+  "ds-bundle",
   "node_modules",
+  "venv",
 ]);
 const TEST_PATH =
   /(?:^|\/)(?:test|tests|__tests__|testing)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^.]+$/u;

@@ -3,7 +3,8 @@
 import { Collapsible as BaseCollapsible } from "@base-ui/react/collapsible";
 import { ChevronDown } from "lucide-react";
 import type { ComponentProps } from "react";
-import { mergeClassName } from "../overlays/class-names";
+import { cnState } from "../class-name";
+import { disclosureClasses } from "./shared";
 
 function CollapsibleRoot({
   className,
@@ -12,8 +13,12 @@ function CollapsibleRoot({
 }: ComponentProps<typeof BaseCollapsible.Root>) {
   return (
     <BaseCollapsible.Root
-      className={mergeClassName("py-collapsible", className)}
+      className={cnState(
+        "overflow-hidden rounded-container border border-border bg-raised text-foreground data-disabled:opacity-disabled",
+        className,
+      )}
       data-disabled={disabled ? "" : undefined}
+      data-slot="collapsible"
       disabled={disabled}
       {...props}
     />
@@ -27,11 +32,19 @@ function CollapsibleTrigger({
 }: ComponentProps<typeof BaseCollapsible.Trigger>) {
   return (
     <BaseCollapsible.Trigger
-      className={mergeClassName("py-collapsible-trigger", className)}
+      className={cnState(
+        `group ${disclosureClasses.trigger} px-4 hover:bg-interaction-hover disabled:cursor-not-allowed`,
+        className,
+      )}
+      data-slot="collapsible-trigger"
       {...props}
     >
       <span>{children}</span>
-      <ChevronDown aria-hidden="true" className="py-collapsible-icon" />
+      <ChevronDown
+        aria-hidden="true"
+        className={`${disclosureClasses.icon} group-data-panel-open:rotate-180`}
+        data-slot="collapsible-icon"
+      />
     </BaseCollapsible.Trigger>
   );
 }
@@ -43,10 +56,19 @@ function CollapsiblePanel({
 }: ComponentProps<typeof BaseCollapsible.Panel>) {
   return (
     <BaseCollapsible.Panel
-      className={mergeClassName("py-collapsible-panel", className)}
+      className={cnState(
+        `${disclosureClasses.panel} h-[var(--collapsible-panel-height,auto)]`,
+        className,
+      )}
+      data-slot="collapsible-panel"
       {...props}
     >
-      <div className="py-collapsible-panel-content">{children}</div>
+      <div
+        className={`${disclosureClasses.content} border-border border-t p-4`}
+        data-slot="collapsible-panel-content"
+      >
+        {children}
+      </div>
     </BaseCollapsible.Panel>
   );
 }

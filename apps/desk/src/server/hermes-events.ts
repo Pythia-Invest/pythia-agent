@@ -1,5 +1,4 @@
 import type { ApprovalChoice, DeskRunEvent, RunUsage } from "./types";
-import { modelError } from "./model-error";
 
 const QUALIFIED_EVENTS = new Set([
   "message.delta",
@@ -50,12 +49,6 @@ function usage(value: unknown): RunUsage | undefined {
   return Object.keys(result).length ? result : undefined;
 }
 
-function runFailure(value: unknown) {
-  const classified = modelError(value);
-  if (classified) return classified;
-  return { error: "The Hermes run failed." };
-}
-
 export function mapHermesEvent(value: unknown): DeskRunEvent | null {
   const source = object(value);
   const event = string(source.event);
@@ -67,12 +60,17 @@ export function mapHermesEvent(value: unknown): DeskRunEvent | null {
     "text",
     "tool",
     "description",
+    "command",
     "request_id",
     "output",
     "status",
     "summary",
     "goal",
     "child_session_id",
+    "subagent_id",
+    "model",
+    "pending_steer",
+    "code",
   ] as const;
   for (const field of directStrings) {
     const value = string(source[field]);
@@ -82,6 +80,28 @@ export function mapHermesEvent(value: unknown): DeskRunEvent | null {
   const duration = number(source.duration);
   if (timestamp !== undefined) mapped.timestamp = timestamp;
   if (duration !== undefined) mapped.duration = duration;
+  for (const field of [
+    "task_count",
+    "task_index",
+    "tool_count",
+    "duration_seconds",
+    "input_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+    "api_calls",
+    "cost_usd",
+  ] as const) {
+    const value = number(source[field]);
+    if (value !== undefined) mapped[field] = value;
+  }
+  for (const field of ["files_read", "files_written"] as const) {
+    const value = source[field];
+    if (Array.isArray(value)) {
+      mapped[field] = value.filter(
+        (entry): entry is string => typeof entry === "string",
+      );
+    }
+  }
   if (source.preview === null) mapped.preview = null;
   else if (typeof source.preview === "string") mapped.preview = source.preview;
   if (event === "tool.completed" && typeof source.error === "boolean") {
@@ -101,7 +121,10 @@ export function mapHermesEvent(value: unknown): DeskRunEvent | null {
       mapped.choice = choice as ApprovalChoice;
     }
   }
-  if (event === "run.failed") Object.assign(mapped, runFailure(source.error));
+  if (event === "run.failed") {
+    const error = string(source.error);
+    if (error !== undefined) mapped.error = error;
+  }
   const runUsage = usage(source.usage);
   if (runUsage) mapped.usage = runUsage;
   return mapped;

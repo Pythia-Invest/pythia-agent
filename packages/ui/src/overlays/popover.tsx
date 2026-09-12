@@ -2,7 +2,9 @@
 
 import { Popover as BasePopover } from "@base-ui/react/popover";
 import type { ComponentProps } from "react";
-import { mergeClassName } from "./class-names";
+import { cnState } from "../class-name";
+import { OverlayArrowShape, overlayArrowClasses } from "./arrow";
+import { overlayClasses } from "./shared";
 
 function PopoverPositioner({
   className,
@@ -10,7 +12,8 @@ function PopoverPositioner({
 }: ComponentProps<typeof BasePopover.Positioner>) {
   return (
     <BasePopover.Positioner
-      className={mergeClassName("py-floating-positioner", className)}
+      className={cnState(overlayClasses.positioner, className)}
+      data-slot="popover-positioner"
       sideOffset={8}
       {...props}
     />
@@ -23,24 +26,32 @@ function PopoverPopup({
 }: ComponentProps<typeof BasePopover.Popup>) {
   return (
     <BasePopover.Popup
-      className={mergeClassName(
-        "py-floating-popup py-popover-popup",
+      className={cnState(
+        `${overlayClasses.surface} ${overlayClasses.floating}`,
         className,
       )}
+      data-slot="popover-popup"
       {...props}
     />
   );
 }
 
 function PopoverArrow({
+  children,
   className,
   ...props
 }: ComponentProps<typeof BasePopover.Arrow>) {
   return (
     <BasePopover.Arrow
-      className={mergeClassName("py-floating-arrow", className)}
+      className={cnState(
+        `${overlayArrowClasses} ${overlayClasses.arrow}`,
+        className,
+      )}
+      data-slot="popover-arrow"
       {...props}
-    />
+    >
+      {children ?? <OverlayArrowShape />}
+    </BasePopover.Arrow>
   );
 }
 
@@ -50,7 +61,8 @@ function PopoverTitle({
 }: ComponentProps<typeof BasePopover.Title>) {
   return (
     <BasePopover.Title
-      className={mergeClassName("py-overlay-title", className)}
+      className={cnState(overlayClasses.title, className)}
+      data-slot="popover-title"
       {...props}
     />
   );
@@ -62,19 +74,30 @@ function PopoverDescription({
 }: ComponentProps<typeof BasePopover.Description>) {
   return (
     <BasePopover.Description
-      className={mergeClassName("py-overlay-description", className)}
+      className={cnState(overlayClasses.description, className)}
+      data-slot="popover-description"
       {...props}
     />
   );
 }
 
+/*
+ * `render` means the caller brought their own styled component. Base UI's
+ * mergeProps concatenates class names rather than tailwind-merging them, so
+ * applying the close recipe on top would let its `bg-transparent`/`border-0`
+ * beat that component's own variant on CSS source order alone. Style the bare
+ * close affordance; step aside for a supplied one.
+ */
 function PopoverClose({
   className,
+  render,
   ...props
 }: ComponentProps<typeof BasePopover.Close>) {
   return (
     <BasePopover.Close
-      className={mergeClassName("py-overlay-close", className)}
+      className={render ? className : cnState(overlayClasses.close, className)}
+      data-slot="popover-close"
+      render={render}
       {...props}
     />
   );

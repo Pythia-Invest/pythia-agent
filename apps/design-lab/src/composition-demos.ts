@@ -4,7 +4,9 @@ export interface CompositionDemoEntry {
   readonly key:
     | "public-profile"
     | "product-shell-density"
-    | "research-evidence-semantics";
+    | "research-evidence-semantics"
+    | "chat-typography"
+    | "reasoning-effort-selectors";
   readonly name: string;
   readonly route: CompositionDemoRoute;
   readonly scope: string;
@@ -31,11 +33,27 @@ export const researchEvidenceSemanticsCompositionDemo = {
   scope: "Shared research and finance semantics composed together.",
 } as const satisfies CompositionDemoEntry;
 
-/** The three fixed composition destinations are separate from the component catalog. */
+export const chatTypographyCompositionDemo = {
+  key: "chat-typography",
+  name: "Chat typography",
+  route: "/demonstrations/chat-typography",
+  scope: "One synthetic exchange set in candidate reading typefaces.",
+} as const satisfies CompositionDemoEntry;
+
+export const reasoningEffortSelectorsCompositionDemo = {
+  key: "reasoning-effort-selectors",
+  name: "Reasoning effort selectors",
+  route: "/demonstrations/reasoning-effort-selectors",
+  scope: "Three interactive compact selectors for Hermes reasoning effort.",
+} as const satisfies CompositionDemoEntry;
+
+/** The fixed composition destinations are separate from the component catalog. */
 export const compositionDemoManifest = [
   publicProfileCompositionDemo,
   productShellDensityCompositionDemo,
   researchEvidenceSemanticsCompositionDemo,
+  chatTypographyCompositionDemo,
+  reasoningEffortSelectorsCompositionDemo,
 ] as const satisfies readonly CompositionDemoEntry[];
 
 export function compositionDemoEntryFromPathname(

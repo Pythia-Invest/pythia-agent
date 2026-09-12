@@ -58,9 +58,10 @@ just builder-sync
 just check-ai-workspace
 ```
 
-Generated Claude/Codex/Cursor files are ignored local copies. The check uses
-disposable destinations and does not require generated files, existing tool
-configuration, or active hooks.
+Generated Claude/Codex/Cursor files are ignored local copies. Run
+`just setup-hooks` once to have them refreshed by Git hooks after checkouts and
+merges. The check uses disposable destinations and does not require generated
+files, existing tool configuration, or active hooks.
 
 Use the Design Lab for reusable interface work. Keep applications dependent on
 `@pythia/ui`; they must not import the Lab or its synthetic fixtures.

@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import type { ComponentProps } from "react";
-import { joinClassNames } from "./class-name";
+import { cn } from "../class-name";
 
 export type PaginationProps = ComponentProps<"nav">;
 
@@ -20,7 +20,8 @@ export function Pagination({
   return (
     <nav
       aria-label={ariaLabel}
-      className={joinClassNames("pythia-pagination", className)}
+      className={cn("text-body text-foreground-secondary", className)}
+      data-slot="pagination"
       {...props}
     />
   );
@@ -39,7 +40,11 @@ export type PaginationListProps = ComponentProps<"ul">;
 export function PaginationList({ className, ...props }: PaginationListProps) {
   return (
     <ul
-      className={joinClassNames("pythia-pagination__list", className)}
+      className={cn(
+        "m-0 flex list-none flex-wrap items-center gap-2 p-0",
+        className,
+      )}
+      data-slot="pagination-list"
       {...props}
     />
   );
@@ -57,7 +62,8 @@ export type PaginationItemProps = ComponentProps<"li">;
 export function PaginationItem({ className, ...props }: PaginationItemProps) {
   return (
     <li
-      className={joinClassNames("pythia-pagination__item", className)}
+      className={cn("inline-flex items-center", className)}
+      data-slot="pagination-item"
       {...props}
     />
   );
@@ -85,8 +91,12 @@ export function PaginationLink({
   return (
     <a
       aria-current={current ? "page" : ariaCurrent}
-      className={joinClassNames("pythia-pagination__link", className)}
+      className={cn(
+        "motion-fast inline-flex min-h-control min-w-control items-center justify-center gap-1 rounded-control border border-transparent px-2 text-foreground-secondary no-underline transition-colors hover:bg-interaction-hover hover:text-foreground data-current:border-border data-current:bg-interaction-active data-current:font-semibold data-current:text-foreground [&>svg]:size-4",
+        className,
+      )}
       data-current={current ? "" : undefined}
+      data-slot="pagination-link"
       {...props}
     />
   );
@@ -153,11 +163,15 @@ export function PaginationEllipsis({
 }: PaginationEllipsisProps) {
   return (
     <span
-      className={joinClassNames("pythia-pagination__ellipsis", className)}
+      className={cn(
+        "inline-flex items-center justify-center text-foreground-secondary [&>svg]:size-4",
+        className,
+      )}
+      data-slot="pagination-ellipsis"
       {...props}
     >
       <MoreHorizontal aria-hidden="true" />
-      <span className="pythia-visually-hidden">{children ?? "More pages"}</span>
+      <span className="sr-only">{children ?? "More pages"}</span>
     </span>
   );
 }

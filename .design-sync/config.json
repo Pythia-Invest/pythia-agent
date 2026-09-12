@@ -1,0 +1,182 @@
+{
+  "projectId": "1febbc26-a9c8-4769-91ee-3cc35d410d76",
+  "shape": "package",
+  "pkg": "@pythia/ui",
+  "globalName": "PythiaUI",
+  "srcDir": "src",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": "dist/design-sync.css",
+  "buildCmd": "pnpm -F \"@pythia/ui...\" build && ./.ds-sync/node_modules/.bin/tailwindcss -i .design-sync/tailwind-entry.css -o packages/ui/dist/design-sync.css && mkdir -p packages/ui/dist/assets && cp packages/ui/src/assets/*.woff2 packages/ui/dist/assets/",
+  "componentSrcMap": {
+    "ActivityIndicator": "src/feedback/activity.tsx",
+    "AlertDialog": "src/overlays/dialog.tsx",
+    "BreadcrumbEllipsis": null,
+    "BreadcrumbItem": null,
+    "BreadcrumbLink": null,
+    "BreadcrumbList": null,
+    "BreadcrumbPage": null,
+    "BreadcrumbSeparator": null,
+    "ButtonGroup": "src/actions/button.tsx",
+    "Calendar": "src/calendar/calendar.tsx",
+    "Citation": "src/semantics/research.tsx",
+    "ComboboxEmpty": null,
+    "ComboboxGroup": null,
+    "ComboboxGroupLabel": null,
+    "ComboboxInput": null,
+    "ComboboxInputGroup": null,
+    "ComboboxItem": null,
+    "ComboboxList": null,
+    "ComboboxPopup": null,
+    "ComboboxPortal": null,
+    "ComboboxPositioner": null,
+    "ComboboxTrigger": null,
+    "CommandEmpty": null,
+    "CommandGroup": null,
+    "CommandInput": null,
+    "CommandItem": null,
+    "CommandList": null,
+    "CommandLoading": null,
+    "CommandSeparator": null,
+    "Container": "src/layout/layout.tsx",
+    "DropdownMenu": "src/overlays/menu.tsx",
+    "EpistemicLabel": "src/semantics/research.tsx",
+    "FinancialValue": "src/semantics/finance.tsx",
+    "FreshnessLabel": "src/semantics/research.tsx",
+    "HoverCard": "src/overlays/preview-card.tsx",
+    "IconButton": "src/actions/button.tsx",
+    "Inline": "src/layout/layout.tsx",
+    "Input": "src/forms/field.tsx",
+    "InputGroup": "src/forms/field.tsx",
+    "KnowledgeState": "src/semantics/messages.tsx",
+    "Label": "src/forms/field.tsx",
+    "LinkButton": "src/actions/button.tsx",
+    "MarketDirection": "src/semantics/finance.tsx",
+    "NavigationMenuContent": null,
+    "NavigationMenuItem": null,
+    "NavigationMenuLink": null,
+    "NavigationMenuList": null,
+    "NavigationMenuPopup": null,
+    "NavigationMenuPortal": null,
+    "NavigationMenuPositioner": null,
+    "NavigationMenuTrigger": null,
+    "NavigationMenuViewport": null,
+    "OTPField": "src/forms/otp-field.tsx",
+    "PaginationEllipsis": null,
+    "PaginationItem": null,
+    "PaginationLink": null,
+    "PaginationList": null,
+    "PaginationNext": null,
+    "PaginationPrevious": null,
+    "Provenance": "src/semantics/research.tsx",
+    "PythiaLockup": null,
+    "PythiaSignal": "src/semantics/research.tsx",
+    "PythiaToastProvider": null,
+    "Radio": null,
+    "ResizableGroup": "src/layout/resizable-panels.tsx",
+    "ResizablePanel": null,
+    "ResizableSeparator": null,
+    "SearchSelectInput": null,
+    "SearchSelectList": null,
+    "SearchSelectPopup": null,
+    "SearchSelectRoot": null,
+    "SearchSelectTrigger": null,
+    "SearchSelectValue": null,
+    "SelectGroup": null,
+    "SelectGroupLabel": null,
+    "SelectItem": null,
+    "SelectList": null,
+    "SelectPopup": null,
+    "SelectPortal": null,
+    "SelectPositioner": null,
+    "SelectSeparator": null,
+    "SelectTrigger": null,
+    "SelectValue": null,
+    "SemanticMessage": "src/semantics/messages.tsx",
+    "Sheet": "src/overlays/drawer.tsx",
+    "SidebarButton": null,
+    "SidebarContent": null,
+    "SidebarFooter": null,
+    "SidebarHeader": null,
+    "SidebarItem": null,
+    "SidebarList": null,
+    "SidebarNav": null,
+    "SidebarSection": null,
+    "SidebarSectionLabel": null,
+    "SourceMetadata": "src/semantics/research.tsx",
+    "Stack": "src/layout/layout.tsx",
+    "Tab": null,
+    "TabPanel": null,
+    "TableBody": null,
+    "TableCaption": null,
+    "TableCell": null,
+    "TableHead": null,
+    "TableHeader": null,
+    "TableRow": null,
+    "TabsList": null,
+    "Textarea": "src/forms/field.tsx",
+    "ToggleGroup": "src/actions/toggle.tsx"
+  },
+  "docsMap": {
+    "Calendar": "../../.design-sync/docs/Calendar.md"
+  },
+  "dtsPropsFor": {
+    "Accordion": "/** Compound namespace: compose as Accordion.Root > Accordion.Item > Accordion.Header > Accordion.Trigger + Accordion.Panel. These are the Root props; Item takes `value` and `disabled`. */\n  /** Open item values. Always an array, including in single-expansion mode. */\n  value?: (string | number)[];\n  /** Initially open item values. Always an array, even when `multiple` is false. */\n  defaultValue?: (string | number)[];\n  onValueChange?: (value: (string | number)[]) => void;\n  /** Allow more than one section open at a time. Defaults to false. */\n  multiple?: boolean;\n  disabled?: boolean;\n  /** Keep panel content mounted while closed, for find-in-page and SEO. */\n  keepMounted?: boolean;\n  orientation?: \"horizontal\" | \"vertical\";\n  className?: string;\n  children?: React.ReactNode;",
+    "Collapsible": "/** Compound namespace: compose as Collapsible.Root > Collapsible.Trigger + Collapsible.Panel. These are the Root props. An empty Root renders an empty box \u2014 it needs a Trigger and a Panel. */\n  open?: boolean;\n  defaultOpen?: boolean;\n  onOpenChange?: (open: boolean) => void;\n  disabled?: boolean;\n  className?: string;\n  children?: React.ReactNode;",
+    "Details": "/** Compound namespace over the native details/summary elements: compose as Details.Root > Details.Summary + Details.Content. Summary must come first. These are the Root props \u2014 it accepts every native <details> prop. */\n  open?: boolean;\n  onToggle?: React.ReactEventHandler<HTMLDetailsElement>;\n  /** Native exclusive-accordion grouping name. */\n  name?: string;\n  className?: string;\n  children?: React.ReactNode;",
+    "SearchSelect": "/** Compound namespace: compose as SearchSelect.Root > SearchSelect.Trigger (with SearchSelect.Value) > SearchSelect.Popup > SearchSelect.Input + SearchSelect.List. `SearchSelect` is a namespace object, not a renderable component. Render SearchSelect.Root; put Popup inside Portal and Positioner. These are the Root props. */\n  value?: string;\n  defaultValue?: string;\n  onValueChange?: (value: string) => void;\n  open?: boolean;\n  defaultOpen?: boolean;\n  onOpenChange?: (open: boolean) => void;\n  disabled?: boolean;\n  readOnly?: boolean;\n  required?: boolean;\n  name?: string;\n  className?: string;\n  children?: React.ReactNode;"
+  },
+  "overrides": {
+    "Separator": {
+      "cardMode": "column"
+    },
+    "Progress": {
+      "cardMode": "single",
+      "primaryStory": "ValueSweep"
+    },
+    "Dialog": {
+      "cardMode": "single",
+      "primaryStory": "EditPositionNote"
+    },
+    "AlertDialog": {
+      "cardMode": "single",
+      "primaryStory": "DeleteWatchlist"
+    },
+    "Drawer": {
+      "cardMode": "single",
+      "primaryStory": "EvidenceDrawer"
+    },
+    "Sheet": {
+      "cardMode": "single",
+      "primaryStory": "ExportOptions"
+    },
+    "Popover": {
+      "cardMode": "single",
+      "primaryStory": "ColumnFilter"
+    },
+    "Tooltip": {
+      "cardMode": "single",
+      "primaryStory": "FreshnessHint"
+    },
+    "Menu": {
+      "cardMode": "single",
+      "primaryStory": "RowActions"
+    },
+    "DropdownMenu": {
+      "cardMode": "single",
+      "primaryStory": "SavedViews"
+    },
+    "ContextMenu": {
+      "cardMode": "single",
+      "primaryStory": "OpenAtPointer"
+    },
+    "PreviewCard": {
+      "cardMode": "single",
+      "primaryStory": "IssuerPreview"
+    },
+    "HoverCard": {
+      "cardMode": "single",
+      "primaryStory": "FilingPreview"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}

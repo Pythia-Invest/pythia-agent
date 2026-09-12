@@ -1,7 +1,7 @@
 "use client";
 
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
-import { mergeStatefulClassName } from "./class-name";
+import { cnState } from "../class-name";
 
 export type TabsProps = TabsPrimitive.Root.Props;
 
@@ -17,7 +17,11 @@ export type TabsProps = TabsPrimitive.Root.Props;
 export function Tabs({ className, ...props }: TabsProps) {
   return (
     <TabsPrimitive.Root
-      className={mergeStatefulClassName("pythia-tabs", className)}
+      className={cnState(
+        "min-w-0 max-w-full text-body text-foreground",
+        className,
+      )}
+      data-slot="tabs"
       {...props}
     />
   );
@@ -36,7 +40,11 @@ export type TabsListProps = TabsPrimitive.List.Props;
 export function TabsList({ className, ...props }: TabsListProps) {
   return (
     <TabsPrimitive.List
-      className={mergeStatefulClassName("pythia-tabs__list", className)}
+      className={cnState(
+        "flex max-w-full items-center gap-1 overflow-x-auto border-border border-b data-[orientation=vertical]:flex-col data-[orientation=vertical]:items-stretch data-[orientation=vertical]:border-r data-[orientation=vertical]:border-b-0",
+        className,
+      )}
+      data-slot="tabs-list"
       {...props}
     />
   );
@@ -55,7 +63,11 @@ export type TabProps = TabsPrimitive.Tab.Props;
 export function Tab({ className, ...props }: TabProps) {
   return (
     <TabsPrimitive.Tab
-      className={mergeStatefulClassName("pythia-tabs__tab", className)}
+      className={cnState(
+        "motion-fast min-h-control border-0 border-transparent border-b-2 bg-transparent px-3 py-1 text-foreground-secondary transition-colors hover:bg-interaction-hover hover:text-foreground data-disabled:cursor-not-allowed data-active:border-primary data-[orientation=vertical]:border-r-2 data-[orientation=vertical]:border-b-0 data-active:bg-transparent data-[orientation=vertical]:text-start data-active:text-foreground data-disabled:opacity-disabled",
+        className,
+      )}
+      data-slot="tab"
       {...props}
     />
   );
@@ -74,7 +86,8 @@ export type TabPanelProps = TabsPrimitive.Panel.Props;
 export function TabPanel({ className, ...props }: TabPanelProps) {
   return (
     <TabsPrimitive.Panel
-      className={mergeStatefulClassName("pythia-tabs__panel", className)}
+      className={cnState("py-4", className)}
+      data-slot="tab-panel"
       {...props}
     />
   );

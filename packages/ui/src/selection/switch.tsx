@@ -1,7 +1,7 @@
 "use client";
 
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
-import { mergeStatefulClassName } from "./class-name";
+import { cnState } from "../class-name";
 
 export type SwitchProps = Omit<SwitchPrimitive.Root.Props, "children">;
 
@@ -17,10 +17,17 @@ export type SwitchProps = Omit<SwitchPrimitive.Root.Props, "children">;
 export function Switch({ className, ...props }: SwitchProps) {
   return (
     <SwitchPrimitive.Root
-      className={mergeStatefulClassName("pythia-switch", className)}
+      className={cnState(
+        "motion-fast inline-flex min-h-5 w-9 items-center rounded-pill border border-border-strong bg-subtle p-0.5 transition-colors hover:bg-interaction-hover data-disabled:cursor-not-allowed data-checked:border-primary data-checked:bg-primary data-disabled:opacity-disabled",
+        className,
+      )}
+      data-slot="switch"
       {...props}
     >
-      <SwitchPrimitive.Thumb className="pythia-switch__thumb" />
+      <SwitchPrimitive.Thumb
+        className="motion-standard size-3.5 translate-x-0 rounded-pill bg-foreground-secondary transition-[background-color,transform] data-checked:translate-x-4 data-checked:bg-primary-foreground"
+        data-slot="switch-thumb"
+      />
     </SwitchPrimitive.Root>
   );
 }

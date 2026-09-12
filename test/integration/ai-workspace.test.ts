@@ -107,12 +107,11 @@ describe("public development-agent workspace", () => {
       "Independently reviews frozen changes for correctness, scope, boundaries, and missing evidence.",
     );
     expect(parsed.sandbox_mode).toBe("read-only");
-    expect(parsed.developer_instructions).toContain(
-      "Review a frozen target in fresh context.",
-    );
-    expect(
-      String(parsed.developer_instructions).split("\n").length,
-    ).toBeGreaterThan(10);
+    const canonicalRole = readFileSync(
+      path.join(repository, ".agents/agents/reviewer.md"),
+      "utf8",
+    ).replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, "");
+    expect(parsed.developer_instructions).toBe(`${canonicalRole.trim()}\n`);
   });
 
   test("every adapter refuses a same-name unowned destination before writing", () => {

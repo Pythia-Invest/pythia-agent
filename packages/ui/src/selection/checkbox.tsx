@@ -2,7 +2,7 @@
 
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
 import { Check, Minus } from "lucide-react";
-import { mergeStatefulClassName } from "./class-name";
+import { cnState } from "../class-name";
 
 export type CheckboxProps = Omit<CheckboxPrimitive.Root.Props, "children">;
 
@@ -18,12 +18,27 @@ export type CheckboxProps = Omit<CheckboxPrimitive.Root.Props, "children">;
 export function Checkbox({ className, ...props }: CheckboxProps) {
   return (
     <CheckboxPrimitive.Root
-      className={mergeStatefulClassName("pythia-checkbox", className)}
+      className={cnState(
+        "group motion-fast inline-flex size-[1.125rem] flex-none items-center justify-center rounded-[calc(var(--radius-control)/2)] border border-border-strong bg-raised text-foreground transition-colors hover:bg-interaction-hover data-disabled:cursor-not-allowed data-checked:border-primary data-indeterminate:border-primary data-checked:bg-primary data-indeterminate:bg-primary data-checked:text-primary-foreground data-indeterminate:text-primary-foreground data-disabled:opacity-disabled",
+        className,
+      )}
+      data-slot="checkbox"
       {...props}
     >
-      <CheckboxPrimitive.Indicator className="pythia-checkbox__indicator">
-        <Check aria-hidden="true" className="pythia-checkbox__check" />
-        <Minus aria-hidden="true" className="pythia-checkbox__mixed" />
+      <CheckboxPrimitive.Indicator
+        className="inline-flex items-center justify-center [&>svg]:size-[0.8rem] [&>svg]:stroke-[2.5]"
+        data-slot="checkbox-indicator"
+      >
+        <Check
+          aria-hidden="true"
+          className="group-data-indeterminate:hidden"
+          data-slot="checkbox-check"
+        />
+        <Minus
+          aria-hidden="true"
+          className="hidden group-data-indeterminate:block"
+          data-slot="checkbox-mixed"
+        />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );

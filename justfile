@@ -56,6 +56,10 @@ test-system:
 qualify:
     pnpm run test:qualification
 
+# Desk browser smoke tests against a Desk that is already running (see `just dev-paths`).
+test-e2e desk_url:
+    PYTHIA_DESK_URL="{{desk_url}}" pnpm --filter @pythia/desk test:e2e
+
 # The only registry/network dependency check.
 audit:
     pnpm audit --prod --audit-level high
@@ -134,6 +138,11 @@ check-rules:
 
 # Project every adapter needed by locally installed builder tools.
 builder-sync: ai-sync sync-agents sync-rules
+
+# Opt in to repository Git hooks that re-run builder-sync after checkout and merge.
+setup-hooks:
+    git config core.hooksPath .githooks
+    just builder-sync
 
 # Check canonical builder source and exercise every adapter in a disposable root.
 check-ai-workspace:

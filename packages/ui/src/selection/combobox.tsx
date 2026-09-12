@@ -2,7 +2,9 @@
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { Check, ChevronDown } from "lucide-react";
-import { mergeStatefulClassName } from "./class-name";
+import { createContext, useContext } from "react";
+import { cnState } from "../class-name";
+import { pickerClasses } from "./shared";
 
 /**
  * Native Base UI searchable selection state owner for typed values.
@@ -23,10 +25,9 @@ export type ComboboxInputGroupProps = ComboboxPrimitive.InputGroup.Props;
  *
  * It forwards Base UI render and state-aware class props, including disabled,
  * invalid, and open states. Its compact height and typography match Select
- * while retaining a wider search minimum in Public/Product and light/dark.
- * Focus and keyboard behavior remain on the
- * native input and trigger. Use it only to group those controls; do not place
- * application actions inside it.
+ * while retaining a wider search minimum. Focus and keyboard behavior remain
+ * on the native input and trigger. Use it only to group those controls; do not
+ * place application actions inside it.
  */
 export function ComboboxInputGroup({
   className,
@@ -34,10 +35,11 @@ export function ComboboxInputGroup({
 }: ComboboxInputGroupProps) {
   return (
     <ComboboxPrimitive.InputGroup
-      className={mergeStatefulClassName(
-        "pythia-combobox__input-group",
+      className={cnState(
+        `${pickerClasses.controlHeight} motion-fast inline-flex min-w-48 items-center rounded-control border border-border bg-raised text-foreground text-sm transition-colors focus-within:border-border-strong focus-within:outline-2 focus-within:outline-ring focus-within:outline-offset-2 hover:border-border-strong hover:bg-interaction-hover data-disabled:cursor-not-allowed data-disabled:opacity-disabled`,
         className,
       )}
+      data-slot="combobox-input-group"
       {...props}
     />
   );
@@ -57,7 +59,11 @@ export type ComboboxInputProps = ComboboxPrimitive.Input.Props;
 export function ComboboxInput({ className, ...props }: ComboboxInputProps) {
   return (
     <ComboboxPrimitive.Input
-      className={mergeStatefulClassName("pythia-combobox__input", className)}
+      className={cnState(
+        "min-h-[calc(var(--spacing-control)-2px)] min-w-0 flex-1 border-0 bg-transparent px-3 text-foreground outline-0 placeholder:text-foreground-secondary focus-visible:outline-none",
+        className,
+      )}
+      data-slot="combobox-input"
       {...props}
     />
   );
@@ -80,7 +86,11 @@ export function ComboboxTrigger({
 }: ComboboxTriggerProps) {
   return (
     <ComboboxPrimitive.Trigger
-      className={mergeStatefulClassName("pythia-combobox__trigger", className)}
+      className={cnState(
+        `${pickerClasses.chevron} self-stretch border-0 border-border border-l bg-transparent px-2 focus-visible:outline-none`,
+        className,
+      )}
+      data-slot="combobox-trigger"
       {...props}
     >
       {children ?? <ChevronDown aria-hidden="true" />}
@@ -114,10 +124,8 @@ export function ComboboxPositioner({
 }: ComboboxPositionerProps) {
   return (
     <ComboboxPrimitive.Positioner
-      className={mergeStatefulClassName(
-        "pythia-combobox__positioner",
-        className,
-      )}
+      className={cnState(pickerClasses.positioner, className)}
+      data-slot="combobox-positioner"
       sideOffset={sideOffset}
       {...props}
     />
@@ -137,52 +145,99 @@ export type ComboboxPopupProps = ComboboxPrimitive.Popup.Props;
 export function ComboboxPopup({ className, ...props }: ComboboxPopupProps) {
   return (
     <ComboboxPrimitive.Popup
-      className={mergeStatefulClassName("pythia-combobox__popup", className)}
+      className={cnState(`${pickerClasses.popup} p-1`, className)}
+      data-slot="combobox-popup"
       {...props}
     />
   );
 }
 
-export type ComboboxListProps = ComboboxPrimitive.List.Props;
+export type ComboboxDensity = "default" | "compact";
+
+export type ComboboxListProps = ComboboxPrimitive.List.Props & {
+  density?: ComboboxDensity;
+};
+
+const listDensity: Record<ComboboxDensity, string> = {
+  default:
+    "max-h-[min(20rem,calc(var(--available-height)-0.5rem))] scroll-py-1",
+  compact:
+    "max-h-[min(19.25rem,calc(var(--available-height)-0.5rem))] scroll-py-0.5",
+};
+
+const ComboboxDensityContext = createContext<ComboboxDensity>("default");
 
 /**
  * Scrollable result list for a `Combobox`.
  *
- * It forwards Base UI list props and inherits profile density and light/dark
- * tokens without variants. Base UI owns listbox semantics, active descendant,
- * and keyboard navigation. Render native items or a native collection inside;
- * do not create a parallel focusable result list.
+ * It forwards Base UI list props and supplies one density to every descendant
+ * item. Scrolling stays on this inset inner viewport, keeping its scrollbar and
+ * first row clear of the rounded popup shell. Base UI owns listbox semantics,
+ * active descendant, and keyboard navigation. Render native items or a native
+ * collection inside; do not create a parallel focusable result list.
  */
-export function ComboboxList({ className, ...props }: ComboboxListProps) {
+export function ComboboxList({
+  className,
+  density = "default",
+  ...props
+}: ComboboxListProps) {
   return (
-    <ComboboxPrimitive.List
-      className={mergeStatefulClassName("pythia-combobox__list", className)}
-      {...props}
-    />
+    <ComboboxDensityContext.Provider value={density}>
+      <ComboboxPrimitive.List
+        className={cnState(
+          `overflow-y-auto overscroll-contain rounded-control ${listDensity[density]}`,
+          className,
+        )}
+        data-density={density}
+        data-slot="combobox-list"
+        {...props}
+      />
+    </ComboboxDensityContext.Provider>
   );
 }
 
-export type ComboboxItemProps = ComboboxPrimitive.Item.Props;
+export type ComboboxItemProps = ComboboxPrimitive.Item.Props & {
+  density?: ComboboxDensity;
+};
+
+const itemDensity: Record<ComboboxDensity, string> = {
+  default: pickerClasses.item,
+  compact:
+    "flex min-h-7 cursor-pointer items-center gap-1.5 rounded-control px-1.5 py-0.5 text-foreground text-xs data-highlighted:bg-interaction-hover data-disabled:cursor-not-allowed data-disabled:opacity-disabled",
+};
 
 /**
  * One selectable result in a `ComboboxList`.
  *
  * Typed value, index, disabled, render, and state-aware props remain Base UI's
- * API. Selected and highlighted states use neutral selection/interaction tokens
- * across profiles/themes. Base UI owns item matching, pointer selection, and
- * keyboard activation. Supply stable values; do not use amber as an active cue.
+ * API. It inherits the list density by default; compact rows align to a 28px
+ * grid. Selected and highlighted states use neutral selection/interaction
+ * tokens across profiles/themes. Base UI owns item matching, pointer selection,
+ * and keyboard activation. Supply stable values; do not use amber as an active
+ * cue.
  */
 export function ComboboxItem({
   children,
   className,
+  density: densityOverride,
   ...props
 }: ComboboxItemProps) {
+  const inheritedDensity = useContext(ComboboxDensityContext);
+  const density = densityOverride ?? inheritedDensity;
   return (
     <ComboboxPrimitive.Item
-      className={mergeStatefulClassName("pythia-combobox__item", className)}
+      className={cnState(
+        `${itemDensity[density]} data-selected:bg-interaction-active`,
+        className,
+      )}
+      data-density={density}
+      data-slot="combobox-item"
       {...props}
     >
-      <ComboboxPrimitive.ItemIndicator className="pythia-combobox__item-indicator">
+      <ComboboxPrimitive.ItemIndicator
+        className={pickerClasses.indicator}
+        data-slot="combobox-item-indicator"
+      >
         <Check aria-hidden="true" />
       </ComboboxPrimitive.ItemIndicator>
       {children}
@@ -203,7 +258,8 @@ export type ComboboxEmptyProps = ComboboxPrimitive.Empty.Props;
 export function ComboboxEmpty({ className, ...props }: ComboboxEmptyProps) {
   return (
     <ComboboxPrimitive.Empty
-      className={mergeStatefulClassName("pythia-combobox__empty", className)}
+      className={cnState(`${pickerClasses.empty} empty:hidden`, className)}
+      data-slot="combobox-empty"
       {...props}
     />
   );
@@ -221,7 +277,8 @@ export type ComboboxGroupProps = ComboboxPrimitive.Group.Props;
 export function ComboboxGroup({ className, ...props }: ComboboxGroupProps) {
   return (
     <ComboboxPrimitive.Group
-      className={mergeStatefulClassName("pythia-combobox__group", className)}
+      className={cnState("py-2", className)}
+      data-slot="combobox-group"
       {...props}
     />
   );
@@ -242,10 +299,8 @@ export function ComboboxGroupLabel({
 }: ComboboxGroupLabelProps) {
   return (
     <ComboboxPrimitive.GroupLabel
-      className={mergeStatefulClassName(
-        "pythia-combobox__group-label",
-        className,
-      )}
+      className={cnState(pickerClasses.groupLabel, className)}
+      data-slot="combobox-group-label"
       {...props}
     />
   );

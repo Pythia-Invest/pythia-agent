@@ -1,0 +1,65 @@
+/*
+ * Tailwind entry for the claude.ai/design sync only.
+ *
+ * packages/ui/src/styles.css carries the tokens, @font-face rules and the
+ * Tailwind theme, but the utility classes the components use are generated at
+ * app build time from @source. Claude Design consumes a static stylesheet, so
+ * this entry compiles the same closure the apps do into one file.
+ *
+ * The @source inline(...) block below is the preview glue vocabulary: the
+ * fixed set of layout utilities preview authors may use. It is safelisted so
+ * a scoped preview rebuild (which does not re-run Tailwind) can never render
+ * against a stylesheet that is missing a class the preview just introduced.
+ * Adding a class to a preview means adding it here too.
+ */
+@import "tailwindcss";
+@import "../packages/ui/src/styles.css";
+@source "../packages/ui/src";
+@source "./previews";
+
+@source inline("{block,hidden,flex,inline-flex,grid,contents}");
+@source inline("{flex-col,flex-row,flex-wrap,flex-1,shrink-0,grow}");
+@source inline("items-{center,start,end,baseline,stretch}");
+@source inline("justify-{center,start,end,between,around}");
+@source inline("grid-cols-{1,2,3,4}");
+@source inline("gap-{0,1,1.5,2,2.5,3,4,5,6,8}");
+@source inline("gap-{x,y}-{1,2,3,4,6}");
+@source inline("{p,px,py,pt,pb,pl,pr}-{0,1,2,3,4,5,6,8}");
+@source inline("{m,mt,mb,ml,mr}-{0,1,2,3,4,6}");
+@source inline("w-{full,fit,auto}");
+@source inline("h-{full,fit,auto}");
+@source inline("max-w-{xs,sm,md,lg,xl,2xl,none}");
+@source inline("min-w-0");
+@source inline("text-{xs,sm,base,lg,xl,body,reading,display}");
+@source inline("font-{normal,medium,semibold,bold}");
+@source inline("text-{left,center,right,start,end}");
+@source inline("text-{foreground,foreground-secondary,foreground-disabled}");
+@source inline("text-{error,success,warning,info}");
+@source inline("bg-{canvas,container,raised,subtle,transparent}");
+@source inline("border{,-t,-b,-l,-r}");
+@source inline("border-{border,border-strong,transparent}");
+@source inline("rounded{,-sm,-md,-lg,-xl,-full}");
+@source inline("{truncate,tabular-nums,leading-relaxed,leading-tight,list-none,whitespace-nowrap,overflow-hidden}");
+@source inline("{self-center,self-start,self-stretch,mx-auto,ml-auto,mr-auto}");
+
+/*
+ * The design system's own vocabulary, in full.
+ *
+ * `@theme inline` inlines the --py-* values into utilities instead of emitting
+ * --color-* variables, and Tailwind only generates a utility it has actually
+ * seen used. Without this block the shipped stylesheet carries only the classes
+ * the library and these previews happen to use — so a design the agent writes
+ * with a legitimate theme name (text-impact-favorable, bg-atmosphere) would
+ * silently render unstyled. Every name below is documented in
+ * .design-sync/conventions.md; the two must stay in step.
+ */
+@source inline("{bg,text,border}-{atmosphere,border,border-strong,canvas,container,epistemic-fact,epistemic-human,epistemic-machine,epistemic-unknown,error,error-border,error-surface,foreground,foreground-disabled,foreground-secondary,freshness-current,freshness-delayed,freshness-stale,freshness-unknown,impact-favorable,impact-neutral,impact-unfavorable,impact-unresolved,info,info-border,info-surface,interaction-active,interaction-hover,market-down,market-flat,market-up,overlay,primary,primary-foreground,raised,ring,signal,signal-atmosphere,signal-foreground,subtle,success,success-border,success-surface,warning,warning-border,warning-surface}");
+@source inline("{,hover:,focus:,data-disabled:}bg-{atmosphere,border,border-strong,canvas,container,epistemic-fact,epistemic-human,epistemic-machine,epistemic-unknown,error,error-surface,foreground,foreground-disabled,foreground-secondary,freshness-current,freshness-delayed,freshness-stale,freshness-unknown,impact-favorable,impact-neutral,impact-unfavorable,impact-unresolved,info,info-surface,interaction-active,interaction-hover,market-down,market-flat,market-up,overlay,primary,primary-foreground,raised,ring,signal,signal-atmosphere,signal-foreground,subtle,success,success-surface,warning,warning-surface}");
+@source inline("rounded-{container,control,pill}");
+@source inline("{h,min-h,w,p,px,py,gap,gap-x,gap-y,m,mt,mb}-{control,group,gutter,section}");
+@source inline("text-{body,display,reading}");
+@source inline("leading-{reading,tight,ui}");
+@source inline("font-{reading,sans}");
+@source inline("shadow-{overlay,popup}");
+@source inline("max-w-measure");
+@source inline("ring-ring");

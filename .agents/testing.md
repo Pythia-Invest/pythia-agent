@@ -23,7 +23,10 @@ Do not test source text, imports, class names, CSS declarations, incidental
 copy, current collection sizes, or another tool's implementation. Do not add a
 coverage target. Frontend tests are reserved for business logic,
 accessibility-critical semantics, and critical interactions; review ordinary
-visual fidelity in Design Lab. Delete tests whose protected behavior no longer
+visual fidelity in Design Lab. Desk's Playwright smoke suite (`apps/desk/e2e/`)
+owns routing, keyboard, theme, and narrow-viewport interactions against a
+running Desk named by `PYTHIA_DESK_URL`; it never starts the stack or creates
+sessions. Delete tests whose protected behavior no longer
 exists or is better owned at another boundary.
 
 Tests must not use ambient credentials or arbitrary sleeps. Allocate unique

@@ -63,23 +63,24 @@ export {
 } from "./navigation-menu";
 export {
   Sidebar,
+  SidebarButton,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarItem,
-  SidebarLink,
   SidebarList,
   SidebarNav,
   SidebarSection,
   SidebarSectionLabel,
+  type SidebarButtonProps,
   type SidebarContentProps,
   type SidebarFooterProps,
   type SidebarHeaderProps,
   type SidebarItemProps,
-  type SidebarLinkProps,
   type SidebarListProps,
   type SidebarNavProps,
   type SidebarProps,
   type SidebarSectionLabelProps,
   type SidebarSectionProps,
 } from "./sidebar";
+export { SidebarLink, type SidebarLinkProps } from "./sidebar-link";

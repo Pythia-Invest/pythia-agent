@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refresh the ignored builder adapters (.claude, .codex, .cursor) after
+# git pull or git merge. Canonical source: .agents/.
+exec "$(dirname "$0")/lib/builder-sync.sh"

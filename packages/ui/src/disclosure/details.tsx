@@ -1,18 +1,42 @@
-import { clsx } from "clsx";
 import type { ComponentProps } from "react";
+import { cn } from "../class-name";
+import { disclosureClasses } from "./shared";
 
 function DetailsRoot({ className, ...props }: ComponentProps<"details">) {
-  return <details className={clsx("py-details", className)} {...props} />;
+  return (
+    <details
+      className={cn(
+        "group/details border-border border-y text-foreground",
+        className,
+      )}
+      data-slot="details"
+      {...props}
+    />
+  );
 }
 
 function DetailsSummary({ className, ...props }: ComponentProps<"summary">) {
   return (
-    <summary className={clsx("py-details-summary", className)} {...props} />
+    <summary
+      className={cn(
+        disclosureClasses.trigger,
+        "after:motion-fast list-none after:flex-none after:font-normal after:text-foreground-secondary after:transition-transform after:content-['+'] hover:bg-interaction-hover group-open/details:after:rotate-45 [&::-webkit-details-marker]:hidden",
+        className,
+      )}
+      data-slot="details-summary"
+      {...props}
+    />
   );
 }
 
 function DetailsContent({ className, ...props }: ComponentProps<"div">) {
-  return <div className={clsx("py-details-content", className)} {...props} />;
+  return (
+    <div
+      className={cn(disclosureClasses.content, className)}
+      data-slot="details-content"
+      {...props}
+    />
+  );
 }
 
 /**

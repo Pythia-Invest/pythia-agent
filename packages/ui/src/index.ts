@@ -1,4 +1,5 @@
 export { brandAssetUrls } from "./assets";
+export { cn, cnState, type StatefulClassName } from "./class-name";
 export * from "./actions";
 export * from "./calendar";
 export * from "./data-display";

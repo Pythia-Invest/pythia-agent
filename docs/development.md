@@ -50,7 +50,11 @@ For reusable interface work, run the development-only Design Lab separately:
 pnpm --filter @pythia/design-lab dev
 ```
 
-The Lab uses synthetic examples and is not part of the installed runtime.
+The Lab uses synthetic examples and is not part of the installed runtime. To
+reach it through Tailscale Serve, set `PYTHIA_DESIGN_LAB_DEV_ORIGIN` to the
+exact HTTPS origin you forward (for example
+`https://your-machine.your-tailnet.ts.net:9444`) so Next allows hot reload from
+that host; the Lab has no API identity check, so keep it on a trusted tailnet.
 
 ## Repository checks
 
@@ -71,6 +75,23 @@ and CI are credential-free and use synthetic provider fixtures. Use
 for the small real-process lifecycle smoke. Qualification runs after changes
 land on `main` and on explicit release-oriented runs; it is intentionally not
 part of every pull request.
+
+### Browser smoke tests
+
+Desk has a Playwright smoke suite in `apps/desk/e2e/` that drives a Desk you
+already started with `just dev`. It is not part of `just test`. Install the
+pinned Chromium once (the workspace sets `ignore-scripts`, so Playwright does
+not download it on install), then pass the Desk origin from `just dev-paths`:
+
+```sh
+pnpm --filter @pythia/desk exec playwright install chromium
+just test-e2e http://127.0.0.1:<desk-port>
+```
+
+A Tailscale Serve origin works as well. Traces for failures land under
+`.local/playwright/desk`. See
+[ADR 0008](decisions/0008-desk-client-conventions.md) for the routing, data
+fetching, and testing conventions the suite relies on.
 
 ## Foreground stack
 
@@ -251,8 +272,12 @@ uses Next's native `allowedDevOrigins` for remote hot reload.
 
 ## Where changes belong
 
-- `apps/desk` is the installed local interface.
-- `packages/ui` owns reusable interface primitives.
+- `apps/desk` is the installed local interface; its routing, data fetching,
+  and browser-test conventions are in
+  [ADR 0008](decisions/0008-desk-client-conventions.md).
+- `packages/ui` owns reusable interface primitives and the one token
+  stylesheet that Tailwind utilities draw from (see
+  [ADR 0007](decisions/0007-tailwind-styling-layer.md)).
 - `apps/design-lab` is a development-only component workshop.
 - `runtime/managed` owns the Pythia skills, plugin, instructions, and bounded
   data runners shipped with a release.
@@ -279,10 +304,16 @@ just sync-rules    # Claude and Cursor rules
 just builder-sync  # all three adapters
 ```
 
-The adapters write ignored local destinations, refuse unowned collisions, and
-do not activate hooks. `just check-ai-workspace` validates the canonical source
-and exercises fresh projections in disposable destinations, so a new clone
-needs no generated adapter files or existing tool configuration.
+The adapters write ignored local destinations and refuse unowned collisions.
+Nothing runs them for you by default, so a fresh clone or worktree has no
+`.claude/skills` until you do. To keep them current automatically, opt in once
+per repository with `just setup-hooks`: it points `core.hooksPath` at the
+tracked `.githooks/` directory, whose `post-checkout` and `post-merge` hooks
+re-run the three adapters after branch checkouts, worktree creation, pulls,
+and merges. The setting is shared by every worktree of the clone and never
+blocks a Git operation. `just check-ai-workspace` validates the canonical
+source and exercises fresh projections in disposable destinations, so CI needs
+no generated adapter files, tool configuration, or hooks.
 
 Working plans, interviews, test runbooks, results, and raw receipts belong in
 ignored `.private/plans/<branch>/`. Before material work is complete, record

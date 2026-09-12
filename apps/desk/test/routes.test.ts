@@ -8,6 +8,7 @@ import type { ReleaseStatusService } from "@/server/release-status";
 
 function fakeClient() {
   return {
+    capabilities: vi.fn(async () => ({ runSteer: true, modelOptions: true })),
     modelOptions: vi.fn(async () => ({
       provider: "",
       model: "",
@@ -19,7 +20,12 @@ function fakeClient() {
       title: title ?? null,
     })),
     renameSession: vi.fn(async (id: string, title: string) => ({ id, title })),
-    listMessages: vi.fn(async () => []),
+    listMessages: vi.fn(async (_id: string, limit: number, offset: number) => ({
+      data: [],
+      limit,
+      offset,
+      returned: 0,
+    })),
     startRun: vi.fn(async () => ({
       run_id: "r-1",
       status: "started",
@@ -43,6 +49,10 @@ function fakeClient() {
         resolved: 1,
       }),
     ),
+    steerRun: vi.fn(async (runId: string) => ({
+      run_id: runId,
+      accepted: true,
+    })),
     stopRun: vi.fn(async () => ({ run_id: "r-1", status: "stopping" })),
     listSkills: vi.fn(async () => []),
     listToolsets: vi.fn(async () => []),
@@ -174,6 +184,12 @@ describe("Desk routes", () => {
     expect((await routes.modelOptions(readRequest("/api/models"))).status).toBe(
       200,
     );
+    expect(client.modelOptions).toHaveBeenLastCalledWith(false);
+    expect(
+      (await routes.modelOptions(readRequest("/api/models?refresh=true")))
+        .status,
+    ).toBe(200);
+    expect(client.modelOptions).toHaveBeenLastCalledWith(true);
     const selection = {
       provider: "openai-codex",
       model: "fixture-model",
@@ -229,7 +245,7 @@ describe("Desk routes", () => {
     expect(client.createSession).not.toHaveBeenCalled();
   });
 
-  it("uses native session rename, approval, and cancellation calls", async () => {
+  it("uses native session rename, approval, steering, and cancellation calls", async () => {
     const client = fakeClient();
     const routes = createDeskRoutes(client);
     const renameRequest = mutation(
@@ -250,6 +266,16 @@ describe("Desk routes", () => {
     );
     expect(approval.status).toBe(200);
     expect(client.respondToApproval).toHaveBeenCalledWith("r-1", "deny", "a-1");
+
+    const steered = await routes.steerRun(
+      mutation("/api/runs/r-1/steer", { input: "Use the annual filing" }),
+      { params: Promise.resolve({ runId: "r-1" }) },
+    );
+    expect(steered.status).toBe(200);
+    expect(client.steerRun).toHaveBeenCalledWith(
+      "r-1",
+      "Use the annual filing",
+    );
 
     const stopped = await routes.stopRun(mutation("/api/runs/r-1/stop", {}), {
       params: Promise.resolve({ runId: "r-1" }),
@@ -285,6 +311,20 @@ describe("Desk routes", () => {
     const text = await response.text();
     expect(text).toContain("stream.disconnected");
     expect(text).not.toContain("run.cancelled");
+  });
+
+  it("reports an unavailable native event queue as a connection problem", async () => {
+    const client = fakeClient();
+    (client as HermesClient).streamRun = async function* () {
+      yield await Promise.reject(new Error("Event queue unavailable"));
+    };
+    const response = await createDeskRoutes(client).streamRun(
+      readRequest("/api/runs/r-1/events"),
+      { params: Promise.resolve({ runId: "r-1" }) },
+    );
+    const text = await response.text();
+    expect(text).toContain('"event":"stream.disconnected"');
+    expect(text).not.toContain('"event":"run.failed"');
   });
 
   it.each([

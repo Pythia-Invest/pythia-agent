@@ -8,6 +8,7 @@ import {
   Separator as NativeSeparator,
   type SeparatorProps,
 } from "react-resizable-panels";
+import { cn } from "../class-name";
 
 /** Props from react-resizable-panels v4 Group, including orientation and native layout callbacks. */
 export interface ResizableGroupProps extends GroupProps {}
@@ -22,7 +23,11 @@ export interface ResizableGroupProps extends GroupProps {}
 export function ResizableGroup({ className, ...props }: ResizableGroupProps) {
   return (
     <NativeGroup
-      className={["py-resizable-group", className].filter(Boolean).join(" ")}
+      className={cn(
+        "min-h-0 min-w-0 overflow-hidden rounded-container border border-border",
+        className,
+      )}
+      data-slot="resizable-group"
       {...props}
     />
   );
@@ -41,7 +46,8 @@ export interface ResizablePanelProps extends PanelProps {}
 export function ResizablePanel({ className, ...props }: ResizablePanelProps) {
   return (
     <NativePanel
-      className={["py-resizable-panel", className].filter(Boolean).join(" ")}
+      className={cn("min-h-0 min-w-0 bg-raised text-foreground", className)}
+      data-slot="resizable-panel"
       {...props}
     />
   );
@@ -67,14 +73,20 @@ export function ResizableSeparator({
 }: ResizableSeparatorProps) {
   return (
     <NativeSeparator
-      className={["py-resizable-separator", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={cn(
+        "group motion-fast relative grid flex-none place-items-center bg-border -outline-offset-2 transition-colors hover:bg-border-strong focus-visible:outline-2 focus-visible:outline-ring aria-[orientation=horizontal]:h-px aria-[orientation=vertical]:w-px data-[separator=active]:bg-border-strong",
+        className,
+      )}
+      data-slot="resizable-separator"
       {...props}
     >
       {children}
       {withHandle ? (
-        <span aria-hidden="true" className="py-resizable-grip" />
+        <span
+          aria-hidden="true"
+          className="absolute z-1 h-6 w-2 rounded-pill border border-border bg-raised group-aria-[orientation=horizontal]:h-2 group-aria-[orientation=horizontal]:w-6"
+          data-slot="resizable-grip"
+        />
       ) : null}
     </NativeSeparator>
   );

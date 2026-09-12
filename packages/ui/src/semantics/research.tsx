@@ -1,5 +1,5 @@
-import { clsx } from "clsx";
 import { type ReactNode, useId } from "react";
+import { cn } from "../class-name";
 import type { EpistemicKind, FreshnessKind } from "./types";
 
 const epistemicPresentation: Record<EpistemicKind, { label: string }> = {
@@ -29,6 +29,9 @@ const freshnessPresentation: Record<FreshnessKind, { label: string }> = {
   },
 };
 
+const metadataList =
+  "flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground-secondary";
+
 export interface EpistemicLabelProps {
   /** The already-established owner/type of the claim. */
   kind: EpistemicKind;
@@ -46,10 +49,12 @@ export function EpistemicLabel({ className, kind }: EpistemicLabelProps) {
   const presentation = epistemicPresentation[kind];
   return (
     <span
-      className={clsx(
-        "inline-flex items-baseline text-[length:var(--py-font-size-12)] font-medium [color:var(--py-text-secondary)]",
+      className={cn(
+        "inline-flex items-baseline font-medium text-foreground-secondary text-xs",
         className,
       )}
+      data-kind={kind}
+      data-slot="epistemic-label"
     >
       <span>{presentation.label}</span>
     </span>
@@ -79,16 +84,16 @@ export function FreshnessLabel({
   const presentation = freshnessPresentation[state];
   return (
     <span
-      className={clsx(
-        "inline-flex flex-wrap items-baseline gap-x-[var(--py-space-2)] gap-y-[var(--py-space-1)] text-[length:var(--py-font-size-12)] font-medium [color:var(--py-text-secondary)]",
+      className={cn(
+        "inline-flex flex-wrap items-baseline gap-x-2 gap-y-1 font-medium text-foreground-secondary text-xs",
         className,
       )}
+      data-slot="freshness-label"
+      data-state={state}
     >
       <span>{presentation.label}</span>
       {detail === undefined ? null : (
-        <span className="font-normal [color:var(--py-text-secondary)]">
-          {detail}
-        </span>
+        <span className="font-normal text-foreground-secondary">{detail}</span>
       )}
     </span>
   );
@@ -118,12 +123,7 @@ export function SourceMetadata({
   sourceDate,
 }: SourceMetadataProps) {
   return (
-    <dl
-      className={clsx(
-        "flex flex-wrap gap-x-[var(--py-space-4)] gap-y-[var(--py-space-1)] text-[length:var(--py-font-size-12)] [color:var(--py-text-secondary)]",
-        className,
-      )}
-    >
+    <dl className={cn(metadataList, className)} data-slot="source-metadata">
       <MetadataItem label="Source" value={source} />
       <MetadataItem label="Source date" value={sourceDate} />
       {retrievedAt === undefined ? null : (
@@ -158,21 +158,20 @@ export function Citation({
   return (
     <figure
       aria-label={`Citation ${marker}`}
-      className={clsx(
-        "m-0 flex min-w-0 items-start gap-[var(--py-space-3)] border-y border-solid [border-color:var(--py-border-default)] py-[var(--py-space-3)]",
+      className={cn(
+        "m-0 flex min-w-0 items-start gap-3 border-border border-y py-3",
         className,
       )}
+      data-slot="citation"
     >
       <span
         aria-hidden="true"
-        className="shrink-0 text-[length:var(--py-font-size-12)] font-bold [color:var(--py-text-primary)]"
+        className="shrink-0 font-bold text-foreground text-xs"
       >
         [{marker}]
       </span>
-      <figcaption className="grid min-w-0 gap-[var(--py-space-2)]">
-        <span className="text-[length:var(--py-font-size-12)] font-semibold [color:var(--py-text-primary)]">
-          {locator}
-        </span>
+      <figcaption className="grid min-w-0 gap-2">
+        <span className="font-semibold text-foreground text-xs">{locator}</span>
         <SourceMetadata
           source={source}
           sourceDate={sourceDate}
@@ -214,13 +213,14 @@ export function Provenance({
 }: ProvenanceProps) {
   return (
     <div
-      className={clsx(
-        "flex flex-wrap items-center gap-x-[var(--py-space-4)] gap-y-[var(--py-space-2)] border-y border-solid [border-color:var(--py-border-default)] py-[var(--py-space-3)]",
+      className={cn(
+        "flex flex-wrap items-center gap-x-4 gap-y-2 border-border border-y py-3",
         className,
       )}
+      data-slot="provenance"
     >
       <EpistemicLabel kind={epistemic} />
-      <dl className="flex flex-wrap gap-x-[var(--py-space-4)] gap-y-[var(--py-space-1)] text-[length:var(--py-font-size-12)] [color:var(--py-text-secondary)]">
+      <dl className={metadataList}>
         <MetadataItem label="Basis" value={basis} />
         {period === undefined ? null : (
           <MetadataItem label="Period" value={period} />
@@ -263,33 +263,41 @@ export function PythiaSignal({
   return (
     <aside
       aria-labelledby={titleId}
-      className={clsx(
-        "pythia-signal relative grid overflow-hidden gap-[var(--py-space-6)] border-y border-solid [border-color:var(--py-border-default)] bg-[var(--py-surface-raised)] px-[var(--py-space-6)] py-[var(--py-space-6)] [color:var(--py-text-primary)]",
+      className={cn(
+        "relative grid gap-6 overflow-hidden border-border border-y bg-raised p-6 text-foreground",
         className,
       )}
+      data-slot="pythia-signal"
     >
       <span
         aria-hidden="true"
-        className="pythia-signal__seam absolute inset-y-0 start-0 w-[3px] bg-[linear-gradient(to_bottom,var(--py-signal-marker),transparent)]"
+        className="absolute inset-y-0 start-0 w-[3px] bg-linear-to-b from-signal to-transparent"
+        data-slot="pythia-signal-seam"
       />
-      <div className="pythia-signal__label text-[length:var(--py-font-size-12)] font-bold uppercase tracking-[0.08em]">
+      <div
+        className="font-bold text-xs uppercase tracking-[0.08em]"
+        data-slot="pythia-signal-label"
+      >
         Pythia signal
       </div>
-      <div className="pythia-signal__body grid max-w-[72ch] gap-[var(--py-space-3)]">
+      <div className="grid max-w-[72ch] gap-3">
         <div
-          className="pythia-signal__title m-0 text-[length:clamp(1.35rem,3vw,2rem)] font-semibold leading-[var(--py-line-height-tight)]"
+          className="m-0 font-semibold text-[length:clamp(1.35rem,3vw,2rem)] leading-tight"
           id={titleId}
         >
           {title}
         </div>
         {children === undefined ? null : (
-          <div className="text-[length:var(--py-profile-body-size)] leading-[var(--py-line-height-reading)] [color:var(--py-text-secondary)]">
+          <div className="text-body text-foreground-secondary leading-reading">
             {children}
           </div>
         )}
       </div>
       {metadata === undefined ? null : (
-        <footer className="pythia-signal__metadata border-t border-solid [border-color:var(--py-border-default)] pt-[var(--py-space-3)] text-[length:var(--py-font-size-12)] [color:var(--py-text-secondary)]">
+        <footer
+          className="border-border border-t pt-3 text-foreground-secondary text-xs"
+          data-slot="pythia-signal-metadata"
+        >
           {metadata}
         </footer>
       )}
@@ -299,8 +307,8 @@ export function PythiaSignal({
 
 function MetadataItem({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex min-w-0 gap-[var(--py-space-1)]">
-      <dt className="font-semibold [color:var(--py-text-primary)]">{label}</dt>
+    <div className="flex min-w-0 gap-1">
+      <dt className="font-semibold text-foreground">{label}</dt>
       <dd className="m-0 min-w-0">{value}</dd>
     </div>
   );

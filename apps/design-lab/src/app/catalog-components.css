@@ -155,7 +155,7 @@
   border-radius: var(--py-radius-group);
 }
 
-.catalog-sidebar-stage > .pythia-sidebar {
+.catalog-sidebar-stage > [data-slot="sidebar"] {
   min-block-size: 100%;
 }
 

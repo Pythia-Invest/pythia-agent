@@ -1,7 +1,10 @@
 import type { ComponentPropsWithoutRef } from "react";
+import { cn } from "../class-name";
 
 /** Native table props with a horizontally scrollable presentation wrapper. */
 export interface TableProps extends ComponentPropsWithoutRef<"table"> {}
+
+const cell = "px-3 py-2 text-start align-middle public:px-4 public:py-3";
 
 /**
  * Presents basic row-and-column data in a responsive horizontal viewport.
@@ -12,9 +15,16 @@ export interface TableProps extends ComponentPropsWithoutRef<"table"> {}
  */
 export function Table({ className, ...props }: TableProps) {
   return (
-    <div className="py-table__viewport">
+    <div
+      className="w-full overflow-x-auto rounded-container border border-border"
+      data-slot="table-viewport"
+    >
       <table
-        className={["py-table", className].filter(Boolean).join(" ")}
+        className={cn(
+          "w-full border-collapse border-spacing-0 bg-raised text-start text-body text-foreground leading-ui",
+          className,
+        )}
+        data-slot="table"
         {...props}
       />
     </div>
@@ -34,7 +44,11 @@ export interface TableCaptionProps
 export function TableCaption({ className, ...props }: TableCaptionProps) {
   return (
     <caption
-      className={["py-table__caption", className].filter(Boolean).join(" ")}
+      className={cn(
+        "caption-bottom px-4 py-3 text-start text-foreground-secondary",
+        className,
+      )}
+      data-slot="table-caption"
       {...props}
     />
   );
@@ -52,7 +66,8 @@ export interface TableHeaderProps extends ComponentPropsWithoutRef<"thead"> {}
 export function TableHeader({ className, ...props }: TableHeaderProps) {
   return (
     <thead
-      className={["py-table__header", className].filter(Boolean).join(" ")}
+      className={cn("bg-subtle", className)}
+      data-slot="table-header"
       {...props}
     />
   );
@@ -70,7 +85,8 @@ export interface TableBodyProps extends ComponentPropsWithoutRef<"tbody"> {}
 export function TableBody({ className, ...props }: TableBodyProps) {
   return (
     <tbody
-      className={["py-table__body", className].filter(Boolean).join(" ")}
+      className={cn("[&>tr:hover]:bg-interaction-hover", className)}
+      data-slot="table-body"
       {...props}
     />
   );
@@ -88,7 +104,8 @@ export interface TableRowProps extends ComponentPropsWithoutRef<"tr"> {}
 export function TableRow({ className, ...props }: TableRowProps) {
   return (
     <tr
-      className={["py-table__row", className].filter(Boolean).join(" ")}
+      className={cn("not-last:border-border not-last:border-b", className)}
+      data-slot="table-row"
       {...props}
     />
   );
@@ -106,7 +123,12 @@ export interface TableHeadProps extends ComponentPropsWithoutRef<"th"> {}
 export function TableHead({ className, ...props }: TableHeadProps) {
   return (
     <th
-      className={["py-table__head", className].filter(Boolean).join(" ")}
+      className={cn(
+        cell,
+        "font-semibold text-foreground-secondary text-xs tracking-[0.02em]",
+        className,
+      )}
+      data-slot="table-head"
       {...props}
     />
   );
@@ -123,9 +145,6 @@ export interface TableCellProps extends ComponentPropsWithoutRef<"td"> {}
  */
 export function TableCell({ className, ...props }: TableCellProps) {
   return (
-    <td
-      className={["py-table__cell", className].filter(Boolean).join(" ")}
-      {...props}
-    />
+    <td className={cn(cell, className)} data-slot="table-cell" {...props} />
   );
 }

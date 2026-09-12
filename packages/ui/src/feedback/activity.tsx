@@ -1,5 +1,6 @@
 import { LoaderCircle } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
+import { cn } from "../class-name";
 
 /** Props for non-quantified activity, including its required accessible label and display size. */
 export interface ActivityIndicatorProps
@@ -25,13 +26,23 @@ export function ActivityIndicator({
 }: ActivityIndicatorProps) {
   return (
     <div
-      className={["py-activity", className].filter(Boolean).join(" ")}
+      className={cn(
+        "inline-flex items-center gap-2 text-body text-foreground-secondary leading-ui",
+        className,
+      )}
       data-size={size}
+      data-slot="activity-indicator"
       role="status"
       {...props}
     >
-      <LoaderCircle aria-hidden="true" className="py-activity__icon" />
-      <span className={visuallyHiddenLabel ? "py-visually-hidden" : undefined}>
+      <LoaderCircle
+        aria-hidden="true"
+        className={cn(
+          "animate-spin-slow motion-reduce:animate-none",
+          size === "small" ? "size-4" : "size-5",
+        )}
+      />
+      <span className={visuallyHiddenLabel ? "sr-only" : undefined}>
         {label}
       </span>
     </div>

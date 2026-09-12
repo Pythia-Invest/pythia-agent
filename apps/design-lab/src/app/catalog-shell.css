@@ -34,7 +34,7 @@
   text-decoration: none;
 }
 
-.catalog-brand .pythia-lockup {
+.catalog-brand [data-slot="pythia-lockup"] {
   font-size: 1.45rem;
 }
 

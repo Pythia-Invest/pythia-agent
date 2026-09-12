@@ -1,7 +1,20 @@
+import {
+  result,
+  routeError,
+  readBody,
+  textField,
+  identifier,
+} from "./route-utils";
+import {
+  attachmentStore,
+  attachmentResponse,
+  type AttachmentStore,
+  readUploadBody,
+  parseAttachmentIds,
+} from "./attachments";
 import { admitBrowserRequest, issueBrowserSession } from "./admission";
 import {
   deviceSettingsService,
-  DeviceSettingsError,
   type DeviceSettingsService,
 } from "./device-settings";
 import { HermesApiError, hermesClient } from "./hermes";
@@ -14,69 +27,6 @@ import { parseModelSelection, type ModelSelection } from "./model-catalog";
 import type { ApprovalChoice, DeskRunEvent, HermesClient } from "./types";
 
 type RouteContext = { params: Promise<Record<string, string>> };
-
-function result(body: unknown, status = 200, headers?: HeadersInit) {
-  return Response.json(body, {
-    status,
-    headers: { "Cache-Control": "no-store", ...headers },
-  });
-}
-
-function routeError(error: unknown) {
-  if (error instanceof HermesApiError || error instanceof DeviceSettingsError) {
-    return result(
-      { error: { code: error.code ?? "hermes_error", message: error.message } },
-      error.status,
-    );
-  }
-  return result(
-    {
-      error: {
-        code: "desk_error",
-        message: "Pythia Desk could not complete the request.",
-      },
-    },
-    500,
-  );
-}
-
-async function readBody(request: Request) {
-  const length = Number(request.headers.get("content-length") ?? 0);
-  if (length > 65_536)
-    throw new HermesApiError("The request is too large.", 413);
-  try {
-    const body = await request.json();
-    if (body === null || typeof body !== "object" || Array.isArray(body))
-      throw new Error();
-    return body as Record<string, unknown>;
-  } catch {
-    throw new HermesApiError("The request must contain a JSON object.", 400);
-  }
-}
-
-function textField(
-  body: Record<string, unknown>,
-  field: string,
-  maximum: number,
-  label: string,
-) {
-  const value = typeof body[field] === "string" ? body[field].trim() : "";
-  if (!value || value.length > maximum || /[\0]/u.test(value)) {
-    throw new HermesApiError(
-      `${label} is required and must be at most ${maximum} characters.`,
-      400,
-    );
-  }
-  return value;
-}
-
-function identifier(value: string | undefined, label: string) {
-  const clean = value?.trim() ?? "";
-  if (!clean || clean.length > 512 || /[\r\n\0]/u.test(clean)) {
-    throw new HermesApiError(`A valid ${label} is required.`, 400);
-  }
-  return clean;
-}
 
 function eventStream(client: HermesClient, runId: string, signal: AbortSignal) {
   const iterator = client.streamRun(runId, signal);
@@ -119,7 +69,7 @@ function eventStream(client: HermesClient, runId: string, signal: AbortSignal) {
         };
         controller.enqueue(
           encoder.encode(
-            `data: ${JSON.stringify({ event: "run.failed", run_id: runId, ...body.error })}\n\n`,
+            `data: ${JSON.stringify({ event: "stream.disconnected", run_id: runId, code: body.error.code, error: body.error.message })}\n\n`,
           ),
         );
         controller.close();
@@ -135,13 +85,52 @@ export function createDeskRoutes(
   client: HermesClient,
   settings: DeviceSettingsService = deviceSettingsService,
   releases: ReleaseStatusService = releaseStatusService,
+  attachments: AttachmentStore = attachmentStore,
 ) {
   return {
+    async uploadAttachment(request: Request) {
+      const rejection = admitBrowserRequest(request, "mutation");
+      if (rejection) return rejection;
+      try {
+        return result(
+          await attachments.upload(await readUploadBody(request)),
+          201,
+        );
+      } catch (error) {
+        return routeError(error);
+      }
+    },
+    async downloadAttachment(request: Request, context: RouteContext) {
+      const rejection = admitBrowserRequest(request, "read");
+      if (rejection) return rejection;
+      try {
+        const file = await attachments.get(
+          (await context.params).attachmentId ?? "",
+        );
+        return attachmentResponse(
+          file,
+          new URL(request.url).searchParams.get("download") === "true",
+        );
+      } catch (error) {
+        return routeError(error);
+      }
+    },
+    async capabilities(request: Request) {
+      const rejection = admitBrowserRequest(request, "read");
+      if (rejection) return rejection;
+      try {
+        return result(await client.capabilities());
+      } catch (error) {
+        return routeError(error);
+      }
+    },
     async modelOptions(request: Request) {
       const rejection = admitBrowserRequest(request, "read");
       if (rejection) return rejection;
       try {
-        return result(await client.modelOptions());
+        const refresh =
+          new URL(request.url).searchParams.get("refresh") === "true";
+        return result(await client.modelOptions(refresh));
       } catch (error) {
         return routeError(error);
       }
@@ -243,7 +232,16 @@ export function createDeskRoutes(
           (await context.params).sessionId,
           "session identifier",
         );
-        return result({ data: await client.listMessages(sessionId) });
+        const url = new URL(request.url);
+        const limit = Math.min(
+          200,
+          Math.max(1, Number(url.searchParams.get("limit") ?? 100) || 100),
+        );
+        const offset = Math.max(
+          0,
+          Number(url.searchParams.get("offset") ?? 0) || 0,
+        );
+        return result(await client.listMessages(sessionId, limit, offset));
       } catch (error) {
         return routeError(error);
       }
@@ -259,7 +257,12 @@ export function createDeskRoutes(
           512,
           "A session identifier",
         );
-        const input = textField(body, "input", 60_000, "A message");
+        const ids = parseAttachmentIds(body.attachments);
+        const text =
+          ids.length && body.input === ""
+            ? ""
+            : textField(body, "input", 60_000, "A message");
+        const input = ids.length ? await attachments.input(text, ids) : text;
         let selection: ModelSelection | undefined;
         try {
           selection = parseModelSelection(body.selection);
@@ -363,6 +366,25 @@ export function createDeskRoutes(
         );
         await readBody(request);
         return result(await client.stopRun(runId));
+      } catch (error) {
+        return routeError(error);
+      }
+    },
+    async steerRun(request: Request, context: RouteContext) {
+      const rejection = admitBrowserRequest(request, "mutation");
+      if (rejection) return rejection;
+      try {
+        const runId = identifier(
+          (await context.params).runId,
+          "run identifier",
+        );
+        const input = textField(
+          await readBody(request),
+          "input",
+          60_000,
+          "Guidance",
+        );
+        return result(await client.steerRun(runId, input));
       } catch (error) {
         return routeError(error);
       }

@@ -100,7 +100,16 @@ venv/
 Thumbs.db
 Desktop.ini
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 *.swp
 *.swo
 *~
+
+# design-sync (claude.ai/design) staged scripts, build output and machine state
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

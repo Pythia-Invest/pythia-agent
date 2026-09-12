@@ -86,10 +86,10 @@ use dotted setters and verify the resulting object. Only `provider`, `default`,
 is user-owned. Native custom-provider definitions outside those fields remain
 profile-local. See [development](../../docs/development.md) for apply semantics.
 
-The API can wrap `No inference provider configured` in `Provider authentication
-failed`. Desk classifies the specific inner failure first, separately from
-missing credentials and other provider authentication failures. It never treats
-every authentication wrapper as evidence that another OAuth login is needed.
+Run and request failures retain the error message Hermes supplies. Desk does
+not classify provider failures or substitute onboarding guidance. The local
+Hermes API bearer remains server-only and is mechanically redacted if Hermes
+ever echoes that exact value in an error response.
 
 ## Workspace cwd and context
 
@@ -279,10 +279,25 @@ Absent optional fields stay absent/null; no full upstream DTO is copied.
 
 `GET /api/model/options` is the native picker catalog, unlike `/v1/models`
 which primarily advertises virtual routes. Desk consumes only root `provider`
-and `model`, provider `slug`, `name`, `authenticated`, model IDs, and the native
+and `model`; provider `slug`, `name`, `authenticated`, `auth_type`, `source`,
+`warning`, `aliases`, `featured_models`, and `unavailable_models`; model IDs; sanitized
+`pricing[model].{input,output,free}`; and the native
 `capabilities[model].reasoning` / `can_disable_reasoning` flags. It never forwards
-endpoints, credential metadata, or arbitrary inventory fields to the browser.
+endpoints, keys, credential values, credential environment names, or arbitrary
+inventory fields to the browser.
 Native inventory discovery may contact model catalogs; it does not run inference.
+The user-triggered refresh passes `refresh=true` to this endpoint so Hermes
+busts its per-provider model cache and probes configured custom providers.
+Ordinary catalog reads omit the flag and retain Hermes's cached behavior.
+
+In this release, the API-server handler does not accept the Desktop catalog's
+`explicit_only` option. The normalized inventory consequently publishes the
+built-in Mixture-of-Agents `default` preset as an authenticated virtual provider
+even when the profile contains no explicit `moa` configuration, and this API
+server does not expose the dashboard's `/api/model/moa` read/write surface.
+Desk excludes that virtual provider from user-facing model discovery. It keeps
+the qualified provider/model request fields intact so an existing stored MoA
+selection remains pass-through rather than being silently rewritten.
 
 `POST /v1/runs` accepts explicit `provider`, `model`, and
 `model_options.reasoning_effort` for that request. Desk forwards only those
@@ -317,7 +332,8 @@ The bounded session surface is:
   `unsupported_session_field`; an invalid title returns 400 `invalid_title`.
 - `GET /api/sessions/{id}/messages?limit=<n>&offset=<n>`; the native maximum is
   500. Consume `data[].{id,role,content,timestamp,tool_call_id,tool_name,
-  tool_calls,finish_reason}` plus pagination. Tool-related fields are optional.
+  tool_calls,finish_reason,reasoning,reasoning_content,display_kind}` plus pagination.
+  Tool-related and reasoning fields are optional; `timestamp` is epoch seconds.
 
 There is no separate session-resume endpoint. Supplying an existing
 `session_id` to a new run reloads its transcript. See
@@ -332,6 +348,13 @@ Create with `POST /v1/runs` and a bounded body
 contain `object`, `run_id`, `status`, `created_at`, `updated_at`, `session_id`,
 `model`, and optional `approval`, `output`, `usage`, `error`, `pending_steer`,
 or `last_event`.
+
+The event endpoint consumes one `asyncio.Queue` per run. It does not replay or
+broadcast: simultaneous subscribers compete for queued events. A subscriber's
+exit removes the queue, so later event requests may return 404 even while the
+run is active or its terminal status is still readable. Consumers must use
+native status to recover terminal output or pending approvals, rather than
+interpret a missing stream as run failure.
 
 The SSE stream contains comment keepalives and `data:` JSON frames. Consumers
 switch on `event` and ignore unknown fields/types. Qualified events are:
@@ -352,7 +375,26 @@ switch on `event` and ignore unknown fields/types. Qualified events are:
   `pending_steer`), `run.failed` (`error`), or `run.cancelled`.
 
 `subagent.tool`, `subagent_progress`, and internal thinking events are not on
-this stream. Optional values are not synthesized.
+this stream. The native agent callback's `moa.progress`, `moa.phase`,
+`moa.reference`, and `moa.aggregating` events are also not forwarded by this
+run adapter. Optional values are not synthesized.
+
+The name `reasoning.available` does not identify a provider reasoning stream:
+`agent/conversation_loop.py` sends `assistant_message.content`, strips selected
+reasoning XML tags and truncates to 500 characters. It includes final answers.
+Desk treats an unstreamed interim value as a commentary preview, never as proof
+of private reasoning. Separate reasoning fields may be available in history.
+The run handler does not wire the agent's `reasoning_callback` into this SSE
+surface. See the pinned
+[content callback](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/agent/conversation_loop.py).
+
+Live tool events omit call IDs, full arguments and result bodies. Overlapping
+same-name calls cannot be correlated safely from these events alone. Native
+history provides the IDs and bodies; insertion timestamps are not execution
+timers. `run.completed.output` is the final answer even if earlier text was
+streamed. Unlike the separate `/api/sessions/{id}/chat/stream` API, this
+`/v1/runs` terminal event does not carry the full turn transcript, so completed
+history enrichment uses `GET /api/sessions/{id}/messages`.
 
 Respond at `POST /v1/runs/{run_id}/approval` with
 `{"choice":"once|session|always|deny","request_id":"…"}`; bulk-resolution
@@ -366,6 +408,31 @@ route. A disconnect from SSE does not stop the run; Desk explicitly invokes
 stop when its admitted cancellation policy requires it, then follows status to
 a terminal state.
 
+Steer an exactly `running` run at `POST /v1/runs/{run_id}/steer` with a
+non-empty `input`, `message`, or `text` field. A successful response contains
+`accepted: true` and the stream emits `run.steered`; that event does not repeat
+the submitted text. A run that is stopping or otherwise not accepting steer
+returns HTTP 409. Guidance accepted after the final tool boundary may instead
+return as `pending_steer` on terminal status/event for the client to replay as
+the next turn. `GET /v1/capabilities` advertises this as `features.run_steer`
+and advertises the model catalog as `features.model_options`.
+
 The source of truth is
 [api_server_runs.py](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/gateway/platforms/api_server_runs.py) and its
 [run API tests](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/tests/gateway/test_api_server_runs.py).
+
+## File and image input
+
+The pinned `/v1/runs` handler accepts a string or a list of messages as `input`.
+For a list, the last message's `content` becomes `run_conversation`'s
+`user_message`, including structured text and `image_url` blocks. SessionDB
+encodes and decodes structured content, and the session message endpoint retains
+it in its projection. Desk sends locally uploaded images as base64 data URLs;
+ordinary documents are referenced by local paths for Hermes's existing tools,
+following the native gateway document-context convention.
+
+The native API request cap is 10,000,000 bytes. Desk's combined image budget is
+6 MiB to leave room for base64 expansion, prompt and metadata. This transport
+does not imply universal vision or document-format support. The separate web
+dashboard upload path and browser-control artifact endpoints are not general
+Desk upload contracts. See [ADR 0010](../../docs/decisions/0010-local-chat-attachments.md).
