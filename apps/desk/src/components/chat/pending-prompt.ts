@@ -1,3 +1,7 @@
+import {
+  parseWorkspaceContext,
+  type WorkspaceContext,
+} from "@/workspace/references";
 import type { Attachment } from "@/attachments";
 /**
  * Hands the first prompt from the new-chat surface to the session route that
@@ -9,11 +13,16 @@ export function storePendingPrompt(
   sessionId: string,
   prompt: string,
   attachments: Attachment[] = [],
+  context?: WorkspaceContext,
 ) {
   try {
     sessionStorage.setItem(
       `${PREFIX}${sessionId}`,
-      JSON.stringify({ text: prompt, attachments }),
+      JSON.stringify({
+        text: prompt,
+        attachments,
+        ...(context ? { context } : {}),
+      }),
     );
   } catch {
     throw new Error(
@@ -22,9 +31,11 @@ export function storePendingPrompt(
   }
 }
 
-export function takePendingPrompt(
-  sessionId: string,
-): { text: string; attachments: Attachment[] } | null {
+export function takePendingPrompt(sessionId: string): {
+  text: string;
+  attachments: Attachment[];
+  context?: WorkspaceContext;
+} | null {
   try {
     const key = `${PREFIX}${sessionId}`;
     const value = sessionStorage.getItem(key);
@@ -32,8 +43,17 @@ export function takePendingPrompt(
     if (value === null) return null;
     try {
       const parsed = JSON.parse(value);
-      if (typeof parsed.text === "string" && Array.isArray(parsed.attachments))
-        return parsed;
+      if (
+        typeof parsed.text === "string" &&
+        Array.isArray(parsed.attachments)
+      ) {
+        const context = parseWorkspaceContext(parsed.context);
+        return {
+          text: parsed.text,
+          attachments: parsed.attachments,
+          ...(context ? { context } : {}),
+        };
+      }
     } catch {
       /* Drafts stored by older versions were plain text. */
     }

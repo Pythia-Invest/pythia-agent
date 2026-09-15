@@ -1,5 +1,8 @@
 "use client";
 
+import { WorkspaceReferenceCards } from "./workspace-reference-cards";
+import { userWorkspaceContext } from "@/client/chat-message";
+
 import { cn } from "@pythia/ui";
 import { ArrowDown } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
@@ -42,6 +45,7 @@ function UserMessage({ message }: { message: DeskUIMessage }) {
           )}
         </div>
       ) : null}
+      <WorkspaceReferenceCards context={userWorkspaceContext(message)} />
       {text ? (
         <div className="min-w-0 whitespace-pre-wrap break-words font-reading text-foreground text-reading leading-reading">
           {text}
@@ -106,8 +110,12 @@ export function Conversation({
   };
 
   const stopFollowing = useCallback(() => {
+    const viewport = viewportRef.current;
+    // A gesture can pause streaming follow before the browser scrolls, but it
+    // cannot move a transcript already at its top. Only actual scroll position
+    // controls the jump button in handleScroll.
+    if (!viewport || viewport.scrollTop <= 0) return;
     followLatestRef.current = false;
-    setAtBottom(false);
   }, []);
 
   const jumpToLatest = useCallback(() => {
@@ -157,7 +165,7 @@ export function Conversation({
           touchYRef.current = event.touches[0]?.clientY ?? null;
         }}
         onWheel={(event) => {
-          if (event.deltaY < 0) stopFollowing();
+          if (event.deltaY < 0 && !event.ctrlKey) stopFollowing();
         }}
         ref={viewportRef}
       >

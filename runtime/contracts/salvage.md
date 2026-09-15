@@ -14,7 +14,7 @@ in public source or build instructions.
 | SEC and EODHD investment skill procedures | Adapt | Retain only the operations in `financial-data.md`; rewrite public instructions and use synthetic provenance-linked fixtures. |
 | Investment-memory instructions | Adapt | Retain the useful distinction between brief Hermes memory and authoritative Markdown; remove personal knowledge, portfolio content, and machine paths. |
 | Hermes native profile, external-skill, plugin, session, and run behavior | Adopt | Consume the exact qualified upstream commands/APIs. Pythia adds lifecycle serialization, redaction, process supervision, and bounded response projection only where this contract requires them. |
-| Basic Memory Markdown/FTS behavior | Adopt | Run the exact separate package with the qualified configuration; never copy its code or use the Hermes memory-provider integration. |
+| Basic Memory Markdown/FTS behavior | Retired default | Previously adopted separate package; ADR 0013 replaces default service/index use with native files and preserves legacy notes through explicit transition. |
 | Older private product contracts, application loop, database/queue/object-store architecture | Reject | They describe another product authority and would reintroduce a second agent/state plane. |
 | Backup-branch Hermes patches, vendored source, submodules, and replacement agent loop | Reject | The runtime dependency must remain exact, unmodified, Pythia-owned, and replaceable. |
 | Fleet, cloud, AWS/SSM/Terraform, Postgres/pg-boss/S3, Docker, proxy, Tailnet, and host-service code | Reject | These are outside the local product/runtime boundary. |

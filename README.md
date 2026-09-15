@@ -23,7 +23,7 @@ cd pythia-agent
 ```
 
 Installation starts Pythia-owned user services and prints the Desk URL. The
-defaults are Desk at <http://127.0.0.1:8644>, Basic Memory on port 8643, and
+defaults are Desk at <http://127.0.0.1:8644> and
 Hermes on port 8645. Read the [installation guide](docs/install.md) before
 running it. Stable signed releases are a later channel and are not required to
 try source you chose.
@@ -39,15 +39,15 @@ just dev-init
 just dev
 ```
 
-`just dev` runs Hermes, Basic Memory, and Desk in the foreground. It installs no
+`just dev` runs Hermes and Desk in the foreground. It installs no
 services or changes host networking. Each Git worktree has isolated profiles,
-workspace/knowledge, sessions, Basic Memory state, caches, processes, and ports.
+workspace, sessions, caches, processes, and ports.
 Worktrees share the permission-restricted Pythia configuration owner for native
 OAuth and device settings, so authenticate once without copying credentials.
 
 Desk has native hot reload. Managed Hermes/plugin/runner source does not trigger
 an automatic restart: run `just dev-refresh` to briefly stop, prepare, and
-replace all three consumers selected for this worktree. Data, authentication,
+replace both consumers selected for this worktree. Data, authentication,
 and native choices are preserved. See [development](docs/development.md) for
 prerequisites, provider status, failure behavior, checks, and the development-
 only Design Lab.
@@ -60,8 +60,8 @@ only Design Lab.
   native plugin.
 - Bounded SEC filing/facts research through EdgarTools and daily market prices
   through the official EODHD SDK.
-- Durable, user-readable Markdown research notes indexed by a separate,
-  unmodified Basic Memory process.
+- One ordinary workspace for durable research and working artifacts, with a
+  standalone reader and artifact viewing beside chat.
 
 Pythia uses Hermes's native sessions, approvals, OAuth, skills, plugins, and
 platform toolsets. Optional provider credentials are not required for startup.

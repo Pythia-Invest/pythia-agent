@@ -1,6 +1,7 @@
+import { assertWorkspaceTransitionReady } from "../update/workspace-transition-state.mjs";
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, rmSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { writeTransaction } from "../install/files.mjs";
 import {
   removeUnits,
@@ -93,6 +94,26 @@ export function uninstall(paths, { purge = false, actions = {} } = {}) {
   const disable =
     actions.disable ?? (() => systemctl(["disable", "pythia-agent.target"]));
   const unitState = actions.unitState ?? inspectUnit;
+  // The retained legacy service is deliberately outside fresh UNIT_NAMES.
+  // Do not let either default uninstall or purge strand its executable.
+  assertWorkspaceTransitionReady(paths);
+  const legacyName = "pythia-agent-basic-memory.service";
+  let legacyState;
+  try {
+    legacyState = unitState(legacyName);
+  } catch {
+    legacyState = "unconfirmed";
+  }
+  if (
+    legacyState !== "absent" ||
+    lstatSync(join(paths.unitRoot, legacyName), { throwIfNoEntry: false })
+  ) {
+    const error = new Error(
+      "Legacy Basic Memory is present or its absence is unconfirmed. Complete the Workspace transition and resolve any custom unit before uninstalling; nothing was stopped or removed.",
+    );
+    error.code = "uninstall_legacy_memory_present";
+    throw error;
+  }
   const enablement = actions.enablement ?? inspectEnablement;
   const removeManagedUnits = actions.removeUnits ?? (() => removeUnits(paths));
   const reload = actions.reload ?? (() => systemctl(["daemon-reload"]));

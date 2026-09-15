@@ -1,10 +1,17 @@
+import {
+  hasWorkspaceContext,
+  REFERENCE_MARKER,
+  type DeskRunStart,
+  type WorkspaceContext,
+  type WorkspaceTurn,
+} from "@/workspace/references";
 import { attachmentId } from "@/attachments";
 import type { ChatTransport, UIMessageChunk } from "ai";
 import type { DeskApi } from "./api";
-import type { RunStart, RunStatus } from "@/server/types";
+import type { RunStatus } from "@/server/types";
 import { terminalEvent } from "./run-terminal-event";
 import type { DeskDataParts, DeskUIMessage } from "./chat-message";
-import { userText } from "./chat-message";
+import { userText, userWorkspaceContext } from "./chat-message";
 import { RunEventMapper } from "./hermes-run-mapper";
 import type { ModelSelection } from "@/server/model-catalog";
 
@@ -27,6 +34,12 @@ export interface HermesChatTransportOptions {
   onConnection?: (sessionId: string, state: StreamConnection) => void;
   onPendingSteer?: (sessionId: string, text: string) => void;
   selection?: () => ModelSelection | undefined;
+  view?: () => WorkspaceTurn["view"];
+  onViewStarted?: (
+    runId: string,
+    reference: NonNullable<DeskRunStart["desk_view"]>,
+  ) => void;
+  onViewFinished?: (runId: string) => void;
 }
 
 const ACTIVE_RUN_PREFIX = "pythia-desk:active-run:";
@@ -58,7 +71,7 @@ export class HermesChatTransport implements ChatTransport<DeskUIMessage> {
   readonly #api: DeskApi;
   readonly #options: HermesChatTransportOptions;
   readonly #activeRuns = new Map<string, string>();
-  readonly #creating = new Map<string, Promise<RunStart>>();
+  readonly #creating = new Map<string, Promise<DeskRunStart>>();
   readonly #pendingSteers = new Map<string, string[]>();
 
   constructor(api: DeskApi, options: HermesChatTransportOptions = {}) {
@@ -70,16 +83,31 @@ export class HermesChatTransport implements ChatTransport<DeskUIMessage> {
     return this.#activeRuns.get(sessionId) ?? storedRun(sessionId);
   }
 
-  async steer(sessionId: string, input: string) {
+  async steer(sessionId: string, input: string, context?: WorkspaceContext) {
     const runId = this.activeRun(sessionId);
     if (!runId) throw new Error("This reply is no longer accepting guidance.");
     const pending = this.#pendingSteers.get(runId) ?? [];
-    pending.push(input);
+    const display = hasWorkspaceContext(context)
+      ? `${input}
+
+${REFERENCE_MARKER} ${JSON.stringify({ references: context?.references ?? [] })}`
+      : input;
+    pending.push(display);
     this.#pendingSteers.set(runId, pending);
     try {
-      return await this.#api.steerRun(runId, input);
+      const view = this.#options.view?.();
+      const workspace =
+        context || view
+          ? { ...(context ? { context } : {}), ...(view ? { view } : {}) }
+          : undefined;
+      const result = workspace
+        ? await this.#api.steerRun(runId, input, workspace)
+        : await this.#api.steerRun(runId, input);
+      if (result.desk_view)
+        this.#options.onViewStarted?.(runId, result.desk_view);
+      return result;
     } catch (error) {
-      pending.splice(pending.indexOf(input), 1);
+      pending.splice(pending.indexOf(display), 1);
       throw error;
     }
   }
@@ -103,18 +131,28 @@ export class HermesChatTransport implements ChatTransport<DeskUIMessage> {
     const ids = files.map((part) => attachmentId(part.url));
     if (ids.some((id) => !id))
       throw new Error("Attach these files again before sending.");
-    if (!input && !ids.length) throw new Error("There is nothing to send.");
+    const context = lastUser ? userWorkspaceContext(lastUser) : undefined;
+    if (!input && !ids.length && !hasWorkspaceContext(context))
+      throw new Error("There is nothing to send.");
     const selection = this.#options.selection?.();
-    const creating = ids.length
-      ? this.#api.startRun(chatId, input, selection, ids as string[])
-      : this.#api.startRun(chatId, input, selection);
+    const view = this.#options.view?.();
+    const workspace =
+      context || view
+        ? { ...(context ? { context } : {}), ...(view ? { view } : {}) }
+        : undefined;
+    const creating = workspace
+      ? this.#api.startRun(chatId, input, selection, ids as string[], workspace)
+      : ids.length
+        ? this.#api.startRun(chatId, input, selection, ids as string[])
+        : this.#api.startRun(chatId, input, selection);
     this.#creating.set(chatId, creating);
-    let run: RunStart;
+    let run: DeskRunStart;
     try {
       run = await creating;
     } finally {
       this.#creating.delete(chatId);
     }
+    if (run.desk_view) this.#options.onViewStarted?.(run.run_id, run.desk_view);
     this.#activeRuns.set(chatId, run.run_id);
     storeRun(chatId, run.run_id);
     return this.#stream(chatId, run.run_id, abortSignal, selection);
@@ -158,6 +196,7 @@ export class HermesChatTransport implements ChatTransport<DeskUIMessage> {
       this.#activeRuns.delete(sessionId);
       pendingSteers.delete(runId);
       storeRun(sessionId, null);
+      options.onViewFinished?.(runId);
       options.onRunFinished?.(sessionId);
     };
     return new ReadableStream<DeskChunk>({

@@ -1,5 +1,9 @@
 "use client";
 
+import { useDeskDrafts } from "@/client/providers";
+import { WorkspaceReferenceCards } from "./workspace-reference-cards";
+import type { WorkspaceContext } from "@/workspace/references";
+
 import { type Attachment, attachmentLimit } from "@/attachments";
 import { DraftAttachmentCard } from "./attachment-card";
 import { ComposerNote } from "./chat-status";
@@ -11,6 +15,9 @@ import {
   type KeyboardEvent,
   type ReactNode,
   useId,
+  useCallback,
+  useEffect,
+  useSyncExternalStore,
   useRef,
   useState,
 } from "react";
@@ -18,8 +25,15 @@ import {
 export interface ComposerProps {
   /** Disables sending while a prompt cannot be accepted (for example, history not loaded). */
   disabled?: boolean;
-  onSend: (text: string, attachments?: Attachment[]) => void | Promise<void>;
-  onSteer?: ((text: string) => void | Promise<void>) | undefined;
+  draftKey?: string;
+  onSend: (
+    text: string,
+    attachments?: Attachment[],
+    context?: WorkspaceContext,
+  ) => void | Promise<void>;
+  onSteer?:
+    | ((text: string, context?: WorkspaceContext) => void | Promise<void>)
+    | undefined;
   /** Present while a response streams; an empty composer offers Stop. */
   onStop?: (() => void) | undefined;
   placeholder?: string;
@@ -45,6 +59,7 @@ export interface ComposerProps {
  */
 export function Composer({
   className,
+  draftKey = "new",
   controls,
   disabled = false,
   notes,
@@ -54,11 +69,24 @@ export function Composer({
   placeholder = "Ask anything",
   streaming = false,
 }: ComposerProps) {
-  const [value, setValue] = useState("");
+  const drafts = useDeskDrafts();
+  const snapshot = useCallback(() => drafts.get(draftKey), [drafts, draftKey]);
+  const draft = useSyncExternalStore(drafts.subscribe, snapshot, snapshot);
+  const value = draft.text;
+  const setValue = (text: string) => drafts.update(draftKey, { text });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const referenceCount = useRef(0);
+  useEffect(() => {
+    if (draft.context.references.length > referenceCount.current)
+      textareaRef.current?.focus();
+    referenceCount.current = draft.context.references.length;
+  }, [draft.context.references.length]);
   const id = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const attachments = useAttachments();
+  const attachments = useAttachments({
+    initial: draft.attachments,
+    onChange: (files) => drafts.update(draftKey, { attachments: files }),
+  });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -67,7 +95,10 @@ export function Composer({
     entry.attachment ? [entry.attachment] : [],
   );
   const limitError = attachmentLimit(receipts);
-  const hasContent = value.trim().length > 0 || attachments.files.length > 0;
+  const hasContent =
+    value.trim().length > 0 ||
+    attachments.files.length > 0 ||
+    draft.context.references.length > 0;
   const canSend =
     !disabled &&
     !submitting &&
@@ -75,17 +106,18 @@ export function Composer({
     attachments.ready &&
     !limitError &&
     (!streaming || (Boolean(onSteer) && attachments.files.length === 0));
-  const showStop = streaming && value.trim().length === 0;
+  const showStop = streaming && !hasContent;
 
   const submit = async () => {
     if (!canSend) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      if (streaming && onSteer) await onSteer(value.trim());
-      else await onSend(value.trim(), receipts);
+      if (streaming && onSteer) await onSteer(value.trim(), draft.context);
+      else await onSend(value.trim(), receipts, draft.context);
       setValue("");
       attachments.clear();
+      drafts.update(draftKey, { context: { references: [] } });
     } catch (error) {
       setSubmitError(
         error instanceof Error
@@ -124,6 +156,7 @@ export function Composer({
     <form
       className={cn("flex flex-col gap-1", className)}
       data-slot="composer"
+      data-draft-key={draftKey}
       onDragEnter={(event) => {
         if (!event.dataTransfer.types.includes("Files")) return;
         event.preventDefault();
@@ -170,6 +203,10 @@ export function Composer({
         )}
         data-slot="composer-input"
       >
+        <WorkspaceReferenceCards
+          context={draft.context}
+          onChange={(context) => drafts.update(draftKey, { context })}
+        />
         {attachments.files.length ? (
           <ul
             aria-label="Attachments"

@@ -223,10 +223,11 @@ describe("installed packaging", () => {
     const environments = serviceEnvironments(paths, executables);
     expect(JSON.stringify(environments)).not.toContain(secret);
     expect(JSON.stringify(environments)).not.toContain("API_SERVER_KEY");
-    expect(environments.basicMemory).toContain(
-      'BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED="false"',
-    );
+    expect(environments).not.toHaveProperty("basicMemory");
     expect(environments.desk).toContain('NEXT_TELEMETRY_DISABLED="1"');
+    expect(
+      serviceEnvironmentValues(paths, executables).hermes.PYTHIA_WORKSPACE,
+    ).toBe(paths.workspace);
     expect(
       serviceEnvironmentValues(paths, executables).desk.PYTHIA_WORKSPACE,
     ).toBe(paths.workspace);
@@ -241,19 +242,12 @@ describe("installed packaging", () => {
       `PYTHIA_INSTALL_CONFIG_HOME="${resolve(paths.configRoot, "..")}"`,
     );
     expect(
-      Object.keys(serviceEnvironmentValues(paths, executables).basicMemory),
-    ).toEqual([
-      "HOME",
-      "BASIC_MEMORY_CONFIG_DIR",
-      "BASIC_MEMORY_NO_PROMOS",
-      "BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED",
-      "FASTMCP_CHECK_FOR_UPDATES",
-      "FASTMCP_SHOW_SERVER_BANNER",
-      "HF_HOME",
-      "FASTEMBED_CACHE_PATH",
-      "XDG_CACHE_HOME",
-      "PATH",
-    ]);
+      serviceEnvironmentValues(paths, executables).hermes
+        .PYTHIA_DESK_VIEW_STATE,
+    ).toBe(paths.deskViewState);
+    expect(
+      serviceEnvironmentValues(paths, executables).desk.PYTHIA_DESK_VIEW_STATE,
+    ).toBe(paths.deskViewState);
     expect(existsSync(paths.serviceEnvironment)).toBe(false);
     expect(
       readFileSync(join(paths.configRoot, "secrets.json"), "utf8"),

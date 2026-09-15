@@ -1,5 +1,10 @@
 # ADR 0010: Local chat attachments over native Hermes input
 
+[ADR 0013](0013-workspace-and-native-research-context.md) extends this decision
+with file viewing/references and optional file-based strategy scope. Native chat
+ownership and attachment retention remain unchanged; the earlier rejected
+parallel project store is not introduced.
+
 Status: Accepted
 
 ## Context

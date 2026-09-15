@@ -40,7 +40,6 @@ const executables = {
   managedPython: `${paths.managedPython}/.venv/bin/python`,
   uv: `${paths.runtimeRoot}/uv/0.9.28/uv`,
   hermes: `${paths.hermesSource}/.venv/bin/hermes`,
-  basicMemory: `${paths.managedPython}/.venv/bin/basic-memory`,
   next: `${paths.checkout}/apps/desk/node_modules/next/dist/bin/next`,
 };
 const previousHome = process.env.HOME;
@@ -54,9 +53,7 @@ const unitPayload = Object.values(units).join("\n");
 if (
   Object.keys(units).sort().join("\0") !== [...UNIT_NAMES].sort().join("\0")
 ) {
-  violations.push(
-    "systemd: rendered unit set differs from the four-file allowlist",
-  );
+  violations.push("systemd: rendered unit set differs from the unit allowlist");
 }
 for (const text of forbiddenPayloadText) {
   if (unitPayload.includes(text)) violations.push(`systemd: contains ${text}`);
@@ -64,10 +61,39 @@ for (const text of forbiddenPayloadText) {
 if (unitPayload.includes("CLOSURE_CANARY_SECRET")) {
   violations.push("systemd: embeds the private service bearer");
 }
+if (
+  unitPayload.includes("basic-memory") ||
+  Object.keys(installedEnvironments).some(
+    (role) => !["hermes", "desk"].includes(role),
+  )
+) {
+  violations.push(
+    "services: retired research service remains a required runtime role",
+  );
+}
+for (const role of ["hermes", "desk"]) {
+  const environment = installedEnvironments[role] ?? "";
+  if (
+    !environment.includes(`PYTHIA_DESK_VIEW_STATE="${paths.deskViewState}"`)
+  ) {
+    violations.push(
+      `service environment ${role}: missing shared private Desk view state`,
+    );
+  }
+  if (!environment.includes(`PYTHIA_WORKSPACE="${paths.workspace}"`)) {
+    violations.push(
+      `service environment ${role}: missing shared Desk research root`,
+    );
+  }
+  if (/BASIC_MEMORY|FASTMCP|FASTEMBED/u.test(environment)) {
+    violations.push(
+      `service environment ${role}: retired research dependency remains`,
+    );
+  }
+}
 const expectedUnitFragments = [
   `WorkingDirectory=${paths.workspace}\n`,
   `ExecStart="${executables.python}" "${paths.serviceLauncher}" hermes "${executables.hermes}" -p pythia gateway run --external-supervisor`,
-  `ExecStart="${executables.basicMemory}" mcp --transport streamable-http --host 127.0.0.1`,
   `WorkingDirectory=${join(paths.checkout, "apps", "desk")}\n`,
   `ExecStart="${executables.python}" "${paths.serviceLauncher}" desk "${executables.node}" "${executables.next}" start --hostname 127.0.0.1 --port 8644`,
 ];
@@ -92,32 +118,6 @@ for (const [role, environment] of Object.entries(installedEnvironments)) {
     );
   }
 }
-const basicMemoryEnvironmentNames = installedEnvironments.basicMemory
-  .trim()
-  .split("\n")
-  .map((line) => line.slice(0, line.indexOf("=")))
-  .sort((left, right) => left.localeCompare(right, "en"));
-const expectedBasicMemoryEnvironmentNames = [
-  "BASIC_MEMORY_CONFIG_DIR",
-  "BASIC_MEMORY_NO_PROMOS",
-  "BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED",
-  "FASTEMBED_CACHE_PATH",
-  "FASTMCP_CHECK_FOR_UPDATES",
-  "FASTMCP_SHOW_SERVER_BANNER",
-  "HF_HOME",
-  "HOME",
-  "PATH",
-  "XDG_CACHE_HOME",
-].sort((left, right) => left.localeCompare(right, "en"));
-if (
-  basicMemoryEnvironmentNames.join("\0") !==
-  expectedBasicMemoryEnvironmentNames.join("\0")
-) {
-  violations.push(
-    "service environment basicMemory: differs from the exact Basic Memory allowlist",
-  );
-}
-
 const developmentPaths = {
   ...paths,
   repositoryRoot: paths.checkout,
@@ -141,13 +141,18 @@ if (
 for (const name of [
   "PYTHIA_WORKSPACE",
   "HERMES_HOME",
-  "BASIC_MEMORY_CONFIG_DIR",
+  "PYTHIA_DESK_VIEW_STATE",
 ]) {
   if (String(nativeEnvironment[name]).startsWith(`${paths.checkout}/`)) {
     violations.push(`runtime environment: ${name} points into public source`);
   }
 }
 
+if (nativeEnvironment.PYTHIA_DESK_VIEW_STATE !== paths.deskViewState) {
+  violations.push(
+    "development environment: Desk view state differs from installed ownership",
+  );
+}
 const source = sourceManifest(root);
 const pluginFiles = source.entries
   .map((item) => item.path)
@@ -159,7 +164,7 @@ if (
     .join("\0")
 ) {
   violations.push(
-    "Hermes: managed plugin source is not the exact two-file allowlist",
+    "Hermes: managed plugin source is not the exact four-file allowlist",
   );
 }
 const managedPythonFiles = source.entries
@@ -201,7 +206,7 @@ for (const skill of skillRoots) {
     violations.push(`Hermes: managed skill bundle lacks ${entrypoint}`);
   }
 }
-const authoritativePromptSource = "runtime/managed/plugin/__init__.py";
+const authoritativePromptSource = "runtime/managed/plugin/operating.py";
 const retiredPromptSource = "runtime/managed/instructions/operating.md";
 const managedReadme = readFileSync(
   join(root, "runtime/managed/README.md"),
@@ -237,12 +242,10 @@ const memorySkill = readFileSync(
   "utf8",
 );
 if (
-  !memorySkill.includes("requires_toolsets: [mcp-basic-memory]") ||
-  !memorySkill.includes("Basic Memory")
+  !memorySkill.includes("requires_toolsets: [file]") ||
+  memorySkill.includes("mcp-basic-memory")
 ) {
-  violations.push(
-    "Hermes: Basic Memory guidance is not confined to its natively gated skill",
-  );
+  violations.push("Hermes: research guidance must use the native file toolset");
 }
 const promptAndContextFiles = new Set([
   authoritativePromptSource,
@@ -253,8 +256,7 @@ const installedRuntimeFiles = new Set([
   ...MANAGED_PYTHON_SOURCE_FILES.map(
     (path) => `runtime/managed/python/${path}`,
   ),
-  "runtime/managed/basic-memory/mcp.yaml",
-  "runtime/managed/basic-memory/service.environment",
+  "runtime/managed/runner/native_session_context.py",
   "runtime/managed/runner/eodhd.ts",
   "runtime/managed/runner/sec.py",
   "runtime/managed/runner/tsconfig.json",
@@ -285,9 +287,7 @@ if (
   const requiredSeedDestinations = new Set([
     "workspace/AGENTS.md",
     "workspace/DATA_SOURCES.md",
-    "workspace/portfolio/README.md",
-    "workspace/cases/README.md",
-    "workspace/scratch/README.md",
+    "workspace/strategies/README.md",
   ]);
   for (const seed of seedManifest.entries) {
     const sourcePath = `runtime/seeds/${String(seed.source)}`;

@@ -230,7 +230,6 @@ export async function observeAssembledStack(rootValue, stackName = "one") {
     runtime_generation: JSON.parse(readFileSync(stack.paths.receipt, "utf8"))
       .runtime_generation,
     settings: {
-      basic_memory: settings.body.basic_memory,
       skills: settings.body.skills,
       toolsets: settings.body.toolsets,
     },

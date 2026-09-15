@@ -436,3 +436,81 @@ The native API request cap is 10,000,000 bytes. Desk's combined image budget is
 does not imply universal vision or document-format support. The separate web
 dashboard upload path and browser-control artifact endpoints are not general
 Desk upload contracts. See [ADR 0010](../../docs/decisions/0010-local-chat-attachments.md).
+
+## Workspace research and scoped context
+
+[ADR 0013](../../docs/decisions/0013-workspace-and-native-research-context.md)
+selects native file tools, memory, session recall and skills as the existing
+storage/context owners. The managed `pythia.operating` section is registered
+`after_memory`, with a 4,000-character cap and marker
+`[PYTHIA_WORKSPACE_GUIDANCE_V1]`. Its source is `runtime/managed/plugin/operating.py`; registration
+stays in `runtime/managed/plugin/__init__.py`. The managed `investment-memory` skill depends on
+`file`, not an MCP research store. It is selected when useful, not on every turn.
+
+Ordinary resume in `agent/conversation_loop.py::_restore_or_build_system_prompt`
+restores the native stored full prompt. `agent/system_prompt.py` freezes plugin
+sections during a prompt's life; native compaction invalidation re-renders them.
+A source copy or process restart alone does not prove adoption by an existing
+chat. Fresh native sessions are the dependable adoption boundary; legacy chats
+remain available with a notice and selective-recall continuation reference.
+
+Optional strategy notes use `[PYTHIA_WORKSPACE_SCOPE_V1]` with version 1,
+`originSessionId` and `briefPath`. Briefs are ordinary
+`strategies/<name>/README.md` files; no profile/session metadata or process cwd
+mutation implements scope. The opening scope evidence remains unique. Later native user input carries
+bounded provenance separately, without reproducing the searchable opening marker
+or overriding current user directions.
+
+Normal HTTP history omits compacted rows. The allowlisted
+`runtime/managed/runner/native_session_context.py`, invoked in the pinned Hermes environment
+against the configured profile only, calls native `SessionDB(read_only=True)`,
+`get_session`, `get_compression_lineage`, `search_messages` and
+`get_messages_around(..., window=0)`. Search is role-filtered and bounded;
+projection fields are `id`, `session_id`, `role`, `snippet`. Snippets and summaries
+never establish scope. Exact anchors must remain active or compacted, so a rewind
+between search and anchor retrieval cannot restore withdrawn association.
+Compression lineage includes descendants and needs explicit bounded validation;
+it is not delegation/fork inheritance.
+
+The helper checks native repair/stale status and the pinned private
+`_fts_enabled` flag, because the read-only constructor does not establish search
+completeness. NUL-prefixed native structured content can evade fallback search;
+incomplete indexing returns unresolved rather than a guessed general scope.
+Managed guidance status uses the native framed plugin-section parser, not a
+substring found anywhere in the system prompt. These narrow private seams are
+qualified against the exact pin and must be rechecked when it changes. The
+result contains scope provenance, guidance status and a bounded first-input
+eligibility snapshot, never raw messages,
+system prompt or browser-selected database paths. No schema/index is copied.
+
+## Current Desk view tool
+
+The existing plugin's `desk_view.py` registers `pythia_desk_view` in native
+`pythia-desk`. Its only model argument is `view_reference`; native dispatch
+supplies `session_id`. The result is a JSON string with bounded structured view
+context or an explicit unavailable reason. It reads Desk's transient private
+cache, never opens a browser or an HTTP listener. The reference belongs to the
+submitting browser/tab/native session and expires without current publication;
+there is no unrelated session/tab fallback. Generic page title/route and
+observable file context may be present; arbitrary settings values and DOM are not.
+
+Fresh `api_server` defaults enable this toolset; existing native choices remain
+unchanged. Hermes may defer plugin tools behind its native tool-search bridge,
+so absence from the initial direct tool list alone does not mean unavailable.
+Qualification checks the native enabled catalog and dispatch, not an invented
+Pythia capability registry. Provider runners do not receive view-state paths.
+
+`tooling/qualification/workspace-native.py`, `workspace-instructions.py` and the
+native session-context fixture exercise these seams with disposable synthetic
+state and no model inference. Structural delivery is not evidence of investor
+judgment or live UI/remote behavior.
+
+First-input eligibility is established from exact native absence of all retained message
+rows plus eligible session metadata, not absence from the ordinary active-only
+HTTP transcript. This is a bounded current-state snapshot, not proof that the
+session never had historical data. It permits an initial scoped input without claiming that an
+uncreated prompt contains current guidance. Guidance stays unavailable until
+verified in the native framed section. Settings separately exposes the native
+`terminal.cwd` and Desk workspace root as matched/different/unavailable, preserving
+the user's cwd; canonical host references and browser root admission do not
+change when those roots differ.

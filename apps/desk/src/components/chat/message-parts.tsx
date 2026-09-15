@@ -1,5 +1,10 @@
 "use client";
 
+import { useCodeHighlight } from "@/components/workspace/previews/code";
+
+import { CHAT_MARKDOWN_SANITIZER } from "@/components/workspace/markdown-policy";
+
+import { ChatArtifactLink } from "@/components/workspace/workspace-link";
 import { Button, cn } from "@pythia/ui";
 import { Streamdown } from "streamdown";
 import { useState } from "react";
@@ -23,6 +28,9 @@ import { ChatError, ChatNote } from "./chat-status";
  * A module constant because Streamdown compares this prop by identity when
  * deciding whether to re-render.
  */
+const ARTIFACT_REHYPE = [CHAT_MARKDOWN_SANITIZER];
+const ARTIFACT_COMPONENTS = { a: ChatArtifactLink };
+
 export const LINK_SAFETY = { enabled: true, onLinkCheck: () => true } as const;
 
 /**
@@ -37,13 +45,18 @@ export function AssistantText({
   streaming: boolean;
   text: string;
 }) {
+  const code = useCodeHighlight(/```|~~~/.test(text) && text.length <= 100_000);
   return (
     <div
       className="min-w-0 font-reading text-reading"
       data-slot="assistant-text"
     >
       <Streamdown
-        className="min-w-0 text-foreground leading-reading [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_a]:text-primary [&_a]:underline [&_code]:rounded-control [&_code]:bg-subtle [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.9em] [&_h1]:mt-5 [&_h1]:mb-2 [&_h1]:font-semibold [&_h1]:text-lg [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:font-semibold [&_h2]:text-body [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_pre]:my-2.5 [&_pre]:overflow-x-auto [&_pre]:rounded-container [&_pre]:border [&_pre]:border-border [&_pre]:bg-subtle [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-2.5 [&_table]:w-full [&_table]:border-collapse [&_table]:font-sans [&_table]:tabular-nums [&_td]:border [&_td]:border-border [&_td]:px-2.5 [&_td]:py-1.5 [&_th]:border [&_th]:border-border [&_th]:bg-subtle [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-start [&_ul]:my-2 [&_ul]:list-disc [&_ul]:ps-5"
+        plugins={code ? { code } : {}}
+        components={ARTIFACT_COMPONENTS}
+        rehypePlugins={ARTIFACT_REHYPE}
+        skipHtml
+        className="min-w-0 text-foreground leading-reading [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_code]:rounded-control [&_code]:bg-subtle [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.9em] [&_h1]:mt-5 [&_h1]:mb-2 [&_h1]:font-semibold [&_h1]:text-lg [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:font-semibold [&_h2]:text-body [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_pre]:my-2.5 [&_pre]:overflow-x-auto [&_pre]:rounded-container [&_pre]:border [&_pre]:border-border [&_pre]:bg-subtle [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-2.5 [&_table]:w-full [&_table]:border-collapse [&_table]:font-sans [&_table]:tabular-nums [&_td]:border [&_td]:border-border [&_td]:px-2.5 [&_td]:py-1.5 [&_th]:border [&_th]:border-border [&_th]:bg-subtle [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-start [&_ul]:my-2 [&_ul]:list-disc [&_ul]:ps-5"
         isAnimating={streaming}
         controls={{ code: { copy: true } }}
         linkSafety={LINK_SAFETY}

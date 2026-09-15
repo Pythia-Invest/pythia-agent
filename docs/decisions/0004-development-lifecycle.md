@@ -1,5 +1,9 @@
 # 0004: One foreground owner per development worktree
 
+The Basic Memory default and associated three-service/split-storage rulings below
+are superseded by [ADR 0013](0013-workspace-and-native-research-context.md).
+The remaining native ownership and preservation decisions continue to apply.
+
 Local development on macOS and Ubuntu uses one Pythia process to supervise the
 native pinned Hermes gateway, the native pinned Basic Memory HTTP MCP, and
 Pythia Desk. It owns readiness, signal propagation, and teardown; it does not

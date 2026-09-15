@@ -1,5 +1,7 @@
 "use client";
 
+import { ChatContextNotice } from "./chat-context-notice";
+
 import { useChat } from "@ai-sdk/react";
 import { Alert, Skeleton } from "@pythia/ui";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
@@ -142,8 +144,11 @@ function ChatSession({
 
   const busy = chat.status === "streaming" || chat.status === "submitted";
   const steer = useCallback(
-    (text: string) =>
-      session.transport.steer(sessionId, text).then(() => undefined),
+    (
+      text: string,
+      context?: import("@/workspace/references").WorkspaceContext,
+    ) =>
+      session.transport.steer(sessionId, text, context).then(() => undefined),
     [sessionId, session],
   );
 
@@ -154,6 +159,7 @@ function ChatSession({
   const opening = chat.messages.length === 0 && !busy;
   const composer = (
     <div className={CHAT_MEASURE_CLASS}>
+      <ChatContextNotice sessionId={sessionId} />
       {chat.error ? (
         <ErrorMessage
           className="mb-3"
@@ -174,6 +180,7 @@ function ChatSession({
         </Alert>
       ) : null}
       <Composer
+        draftKey={sessionId}
         notes={<ConnectionNote state={connection} />}
         controls={
           models.data && resolvedSelection ? (

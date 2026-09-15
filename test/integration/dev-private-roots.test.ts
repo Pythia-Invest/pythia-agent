@@ -115,7 +115,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
     }
   });
 
-  it("removes ambient credentials and fixes Basic Memory offline settings", () => {
+  it("removes ambient credentials and starts only Hermes and Desk", () => {
     const root = temporaryRoot();
     const paths = resolveStackPaths({ environment: environment(root) });
     const clean = runtimeEnvironment(paths, "safe-local-key-value", {
@@ -137,18 +137,19 @@ describe("private roots, environment, seeds, and copied assets", () => {
     expect(clean.EDGAR_IDENTITY).toBeUndefined();
     expect(clean.EDGAR_API_TOKEN).toBeUndefined();
     expect(clean.ORDINARY_SETTING).toBe("visible");
-    expect(clean.BASIC_MEMORY_NO_PROMOS).toBe("true");
-    expect(clean.BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED).toBe("false");
-    expect(clean.FASTMCP_CHECK_FOR_UPDATES).toBe("off");
-    expect(clean.FASTMCP_SHOW_SERVER_BANNER).toBe("false");
+    expect(clean.BASIC_MEMORY_NO_PROMOS).toBeUndefined();
+    expect(clean.BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED).toBeUndefined();
+    expect(clean.FASTMCP_CHECK_FOR_UPDATES).toBeUndefined();
+    expect(clean.FASTMCP_SHOW_SERVER_BANNER).toBeUndefined();
     expect(clean.NEXT_TELEMETRY_DISABLED).toBe("1");
     expect(clean.HERMES_DISABLE_LAZY_INSTALLS).toBe("1");
-    expect(clean.BASIC_MEMORY_CONFIG_DIR).toBe(paths.basicMemoryConfig);
+    expect(clean.BASIC_MEMORY_CONFIG_DIR).toBeUndefined();
     expect(clean.API_SERVER_HOST).toBe("127.0.0.1");
     expect(clean.PYTHIA_HERMES_API_KEY).toBeUndefined();
     expect(clean.HERMES_HOME).toBe(paths.hermesRoot);
     expect(clean.PYTHIA_CONFIG_ROOT).toBe(paths.configRoot);
     expect(clean.PYTHIA_STATE_ROOT).toBe(paths.stateRoot);
+    expect(clean.PYTHIA_DESK_VIEW_STATE).toBe(paths.deskViewState);
     expect(clean.PYTHIA_MANAGED_ROOT).toBe(paths.managedRoot);
     expect(clean.PYTHIA_EDGAR_DATA_DIR).toBe(paths.edgarData);
     expect(clean.PYTHIA_EDGAR_CACHE_DIR).toBe(paths.edgarCache);
@@ -166,11 +167,11 @@ describe("private roots, environment, seeds, and copied assets", () => {
     );
     const services = developmentServices(paths, clean);
     expect(services[0]?.cwd).toBe(paths.workspace);
-    expect(services[1]?.environment.API_SERVER_KEY).toBeUndefined();
+    expect(services.map((service) => service.name)).toEqual(["hermes", "desk"]);
     expect(services[0]?.environment.API_SERVER_KEY).toBe(
       "safe-local-key-value",
     );
-    expect(services[2]?.environment.API_SERVER_KEY).toBe(
+    expect(services[1]?.environment.API_SERVER_KEY).toBe(
       "safe-local-key-value",
     );
     expect(
@@ -178,6 +179,45 @@ describe("private roots, environment, seeds, and copied assets", () => {
         redactedEnvironment({ API_SERVER_KEY: "x", SECRET: "x", OK: "y" }),
       ),
     ).not.toContain("x");
+  });
+
+  it("keeps the legacy service only during an explicit staged transition", () => {
+    const root = temporaryRoot();
+    const paths = resolveStackPaths({ environment: environment(root) });
+    mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 });
+    writeFileSync(
+      join(paths.stateRoot, "workspace-transition.json"),
+      JSON.stringify({
+        version: 1,
+        stack: paths.id,
+        profileRoot: paths.profileRoot,
+        workspace: paths.workspace,
+        knowledge: paths.knowledge,
+        backupRoot: join(paths.stateRoot, "workspace-transition-backup"),
+        importRoot: join(paths.workspace, "imported-research-1"),
+        files: [],
+        seeds: [],
+        phase: "staged",
+      }),
+    );
+    const services = developmentServices(
+      paths,
+      runtimeEnvironment(paths, "fixture-key", {}),
+    );
+    expect(services.map((service) => service.name)).toEqual([
+      "hermes",
+      "desk",
+      "basic-memory",
+    ]);
+    const legacy = services[2];
+    expect(legacy?.environment.API_SERVER_KEY).toBeUndefined();
+    expect(legacy?.environment.PYTHIA_DESK_VIEW_STATE).toBeUndefined();
+    expect(legacy?.environment.BASIC_MEMORY_CONFIG_DIR).toBe(
+      paths.basicMemoryConfig,
+    );
+    expect(legacy?.command).toBe(
+      join(paths.managedPython, ".venv", "bin", "basic-memory"),
+    );
   });
 
   it("installs the fresh Pythia scaffold once and preserves later edits", () => {
@@ -222,6 +262,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
     - vision
     - web
   api_server:
+    - pythia-desk
     - cronjob
     - delegation
     - file
@@ -242,10 +283,8 @@ describe("private roots, environment, seeds, and copied assets", () => {
     for (const path of [
       join(paths.workspace, "AGENTS.md"),
       join(paths.workspace, "DATA_SOURCES.md"),
-      join(paths.workspace, "portfolio", "README.md"),
-      join(paths.workspace, "cases", "README.md"),
-      join(paths.workspace, "scratch", "README.md"),
-      join(paths.knowledge, "README.md"),
+      join(paths.workspace, "README.md"),
+      join(paths.workspace, "strategies", "README.md"),
     ]) {
       expect(lstatSync(path).isFile()).toBe(true);
     }
@@ -265,13 +304,11 @@ platform_toolsets:
     const userFiles = [
       join(paths.workspace, "AGENTS.md"),
       join(paths.workspace, "DATA_SOURCES.md"),
-      join(paths.workspace, "portfolio", "README.md"),
-      join(paths.workspace, "cases", "README.md"),
-      join(paths.workspace, "scratch", "README.md"),
-      join(paths.knowledge, "README.md"),
+      join(paths.workspace, "README.md"),
+      join(paths.workspace, "strategies", "README.md"),
     ];
     for (const path of userFiles) writeFileSync(path, `user edit ${path}\n`);
-    rmSync(join(paths.workspace, "scratch", "README.md"));
+    rmSync(join(paths.workspace, "strategies", "README.md"));
     const second = installSeeds(paths);
     expect(second).toEqual({
       installed: [],
@@ -288,11 +325,11 @@ platform_toolsets:
       "fixture credential\n",
     );
     for (const path of userFiles.filter(
-      (path) => path !== join(paths.workspace, "scratch", "README.md"),
+      (path) => path !== join(paths.workspace, "strategies", "README.md"),
     )) {
       expect(readFileSync(path, "utf8")).toBe(`user edit ${path}\n`);
     }
-    expect(existsSync(join(paths.workspace, "scratch", "README.md"))).toBe(
+    expect(existsSync(join(paths.workspace, "strategies", "README.md"))).toBe(
       false,
     );
     const receipt = readJson(join(paths.stateRoot, "seed-receipt.json"));

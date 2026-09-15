@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 
@@ -15,6 +16,7 @@ def verify_plugin_dispatch(*, root: Path, repository: Path, tool_registry_type) 
     if plugin_spec is None or plugin_spec.loader is None:
         raise RuntimeError("Could not load the managed Pythia plugin.")
     plugin = importlib.util.module_from_spec(plugin_spec)
+    sys.modules[plugin_spec.name] = plugin
     plugin_spec.loader.exec_module(plugin)
 
     config_root = root / "config"

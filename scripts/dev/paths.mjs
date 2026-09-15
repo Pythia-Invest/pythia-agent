@@ -95,6 +95,7 @@ export function resolveStackPaths(options = {}) {
     edgarData: join(dataRoot, "edgar"),
     edgarCache: join(cacheRoot, "edgar"),
     workspace: join(dataRoot, "workspace"),
+    deskViewState: join(stateRoot, "desk-view"),
     knowledge: join(dataRoot, "knowledge"),
     processRoot: join(stateRoot, "processes"),
     receipt: join(stateRoot, "processes", "foreground.json"),

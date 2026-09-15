@@ -61,3 +61,12 @@ use Funnel, or trust client-supplied identity headers from a different proxy.
 Other hosting mechanisms are not automatically supported by these settings.
 Public internet hosting would require its own authentication and security
 review; Tailscale support does not make Desk a public multi-user web service.
+
+Workspace files stay on the Hermes host. Configured remote Desk clients browse,
+preview, download and reference them through the same admitted host reads as local
+clients; browser-local file paths are not workspace paths. Initial workspace HTML
+and RSC responses apply the same host and Serve identity checks before embedding
+file metadata. Subsequent reads and preview contents use the admitted API. Current-view context
+is bound to the submitting tab and native session and expires when publication
+stops. This design does not imply Workspace-specific cross-device/Tailscale
+acceptance has been exercised; see [support](support.md).

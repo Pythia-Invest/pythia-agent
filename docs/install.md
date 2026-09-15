@@ -8,7 +8,7 @@ and does not need this installer.
 
 The host needs Git 2.43 or newer plus `curl`, `tar`, `xz`, `sha256sum`,
 `flock`, `ssh-keygen`, systemd user services, and `loginctl`. The installer
-downloads exact Node, uv, Python, Hermes, Basic Memory, EdgarTools, and
+downloads exact Node, uv, Python, Hermes, EdgarTools, and
 JavaScript artifacts and verifies their recorded versions or hashes. It puts
 its owned Node directory on `PATH` before invoking Corepack or pnpm.
 
@@ -41,16 +41,14 @@ state, data, and cache locations; installs a `pythia` command in
 
 - `pythia-agent.target`
 - `pythia-agent-hermes.service`
-- `pythia-agent-basic-memory.service`
 - `pythia-agent-desk.service`
 
 It enables user lingering so the stack can run after logout. It does not create
 a system service, install a global Hermes, or modify another Pythia/lab service.
-The defaults are Hermes on `127.0.0.1:8645`, Basic Memory on
-`127.0.0.1:8643`, and Desk at <http://127.0.0.1:8644>.
+The defaults are Hermes on `127.0.0.1:8645` and Desk at <http://127.0.0.1:8644>.
 
 Managed plugin files are copied into the native Hermes profile after locked
-dependencies are prepared. Profile, SOUL, workspace, and knowledge defaults
+dependencies are prepared. Profile, SOUL and workspace defaults
 are created only as part of the first initialization transaction; later
 installation, update, rebuild, and refresh operations preserve the resulting
 user-owned files and native capability choices.
@@ -69,8 +67,8 @@ not returned to the browser after writing.
 
 ## If installation fails
 
-Before mutating an installed candidate, Pythia disables boot startup and stops
-all three services. Metadata and the completed transaction are written durably
+After any required Workspace transition preflight permits activation, Pythia
+disables boot startup and stops both services before mutating the candidate. Metadata and the completed transaction are written durably
 after health verification and before final enablement. A preparation or health
 failure therefore leaves the Pythia target disabled and stopped across reboot,
 or reports that this state could not be confirmed.
@@ -105,3 +103,10 @@ restrict an explicit preview install from source the user selected.
 
 See [updates and customization](update-and-customization.md) for update,
 rebuild, recovery, ownership, and uninstall behavior.
+
+Existing Basic Memory installations must complete the explicit staged
+[Workspace transition](update-and-customization.md#workspace-transition) before
+preparation replaces dependencies or owned services. Preview is read-only;
+staging preserves notes/configuration and the old usable environment. Fresh
+native-session guidance evidence is required before retirement. Routine startup
+does not migrate personal notes or overwrite user-owned instruction seeds.

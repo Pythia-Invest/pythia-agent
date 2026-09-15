@@ -42,6 +42,9 @@ function harness(
     profile?: string;
     readbackLoss?: boolean;
     restart?: () => Promise<void>;
+    workspaceRoot?: string;
+    nativeCwd?: unknown;
+    cwdUnavailable?: boolean;
   } = {},
 ) {
   const configRoot = options.configRoot ?? temporaryRoot();
@@ -112,6 +115,10 @@ function harness(
       const status = options.authStatuses?.[provider] ?? "logged out";
       return { stdout: `${provider}: ${status}\n` };
     }
+    if (args.includes("terminal.cwd")) {
+      if (options.cwdUnavailable) throw new Error("Native cwd unavailable");
+      return { stdout: JSON.stringify(options.nativeCwd ?? null) };
+    }
     if (args.includes("config") && args.includes("get")) {
       return { stdout: JSON.stringify([...storedDisabled].sort()) };
     }
@@ -141,11 +148,11 @@ function harness(
     environment: {
       HERMES_HOME: join(configRoot, "hermes"),
       NODE_ENV: "test",
+      PYTHIA_WORKSPACE: options.workspaceRoot,
       PYTHIA_BASIC_MEMORY_MCP_URL: "http://127.0.0.1:4567/mcp",
       PYTHIA_HERMES_PROFILE: options.profile ?? "pythia-test",
       PYTHIA_STATE_ROOT: stateRoot,
     },
-    fetch: vi.fn(async () => Response.json({ jsonrpc: "2.0", id: 1 })),
     readbackAttempts: 2,
     readbackDelayMs: 0,
     restartHermes: restart,
@@ -162,6 +169,61 @@ function harness(
 }
 
 describe("device settings", () => {
+  it.each([
+    {
+      root: "/research/investor",
+      cwd: "/research/investor/",
+      status: "matched",
+    },
+    {
+      root: "/research/investor",
+      cwd: "/work/calculations",
+      status: "different",
+    },
+    { root: "/research/investor", cwd: null, status: "unavailable" },
+    {
+      root: "/research/investor",
+      cwd: "relative-folder",
+      status: "unavailable",
+    },
+  ])(
+    "reports configured Workspace/cwd $status without modifying either",
+    async ({ root, cwd, status }) => {
+      const { service, commandCalls, restart } = harness({
+        workspaceRoot: root,
+        nativeCwd: cwd,
+        profile: "pythia-alt",
+      });
+      expect((await service.snapshot()).workspace).toEqual({
+        root,
+        native_cwd: cwd,
+        status,
+      });
+      expect(commandCalls).toContainEqual([
+        "-p",
+        "pythia-alt",
+        "config",
+        "get",
+        "terminal.cwd",
+        "--json",
+      ]);
+      expect(commandCalls.some((args) => args.includes("set"))).toBe(false);
+      expect(restart).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the Workspace root visible when the native cwd read fails", async () => {
+    const { service } = harness({
+      workspaceRoot: "/research/nondefault",
+      cwdUnavailable: true,
+    });
+    expect((await service.snapshot()).workspace).toEqual({
+      root: "/research/nondefault",
+      native_cwd: null,
+      status: "unavailable",
+    });
+  });
+
   it("starts without optional secrets and reports independent native surfaces", async () => {
     const { commandCalls, service } = harness();
     const snapshot = await service.snapshot();
@@ -179,7 +241,7 @@ describe("device settings", () => {
     ]);
     expect(snapshot.sec_identity.status).toBe("missing");
     expect(snapshot.eodhd_credential.status).toBe("missing");
-    expect(snapshot.basic_memory.status).toBe("ready");
+    expect(snapshot).not.toHaveProperty("basic_memory");
     expect(snapshot.skills).toContainEqual(
       expect.objectContaining({
         name: "sec-edgar-research",
@@ -523,7 +585,6 @@ describe("device settings", () => {
         NODE_ENV: "test",
         PYTHIA_HERMES_PROFILE: "pythia-test",
       },
-      fetch: vi.fn(async () => new Response(null, { status: 503 })),
       restartHermes: first.restart,
     });
     const snapshot = await restarted.snapshot();

@@ -29,6 +29,7 @@ platform_toolsets:
     - vision
     - web
   api_server:
+    - pythia-desk
     - cronjob
     - delegation
     - file
@@ -41,13 +42,3 @@ platform_toolsets:
     - web
 auxiliary:
   free_only: true
-mcp_servers:
-  basic-memory:
-    url: "${PYTHIA_BASIC_MEMORY_MCP_URL}"
-    enabled: true
-    timeout: 30
-    connect_timeout: 10
-    supports_parallel_tool_calls: false
-    tools:
-      resources: true
-      prompts: true

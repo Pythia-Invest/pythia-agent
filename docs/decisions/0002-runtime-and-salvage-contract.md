@@ -1,5 +1,9 @@
 # 0002: Runtime and salvage contract
 
+The Basic Memory default and associated three-service/split-storage rulings below
+are superseded by [ADR 0013](0013-workspace-and-native-research-context.md).
+The remaining native ownership and preservation decisions continue to apply.
+
 Pythia pins exact, inspected dependencies and consumes only the operations in
 `runtime/contracts/`. `runtime/versions.json` is the machine-readable identity
 and artifact record.

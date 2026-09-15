@@ -1,5 +1,8 @@
 "use client";
 
+import { useReferenceActions } from "@/components/workspace/workspace-interactions";
+import { useWorkspaceReader } from "@/components/workspace/reader-context";
+
 import { Drawer, IconButton } from "@pythia/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { PanelLeft } from "lucide-react";
@@ -12,8 +15,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { useDeskApi } from "@/client/providers";
+import { useDeskApi, useDeskView } from "@/client/providers";
 import { deskKeys, useSessions } from "@/client/queries";
+import { WorkspaceCompanion } from "@/components/workspace/workspace-companion";
 import { ShellDock, useWideShell } from "./shell-dock";
 import { AgentDock } from "./agent-dock";
 import { ChatHeader } from "./chat-header";
@@ -23,12 +27,8 @@ import {
   type ChatPanelProps,
 } from "./chat-panel";
 import { destinationTitle } from "./destinations";
-import {
-  defaultLayout,
-  readLayout,
-  type ShellLayout,
-  writeLayout,
-} from "./shell-layout";
+import { shellLayout } from "./shell-layout";
+import { useLocalLayout } from "@/layout/use-local-layout";
 import { useDockTabs } from "./use-dock-tabs";
 import { NavRail } from "./nav-rail";
 import { TopBar } from "./top-bar";
@@ -69,11 +69,19 @@ export function DeskShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const sessions = useSessions();
   const api = useDeskApi();
+  const viewPublisher = useDeskView();
+  const publishedRoute = useRef(pathname);
+  const reader = useWorkspaceReader();
+  const referenceActions = useReferenceActions();
   const queryClient = useQueryClient();
   const [pinnedIds, setPinnedIds] = useState<ReadonlySet<string>>(
     () => new Set<string>(),
   );
-  const [layout, setLayout] = useState<ShellLayout>(defaultLayout);
+  const {
+    value: layout,
+    ready: layoutReady,
+    update: updateLayout,
+  } = useLocalLayout(shellLayout);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const wide = useWideShell();
   const [searchQuery, setSearchQuery] = useState("");
@@ -91,9 +99,6 @@ export function DeskShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setPinnedIds(readPins());
-    const stored = readLayout();
-    setLayout(stored);
-    dockWidth.current = stored.dockWidth;
   }, []);
 
   // Navigating closes the drawer on narrow screens.
@@ -104,26 +109,6 @@ export function DeskShell({ children }: { children: ReactNode }) {
       focusNewChatComposer();
     }
   }, [focusNewChatComposer, pathname]);
-
-  /*
-   * The docked panel's width lives in a ref, not in state.
-   *
-   * react-resizable-panels re-registers a panel whenever its `defaultSize`
-   * prop changes, and re-registering resets the group's layout. Rendering on
-   * every `onResize` therefore fought the drag: each pointer move handed the
-   * panel a new default and snapped it back, so the separator looked stuck.
-   * Nothing on screen needs the live width, so it is written straight to
-   * storage and read back when the panel next mounts.
-   */
-  const dockWidth = useRef(defaultLayout.dockWidth);
-
-  const updateLayout = useCallback((patch: Partial<ShellLayout>) => {
-    setLayout((current) => {
-      const next = { ...current, ...patch, dockWidth: dockWidth.current };
-      writeLayout(next);
-      return next;
-    });
-  }, []);
 
   const handleNewChat = useCallback(() => {
     setDrawerOpen(false);
@@ -173,6 +158,54 @@ export function DeskShell({ children }: { children: ReactNode }) {
    */
   const routeSessionId = params.sessionId ?? null;
   const dock = useDockTabs(sessions.data ?? [], routeSessionId);
+  useEffect(() => {
+    referenceActions?.register(
+      chatSurface
+        ? (routeSessionId ?? "new")
+        : wide && layout.dockOpen
+          ? (dock.activeId ?? "new")
+          : null,
+      (target) => {
+        if (!wide)
+          reader?.closeAndFocus(() =>
+            document.querySelector<HTMLTextAreaElement>(
+              `[data-draft-key="${CSS.escape(target)}"] textarea`,
+            ),
+          );
+        if (chatSurface || !wide)
+          router.push(
+            target === "new" ? "/" : `/c/${encodeURIComponent(target)}`,
+          );
+        else {
+          if (target === "new") dock.draft();
+          else dock.open(target);
+          updateLayout({ dockOpen: true });
+        }
+      },
+    );
+  }, [
+    referenceActions,
+    reader?.closeAndFocus,
+    chatSurface,
+    routeSessionId,
+    wide,
+    layout.dockOpen,
+    dock.activeId,
+    dock.draft,
+    dock.open,
+    router,
+    updateLayout,
+  ]);
+  useEffect(() => {
+    // Only structured app state is exposed; no form values or document DOM.
+    const navigated = publishedRoute.current !== pathname;
+    publishedRoute.current = pathname;
+    viewPublisher.setView(
+      !navigated && reader?.view
+        ? reader.view
+        : { route: pathname, title: destinationTitle(pathname) },
+    );
+  }, [viewPublisher, reader?.view, pathname]);
 
   /*
    * The chat list appears in three places — the wide column, the narrow
@@ -215,12 +248,23 @@ export function DeskShell({ children }: { children: ReactNode }) {
     (session) => session.id === routeSessionId,
   );
   const surface = (
-    <main className="flex min-w-0 flex-1 flex-col bg-raised">
-      {chatSurface && (routeSessionId || !layout.listOpen) ? (
-        <div className="hidden min-[900px]:block">
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-raised">
+      {chatSurface ? (
+        <div
+          className={
+            routeSessionId
+              ? "hidden min-[900px]:block"
+              : "hidden min-[900px]:block [[data-desk-list-open=true]_&]:hidden"
+          }
+        >
           <ChatHeader
+            key={routeSessionId}
             chatTitle={routeSession ? chatTitle(routeSession) : null}
-            listOpen={layout.listOpen}
+            onRename={
+              routeSessionId
+                ? (title) => renameChat(routeSessionId, title)
+                : undefined
+            }
             onNewChat={handleNewChat}
             onShowList={() => updateLayout({ listOpen: true })}
           />
@@ -233,7 +277,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
   const navigation = (
     <NavRail
       className="hidden min-[900px]:flex"
-      collapsed={layout.railCollapsed}
+      persistent
       id="desk-navigation"
       onNavigateHome={handleNewChat}
       onToggleCollapsed={() =>
@@ -262,7 +306,6 @@ export function DeskShell({ children }: { children: ReactNode }) {
                 <Drawer.Content className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
                   <NavRail
                     className="h-auto max-h-[55dvh] w-full flex-none"
-                    collapsed={false}
                     onNavigateHome={handleNewChat}
                     onToggleCollapsed={() => setDrawerOpen(false)}
                     pathname={pathname}
@@ -296,20 +339,21 @@ export function DeskShell({ children }: { children: ReactNode }) {
             title={destinationTitle(pathname)}
           />
           <div className="flex min-h-0 flex-1">
-            {layout.listOpen && chatSurface ? (
+            {chatSurface ? (
               <ChatPanel
                 {...chatList}
-                className="hidden min-[900px]:flex"
+                className="hidden min-[900px]:flex [[data-desk-list-open=false]_&]:hidden"
                 onHide={() => updateLayout({ listOpen: false })}
               />
             ) : null}
             {chatSurface ? (
-              surface
+              <WorkspaceCompanion>{surface}</WorkspaceCompanion>
             ) : (
               <ShellDock
                 open={layout.dockOpen}
                 onOpenChange={(open) => updateLayout({ dockOpen: open })}
-                width={dockWidth}
+                width={layout.dockWidth}
+                ready={layoutReady}
                 dock={(onHide) => (
                   <AgentDock
                     onCloseChat={dock.close}

@@ -1,3 +1,7 @@
+import {
+  assertLegacyBasicMemoryOwned as assertLegacyOwned,
+  retireLegacyBasicMemoryUnit,
+} from "./legacy-basic-memory.mjs";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -13,7 +17,6 @@ import { basename, dirname, join, resolve } from "node:path";
 import { atomicWrite } from "./files.mjs";
 
 export const UNIT_NAMES = [
-  "pythia-agent-basic-memory.service",
   "pythia-agent-hermes.service",
   "pythia-agent-desk.service",
   "pythia-agent.target",
@@ -76,35 +79,25 @@ export function serviceEnvironmentValues(paths, executables) {
     HERMES_DISABLE_LAZY_INSTALLS: "1",
     PYTHIA_CONFIG_ROOT: paths.configRoot,
     PYTHIA_MANAGED_ROOT: paths.managedRoot,
+    PYTHIA_WORKSPACE: paths.workspace,
+    PYTHIA_DESK_VIEW_STATE: paths.deskViewState,
     PYTHIA_EDGAR_DATA_DIR: paths.edgarData,
     PYTHIA_EDGAR_CACHE_DIR: paths.edgarCache,
     PYTHIA_PYTHON: executables.managedPython,
     PYTHIA_NODE: executables.node,
     API_SERVER_HOST: "127.0.0.1",
     API_SERVER_PORT: String(paths.ports.hermes),
-    PYTHIA_BASIC_MEMORY_MCP_URL: `http://127.0.0.1:${paths.ports.memory}/mcp`,
-    PATH: path,
-  };
-  const basicMemory = {
-    HOME: process.env.HOME ?? "",
-    BASIC_MEMORY_CONFIG_DIR: paths.basicMemoryConfig,
-    BASIC_MEMORY_NO_PROMOS: "true",
-    BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false",
-    FASTMCP_CHECK_FOR_UPDATES: "off",
-    FASTMCP_SHOW_SERVER_BANNER: "false",
-    HF_HOME: join(paths.basicMemoryCache, "huggingface-disabled"),
-    FASTEMBED_CACHE_PATH: join(paths.basicMemoryCache, "fastembed-disabled"),
-    XDG_CACHE_HOME: paths.cacheRoot,
     PATH: path,
   };
   const desk = {
+    PYTHIA_MANAGED_ROOT: paths.managedRoot,
     PYTHIA_WORKSPACE: paths.workspace,
+    PYTHIA_DESK_VIEW_STATE: paths.deskViewState,
     HOME: process.env.HOME ?? "",
     HERMES_HOME: paths.hermesRoot,
     PYTHIA_CONFIG_ROOT: paths.configRoot,
     PYTHIA_STATE_ROOT: paths.stateRoot,
     PYTHIA_HERMES_API_URL: `http://127.0.0.1:${paths.ports.hermes}`,
-    PYTHIA_BASIC_MEMORY_MCP_URL: `http://127.0.0.1:${paths.ports.memory}/mcp`,
     PYTHIA_HERMES_EXECUTABLE: executables.hermes,
     PYTHIA_HERMES_PROFILE: paths.profile,
     PYTHIA_LIFECYCLE_COMMAND: paths.installedCommand,
@@ -114,7 +107,7 @@ export function serviceEnvironmentValues(paths, executables) {
     HOSTNAME: "127.0.0.1",
     PATH: path,
   };
-  return { hermes, basicMemory, desk };
+  return { hermes, desk };
 }
 
 export function serviceEnvironments(paths, executables) {
@@ -132,16 +125,12 @@ function replacements(paths, executables) {
     "@@HERMES_ENVIRONMENT_FILE@@": systemdPath(
       paths.serviceEnvironments.hermes,
     ),
-    "@@BASIC_MEMORY_ENVIRONMENT_FILE@@": systemdPath(
-      paths.serviceEnvironments.basicMemory,
-    ),
     "@@DESK_ENVIRONMENT_FILE@@": systemdPath(paths.serviceEnvironments.desk),
     "@@CHECKOUT@@": systemdPath(paths.checkout),
     "@@DESK_ROOT@@": systemdPath(join(paths.checkout, "apps", "desk")),
     "@@WORKSPACE@@": systemdPath(paths.workspace),
     "@@SERVICE_LAUNCHER@@": systemdQuote(paths.serviceLauncher),
     "@@HERMES@@": systemdQuote(executables.hermes),
-    "@@BASIC_MEMORY@@": systemdQuote(executables.basicMemory),
     "@@PYTHON@@": systemdQuote(executables.python),
     "@@NODE@@": systemdQuote(executables.node),
     "@@NEXT@@": systemdQuote(executables.next),
@@ -193,7 +182,6 @@ export function installUnits(paths, units) {
 export function writeServiceEnvironment(paths, _apiKey, executables) {
   const values = serviceEnvironments(paths, executables);
   atomicWrite(paths.serviceEnvironments.hermes, values.hermes);
-  atomicWrite(paths.serviceEnvironments.basicMemory, values.basicMemory);
   atomicWrite(paths.serviceEnvironments.desk, values.desk);
   // Releases before this split persisted the bearer in one shared file. It is
   // not an authority and must not survive once role-scoped transport exists.
@@ -231,20 +219,6 @@ export function refreshUnitManager() {
 
 export function unitExpectations(paths, executables) {
   return {
-    "pythia-agent-basic-memory.service": [
-      executables.basicMemory,
-      "mcp",
-      "--transport",
-      "streamable-http",
-      "--host",
-      "127.0.0.1",
-      "--port",
-      String(paths.ports.memory),
-      "--path",
-      "/mcp",
-      "--project",
-      paths.id,
-    ],
     "pythia-agent-hermes.service": [
       executables.python,
       paths.serviceLauncher,
@@ -377,4 +351,12 @@ export function removeUnits(paths) {
     }
     rmSync(path);
   }
+}
+
+export function retireLegacyBasicMemory(paths, options = {}) {
+  return retireLegacyBasicMemoryUnit(paths, options.systemctl ?? systemctl);
+}
+
+export function assertLegacyBasicMemoryOwned(paths, options = {}) {
+  return assertLegacyOwned(paths, options.systemctl ?? systemctl);
 }

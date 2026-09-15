@@ -1,6 +1,14 @@
-# Basic Memory contract
+# Legacy Basic Memory contract
 
-Pythia uses Basic Memory 0.23.2, unmodified, as a separately supervised AGPL
+This contract records the retired default, not a current startup requirement.
+[ADR 0013](../../docs/decisions/0013-workspace-and-native-research-context.md)
+supersedes it. Existing state and the old usable environment are preserved
+until the explicit [workspace transition](../../docs/update-and-customization.md#workspace-transition)
+completes; fresh stacks do not install or launch this service.
+
+The historical qualified contract follows.
+
+The earlier Pythia default used Basic Memory 0.23.2, unmodified, as a separately supervised AGPL
 process on loopback. It does not copy its code, load its Hermes memory-provider
 integration, install the official Hermes memory-provider plugin, or treat its SQLite database as authority. User-owned Markdown is
 authoritative; the database and search index are disposable and rebuildable.

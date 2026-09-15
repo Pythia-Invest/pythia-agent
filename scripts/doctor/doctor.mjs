@@ -157,7 +157,6 @@ export async function doctor(paths) {
       uv: "uv",
       python: "python3",
       hermes: "hermes",
-      basicMemory: "basic-memory",
     };
   }
   const bearer = apiKey(paths);
@@ -165,24 +164,6 @@ export async function doctor(paths) {
   const health = {
     hermes: await endpoint(`http://127.0.0.1:${paths.ports.hermes}/health`, {
       headers,
-    }),
-    basic_memory: await endpoint(`http://127.0.0.1:${paths.ports.memory}/mcp`, {
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: {
-          protocolVersion: "2025-06-18",
-          capabilities: {},
-          clientInfo: { name: "pythia-doctor", version: "0.1" },
-        },
-      }),
-      headers: {
-        accept: "application/json, text/event-stream",
-        "content-type": "application/json",
-      },
-      method: "POST",
-      contentTypes: ["application/json", "text/event-stream"],
     }),
     desk: await endpoint(`http://127.0.0.1:${paths.ports.desk}/api/health`),
   };
@@ -213,11 +194,14 @@ export async function doctor(paths) {
       uv: version(executables.uv, ["--version"]),
       python: version(executables.python, ["--version"]),
       hermes: version(executables.hermes, ["--version"]),
-      basic_memory: version(executables.basicMemory, ["--version"]),
     },
     services: unitState(),
     health,
-    ports: { host: "127.0.0.1", ...paths.ports },
+    ports: {
+      host: "127.0.0.1",
+      hermes: paths.ports.hermes,
+      desk: paths.ports.desk,
+    },
     ownership: {
       checkout:
         installation?.checkout === paths.checkout ? "owned" : "mismatch",
@@ -234,11 +218,10 @@ export async function doctor(paths) {
     capabilities: bearer
       ? await capabilities(paths, bearer)
       : { skills: "unavailable", api_server_toolsets: "unavailable" },
-    basic_memory: {
-      markdown_authoritative: true,
-      knowledge_present: existsSync(paths.knowledge),
-      derived_index_rebuildable: existsSync(paths.knowledge),
-      semantic_search: "disabled",
+    workspace: {
+      files_authoritative: true,
+      present: existsSync(paths.workspace),
+      legacy_knowledge_present: existsSync(paths.knowledge),
     },
   };
 }

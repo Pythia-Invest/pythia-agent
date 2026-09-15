@@ -74,6 +74,11 @@ function fakeSettings() {
       skills: [],
       skills_status: "ready" as const,
       toolsets: [],
+      workspace: {
+        root: null,
+        native_cwd: null,
+        status: "unavailable" as const,
+      },
       toolsets_status: "ready" as const,
     })),
     setSecIdentity: vi.fn(async () => ({ status: "configured" as const })),

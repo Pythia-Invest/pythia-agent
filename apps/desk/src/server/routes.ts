@@ -1,3 +1,12 @@
+import { createWorkspaceRunRoutes } from "./workspace/run-routes";
+import { createDeskViewRoutes } from "./view-context/routes";
+import {
+  createNativeSessionContextRoutes,
+  createNativeSessionContextReader,
+} from "./native-session-context";
+import { deskViewStore, type DeskViewStore } from "./view-context/store";
+import { createWorkspaceRoutes } from "./workspace/routes";
+import { workspaceStore, type WorkspaceStore } from "./workspace/store";
 import {
   result,
   routeError,
@@ -10,7 +19,6 @@ import {
   attachmentResponse,
   type AttachmentStore,
   readUploadBody,
-  parseAttachmentIds,
 } from "./attachments";
 import { admitBrowserRequest, issueBrowserSession } from "./admission";
 import {
@@ -23,7 +31,6 @@ import {
   type ReleaseStatusService,
 } from "./release-status";
 import { createSettingsRoutes } from "./settings-routes";
-import { parseModelSelection, type ModelSelection } from "./model-catalog";
 import type { ApprovalChoice, DeskRunEvent, HermesClient } from "./types";
 
 type RouteContext = { params: Promise<Record<string, string>> };
@@ -86,8 +93,22 @@ export function createDeskRoutes(
   settings: DeviceSettingsService = deviceSettingsService,
   releases: ReleaseStatusService = releaseStatusService,
   attachments: AttachmentStore = attachmentStore,
+  workspace: WorkspaceStore = workspaceStore,
+  views: DeskViewStore = deskViewStore,
+  sessionContext = createNativeSessionContextReader(),
 ) {
   return {
+    ...createWorkspaceRoutes(workspace),
+    ...createWorkspaceRunRoutes(
+      client,
+      settings,
+      attachments,
+      workspace,
+      views,
+      sessionContext,
+    ),
+    ...createDeskViewRoutes(views, workspace),
+    ...createNativeSessionContextRoutes(sessionContext),
     async uploadAttachment(request: Request) {
       const rejection = admitBrowserRequest(request, "mutation");
       if (rejection) return rejection;
@@ -246,38 +267,6 @@ export function createDeskRoutes(
         return routeError(error);
       }
     },
-    async startRun(request: Request) {
-      const rejection = admitBrowserRequest(request, "mutation");
-      if (rejection) return rejection;
-      try {
-        const body = await readBody(request);
-        const sessionId = textField(
-          body,
-          "session_id",
-          512,
-          "A session identifier",
-        );
-        const ids = parseAttachmentIds(body.attachments);
-        const text =
-          ids.length && body.input === ""
-            ? ""
-            : textField(body, "input", 60_000, "A message");
-        const input = ids.length ? await attachments.input(text, ids) : text;
-        let selection: ModelSelection | undefined;
-        try {
-          selection = parseModelSelection(body.selection);
-        } catch {
-          throw new HermesApiError(
-            "Choose a provider, model and valid reasoning effort.",
-            400,
-          );
-        }
-        if (selection) await settings.initializeModel(selection);
-        return result(await client.startRun(sessionId, input, selection), 202);
-      } catch (error) {
-        return routeError(error);
-      }
-    },
     async getRun(request: Request, context: RouteContext) {
       const rejection = admitBrowserRequest(request, "read");
       if (rejection) return rejection;
@@ -366,25 +355,6 @@ export function createDeskRoutes(
         );
         await readBody(request);
         return result(await client.stopRun(runId));
-      } catch (error) {
-        return routeError(error);
-      }
-    },
-    async steerRun(request: Request, context: RouteContext) {
-      const rejection = admitBrowserRequest(request, "mutation");
-      if (rejection) return rejection;
-      try {
-        const runId = identifier(
-          (await context.params).runId,
-          "run identifier",
-        );
-        const input = textField(
-          await readBody(request),
-          "input",
-          60_000,
-          "Guidance",
-        );
-        return result(await client.steerRun(runId, input));
       } catch (error) {
         return routeError(error);
       }

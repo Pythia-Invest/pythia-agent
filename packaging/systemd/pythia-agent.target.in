@@ -1,7 +1,7 @@
 [Unit]
 Description=Pythia Agent
-Wants=pythia-agent-basic-memory.service pythia-agent-hermes.service pythia-agent-desk.service
-After=pythia-agent-basic-memory.service pythia-agent-hermes.service pythia-agent-desk.service
+Wants=pythia-agent-hermes.service pythia-agent-desk.service
+After=pythia-agent-hermes.service pythia-agent-desk.service
 
 [Install]
 WantedBy=default.target

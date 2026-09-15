@@ -26,11 +26,11 @@ export function AnswerActions({ text }: { text: string }) {
   const sources = useMemo(() => sourcesIn(text), [text]);
   return (
     <div
-      className="ms-1 flex flex-wrap items-center gap-0.5"
+      className="-ms-2 -mt-1.5 flex flex-wrap items-center gap-0.5"
       data-slot="answer-actions"
     >
       <IconButton
-        className="size-4.5 rounded-sm text-foreground-disabled hover:bg-transparent hover:text-foreground-secondary [&>span>svg]:size-2.5 [&>span]:size-2.5"
+        className="size-8 rounded-control text-foreground-secondary hover:bg-interaction-hover hover:text-foreground [&>span>svg]:size-4 [&>span]:size-4"
         label={copied ? "Answer copied" : "Copy answer"}
         onClick={() => {
           void navigator.clipboard.writeText(text).then(() => {

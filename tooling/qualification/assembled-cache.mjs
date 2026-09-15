@@ -95,10 +95,6 @@ function cacheInput(value) {
     "hermesRuntimePrefix",
     "hermesSource",
     "uvBinary",
-    "basicMemoryArchive",
-    "basicMemoryWheel",
-    "basicMemoryPython",
-    "basicMemoryRuntimePrefix",
     "edgarArchive",
     "edgarWheel",
     "edgarPython",
@@ -128,7 +124,6 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
   for (const path of [
     files.hermesSource,
     files.hermesRuntimePrefix,
-    files.basicMemoryRuntimePrefix,
     files.edgarRuntimePrefix,
     ...(files.uvCache ? [files.uvCache] : []),
   ]) {
@@ -148,15 +143,6 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
     hermesArchive: verifyArtifact(
       files.hermesArchive,
       artifact(dependencies.hermes_agent, "github-tag-source-tarball").sha256,
-    ),
-    basicMemoryArchive: verifyArtifact(
-      files.basicMemoryArchive,
-      artifact(dependencies.basic_memory, "github-commit-source-tarball")
-        .sha256,
-    ),
-    basicMemoryWheel: verifyArtifact(
-      files.basicMemoryWheel,
-      artifact(dependencies.basic_memory, "pypi-wheel").sha256,
     ),
     edgarArchive: verifyArtifact(
       files.edgarArchive,
@@ -183,16 +169,10 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
       "hermes-agent",
       "hermes_cli",
     ),
-    basic_memory: pythonDistribution(
-      files.basicMemoryPython,
-      "basic-memory",
-      "basic_memory",
-    ),
     edgartools: pythonDistribution(files.edgarPython, "edgartools", "edgar"),
   };
   const installed = {
     hermes_agent: installedDetails.hermes_agent.version,
-    basic_memory: installedDetails.basic_memory.version,
     edgartools: installedDetails.edgartools.version,
     eodhd: JSON.parse(readFileSync(files.eodhdPackage, "utf8")).version,
   };
@@ -205,7 +185,6 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
   }
   const expectedOrigins = {
     hermes_agent: files.hermesSource,
-    basic_memory: files.basicMemoryRuntimePrefix,
     edgartools: files.edgarRuntimePrefix,
   };
   for (const [name, expected] of Object.entries(expectedOrigins)) {
@@ -216,9 +195,6 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
       );
     }
   }
-  const basicMemoryDirect = JSON.parse(
-    installedDetails.basic_memory.direct_url ?? "null",
-  );
   const edgarDirect = JSON.parse(
     installedDetails.edgartools.direct_url ?? "null",
   );
@@ -226,8 +202,6 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
     installedDetails.hermes_agent.direct_url ?? "null",
   );
   if (
-    resolve(fileURLToPath(basicMemoryDirect?.url ?? "file:///missing")) !==
-      resolve(files.basicMemoryWheel) ||
     resolve(fileURLToPath(edgarDirect?.url ?? "file:///missing")) !==
       resolve(files.edgarWheel) ||
     resolve(fileURLToPath(hermesDirect?.url ?? "file:///missing")) !==
@@ -243,13 +217,11 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
     hashes,
     installed,
     installed_origins: {
-      basic_memory: installedDetails.basic_memory.module,
       edgartools: installedDetails.edgartools.module,
       hermes_agent: installedDetails.hermes_agent.module,
     },
     pins: {
       hermes_commit: dependencies.hermes_agent.commit,
-      basic_memory_commit: dependencies.basic_memory.commit,
       eodhd_commit: dependencies.eodhd.commit,
     },
     toolchain: { uv: uvVersion },

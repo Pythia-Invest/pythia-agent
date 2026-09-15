@@ -1,7 +1,7 @@
 [Unit]
 Description=Pythia Agent Hermes runtime
-After=network-online.target pythia-agent-basic-memory.service
-Wants=network-online.target pythia-agent-basic-memory.service
+After=network-online.target
+Wants=network-online.target
 PartOf=pythia-agent.target
 
 [Service]

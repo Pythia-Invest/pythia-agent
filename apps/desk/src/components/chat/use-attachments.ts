@@ -12,22 +12,42 @@ export type DraftAttachment = {
   error?: string | undefined;
 };
 
-export function useAttachments() {
-  const [files, setFiles] = useState<DraftAttachment[]>([]);
+export function useAttachments(options?: {
+  initial: DraftAttachment[];
+  onChange: (files: DraftAttachment[]) => void;
+}) {
+  const notify = useRef(options?.onChange);
+  notify.current = options?.onChange;
+  const previews = useRef(new Map<string, string>());
+  const [files, setFiles] = useState<DraftAttachment[]>(() =>
+    (options?.initial ?? []).map((entry) => {
+      if (!IMAGE_TYPES.has(entry.file.type)) return entry;
+      const preview = URL.createObjectURL(entry.file);
+      previews.current.set(entry.key, preview);
+      return { ...entry, preview };
+    }),
+  );
   const current = useRef(files);
   const requests = useRef(new Map<string, AbortController>());
-  const previews = useRef(new Map<string, string>());
   const [error, setError] = useState<string | null>(null);
   const { mutateAsync } = useUploadAttachment();
 
   const update = (next: DraftAttachment[]) => {
     current.current = next;
     setFiles(next);
+    notify.current?.(next.map(({ preview: _preview, ...entry }) => entry));
   };
   useEffect(
     () => () => {
       for (const controller of requests.current.values()) controller.abort();
       requests.current.clear();
+      notify.current?.(
+        current.current.map(({ preview: _preview, ...entry }) =>
+          entry.attachment || entry.error
+            ? entry
+            : { ...entry, error: "Upload paused. Retry to finish attaching." },
+        ),
+      );
       for (const preview of previews.current.values())
         URL.revokeObjectURL(preview);
       previews.current.clear();

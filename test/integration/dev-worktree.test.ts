@@ -145,19 +145,7 @@ describe("worktree identity and native command construction", () => {
       "run",
       "--external-supervisor",
     ]);
-    expect(commands.basicMemoryMcp).toEqual([
-      "mcp",
-      "--transport",
-      "streamable-http",
-      "--host",
-      "127.0.0.1",
-      "--port",
-      String(paths.ports.memory),
-      "--path",
-      "/mcp",
-      "--project",
-      paths.id,
-    ]);
+    expect(commands).not.toHaveProperty("basicMemoryMcp");
     expect(commands.managedRunnerBuild).toEqual(["run", "build:runtime"]);
     expect(commands.desk).toEqual([
       "--filter",

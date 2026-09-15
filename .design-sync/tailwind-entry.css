@@ -63,3 +63,5 @@
 @source inline("shadow-{overlay,popup}");
 @source inline("max-w-measure");
 @source inline("ring-ring");
+
+@source inline("{text,bg,border}-{artifact-folder,artifact-document,artifact-data}");

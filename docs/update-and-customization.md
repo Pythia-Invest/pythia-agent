@@ -36,7 +36,7 @@ stable channel; no stable release is currently published.
 
 Before stopping services or changing source, the updater requires the checkout
 to be clean, owned, and conflict-free. It never stashes, merges, rebases,
-resets, or overwrites local work. It fetches the exact target, stops all three
+resets, or overwrites local work. It fetches the exact target, completes preservation preflight, stops both
 services, advances the checkout, prepares pinned dependencies before
 compilation, refreshes managed copies, runs migrations, and trial-starts with
 boot still disabled. After health succeeds, it durably records source metadata
@@ -68,7 +68,7 @@ private runtime.
 
 Device-owned material includes credentials, sessions, Markdown knowledge,
 workspace files, local configuration, capability choices, and local Hermes
-extensions. Profile, SOUL, workspace, and knowledge defaults are installed only
+extensions. Profile, SOUL and workspace defaults are installed only
 in the first initialization transaction. Updating or rebuilding Pythia does not
 reapply them or recreate a later-deleted seed over user choices.
 
@@ -139,3 +139,95 @@ knowledge for reinstallation. `pythia uninstall --purge` also removes Pythia
 configuration, state, and cache, but still does not delete the checkout,
 workspace, or Markdown knowledge. Back up and remove retained data separately
 only when that destructive result is intended.
+
+Uninstall and purge refuse a pending Workspace transition or a retained Basic
+Memory unit before stopping or removing anything. Complete the transition first;
+custom or unconfirmed legacy units remain untouched. The absence check also
+applies when the Hermes profile is missing.
+
+Default uninstall retains the profile-initialization receipt. A successfully
+initialized Workspace profile carries its adoption marker there, bound to the
+same stack, checkout and Hermes profile. Reinstall can therefore preserve and
+reuse that profile after the runtime activation receipt and binaries are removed.
+Migrated profiles retain their completed transition receipt instead. Neither
+path infers adoption from prompt text or from a missing runtime receipt.
+
+## Workspace transition
+
+Fresh stacks use Hermes and one ordinary workspace. Existing Basic Memory state
+requires an explicit staged transition before dependency synchronization, refresh,
+rebuild or update can remove its usable environment. This is not a startup
+migration and does not delete legacy research. Back up your device-owned data
+before an intentional lifecycle change.
+
+Installed preview:
+
+```sh
+pythia workspace-transition
+```
+
+Development equivalent, from the selected worktree:
+
+```sh
+node scripts/dev/cli.mjs workspace-transition
+```
+
+The read-only preview reports an `expected` state token, old MCP and unit
+ownership, the knowledge inventory, unsupported `memory://` or `[[wiki]]` links,
+and exact before/after seed text for workspace AGENTS/README and profile SOUL.
+Review these results. A custom MCP binding, unrelated unit or drop-in requires
+resolution rather than forced retirement. The profile must have completed its
+owned initialization transaction.
+
+Stage with the preview token and an explicit choice for each changed seed:
+
+```text
+pythia workspace-transition --apply --expect <preview.expected> \
+  --adopt-seed <source> --retain-seed <another-source>
+```
+
+`<source>` is the source name reported in the preview, such as
+`workspace/AGENTS.md`, `workspace/README.md` or `profile/SOUL.md`. Repeat the
+appropriate option for each changed seed. Adoption applies that reviewed seed
+diff; retention records the user's decision to keep their reconciled/custom or
+missing file. It does not infer that customized instructions match new defaults.
+Development uses the same options on `node scripts/dev/cli.mjs` and requires the
+stack stopped for apply/complete.
+
+Staging preserves configuration and adopted-seed originals in the stack state's
+`workspace-transition-backup/`, with a `workspace-transition.json` receipt.
+It copies notes into a collision-free `workspace/imported-research-N` directory,
+preserving relative layout and verifying bytes. Originals remain accessible;
+unsupported links are reported without rewriting. Only the exact owned old MCP
+binding is disabled through native Hermes commands. Current plugin files are
+copied and checked with native doctor while enabled/toolset choices are preserved.
+The old executable, environment and service remain available during this stage.
+
+Then explicitly restart the owned Hermes and start a new native chat after
+staging. The transition never sends a model request for you. On development,
+`just dev` in staged state starts the preserved environment without dependency
+sync/build/copy; create the fresh chat, then stop the stack before completing.
+Installed users can use the existing explicit `pythia restart-hermes` operation.
+A newly selected profile toolset remains the user's choice in native settings.
+
+Complete against the new native session:
+
+```text
+pythia workspace-transition --complete <session-id>
+```
+
+The native read-only checkpoint requires a session created after staging with
+the current managed operating marker. It also verifies notes, configuration,
+selected seeds and copied plugin. Only then can the exact owned old installed
+unit be retired and ordinary rebuild/refresh/init synchronize dependencies
+without Basic Memory. The receipt phases are `copying`, `staged`, `completing`
+and `complete`; rerunning the appropriate operation resumes an interruption.
+Intervening user edits produce an explicit preservation/error result, not an
+automatic merge or overwrite. Keep the backups and original notes.
+
+Old chats keep their native stored prompts. Ordinary resume does not refresh
+those bytes merely because services restarted. Desk's legacy notice offers
+“Continue in a new chat,” carrying a prior-session reference for native selective
+recall. No transcript is copied and no native history is rewritten. Native
+compaction can refresh prompt sections, but fresh-session adoption is the
+reliable transition checkpoint. See [ADR 0013](decisions/0013-workspace-and-native-research-context.md).

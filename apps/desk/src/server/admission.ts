@@ -5,7 +5,7 @@ const SESSION_COOKIE = "pythia_desk_session";
 const CSRF_HEADER = "x-pythia-csrf";
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
-type AdmissionKind = "health" | "bootstrap" | "read" | "mutation";
+type AdmissionKind = "health" | "bootstrap" | "read" | "page" | "mutation";
 
 function denied(message: string, status = 403, headers?: HeadersInit) {
   return Response.json(
@@ -134,6 +134,19 @@ export function admitBrowserRequest(
       ? null
       : denied("Open Pythia Desk before requesting a browser session.");
   }
+  if (kind === "page") {
+    // Initial HTML may contain private workspace metadata. A direct navigation
+    // has no Origin and sec-fetch-site:none; retain host/Serve identity checks.
+    const directNavigation =
+      request.method === "GET" &&
+      request.headers.get("sec-fetch-mode") === "navigate" &&
+      request.headers.get("sec-fetch-dest") === "document" &&
+      request.headers.get("sec-fetch-site") === "none";
+    return request.method === "GET" && (trustedContext || directNavigation)
+      ? null
+      : denied("This page request is not a trusted Desk navigation.");
+  }
+
   if (kind === "read") {
     return trustedContext || validCsrf(request)
       ? null

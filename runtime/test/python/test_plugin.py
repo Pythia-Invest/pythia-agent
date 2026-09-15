@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import stat
+import sys
 import subprocess
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ PLUGIN = Path(__file__).parents[2] / "managed" / "plugin" / "__init__.py"
 SPEC = importlib.util.spec_from_file_location("pythia_plugin", PLUGIN)
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
@@ -35,7 +37,7 @@ class RegistryContractContext:
 
 
 class PluginTest(unittest.TestCase):
-    def test_registers_only_native_prompt_and_two_toolsets(self):
+    def test_registers_native_prompt_and_three_toolsets(self):
         context = RegistryContractContext()
         MODULE.register(context)
 
@@ -48,6 +50,7 @@ class PluginTest(unittest.TestCase):
             {
                 ("pythia_sec_company", "pythia-sec"),
                 ("pythia_eod_prices", "pythia-eodhd"),
+                ("pythia_desk_view", "pythia-desk"),
             },
         )
 
@@ -79,6 +82,8 @@ class PluginTest(unittest.TestCase):
             environment = {
                 "PYTHIA_CONFIG_ROOT": str(root),
                 "PYTHIA_MANAGED_ROOT": str(root),
+                "PYTHIA_WORKSPACE": str(root / "research"),
+                "PYTHIA_DESK_VIEW_STATE": str(root / "view-state"),
                 "PYTHIA_EDGAR_DATA_DIR": str(root / "edgar-data"),
                 "PYTHIA_EDGAR_CACHE_DIR": str(root / "edgar-cache"),
             }
@@ -105,6 +110,9 @@ class PluginTest(unittest.TestCase):
                     )
                 )
 
+        for _command, _request, child_environment in calls:
+            self.assertNotIn("PYTHIA_WORKSPACE", child_environment)
+            self.assertNotIn("PYTHIA_DESK_VIEW_STATE", child_environment)
         self.assertEqual(sec["status"], "ok")
         self.assertEqual(eod["status"], "ok")
         self.assertEqual(calls[0][1], {"company": "EXAMPLE", "fact_limit": 7})

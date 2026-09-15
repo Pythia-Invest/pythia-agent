@@ -38,6 +38,7 @@ the signal that something has gone wrong. Real names, all of them usable as
 | Text | `foreground`, `foreground-secondary`, `foreground-disabled` |
 | Lines & interaction | `border`, `border-strong`, `interaction-hover`, `interaction-active`, `ring` |
 | Primary action | `primary`, `primary-foreground` |
+| File identity | `artifact-folder` (copper), `artifact-document` (blue), `artifact-data` (green); decorative file icons only, never status or Pythia signals |
 | Interface status | `info`, `success`, `warning`, `error` — each with `-surface` and `-border` |
 | Market movement | `market-up`, `market-down`, `market-flat` |
 | Analytical impact | `impact-favorable`, `impact-unfavorable`, `impact-neutral`, `impact-unresolved` |

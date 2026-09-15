@@ -1,3 +1,4 @@
+import { assertWorkspaceTransitionReady } from "../update/workspace-transition.mjs";
 import { existsSync, lstatSync } from "node:fs";
 import { join } from "node:path";
 import { readJson, refreshManagedPlugin } from "./files.mjs";
@@ -20,6 +21,7 @@ const OAUTH_PROVIDERS = new Set([
 ]);
 
 export async function refreshRuntimeAssets(paths, apiKey) {
+  assertWorkspaceTransitionReady(paths);
   refreshManagedPlugin(
     paths.managedPlugin,
     join(paths.profileRoot, "plugins", "pythia"),

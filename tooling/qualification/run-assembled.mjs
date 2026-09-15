@@ -36,6 +36,7 @@ const BYTE_STABLE_PRIVATE_STATE = [
   "secrets",
   "workspace_context",
   "workspace_note",
+  "knowledge_note",
 ];
 
 function assert(condition, message) {
@@ -78,10 +79,6 @@ function verifyObservation(observation, seededState, seededSession) {
     `Hermes did not expose ${CONTEXT_PASS_TOOLSET}/${CONTEXT_TOOL}.`,
   );
   assert(
-    observation.settings.basic_memory?.status === "ready",
-    "Desk did not observe Basic Memory as ready.",
-  );
-  assert(
     observation.native_session.id === seededSession.id &&
       observation.native_session.selected.id === seededSession.id &&
       observation.native_session.sha256 === seededSession.sha256,
@@ -106,12 +103,6 @@ function verifyObservation(observation, seededState, seededSession) {
       `The seeded private-state file ${name} changed during startup.`,
     );
   }
-  // Basic Memory may add its own Markdown metadata while indexing. The file
-  // must remain present, while the other device-owned inputs stay byte-stable.
-  assert(
-    observation.private_state_sha256.knowledge_note !== null,
-    "Basic Memory removed the seeded knowledge note.",
-  );
   assert(
     observation.private_state_sha256.root_auth === null,
     "Assembled startup created unexpected root credential material.",

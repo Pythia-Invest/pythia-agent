@@ -8,7 +8,6 @@ import {
   validateReceipt,
 } from "./supervisor-admission.mjs";
 import {
-  basicMemoryReady,
   deskReady,
   developmentServices,
   hermesReady,
@@ -36,16 +35,18 @@ export async function runDevelopment(paths, options = {}) {
     }
     const { environment } = await (options.prepareRuntime ?? bootstrapRuntime)(
       paths,
+      { allowStagedTransition: true },
     );
     console.log(`Starting ${paths.id} (${paths.profile})`);
     console.log(`Desk:         http://127.0.0.1:${paths.ports.desk}`);
     console.log(`Hermes API:   http://127.0.0.1:${paths.ports.hermes}`);
-    console.log(`Basic Memory: http://127.0.0.1:${paths.ports.memory}/mcp`);
     const services = developmentServices(paths, environment);
-    services[0].ready = (child) => hermesReady(paths, child);
-    services[1].ready = (child) =>
-      basicMemoryReady(paths, child, services[1].environment);
-    services[2].ready = (child) => deskReady(paths, child);
+    for (const service of services) {
+      if (service.name === "hermes")
+        service.ready = (child) => hermesReady(paths, child);
+      if (service.name === "desk")
+        service.ready = (child) => deskReady(paths, child);
+    }
     return await (options.supervise ?? supervise)(paths, services, {
       async refreshRuntime() {
         await bootstrapRuntime(paths);
@@ -75,7 +76,7 @@ export function stackStatus(paths) {
     hermes_restarting: receipt.hermes_restarting,
     runtime_generation: receipt.runtime_generation,
     runtime_refreshing: receipt.runtime_refreshing,
-    ports: paths.ports,
+    ports: { hermes: paths.ports.hermes, desk: paths.ports.desk },
     services: receipt.children.map((child) => ({
       name: child.name,
       status: identityMatches(child) ? "running" : "stale",

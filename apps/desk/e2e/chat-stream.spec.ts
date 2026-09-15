@@ -223,6 +223,63 @@ test("keeps prose stable and updates one compact activity line", async ({
   expect(f.unexpected).toEqual([]);
 });
 
+test("keeps latest hidden after no-op scroll gestures in a short chat", async ({
+  page,
+}) => {
+  const f = await fixture(page, [
+    { id: "short-answer", role: "assistant", content: "A short answer." },
+  ]);
+  const viewport = page.locator('[data-slot="conversation"]');
+  await expect(
+    page.getByText("A short answer.", { exact: true }),
+  ).toBeVisible();
+  expect(
+    await viewport.evaluate(
+      (element) => element.scrollHeight - element.clientHeight,
+    ),
+  ).toBe(0);
+  await viewport.dispatchEvent("wheel", { deltaY: -120 });
+  await viewport.dispatchEvent("touchstart", {
+    touches: [{ identifier: 1, clientY: 100 }],
+  });
+  await viewport.dispatchEvent("touchmove", {
+    touches: [{ identifier: 1, clientY: 180 }],
+  });
+  await expect(
+    page.getByRole("button", { name: "Jump to latest" }),
+  ).toBeHidden();
+  // The no-op gesture must also leave streaming follow enabled when text grows.
+  await send(page);
+  await f.emit([
+    {
+      event: "message.delta",
+      delta: Array.from({ length: 80 }, (_, i) => `Research line ${i}.`).join(
+        "\n\n",
+      ),
+    },
+  ]);
+  await expect
+    .poll(() =>
+      viewport.evaluate(
+        (element) => element.scrollHeight - element.clientHeight,
+      ),
+    )
+    .toBeGreaterThan(200);
+  await expect
+    .poll(() =>
+      viewport.evaluate(
+        (element) =>
+          element.scrollHeight - element.scrollTop - element.clientHeight,
+      ),
+    )
+    .toBeLessThan(2);
+  await expect(
+    page.getByRole("button", { name: "Jump to latest" }),
+  ).toBeHidden();
+  await f.emit([{ event: "run.cancelled" }]);
+  expect(f.unexpected).toEqual([]);
+});
+
 test("leaves a streamed answer in place when the reader scrolls up", async ({
   page,
 }) => {

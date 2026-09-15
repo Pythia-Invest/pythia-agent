@@ -1,3 +1,14 @@
+import { readLimitedBytes } from "./response-bytes";
+import type { NativeSessionContext } from "@/workspace/session-context";
+import type { DeskRunStart, WorkspaceTurn } from "@/workspace/references";
+import type { DeskViewPublication } from "@/view-context/types";
+import {
+  WORKSPACE_PREVIEW_BYTES,
+  type WorkspaceEntry,
+  type WorkspaceListing,
+  type WorkspaceSearch,
+} from "@/workspace/types";
+import { workspaceContentUrl } from "@/workspace/paths";
 import type { Attachment } from "@/attachments";
 import type {
   ApprovalChoice,
@@ -5,7 +16,6 @@ import type {
   HermesMessagePage,
   HermesCapabilities,
   HermesSession,
-  RunStart,
   RunStatus,
 } from "@/server/types";
 import type {
@@ -93,6 +103,81 @@ export class DeskApi {
     );
   }
 
+  workspaceEntry(path: string, signal?: AbortSignal) {
+    return this.#json<WorkspaceEntry>(
+      `/api/workspace/entry?${new URLSearchParams({ path })}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  workspaceList(path: string, signal?: AbortSignal) {
+    return this.#json<WorkspaceListing>(
+      `/api/workspace/list?${new URLSearchParams({ path })}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  workspaceSearch(path: string, q: string, signal?: AbortSignal) {
+    return this.#json<WorkspaceSearch>(
+      `/api/workspace/search?${new URLSearchParams({ path, q })}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  resolveWorkspaceHostPath(hostPath: string, signal?: AbortSignal) {
+    return this.#json<{ path: string }>(
+      `/api/workspace/resolve?${new URLSearchParams({ hostPath })}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  async workspaceBytes(
+    path: string,
+    revision: string,
+    limit: number,
+    signal: AbortSignal,
+  ) {
+    const response = await fetch(
+      `${workspaceContentUrl(path)}&revision=${encodeURIComponent(revision)}`,
+      { signal, cache: "no-store", credentials: "same-origin" },
+    );
+    if (!response.ok) {
+      const error = await bodyError(response);
+      throw new DeskApiError(error.message, response.status, error.code);
+    }
+    return readLimitedBytes(response, limit);
+  }
+
+  async workspaceText(path: string, signal?: AbortSignal) {
+    const response = await fetch(workspaceContentUrl(path), {
+      ...(signal ? { signal } : {}),
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      const error = await bodyError(response);
+      throw new DeskApiError(error.message, response.status, error.code);
+    }
+    if (
+      Number(response.headers.get("content-length")) >
+        WORKSPACE_PREVIEW_BYTES ||
+      response.headers.get("content-disposition")?.startsWith("attachment")
+    ) {
+      await response.body?.cancel();
+      throw new DeskApiError(
+        "This file is available to download.",
+        413,
+        "workspace_preview_limit",
+      );
+    }
+    return {
+      text: new TextDecoder("utf-8", { fatal: true }).decode(
+        await readLimitedBytes(response, WORKSPACE_PREVIEW_BYTES),
+      ),
+      revision: response.headers.get("x-workspace-revision") ?? "",
+    };
+  }
+
   async listSessions(limit = 60, offset = 0) {
     return (
       await this.#json<{ data: HermesSession[] }>(
@@ -165,6 +250,13 @@ export class DeskApi {
     );
   }
 
+  sessionContext(sessionId: string, signal?: AbortSignal) {
+    return this.#json<NativeSessionContext>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/context`,
+      signal ? { signal } : undefined,
+    );
+  }
+
   capabilities() {
     return this.#json<HermesCapabilities>("/api/capabilities");
   }
@@ -194,7 +286,7 @@ export class DeskApi {
     return this.#json<Attachment>("/api/attachments", {
       method: "POST",
       body: JSON.stringify(file),
-      ...(signal ? { signal } : {}),
+      ...(signal ? { ...(signal ? { signal } : {}) } : {}),
     });
   }
 
@@ -203,13 +295,15 @@ export class DeskApi {
     input: string,
     selection?: ModelSelection,
     attachments?: string[],
+    workspace?: WorkspaceTurn,
   ) {
-    return this.#json<RunStart>("/api/runs", {
+    return this.#json<DeskRunStart>("/api/runs", {
       body: JSON.stringify({
         session_id: sessionId,
         input,
         selection,
         ...(attachments?.length ? { attachments } : {}),
+        ...(workspace ? { workspace } : {}),
       }),
       method: "POST",
     });
@@ -229,11 +323,29 @@ export class DeskApi {
     });
   }
 
-  steerRun(runId: string, input: string) {
-    return this.#json<{ run_id: string; accepted: boolean }>(
-      `/api/runs/${encodeURIComponent(runId)}/steer`,
-      { body: JSON.stringify({ input }), method: "POST" },
-    );
+  publishDeskView(publication: DeskViewPublication) {
+    return this.#json<{ expires_at: number }>("/api/desk-view/publish", {
+      method: "POST",
+      body: JSON.stringify(publication),
+    });
+  }
+
+  terminateDeskView(tab_id: string, view_reference: string) {
+    return this.#json("/api/desk-view/terminate", {
+      method: "POST",
+      body: JSON.stringify({ tab_id, view_reference }),
+    });
+  }
+
+  steerRun(runId: string, input: string, workspace?: WorkspaceTurn) {
+    return this.#json<{
+      run_id: string;
+      accepted: boolean;
+      desk_view?: DeskRunStart["desk_view"];
+    }>(`/api/runs/${encodeURIComponent(runId)}/steer`, {
+      body: JSON.stringify({ input, ...(workspace ? { workspace } : {}) }),
+      method: "POST",
+    });
   }
 
   stopRun(runId: string) {

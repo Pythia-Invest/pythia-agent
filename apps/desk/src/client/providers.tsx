@@ -1,9 +1,21 @@
 "use client";
 
+import { DeskDrafts } from "./desk-drafts";
+import { DeskViewPublisher } from "./desk-view-publisher";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useState,
+  useEffect,
+} from "react";
 import { DeskChats } from "./desk-chat";
 import { DeskApi, DeskApiError } from "./api";
+
+const DeskDraftsContext = createContext<DeskDrafts | null>(null);
+const DeskViewContext = createContext<DeskViewPublisher | null>(null);
 
 const DeskChatsContext = createContext<DeskChats | null>(null);
 
@@ -43,12 +55,19 @@ export function DeskProviders({ children }: { children: ReactNode }) {
         },
       }),
   );
-  const [chats] = useState(() => new DeskChats(api, queryClient));
+  const [drafts] = useState(() => new DeskDrafts());
+  const [view] = useState(() => new DeskViewPublisher(api));
+  const [chats] = useState(() => new DeskChats(api, queryClient, view));
+  useEffect(() => view.start(), [view]);
   return (
     <DeskApiContext.Provider value={api}>
       <QueryClientProvider client={queryClient}>
         <DeskChatsContext.Provider value={chats}>
-          {children}
+          <DeskDraftsContext.Provider value={drafts}>
+            <DeskViewContext.Provider value={view}>
+              {children}
+            </DeskViewContext.Provider>
+          </DeskDraftsContext.Provider>
         </DeskChatsContext.Provider>
       </QueryClientProvider>
     </DeskApiContext.Provider>
@@ -65,4 +84,15 @@ export function useDeskChats() {
   const chats = useContext(DeskChatsContext);
   if (!chats) throw new Error("useDeskChats requires DeskProviders.");
   return chats;
+}
+
+export function useDeskDrafts() {
+  const drafts = useContext(DeskDraftsContext);
+  if (!drafts) throw new Error("useDeskDrafts requires DeskProviders.");
+  return drafts;
+}
+export function useDeskView() {
+  const view = useContext(DeskViewContext);
+  if (!view) throw new Error("useDeskView requires DeskProviders.");
+  return view;
 }

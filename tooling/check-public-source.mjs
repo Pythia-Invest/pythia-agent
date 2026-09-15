@@ -73,7 +73,6 @@ export function checkPublicSource(repository) {
   );
   const expectedLicenses = {
     hermes_agent: "MIT",
-    basic_memory: "AGPL-3.0-or-later",
     edgartools: "MIT",
     eodhd: "MIT",
   };
@@ -83,7 +82,7 @@ export function checkPublicSource(repository) {
       .join("\0") !== Object.keys(expectedLicenses).sort().join("\0")
   ) {
     violations.push(
-      "runtime/versions.json: dependency provenance set is not the reviewed four-package boundary",
+      "runtime/versions.json: dependency provenance set is not the reviewed three-package boundary",
     );
   }
   for (const [name, license] of Object.entries(expectedLicenses)) {
@@ -117,11 +116,7 @@ export function checkPublicSource(repository) {
     join(root, "runtime/managed/python/NOTICE.md"),
     "utf8",
   );
-  for (const required of [
-    "Hermes Agent",
-    "Basic Memory",
-    "AGPL-3.0-or-later",
-  ]) {
+  for (const required of ["Hermes Agent", "EdgarTools", "MIT"]) {
     if (!managedNotice.includes(required)) {
       violations.push(`runtime/managed/python/NOTICE.md: missing ${required}`);
     }

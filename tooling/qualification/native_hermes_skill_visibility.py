@@ -17,7 +17,7 @@ def verify_skill_visibility(
     clear_skills_system_prompt_cache,
 ) -> None:
     finance_toolsets = {"pythia-eodhd", "pythia-sec"}
-    all_toolsets = {*finance_toolsets, "mcp-basic-memory"}
+    all_toolsets = {*finance_toolsets, "file"}
     clear_skills_system_prompt_cache(clear_snapshot=True)
     complete_prompt = build_skills_system_prompt(
         available_tools=set(),
@@ -32,7 +32,7 @@ def verify_skill_visibility(
         raise RuntimeError("Hermes hid EODHD despite its toolset being present.")
     if memory_description not in complete_prompt:
         raise RuntimeError(
-            "Hermes hid Basic Memory guidance despite its toolset being present."
+            "Hermes hid file research guidance despite its toolset being present."
         )
 
     (profile_home / "config.yaml").write_text(
@@ -64,14 +64,14 @@ def verify_skill_visibility(
     )
     if memory_description in no_memory_prompt or "investment-memory" in no_memory_prompt:
         raise RuntimeError(
-            "Hermes exposed Basic Memory-specific guidance without its toolset."
+            "Hermes exposed file-based research guidance without its toolset."
         )
     if (
         local_description not in no_memory_prompt
         or "eodhd-market-data" not in no_memory_prompt
     ):
         raise RuntimeError(
-            "Hermes removed unrelated finance guidance with Basic Memory."
+            "Hermes removed unrelated finance guidance with file research."
         )
 
     (profile_home / "config.yaml").write_text(
@@ -92,7 +92,7 @@ def verify_skill_visibility(
         raise RuntimeError("Hermes exposed SEC without its required toolset.")
     if "investment-memory" in no_toolsets_prompt:
         raise RuntimeError(
-            "Hermes exposed Basic Memory without its required toolset."
+            "Hermes exposed file research without its required toolset."
         )
 
     clear_skills_system_prompt_cache(clear_snapshot=True)
@@ -105,5 +105,5 @@ def verify_skill_visibility(
         raise RuntimeError("Hermes did not preserve native fail-open semantics.")
     if memory_description not in unknown_inventory_prompt:
         raise RuntimeError(
-            "Hermes did not preserve Basic Memory's native fail-open semantics."
+            "Hermes did not preserve native file research's native fail-open semantics."
         )

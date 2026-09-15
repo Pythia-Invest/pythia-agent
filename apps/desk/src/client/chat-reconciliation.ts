@@ -1,5 +1,5 @@
 import type { DeskUIMessage } from "./chat-message";
-import { userText } from "./chat-message";
+import { userText, userWorkspaceContext } from "./chat-message";
 
 function rowIds(message: DeskUIMessage) {
   return message.metadata?.historyRows ?? [message.id];
@@ -79,6 +79,8 @@ export function reconcileCompletedHistory(
       return (
         !savedUser ||
         userText(message) !== userText(savedUser) ||
+        JSON.stringify(userWorkspaceContext(message)?.references ?? []) !==
+          JSON.stringify(userWorkspaceContext(savedUser)?.references ?? []) ||
         JSON.stringify(files(message)) !== JSON.stringify(files(savedUser))
       );
     })

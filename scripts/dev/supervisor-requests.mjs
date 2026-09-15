@@ -1,3 +1,4 @@
+import { assertWorkspaceTransitionReady } from "../update/workspace-transition.mjs";
 import { existsSync } from "node:fs";
 import { createJsonExclusive, readJson } from "./files.mjs";
 import { identityMatches, signalOwned } from "./processes.mjs";
@@ -117,6 +118,7 @@ export async function requestRuntimeRefresh(
   timeoutMs = 180_000,
   options = {},
 ) {
+  assertWorkspaceTransitionReady(paths);
   if (!existsSync(paths.receipt)) {
     await withPreparationAdmission(paths, "stopped runtime refresh", () =>
       (options.prepareRuntime ?? bootstrapRuntime)(paths),

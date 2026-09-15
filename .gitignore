@@ -84,6 +84,9 @@ dist/
 build/
 coverage/
 .vitest/
+playwright-report/
+test-results/
+blob-report/
 *.tsbuildinfo
 /apps/*/next-env.d.ts
 .nyc_output/
