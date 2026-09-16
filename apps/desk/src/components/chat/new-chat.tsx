@@ -1,5 +1,7 @@
 "use client";
 
+import type { WorkspaceContext } from "@/workspace/references";
+
 import type { Attachment } from "@/attachments";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -60,13 +62,17 @@ export function NewChat({ onStarted }: NewChatProps = {}) {
     }
   }, [models.data, resolvedSelection, selection]);
 
-  const start = async (prompt: string, attachments: Attachment[] = []) => {
+  const start = async (
+    prompt: string,
+    attachments: Attachment[] = [],
+    context?: WorkspaceContext,
+  ) => {
     setCreating(true);
     try {
       const session = await api.createSession(
         titleFromPrompt(prompt || attachments[0]?.name || "New chat"),
       );
-      storePendingPrompt(session.id, prompt, attachments);
+      storePendingPrompt(session.id, prompt, attachments, context);
       void queryClient.invalidateQueries({ queryKey: deskKeys.sessions });
       if (onStarted) onStarted(session.id);
       else {

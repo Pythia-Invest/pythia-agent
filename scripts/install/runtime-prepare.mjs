@@ -5,11 +5,10 @@ import {
   refreshUnitManager,
   renderUnits,
   serviceAction,
-  serviceEnvironmentValues,
   verifyOwnedUnits,
   writeServiceEnvironment,
 } from "./systemd.mjs";
-import { verifyBasicMemoryReadiness } from "./basic-memory-readiness.mjs";
+import { assertWorkspaceTransitionReady } from "../update/workspace-transition.mjs";
 import {
   assertCheckout,
   assertInstallationSource,
@@ -30,6 +29,7 @@ export async function prepareInstallation(
   expectedRevision,
   options = {},
 ) {
+  assertWorkspaceTransitionReady(paths);
   assertCheckout(paths);
   assertInstallationSource(paths, channel, expectedRevision, options);
   ensureRoots(paths);
@@ -116,8 +116,6 @@ export async function startAndVerify(paths, options = {}) {
   await starter();
   const executables = options.executables ?? installedExecutables(paths);
   const verifyUnits = options.verifyUnits ?? verifyOwnedUnits;
-  const verifyMemory =
-    options.verifyBasicMemoryReadiness ?? verifyBasicMemoryReadiness;
   await verifyUnits(paths, executables, { requireEnabled: false });
   const apiKey = readApiKey(paths);
   await waitFor(`http://127.0.0.1:${paths.ports.hermes}/health`, {
@@ -132,11 +130,6 @@ export async function startAndVerify(paths, options = {}) {
         value?.version === "0.21.0"
       );
     },
-  });
-  await verifyMemory(paths, {
-    executable: executables.basicMemory,
-    environment: serviceEnvironmentValues(paths, executables).basicMemory,
-    fetch: fetcher,
   });
   await waitFor(`http://127.0.0.1:${paths.ports.desk}/api/health`, {
     fetch: fetcher,

@@ -197,7 +197,7 @@ ${JSON.stringify(config)}
 }
 
 describe("installed readiness and recovery", () => {
-  it("requires Hermes, shared Basic Memory proof, and Desk readiness", async () => {
+  it("requires Hermes and Desk readiness without contacting retired Basic Memory", async () => {
     const { executables, paths } = fixture();
     mkdirSync(paths.configRoot, { recursive: true, mode: 0o700 });
     atomicWriteJson(join(paths.configRoot, "secrets.json"), {
@@ -236,13 +236,7 @@ describe("installed readiness and recovery", () => {
     expect(start).toHaveBeenCalledTimes(1);
     expect(enable).toHaveBeenCalledTimes(1);
     expect(verifyUnits).toHaveBeenCalledTimes(1);
-    expect(verifyMemory).toHaveBeenCalledWith(
-      paths,
-      expect.objectContaining({
-        executable: executables.basicMemory,
-        fetch: fetcher,
-      }),
-    );
+    expect(verifyMemory).not.toHaveBeenCalled();
     expect(requests.map((request) => request.url)).toEqual([
       "http://127.0.0.1:8645/health",
       "http://127.0.0.1:8644/api/health",
@@ -431,7 +425,8 @@ describe("installed readiness and recovery", () => {
     const actions = {
       stop: () => undefined,
       disable: () => undefined,
-      unitState: () => "inactive",
+      unitState: (name: string) =>
+        name === "pythia-agent-basic-memory.service" ? "absent" : "inactive",
       enablement: () => "disabled",
       removeUnits: () => undefined,
       reload: () => undefined,

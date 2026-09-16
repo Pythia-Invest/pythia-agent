@@ -76,7 +76,7 @@ dev-init:
 dev-init-recover:
     node scripts/dev/cli.mjs init-recover
 
-# Run Hermes, Basic Memory, and Desk under one foreground owner.
+# Run Hermes and Desk under one foreground owner.
 dev:
     node scripts/dev/cli.mjs dev
 

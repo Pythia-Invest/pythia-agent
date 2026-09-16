@@ -11,14 +11,21 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: [
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+      },
+      {
+        // The admitted content route owns framing by validated media type.
+        // Next retains config headers over Response headers, so omit only here.
+        source: "/:path((?!api/workspace/content$).*)",
+        headers: [
           {
             key: "Content-Security-Policy",
             value:
               "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
           },
-          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
-          { key: "Referrer-Policy", value: "no-referrer" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
         ],
       },

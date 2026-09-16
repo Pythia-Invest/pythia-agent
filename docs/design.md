@@ -579,3 +579,11 @@ A design proposal belongs to Pythia when:
 
 If a proposal is attractive but fails one of these tests, it is not the right
 design for Pythia.
+
+## Workspace file icons
+
+File categories use restrained artifact colors from the existing palette: copper
+for folders, blue for documents and media, green for data and code, and neutral
+for other files. Distinct icon shapes and filenames remain the primary cues.
+These decorative roles adapt to light and dark themes and do not imply research
+status, performance, or a Pythia signal.

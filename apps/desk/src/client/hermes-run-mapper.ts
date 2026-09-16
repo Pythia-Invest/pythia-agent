@@ -1,3 +1,7 @@
+import {
+  hasWorkspaceContext,
+  splitWorkspaceNotes,
+} from "@/workspace/references";
 import type { UIMessageChunk } from "ai";
 import type { DeskRunEvent, RunStatus } from "@/server/types";
 import type { DeskDataParts } from "./chat-message";
@@ -251,10 +255,16 @@ export class RunEventMapper {
       }
       case "run.steered": {
         if (!event.text) break;
+        const steer = splitWorkspaceNotes(event.text);
         out.push({
           type: "data-steer",
           id: this.#id("steer"),
-          data: { text: event.text },
+          data: {
+            text: steer.text,
+            ...(hasWorkspaceContext(steer.context)
+              ? { context: steer.context }
+              : {}),
+          },
         });
         break;
       }

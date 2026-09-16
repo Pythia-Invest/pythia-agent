@@ -70,6 +70,7 @@ export function resolveInstallPaths(environment = process.env) {
     basicMemoryConfig: join(configRoot, "basic-memory", "production"),
     basicMemoryCache: join(cacheRoot, "basic-memory"),
     workspace: join(dataRoot, "workspace"),
+    deskViewState: join(stateRoot, "desk-view"),
     knowledge: join(dataRoot, "knowledge"),
     edgarData: join(dataRoot, "edgar"),
     edgarCache: join(cacheRoot, "edgar"),
@@ -85,9 +86,12 @@ export function resolveInstallPaths(environment = process.env) {
     trustRoot: join(stateRoot, "release-trust"),
     allowedSigners: join(stateRoot, "release-trust", "allowed_signers"),
     serviceEnvironment: join(configRoot, "service.environment"),
+    legacyBasicMemoryEnvironment: join(
+      configRoot,
+      "service-basic-memory.environment",
+    ),
     serviceEnvironments: {
       hermes: join(configRoot, "service-hermes.environment"),
-      basicMemory: join(configRoot, "service-basic-memory.environment"),
       desk: join(configRoot, "service-desk.environment"),
     },
     serviceLauncher: checkout
@@ -125,7 +129,7 @@ export function publicPathSummary(paths) {
     data: paths.dataRoot,
     runtime: paths.runtimeRoot,
     profile: paths.profile,
-    ports: paths.ports,
+    ports: { hermes: paths.ports.hermes, desk: paths.ports.desk },
     desk_url: `http://127.0.0.1:${paths.ports.desk}`,
   };
 }

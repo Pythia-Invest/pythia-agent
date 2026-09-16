@@ -12,8 +12,8 @@ a successful development run, or browser coverage from one screenshot.
 
 Installed Chromium checks cover browser admission, missing-account setup,
 provider/model inventory, independent skill/tool toggles, and Hermes restart
-readback. Basic Memory's installed MCP passed synthetic note write, read, text
-search and deletion. These are mechanical checks, not evidence of investment
+readback. Earlier Basic Memory MCP checks describe the retired default and do
+not qualify the Workspace transition. These are mechanical checks, not evidence of investment
 research quality or successful live-provider authentication on a fresh device.
 
 Exact prerequisites live in [development](development.md) and
@@ -30,3 +30,10 @@ UI work should preserve keyboard access and usable narrow layouts even while
 the browser matrix is limited. Select checks by the changed behavior rather
 than running every environment for every edit. Keep intended support and actual
 qualification distinct when updating this page.
+
+Workspace's file/reference/view design uses the same host and admission boundary
+locally and through configured Tailscale. Native provider-free probes establish
+bounded context delivery and filesystem/session behavior, not browser ergonomics,
+real model judgment, Ubuntu transition activation or cross-device acceptance.
+Treat those Workspace-specific checks as pending until exercised on the affected
+surface; the historical support matrix is not evidence that this increment ran.

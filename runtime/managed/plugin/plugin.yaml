@@ -5,3 +5,4 @@ license: Apache-2.0
 provides_tools:
   - pythia_sec_company
   - pythia_eod_prices
+  - pythia_desk_view

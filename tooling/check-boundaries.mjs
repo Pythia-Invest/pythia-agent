@@ -118,7 +118,9 @@ for (const workspace of workspaces) {
   }
   for (const file of files(path)) {
     const contents = readFileSync(file, "utf8");
-    const isTest = relative(path, file).split(sep).includes("test");
+    const isTest = relative(path, file)
+      .split(sep)
+      .some((part) => part === "test" || part === "e2e");
     for (const match of contents.matchAll(IMPORT_PATTERN)) {
       const specifier = match[1];
       if (!specifier) {

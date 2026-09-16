@@ -12,10 +12,8 @@ import { run } from "./runtime-source.mjs";
 
 export function runtimeCommands(paths) {
   const hermes = join(paths.hermesSource, ".venv", "bin", "hermes");
-  const basicMemory = join(paths.managedPython, ".venv", "bin", "basic-memory");
   return {
     hermes,
-    basicMemory,
     profileCreate: [
       "profile",
       "create",
@@ -29,19 +27,6 @@ export function runtimeCommands(paths) {
       "gateway",
       "run",
       "--external-supervisor",
-    ],
-    basicMemoryMcp: [
-      "mcp",
-      "--transport",
-      "streamable-http",
-      "--host",
-      "127.0.0.1",
-      "--port",
-      String(paths.ports.memory),
-      "--path",
-      "/mcp",
-      "--project",
-      paths.id,
     ],
     managedRunnerBuild: ["run", "build:runtime"],
     desk: [
@@ -224,25 +209,6 @@ export function configureFreshProfile(paths, apiKey) {
       "set",
       "skills.external_dirs",
       JSON.stringify([paths.managedSkills]),
-    ],
-    apiKey,
-  );
-  hermesRun(
-    paths,
-    [
-      "-p",
-      paths.profile,
-      "config",
-      "set",
-      "mcp_servers.basic-memory",
-      JSON.stringify({
-        url: `http://127.0.0.1:${paths.ports.memory}/mcp`,
-        enabled: true,
-        timeout: 30,
-        connect_timeout: 10,
-        supports_parallel_tool_calls: false,
-        tools: { resources: true, prompts: true },
-      }),
     ],
     apiKey,
   );

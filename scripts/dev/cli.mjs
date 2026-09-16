@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { workspaceTransitionCommand } from "../update/workspace-transition-cli.mjs";
+import { withPreparationAdmission } from "./supervisor-admission.mjs";
 import { existsSync } from "node:fs";
 import {
   authenticate,
@@ -19,7 +21,7 @@ import {
 
 function usage() {
   console.error(
-    "Usage: node scripts/dev/cli.mjs <init|init-recover|dev|refresh|restart-hermes|status|stop|reset|auth|auth-status|model|paths> [provider] [oauth|api-key]",
+    "Usage: node scripts/dev/cli.mjs <workspace-transition|init|init-recover|dev|refresh|restart-hermes|status|stop|reset|auth|auth-status|model|paths> [provider] [oauth|api-key]",
   );
 }
 
@@ -28,6 +30,24 @@ async function main() {
   const argument = process.argv[3];
   const paths = resolveStackPaths();
   switch (command) {
+    case "workspace-transition": {
+      const args = process.argv.slice(3);
+      const perform = () => workspaceTransitionCommand(paths, args);
+      console.log(
+        JSON.stringify(
+          args.length
+            ? await withPreparationAdmission(
+                paths,
+                "workspace transition",
+                perform,
+              )
+            : perform(),
+          null,
+          2,
+        ),
+      );
+      break;
+    }
     case "init":
       await initializeDevelopmentRuntime(paths);
       console.log(

@@ -6,6 +6,10 @@ import {
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { layoutBootstrapScript } from "@/layout/local-layout";
+import { shellLayout } from "@/components/shell/shell-layout";
+
+const LAYOUT_BOOTSTRAP_SCRIPT = layoutBootstrapScript([shellLayout.definition]);
 
 export const metadata: Metadata = {
   title: "Pythia Desk",
@@ -31,6 +35,7 @@ export default function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: LAYOUT_BOOTSTRAP_SCRIPT }} />
       </head>
       <body>{children}</body>
     </html>

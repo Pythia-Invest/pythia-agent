@@ -92,6 +92,17 @@ function installedFixture() {
     revision: release.revisionA,
   });
 
+  // Both derived snapshots already own Workspace guidance. The leftover
+  // legacy notes/config remain device-owned preservation fixtures.
+  atomicWriteJson(paths.runtimeReceipt, {
+    workspace_guidance: "[PYTHIA_WORKSPACE_GUIDANCE_V1]",
+    stack: paths.id,
+    profile: paths.profile,
+    repository: paths.repositoryRoot,
+    hermes_root: paths.hermesRoot,
+    state_root: paths.stateRoot,
+  });
+
   const owned = {
     secrets: join(paths.configRoot, "secrets.json"),
     settings: join(paths.configRoot, "settings.json"),
@@ -216,9 +227,7 @@ describe("signed A-to-B state preservation", () => {
         join(fixture.paths.unitRoot, "pythia-agent-desk.service"),
         "utf8",
       ),
-    ).toContain(
-      "Wants=pythia-agent-hermes.service pythia-agent-basic-memory.service",
-    );
+    ).toContain("RestartSec=3");
     for (const [name, path] of Object.entries(fixture.owned)) {
       expect(hashTree(path), name).toBe(fixture.preservedBefore[name]);
     }
@@ -227,6 +236,8 @@ describe("signed A-to-B state preservation", () => {
     ).toBe(false);
     expect(readdirSync(fixture.pluginDestination).sort()).toEqual([
       "__init__.py",
+      "desk_view.py",
+      "operating.py",
       "plugin.yaml",
     ]);
     expect(

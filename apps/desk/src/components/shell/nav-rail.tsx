@@ -15,11 +15,12 @@ import {
 } from "@pythia/ui";
 import { PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { type Destination, destinations } from "./destinations";
 
 export interface NavRailProps {
   className?: string;
-  collapsed: boolean;
+  persistent?: boolean;
   id?: string;
   /** Home is also "start a chat", so the shell decides what focus follows. */
   onNavigateHome: () => void;
@@ -28,11 +29,11 @@ export interface NavRailProps {
 }
 
 function RailLink({
-  collapsed,
+  persistent,
   destination,
   pathname,
 }: {
-  collapsed: boolean;
+  persistent?: boolean;
   destination: Destination;
   pathname: string;
 }) {
@@ -41,15 +42,25 @@ function RailLink({
     <SidebarItem>
       <SidebarLink
         active={matches(pathname)}
-        className={cn("gap-2.5 text-body", collapsed && "justify-center px-0")}
+        className={cn(
+          "gap-2.5 text-body",
+          persistent &&
+            "[[data-desk-rail-collapsed=true]_&]:justify-center [[data-desk-rail-collapsed=true]_&]:px-0",
+        )}
+        aria-label={label}
         render={<Link href={href} />}
-        title={collapsed ? label : undefined}
+        title={label}
       >
         <Icon
           aria-hidden="true"
           className="size-[18px] flex-none stroke-[1.6]"
         />
-        <span className={cn("min-w-0 flex-1 truncate", collapsed && "sr-only")}>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            persistent && "[[data-desk-rail-collapsed=true]_&]:sr-only",
+          )}
+        >
           {label}
         </span>
       </SidebarLink>
@@ -66,19 +77,25 @@ function RailLink({
  */
 export function NavRail({
   className,
-  collapsed,
+  persistent,
   id,
   onNavigateHome,
   onToggleCollapsed,
   pathname,
 }: NavRailProps) {
+  const [animate, setAnimate] = useState(false);
+  const toggle = () => {
+    setAnimate(true);
+    onToggleCollapsed();
+  };
   const settingsActive = pathname.startsWith("/settings");
   return (
     <Sidebar
       aria-label="Desk navigation"
       className={cn(
-        "motion-standard h-dvh min-w-0 bg-canvas transition-[width]",
-        collapsed ? "w-15" : "w-56",
+        "motion-standard h-dvh w-56 min-w-0 bg-canvas",
+        animate && "transition-[width]",
+        persistent && "[[data-desk-rail-collapsed=true]_&]:w-15",
         className,
       )}
       id={id}
@@ -86,45 +103,55 @@ export function NavRail({
       <SidebarHeader
         className={cn(
           "flex min-h-14 flex-none items-center border-b-0 py-0",
-          collapsed ? "justify-center px-0" : "gap-1 pr-2 pl-4",
+          "gap-1 pr-2 pl-4",
+          persistent &&
+            "[[data-desk-rail-collapsed=true]_&]:justify-center [[data-desk-rail-collapsed=true]_&]:px-0",
         )}
       >
-        {collapsed ? null : (
-          <Link
-            aria-label="Pythia home"
-            // PythiaLockup sizes itself in em, so this font-size is the
-            // lockup's width control, not type in the shell's scale.
-            className="flex min-w-0 items-center rounded-control text-[1rem] focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
-            href="/"
-            onClick={(event) => {
-              event.preventDefault();
-              onNavigateHome();
-            }}
-          >
-            <PythiaLockup decorative variant="full" />
-          </Link>
-        )}
+        <Link
+          aria-label="Pythia home"
+          // PythiaLockup sizes itself in em, so this font-size is the
+          // lockup's width control, not type in the shell's scale.
+          className={cn(
+            "flex min-w-0 items-center rounded-control text-[1rem] focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2",
+            persistent && "[[data-desk-rail-collapsed=true]_&]:hidden",
+          )}
+          href="/"
+          onClick={(event) => {
+            event.preventDefault();
+            onNavigateHome();
+          }}
+        >
+          <PythiaLockup decorative variant="full" />
+        </Link>
         <IconButton
-          className={cn(!collapsed && "ms-auto")}
-          label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          onClick={onToggleCollapsed}
+          className={cn(
+            "ms-auto",
+            persistent && "[[data-desk-rail-collapsed=true]_&]:hidden",
+          )}
+          label="Collapse navigation"
+          onClick={toggle}
           size="sm"
         >
-          {/* The matched pair, not one glyph rotated: rotating the close
-              variant would mirror the panel edge to the wrong side. */}
-          {collapsed ? (
-            <PanelLeftOpen className="stroke-[1.6]" />
-          ) : (
-            <PanelLeftClose className="stroke-[1.6]" />
-          )}
+          <PanelLeftClose className="stroke-[1.6]" />
         </IconButton>
+        {persistent ? (
+          <IconButton
+            className="hidden [[data-desk-rail-collapsed=true]_&]:inline-flex"
+            label="Expand navigation"
+            onClick={toggle}
+            size="sm"
+          >
+            <PanelLeftOpen className="stroke-[1.6]" />
+          </IconButton>
+        ) : null}
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarNav aria-label="Desk sections">
           <SidebarList className="gap-0.5">
             {destinations.map((destination) => (
               <RailLink
-                collapsed={collapsed}
+                persistent={Boolean(persistent)}
                 destination={destination}
                 key={destination.id}
                 pathname={pathname}
@@ -136,23 +163,31 @@ export function NavRail({
       <SidebarFooter
         className={cn(
           "flex flex-none items-center gap-1 border-t-0 p-2",
-          collapsed && "flex-col",
+          persistent && "[[data-desk-rail-collapsed=true]_&]:flex-col",
         )}
       >
         <SidebarLink
           active={settingsActive}
           className={cn(
             "gap-2.5 text-body",
-            collapsed ? "justify-center px-0" : "flex-1",
+            "flex-1",
+            persistent &&
+              "[[data-desk-rail-collapsed=true]_&]:justify-center [[data-desk-rail-collapsed=true]_&]:px-0",
           )}
           render={<Link href="/settings" />}
-          title={collapsed ? "Settings" : undefined}
+          title="Settings"
+          aria-label="Settings"
         >
           <Settings
             aria-hidden="true"
             className="size-[18px] flex-none stroke-[1.6]"
           />
-          <span className={cn("min-w-0 truncate", collapsed && "sr-only")}>
+          <span
+            className={cn(
+              "min-w-0 truncate",
+              persistent && "[[data-desk-rail-collapsed=true]_&]:sr-only",
+            )}
+          >
             Settings
           </span>
         </SidebarLink>

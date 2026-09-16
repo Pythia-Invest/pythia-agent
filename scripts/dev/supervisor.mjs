@@ -16,7 +16,6 @@ export {
 } from "./supervisor-requests.mjs";
 export { supervise } from "./supervisor-run.mjs";
 export {
-  basicMemoryReady,
   deskReady,
   developmentServices,
   hermesReady,

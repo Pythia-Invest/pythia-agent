@@ -1,3 +1,8 @@
+import {
+  splitWorkspaceNotes,
+  hasWorkspaceContext,
+  type WorkspaceContext,
+} from "@/workspace/references";
 import { splitAttachmentNote, IMAGE_TYPES } from "@/attachments";
 import type { DynamicToolUIPart, UIMessage } from "ai";
 import type { ApprovalChoice, HermesMessage, RunUsage } from "@/server/types";
@@ -27,7 +32,8 @@ export type RunStatusData = {
 export type DeskDataParts = {
   approval: ApprovalData;
   "run-status": RunStatusData;
-  steer: { text: string };
+  steer: { text: string; context?: WorkspaceContext };
+  "workspace-context": WorkspaceContext;
 };
 
 /**
@@ -160,7 +166,8 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
     if (row.role === "user") {
       closeTurn();
       const content = splitAttachmentNote(messageText(row.content));
-      const text = content.text;
+      const workspace = splitWorkspaceNotes(content.text);
+      const text = workspace.text;
       const note = noteKind(row);
       if (note) {
         messages.push({
@@ -185,12 +192,19 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
             files.push({ type: "file", mediaType, url, filename: "Image" });
         }
       }
-      if (!text && !files.length) continue;
+      const referencePart = hasWorkspaceContext(workspace.context)
+        ? [{ type: "data-workspace-context" as const, data: workspace.context }]
+        : [];
+      if (!text && !files.length && !referencePart.length) continue;
       messages.push({
         id: row.id,
         role: "user",
         metadata: { historyRows: [row.id] },
-        parts: [...(text ? [{ type: "text" as const, text }] : []), ...files],
+        parts: [
+          ...(text ? [{ type: "text" as const, text }] : []),
+          ...files,
+          ...referencePart,
+        ],
       });
       continue;
     }
@@ -252,4 +266,12 @@ export function userText(message: DeskUIMessage): string {
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n")
     .trim();
+}
+
+/** Reference metadata accompanies typed text; it never becomes attachment bytes. */
+export function userWorkspaceContext(
+  message: DeskUIMessage,
+): WorkspaceContext | undefined {
+  return message.parts.find((part) => part.type === "data-workspace-context")
+    ?.data;
 }

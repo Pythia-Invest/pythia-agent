@@ -1,7 +1,7 @@
 [Unit]
 Description=Pythia Agent Desk
-After=pythia-agent-hermes.service pythia-agent-basic-memory.service
-Wants=pythia-agent-hermes.service pythia-agent-basic-memory.service
+After=pythia-agent-hermes.service
+Wants=pythia-agent-hermes.service
 PartOf=pythia-agent.target
 
 [Service]

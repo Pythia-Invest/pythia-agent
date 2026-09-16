@@ -13,6 +13,11 @@ export type DeviceSkill = HermesSkill & {
 };
 
 export type DeviceSettingsSnapshot = {
+  workspace: {
+    root: string | null;
+    native_cwd: string | null;
+    status: "matched" | "different" | "unavailable";
+  };
   model_auth: {
     provider: typeof MODEL_PROVIDER;
     status: Readiness | "unavailable";
@@ -20,7 +25,6 @@ export type DeviceSettingsSnapshot = {
   };
   sec_identity: { status: Readiness };
   eodhd_credential: { status: Readiness };
-  basic_memory: { status: ServiceReadiness };
   skills: DeviceSkill[];
   skills_status: ServiceReadiness;
   toolsets: HermesToolset[];
@@ -43,7 +47,6 @@ export type DeviceSettingsOptions = {
   command?: CommandRunner;
   configRoot?: string;
   environment?: NodeJS.ProcessEnv;
-  fetch?: typeof fetch;
   lockPath?: string;
   profile?: string;
   restartHermes?: () => Promise<void>;

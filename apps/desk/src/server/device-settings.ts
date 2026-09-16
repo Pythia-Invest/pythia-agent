@@ -1,4 +1,5 @@
-import { join, resolve } from "node:path";
+import { realpath } from "node:fs/promises";
+import { isAbsolute, join, resolve } from "node:path";
 import {
   type DeviceSettingsOptions,
   type DeviceSettingsService,
@@ -47,7 +48,6 @@ export function createDeviceSettingsService(
   const client = options.client ?? hermesClient;
   const command = options.command ?? nativeCommandRunner(environment);
   const restartHermes = options.restartHermes ?? defaultRestart(environment);
-  const fetcher = options.fetch ?? fetch;
   const attempts = options.readbackAttempts ?? 40;
   const delay = options.readbackDelayMs ?? 125;
 
@@ -82,6 +82,57 @@ export function createDeviceSettingsService(
     );
   }
 
+  async function workspaceSettings() {
+    const configured = environment.PYTHIA_WORKSPACE;
+    const root =
+      configured && isAbsolute(configured) ? resolve(configured) : null;
+    try {
+      const profile = profileFrom(environment, options.profile);
+      const response = await command([
+        "-p",
+        profile,
+        "config",
+        "get",
+        "terminal.cwd",
+        "--json",
+      ]);
+      const value: unknown = JSON.parse(response.stdout);
+      const cwd =
+        typeof value === "string" &&
+        value.length > 0 &&
+        value.length <= 4096 &&
+        !Array.from(value).some((character) => {
+          const code = character.charCodeAt(0);
+          return code < 32 || code === 127;
+        })
+          ? value
+          : null;
+      const comparable = root && cwd && isAbsolute(cwd);
+      const identities = comparable
+        ? await Promise.all(
+            [root, cwd].map(async (path) => {
+              try {
+                return await realpath(path);
+              } catch {
+                return resolve(path);
+              }
+            }),
+          )
+        : null;
+      return {
+        root,
+        native_cwd: cwd,
+        status: identities
+          ? identities[0] === identities[1]
+            ? ("matched" as const)
+            : ("different" as const)
+          : ("unavailable" as const),
+      };
+    } catch {
+      return { root, native_cwd: null, status: "unavailable" as const };
+    }
+  }
+
   async function modelAuth() {
     try {
       const result = await command([
@@ -97,47 +148,6 @@ export function createDeviceSettingsService(
       if (first.startsWith(`${MODEL_PROVIDER}: logged out`))
         return "missing" as const;
       return "unavailable" as const;
-    } catch {
-      return "unavailable" as const;
-    }
-  }
-
-  async function basicMemory() {
-    const raw = environment.PYTHIA_BASIC_MEMORY_MCP_URL;
-    if (!raw) return "unavailable" as const;
-    try {
-      const url = new URL(raw);
-      if (
-        url.protocol !== "http:" ||
-        !["127.0.0.1", "localhost"].includes(url.hostname) ||
-        url.username ||
-        url.password
-      ) {
-        return "unavailable" as const;
-      }
-      const response = await fetcher(url, {
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "initialize",
-          params: {
-            protocolVersion: "2025-06-18",
-            capabilities: {},
-            clientInfo: { name: "pythia-desk", version: "0.1" },
-          },
-        }),
-        headers: {
-          accept: "application/json, text/event-stream",
-          "content-type": "application/json",
-        },
-        method: "POST",
-        signal: AbortSignal.timeout(2_000),
-      });
-      const contentType = response.headers.get("content-type") ?? "";
-      return response.ok &&
-        (contentType.includes("json") || contentType.includes("event-stream"))
-        ? ("ready" as const)
-        : ("unavailable" as const);
     } catch {
       return "unavailable" as const;
     }
@@ -215,6 +225,7 @@ export function createDeviceSettingsService(
         toolsetsStatus = "unavailable";
       }
       return {
+        workspace: await workspaceSettings(),
         model_auth: {
           provider: MODEL_PROVIDER,
           status: await modelAuth(),
@@ -228,7 +239,6 @@ export function createDeviceSettingsService(
         eodhd_credential: {
           status: settingsReadiness(current.secrets, "eodhd_api_token", true),
         },
-        basic_memory: { status: await basicMemory() },
         skills,
         skills_status: skillsStatus,
         toolsets,

@@ -1,3 +1,8 @@
+import {
+  assertWorkspaceTransitionReady,
+  assertStagedWorkspaceTransition,
+  workspaceTransitionStatus,
+} from "../update/workspace-transition.mjs";
 import { existsSync, lstatSync, rmSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import {
@@ -26,6 +31,7 @@ import {
 } from "./runtime-config.mjs";
 
 export async function prepareManagedRuntime(paths, options = {}) {
+  assertWorkspaceTransitionReady(paths);
   const sourceContract =
     options.sourceContract ??
     readJson(
@@ -76,33 +82,6 @@ export async function prepareManagedRuntime(paths, options = {}) {
   return { sourceContract, environment };
 }
 
-function configureBasicMemory(paths, environment, basicMemory) {
-  const marker = join(paths.stateRoot, "basic-memory-project.json");
-  run(basicMemory, ["config", "set", "auto_update", "false"], {
-    env: environment,
-    cwd: paths.repositoryRoot,
-  });
-  if (!existsSync(marker)) {
-    run(
-      basicMemory,
-      ["project", "add", paths.id, paths.knowledge, "--local", "--default"],
-      { env: environment, cwd: paths.repositoryRoot },
-    );
-    atomicWriteJson(marker, {
-      schema_version: 1,
-      project: paths.id,
-      path: paths.knowledge,
-    });
-  } else {
-    const current = readJson(marker);
-    if (current.project !== paths.id || current.path !== paths.knowledge) {
-      throw new Error(
-        "Basic Memory project receipt does not match this worktree.",
-      );
-    }
-  }
-}
-
 function initializationReceipt(paths) {
   if (!existsSync(paths.profileInitialization)) return null;
   const receipt = readJson(paths.profileInitialization);
@@ -132,6 +111,9 @@ function writeInitializationReceipt(paths, status) {
     state_root: paths.stateRoot,
     profile_initially_absent: true,
     status,
+    ...(status === "complete"
+      ? { workspace_guidance: "[PYTHIA_WORKSPACE_GUIDANCE_V1]" }
+      : {}),
     updated_at: new Date().toISOString(),
   });
 }
@@ -181,6 +163,22 @@ export function recoverInterruptedProfileInitialization(paths, options = {}) {
 }
 
 export async function bootstrapRuntime(paths, options = {}) {
+  if (
+    options.allowStagedTransition &&
+    workspaceTransitionStatus(paths) === "staged"
+  ) {
+    assertStagedWorkspaceTransition(paths);
+    if (!existsSync(join(paths.configRoot, "secrets.json")))
+      throw new Error(
+        "The staged stack secret store is missing; startup will not recreate it.",
+      );
+    return {
+      commands: runtimeCommands(paths),
+      environment: runtimeEnvironment(paths, secrets(paths).hermes_api_key),
+      transition: "staged",
+    };
+  }
+  assertWorkspaceTransitionReady(paths);
   validateToolchain(paths.repositoryRoot);
   assertHermesRuntimePath(paths);
   ensurePrivateTree(developmentPrivateRoots(paths));
@@ -256,7 +254,6 @@ export async function bootstrapRuntime(paths, options = {}) {
     );
   }
   const environment = runtimeEnvironment(paths, values.hermes_api_key);
-  configureBasicMemory(paths, environment, commands.basicMemory);
   if (freshProfile) writeInitializationReceipt(paths, "complete");
   atomicWriteJson(paths.runtimeReceipt, {
     schema_version: 1,
@@ -266,7 +263,7 @@ export async function bootstrapRuntime(paths, options = {}) {
     hermes_root: paths.hermesRoot,
     state_root: paths.stateRoot,
     hermes: sourceContract,
-    basic_memory: "0.23.2",
+    workspace_guidance: "[PYTHIA_WORKSPACE_GUIDANCE_V1]",
     managed_python_lock: basename(join(paths.managedPython, "uv.lock")),
     initialized_at: new Date().toISOString(),
   });

@@ -39,7 +39,7 @@ cleanup targetable. Direct Git commands remain supported. Runtime-integrated
 worktree management and automatic branch or conflict cleanup remain outside the
 product because source checkout policy belongs to the contributor.
 
-`just dev-init` downloads and hydrates the exact pinned Hermes, Basic Memory,
+`just dev-init` downloads and hydrates the exact pinned Hermes,
 EdgarTools, and EODHD dependencies. `just dev` prints the local Desk URL and
 runs the stack in the foreground; it does not install services, enable linger,
 or change host networking.
@@ -95,16 +95,16 @@ fetching, and testing conventions the suite relies on.
 
 ## Foreground stack
 
-Each checkout or Git worktree gets a deterministic stack name, three loopback
-ports, a lowercase Hermes profile, and independent workspace, knowledge,
-Basic Memory, cache, process, and test state. The worktree path is the identity;
+Each checkout or Git worktree gets a deterministic stack name and loopback ports,
+a lowercase Hermes profile, and independent workspace, cache, process and test
+state. The worktree path is the identity;
 `just dev-paths` prints the resolved paths and ports. Pythia never searches for
 or adopts another running service.
 
 ```sh
 just dev-init               # hydrate and configure exact pinned runtimes
 just dev-init-recover       # remove a receipt-proven partial first profile
-just dev                    # Hermes + Basic Memory + Desk, one foreground owner
+just dev                    # Hermes + Desk, one foreground owner
 just dev-refresh            # explicitly prepare and replace selected consumers
 just status                 # owner-verified state for this worktree only
 just stop                   # graceful stop for this worktree only
@@ -118,14 +118,14 @@ just model                 # choose shared provider/model defaults, once
 `just dev` binds only `127.0.0.1` and exits with an actionable error if one of
 its ports is occupied. Before launching Hermes, it also waits boundedly for the
 API port to become reusable under Hermes's native bind semantics. `Ctrl-C` and
-`just stop` propagate through the same foreground owner and clean up all three
+`just stop` propagate through the same foreground owner and clean up both
 children. A stale or foreign process receipt is reported but never signalled,
 adopted, or deleted around.
 
 Desk source uses Next.js hot reload while `just dev` is running. There is no
 automatic watcher for managed Hermes, plugin, runner, or dependency source.
 After changing those inputs, run `just dev-refresh`. A running refresh briefly
-stops all three selected consumers, performs the shared uv/JavaScript locked
+stops both selected consumers, performs the shared uv/JavaScript locked
 dependency preparation, refreshes copied/compiled assets, and restarts only
 after all replacements are healthy. It preserves the profile, OAuth, settings,
 workspace, knowledge, sessions, and native capability choices. If the stack is
@@ -136,7 +136,7 @@ Desk receives the exact pinned Hermes executable, active profile, config root,
 state root, and lifecycle CLI as non-secret environment values. After a native
 settings mutation it may invoke only `node $PYTHIA_DEV_LIFECYCLE_CLI
 restart-hermes`. The CLI admits an owner-bound request, and the foreground
-supervisor restarts only Hermes while keeping Desk and Basic Memory alive. It
+supervisor restarts only Hermes while keeping Desk alive. It
 waits for the old port to remain reusable under Hermes's native bind semantics,
 then returns only after the replacement passes health, process-stability, and a
 second health check. On macOS, the native port wait can include the upstream
@@ -206,8 +206,8 @@ providers supported by the pinned Hermes release are `anthropic`, `nous`,
 `openai-codex`, `xai-oauth`, `qwen-oauth`, and `minimax-oauth`. Unsupported OAuth
 names fail honestly; API-key providers are validated by Hermes. SEC identity
 and EODHD token settings also use the shared private
-Pythia configuration root; workspaces, knowledge, caches, sessions, processes,
-and Basic Memory state remain isolated per worktree.
+Pythia configuration root; workspaces, caches, sessions and process state remain
+isolated per worktree. Retained legacy knowledge also stays with its stack.
 
 A deployment's model is configured through native Hermes on that device;
 Desk owns Pythia-specific settings. Development credentials and model defaults
@@ -221,12 +221,12 @@ but does not bootstrap, build, copy a plugin, create a profile, or start the
 stack. Its result says nothing about another configured provider. Authentication
 may require a new Hermes session; it does not require a source refresh.
 
-Managed plugins are refreshed by copy, not symlink. Profile/SOUL/workspace and
-knowledge seeds are installed only in the first profile-initialization
+Managed plugins are refreshed by copy, not symlink. Profile/SOUL/workspace seeds
+are installed only in the first profile-initialization
 transaction and are preserved thereafter. `just dev-reset` removes this
 worktree's process/test state and fetch caches; it does not remove ownership
-receipts, the shared Hermes credential root, profile, Basic Memory
-configuration, workspace, or Markdown knowledge. If first profile
+receipts, the shared Hermes credential root, profile, workspace or retained
+legacy Markdown knowledge. If first profile
 initialization is interrupted, Pythia refuses to adopt the partial scaffold.
 `just dev-init-recover` accepts only the matching incomplete transaction
 receipt and removes only that named partial profile before a clean retry.
@@ -301,7 +301,7 @@ the copy adapters relevant to them:
 just ai-sync       # Claude skills
 just sync-agents   # Claude and Codex roles
 just sync-rules    # Claude and Cursor rules
-just builder-sync  # all three adapters
+just builder-sync  # both adapters
 ```
 
 The adapters write ignored local destinations and refuse unowned collisions.
@@ -321,3 +321,10 @@ accepted product or architecture decisions in public documentation or an ADR,
 including context, ruling, rationale, consequences, and relevant rejected
 alternatives. The contributor-only worktree recipes wrap native Git for managed
 sibling checkouts; they do not enter Pythia's runtime or installed lifecycle.
+
+Existing Basic Memory installations must complete the explicit staged
+[Workspace transition](update-and-customization.md#workspace-transition) before
+preparation replaces dependencies or owned services. Preview is read-only;
+staging preserves notes/configuration and the old usable environment. Fresh
+native-session guidance evidence is required before retirement. Routine startup
+does not migrate personal notes or overwrite user-owned instruction seeds.

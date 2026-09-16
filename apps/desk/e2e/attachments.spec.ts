@@ -69,6 +69,15 @@ test("attachments survive new-chat handoff, upload retry and saved history", asy
                   : [],
               },
       });
+    if (path === "/api/sessions/attachment-chat/context")
+      return route.fulfill({
+        json: {
+          status: "ok",
+          guidance: "current",
+          scope: { status: "none" },
+          firstInputEligible: false,
+        },
+      });
     if (path === "/api/sessions/attachment-chat/messages") {
       const data = saved
         ? [

@@ -1,3 +1,4 @@
+import { assertWorkspaceTransitionReady } from "../update/workspace-transition.mjs";
 import { transactionReceipt, writeTransaction } from "../install/files.mjs";
 import { serviceAction } from "../install/systemd.mjs";
 import { recordInstallation, startAndVerify } from "../install/runtime.mjs";
@@ -29,6 +30,7 @@ export async function applyUpdate(paths, hooks = {}, resumeReceipt = null) {
   const completeCandidate =
     hooks.completeCandidate ??
     ((receipt) => completeWithCandidate(paths, receipt));
+  assertWorkspaceTransitionReady(paths);
   const active = transactionReceipt(paths).value;
   if (
     !resumeReceipt &&

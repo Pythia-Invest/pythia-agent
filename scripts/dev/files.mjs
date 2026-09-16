@@ -30,6 +30,8 @@ function fsyncDirectory(path) {
 export const MANAGED_PLUGIN_FILES = Object.freeze([
   "__init__.py",
   "plugin.yaml",
+  "desk_view.py",
+  "operating.py",
 ]);
 
 export const MANAGED_PYTHON_SOURCE_FILES = Object.freeze([

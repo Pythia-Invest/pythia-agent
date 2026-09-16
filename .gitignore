@@ -84,6 +84,9 @@ dist/
 build/
 coverage/
 .vitest/
+playwright-report/
+test-results/
+blob-report/
 *.tsbuildinfo
 /apps/*/next-env.d.ts
 .nyc_output/
@@ -113,3 +116,6 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# Generated PDF.js character maps from the pinned dependency
+/apps/desk/public/_pdfjs/

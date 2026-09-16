@@ -1,3 +1,4 @@
+import { assertWorkspaceTransitionReady } from "../update/workspace-transition.mjs";
 import {
   readJsonIfPresent,
   transactionReceipt,
@@ -16,6 +17,7 @@ import {
 } from "./runtime-prepare.mjs";
 
 export async function installDevice(paths, channel, dependencies = {}) {
+  assertWorkspaceTransitionReady(paths);
   if (!["stable", "preview"].includes(channel)) {
     throw new Error("Install channel must be stable or preview.");
   }
@@ -168,6 +170,7 @@ export async function installDevice(paths, channel, dependencies = {}) {
 }
 
 export async function rebuildDevice(paths, dependencies = {}) {
+  assertWorkspaceTransitionReady(paths);
   const installation = readJsonIfPresent(paths.installFile);
   if (!installation || installation.checkout !== paths.checkout) {
     throw new Error("Pythia installation ownership is missing or changed.");

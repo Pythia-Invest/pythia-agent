@@ -91,7 +91,7 @@ def main() -> int:
     managed_skills = repository / "runtime/managed/skills"
     required_managed = {
         "eodhd-market-data": "pythia-eodhd",
-        "investment-memory": "mcp-basic-memory",
+        "investment-memory": "file",
         "sec-edgar-research": "pythia-sec",
     }
     for name, toolset in required_managed.items():
@@ -142,7 +142,7 @@ def main() -> int:
             target.write_text(content, encoding="utf-8")
         local_description = "LOCAL_PRECEDENCE_CANARY"
         managed_description = "Read the latest non-amended 10-K metadata"
-        memory_description = "Search and maintain authoritative Markdown investment"
+        memory_description = "Save, revisit or revise reusable investment research"
 
         isolated_environment = {
             "HOME": str(home),
@@ -338,7 +338,7 @@ def main() -> int:
             "skills_disabled_global": True,
             "requires_toolsets_present": True,
             "requires_toolsets_absent": True,
-            "basic_memory_guidance_native_filter": True,
+            "research_guidance_native_file_filter": True,
             "native_plugin_tool_dispatch": True,
             "unknown_inventory_fail_open": True,
         }

@@ -36,6 +36,7 @@ test("native settings save, clear, and toggle through the existing API", async (
         kind: "other-hermes-skill",
       },
     ],
+    workspace: { root: null, native_cwd: null, status: "unavailable" as const },
     toolsets_status: "ready",
     toolsets: [
       {

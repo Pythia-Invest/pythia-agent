@@ -1,5 +1,10 @@
 # 0009: Chat surface on the AI SDK transport seam
 
+[ADR 0013](0013-workspace-and-native-research-context.md) extends this decision
+with file viewing/references and optional file-based strategy scope. Native chat
+ownership and attachment retention remain unchanged; the earlier rejected
+parallel project store is not introduced.
+
 ## Context
 
 The rebuilt Desk needed its conversation window: history, streamed replies,

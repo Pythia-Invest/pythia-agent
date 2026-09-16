@@ -6,7 +6,12 @@ const SENSITIVE_NAME =
 export function redactedEnvironment(source = process.env) {
   const clean = {};
   for (const [name, value] of Object.entries(source)) {
-    if (value === undefined || SENSITIVE_NAME.test(name)) continue;
+    if (
+      value === undefined ||
+      SENSITIVE_NAME.test(name) ||
+      /^(?:BASIC_MEMORY_|PYTHIA_BASIC_MEMORY_|FASTMCP_|FASTEMBED_)/u.test(name)
+    )
+      continue;
     clean[name] = value;
   }
   return clean;
@@ -41,16 +46,9 @@ export function runtimeEnvironment(paths, apiKey, source = process.env) {
     API_SERVER_PORT: String(paths.ports.hermes),
     API_SERVER_KEY: apiKey,
     PYTHIA_HERMES_API_URL: `http://127.0.0.1:${paths.ports.hermes}`,
-    PYTHIA_BASIC_MEMORY_MCP_URL: `http://127.0.0.1:${paths.ports.memory}/mcp`,
     PYTHIA_MANAGED_SKILLS_DIR: paths.managedSkills,
     PYTHIA_WORKSPACE: paths.workspace,
-    BASIC_MEMORY_CONFIG_DIR: paths.basicMemoryConfig,
-    BASIC_MEMORY_NO_PROMOS: "true",
-    BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false",
-    FASTMCP_CHECK_FOR_UPDATES: "off",
-    FASTMCP_SHOW_SERVER_BANNER: "false",
-    HF_HOME: `${paths.basicMemoryCache}/huggingface-disabled`,
-    FASTEMBED_CACHE_PATH: `${paths.basicMemoryCache}/fastembed-disabled`,
+    PYTHIA_DESK_VIEW_STATE: paths.deskViewState,
     XDG_CACHE_HOME: paths.cacheRoot,
     NEXT_TELEMETRY_DISABLED: "1",
     PORT: String(paths.ports.desk),

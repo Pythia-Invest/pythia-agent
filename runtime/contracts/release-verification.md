@@ -36,7 +36,7 @@ and transaction store. For an already installed service, the ordering is:
    refresh the managed plugin, generated environments, and unit files;
 5. reload the user manager and trial-start the target while it remains
    disabled;
-6. verify exact source, owned unit fragments/processes, Hermes, Basic Memory,
+6. verify exact source, owned unit fragments/processes, Hermes,
    and Desk health; and
 7. enable the already healthy target, read back enablement, and only then mark
    the transaction complete.
@@ -53,7 +53,7 @@ qualification gate.
 
 The public preview has one fixed, distinct host identity: user units use the
 `pythia-agent-*` namespace and `pythia-agent.target`; the native Hermes gateway
-uses loopback port `8645`, while Basic Memory and Desk retain `8643` and `8644`.
+uses loopback port `8645`, while Desk uses `8644`.
 These names and ports coexist with the retained lab and are not a configurable
 instance registry. Install and doctor must refuse a foreign file, process, or
 listener at any owned destination rather than overwrite or adopt it.

@@ -62,3 +62,30 @@ Playwright `webServer` that starts Desk and Hermes (would need the pinned
 runtime, isolated state, and credentials inside the test runner, duplicating
 the lifecycle owner); component screenshot tests (brittle to token and font
 changes and blind to routing).
+
+## Workspace initial render (2026-09)
+
+Workspace's first folder is read on the server for each admitted page request.
+A request-local TanStack Query client seeds the current entry and its folder
+listing; `HydrationBoundary` supplies that snapshot to the existing Desk cache.
+This removes the browser JavaScript → entry API → listing API waterfall without
+introducing another client store, directory index, or persisted server cache.
+Native history navigation continues to update the mounted browser, and normal
+query freshness, polling and error recovery remain client-owned. Direct file
+URLs seed the parent listing; preview content still uses the admitted API.
+
+Because HTML and RSC responses now carry private file metadata, the initial read
+uses the same host, origin and configured Serve identity validation as APIs.
+Page admission additionally accepts an explicit top-level browser navigation
+(`GET`, `navigate`, `document`, `sec-fetch-site: none`) for typed/bookmarked URLs.
+Same-origin RSC requests are accepted; untrusted requests receive no snapshot
+and never touch workspace storage. API admission is unchanged. Reading request
+headers makes the page dynamic; no cross-request/private-data cache is added.
+Missing or unreadable entries fall back to existing client error handling;
+internal errors and host paths are never serialized into the snapshot.
+
+A production build would reduce development compilation overhead but is not
+required for this behavior. Artificial delays or persisted browser copies of
+folder contents were rejected: they either mask the wait or introduce stale
+research metadata. Browser qualification delays application scripts and blocks
+APIs to prove the listing exists in initial HTML on desktop and mobile.

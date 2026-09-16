@@ -1,3 +1,5 @@
+import type { WorkspaceTurn } from "../src/workspace/references";
+import type { DeskViewPublication } from "../src/view-context/types";
 import { expect, type Page } from "@playwright/test";
 import type {
   DeskRunEvent,
@@ -28,6 +30,9 @@ export async function fixture(
   const approvals: unknown[] = [];
   const unexpected: string[] = [];
   const submissions: string[] = [];
+  const workspaces: (WorkspaceTurn | undefined)[] = [];
+  const viewPublications: DeskViewPublication[] = [];
+  const viewTerminations: string[] = [];
   const selections: unknown[] = [];
   const steers: string[] = [];
   await page.route("**/api/**", async (route) => {
@@ -110,6 +115,23 @@ export async function fixture(
           data: sessions,
         },
       });
+    if (/^\/api\/sessions\/[^/]+\/context$/.test(path))
+      return route.fulfill({
+        json: {
+          status: "ok",
+          guidance: "current",
+          firstInputEligible: false,
+          scope: { status: "none" },
+        },
+      });
+    if (path === "/api/desk-view/publish") {
+      viewPublications.push(route.request().postDataJSON());
+      return route.fulfill({ json: { expires_at: Date.now() + 60_000 } });
+    }
+    if (path === "/api/desk-view/terminate") {
+      viewTerminations.push(route.request().postDataJSON().view_reference);
+      return route.fulfill({ json: { available: false } });
+    }
     if (/^\/api\/sessions\/[^/]+\/messages$/.test(path)) {
       const offset = Number(
         new URL(route.request().url()).searchParams.get("offset") ?? 0,
@@ -123,13 +145,26 @@ export async function fixture(
     if (path === "/api/runs" && route.request().method() === "POST") {
       const body = route.request().postDataJSON();
       submissions.push(body.input);
+      workspaces.push(body.workspace);
       selections.push(body.selection);
       if (creating) await creating;
       queueAvailable = true;
       status = { run_id: "synthetic-run", status: "running" };
       return route.fulfill({
         status: 202,
-        json: { run_id: "synthetic-run", status: "running", replayed: false },
+        json: {
+          run_id: "synthetic-run",
+          status: "running",
+          replayed: false,
+          ...(body.workspace?.view
+            ? {
+                desk_view: {
+                  view_reference: String(submissions.length).padStart(43, "v"),
+                  expires_at: Date.now() + 60_000,
+                },
+              }
+            : {}),
+        },
       });
     }
     if (path === "/api/runs/synthetic-run/approval") {
@@ -212,6 +247,16 @@ export async function fixture(
       return originalFetch(input, init);
     };
   });
+  // Synthetic API fixtures do not own the host filesystem. Exercise the
+  // unseeded fallback for workspace documents rather than reading real files.
+  await page.route(/^https?:\/\/[^/]+\/workspace(?:\/|\?|$)/, async (route) => {
+    return route.continue({
+      headers: {
+        ...route.request().headers(),
+        origin: "https://synthetic.invalid",
+      },
+    });
+  });
   await page.goto("/c/synthetic-chat");
   await expect(
     page.getByRole("textbox", { name: "Message Pythia" }),
@@ -231,6 +276,9 @@ export async function fixture(
     },
     unexpected,
     submissions,
+    workspaces,
+    viewPublications,
+    viewTerminations,
     selections,
     steers,
     setHistory: (messages: HermesMessage[]) => {

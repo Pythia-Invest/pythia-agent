@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { workspaceTransitionCommand } from "../update/workspace-transition-cli.mjs";
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -21,6 +22,7 @@ import { recoverInterruptedProfileInitialization } from "../dev/runtime.mjs";
 function usage() {
   console.log(`Usage: pythia <command>
 
+  workspace-transition   Preview research migration; --apply --expect <value> [--adopt-seed <source> | --retain-seed <source>], then --complete <fresh-session-id>
   status                 Show installed channel, revision, and service state
   doctor                 Check local runtime, ownership, health, and capabilities
   check-update [--json]  Report update availability without applying it
@@ -174,6 +176,9 @@ async function main() {
   const command = process.argv[2] ?? "help";
   const paths = resolveInstallPaths();
   switch (command) {
+    case "workspace-transition":
+      print(workspaceTransitionCommand(paths, process.argv.slice(3)));
+      break;
     case "install":
       await install(paths);
       break;

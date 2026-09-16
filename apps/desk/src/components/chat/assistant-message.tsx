@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceReferenceCards } from "./workspace-reference-cards";
+
 import { useMemo } from "react";
 import type { DeskUIMessage } from "@/client/chat-message";
 import type { ApprovalChoice } from "@/server/types";
@@ -94,13 +96,14 @@ export function AssistantMessage({
         if (block.kind === "steer") {
           return (
             <div
-              className="flex justify-start py-0.5"
+              className="grid justify-start gap-1 py-0.5"
               data-slot="steer-note"
               key={block.key}
             >
               <p className="m-0 max-w-[85%] truncate text-foreground-disabled text-xs leading-ui">
                 Direction added · {block.part.data.text}
               </p>
+              <WorkspaceReferenceCards context={block.part.data.context} />
             </div>
           );
         }

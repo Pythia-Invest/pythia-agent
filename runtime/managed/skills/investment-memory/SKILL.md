@@ -1,24 +1,29 @@
 ---
 name: investment-memory
-title: Durable investment memory
-description: Search and maintain authoritative Markdown investment knowledge through Basic Memory.
-version: 0.1.0
+title: Durable investment research
+description: Save, revisit or revise reusable investment research, decisions, source notes and calculations in ordinary workspace files.
+version: 0.2.0
 license: Apache-2.0
 platforms: [linux, macos]
 metadata:
   hermes:
-    tags: [Investing, Memory, Knowledge]
+    tags: [Investing, Research, Files]
     category: finance
-    requires_toolsets: [mcp-basic-memory]
+    requires_toolsets: [file]
 ---
 
-# Durable investment memory
+# Durable investment research
 
-Use the Basic Memory tools for durable research, investment cases, decisions,
-source notes, and reusable calculations. Before creating or materially updating
-a note, read `references/note-discipline.md`.
+Use this skill when research should outlive the conversation or existing
+research needs review. An ordinary discussion need not create a file.
 
-Markdown in the configured project is authoritative. Never depend on the
-derived database being durable, and never enable semantic search or download a
-model as a fallback. Keep short conversational preferences in Hermes memory;
-promote only durable, reusable investment knowledge here.
+Use the native file tools to find, read and maintain research in the investor's
+workspace. [Note discipline](references/note-discipline.md) covers provenance
+and revisions. Prefer updating a relevant existing document to duplicating it.
+Save datasets, scripts and other artifacts in their useful ordinary formats;
+Markdown can explain their sources, inputs and conclusions and link to them.
+
+Keep strategy-specific goals, assumptions and decisions with the relevant
+strategy brief or linked documents. Shared evidence can support different
+interpretations. Exploration is not adoption, and a research decision is not
+capital authorization. Preserve this distinction when recording conclusions.

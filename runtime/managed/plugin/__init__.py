@@ -8,6 +8,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from .desk_view import SCHEMA as DESK_VIEW_SCHEMA, desk_view
+from .operating import OPERATING_CONTEXT
+
 MAX_OUTPUT_BYTES = 1_000_000
 DEFAULT_TIMEOUT_SECONDS = 40
 CHILD_ENV_KEYS = (
@@ -26,12 +29,6 @@ EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 SEC_COMPANY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.\-]{0,19}$")
 EOD_TICKER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.\-]{0,31}$")
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-OPERATING_CONTEXT = """Pythia uses evidence before judgment, keeps provider
-failures explicit, and preserves source links when research should outlive the
-conversation. Managed source is release-owned. Before editing it, explain the
-exact diff and fork/update consequence and obtain the user's explicit
-approval."""
 
 SEC_SCHEMA = {
     "name": "pythia_sec_company",
@@ -355,6 +352,13 @@ def _eod_prices(args: dict[str, Any], **_kwargs: Any) -> str:
 
 
 def register(ctx: Any) -> None:
+    ctx.register_tool(
+        name="pythia_desk_view",
+        toolset="pythia-desk",
+        schema=DESK_VIEW_SCHEMA,
+        handler=desk_view,
+        description="Current Pythia Desk page and observable selection",
+    )
     ctx.register_system_prompt_section(
         "pythia.operating",
         OPERATING_CONTEXT,

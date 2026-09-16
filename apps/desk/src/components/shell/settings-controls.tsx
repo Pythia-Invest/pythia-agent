@@ -165,11 +165,6 @@ export function DataSourceSettings() {
       {data ? (
         <>
           <SettingRow
-            label="Basic Memory"
-            description="Local research memory."
-            control={<span>{readiness(data.basic_memory.status)}</span>}
-          />
-          <SettingRow
             label="Codex authentication"
             description="Provider-specific native check; other providers are configured independently."
             control={<span>{readiness(data.model_auth.status)}</span>}
@@ -217,6 +212,30 @@ export function CapabilitySettings() {
       <SettingsError error={change.error} />
       {data ? (
         <>
+          <SettingRow
+            label="Workspace folder"
+            description="Research files shown in Desk."
+            control={
+              <code className="break-all text-xs">
+                {data.workspace.root ?? "Unavailable"}
+              </code>
+            }
+          />
+          <SettingRow
+            label="Agent working folder"
+            description={
+              data.workspace.status === "different"
+                ? "Different from Workspace. File references still point to the Workspace file; neither folder is changed."
+                : data.workspace.status === "matched"
+                  ? "Matches the Workspace folder."
+                  : "Could not compare the configured folders. Workspace browsing remains available."
+            }
+            control={
+              <code className="break-all text-xs">
+                {data.workspace.native_cwd ?? "Unavailable"}
+              </code>
+            }
+          />
           <h3 className="mt-5 mb-0 font-semibold text-body">
             Skills · {readiness(data.skills_status)}
           </h3>

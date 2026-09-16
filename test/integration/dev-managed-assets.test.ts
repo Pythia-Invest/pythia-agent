@@ -88,6 +88,14 @@ mcp_servers:
     mkdirSync(managedPlugin, { recursive: true });
     writeFileSync(join(managedPlugin, "__init__.py"), "MANAGED = True\n");
     writeFileSync(join(managedPlugin, "plugin.yaml"), "name: pythia\n");
+    writeFileSync(
+      join(managedPlugin, "operating.py"),
+      "# synthetic operating guidance\n",
+    );
+    writeFileSync(
+      join(managedPlugin, "desk_view.py"),
+      "# synthetic view tool\n",
+    );
     mkdirSync(join(paths.profileRoot, "plugins", "pythia"), {
       recursive: true,
     });
@@ -105,6 +113,15 @@ printf '%s\\n' "$*" >> '${commandLog}'
       { mode: 0o755 },
     );
     chmodSync(hermes, 0o755);
+    atomicWriteJson(paths.runtimeReceipt, {
+      schema_version: 1,
+      workspace_guidance: "[PYTHIA_WORKSPACE_GUIDANCE_V1]",
+      stack: paths.id,
+      profile: paths.profile,
+      repository: paths.repositoryRoot,
+      hermes_root: paths.hermesRoot,
+      state_root: paths.stateRoot,
+    });
 
     await refreshRuntimeAssets(
       { ...paths, managedPlugin },
@@ -292,6 +309,11 @@ printf '%s\\n' "$*" >> '${commandLog}'
     mkdirSync(source);
     writeFileSync(join(source, "__init__.py"), "FIRST = True\n");
     writeFileSync(join(source, "plugin.yaml"), "name: first\n");
+    writeFileSync(join(source, "desk_view.py"), "# synthetic view tool\n");
+    writeFileSync(
+      join(source, "operating.py"),
+      "# synthetic operating guidance\n",
+    );
     mkdirSync(join(source, "__pycache__"));
     writeFileSync(
       join(source, "__pycache__", "__init__.cpython-314.pyc"),

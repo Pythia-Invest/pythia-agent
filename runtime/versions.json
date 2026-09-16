@@ -19,40 +19,14 @@
       "registry_source_binding": "No PyPI release exists for 0.21.0; the inspected GitHub tag resolves to the recorded commit.",
       "license": "MIT",
       "license_url": "https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/LICENSE",
-      "runtimes": ["CPython >=3.11,<3.14"],
-      "platforms": ["macOS", "Linux; Pythia production support is Ubuntu x86-64"],
-      "status": "qualified_bounded_native_surfaces"
-    },
-    "basic_memory": {
-      "identity": "basic-memory",
-      "upstream": "basicmachines-co/basic-memory",
-      "release": "v0.23.2",
-      "package_version": "0.23.2",
-      "commit": "c0bd87c6d5a4a58034b1d6c8c5018e443b0bd048",
-      "source_url": "https://github.com/basicmachines-co/basic-memory/tree/c0bd87c6d5a4a58034b1d6c8c5018e443b0bd048",
-      "artifacts": [
-        {
-          "kind": "pypi-wheel",
-          "url": "https://files.pythonhosted.org/packages/c5/93/5a2c9c5d8e67675c8a2c4d1976e28ed54e7d844abac7cc28c7a84ff181d6/basic_memory-0.23.2-py3-none-any.whl",
-          "sha256": "a1679a16319d8a7fb9c0486033551a47dedc0fbae7f5da81444eb3c4bf0ccecb"
-        },
-        {
-          "kind": "pypi-sdist",
-          "url": "https://files.pythonhosted.org/packages/13/01/46ea8d4a756cc476f4ee74cd604eddb2f43f0b747d4ed2604564b5994155/basic_memory-0.23.2.tar.gz",
-          "sha256": "15f48e6d9a2c83751bf3273ad09aafd2f888d87400e242c4528f9aa5b272eb13"
-        },
-        {
-          "kind": "github-commit-source-tarball",
-          "url": "https://api.github.com/repos/basicmachines-co/basic-memory/tarball/c0bd87c6d5a4a58034b1d6c8c5018e443b0bd048",
-          "sha256": "82c681c804062e3bbf1f3cf78a6cfec24c683a23f471c6a1ced016e901b2c951"
-        }
+      "runtimes": [
+        "CPython >=3.11,<3.14"
       ],
-      "registry_source_binding": "The PyPI artifacts name version 0.23.2 but do not attest a Git commit; the commit is the separately inspected v0.23.2 tag target.",
-      "license": "AGPL-3.0-or-later",
-      "license_url": "https://github.com/basicmachines-co/basic-memory/blob/c0bd87c6d5a4a58034b1d6c8c5018e443b0bd048/LICENSE",
-      "runtimes": ["CPython >=3.12", "py3-none-any wheel"],
-      "platforms": ["macOS", "Linux; Pythia production support is Ubuntu x86-64"],
-      "status": "qualified_separate_process"
+      "platforms": [
+        "macOS",
+        "Linux; Pythia production support is Ubuntu x86-64"
+      ],
+      "status": "qualified_bounded_native_surfaces"
     },
     "edgartools": {
       "identity": "edgartools",
@@ -77,8 +51,14 @@
       "registry_source_binding": "PyPI does not establish a source commit. The related v5.56.0 tag was inspected for documentation and tests but is not asserted as the registry artifact's commit.",
       "license": "MIT",
       "license_url": "https://github.com/dgunning/edgartools/blob/v5.56.0/LICENSE.txt",
-      "runtimes": ["CPython >=3.10", "py3-none-any wheel"],
-      "platforms": ["macOS", "Linux; Pythia production support is Ubuntu x86-64"],
+      "runtimes": [
+        "CPython >=3.10",
+        "py3-none-any wheel"
+      ],
+      "platforms": [
+        "macOS",
+        "Linux; Pythia production support is Ubuntu x86-64"
+      ],
       "status": "qualified_bounded_operations"
     },
     "eodhd": {
@@ -109,8 +89,14 @@
       "registry_source_binding": "The npm artifact's gitHead and npm provenance identify commit 9e3970d. The repository's v1.1.0 tag points to a different commit, so it is not the qualified package source.",
       "license": "MIT",
       "license_url": "https://github.com/EodHistoricalData/EODHD-APIs-Node-Financial-Library/blob/9e3970daef47e95110e40a12ac30a31421fdd81c/LICENSE",
-      "runtimes": ["Node.js >=20.0.0", "optional peer ws ^8.0.0"],
-      "platforms": ["macOS", "Linux; Pythia production support is Ubuntu x86-64"],
+      "runtimes": [
+        "Node.js >=20.0.0",
+        "optional peer ws ^8.0.0"
+      ],
+      "platforms": [
+        "macOS",
+        "Linux; Pythia production support is Ubuntu x86-64"
+      ],
       "status": "qualified_bounded_eod_operation"
     }
   }

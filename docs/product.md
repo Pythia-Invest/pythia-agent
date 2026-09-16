@@ -40,7 +40,7 @@ investment process:
 - search existing notes before creating another durable note on the same
   subject; and
 - keep durable research in user-readable Markdown so it remains inspectable
-  without the agent or its derived index.
+  without the agent.
 
 These principles were retained because they make later review and correction
 easier. A larger inherited framework, private lab record, or prescribed stock-
@@ -48,3 +48,50 @@ selection workflow is not required to understand or maintain the product.
 
 Pythia-authored source is available under Apache-2.0. Third-party components
 remain subject to their own licenses and notices.
+
+## Performance and growth
+
+Responsiveness and predictable resource use take priority over feature breadth.
+Pythia must remain productive as ordinary research files and chat history grow,
+including when Desk is accessed remotely. Defer or simplify features that make
+core navigation, search or reading noticeably slower.
+
+Judge scalability with representative larger datasets, not small-demo timings.
+For performance-sensitive changes, measure latency, search coverage, memory and
+filesystem work, including cold reads and cancellation. Bound work and disclose
+incomplete results; a fast but silently incomplete search is not sufficient.
+Introduce caching or indexing only when measurements justify the added ownership
+and invalidation cost, using the smallest solution that meets the need.
+
+## Workspace and conversation
+
+Workspace is the persistent place behind conversation: one ordinary file tree
+for working material and durable research. Desk makes outputs tangible through
+a companion viewer beside chat and a standalone explorer with fuzzy filename and
+folder-name search. Workspace search covers the whole workspace by default, with an explicit
+option to narrow to the current folder. Matching accepts conservative one-letter
+typos, including adjacent swaps, rather than scattered-letter abbreviations.
+V1 searches names without opening file
+contents, so large files and different formats remain equally discoverable. There
+is no search time cutoff. Content search is deferred to a separately measured
+addition; native agent file tools remain available for research.
+Its first version reads, downloads and references files; direct editing
+and advanced research management come later. The native agent or an external
+editor can still update files; the reader shows latest contents with an update
+notice and preserves reading position where practical. Upload originals keep their existing chat
+integration lifetime.
+
+Strategies are optional. A strategy brief at `strategies/<name>/README.md` can
+separate goals, risk constraints, assumptions and decisions while sharing
+research. A general chat needs no strategy. Scope is explicit when starting a
+conversation; browsing a page does not change it. Hypotheses and comparisons do
+not imply adoption or permission to deploy capital.
+
+Pythia teaches Hermes which layer serves the work: concise global preferences
+in native memory, detailed research and scoped context in files, historical
+reasoning in sessions, and reusable procedures in skills. Relevant material is
+read when needed rather than injected wholesale into every new chat. Current
+user directions take priority over earlier defaults. Fresh stacks use no
+separate Basic Memory service; existing notes and customized instructions require
+an explicit preserved transition. See [ADR 0013](decisions/0013-workspace-and-native-research-context.md)
+for the decisions, limits and alternatives.

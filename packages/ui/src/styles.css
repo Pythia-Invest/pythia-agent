@@ -220,6 +220,10 @@
   --py-focus-ring: var(--py-color-blue-700);
   --py-signal-foreground: var(--py-color-amber-800);
   /* Color is supplementary: domain labels, signs, or icons remain required. */
+  --py-artifact-folder: var(--py-color-copper-800);
+  --py-artifact-document: var(--py-color-blue-650);
+  --py-artifact-data: var(--py-color-green-650);
+
   --py-status-info-foreground: var(--py-color-blue-800);
   --py-status-info-border: var(--py-color-blue-550);
   --py-status-info-surface: var(--py-color-blue-50);
@@ -274,6 +278,10 @@
   --py-action-primary-background: var(--py-color-warm-white);
   --py-action-primary-foreground: var(--py-color-oracle-ink);
   --py-signal-foreground: var(--py-color-amber-300);
+  --py-artifact-folder: var(--py-color-copper-300);
+  --py-artifact-document: var(--py-color-blue-400);
+  --py-artifact-data: var(--py-color-green-500);
+
   --py-status-info-foreground: var(--py-color-blue-300);
   --py-status-info-border: var(--py-color-blue-650);
   --py-status-info-surface: var(--py-color-blue-950);
@@ -375,6 +383,11 @@
   --color-signal: var(--py-signal-marker);
   --color-signal-foreground: var(--py-signal-foreground);
   --color-signal-atmosphere: var(--py-signal-atmosphere);
+
+  /* File identity: decorative categories, never status or investment signals. */
+  --color-artifact-folder: var(--py-artifact-folder);
+  --color-artifact-document: var(--py-artifact-document);
+  --color-artifact-data: var(--py-artifact-data);
 
   /* Interface status */
   --color-info: var(--py-status-info-foreground);

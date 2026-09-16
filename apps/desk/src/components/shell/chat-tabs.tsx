@@ -1,16 +1,19 @@
 "use client";
 
 import { cn, IconButton, Popover, Tab as UITab, TabsList } from "@pythia/ui";
-import { MessageCircle, SquarePen, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { FileText, MessageCircle, SquarePen, X } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { layOutTabs } from "./tabs-model";
 
 export interface ChatTab {
   id: string;
   title: string;
+  description?: string;
+  icon?: ReactNode;
 }
 
 export interface ChatTabsProps {
+  kind?: "chat" | "file";
   activeId: string | null;
   /** True while no chat is open: the strip shows an unsaved "New chat" tab. */
   draft: boolean;
@@ -54,25 +57,27 @@ function Tab({
   onClose,
   running,
   tab,
+  kind,
 }: {
   active: boolean;
   className: string;
   onClose: () => void;
   running: boolean;
   tab: ChatTab;
+  kind: "chat" | "file";
 }) {
   return (
     // A positioning context, as in the chat rows: the select button fills the
     // tab so its hover reaches both edges and Close sits on top of it.
     <div
-      data-slot="chat-tab"
+      data-slot={kind === "file" ? "file-tab" : "chat-tab"}
       className={cn(
         className,
         active ? "bg-raised" : "bg-transparent hover:bg-interaction-hover",
       )}
     >
       <UITab
-        value={`session:${tab.id}`}
+        value={`${kind === "file" ? "file" : "session"}:${tab.id}`}
         aria-label={tab.title}
         className={cn(
           "motion-fast flex min-h-0 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-0 text-start transition-colors hover:bg-transparent focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 data-active:border-transparent",
@@ -91,10 +96,18 @@ function Tab({
             onClose();
           }
         }}
-        title={tab.title}
+        title={tab.description ?? tab.title}
         type="button"
       >
-        <TabStatus running={running} />
+        {tab.icon ??
+          (kind === "file" ? (
+            <FileText
+              aria-hidden="true"
+              className="size-3.5 shrink-0 text-foreground-secondary"
+            />
+          ) : (
+            <TabStatus running={running} />
+          ))}
         <span
           className={cn(
             "min-w-0 flex-1 truncate text-body",
@@ -136,6 +149,7 @@ function Tab({
  * or title length. Chats beyond the readable minimum go into the overflow menu.
  */
 export function ChatTabs({
+  kind = "chat",
   activeId,
   draft,
   onClose,
@@ -170,7 +184,7 @@ export function ChatTabs({
   return (
     <TabsList
       activateOnFocus
-      aria-label="Open chats"
+      aria-label={kind === "file" ? "Open files" : "Open chats"}
       className="flex min-w-0 flex-1 items-stretch gap-0 overflow-hidden border-0"
       ref={listRef}
     >
@@ -181,6 +195,7 @@ export function ChatTabs({
         return (
           <Tab
             active={active}
+            kind={kind}
             className={tabClassName}
             key={id}
             onClose={() => onClose(id)}
@@ -231,7 +246,7 @@ export function ChatTabs({
       {hiddenIds.length ? (
         <Popover.Root open={overflowOpen} onOpenChange={setOverflowOpen}>
           <Popover.Trigger
-            aria-label={`${hiddenIds.length} more open ${hiddenIds.length === 1 ? "chat" : "chats"}`}
+            aria-label={`${hiddenIds.length} more open ${kind}${hiddenIds.length === 1 ? "" : "s"}`}
             className="motion-fast flex h-full w-11 flex-none cursor-pointer items-center justify-center border-0 border-border border-r bg-transparent font-medium text-foreground-secondary text-xs tabular-nums transition-colors hover:bg-interaction-hover hover:text-foreground data-[popup-open]:bg-interaction-active data-[popup-open]:text-foreground"
           >
             +{hiddenIds.length}
@@ -240,7 +255,7 @@ export function ChatTabs({
             <Popover.Positioner align="start" side="bottom">
               <Popover.Popup className="w-70 p-1.5">
                 <p className="m-0 px-2 py-1.5 text-foreground-disabled text-xs">
-                  Open chats not shown
+                  Open {kind === "file" ? "files" : "chats"} not shown
                 </p>
                 {hiddenIds.map((id) => {
                   const tab = byId.get(id);
@@ -250,8 +265,17 @@ export function ChatTabs({
                       className="group relative flex min-h-7.5 min-w-0 items-center gap-2 rounded-md pr-7 pl-2 hover:bg-interaction-hover"
                       key={id}
                     >
-                      <TabStatus running={running(id)} />
+                      {tab.icon ??
+                        (kind === "file" ? (
+                          <FileText
+                            aria-hidden="true"
+                            className="size-3.5 shrink-0 text-foreground-secondary"
+                          />
+                        ) : (
+                          <TabStatus running={running(id)} />
+                        ))}
                       <button
+                        title={tab.description ?? tab.title}
                         className="min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent py-1 text-start text-body text-foreground"
                         onClick={() => {
                           setOverflowOpen(false);
@@ -260,6 +284,11 @@ export function ChatTabs({
                         type="button"
                       >
                         {tab.title}
+                        {tab.description ? (
+                          <span className="block truncate text-foreground-secondary text-xs">
+                            {tab.description}
+                          </span>
+                        ) : null}
                       </button>
                       <span className="absolute inset-y-0 right-1 flex items-center">
                         <IconButton

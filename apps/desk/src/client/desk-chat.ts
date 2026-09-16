@@ -1,3 +1,9 @@
+import {
+  hasWorkspaceContext,
+  splitWorkspaceNotes,
+  type WorkspaceContext,
+} from "@/workspace/references";
+import type { DeskViewPublisher } from "./desk-view-publisher";
 import { type Attachment, attachmentPart } from "@/attachments";
 import { Chat } from "@ai-sdk/react";
 import type { QueryClient } from "@tanstack/react-query";
@@ -41,15 +47,30 @@ export class DeskChat {
     queryClient: QueryClient,
     sessionId: string,
     history: DeskUIMessage[],
+    view?: DeskViewPublisher,
   ) {
     this.transport = new HermesChatTransport(api, {
       selection: () => this.selection,
+      ...(view
+        ? {
+            view: view.snapshot,
+            onViewStarted: view.activate,
+            onViewFinished: view.finish,
+          }
+        : {}),
       onConnection: (_id, connection) => this.#update({ connection }),
       onPendingSteer: (_id, text) => {
         this.#pendingSteer = text;
       },
       onRunFinished: () => {
         void queryClient.invalidateQueries({ queryKey: deskKeys.sessions });
+        void queryClient.invalidateQueries({
+          predicate: (query) =>
+            query.queryKey[0] === "workspace" && query.queryKey[1] !== "text",
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["sessions", sessionId, "context"],
+        });
         void queryClient.invalidateQueries({
           queryKey: deskKeys.messages(sessionId),
           refetchType: "none",
@@ -80,7 +101,10 @@ export class DeskChat {
         const text = this.#pendingSteer;
         this.#pendingSteer = undefined;
         // Let the SDK finish its current request before starting accepted guidance.
-        if (text) queueMicrotask(() => this.send(text));
+        if (text) {
+          const pending = splitWorkspaceNotes(text);
+          queueMicrotask(() => this.send(pending.text, [], pending.context));
+        }
       },
     });
   }
@@ -98,12 +122,16 @@ export class DeskChat {
   }
 
   initialize(
-    pending: () => { text: string; attachments: Attachment[] } | null,
+    pending: () => {
+      text: string;
+      attachments: Attachment[];
+      context?: WorkspaceContext;
+    } | null,
   ) {
     if (this.#initialized) return;
     this.#initialized = true;
     const prompt = pending();
-    if (prompt) this.send(prompt.text, prompt.attachments);
+    if (prompt) this.send(prompt.text, prompt.attachments, prompt.context);
     else void this.chat.resumeStream();
   }
 
@@ -115,7 +143,11 @@ export class DeskChat {
     if (next !== this.chat.messages) this.chat.messages = next;
   }
 
-  send = (text: string, attachments: Attachment[] = []) => {
+  send = (
+    text: string,
+    attachments: Attachment[] = [],
+    context?: WorkspaceContext,
+  ) => {
     this.#version += 1;
     this.#update({
       startedAt: Date.now(),
@@ -124,8 +156,14 @@ export class DeskChat {
       stopError: null,
     });
     void this.chat.sendMessage({
-      text,
-      files: attachments.map(attachmentPart),
+      role: "user",
+      parts: [
+        ...(text ? [{ type: "text" as const, text }] : []),
+        ...attachments.map(attachmentPart),
+        ...(hasWorkspaceContext(context) && context
+          ? [{ type: "data-workspace-context" as const, data: context }]
+          : []),
+      ],
     });
   };
 
@@ -158,11 +196,18 @@ export class DeskChats {
   constructor(
     private api: DeskApi,
     private queryClient: QueryClient,
+    private view?: DeskViewPublisher,
   ) {}
   get(sessionId: string, history: DeskUIMessage[]) {
     let session = this.#chats.get(sessionId);
     if (!session) {
-      session = new DeskChat(this.api, this.queryClient, sessionId, history);
+      session = new DeskChat(
+        this.api,
+        this.queryClient,
+        sessionId,
+        history,
+        this.view,
+      );
       this.#chats.set(sessionId, session);
     }
     return session;

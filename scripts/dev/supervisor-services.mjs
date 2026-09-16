@@ -1,6 +1,8 @@
+import { join } from "node:path";
+import { workspaceTransitionStatus } from "../update/workspace-transition.mjs";
+import { verifyBasicMemoryReadiness } from "../install/basic-memory-readiness.mjs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { verifyBasicMemoryReadiness } from "../install/basic-memory-readiness.mjs";
 import { identityMatches, processIdentity } from "./processes.mjs";
 import { runtimeCommands } from "./runtime.mjs";
 import { exitOutcome } from "./supervisor-processes.mjs";
@@ -104,14 +106,6 @@ export async function hermesReady(paths, child) {
   await hermesHealth(paths, child, 5_000);
 }
 
-export async function basicMemoryReady(paths, child, environment) {
-  return verifyBasicMemoryReadiness(paths, {
-    child,
-    environment,
-    executable: runtimeCommands(paths).basicMemory,
-  });
-}
-
 export async function deskReady(paths, child) {
   await fetchReady(
     `http://127.0.0.1:${paths.ports.desk}/`,
@@ -124,9 +118,7 @@ export async function deskReady(paths, child) {
 
 export function developmentServices(paths, environment) {
   const commands = runtimeCommands(paths);
-  const basicMemoryEnvironment = { ...environment };
-  delete basicMemoryEnvironment.API_SERVER_KEY;
-  return [
+  const services = [
     {
       name: "hermes",
       port: paths.ports.hermes,
@@ -134,15 +126,6 @@ export function developmentServices(paths, environment) {
       args: commands.hermesGateway,
       cwd: paths.workspace,
       environment,
-      ready: () => undefined,
-    },
-    {
-      name: "basic-memory",
-      port: paths.ports.memory,
-      command: commands.basicMemory,
-      args: commands.basicMemoryMcp,
-      cwd: paths.repositoryRoot,
-      environment: basicMemoryEnvironment,
       ready: () => undefined,
     },
     {
@@ -155,4 +138,53 @@ export function developmentServices(paths, environment) {
       ready: () => undefined,
     },
   ];
+  // A staged explicit transition keeps the existing environment usable while
+  // the user verifies a fresh native session. It is never a fresh default.
+  if (workspaceTransitionStatus(paths) === "staged") {
+    const legacyEnvironment = {
+      ...environment,
+      BASIC_MEMORY_CONFIG_DIR: paths.basicMemoryConfig,
+      BASIC_MEMORY_NO_PROMOS: "true",
+      BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false",
+      FASTMCP_CHECK_FOR_UPDATES: "off",
+      FASTMCP_SHOW_SERVER_BANNER: "false",
+      HF_HOME: join(paths.basicMemoryCache, "huggingface-disabled"),
+      FASTEMBED_CACHE_PATH: join(paths.basicMemoryCache, "fastembed-disabled"),
+    };
+    delete legacyEnvironment.API_SERVER_KEY;
+    delete legacyEnvironment.PYTHIA_DESK_VIEW_STATE;
+    const executable = join(
+      paths.managedPython,
+      ".venv",
+      "bin",
+      "basic-memory",
+    );
+    services.push({
+      name: "basic-memory",
+      port: paths.ports.memory,
+      command: executable,
+      args: [
+        "mcp",
+        "--transport",
+        "streamable-http",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        String(paths.ports.memory),
+        "--path",
+        "/mcp",
+        "--project",
+        paths.id,
+      ],
+      cwd: paths.repositoryRoot,
+      environment: legacyEnvironment,
+      ready: (child) =>
+        verifyBasicMemoryReadiness(paths, {
+          child,
+          environment: legacyEnvironment,
+          executable,
+        }),
+    });
+  }
+  return services;
 }
