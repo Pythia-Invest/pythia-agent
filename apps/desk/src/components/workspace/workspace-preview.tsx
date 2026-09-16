@@ -13,8 +13,6 @@ const PdfPreview = dynamic(() => import("./previews/pdf"), {
 });
 
 import { Button } from "@pythia/ui";
-import { matchRanges } from "@/workspace/search";
-import { SearchHighlight } from "./search-highlight";
 import { workspaceContentUrl } from "@/workspace/paths";
 import type { WorkspaceEntry } from "@/workspace/types";
 import type { WorkspaceLocation } from "./reader-context";
@@ -30,10 +28,10 @@ export function WorkspacePreview({
   error,
   onOpen,
   onRetry,
-  searchTerm,
+  onReady,
 }: {
   entry: WorkspaceEntry;
-  searchTerm?: string | undefined;
+  onReady?: (() => void) | undefined;
   text?: string | undefined;
   pending?: boolean;
   error?: string | undefined;
@@ -63,17 +61,25 @@ export function WorkspacePreview({
       <RasterPreview
         key={entry.revision}
         url={contentUrl(entry)}
-        name={entry.name}
+        entry={entry}
       />
     );
   if (entry.kind === "pdf")
-    return <PdfPreview key={entry.revision} url={contentUrl(entry)} />;
+    return (
+      <PdfPreview
+        key={entry.revision}
+        entry={entry}
+        url={contentUrl(entry)}
+        onReady={onReady}
+      />
+    );
   if (["csv", "spreadsheet", "document", "notebook"].includes(entry.kind))
     return (
       <ParsedPreview
         key={`${entry.path}:${entry.revision}`}
         entry={entry}
         onOpen={onOpen}
+        onReady={onReady}
       />
     );
   if (entry.kind === "audio")
@@ -116,19 +122,7 @@ export function WorkspacePreview({
       ) : null}
       {text !== undefined ? (
         entry.kind === "markdown" ? (
-          <WorkspaceMarkdown
-            text={text}
-            path={entry.path}
-            onOpen={onOpen}
-            searchTerm={searchTerm}
-          />
-        ) : searchTerm ? (
-          <pre className="overflow-auto whitespace-pre-wrap text-sm">
-            <SearchHighlight
-              text={text.slice(0, 100_000)}
-              ranges={matchRanges(text.slice(0, 100_000), [searchTerm])}
-            />
-          </pre>
+          <WorkspaceMarkdown text={text} path={entry.path} onOpen={onOpen} />
         ) : (
           <CodePreview text={text} name={entry.name} />
         )

@@ -3,15 +3,23 @@ import { PreviewAction } from "./action";
 import { ZoomOut, ZoomIn, Scan, RotateCw } from "lucide-react";
 import { useRef, useState } from "react";
 import { PreviewToolbar } from "./toolbar";
+import { usePreviewPosition } from "./position";
+import type { WorkspaceEntry } from "@/workspace/types";
 import { usePreviewViewport } from "./viewport";
 
-export function RasterPreview({ url, name }: { url: string; name: string }) {
+export function RasterPreview({
+  url,
+  entry,
+}: {
+  url: string;
+  entry: WorkspaceEntry;
+}) {
+  const [position, update] = usePreviewPosition(entry);
+  const { zoom, rotation } = position;
   const root = useRef<HTMLDivElement>(null);
   const area = usePreviewViewport(root);
   const [natural, setNatural] = useState({ width: 0, height: 0 });
   const [failed, setFailed] = useState(false);
-  const [zoom, setZoom] = useState<number | null>(null);
-  const [rotation, setRotation] = useState(0);
   const sideways = rotation % 180 !== 0;
   const width = sideways ? natural.height : natural.width;
   const height = sideways ? natural.width : natural.height;
@@ -29,7 +37,7 @@ export function RasterPreview({ url, name }: { url: string; name: string }) {
           size="sm"
           label="Zoom out"
           disabled={scale <= 0.1}
-          onClick={() => setZoom(Math.max(0.1, scale / 1.25))}
+          onClick={() => update({ zoom: Math.max(0.1, scale / 1.25) })}
         >
           <ZoomOut />
         </PreviewAction>
@@ -40,7 +48,7 @@ export function RasterPreview({ url, name }: { url: string; name: string }) {
           size="sm"
           label="Zoom in"
           disabled={scale >= 4}
-          onClick={() => setZoom(Math.min(4, scale * 1.25))}
+          onClick={() => update({ zoom: Math.min(4, scale * 1.25) })}
         >
           <ZoomIn />
         </PreviewAction>
@@ -49,7 +57,7 @@ export function RasterPreview({ url, name }: { url: string; name: string }) {
           label="Fit image"
           text="Fit"
           tip="Fit the entire image in the pane"
-          onClick={() => setZoom(null)}
+          onClick={() => update({ zoom: null })}
         >
           <Scan />
         </PreviewAction>
@@ -58,13 +66,13 @@ export function RasterPreview({ url, name }: { url: string; name: string }) {
           label="Actual size"
           text="100%"
           tip={`Actual size · ${natural.width} × ${natural.height} pixels`}
-          onClick={() => setZoom(1)}
+          onClick={() => update({ zoom: 1 })}
         />
         <PreviewAction
           size="sm"
           label="Rotate clockwise"
           tip="Rotate 90° clockwise · view only"
-          onClick={() => setRotation((r) => (r + 90) % 360)}
+          onClick={() => update({ rotation: (rotation + 90) % 360 })}
         >
           <RotateCw />
         </PreviewAction>
@@ -82,7 +90,7 @@ export function RasterPreview({ url, name }: { url: string; name: string }) {
             <img
               data-slot="workspace-image"
               src={url}
-              alt={name}
+              alt={entry.name}
               className="absolute top-1/2 left-1/2 max-w-none"
               style={{
                 width: natural.width ? natural.width * scale : undefined,

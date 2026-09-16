@@ -16,14 +16,20 @@ import type { DeskView } from "@/view-context/types";
 export type WorkspaceLocation = {
   path: string;
   heading?: string | undefined;
-  search?: { term: string; revision: string } | undefined;
 };
 export type ReadingPosition = {
   top: number;
   left: number;
-  search?: WorkspaceLocation["search"];
-  searchHit?: number | undefined;
   heading?: string | undefined;
+};
+export type PreviewPosition = {
+  page: number;
+  sheet: number;
+  rowPage: number;
+  zoom: number | null;
+  rotation: number;
+  fitPage: boolean;
+  textView: boolean;
 };
 export type WorkspaceReferenceAction = (
   file: NonNullable<DeskView["file"]>,
@@ -36,6 +42,15 @@ type ReaderContext = {
   closeFile: (path: string) => void;
   getReadingPosition: (path: string) => ReadingPosition | undefined;
   saveReadingPosition: (path: string, position: ReadingPosition) => void;
+  getPreviewPosition: (
+    path: string,
+    revision: string,
+  ) => PreviewPosition | undefined;
+  savePreviewPosition: (
+    path: string,
+    revision: string,
+    value: PreviewPosition,
+  ) => void;
   open: (location: WorkspaceLocation) => void;
   close: () => void;
   closeAndFocus: (target: () => HTMLElement | null) => void;
@@ -59,6 +74,19 @@ export function WorkspaceReaderProvider({
   const artifact =
     tabs.files.find((file) => file.path === tabs.activeId) ?? null;
   const positions = useRef(new Map<string, ReadingPosition>());
+  const previews = useRef(
+    new Map<string, { revision: string; value: PreviewPosition }>(),
+  );
+  const getPreviewPosition = useCallback((path: string, revision: string) => {
+    const saved = previews.current.get(path);
+    return saved?.revision === revision ? saved.value : undefined;
+  }, []);
+  const savePreviewPosition = useCallback(
+    (path: string, revision: string, value: PreviewPosition) => {
+      previews.current.set(path, { revision, value });
+    },
+    [],
+  );
   const getReadingPosition = useCallback(
     (path: string) => positions.current.get(path),
     [],
@@ -70,9 +98,10 @@ export function WorkspaceReaderProvider({
     [],
   );
   useEffect(() => {
-    for (const path of positions.current.keys()) {
-      if (!tabs.files.some((file) => file.path === path))
-        positions.current.delete(path);
+    for (const values of [positions.current, previews.current]) {
+      for (const path of values.keys()) {
+        if (!tabs.files.some((file) => file.path === path)) values.delete(path);
+      }
     }
   }, [tabs.files]);
   const [view, setView] = useState<DeskView | null>(null);
@@ -105,6 +134,7 @@ export function WorkspaceReaderProvider({
   );
   const closeFile = useCallback((path: string) => {
     positions.current.delete(path);
+    previews.current.delete(path);
     setTabs((current) => {
       const next = closeTab(
         current.files.map((file) => file.path),
@@ -126,6 +156,8 @@ export function WorkspaceReaderProvider({
       closeFile,
       getReadingPosition,
       saveReadingPosition,
+      getPreviewPosition,
+      savePreviewPosition,
       open,
       close,
       closeAndFocus,
@@ -139,6 +171,8 @@ export function WorkspaceReaderProvider({
       closeFile,
       getReadingPosition,
       saveReadingPosition,
+      getPreviewPosition,
+      savePreviewPosition,
       open,
       close,
       closeAndFocus,

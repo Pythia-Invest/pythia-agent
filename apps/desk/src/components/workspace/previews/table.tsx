@@ -7,11 +7,18 @@ const PAGE = 100;
 export function TablePreview({
   table,
   onSheet,
+  page: requestedPage,
+  onPage,
 }: {
   table: Table;
+  page: number;
+  onPage: (page: number) => void;
   onSheet: (index: number) => void;
 }) {
-  const [page, setPage] = useState(0);
+  const page = Math.min(
+    requestedPage,
+    Math.max(0, Math.ceil(table.rows.length / PAGE) - 1),
+  );
   const [formula, setFormula] = useState("");
   const columns = Math.max(0, ...table.rows.map((row) => row.length));
   return (
@@ -30,7 +37,6 @@ export function TablePreview({
               className="min-w-0 rounded-control border border-border bg-raised p-1 text-body"
               value={table.sheet}
               onChange={(e) => {
-                setPage(0);
                 onSheet(Number(e.target.value));
               }}
             >
@@ -48,7 +54,7 @@ export function TablePreview({
               variant="ghost"
               size="sm"
               disabled={page === 0}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => onPage(page - 1)}
             >
               Previous rows
             </Button>
@@ -59,7 +65,7 @@ export function TablePreview({
               variant="ghost"
               size="sm"
               disabled={(page + 1) * PAGE >= table.rows.length}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => onPage(page + 1)}
             >
               Next rows
             </Button>

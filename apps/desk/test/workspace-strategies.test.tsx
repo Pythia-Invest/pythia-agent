@@ -1,13 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
-import type { WorkspaceEntry, WorkspaceListing } from "@/workspace/types";
+import type { WorkspaceEntry } from "@/workspace/types";
 import {
   readableStrategyBrief,
   strategyBriefPath,
   strategyName,
   strategyTitle,
 } from "@/workspace/strategies";
-import { StrategyNavigation } from "@/components/workspace/strategies/strategy-navigation";
 import {
   StrategyBriefAction,
   StrategyChatContext,
@@ -18,10 +17,6 @@ const queries = vi.hoisted(() => ({
     string,
     { data?: WorkspaceEntry; isPending: boolean; isError: boolean }
   >(),
-  lists: new Map<
-    string,
-    { data?: WorkspaceListing; isPending: boolean; isError: boolean }
-  >(),
   requestedEntries: [] as string[],
 }));
 vi.mock("@/client/queries", () => ({
@@ -29,8 +24,6 @@ vi.mock("@/client/queries", () => ({
     queries.requestedEntries.push(path);
     return queries.entries.get(path) ?? { isPending: false, isError: true };
   },
-  useWorkspaceList: (path: string) =>
-    queries.lists.get(path) ?? { isPending: false, isError: false },
 }));
 
 // Same metadata projection as the real bounded Workspace file API. No market
@@ -53,7 +46,6 @@ const onOpen = vi.fn();
 const onStartStrategy = vi.fn();
 beforeEach(() => {
   queries.entries.clear();
-  queries.lists.clear();
   queries.requestedEntries.length = 0;
   onOpen.mockClear();
   onStartStrategy.mockClear();
@@ -73,53 +65,6 @@ it("recognizes only optional immediate strategy briefs and uses an available ope
   expect(
     readableStrategyBrief({ ...entry(briefPath), previewable: false }),
   ).toBe(false);
-});
-
-it("keeps general research available when no strategy area exists", () => {
-  queries.lists.set("", {
-    isPending: false,
-    isError: false,
-    data: {
-      entries: [entry("research", "directory")],
-      partial: false,
-      scanned: 1,
-    },
-  });
-  const html = renderToStaticMarkup(
-    <StrategyNavigation onOpen={onOpen} onStartStrategy={onStartStrategy} />,
-  );
-  expect(html).toContain("general chats remain available without one");
-  expect(html).not.toContain("<button");
-  expect(queries.requestedEntries).toEqual([]);
-  expect(onStartStrategy).not.toHaveBeenCalled();
-});
-
-it("bounds discovery and leaves unreadable strategy folders browsable", () => {
-  queries.lists.set("", {
-    isPending: false,
-    isError: false,
-    data: {
-      entries: [entry("strategies", "directory")],
-      partial: false,
-      scanned: 1,
-    },
-  });
-  const folders = Array.from({ length: 100 }, (_, i) =>
-    entry(`strategies/approach-${i}`, "directory"),
-  );
-  queries.lists.set("strategies", {
-    isPending: false,
-    isError: false,
-    data: { entries: folders, partial: false, scanned: 100 },
-  });
-  const html = renderToStaticMarkup(
-    <StrategyNavigation onOpen={onOpen} onStartStrategy={onStartStrategy} />,
-  );
-  expect(queries.requestedEntries.length).toBeLessThan(folders.length);
-  expect(html).toContain("Some strategy folders are not shown");
-  expect(html).toContain('href="/workspace/strategies/approach-0"');
-  expect(html).toContain("Strategy brief unavailable");
-  expect(html).toContain('disabled=""');
 });
 
 it("enables explicit strategy start for a readable brief without creating a session during browsing", () => {

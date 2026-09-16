@@ -4,8 +4,6 @@ import { useCodeHighlight } from "@/components/workspace/previews/code";
 
 import { MARKDOWN_SANITIZER } from "@/components/workspace/markdown-policy";
 
-import { matchRanges } from "@/workspace/search";
-import { searchHighlightClass } from "./search-highlight";
 import { useMemo } from "react";
 import { Streamdown, type Components } from "streamdown";
 import { resolveWorkspaceLink, workspaceContentUrl } from "@/workspace/paths";
@@ -68,67 +66,15 @@ function addHeadingIds() {
 // Our URL transform and image component enforce the narrower workspace policy.
 const REHYPE_PLUGINS = [MARKDOWN_SANITIZER, addHeadingIds];
 
-function highlightSearch(term: string) {
-  type Node = {
-    type?: string;
-    value?: string;
-    tagName?: string;
-    properties?: Record<string, unknown>;
-    children?: Node[];
-  };
-  return () => (tree: unknown) => {
-    let remaining = 200;
-    function visit(node: Node) {
-      if (!node.children || remaining === 0) return;
-      node.children = node.children.flatMap((child) => {
-        if (remaining === 0) return [child];
-        if (child.type !== "text" || !child.value) {
-          visit(child);
-          return [child];
-        }
-        const ranges = matchRanges(child.value, [term], remaining);
-        remaining -= ranges.length;
-        const parts: Node[] = [];
-        let offset = 0;
-        for (const [start, end] of ranges) {
-          parts.push({ type: "text", value: child.value.slice(offset, start) });
-          parts.push({
-            type: "element",
-            tagName: "mark",
-            properties: {
-              className: searchHighlightClass,
-              "data-slot": "search-hit",
-            },
-            children: [{ type: "text", value: child.value.slice(start, end) }],
-          });
-          offset = end;
-        }
-        parts.push({ type: "text", value: child.value.slice(offset) });
-        return parts;
-      });
-    }
-    visit(tree as Node);
-  };
-}
-
 export function WorkspaceMarkdown({
   text,
   path,
   onOpen,
-  searchTerm,
 }: {
   text: string;
   path: string;
-  searchTerm?: string | undefined;
   onOpen?: ((location: WorkspaceLocation) => void) | undefined;
 }) {
-  const plugins = useMemo(
-    () =>
-      searchTerm
-        ? [...REHYPE_PLUGINS, highlightSearch(searchTerm)]
-        : REHYPE_PLUGINS,
-    [searchTerm],
-  );
   const components = useMemo(() => {
     const result: Components = {
       a: ({ href, children }) => {
@@ -177,7 +123,7 @@ export function WorkspaceMarkdown({
       <Streamdown
         plugins={code ? { code } : {}}
         mode="static"
-        rehypePlugins={plugins}
+        rehypePlugins={REHYPE_PLUGINS}
         skipHtml
         parseIncompleteMarkdown={false}
         controls={false}

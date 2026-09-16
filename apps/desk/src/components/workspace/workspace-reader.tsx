@@ -1,5 +1,6 @@
 "use client";
 
+import { useReaderSelection } from "./use-reader-selection";
 import { Button } from "@pythia/ui";
 import {
   useCallback,
@@ -26,7 +27,6 @@ import { useStartStrategy } from "./strategies/use-start-strategy";
 export function WorkspaceReader({
   path,
   heading,
-  search,
   onOpen,
   placement = "standalone",
 }: WorkspaceLocation & {
@@ -37,11 +37,6 @@ export function WorkspaceReader({
   const startStrategy = useStartStrategy();
   const [chosen, setChosen] = useState<WorkspaceEntry>();
   const displayed = chosen?.path === path ? chosen : entry.data;
-  const [selection, setSelection] = useState<{
-    path: string;
-    revision: string;
-    text: string;
-  } | null>(null);
   const content = useWorkspaceText(
     path,
     displayed?.revision ?? "",
@@ -53,14 +48,11 @@ export function WorkspaceReader({
     displayed?.previewable && ["markdown", "text"].includes(displayed.kind);
   const displayedRevision =
     textual && content.data ? content.data.revision : displayed?.revision;
-  const selectedText =
-    selection?.path === path && selection.revision === displayedRevision
-      ? selection.text
-      : "";
   const [updatedPath, setUpdatedPath] = useState<string | null>(null);
   const updated = updatedPath === path && displayed?.kind !== "directory";
   const jumpedToHeading = useRef<string | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
+  const selectedText = useReaderSelection(viewport, path, displayedRevision);
   const restore = useRef<{
     path: string;
     revision: string;
@@ -72,32 +64,29 @@ export function WorkspaceReader({
   const setView = reader?.setView;
   const getReadingPosition = reader?.getReadingPosition;
   const saveReadingPosition = reader?.saveReadingPosition;
-  const [searchHit, setSearchHit] = useState(() => {
-    const saved = getReadingPosition?.(path);
-    return saved?.search === search ? (saved?.searchHit ?? 0) : 0;
-  });
-  const [searchCount, setSearchCount] = useState(0);
   const tabRestore = useRef<ReadingPosition | null>(null);
-  const processedSearch = useRef<WorkspaceLocation["search"]>(undefined);
-  const currentSearch = useRef({ search, searchHit });
-  currentSearch.current = { search, searchHit };
+  const [readyRevision, setReadyRevision] = useState<string>();
+  const previewReady =
+    !displayed?.previewable ||
+    !["pdf", "csv", "spreadsheet", "document", "notebook"].includes(
+      displayed.kind,
+    ) ||
+    readyRevision === displayed.revision;
+  const onPreviewReady = useCallback(
+    () => setReadyRevision(displayed?.revision),
+    [displayed?.revision],
+  );
   const currentHeading = useRef(heading);
   currentHeading.current = heading;
   useLayoutEffect(
     () => () => {
       const element = viewport.current;
       // Capture before unmount even if the browser has not delivered its scroll event.
-      if (
-        element?.isConnected &&
-        !tabRestore.current &&
-        (!currentSearch.current.search ||
-          processedSearch.current === currentSearch.current.search)
-      )
+      if (element?.isConnected && !tabRestore.current)
         saveReadingPosition?.(path, {
           top: element.scrollTop,
           left: element.scrollLeft,
           heading: currentHeading.current,
-          ...currentSearch.current,
         });
     },
     [path, saveReadingPosition],
@@ -158,20 +147,9 @@ export function WorkspaceReader({
     restore.current = null;
     jumpedToHeading.current = null;
     const saved = getReadingPosition?.(path);
-    tabRestore.current =
-      saved?.heading === heading && saved?.search === search
-        ? (saved ?? null)
-        : null;
-    processedSearch.current = tabRestore.current ? search : undefined;
-    setSearchHit(tabRestore.current?.searchHit ?? 0);
+    tabRestore.current = saved?.heading === heading ? (saved ?? null) : null;
     if (viewport.current) viewport.current.scrollTop = 0;
   }, [path, getReadingPosition]);
-  useEffect(() => {
-    setSelection(null);
-    const range = window.getSelection();
-    if (range && viewport.current?.contains(range.anchorNode))
-      range.removeAllRanges();
-  }, [path, displayedRevision]);
   useEffect(() => {
     if (tabRestore.current?.heading !== heading) tabRestore.current = null;
     const target = `${path}#${heading ?? ""}`;
@@ -196,18 +174,26 @@ export function WorkspaceReader({
       !saved ||
       !element ||
       !displayed ||
+      !previewReady ||
       (textual &&
         (!content.data || content.isPlaceholderData || content.isFetching))
     )
       return;
-    const image = element.querySelector("img");
-    if (image && !image.complete) return;
+    // Lazy document images may need the restored scroll position to start loading.
+    // Only eager preview images must finish before their dimensions are usable.
+    if (
+      Array.from(element.querySelectorAll("img")).some(
+        (image) => image.loading !== "lazy" && !image.complete,
+      )
+    )
+      return;
     element.scrollTop = saved.top;
     element.scrollLeft = saved.left;
     jumpedToHeading.current = `${path}#${saved.heading ?? ""}`;
     tabRestore.current = null;
   }, [
     displayed,
+    previewReady,
     textual,
     content.data,
     content.isPlaceholderData,
@@ -217,59 +203,12 @@ export function WorkspaceReader({
   ]);
   useEffect(restoreTabPosition, [restoreTabPosition]);
   useEffect(() => {
-    if (
-      !search ||
-      !content.data ||
-      content.isPlaceholderData ||
-      content.isFetching
-    )
-      return;
-    const hits = viewport.current?.querySelectorAll<HTMLElement>(
-      '[data-slot="search-hit"]',
-    );
-    setSearchCount(hits?.length ?? 0);
-    if (processedSearch.current === search) {
-      setSearchHit((index) =>
-        Math.min(index, Math.max(0, (hits?.length ?? 0) - 1)),
-      );
-      return;
-    }
-    processedSearch.current = search;
-    tabRestore.current = null;
-    restore.current = null;
-    setSearchHit(0);
-    hits?.[0]?.scrollIntoView({ block: "center" });
-  }, [
-    path,
-    search,
-    content.data,
-    content.isPlaceholderData,
-    content.isFetching,
-  ]);
-  const moveSearch = (delta: number) => {
-    const hits = viewport.current?.querySelectorAll<HTMLElement>(
-      '[data-slot="search-hit"]',
-    );
-    if (!hits?.length) return;
-    const index = (searchHit + delta + hits.length) % hits.length;
-    setSearchHit(index);
-    hits[index]?.scrollIntoView({ block: "center" });
-    const element = viewport.current;
-    if (element)
-      saveReadingPosition?.(path, {
-        top: element.scrollTop,
-        left: element.scrollLeft,
-        heading,
-        search,
-        searchHit: index,
-      });
-  };
-  useEffect(() => {
     const saved = restore.current;
     const element = viewport.current;
     if (
       !saved ||
       !element ||
+      !previewReady ||
       saved.path !== path ||
       displayed?.revision !== saved.revision ||
       (textual && (content.isPlaceholderData || content.isFetching))
@@ -288,31 +227,12 @@ export function WorkspaceReader({
   }, [
     path,
     displayed?.revision,
+    previewReady,
     textual,
     content.data,
     content.isFetching,
     content.isPlaceholderData,
   ]);
-  useEffect(() => {
-    const update = () => {
-      const range = window.getSelection();
-      if (
-        !range ||
-        !viewport.current?.contains(range.anchorNode) ||
-        !viewport.current.contains(range.focusNode)
-      ) {
-        setSelection(null);
-        return;
-      }
-      setSelection({
-        path,
-        revision: displayedRevision ?? "",
-        text: range.toString().slice(0, 4000),
-      });
-    };
-    document.addEventListener("selectionchange", update);
-    return () => document.removeEventListener("selectionchange", update);
-  }, [path, displayedRevision]);
   useEffect(() => {
     if (!setView) return;
     setView({
@@ -357,51 +277,6 @@ export function WorkspaceReader({
           onOpen={open}
           reference={file ? reader?.renderReference?.(file, true) : null}
         />
-      ) : null}
-      {search ? (
-        <div
-          data-slot="workspace-passage-search"
-          className="flex items-center gap-2 border-border border-b px-3 py-1 text-xs"
-        >
-          <span className="min-w-0 flex-1 truncate" title={search.term}>
-            Find: {search.term}
-          </span>
-          <span role="status" className="text-foreground-secondary">
-            {content.isFetching
-              ? "Finding…"
-              : searchCount
-                ? `${searchHit + 1} / ${searchCount}${searchCount >= 200 ? "+" : ""}`
-                : "No match in preview"}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            disabled={!searchCount}
-            onClick={() => moveSearch(-1)}
-            aria-label="Previous match"
-          >
-            ↑
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            disabled={!searchCount}
-            onClick={() => moveSearch(1)}
-            aria-label="Next match"
-          >
-            ↓
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => onOpen({ path })}
-          >
-            Done
-          </Button>
-        </div>
       ) : null}
       <StrategyBriefAction
         path={path}
@@ -470,15 +345,12 @@ export function WorkspaceReader({
               element &&
               displayed &&
               !tabRestore.current &&
-              !content.isPlaceholderData &&
-              (!search || processedSearch.current === search)
+              !content.isPlaceholderData
             )
               saveReadingPosition?.(path, {
                 top: element.scrollTop,
                 left: element.scrollLeft,
                 heading,
-                search,
-                searchHit,
               });
             if (!saved || !element || !content.isPlaceholderData) return;
             saved.top = element.scrollTop;
@@ -498,7 +370,7 @@ export function WorkspaceReader({
             <WorkspacePreview
               entry={displayed}
               text={content.data?.text}
-              searchTerm={search?.term}
+              onReady={onPreviewReady}
               pending={Boolean(textual && content.isFetching)}
               error={
                 textual && content.isError ? content.error.message : undefined

@@ -37,8 +37,10 @@ never rendered as active documents. Unknown valid UTF-8 files can be read as tex
   reproduced.
 - Jupyter nbformat 4 notebooks show Markdown/code cells and saved plain-text/PNG
   outputs. HTML, JavaScript and widget outputs are ignored. No kernel runs.
-- PDF.js renders one page at a time with local worker assets, bounded canvas
-  dimensions, page navigation, zoom and an extracted-text view. XFA and annotation
+- PDF.js renders one page at a time with local worker and character-map assets,
+  bounded canvas dimensions, page navigation, zoom and an extracted-text view.
+  Every completed or cancelled page operation releases native page resources;
+  limiting the visible canvas alone does not bound decoded-image retention. XFA and annotation
   actions are not enabled. No remote viewer or conversion service is involved.
 - Common raster images use the browser decoder. Recognized MP3/WAV/M4A and
   MP4/WebM files use native media controls and existing byte-range delivery.
@@ -59,7 +61,7 @@ cell and a 200,000-character table payload. Converted DOCX HTML is limited to
 characters. Notebooks show at most 100 cells with bounded source/output text and
 embedded images. Parsed workers have a 15-second completion budget. ZIP metadata
 preflight is a screening limit, not a guarantee of arbitrary parser memory usage.
-PDF canvases are limited to 4,096 pixels per dimension. Limits produce an explicit
+PDF canvases are limited to 4,096 pixels per dimension. Limits, including omitted notebook outputs or additional/oversized figures, produce an explicit
 partial/unavailable preview while preserving access to the original file.
 
 ## Consequences and rejected alternatives
@@ -100,3 +102,13 @@ following Chrome's basic viewer controls. Rotation affects presentation only.
 Fit responds to the reader pane's dimensions, and rotated content retains its
 aspect ratio and scrollable bounds. No image transformations or PDF edits are
 written back to the user's files.
+
+Open file tabs retain only revision-bound page, worksheet, row-page, zoom and
+rotation settings in the existing reader owner. Closing a tab removes these
+records. Returning to a document waits for parsed content before restoring its
+scroll offset; document data and workers still release when inactive.
+
+Desk's dev and build commands copy the pinned PDF.js CMaps into a versioned,
+ignored public asset directory included in the build cache outputs. Requests remain local and no font service or
+remote viewer is introduced. The production PDF.js viewer's browser regressions
+replace the earlier Chromium-iframe qualification harness.

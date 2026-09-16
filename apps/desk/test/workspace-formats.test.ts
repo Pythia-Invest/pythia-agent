@@ -189,3 +189,23 @@ it("preserves saved execution counts without substituting cell positions", () =>
   expect(result.cells[2]?.executionCount).toBeUndefined();
   expect(result.cells[3]?.outputCount).toBeUndefined();
 });
+
+it("discloses omitted saved notebook outputs and figures", () => {
+  const cases = [
+    Array.from({ length: 21 }, () => ({
+      output_type: "stream",
+      text: "result\n",
+    })),
+    [{ data: { "image/png": "AAAA" } }, { data: { "image/png": "AAAA" } }],
+    [{ data: { "image/png": "A".repeat(1_000_000) } }],
+  ];
+  for (const outputs of cases) {
+    const result = parseNotebook(
+      JSON.stringify({
+        nbformat: 4,
+        cells: [{ cell_type: "code", source: "research()", outputs }],
+      }),
+    );
+    expect(result.kind === "notebook" && result.limited).toBe(true);
+  }
+});

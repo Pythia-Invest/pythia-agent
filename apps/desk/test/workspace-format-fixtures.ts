@@ -17,7 +17,7 @@ export function workbookBytes() {
   );
   return XLSX.write(book, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
 }
-export function documentBytes() {
+export function documentBytes(paragraphs = 0) {
   return zipSync({
     "[Content_Types].xml": strToU8(
       '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
@@ -26,7 +26,13 @@ export function documentBytes() {
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
     ),
     "word/document.xml": strToU8(
-      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Fictional investment memo</w:t></w:r></w:p><w:p><w:r><w:t>Assumptions for review.</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>120</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>',
+      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Fictional investment memo</w:t></w:r></w:p><w:p><w:r><w:t>Assumptions for review.</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>120</w:t></w:r></w:p></w:tc></w:tr></w:tbl>' +
+        Array.from(
+          { length: paragraphs },
+          (_, i) =>
+            `<w:p><w:r><w:t>Research paragraph ${i + 1}: fictional assumptions and results.</w:t></w:r></w:p>`,
+        ).join("") +
+        "</w:body></w:document>",
     ),
   }).buffer as ArrayBuffer;
 }

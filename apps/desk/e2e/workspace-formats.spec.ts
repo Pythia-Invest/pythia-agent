@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { japanesePdfBytes } from "../test/workspace-pdf-fixtures";
 import { fixture } from "./stream-fixture";
 import {
   documentBytes,
@@ -26,7 +27,39 @@ const samples = [
   },
   { name: "model.xlsx", kind: "spreadsheet", bytes: workbookBytes() },
   { name: "memo.docx", kind: "document", bytes: documentBytes() },
+  { name: "long.docx", kind: "document", bytes: documentBytes(80) },
+  {
+    name: "long.md",
+    kind: "markdown",
+    bytes: encode(
+      `${Array.from(
+        { length: 300 },
+        (_, i) => `Paragraph ${i + 1}: fictional research and assumptions.\n\n`,
+      ).join("")}![Local chart](chart.png)`,
+    ),
+  },
+  {
+    name: "long.ipynb",
+    kind: "notebook",
+    bytes: encode(
+      JSON.stringify({
+        nbformat: 4,
+        cells: Array.from({ length: 50 }, (_, i) => ({
+          cell_type: "markdown",
+          source: `## Research ${i + 1}\n\nFictional assumptions and results.`,
+        })),
+      }),
+    ),
+  },
   { name: "research.pdf", kind: "pdf", bytes: pdfBytes() },
+  { name: "japanese.pdf", kind: "pdf", bytes: japanesePdfBytes() },
+  {
+    name: "large.csv",
+    kind: "csv",
+    bytes: encode(
+      Array.from({ length: 250 }, (_, i) => `Row ${i + 1},${i}`).join("\n"),
+    ),
+  },
   {
     name: "analysis.ipynb",
     kind: "notebook",
@@ -127,6 +160,43 @@ async function setup(page: import("@playwright/test").Page, name: string) {
     .locator('[data-slot="workspace-directory"]')
     .getByRole("link", { name, exact: true })
     .click();
+}
+
+async function openFile(page: import("@playwright/test").Page, name: string) {
+  if ((page.viewportSize()?.width ?? 1440) < 900)
+    await page.keyboard.press("Escape");
+  await page
+    .locator('[data-slot="workspace-directory"]')
+    .getByRole("link", { name, exact: true })
+    .click();
+}
+async function switchFile(page: import("@playwright/test").Page, name: string) {
+  const tab = page.getByRole("tab", { name, exact: true });
+  if (await tab.isVisible()) await tab.click();
+  else {
+    await page.getByRole("button", { name: /more open files?$/ }).click();
+    await page
+      .locator('[data-slot="popover-popup"]')
+      .getByTitle(name, { exact: true })
+      .click();
+  }
+}
+
+async function scrollReader(page: import("@playwright/test").Page) {
+  // Let the native scroll event reach the reader before dismissing its drawer.
+  await page.locator('[data-slot="workspace-reader-scroll"]').evaluate(
+    (el) =>
+      new Promise<void>((resolve) => {
+        el.addEventListener(
+          "scroll",
+          () => requestAnimationFrame(() => resolve()),
+          {
+            once: true,
+          },
+        );
+        el.scrollTop = 700;
+      }),
+  );
 }
 
 test("highlights JavaScript without running it", async ({ page }) => {
@@ -241,5 +311,72 @@ test("PDF renders pages locally with navigation and zoom", async ({ page }) => {
   await page.getByRole("button", { name: "Text view", exact: true }).click();
   await expect(page.locator('[data-slot="workspace-pdf"] pre')).toContainText(
     "Fictional PDF research",
+  );
+});
+
+test("PDF character maps load locally and preserve non-Latin text", async ({
+  page,
+}) => {
+  await setup(page, "japanese.pdf");
+  await page.getByRole("button", { name: "Text view", exact: true }).click();
+  await expect(page.locator('[data-slot="workspace-pdf"] pre')).toContainText(
+    "日本",
+  );
+});
+test("file tabs restore PDF, worksheet and row-page positions", async ({
+  page,
+}) => {
+  await setup(page, "research.pdf");
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await openFile(page, "model.xlsx");
+  await page.getByRole("combobox", { name: "Worksheet" }).selectOption("1");
+  await openFile(page, "large.csv");
+  await page.getByRole("button", { name: "Next rows", exact: true }).click();
+  await switchFile(page, "research.pdf");
+  await expect(
+    page.getByRole("spinbutton", { name: "Page number" }),
+  ).toHaveValue("2");
+  await switchFile(page, "model.xlsx");
+  await expect(page.getByRole("combobox", { name: "Worksheet" })).toHaveValue(
+    "1",
+  );
+  await switchFile(page, "large.csv");
+  await expect(page.locator('[data-slot="workspace-table"]')).toContainText(
+    "Page 2 of 3",
+  );
+});
+
+for (const name of ["long.docx", "long.ipynb"]) {
+  test(`restores ${name} scroll after worker content is ready`, async ({
+    page,
+  }) => {
+    await setup(page, name);
+    const scroll = page.locator('[data-slot="workspace-reader-scroll"]');
+    await expect
+      .poll(() => scroll.evaluate((el) => el.scrollHeight))
+      .toBeGreaterThan(1500);
+    await scrollReader(page);
+    await openFile(page, "model.mjs");
+    await switchFile(page, name);
+    await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBe(700);
+  });
+}
+
+test("offscreen lazy images do not block document scroll restoration", async ({
+  page,
+}) => {
+  await setup(page, "long.md");
+  const scroll = page.locator('[data-slot="workspace-reader-scroll"]');
+  const image = scroll.getByRole("img", { name: "Local chart" });
+  await expect(image).toHaveAttribute("loading", "lazy");
+  expect(await image.evaluate((el: HTMLImageElement) => el.complete)).toBe(
+    false,
+  );
+  await scrollReader(page);
+  await openFile(page, "model.mjs");
+  await switchFile(page, "long.md");
+  await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBe(700);
+  expect(await image.evaluate((el: HTMLImageElement) => el.complete)).toBe(
+    false,
   );
 });

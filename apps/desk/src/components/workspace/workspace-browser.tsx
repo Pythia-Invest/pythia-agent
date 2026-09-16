@@ -6,29 +6,7 @@ import { usePrefetchWorkspaceEntry, useWorkspaceList } from "@/client/queries";
 import type { WorkspaceEntry } from "@/workspace/types";
 import type { WorkspaceLocation } from "./reader-context";
 import { WorkspaceLink } from "./workspace-link";
-import { WorkspaceTree } from "./workspace-tree";
 import { WorkspaceFileIcon } from "./workspace-file-icon";
-
-type Navigation = {
-  current: string;
-  onOpen: (location: WorkspaceLocation) => void;
-};
-export function WorkspaceSidebar({ current, onOpen }: Navigation) {
-  return (
-    <aside
-      data-slot="workspace-sidebar"
-      aria-label="Workspace files"
-      className="flex max-h-52 min-h-0 shrink-0 flex-col border-border border-b bg-raised min-[900px]:h-full min-[900px]:max-h-none min-[900px]:w-full min-[900px]:border-b-0"
-    >
-      <div className="flex h-11 shrink-0 items-center px-4 font-medium text-body">
-        Workspace
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto px-2 pb-2">
-        <WorkspaceTree current={current} onOpen={onOpen} />
-      </div>
-    </aside>
-  );
-}
 
 function fileType(entry: WorkspaceEntry) {
   return entry.kind === "directory"

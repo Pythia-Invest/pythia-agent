@@ -1,4 +1,7 @@
 "use client";
+import { usePreviewPosition } from "./position";
+import type { WorkspaceEntry } from "@/workspace/types";
+import { withPdfPage } from "@/workspace/previews/pdf-page";
 import { usePreviewViewport } from "./viewport";
 import { PreviewToolbar } from "./toolbar";
 import { PreviewAction } from "./action";
@@ -17,15 +20,21 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 
 /** One page at a time keeps canvas memory bounded on long research reports.
  * PDF scripts, XFA and annotation actions are not executed. Assets stay local. */
-export default function PdfPreview({ url }: { url: string }) {
+export default function PdfPreview({
+  url,
+  entry,
+  onReady,
+}: {
+  url: string;
+  entry: WorkspaceEntry;
+  onReady?: (() => void) | undefined;
+}) {
+  const [position, update] = usePreviewPosition(entry);
+  const { page, rotation, fitPage, textView } = position;
+  const zoom = position.zoom ?? 1;
   const [doc, setDoc] = useState<PDFDocumentProxy>();
   const [error, setError] = useState(false);
-  const [page, setPage] = useState(1);
-  const [zoom, setZoom] = useState(1);
-  const [textView, setTextView] = useState(false);
-  const [pageText, setPageText] = useState("");
-  const [rotation, setRotation] = useState(0);
-  const [fitPage, setFitPage] = useState(false);
+  const [pageText, setPageText] = useState<string>();
   const [displayWidth, setDisplayWidth] = useState(600);
   const container = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -35,7 +44,6 @@ export default function PdfPreview({ url }: { url: string }) {
     let destroy: (() => void) | undefined;
     setDoc(undefined);
     setError(false);
-    setPage(1);
     void import("pdfjs-dist")
       .then((pdf) => {
         if (!active) return;
@@ -47,6 +55,8 @@ export default function PdfPreview({ url }: { url: string }) {
         const task = pdf.getDocument({
           url,
           worker,
+          cMapUrl: `/_pdfjs/${pdf.version}/cmaps/`,
+          cMapPacked: true,
           enableXfa: false,
           useSystemFonts: true,
           disableAutoFetch: true,
@@ -73,46 +83,42 @@ export default function PdfPreview({ url }: { url: string }) {
     if (!doc) return;
     let active = true;
     let cancel: (() => void) | undefined;
-    void doc
-      .getPage(page)
-      .then((pdfPage) => {
-        if (!active || !canvas.current) return;
-        const angle = (pdfPage.rotate + rotation) % 360;
-        const base = pdfPage.getViewport({ scale: 1, rotation: angle });
-        const cssScale =
-          Math.min(
-            width / base.width,
-            fitPage ? height / base.height : Infinity,
-          ) * zoom;
-        setDisplayWidth(base.width * cssScale);
-        const scale = Math.min(
-          cssScale * Math.min(devicePixelRatio, 2),
-          4096 / Math.max(base.width, base.height),
-        );
-        const viewport = pdfPage.getViewport({ scale, rotation: angle });
-        const element = canvas.current;
-        element.width = Math.ceil(viewport.width);
-        element.height = Math.ceil(viewport.height);
-        const task = pdfPage.render({ canvas: element, viewport });
-        cancel = () => task.cancel();
-        return task.promise;
-      })
-      .catch((error) => {
-        if (active && error?.name !== "RenderingCancelledException")
-          setError(true);
-      });
+    void withPdfPage(doc, page, async (pdfPage) => {
+      if (!active || !canvas.current) return;
+      const angle = (pdfPage.rotate + rotation) % 360;
+      const base = pdfPage.getViewport({ scale: 1, rotation: angle });
+      const cssScale =
+        Math.min(
+          width / base.width,
+          fitPage ? height / base.height : Infinity,
+        ) * zoom;
+      setDisplayWidth(base.width * cssScale);
+      const scale = Math.min(
+        cssScale * Math.min(devicePixelRatio, 2),
+        4096 / Math.max(base.width, base.height),
+      );
+      const viewport = pdfPage.getViewport({ scale, rotation: angle });
+      const element = canvas.current;
+      element.width = Math.ceil(viewport.width);
+      element.height = Math.ceil(viewport.height);
+      const task = pdfPage.render({ canvas: element, viewport });
+      cancel = () => task.cancel();
+      await task.promise;
+      if (active && !textView) onReady?.();
+    }).catch((error) => {
+      if (active && error?.name !== "RenderingCancelledException")
+        setError(true);
+    });
     return () => {
       active = false;
       cancel?.();
     };
-  }, [doc, page, width, height, zoom, rotation, fitPage]);
+  }, [doc, page, width, height, zoom, rotation, fitPage, textView, onReady]);
   useEffect(() => {
     let active = true;
-    setPageText("");
+    setPageText(undefined);
     if (doc && textView)
-      void doc
-        .getPage(page)
-        .then((p) => p.getTextContent())
+      void withPdfPage(doc, page, (p) => p.getTextContent())
         .then((content) => {
           if (active)
             setPageText(
@@ -131,6 +137,9 @@ export default function PdfPreview({ url }: { url: string }) {
       active = false;
     };
   }, [doc, page, textView]);
+  useEffect(() => {
+    if (error || (textView && pageText !== undefined)) onReady?.();
+  }, [error, textView, pageText, onReady]);
   return (
     <div data-slot="workspace-pdf" ref={container} className="min-w-0">
       {error ? (
@@ -147,7 +156,7 @@ export default function PdfPreview({ url }: { url: string }) {
               size="sm"
               label="Previous page"
               disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => update({ page: page - 1 })}
             >
               <ChevronLeft />
             </PreviewAction>
@@ -166,7 +175,7 @@ export default function PdfPreview({ url }: { url: string }) {
                     next >= 1 &&
                     next <= doc.numPages
                   )
-                    setPage(next);
+                    update({ page: next });
                 }}
               />
               / {doc.numPages}
@@ -179,7 +188,7 @@ export default function PdfPreview({ url }: { url: string }) {
               size="sm"
               label="Next page"
               disabled={page >= doc.numPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => update({ page: page + 1 })}
             >
               <ChevronRight />
             </PreviewAction>
@@ -189,7 +198,7 @@ export default function PdfPreview({ url }: { url: string }) {
               size="sm"
               label="Zoom out"
               disabled={zoom <= 0.5}
-              onClick={() => setZoom((z) => z - 0.25)}
+              onClick={() => update({ zoom: zoom - 0.25 })}
             >
               <Minus />
             </PreviewAction>
@@ -200,7 +209,7 @@ export default function PdfPreview({ url }: { url: string }) {
               size="sm"
               label="Zoom in"
               disabled={zoom >= 2}
-              onClick={() => setZoom((z) => z + 0.25)}
+              onClick={() => update({ zoom: zoom + 0.25 })}
             >
               <Plus />
             </PreviewAction>
@@ -208,8 +217,7 @@ export default function PdfPreview({ url }: { url: string }) {
               size="sm"
               label="Fit width"
               onClick={() => {
-                setZoom(1);
-                setFitPage(false);
+                update({ zoom: 1, fitPage: false });
               }}
             >
               <Maximize2 />
@@ -218,8 +226,7 @@ export default function PdfPreview({ url }: { url: string }) {
               size="sm"
               label="Fit page"
               onClick={() => {
-                setZoom(1);
-                setFitPage(true);
+                update({ zoom: 1, fitPage: true });
               }}
             >
               <Scan />
@@ -227,7 +234,7 @@ export default function PdfPreview({ url }: { url: string }) {
             <PreviewAction
               size="sm"
               label="Rotate clockwise"
-              onClick={() => setRotation((r) => (r + 90) % 360)}
+              onClick={() => update({ rotation: (rotation + 90) % 360 })}
             >
               <RotateCw />
             </PreviewAction>
@@ -236,7 +243,7 @@ export default function PdfPreview({ url }: { url: string }) {
             <PreviewAction
               size="sm"
               label={textView ? "Page view" : "Text view"}
-              onClick={() => setTextView((v) => !v)}
+              onClick={() => update({ textView: !textView })}
             >
               <ScanText />
             </PreviewAction>

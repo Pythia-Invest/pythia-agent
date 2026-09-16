@@ -36,10 +36,9 @@ export function parseNotebook(source: string): PreviewResult {
     remaining -= source.length;
     let output = "",
       image: string | undefined;
-    for (const item of (Array.isArray(cell.outputs) ? cell.outputs : []).slice(
-      0,
-      20,
-    )) {
+    const outputs = Array.isArray(cell.outputs) ? cell.outputs : [];
+    if (outputs.length > 20) clipped = true;
+    for (const item of outputs.slice(0, 20)) {
       if (!item || typeof item !== "object") continue;
       const value = limited(
         item.text ?? item.data?.["text/plain"] ?? item.traceback,
@@ -54,6 +53,7 @@ export function parseNotebook(source: string): PreviewResult {
         /^[A-Za-z0-9+/=\r\n]+$/.test(png)
       )
         image = `data:image/png;base64,${png}`;
+      else if (png !== undefined) clipped = true;
     }
     const count = executionCount(cell.execution_count);
     const onlyOutput = cell.outputs?.length === 1 ? cell.outputs[0] : undefined;

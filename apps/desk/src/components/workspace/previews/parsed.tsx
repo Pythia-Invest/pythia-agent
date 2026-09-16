@@ -1,6 +1,7 @@
 "use client";
 import { Button } from "@pythia/ui";
-import { useState } from "react";
+import { useEffect } from "react";
+import { usePreviewPosition } from "./position";
 import { useParsedPreview } from "@/client/workspace-preview-query";
 import type { WorkspaceEntry } from "@/workspace/types";
 import type { WorkspaceLocation } from "../reader-context";
@@ -13,12 +14,18 @@ import { PreviewToolbar } from "./toolbar";
 export default function ParsedPreview({
   entry,
   onOpen,
+  onReady,
 }: {
   entry: WorkspaceEntry;
+  onReady?: (() => void) | undefined;
   onOpen: (location: WorkspaceLocation) => void;
 }) {
-  const [sheet, setSheet] = useState(0);
+  const [position, update] = usePreviewPosition(entry);
+  const { sheet, rowPage } = position;
   const preview = useParsedPreview(entry, sheet);
+  useEffect(() => {
+    if (preview.data || preview.isError) onReady?.();
+  }, [preview.data, preview.isError, onReady]);
   if (preview.isPending)
     return (
       <p role="status" className="text-foreground-secondary text-xs">
@@ -42,7 +49,13 @@ export default function ParsedPreview({
   if (result.kind === "table")
     return (
       <>
-        <TablePreview key={sheet} table={result.table} onSheet={setSheet} />
+        <TablePreview
+          key={sheet}
+          table={result.table}
+          page={rowPage}
+          onPage={(page) => update({ rowPage: page })}
+          onSheet={(sheet) => update({ sheet, rowPage: 0 })}
+        />
         {entry.kind === "spreadsheet" ? (
           <p className="px-3 py-2 text-foreground-secondary text-xs">
             Saved values · formulas are not recalculated
@@ -127,7 +140,6 @@ export default function ParsedPreview({
                     <img
                       src={cell.image}
                       alt={`Saved output of cell ${index + 1}`}
-                      loading="lazy"
                       className="max-w-full"
                     />
                   ) : null}

@@ -305,3 +305,10 @@ revision-pinned fetch and worker lifecycle. Code blocks share one Shiki adapter,
 16-entry / 200,000-character token cache uses full-source keys; in-flight highlighting is bounded
 and files larger than the highlighting budget remain readable as plain text. Do not add another
 editor or repeat the reader toolbar inside a format adapter.
+
+
+PDF.js character maps are generated from the pinned dependency by
+`scripts/pdf-assets.mjs` before Desk's dev/build commands. The versioned
+`public/_pdfjs/` output is ignored; it contains no workspace or device data.
+The production viewer regressions live in `e2e/workspace-formats.spec.ts`,
+including non-Latin PDFs and file-tab position restoration.
