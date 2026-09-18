@@ -92,6 +92,9 @@ checks prove model behavior. Representative live comparisons remain opt-in, as
 explained by the prompting reference.
 
 Detailed instruction design lives in [prompting guidance](../docs/prompting.md).
+Widget contributors start with the [widget authoring rule](./rules/widget-authoring.md)
+and its SDK guide; financial widgets also follow the
+[market widget rule](./rules/market-widgets.md).
 Root and nested `AGENTS.md` files route to it so access does not depend on a
 tool automatically interpreting `.agents/rules`. The existing adapters deliver
 scoped copies for Claude and Cursor; other clients need their documented native

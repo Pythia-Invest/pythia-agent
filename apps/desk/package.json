@@ -9,11 +9,13 @@
     "test": "pnpm run test:unit && pnpm run test:integration",
     "test:integration": "vitest run test/device-settings.test.ts test/model-initialization.test.ts test/attachments.test.ts test/workspace-files.test.ts test/desk-view.test.ts test/native-session-context.test.ts test/workspace-reader-integration.test.tsx test/workspace-turn-context.test.ts",
     "test:unit": "tsc --noEmit --project tsconfig.test.json && vitest run --passWithNoTests --exclude test/device-settings.test.ts --exclude test/model-initialization.test.ts --exclude test/attachments.test.ts --exclude test/workspace-files.test.ts --exclude test/desk-view.test.ts --exclude test/native-session-context.test.ts --exclude test/workspace-reader-integration.test.tsx --exclude test/workspace-turn-context.test.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:qualification:widgets": "node qualification/widgets.mjs"
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
     "@pythia/ui": "workspace:*",
+    "@pythia/widget-sdk": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "ai": "catalog:",
     "dompurify": "3.4.15",

@@ -21,6 +21,14 @@ export {
 export { cn } from "@pythia/ui/class-name";
 export { mountWidget } from "./mount";
 export type {
+  WidgetBinding,
+  WidgetBindingContext,
+  WidgetDataResource,
+  WidgetQuery,
+  WidgetQueryResult,
+  TimestampFormatter,
+} from "./binding";
+export type {
   WidgetAppearance,
   WidgetProps,
   WidgetSnapshot,

@@ -3,6 +3,7 @@ from . import access, admission, request_context, subscription
 from .operations import declare_operation
 from .specialist import register_read_command
 from .assets import read_bundled_asset
+from .widgets import register_widget_presentation
 
 API_VERSION = 1
 

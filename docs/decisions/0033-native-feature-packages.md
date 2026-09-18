@@ -70,6 +70,21 @@ The feature owns its published contract and presentation declarations. Compatibl
 replacements preserve those interfaces; a breaking replacement also needs updated
 consumers. The platform does not promise arbitrary UI for an unknown data type.
 
+Market-data supplies canonical widgets with its financial backend, tools, skills
+and presets. Connector packages may supply widgets for their own deliberately
+exported operations. Users can build general or provider-specific pages, or mix
+both. Both kinds of widget reuse the public UI library and SDK. A canonical widget
+can also pin a supported source series; that is separate from selecting a
+provider-specific widget with specialist semantics.
+
+Features own widget entry points, input contracts, data bindings and explicitly
+exported assets. Desk owns generic hosting, layout and protected delivery. Shared
+library source may be built separately, but installing the feature supplies its
+widget contributions without editing or rebuilding Desk. Native declarations are
+the authority; a frontend cache of loaded modules is not another plugin inventory.
+See [ADR 0032](0032-local-widget-sdk.md) for trusted modules, shared dependencies
+and the separate legacy HTML path.
+
 ## Consequences
 
 Market data is the first implementation of this convention. Its canonical
@@ -97,3 +112,6 @@ or platform ownership. Treating every bundled plugin as mandatory disregards use
 choices. Overwriting edited copies makes replacement nominal rather than usable.
 Moving all TypeScript and UI source into a Python package would obscure build
 ownership without fixing any of these lifecycle problems.
+Permanently special-casing market widget names in Desk would make replacement
+incomplete. Requiring each provider to copy the standard widgets would undermine
+both shared financial interfaces and UI reuse.

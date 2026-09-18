@@ -6,3 +6,4 @@ requires_plugins:
   - pythia
 provides_tools:
   - pythia_market_data
+  - pythia_market_data_widgets

@@ -20,11 +20,11 @@ Read the [presentation boundary](../../docs/architecture/market-widget-presentat
 Keep financial contracts and domain decisions in their owners; this rule guides
 component authors rather than defining a second widget framework.
 
-Local custom widgets use the [supported SDK](../../docs/decisions/0032-local-widget-sdk.md)
-and its explicit build command. Reuse public SDK exports instead of copying shared
-primitives or importing Desk/Design Lab internals. Keep fetching in the host's
-existing data path; custom rendering grants no additional provider or tool access.
-Preserve user source, prebuilt artifacts and overrides during product updates.
+Feature packaging, shared dependencies and module hosting follow the
+[widget authoring rule](./widget-authoring.md). Market-data supplies canonical
+widgets; connectors can supply specialist widgets through the same extension
+mechanism. Both may reuse these presentation components without implying their
+data operations or financial meanings are interchangeable.
 
 `@pythia/ui` renders supplied `InstrumentDisplay`/`InstrumentPath` values without
 provider, HTTP, credential or filesystem knowledge. Reuse its status, change and

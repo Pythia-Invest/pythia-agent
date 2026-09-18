@@ -27,6 +27,9 @@ export type WidgetProps<
   data: TData;
   options: InstrumentWidgetOptions;
   settings: TSettings;
+  /** Selected native presentation id. One feature module may render several
+   * declared views; only the owning feature interprets this value. */
+  presentation?: string | undefined;
   theme: WidgetTheme;
   timeZone: string;
   locale: string;

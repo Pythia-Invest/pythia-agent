@@ -37,8 +37,8 @@ class RenderBoundary extends Component<
   }
 }
 
-/** Called by the artifact builder. Receives display updates only; this creates
- * no timers, connections, financial requests or privileged message bridge. */
+/** Called by the explicit legacy HTML builder. Receives display updates only;
+ * creates no timers, connections, financial requests or privileged bridge. */
 export function mountWidget<
   TData = WidgetSnapshot,
   TSettings = Record<string, unknown>,

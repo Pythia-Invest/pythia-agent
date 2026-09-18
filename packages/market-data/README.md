@@ -13,6 +13,27 @@ use the feature's published interface without importing its Python runtime.
 A compatible user replacement can retain this contract; changing it requires
 updating the affected consumers too. See [feature packaging](../../docs/architecture/plugins.md).
 
+The `@pythia/market-data/widgets` entry supplies the feature's pure frontend
+binding: canonical request construction and stable query keys, response decoding,
+deferred history demand and financial display adaptation. Its three native widget
+declarations share one artifact composing the SDK's tile, compact tile and table
+with this binding. The feature interprets the selected presentation identifier.
+The dependent Markets integration coordinates the declared reads; the low-level
+widget host in this foundation only renders supplied props. This library starts
+no provider client, cache, polling loop or subscription. Server rendering of recognized canonical
+resources can reuse the same functions without executing installed widget modules.
+`@pythia/market-data/widgets/contract` exposes the configuration and response shapes
+for these consumers. This presentation validation does not replace the native
+backend's identity, source-selection or semantic checks described below.
+
+Financial history displays preserve the requested window by default. Optional
+`history.presentation: "session"` selects a single evidenced session axis for an
+intraday view; `"window"` retains the complete requested range. This changes only
+presentation, not source selection, retrieval bounds or query identity. Session
+metadata alone must not truncate a multi-day or rolling chart. Without session
+evidence the requested window remains in use. Tick/unknown sampling has no invented
+millisecond interval.
+
 `runtime/managed/plugins/market-data/wire_schema.py` owns the closed structural
 shapes. Regenerate the package artifact from the repository root with
 `python3 packages/market-data/test/export_schema.py`; use `--check` to verify it.

@@ -40,9 +40,13 @@ to Pythia, not to individual connectors. No concrete shared connector is bundled
 in the foundation increment. Legacy core SEC/EOD tools are retired; later
 connector packages own their replacements.
 
-Custom browser widgets use the local `@pythia/widget-sdk` and explicit prebuilt
-artifacts. The SDK reuses shared UI; it grants no native capability or credential
-authority. User source and renderer selections remain user-owned. See
+Browser widget modules use the local `@pythia/widget-sdk` and explicit prebuilt
+artifacts, sharing Desk's React and public UI implementation. Features own their
+widget contributions and data bindings; Desk owns generic hosting and transport.
+These modules are trusted frontend code with Desk-origin access. Server-side native
+operation checks and credential custody remain authoritative. Existing HTML
+renderers keep their separate isolated execution path. User source and renderer
+selections remain user-owned. See
 [ADR 0032](../decisions/0032-local-widget-sdk.md).
 
 ## Source is not runtime input

@@ -32,7 +32,7 @@ const nextConfig = {
     ];
   },
   poweredByHeader: false,
-  transpilePackages: ["@pythia/ui"],
+  transpilePackages: ["@pythia/ui", "@pythia/widget-sdk"],
 };
 
 export default nextConfig;

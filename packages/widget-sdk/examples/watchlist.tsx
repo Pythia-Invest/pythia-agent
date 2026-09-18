@@ -1,8 +1,17 @@
 import { useState } from "react";
-import { InstrumentTable, type WidgetProps } from "@pythia/widget-sdk";
+import {
+  InstrumentTable,
+  type InstrumentRead,
+  type WidgetProps,
+} from "@pythia/widget-sdk";
 
-/** The host supplies qualified data. This example only changes presentation. */
-export default function Watchlist({ data, options, settings }: WidgetProps) {
+/** Rendering-only example. For canonical prices, also export the feature's
+ * financialBinding as shown in the README; the SDK has no financial dependency. */
+export default function Watchlist({
+  data,
+  options,
+  settings,
+}: WidgetProps<InstrumentRead>) {
   const [showBoth, setShowBoth] = useState(false);
   const title =
     typeof settings.title === "string" ? settings.title : "Watchlist";

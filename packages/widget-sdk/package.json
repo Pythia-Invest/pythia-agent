@@ -6,7 +6,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./protocol": "./src/protocol.ts"
+    "./protocol": "./src/protocol.ts",
+    "./runtime": "./src/runtime.ts"
   },
   "scripts": {
     "check": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
@@ -28,6 +29,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "esbuild": "catalog:",
+    "lightningcss": "1.32.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "tailwindcss": "catalog:",
