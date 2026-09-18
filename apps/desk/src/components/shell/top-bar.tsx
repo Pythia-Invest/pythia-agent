@@ -47,7 +47,7 @@ export function TopBar({
   return (
     <search
       className={cn(
-        "flex h-12 flex-none items-center gap-4 border-border border-b bg-canvas pr-3 pl-4",
+        "flex h-12 flex-none items-center gap-2 border-border/50 border-b bg-canvas pr-3 pl-4 min-[600px]:gap-4",
         className,
       )}
     >
@@ -56,7 +56,7 @@ export function TopBar({
       <span className="min-w-0 flex-1 truncate font-semibold text-body text-foreground">
         {title}
       </span>
-      <label className="motion-fast flex h-8 w-104 max-w-[45%] flex-none cursor-text items-center gap-2 rounded-control border border-border bg-subtle px-2.5 text-foreground-secondary transition-colors focus-within:border-border-strong focus-within:bg-raised focus-within:outline-2 focus-within:outline-ring focus-within:outline-offset-2 hover:border-border-strong">
+      <label className="motion-fast flex h-8 w-104 max-w-[30%] flex-none cursor-text items-center gap-2 rounded-control border border-border bg-raised px-2.5 text-foreground-secondary transition-colors focus-within:border-border-strong focus-within:outline-2 focus-within:outline-ring focus-within:outline-offset-2 hover:border-border-strong min-[600px]:max-w-[45%]">
         <Search
           aria-hidden="true"
           className="size-3.5 flex-none stroke-[1.6]"
@@ -71,12 +71,12 @@ export function TopBar({
           value={query}
         />
         {shortcutReady ? (
-          <kbd className="flex-none font-sans text-foreground-secondary text-xs">
+          <kbd className="hidden flex-none font-sans text-foreground-secondary text-xs min-[600px]:block">
             ⌘K
           </kbd>
         ) : null}
       </label>
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+      <div className="flex min-w-max flex-1 items-center justify-end gap-1">
         {actions}
       </div>
     </search>

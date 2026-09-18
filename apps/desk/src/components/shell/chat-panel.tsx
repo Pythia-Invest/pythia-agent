@@ -103,7 +103,7 @@ export function ChatPanel({
       aria-busy={loading || undefined}
       aria-label="Chats"
       className={cn(
-        "flex h-full w-62 min-w-0 flex-col border-border border-r bg-raised",
+        "flex h-full w-62 min-w-0 flex-col border-border/60 border-r",
         className,
       )}
       id={id}
@@ -145,7 +145,7 @@ export function ChatPanel({
           ) : null}
         </div>
         {searchOpen ? (
-          <label className="motion-fast flex h-8 min-w-0 cursor-text items-center gap-2 rounded-control border border-border bg-subtle px-2.5 text-foreground-secondary transition-colors focus-within:border-border-strong focus-within:bg-raised">
+          <label className="motion-fast flex h-8 min-w-0 cursor-text items-center gap-2 rounded-control border border-border bg-raised px-2.5 text-foreground-secondary transition-colors focus-within:border-border-strong">
             <Search
               aria-hidden="true"
               className="size-3.5 flex-none stroke-[1.6]"

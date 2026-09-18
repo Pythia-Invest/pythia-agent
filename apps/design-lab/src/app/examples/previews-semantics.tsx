@@ -12,9 +12,12 @@ import {
 } from "@pythia/ui";
 import type { CatalogRoute } from "../../catalog";
 import { DemoNote, Specimen, SpecimenGrid } from "./specimen";
+import { MarketPresentationPreview } from "./previews-market-presentation";
 
 export function SemanticsPreview({ route }: { route: CatalogRoute }) {
   switch (route) {
+    case "/components/market-presentation":
+      return <MarketPresentationPreview />;
     case "/components/citation":
       return (
         <SpecimenGrid>
