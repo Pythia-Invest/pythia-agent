@@ -98,7 +98,7 @@ export function SettingsView() {
     >
       <TabsList
         aria-label="Settings sections"
-        className="hidden w-52 flex-none flex-col items-stretch gap-0.5 border-border border-r border-b-0 p-2 sm:flex"
+        className="hidden w-52 flex-none flex-col items-stretch gap-0.5 border-border/50 border-r border-b-0 p-2 sm:flex"
       >
         {sections.map((item) => (
           <Tab

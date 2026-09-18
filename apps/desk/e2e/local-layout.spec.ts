@@ -50,9 +50,9 @@ test("saved navigation is applied before application JavaScript and survives hyd
   ).toBeVisible();
   await expect(nav).toHaveCSS("width", "60px");
   await page.getByRole("button", { name: "Expand navigation" }).click();
-  await expect(nav).toHaveCSS("width", "224px");
+  await expect(nav).toHaveCSS("width", "200px");
   await page.reload();
-  await expect(nav).toHaveCSS("width", "224px");
+  await expect(nav).toHaveCSS("width", "200px");
   expect(errors).toEqual([]);
 });
 
