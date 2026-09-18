@@ -1,41 +1,36 @@
 {
-  "name": "@pythia/ui",
+  "name": "@pythia/widget-sdk",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./market-widgets": "./src/market-widgets/index.ts",
-    "./class-name": "./src/class-name.ts",
-    "./styles.css": "./src/styles.css"
+    "./protocol": "./src/protocol.ts"
   },
   "scripts": {
-    "build": "node ./build.mjs",
     "check": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
     "test": "pnpm run test:unit",
-    "test:unit": "vitest run test"
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration"
   },
   "dependencies": {
-    "@base-ui/react": "catalog:",
-    "@date-fns/tz": "catalog:",
-    "class-variance-authority": "catalog:",
-    "clsx": "catalog:",
-    "cmdk": "catalog:",
-    "date-fns": "catalog:",
-    "lucide-react": "catalog:",
-    "react-day-picker": "catalog:",
-    "react-resizable-panels": "catalog:",
-    "tailwind-merge": "catalog:"
+    "@pythia/ui": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@tailwindcss/node": "catalog:",
+    "@tailwindcss/oxide": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "esbuild": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -29,6 +29,11 @@ Users extend Pythia through Hermes-native local skills, plugins, and
 configuration. Native Hermes precedence applies: a same-name local skill can
 override a managed skill. Pythia does not add a parallel extension registry.
 
+Custom browser widgets use the local `@pythia/widget-sdk` and explicit prebuilt
+artifacts. The SDK reuses shared UI; it grants no native capability or credential
+authority. User source and renderer selections remain user-owned. See
+[ADR 0032](../decisions/0032-local-widget-sdk.md).
+
 ## Source is not runtime input
 
 The checkout may also hold developer-facing source, including Design Lab and

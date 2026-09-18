@@ -130,14 +130,21 @@ for (const workspace of workspaces) {
         (name) => specifier === name || specifier.startsWith(`${name}/`),
       );
       if (internal) {
-        if (!dependencies.has(internal)) {
+        if (internal !== manifest.name && !dependencies.has(internal)) {
           violations.push(
             `${file}: ${internal} must be a direct declared dependency`,
           );
         }
-        if (specifier !== internal) {
+        const subpath = `.${specifier.slice(internal.length)}`;
+        const exports = byName.get(internal)?.manifest.exports;
+        const publicSubpath =
+          exports !== null &&
+          typeof exports === "object" &&
+          Object.hasOwn(exports, subpath) &&
+          exports[subpath] !== null;
+        if (specifier !== internal && !publicSubpath) {
           violations.push(
-            `${file}: internal imports must use the public ${internal} entrypoint`,
+            `${file}: internal imports must use a declared public ${internal} entrypoint`,
           );
         }
         if (kind === "packages" && byName.get(internal)?.kind === "apps") {

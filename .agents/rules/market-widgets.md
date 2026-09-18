@@ -1,11 +1,13 @@
 ---
 description: "Compose financial presentation from shared display, status and path primitives."
 paths:
+  - "packages/widget-sdk/**/*"
   - "packages/ui/src/market-widgets/**/*"
   - "apps/design-lab/src/app/examples/*market-presentation*.{ts,tsx}"
   - "apps/design-lab/src/app/examples/*market-widget*.{ts,tsx}"
   - "docs/architecture/market-widget-presentation.md"
 globs:
+  - "packages/widget-sdk/**/*"
   - "packages/ui/src/market-widgets/**/*"
   - "apps/design-lab/src/app/examples/*market-presentation*.{ts,tsx}"
   - "apps/design-lab/src/app/examples/*market-widget*.{ts,tsx}"
@@ -17,6 +19,12 @@ globs:
 Read the [presentation boundary](../../docs/architecture/market-widget-presentation.md).
 Keep financial contracts and domain decisions in their owners; this rule guides
 component authors rather than defining a second widget framework.
+
+Local custom widgets use the [supported SDK](../../docs/decisions/0032-local-widget-sdk.md)
+and its explicit build command. Reuse public SDK exports instead of copying shared
+primitives or importing Desk/Design Lab internals. Keep fetching in the host's
+existing data path; custom rendering grants no additional provider or tool access.
+Preserve user source, prebuilt artifacts and overrides during product updates.
 
 `@pythia/ui` renders supplied `InstrumentDisplay`/`InstrumentPath` values without
 provider, HTTP, credential or filesystem knowledge. Reuse its status, change and
