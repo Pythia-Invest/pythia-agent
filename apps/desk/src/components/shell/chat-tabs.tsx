@@ -134,7 +134,7 @@ function Tab({
       {active ? (
         <span
           aria-hidden="true"
-          className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground"
+          className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground/35"
         />
       ) : null}
     </div>
@@ -172,7 +172,7 @@ export function ChatTabs({
   // Once tabs reach the readable minimum, overflow must not make the remaining
   // tabs grow again. Both saved chats and the draft use this same width rule.
   const tabClassName = cn(
-    "group relative flex min-w-0 flex-1 items-stretch border-border border-r",
+    "group relative flex min-w-0 flex-1 items-stretch border-transparent border-r",
     hiddenIds.length ? "max-w-24" : "max-w-50",
   );
   const byId = new Map(tabs.map((tab) => [tab.id, tab]));

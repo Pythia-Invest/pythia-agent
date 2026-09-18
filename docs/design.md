@@ -125,6 +125,15 @@ Neutral surfaces, fine borders, and predictable placement should support
 spatial memory wherever context benefits from continuity. Branding should
 recede behind the user's work.
 
+Desk uses contrasting navigation with the existing palette: a dark rail in
+light mode, an elevated dark rail in dark mode, and a quiet canvas header.
+Every main workspace uses the same canvas, including Chat, Workspace and Settings.
+The shell owns this surface; pages and layout wrappers remain transparent.
+The assistant remains a separate raised panel with a fine boundary. Contextual
+navigation inherits its host surface, while bounded controls retain their own
+surface roles. Preserve these roles and the original token values when adding
+pages; see [ADR 0025](decisions/0025-desk-surface-hierarchy.md).
+
 The application should be moderately compact rather than sparse or
 terminal-dense. A useful starting character is 14px interface text, 16px for
 longer reading, and controls around 32–36px high. Exact values belong to the

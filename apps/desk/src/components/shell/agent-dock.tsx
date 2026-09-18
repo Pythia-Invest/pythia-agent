@@ -65,7 +65,7 @@ export function AgentDock({
           if (typeof value === "string") onSelectTab(value);
         }}
       >
-        <header className="flex h-10 flex-none items-stretch border-border border-b bg-canvas">
+        <header className="flex h-10 flex-none items-stretch border-border/50 border-b bg-canvas">
           <ChatTabs
             activeId={activeId}
             onClose={onCloseChat}
@@ -140,7 +140,7 @@ export function AgentDockRail({
     <button
       aria-label="Open Pythia"
       className={cn(
-        "motion-fast flex w-11 flex-none cursor-pointer flex-col items-center border-0 border-border border-l bg-canvas pt-3 text-foreground-secondary transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2",
+        "motion-fast flex w-11 flex-none cursor-pointer flex-col items-center border-0 border-border/50 border-l bg-canvas pt-3 text-foreground-secondary transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2",
         className,
       )}
       onClick={onOpen}

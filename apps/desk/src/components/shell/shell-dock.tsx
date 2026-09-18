@@ -75,13 +75,13 @@ export function ShellDock({
       >
         <ResizablePanel
           data-layout-panel="main"
-          className="flex flex-col bg-raised"
+          className="flex flex-col bg-transparent"
         >
           {children}
         </ResizablePanel>
         <ResizableSeparator
           aria-label="Resize Pythia"
-          className="group hidden cursor-col-resize bg-transparent hover:bg-transparent aria-[orientation=vertical]:w-1 data-[separator=active]:bg-transparent min-[900px]:grid [[data-desk-dock-open=false]_&]:hidden"
+          className="group hidden cursor-col-resize bg-border/60 hover:bg-border-strong aria-[orientation=vertical]:w-px data-[separator=active]:bg-border-strong min-[900px]:grid [[data-desk-dock-open=false]_&]:hidden"
         >
           <span
             aria-hidden="true"
