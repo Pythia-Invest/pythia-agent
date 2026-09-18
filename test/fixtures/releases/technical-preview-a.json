@@ -1,9 +1,16 @@
 {
   "schema_version": 1,
   "name": "technical-preview-a",
-  "purpose": "A local-only runnable predecessor before EODHD skill guidance and the current Desk restart delay; both snapshots use native Workspace storage.",
-  "remove": ["runtime/managed/skills/eodhd-market-data/SKILL.md"],
+  "purpose": "A local-only runnable predecessor before investment-memory supporting guidance and the current Desk restart delay; both snapshots use native Workspace storage.",
+  "remove": [
+    "runtime/managed/skills/investment-memory/references/note-discipline.md"
+  ],
   "replace": [
+    {
+      "path": "runtime/managed/skills/investment-memory/SKILL.md",
+      "from": "workspace. [Note discipline](references/note-discipline.md) covers provenance\nand revisions. Prefer updating a relevant existing document to duplicating it.",
+      "to": "workspace. Prefer updating a relevant existing document to duplicating it."
+    },
     {
       "path": "packaging/systemd/pythia-agent-desk.service.in",
       "from": "RestartSec=3",

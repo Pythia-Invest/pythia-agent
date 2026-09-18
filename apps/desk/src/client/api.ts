@@ -194,20 +194,6 @@ export class DeskApi {
     return this.#json<DeskReleaseStatus>("/api/update-status");
   }
 
-  setSecIdentity(identity: string | null) {
-    return this.#json<{ status: string }>("/api/settings/sec-identity", {
-      body: JSON.stringify({ identity }),
-      method: "PATCH",
-    });
-  }
-
-  setEodhdToken(token: string | null) {
-    return this.#json<{ status: string }>("/api/settings/eodhd-token", {
-      body: JSON.stringify({ token }),
-      method: "PATCH",
-    });
-  }
-
   async setSkillEnabled(name: string, enabled: boolean) {
     return (
       await this.#json<{ skill: DeviceSkill }>(

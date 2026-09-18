@@ -6,7 +6,7 @@ import {
   atomicWriteJson,
   ensurePrivateDirectory,
 } from "../install/files.mjs";
-import { MANAGED_PLUGIN_FILES, refreshManagedPlugin } from "../dev/files.mjs";
+import { MANAGED_CORE_FILES, refreshManagedPlugin } from "../dev/files.mjs";
 import {
   VERSION,
   SEEDS,
@@ -201,7 +201,7 @@ export function applyWorkspaceTransition(paths, options = {}) {
     throw new Error("Native MCP disable readback failed.");
   options.afterConfig?.();
   const pluginCopy = refreshManagedPlugin(
-    paths.managedPlugin,
+    paths.managedCore,
     join(paths.profileRoot, "plugins", "pythia"),
   );
   if (pluginCopy.status === "preserved")
@@ -218,9 +218,9 @@ export function applyWorkspaceTransition(paths, options = {}) {
         "--ci",
       ]))
   )(paths);
-  state.pluginFiles = MANAGED_PLUGIN_FILES.map((name) => ({
+  state.pluginFiles = MANAGED_CORE_FILES.map((name) => ({
     name,
-    sha256: digest(regular(join(paths.managedPlugin, name))),
+    sha256: digest(regular(join(paths.managedCore, name))),
   }));
   const legacyExecutable = join(
     paths.managedPython,

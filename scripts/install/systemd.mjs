@@ -81,8 +81,6 @@ export function serviceEnvironmentValues(paths, executables) {
     PYTHIA_MANAGED_ROOT: paths.managedRoot,
     PYTHIA_WORKSPACE: paths.workspace,
     PYTHIA_DESK_VIEW_STATE: paths.deskViewState,
-    PYTHIA_EDGAR_DATA_DIR: paths.edgarData,
-    PYTHIA_EDGAR_CACHE_DIR: paths.edgarCache,
     PYTHIA_PYTHON: executables.managedPython,
     PYTHIA_NODE: executables.node,
     API_SERVER_HOST: "127.0.0.1",

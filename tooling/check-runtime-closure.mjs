@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
 import { runtimeEnvironment } from "../scripts/dev/environment.mjs";
 import {
-  MANAGED_PLUGIN_FILES,
+  MANAGED_CORE_FILES,
   MANAGED_PYTHON_SOURCE_FILES,
 } from "../scripts/dev/files.mjs";
 import { resolveInstallPaths } from "../scripts/install/paths.mjs";
@@ -125,7 +125,7 @@ const developmentPaths = {
   id: "qualification",
   managedRoot: `${paths.checkout}/runtime/managed`,
   managedSkills: `${paths.checkout}/runtime/managed/skills`,
-  managedPlugin: `${paths.checkout}/runtime/managed/plugin`,
+  managedCore: `${paths.checkout}/runtime/managed/core`,
 };
 const nativeEnvironment = runtimeEnvironment(
   developmentPaths,
@@ -157,10 +157,10 @@ if (nativeEnvironment.PYTHIA_DESK_VIEW_STATE !== paths.deskViewState) {
 const source = sourceManifest(root);
 const pluginFiles = source.entries
   .map((item) => item.path)
-  .filter((path) => path.startsWith("runtime/managed/plugin/"));
+  .filter((path) => path.startsWith("runtime/managed/core/"));
 if (
   pluginFiles.join("\0") !==
-  [...MANAGED_PLUGIN_FILES.map((path) => `runtime/managed/plugin/${path}`)]
+  [...MANAGED_CORE_FILES.map((path) => `runtime/managed/core/${path}`)]
     .sort((left, right) => left.localeCompare(right, "en"))
     .join("\0")
 ) {
@@ -207,7 +207,7 @@ for (const skill of skillRoots) {
     violations.push(`Hermes: managed skill bundle lacks ${entrypoint}`);
   }
 }
-const authoritativePromptSource = "runtime/managed/plugin/operating.py";
+const authoritativePromptSource = "runtime/managed/core/operating.py";
 const retiredPromptSource = "runtime/managed/instructions/operating.md";
 const managedReadme = readFileSync(
   join(root, "runtime/managed/README.md"),
@@ -263,8 +263,6 @@ const installedRuntimeFiles = new Set([
     (path) => `runtime/managed/python/${path}`,
   ),
   "runtime/managed/runner/native_session_context.py",
-  "runtime/managed/runner/eodhd.ts",
-  "runtime/managed/runner/sec.py",
   "runtime/managed/runner/tsconfig.json",
   "runtime/seeds/manifest.json",
   ...promptAndContextFiles,

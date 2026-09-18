@@ -25,8 +25,6 @@ export function runtimeEnvironment(paths, apiKey, source = process.env) {
     PYTHIA_CONFIG_ROOT: paths.configRoot,
     PYTHIA_STATE_ROOT: paths.stateRoot,
     PYTHIA_MANAGED_ROOT: paths.managedRoot,
-    PYTHIA_EDGAR_DATA_DIR: paths.edgarData,
-    PYTHIA_EDGAR_CACHE_DIR: paths.edgarCache,
     PYTHIA_PYTHON: join(paths.managedPython, ".venv", "bin", "python"),
     PYTHIA_NODE: process.execPath,
     PYTHIA_HERMES_EXECUTABLE: join(

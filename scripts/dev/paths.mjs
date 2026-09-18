@@ -92,8 +92,6 @@ export function resolveStackPaths(options = {}) {
     profileRoot,
     basicMemoryConfig: join(configRoot, "basic-memory", identity.id),
     basicMemoryCache: join(cacheRoot, "basic-memory"),
-    edgarData: join(dataRoot, "edgar"),
-    edgarCache: join(cacheRoot, "edgar"),
     workspace: join(dataRoot, "workspace"),
     deskViewState: join(stateRoot, "desk-view"),
     knowledge: join(dataRoot, "knowledge"),
@@ -108,7 +106,7 @@ export function resolveStackPaths(options = {}) {
     hermesSource: join(cacheRoot, "hermes-source"),
     managedRoot,
     managedPython: join(managedRoot, "python"),
-    managedPlugin: join(managedRoot, "plugin"),
+    managedCore: join(managedRoot, "core"),
     managedSkills: join(managedRoot, "skills"),
   };
 }

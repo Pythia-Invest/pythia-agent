@@ -1,0 +1,6 @@
+name: pythia
+version: 0.1.0
+description: Pythia host transport, Desk context and operating guidance
+license: Apache-2.0
+provides_tools:
+  - pythia_desk_view

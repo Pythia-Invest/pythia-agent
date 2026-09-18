@@ -54,8 +54,6 @@ export function ensureRoots(paths) {
     paths.hermesRoot,
     paths.workspace,
     paths.deskViewState,
-    paths.edgarData,
-    paths.edgarCache,
     paths.processRoot,
     paths.transactionRoot,
     paths.trustRoot,

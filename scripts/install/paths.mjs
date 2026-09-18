@@ -72,8 +72,6 @@ export function resolveInstallPaths(environment = process.env) {
     workspace: join(dataRoot, "workspace"),
     deskViewState: join(stateRoot, "desk-view"),
     knowledge: join(dataRoot, "knowledge"),
-    edgarData: join(dataRoot, "edgar"),
-    edgarCache: join(cacheRoot, "edgar"),
     processRoot: join(stateRoot, "processes"),
     receipt: join(stateRoot, "processes", "services.json"),
     hermesRestartRequest: join(stateRoot, "processes", "restart-hermes.json"),
@@ -111,9 +109,7 @@ export function resolveInstallPaths(environment = process.env) {
       ? join(checkout, "runtime", "managed", "python")
       : null,
     managedPython: join(runtimeRoot, "managed-python"),
-    managedPlugin: checkout
-      ? join(checkout, "runtime", "managed", "plugin")
-      : null,
+    managedCore: checkout ? join(checkout, "runtime", "managed", "core") : null,
     managedSkills: checkout
       ? join(checkout, "runtime", "managed", "skills")
       : null,

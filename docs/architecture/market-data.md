@@ -15,9 +15,9 @@ or per-request Hermes startup.
 This increment installs the shared owner, contracts, execution helpers and agent
 skill. It deliberately installs no concrete shared provider or Desk widget.
 `describe` reports only installed, enabled native contributions; on this payload
-it has no provider sources. Existing SEC and legacy EODHD tools continue through
-the original core plugin. Enabling the owner does not translate those tools into
-shared providers or prove an account's access.
+it has no provider sources. The original core SEC/EODHD tools are retired; later
+connector packages must supply those capabilities explicitly. Enabling the owner
+does not install a provider or prove an account's access.
 
 - [Wire contracts](../../packages/market-data/README.md): subject, series,
   observation and read result, with provenance and financial semantics.

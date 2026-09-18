@@ -47,7 +47,7 @@ function fixture(profile = "fixture") {
     profile,
     profileRoot,
     managedRoot,
-    managedPlugin: join(managedRoot, "plugin"),
+    managedCore: join(managedRoot, "core"),
   };
 }
 

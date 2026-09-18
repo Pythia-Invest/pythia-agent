@@ -129,8 +129,9 @@ claim an independent doctor pass for a preserved replacement or dependent featur
 A fresh profile explicitly enables the same ten base toolsets for `cli`,
 `cron`, and `api_server`: `cronjob`, `delegation`, `file`, `memory`,
 `session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. The Pythia
-plugin adds `pythia-sec` and `pythia-eodhd`. These are initial values only;
-later native user edits are preserved.
+core adapter supplies `pythia-desk` for bounded Desk context. The retired SEC
+and EODHD toolsets are no longer fresh-profile defaults. These are initial
+values only; later native user edits are preserved.
 
 Standalone managed skills declare native `metadata.hermes.requires_toolsets` when they
 need a tool. Where Hermes has toolset information, it uses that metadata to

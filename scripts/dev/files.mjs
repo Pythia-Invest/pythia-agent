@@ -32,7 +32,7 @@ function fsyncDirectory(path) {
   }
 }
 
-export const MANAGED_PLUGIN_FILES = Object.freeze([
+export const MANAGED_CORE_FILES = Object.freeze([
   "__init__.py",
   "plugin.yaml",
   "desk_view.py",
@@ -228,7 +228,7 @@ function refreshExactFilesPreservingDirectory(
 export function refreshManagedPlugin(
   source,
   destination,
-  files = MANAGED_PLUGIN_FILES,
+  files = MANAGED_CORE_FILES,
 ) {
   return refreshCopiedPlugin(source, destination, files);
 }

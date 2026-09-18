@@ -77,7 +77,8 @@ This foundation implements the canonical backend, identity, preferences, contrac
 protected resident transport and coordinated reads. It ships no concrete shared
 connector and no Markets widget/configuration changes. The native describe result
 therefore reports only any separately installed native contributions; legacy
-SEC/EOD tools remain independent. The HTTP and native-tool paths are qualified
+SEC/EOD tools were initially independent and are subsequently retired by
+[ADR 0034](0034-core-and-optional-features.md). The HTTP and native-tool paths are qualified
 with synthetic native contributions.
 
 The accepted next consumer is a canonical prices configuration translated by one

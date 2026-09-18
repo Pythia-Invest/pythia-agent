@@ -15,9 +15,8 @@ metadata:
 # Investment identity and market data
 
 Use `pythia_market_data` for investment discovery, identity evidence, series
-selection and bounded price reads. For SEC filings or the legacy EODHD daily
-price tool, use their own capabilities. Market data informs research; it does
-not determine an investment strategy.
+selection and bounded price reads. Market data informs research; it does not
+determine an investment strategy.
 
 `{"action":"describe"}` reports native sources, contributed operation schemas and local
 availability without contacting a provider. Missing configuration or disabled

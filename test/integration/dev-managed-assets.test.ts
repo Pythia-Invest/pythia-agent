@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  MANAGED_PLUGIN_FILES,
+  MANAGED_CORE_FILES,
   PLUGIN_COPY_RECEIPT,
   MANAGED_PYTHON_SOURCE_FILES,
   refreshManagedPlugin,
@@ -72,7 +72,7 @@ describe("managed source and runtime preparation", () => {
   it("refreshes managed plugin files without changing later native user choices", async () => {
     const root = temporaryRoot();
     const paths = resolveStackPaths({ environment: environment(root) });
-    const managedPlugin = join(root, "managed-plugin");
+    const managedCore = join(root, "managed-plugin");
     const commandLog = join(root, "hermes-commands.log");
     const hermes = join(paths.hermesSource, ".venv", "bin", "hermes");
     const userConfig = `skills:
@@ -86,23 +86,20 @@ mcp_servers:
     enabled: false
     url: http://127.0.0.1:9999/mcp
 `;
-    mkdirSync(managedPlugin, { recursive: true });
-    for (const name of MANAGED_PLUGIN_FILES) {
-      mkdirSync(dirname(join(managedPlugin, name)), { recursive: true });
-      writeFileSync(join(managedPlugin, name), "# synthetic plugin input\n");
+    mkdirSync(managedCore, { recursive: true });
+    for (const name of MANAGED_CORE_FILES) {
+      mkdirSync(dirname(join(managedCore, name)), { recursive: true });
+      writeFileSync(join(managedCore, name), "# synthetic plugin input\n");
     }
-    writeFileSync(join(managedPlugin, "__init__.py"), "MANAGED = True\n");
-    writeFileSync(join(managedPlugin, "plugin.yaml"), "name: pythia\n");
+    writeFileSync(join(managedCore, "__init__.py"), "MANAGED = True\n");
+    writeFileSync(join(managedCore, "plugin.yaml"), "name: pythia\n");
     writeFileSync(
-      join(managedPlugin, "operating.py"),
+      join(managedCore, "operating.py"),
       "# synthetic operating guidance\n",
     );
-    writeFileSync(
-      join(managedPlugin, "desk_view.py"),
-      "# synthetic view tool\n",
-    );
+    writeFileSync(join(managedCore, "desk_view.py"), "# synthetic view tool\n");
     refreshManagedPlugin(
-      managedPlugin,
+      managedCore,
       join(paths.profileRoot, "plugins", "pythia"),
     );
     writeFileSync(join(paths.profileRoot, "config.yaml"), userConfig);
@@ -126,7 +123,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
     });
 
     await refreshRuntimeAssets(
-      { ...paths, managedPlugin },
+      { ...paths, managedCore },
       "safe-local-key-value",
     );
 
@@ -314,7 +311,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
     const profile = join(root, "profile");
     const destination = join(profile, "plugins", "pythia");
     mkdirSync(source);
-    for (const name of MANAGED_PLUGIN_FILES) {
+    for (const name of MANAGED_CORE_FILES) {
       mkdirSync(dirname(join(source, name)), { recursive: true });
       writeFileSync(join(source, name), "# synthetic plugin input\n");
     }
@@ -339,7 +336,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
     expect(lstatSync(destination).isSymbolicLink()).toBe(false);
     expect(readdirSync(destination).sort()).toEqual(
       [
-        ...new Set(MANAGED_PLUGIN_FILES.map((name) => name.split("/")[0])),
+        ...new Set(MANAGED_CORE_FILES.map((name) => name.split("/")[0])),
         PLUGIN_COPY_RECEIPT,
       ].sort(),
     );

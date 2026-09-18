@@ -22,7 +22,7 @@ def main() -> None:
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="pythia-view-native-") as temporary:
         os.environ.update(HERMES_HOME=temporary, HERMES_DISABLE_LAZY_INSTALLS="1", PYTHIA_DESK_VIEW_STATE=str(args.state))
-        plugin_path = Path(__file__).resolve().parents[2] / "runtime/managed/plugin/__init__.py"
+        plugin_path = Path(__file__).resolve().parents[2] / "runtime/managed/core/__init__.py"
         spec = importlib.util.spec_from_file_location("pythia_view_qualification", plugin_path)
         assert spec and spec.loader
         plugin = importlib.util.module_from_spec(spec)

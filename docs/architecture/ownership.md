@@ -37,7 +37,8 @@ plugins contribute native capabilities and evidence. The existing gateway hosts
 one shared HTTP/tool backend per profile; standalone CLI shares durable state and
 implementation, not memory. Protected transport, authentication and limits belong
 to Pythia, not to individual connectors. No concrete shared connector is bundled
-in the foundation increment; core SEC/EOD tools remain independent.
+in the foundation increment. Legacy core SEC/EOD tools are retired; later
+connector packages own their replacements.
 
 ## Source is not runtime input
 
@@ -58,8 +59,9 @@ The installed lifecycle keeps these boundaries explicit:
 | Kind | Authoritative paths | Derived consumers | Update rule |
 | --- | --- | --- | --- |
 | Managed skill bundles | `<checkout>/runtime/managed/skills/<skill>/`, including `SKILL.md` and native supporting files | Hermes reads the bundle from the configured external directory | Update from the chosen checkout; never flatten or mirror into another registry. |
-| Managed runners | `<checkout>/runtime/managed/runner/sec.py`, `eodhd.ts` and `native_session_context.py` | SEC uses the locked managed Python environment; EODHD uses compiled output; native session context uses the pinned Hermes environment | Install the corresponding frozen dependency environment before compiling or invoking changed code. |
-| Managed plugins | `<checkout>/runtime/managed/plugin/` and the explicit `runtime/managed/plugins/market-data/` payload, including bundled skills | Exact copied files at `<profile>/plugins/<native-name>/` | Refresh only receipt-proven managed contents; preserve edited or unowned replacements and native enablement. No symlink. |
+| Core host support | `<checkout>/runtime/managed/core/` | Explicit copy at `<profile>/plugins/pythia/`, using Hermes's native extension hook | Core is product support, not an optional investment feature. Preserve its native identity, existing choices and edited replacements. |
+| Managed runners | `<checkout>/runtime/managed/runner/` shared provider helpers and `native_session_context.py` | Explicitly admitted compiled helpers; native session context uses the pinned Hermes environment | Prepare the corresponding frozen dependencies before compiling or invoking changed code. |
+| Managed feature packages | Explicit `runtime/managed/plugins/` payloads, including bundled skills | Exact copied files at `<profile>/plugins/<native-name>/` | Refresh only receipt-proven managed contents; preserve edited or unowned replacements and native enablement. No symlink. |
 | Desk | `<checkout>/apps/desk/` and its workspace dependencies | Dependency tree and production `.next/` build in the checkout | Frozen dependency install precedes the production build. |
 | Pinned native runtimes | `runtime/versions.json` plus managed locks | Pythia-owned Hermes source/environment and managed Python environment below `<runtime>` | Native frozen sync updates the existing environment; refreshed managed inputs do not discard a usable `.venv`. |
 | Seeds | `<checkout>/runtime/seeds/` | Profile SOUL/config defaults and workspace files | Copy only inside the first initialization transaction. The destination becomes user-owned; a later missing seed is not silently recreated. |

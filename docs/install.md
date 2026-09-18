@@ -8,7 +8,7 @@ and does not need this installer.
 
 The host needs Git 2.43 or newer plus `curl`, `tar`, `xz`, `sha256sum`,
 `flock`, `ssh-keygen`, systemd user services, and `loginctl`. The installer
-downloads exact Node, uv, Python, Hermes, EdgarTools, and
+downloads exact Node, uv, Python, Hermes, and
 JavaScript artifacts and verifies their recorded versions or hashes. It puts
 its owned Node directory on `PATH` before invoking Corepack or pnpm.
 
@@ -61,9 +61,9 @@ pythia doctor
 pythia auth openai-codex
 ```
 
-Model credentials use Hermes's native OAuth store. SEC identity and EODHD token
-are optional and can be entered in Desk's device settings. Stored values are
-not returned to the browser after writing.
+Model credentials use Hermes's native OAuth store. Provider setup belongs to
+the respective connector. The retired core SEC/EODHD settings controls are no
+longer available; installation preserves previously saved values.
 
 ## If installation fails
 

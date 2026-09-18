@@ -27,7 +27,7 @@ import {
   bootstrapRuntime,
   prepareManagedRuntime,
 } from "../../scripts/dev/runtime-prepare.mjs";
-import { MANAGED_PLUGIN_FILES } from "../../scripts/dev/files.mjs";
+import { MANAGED_CORE_FILES } from "../../scripts/dev/files.mjs";
 
 // MCP fixture is configureFreshProfile's exact pre-workspace native setter
 // payload at 562dfc9. Native dotted setter/readback is independently qualified.
@@ -50,11 +50,9 @@ function fixture() {
     profileInitialization: join(root, "state/profile-initialization.json"),
     receipt: join(root, "state/foreground.json"),
     managedRoot: join(root, "managed"),
-    managedPlugin: join(root, "managed/plugin"),
+    managedCore: join(root, "managed/core"),
     managedPython: join(root, "managed/python"),
     ports: { memory: 22001, hermes: 22000, desk: 22002 },
-    edgarData: join(root, "edgar"),
-    edgarCache: join(root, "edgar-cache"),
     cacheRoot: join(root, "cache"),
     managedSkills: join(root, "managed/skills"),
     deskViewState: join(root, "state/desk-view"),
@@ -98,8 +96,8 @@ function fixture() {
     join(paths.managedPython, ".venv/bin/basic-memory"),
     "synthetic preserved executable",
   );
-  for (const name of MANAGED_PLUGIN_FILES)
-    write(join(paths.managedPlugin, name), `synthetic managed ${name}`);
+  for (const name of MANAGED_CORE_FILES)
+    write(join(paths.managedCore, name), `synthetic managed ${name}`);
   for (const [source, target] of [
     ["workspace/AGENTS.md", join(paths.workspace, "AGENTS.md")],
     ["workspace/README.md", join(paths.workspace, "README.md")],

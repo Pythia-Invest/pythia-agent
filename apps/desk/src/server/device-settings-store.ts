@@ -17,7 +17,6 @@ import {
   type Readiness,
 } from "./device-settings-contract";
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 type JsonStore = Record<string, unknown> & { schema_version?: unknown };
 
 export function privateDirectory(path: string) {
@@ -96,16 +95,6 @@ export function atomicWriteStore(path: string, value: JsonStore) {
   }
 }
 
-export function secIdentityStatus(value: unknown): Readiness {
-  if (value === undefined || value === null || value === "") return "missing";
-  if (typeof value !== "string") return "invalid";
-  const parts = value.trim().split(/\s+/u);
-  const email = parts.at(-1) ?? "";
-  return parts.length >= 2 && EMAIL.test(email) && value.length <= 320
-    ? "configured"
-    : "invalid";
-}
-
 export function tokenStatus(value: unknown): Readiness {
   if (value === undefined || value === null || value === "") return "missing";
   return typeof value === "string" &&
@@ -117,16 +106,6 @@ export function tokenStatus(value: unknown): Readiness {
     })
     ? "configured"
     : "invalid";
-}
-
-export function settingsReadiness(
-  path: string,
-  field: string,
-  secret: boolean,
-) {
-  const store = readStore(path);
-  if (store === null) return "invalid" as const;
-  return secret ? tokenStatus(store[field]) : secIdentityStatus(store[field]);
 }
 
 export function resolveConfigRoot(
