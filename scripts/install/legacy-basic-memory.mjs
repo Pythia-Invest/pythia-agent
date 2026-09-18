@@ -28,7 +28,7 @@ export function legacyBasicMemoryUnit(paths) {
     .replaceAll("@@WORKSPACE@@", pathValue(paths.workspace))
     .replaceAll(
       "@@BASIC_MEMORY@@",
-      quote(join(paths.managedPython, ".venv", "bin", "basic-memory")),
+      quote(join(paths.legacyPython, ".venv", "bin", "basic-memory")),
     );
 }
 
@@ -93,12 +93,7 @@ export function assertLegacyBasicMemoryOwned(paths, control) {
     // The atomic retired file preserves explicit removal authority across a
     // failed daemon-reload. A missing file alone never grants this authority.
     assertStopped(control);
-    const executable = join(
-      paths.managedPython,
-      ".venv",
-      "bin",
-      "basic-memory",
-    );
+    const executable = join(paths.legacyPython, ".venv", "bin", "basic-memory");
     const argv = `${executable} mcp --transport streamable-http --host 127.0.0.1 --port 8643 --path /mcp --project production`;
     const loaded = property(control, "ExecStart");
     if (

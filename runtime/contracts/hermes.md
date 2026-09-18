@@ -502,8 +502,8 @@ Desk upload contracts. See [ADR 0010](../../docs/decisions/0010-local-chat-attac
 selects native file tools, memory, session recall and skills as the existing
 storage/context owners. The managed `pythia.operating` section is registered
 `after_memory`, with a 4,000-character cap and marker
-`[PYTHIA_WORKSPACE_GUIDANCE_V1]`. Its source is `runtime/managed/plugin/operating.py`; registration
-stays in `runtime/managed/plugin/__init__.py`. The managed `investment-memory` skill depends on
+`[PYTHIA_WORKSPACE_GUIDANCE_V1]`. Its source is `runtime/managed/core/operating.py`; registration
+stays in `runtime/managed/core/__init__.py`. The managed `investment-memory` skill depends on
 `file`, not an MCP research store. It is selected when useful, not on every turn.
 
 Ordinary resume in `agent/conversation_loop.py::_restore_or_build_system_prompt`

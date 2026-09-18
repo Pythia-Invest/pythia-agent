@@ -22,7 +22,7 @@ sys.modules[PACKAGE] = module
 # Isolated dependency injection for provider-free domain tests. The assembled
 # qualification exercises actual native discovery and dependency ownership.
 PLATFORM = 'pythia_platform_fixture'
-platform_root = ROOT.parents[1] / 'plugin' / 'platform'
+platform_root = ROOT.parents[1] / 'core' / 'platform'
 platform_spec = importlib.util.spec_from_file_location(PLATFORM, platform_root / '__init__.py',
                                                      submodule_search_locations=[str(platform_root)])
 platform_module = importlib.util.module_from_spec(platform_spec)

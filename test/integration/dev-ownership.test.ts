@@ -1,5 +1,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,6 +24,7 @@ import {
   validateReceipt,
   waitForNoReuseAddressPortRelease,
 } from "../../scripts/dev/supervisor.mjs";
+import { waitForHermesPortRelease } from "../../scripts/dev/supervisor-processes.mjs";
 import { copySourceSnapshot } from "../../tooling/source-snapshot.mjs";
 
 const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
@@ -113,6 +120,64 @@ describe("port and receipt ownership", () => {
         intervalMs: 50,
       }),
     ).rejects.toThrow(/not continuously free.*native no-reuse-address/u);
+  });
+
+  it("runs the lifecycle probe from the prepared Hermes interpreter without a legacy environment", async () => {
+    const root = temporaryRoot();
+    const paths = resolveStackPaths({ environment: environment(root) });
+    const bin = join(paths.hermesSource, ".venv", "bin");
+    mkdirSync(bin, { recursive: true });
+    const marker = join(root, "hermes-python-invoked");
+    const python = join(bin, "python");
+    writeFileSync(
+      python,
+      `#!/usr/bin/env python3
+import os
+import sys
+from pathlib import Path
+Path(${JSON.stringify(marker)}).write_text("invoked")
+os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
+`,
+      { mode: 0o700 },
+    );
+    const available = createServer();
+    await new Promise<void>((resolve) =>
+      available.listen(0, "127.0.0.1", resolve),
+    );
+    const address = available.address();
+    if (!address || typeof address === "string")
+      throw new Error("Missing fixture port");
+    await new Promise<void>((resolve) => available.close(() => resolve()));
+    paths.ports.hermes = address.port;
+
+    await expect(waitForHermesPortRelease(paths)).resolves.toBeUndefined();
+    expect(existsSync(marker)).toBe(true);
+    expect(existsSync(paths.legacyPython)).toBe(false);
+
+    rmSync(marker);
+    const occupied = createServer();
+    servers.push(occupied);
+    await new Promise<void>((resolve) =>
+      occupied.listen(address.port, "127.0.0.1", resolve),
+    );
+    const controller = new AbortController();
+    const waiting = waitForHermesPortRelease(paths, {
+      signal: controller.signal,
+    });
+    const cancelled = expect(waiting).rejects.toThrow(
+      /cancelled while stopping/u,
+    );
+    try {
+      await waitUntil(() => existsSync(marker));
+    } finally {
+      controller.abort();
+    }
+    await cancelled;
+
+    rmSync(python);
+    await expect(waitForHermesPortRelease(paths)).rejects.toThrow(
+      `could not run the pinned Python interpreter ${python}`,
+    );
   });
 
   it("fails actionably instead of taking over a foreign listener", async () => {

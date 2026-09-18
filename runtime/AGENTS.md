@@ -13,8 +13,10 @@ The separately seeded `runtime/seeds/workspace/AGENTS.md` is intentional
 user-owned native context, so enforce this boundary by source role and
 allowlist rather than by rejecting every file named `AGENTS.md`.
 
-Keep the Hermes boundary native: external skills, explicitly copied profile-local
-core/feature/provider plugins, and native MCP configuration. Do not add a Pythia capability registry,
+Keep the Hermes boundary native: external skills, the core host adapter,
+explicitly copied profile-local feature/provider plugins, and native MCP
+configuration. Core source lives in `managed/core/` and retains the native
+`pythia` identity; optional features live in `managed/plugins/`. Do not add a Pythia capability registry,
 combined skill/tool state, Hermes patch, symlink projection, or ambient-secret
 fallback.
 

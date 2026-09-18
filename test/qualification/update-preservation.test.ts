@@ -11,7 +11,7 @@ import {
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  MANAGED_PLUGIN_FILES,
+  MANAGED_CORE_FILES,
   PLUGIN_COPY_RECEIPT,
   refreshManagedPlugin,
 } from "../../scripts/dev/files.mjs";
@@ -146,7 +146,7 @@ function installedFixture() {
 
   const pluginDestination = join(paths.profileRoot, "plugins", "pythia");
   refreshManagedPlugin(
-    join(paths.checkout, "runtime", "managed", "plugin"),
+    join(paths.checkout, "runtime", "managed", "core"),
     pluginDestination,
   );
   file(
@@ -156,7 +156,6 @@ function installedFixture() {
   const executables = {
     node: "/opt/pythia/node",
     python: "/opt/pythia/python",
-    managedPython: "/opt/pythia/managed-python",
     uv: "/opt/pythia/uv",
     hermes: "/opt/pythia/hermes",
     basicMemory: "/opt/pythia/basic-memory",
@@ -170,7 +169,7 @@ function installedFixture() {
 
   async function completeCandidate() {
     refreshManagedPlugin(
-      join(paths.checkout, "runtime", "managed", "plugin"),
+      join(paths.checkout, "runtime", "managed", "core"),
       pluginDestination,
     );
     applyMigrations(paths);
@@ -184,7 +183,7 @@ function installedFixture() {
       throw new Error("synthetic dependency interruption");
     }
     refreshManagedPlugin(
-      join(paths.checkout, "runtime", "managed", "plugin"),
+      join(paths.checkout, "runtime", "managed", "core"),
       pluginDestination,
     );
     if (stage === "plugin") {
@@ -245,7 +244,7 @@ describe("signed A-to-B state preservation", () => {
     ).toBe(false);
     expect(readdirSync(fixture.pluginDestination).sort()).toEqual(
       [
-        ...new Set(MANAGED_PLUGIN_FILES.map((name) => name.split("/")[0])),
+        ...new Set(MANAGED_CORE_FILES.map((name) => name.split("/")[0])),
         PLUGIN_COPY_RECEIPT,
       ].sort(),
     );
@@ -253,7 +252,7 @@ describe("signed A-to-B state preservation", () => {
       existsSync(
         join(
           fixture.paths.checkout,
-          "runtime/managed/skills/eodhd-market-data/SKILL.md",
+          "runtime/managed/skills/investment-memory/references/note-discipline.md",
         ),
       ),
     ).toBe(true);

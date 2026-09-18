@@ -81,7 +81,8 @@ describe("first public release snapshots", () => {
       ]).split("\n"),
     ).toEqual([
       "packaging/systemd/pythia-agent-desk.service.in",
-      "runtime/managed/skills/eodhd-market-data/SKILL.md",
+      "runtime/managed/skills/investment-memory/SKILL.md",
+      "runtime/managed/skills/investment-memory/references/note-discipline.md",
     ]);
     expect(() =>
       git(fixture.repository, [
@@ -152,7 +153,8 @@ describe("first public release snapshots", () => {
           },
           differences: [
             "packaging/systemd/pythia-agent-desk.service.in",
-            "runtime/managed/skills/eodhd-market-data/SKILL.md",
+            "runtime/managed/skills/investment-memory/SKILL.md",
+            "runtime/managed/skills/investment-memory/references/note-discipline.md",
           ],
           target_index_mutated: false,
           publication_target: null,
@@ -242,12 +244,6 @@ describe("first public release snapshots", () => {
       ["--filter", "@pythia/desk", "build"],
       environment,
     );
-    expect(
-      predecessorManifest.entries.some(
-        (entry) =>
-          entry.path === "runtime/managed/skills/sec-edgar-research/SKILL.md",
-      ),
-    ).toBe(true);
     expect(
       predecessorManifest.entries.some(
         (entry) =>

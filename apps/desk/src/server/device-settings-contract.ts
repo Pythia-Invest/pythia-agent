@@ -23,8 +23,6 @@ export type DeviceSettingsSnapshot = {
     status: Readiness | "unavailable";
     setup_command: string;
   };
-  sec_identity: { status: Readiness };
-  eodhd_credential: { status: Readiness };
   skills: DeviceSkill[];
   skills_status: ServiceReadiness;
   toolsets: HermesToolset[];
@@ -34,8 +32,6 @@ export type DeviceSettingsSnapshot = {
 export interface DeviceSettingsService {
   initializeModel(selection: ModelSelection): Promise<void>;
   snapshot(): Promise<DeviceSettingsSnapshot>;
-  setSecIdentity(value: string | null): Promise<{ status: Readiness }>;
-  setEodhdToken(value: string | null): Promise<{ status: Readiness }>;
   setSkillEnabled(name: string, enabled: boolean): Promise<DeviceSkill>;
   setToolsetEnabled(name: string, enabled: boolean): Promise<HermesToolset>;
 }

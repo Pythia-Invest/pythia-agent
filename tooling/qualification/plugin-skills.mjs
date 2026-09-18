@@ -14,7 +14,7 @@ try {
   const paths = {
     profileRoot: root,
     managedRoot,
-    managedPlugin: join(managedRoot, "plugin"),
+    managedCore: join(managedRoot, "core"),
   };
   refreshManagedPlugins(paths, "synthetic", { execute: () => {} });
   const bundled = join(root, "empty-bundled");
@@ -26,17 +26,17 @@ try {
     {
       enabled: true,
       available: false,
-      skillConfig: `skills:\n  disabled: [${qualified}]\n`,
+      skillConfig: `  disabled: [${qualified}]\n`,
     },
     {
       enabled: true,
       available: false,
-      skillConfig: `skills:\n  platform_disabled:\n    api_server: [${qualified}]\n`,
+      skillConfig: `  platform_disabled:\n    api_server: [${qualified}]\n`,
     },
   ]) {
     writeFileSync(
       join(root, "config.yaml"),
-      `plugins:\n  enabled: [pythia, pythia-market-data]\n  disabled: ${enabled ? "[]" : "[pythia-market-data]"}\nplatform_toolsets:\n  api_server: [pythia-market-data]\n${skillConfig}`,
+      `plugins:\n  enabled: [pythia, pythia-market-data]\n  disabled: ${enabled ? "[]" : "[pythia-market-data]"}\nplatform_toolsets:\n  api_server: [pythia-market-data, file]\nskills:\n  external_dirs: [${JSON.stringify(join(managedRoot, "skills"))}]\n${skillConfig}`,
       { mode: 0o600 },
     );
     const result = spawnSync(

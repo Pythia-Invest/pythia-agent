@@ -51,9 +51,6 @@ catalogs:
     date-fns:
       specifier: 4.4.0
       version: 4.4.0
-    eodhd:
-      specifier: https://registry.npmjs.org/eodhd/-/eodhd-1.1.0.tgz
-      version: 1.1.0
     lucide-react:
       specifier: 0.562.0
       version: 0.562.0
@@ -97,10 +94,6 @@ catalogs:
 importers:
 
   .:
-    dependencies:
-      eodhd:
-        specifier: 'catalog:'
-        version: 1.1.0
     devDependencies:
       '@biomejs/biome':
         specifier: 'catalog:'
@@ -1556,15 +1549,6 @@ packages:
   entities@6.0.1:
     resolution: {integrity: sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==}
     engines: {node: '>=0.12'}
-
-  eodhd@1.1.0:
-    resolution: {integrity: sha512-dYDZeJoDyXjMCwMCEaXvHNXYc/WJaWEId0G0/Jzm8enGub7UWVF6e/3CIXxvrKKNf1xl1Ys5+1MQRghJGi1JDA==}
-    engines: {node: '>=20.0.0'}
-    peerDependencies:
-      ws: ^8.0.0
-    peerDependenciesMeta:
-      ws:
-        optional: true
 
   es-module-lexer@1.7.0:
     resolution: {integrity: sha512-jEQoCwk8hyb2AZziIOLhDqpm5+2ww5uIE6lkO/6jcOCusfk6LhMHpXXfBLXTZ7Ydyt0j4VoUQv6uGNYbdW+kBA==}
@@ -3403,8 +3387,6 @@ snapshots:
       tapable: 2.3.3
 
   entities@6.0.1: {}
-
-  eodhd@1.1.0: {}
 
   es-module-lexer@1.7.0: {}
 

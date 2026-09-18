@@ -7,7 +7,8 @@ paths:
   - "**/CLAUDE.md"
   - "runtime/seeds/**/*"
   - "runtime/managed/skills/**/*"
-  - "runtime/managed/plugin/**/*"
+  - "runtime/managed/core/**/*"
+  - "runtime/managed/plugins/**/*"
   - "runtime/managed/runner/**/*"
   - "docs/prompting.md"
 globs:
@@ -17,7 +18,8 @@ globs:
   - "**/CLAUDE.md"
   - "runtime/seeds/**/*"
   - "runtime/managed/skills/**/*"
-  - "runtime/managed/plugin/**/*"
+  - "runtime/managed/core/**/*"
+  - "runtime/managed/plugins/**/*"
   - "runtime/managed/runner/**/*"
   - "docs/prompting.md"
 ---

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import {
   assertManagedPluginSource,
-  MANAGED_PLUGIN_FILES,
+  MANAGED_CORE_FILES,
   refreshManagedPlugin,
 } from "./files.mjs";
 import { hermesRun } from "./runtime-config.mjs";
@@ -14,8 +14,8 @@ export const MANAGED_PLUGINS = Object.freeze([
     install: true,
     enabledByDefault: true,
     doctor: true,
-    source: "plugin",
-    files: MANAGED_PLUGIN_FILES,
+    source: "core",
+    files: MANAGED_CORE_FILES,
   }),
   Object.freeze({
     name: "pythia-market-data",
@@ -83,12 +83,11 @@ export function refreshManagedPlugins(
       ...plugin,
       source:
         plugin.name === "pythia"
-          ? paths.managedPlugin
+          ? paths.managedCore
           : join(paths.managedRoot, plugin.source),
       destination: join(paths.profileRoot, "plugins", plugin.name),
     }));
-  // Validate the entire input set before replacing any copied plugin. The worker
-  // is read directly from the selected managed source, like the SEC runner.
+  // Validate the entire input set before replacing any copied native package.
   for (const plugin of copies)
     assertManagedPluginSource(plugin.source, plugin.files);
   const results = [];

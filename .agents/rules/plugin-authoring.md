@@ -1,13 +1,13 @@
 ---
 description: "Package features through native Hermes ownership and shared protected transport."
 paths:
-  - "runtime/managed/plugin/**/*"
+  - "runtime/managed/core/**/*"
   - "runtime/managed/plugins/**/*"
   - "scripts/dev/managed-plugins.mjs"
   - "scripts/dev/files.mjs"
   - "docs/architecture/plugins.md"
 globs:
-  - "runtime/managed/plugin/**/*"
+  - "runtime/managed/core/**/*"
   - "runtime/managed/plugins/**/*"
   - "scripts/dev/managed-plugins.mjs"
   - "scripts/dev/files.mjs"
@@ -21,6 +21,11 @@ Follow [plugin authoring](../../docs/architecture/plugins.md) and
 and community features use the same native plugin mechanism. Keep domain tools,
 skills, deliberate operation exports and supplied presentation assets under the
 feature's package ownership; shared contracts and SDKs remain reusable dependencies.
+
+Keep product host support under `runtime/managed/core/` and optional features
+under `runtime/managed/plugins/`. Core uses Hermes's native extension hook but
+does not own provider-specific research tools; see
+[ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).
 
 Use native registration, discovery and enablement. An exported operation must
 belong to its actual native tool owner. Authentication, profiles, HTTP admission,

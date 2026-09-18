@@ -90,9 +90,7 @@ def main() -> int:
 
     managed_skills = repository / "runtime/managed/skills"
     required_managed = {
-        "eodhd-market-data": "pythia-eodhd",
         "investment-memory": "file",
-        "sec-edgar-research": "pythia-sec",
     }
     for name, toolset in required_managed.items():
         text = (managed_skills / name / "SKILL.md").read_text(encoding="utf-8")
@@ -141,16 +139,16 @@ def main() -> int:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
         local_description = "LOCAL_PRECEDENCE_CANARY"
-        managed_description = "Read the latest non-amended 10-K metadata"
+        managed_description = "EXTERNAL_PRECEDENCE_CANARY"
         memory_description = "Save, revisit or revise reusable investment research"
+        write_skill(qualification_skills / "precedence-probe", "precedence-probe",
+                    managed_description, "terminal")
 
         isolated_environment = {
             "HOME": str(home),
             "HERMES_HOME": str(hermes_home),
             "HERMES_PLATFORM": "api_server",
             "PYTHIA_CONFIG_ROOT": str(root / "config"),
-            "PYTHIA_EDGAR_CACHE_DIR": str(root / "edgar-cache"),
-            "PYTHIA_EDGAR_DATA_DIR": str(root / "edgar-data"),
             "PYTHIA_MANAGED_ROOT": str(repository / "runtime/managed"),
             "PYTHIA_MANAGED_SKILLS_DIR": str(managed_skills),
             "NO_PROXY": "*",
@@ -172,10 +170,10 @@ def main() -> int:
             cwd=launch_directory,
         )
         write_skill(
-            local_skills / "sec-edgar-research",
-            "sec-edgar-research",
+            local_skills / "precedence-probe",
+            "precedence-probe",
             local_description,
-            "pythia-sec",
+            "terminal",
         )
         run_native(
             [
@@ -321,6 +319,7 @@ def main() -> int:
         verify_skill_visibility(
             profile_home=profile_home,
             managed_skills=managed_skills,
+            qualification_skills=qualification_skills,
             local_skills=local_skills,
             local_description=local_description,
             managed_description=managed_description,

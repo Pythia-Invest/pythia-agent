@@ -48,9 +48,8 @@ def main() -> None:
             shutil.copytree(repository / 'runtime/seeds/profile', profile)
             shutil.copytree(repository / 'runtime/seeds/workspace', workspace)
             copied_plugin = profile / 'plugins/pythia'
-            copied_plugin.mkdir(parents=True)
-            for filename in ('__init__.py', 'desk_view.py', 'operating.py', 'plugin.yaml'):
-                shutil.copyfile(repository / 'runtime/managed/plugin' / filename, copied_plugin / filename)
+            shutil.copytree(repository / 'runtime/managed/core', copied_plugin,
+                            ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
             memory = profile / 'memories'
             memory.mkdir()
             (memory / 'MEMORY.md').write_text('Synthetic global environment memory.')

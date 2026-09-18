@@ -244,8 +244,8 @@ export function instrumentContextProbe(rootValue, stackName = "one") {
   if (!stack) throw new Error(`Unknown qualification stack: ${stackName}`);
   const builder = join(stack.worktree, "AGENTS.md");
   const workspace = join(stack.paths.workspace, "AGENTS.md");
-  const plugin = join(stack.worktree, "runtime/managed/plugin/__init__.py");
-  const manifest = join(stack.worktree, "runtime/managed/plugin/plugin.yaml");
+  const plugin = join(stack.worktree, "runtime/managed/core/__init__.py");
+  const manifest = join(stack.worktree, "runtime/managed/core/plugin.yaml");
   for (const path of [builder, plugin, manifest]) exactRegularFile(path);
   if (!existsSync(workspace)) {
     mkdirSync(dirname(workspace), { recursive: true, mode: 0o700 });
@@ -267,8 +267,8 @@ export function instrumentContextProbe(rootValue, stackName = "one") {
     writeFileSync(
       manifest,
       manifestText.replace(
-        "  - pythia_eod_prices\n",
-        `  - pythia_eod_prices\n  - ${CONTEXT_TOOL}\n`,
+        "provides_tools:\n",
+        `provides_tools:\n  - ${CONTEXT_TOOL}\n`,
       ),
     );
   }

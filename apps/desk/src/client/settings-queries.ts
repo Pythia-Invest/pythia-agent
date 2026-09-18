@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDeskApi } from "./providers";
 import { deskKeys } from "./query-cache";
 
-type SettingChange =
-  | { kind: "sec" | "eodhd"; value: string | null }
-  | { kind: "skill" | "toolset"; name: string; enabled: boolean };
+type SettingChange = {
+  kind: "skill" | "toolset";
+  name: string;
+  enabled: boolean;
+};
 
 export function useDeviceSettings() {
   const api = useDeskApi();
@@ -24,17 +26,13 @@ export function useReleaseStatus() {
   });
 }
 
-/** The server retains credential custody and native mutation/restart/readback. */
+/** The server owns native mutation, restart and readback. */
 export function useChangeDeviceSetting() {
   const api = useDeskApi();
   const cache = useQueryClient();
   return useMutation({
     mutationFn: async (change: SettingChange) => {
       switch (change.kind) {
-        case "sec":
-          return api.setSecIdentity(change.value);
-        case "eodhd":
-          return api.setEodhdToken(change.value);
         case "skill":
           return api.setSkillEnabled(change.name, change.enabled);
         case "toolset":

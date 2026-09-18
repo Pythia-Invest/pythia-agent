@@ -39,8 +39,8 @@ cleanup targetable. Direct Git commands remain supported. Runtime-integrated
 worktree management and automatic branch or conflict cleanup remain outside the
 product because source checkout policy belongs to the contributor.
 
-`just dev-init` downloads and hydrates the exact pinned Hermes,
-EdgarTools, and EODHD dependencies. `just dev` prints the local Desk URL and
+`just dev-init` downloads and hydrates the exact pinned Hermes and declared
+managed dependencies. `just dev` prints the local Desk URL and
 runs the stack in the foreground; it does not install services, enable linger,
 or change host networking.
 
@@ -145,11 +145,13 @@ Stale or foreign requests fail closed.
 
 That `restart-hermes` operation is reserved for a settings-only change. It is
 not a substitute for `just dev-refresh`, whose shared preparation requires all
-three selected consumers to stop before managed files are replaced.
+selected consumers to stop before managed files are replaced.
 
-Managed tools receive only absolute runtime inputs: the managed source root,
-the locked Python interpreter, the pinned running Node executable, and private
-per-worktree EDGAR data/cache directories. Device settings remain under the
+Managed tools receive absolute runtime inputs: the managed source root and the
+pinned Hermes and Node executables. Core lifecycle probes run with Hermes's
+prepared Python interpreter before startup or after shutdown; fresh setup does
+not create a second Python environment or export `PYTHIA_PYTHON`.
+Device settings remain under the
 canonical Pythia config root. No legacy config alias or credential value is
 added; ambient EDGAR and provider credentials are removed before startup.
 
@@ -204,9 +206,10 @@ to repair a partial choice; complete that profile's choice with native Hermes.
 Pythia never reads, copies, links, or logs `auth.json`. The native OAuth
 providers supported by the pinned Hermes release are `anthropic`, `nous`,
 `openai-codex`, `xai-oauth`, `qwen-oauth`, and `minimax-oauth`. Unsupported OAuth
-names fail honestly; API-key providers are validated by Hermes. SEC identity
-and EODHD token settings also use the shared private
-Pythia configuration root; workspaces, caches, sessions and process state remain
+names fail honestly; API-key providers are validated by Hermes. Saved legacy
+SEC identity and EODHD token values remain in the private Pythia configuration
+root, but core no longer exposes their tools or settings controls. Workspaces,
+caches, sessions and process state remain
 isolated per worktree. Retained legacy knowledge also stays with its stack.
 
 A deployment's model is configured through native Hermes on that device;
@@ -279,8 +282,8 @@ uses Next's native `allowedDevOrigins` for remote hot reload.
   stylesheet that Tailwind utilities draw from (see
   [ADR 0007](decisions/0007-tailwind-styling-layer.md)).
 - `apps/design-lab` is a development-only component workshop.
-- `runtime/managed` owns the Pythia skills, plugin, instructions, and bounded
-  data runners shipped with a release.
+- `runtime/managed` owns Pythia core support, optional feature packages,
+  standalone skills and shared execution helpers shipped with a release.
 - `runtime/contracts` records the exact upstream behavior Pythia relies on.
 - `docs/decisions` contains short, durable decisions rather than raw working
   notes.

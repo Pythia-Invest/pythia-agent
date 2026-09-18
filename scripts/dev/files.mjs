@@ -32,7 +32,7 @@ function fsyncDirectory(path) {
   }
 }
 
-export const MANAGED_PLUGIN_FILES = Object.freeze([
+export const MANAGED_CORE_FILES = Object.freeze([
   "__init__.py",
   "plugin.yaml",
   "desk_view.py",
@@ -48,13 +48,6 @@ export const MANAGED_PLUGIN_FILES = Object.freeze([
   "platform/subscription.py",
   "platform/specialist.py",
   "platform/assets.py",
-]);
-
-export const MANAGED_PYTHON_SOURCE_FILES = Object.freeze([
-  "NOTICE.md",
-  "hermes-source.json",
-  "pyproject.toml",
-  "uv.lock",
 ]);
 
 export function ensurePrivateDirectory(path) {
@@ -153,94 +146,12 @@ export function copyFileIfAbsent(source, destination, mode = 0o600) {
   return true;
 }
 
-function refreshExactFilesPreservingDirectory(
-  source,
-  destination,
-  files,
-  label,
-  preservedDirectories = [],
-) {
-  const sourceInfo = lstatSync(source);
-  if (sourceInfo.isSymbolicLink() || !sourceInfo.isDirectory()) {
-    throw new Error(`${label} source must be a real directory: ${source}`);
-  }
-  const sources = files.map((filename) => {
-    const path = join(source, filename);
-    const info = lstatSync(path);
-    if (info.isSymbolicLink() || !info.isFile()) {
-      throw new Error(`${label} input must be a regular file: ${path}`);
-    }
-    return [path, filename];
-  });
-  const parent = dirname(destination);
-  mkdirSync(parent, { recursive: true, mode: 0o700 });
-  if (existsSync(destination)) {
-    const destinationInfo = lstatSync(destination);
-    if (destinationInfo.isSymbolicLink() || !destinationInfo.isDirectory()) {
-      throw new Error(
-        `${label} destination must be a real directory: ${destination}`,
-      );
-    }
-  } else {
-    mkdirSync(destination, { mode: 0o700 });
-  }
-
-  const allowedNames = new Set([...files, ...preservedDirectories]);
-  for (const entry of readdirSync(destination, { withFileTypes: true })) {
-    const current = join(destination, entry.name);
-    if (preservedDirectories.includes(entry.name)) {
-      const info = lstatSync(current);
-      if (info.isSymbolicLink() || !info.isDirectory()) {
-        throw new Error(
-          `${label} preserved environment must be a real directory: ${current}`,
-        );
-      }
-    } else if (!allowedNames.has(entry.name)) {
-      rmSync(current, { recursive: true, force: true });
-    }
-  }
-
-  const stage = mkdtempSync(join(parent, ".pythia-inputs-"));
-  try {
-    for (const [sourcePath, filename] of sources) {
-      const current = join(destination, filename);
-      if (existsSync(current)) {
-        const currentInfo = lstatSync(current);
-        if (currentInfo.isSymbolicLink() || !currentInfo.isFile()) {
-          throw new Error(
-            `${label} destination input must be a regular file: ${current}`,
-          );
-        }
-      }
-      const staged = join(stage, filename);
-      copyFileSync(sourcePath, staged);
-      chmodSync(staged, 0o600);
-    }
-    for (const filename of files) {
-      renameSync(join(stage, filename), join(destination, filename));
-    }
-    fsyncDirectory(destination);
-  } finally {
-    rmSync(stage, { recursive: true, force: true });
-  }
-}
-
 export function refreshManagedPlugin(
   source,
   destination,
-  files = MANAGED_PLUGIN_FILES,
+  files = MANAGED_CORE_FILES,
 ) {
   return refreshCopiedPlugin(source, destination, files);
-}
-
-export function refreshManagedPythonSource(source, destination) {
-  refreshExactFilesPreservingDirectory(
-    source,
-    destination,
-    MANAGED_PYTHON_SOURCE_FILES,
-    "Managed Python",
-    [".venv"],
-  );
 }
 
 export function assertRegularPrivateFile(path) {

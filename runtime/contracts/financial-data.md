@@ -4,7 +4,9 @@ The shared [market-data contracts](../../packages/market-data/README.md) and
 [native backend](../../packages/market-data/BACKEND.md) now provide canonical
 identity, preferred/pinned price/history reads and coordinated protected delivery.
 This foundation ships no concrete shared connector. The two original core tools
-documented below continue unchanged and are not implicitly shared contributions.
+documented below are retired by [ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).
+The following contracts record historical integration evidence for future
+connector work; they do not describe installed tools or current qualification.
 
 The first slice has two independent, optional capabilities. Ordinary startup
 and CI use neither credential and make no provider request. A failed sibling
@@ -59,8 +61,8 @@ Authoritative evidence: the 5.56.0-tagged
 [fact types](https://github.com/dgunning/edgartools/blob/v5.56.0/edgar/entity/models.py), and
 [HTTP implementation](https://github.com/dgunning/edgartools/blob/v5.56.0/edgar/httprequests.py), including the
 [URL builders](https://github.com/dgunning/edgartools/blob/v5.56.0/edgar/urls.py).
-The PyPI artifact is not asserted to derive from that Git commit; see
-`runtime/versions.json`.
+The historical PyPI artifact was not asserted to derive from that Git commit.
+The dependency pin is retired together with the core implementation.
 
 ## EODHD SDK 1.1.0
 

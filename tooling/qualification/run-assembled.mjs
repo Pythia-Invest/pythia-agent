@@ -26,11 +26,7 @@ import {
 
 const READY_TIMEOUT_MS = 4 * 60_000;
 const STOP_TIMEOUT_MS = 20_000;
-const REQUIRED_SKILLS = [
-  "eodhd-market-data",
-  "investment-memory",
-  "sec-edgar-research",
-];
+const REQUIRED_SKILLS = ["investment-memory"];
 const BYTE_STABLE_PRIVATE_STATE = [
   "profile_config",
   "secrets",

@@ -120,10 +120,11 @@ mutation lock, asks the lifecycle owner to restart Hermes, and reports success
 only after the authenticated native API shows the requested state. It does not
 infer mismatches or modify another platform.
 
-The SEC identity and EODHD token are optional. Desk writes them atomically to
-the permission-restricted Pythia settings and secrets files and returns only a
-readiness status. Stored values, the Hermes bearer, and OAuth credentials are
-never returned to browser code or placed in command arguments.
+Provider setup belongs to the respective connector. Core no longer exposes
+the original SEC identity and EODHD token controls or their write routes.
+Previously saved values remain untouched. Stored secrets, the Hermes bearer
+and OAuth credentials are never returned to browser code or placed in command
+arguments.
 
 ## Workspace
 

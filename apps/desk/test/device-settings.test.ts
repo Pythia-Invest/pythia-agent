@@ -17,6 +17,7 @@ import {
   lifecycleCommandEnvironment,
 } from "@/server/device-settings";
 import { defaultRestart, withFileLock } from "@/server/device-settings-native";
+import { atomicWriteStore, requireStore } from "@/server/device-settings-store";
 import type { HermesClient, HermesSkill, HermesToolset } from "@/server/types";
 
 const roots: string[] = [];
@@ -53,39 +54,33 @@ function harness(
   let storedDisabled = new Set<string>(["investment-memory"]);
   let effectiveDisabled = new Set(storedDisabled);
   const platformToolsets = {
-    api_server: new Set(["pythia-sec"]),
-    discord: new Set(["pythia-eodhd", "pythia-sec"]),
+    api_server: new Set(["research-tools"]),
+    discord: new Set(["custom-prices", "research-tools"]),
   };
   let effectiveTools = new Set(platformToolsets.api_server);
   const allSkills: HermesSkill[] = [
     {
-      name: "sec-edgar-research",
+      name: "research-notes",
       description: "Local override chosen by Hermes",
       category: "finance",
     },
-    { name: "eodhd-market-data", description: "Daily prices" },
+    { name: "daily-observations", description: "Daily observations" },
     { name: "my-local-skill", description: "Local helper" },
   ];
   const allToolsets: HermesToolset[] = [
     {
-      name: "pythia-sec",
-      label: "Pythia SEC",
+      name: "research-tools",
+      label: "Research tools",
       enabled: true,
       configured: true,
-      tools: ["pythia_sec_company"],
+      tools: ["read_research"],
     },
     {
-      name: "pythia-eodhd",
-      label: "Pythia EODHD",
+      name: "custom-prices",
+      label: "Custom prices",
       enabled: false,
       configured: false,
-      tools: ["pythia_eod_prices"],
-    },
-    {
-      name: "mcp-basic-memory",
-      enabled: true,
-      configured: true,
-      tools: ["mcp_basic_memory_search_notes"],
+      tools: ["read_prices"],
     },
   ];
   const client = {
@@ -239,14 +234,11 @@ describe("device settings", () => {
       "status",
       "openai-codex",
     ]);
-    expect(snapshot.sec_identity.status).toBe("missing");
-    expect(snapshot.eodhd_credential.status).toBe("missing");
-    expect(snapshot).not.toHaveProperty("basic_memory");
     expect(snapshot.skills).toContainEqual(
       expect.objectContaining({
-        name: "sec-edgar-research",
+        name: "research-notes",
         description: "Local override chosen by Hermes",
-        kind: "pythia-provided-name",
+        kind: "other-hermes-skill",
         mutable: true,
         enabled: true,
       }),
@@ -264,10 +256,8 @@ describe("device settings", () => {
       }),
     );
     expect(
-      snapshot.toolsets.find((item) => item.name === "pythia-eodhd"),
+      snapshot.toolsets.find((item) => item.name === "custom-prices"),
     ).toMatchObject({ enabled: false, configured: false });
-    expect(snapshot).not.toHaveProperty("capabilities");
-    expect(snapshot).not.toHaveProperty("mismatches");
   });
 
   it.each([
@@ -355,37 +345,37 @@ describe("device settings", () => {
     ).toBe(false);
   });
 
-  it("atomically writes private stores, preserves siblings, and never returns values", async () => {
+  it("preserves existing provider and unknown fields in private store writes without exposing them", async () => {
     const { configRoot, commandCalls, service } = harness();
-    const secret = "EODHD_PRIVATE_TOKEN";
-    writeFileSync(
-      join(configRoot, "secrets.json"),
-      `${JSON.stringify({ schema_version: 1, hermes_api_key: "SERVER_BEARER" })}\n`,
-      { mode: 0o600 },
-    );
-    await expect(
-      service.setSecIdentity("Ralph Investor ralph@example.com"),
-    ).resolves.toEqual({ status: "configured" });
-    const tokenResponse = await service.setEodhdToken(secret);
-    expect(tokenResponse).toEqual({ status: "configured" });
-    expect(JSON.stringify(tokenResponse)).not.toContain(secret);
-    const secrets = JSON.parse(
-      readFileSync(join(configRoot, "secrets.json"), "utf8"),
-    ) as Record<string, unknown>;
-    expect(secrets).toEqual({
-      schema_version: 1,
-      hermes_api_key: "SERVER_BEARER",
-      eodhd_api_token: secret,
-    });
-    expect(statSync(join(configRoot, "secrets.json")).mode & 0o077).toBe(0);
-    expect(statSync(join(configRoot, "settings.json")).mode & 0o077).toBe(0);
-    expect(commandCalls.flat().join(" ")).not.toContain(secret);
+    const originalStores = {
+      "secrets.json": {
+        schema_version: 1,
+        hermes_api_key: "PRIVATE_SERVER_BEARER",
+        eodhd_api_token: "PRIVATE_SAVED_TOKEN",
+        custom_provider: { token: "PRIVATE_CUSTOM_TOKEN" },
+      },
+      "settings.json": {
+        schema_version: 1,
+        sec_identity: "PRIVATE_INVESTOR investor@example.com",
+        custom_provider: { region: "region-a" },
+      },
+    };
+    for (const [name, original] of Object.entries(originalStores)) {
+      const path = join(configRoot, name);
+      writeFileSync(path, `${JSON.stringify(original)}\n`, { mode: 0o600 });
+      atomicWriteStore(path, { ...requireStore(path), ui: { theme: "dark" } });
+      expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({
+        ...original,
+        ui: { theme: "dark" },
+      });
+      expect(statSync(path).mode & 0o077).toBe(0);
+    }
 
     const snapshot = await service.snapshot();
-    expect(JSON.stringify(snapshot)).not.toContain(secret);
-    expect(JSON.stringify(snapshot)).not.toContain("ralph@example.com");
-    expect(snapshot.eodhd_credential.status).toBe("configured");
-    expect(snapshot.sec_identity.status).toBe("configured");
+    expect(snapshot).not.toHaveProperty("sec_identity");
+    expect(snapshot).not.toHaveProperty("eodhd_credential");
+    expect(JSON.stringify(snapshot)).not.toContain("PRIVATE_");
+    expect(commandCalls.flat().join(" ")).not.toContain("PRIVATE_");
   });
 
   it("passes only non-secret identity to the lifecycle restart command", () => {
@@ -445,35 +435,35 @@ describe("device settings", () => {
     expect(JSON.stringify(options)).not.toContain("PRIVATE_");
   });
 
-  it("reports unsafe stores as invalid and refuses to overwrite them", async () => {
+  it("refuses unsafe stores without overwriting them", () => {
     if (process.platform === "win32") return;
-    const { configRoot, service } = harness();
+    const { configRoot } = harness();
     const path = join(configRoot, "secrets.json");
     writeFileSync(path, '{"eodhd_api_token":"EXISTING"}\n', { mode: 0o644 });
-    expect((await service.snapshot()).eodhd_credential.status).toBe("invalid");
-    await expect(service.setEodhdToken("REPLACEMENT")).rejects.toMatchObject({
-      code: "settings_store_invalid",
-    });
+    expect(() => requireStore(path)).toThrowError(
+      expect.objectContaining({
+        code: "settings_store_invalid",
+      }),
+    );
     expect(readFileSync(path, "utf8")).toContain("EXISTING");
-    expect(readFileSync(path, "utf8")).not.toContain("REPLACEMENT");
   });
 
   it("uses the exact global skill command and reports only after config and API readback", async () => {
     const { commandCalls, restart, service } = harness();
     await expect(
-      service.setSkillEnabled("sec-edgar-research", false),
-    ).resolves.toMatchObject({ name: "sec-edgar-research", enabled: false });
+      service.setSkillEnabled("research-notes", false),
+    ).resolves.toMatchObject({ name: "research-notes", enabled: false });
     expect(commandCalls).toContainEqual([
       "-p",
       "pythia-test",
       "config",
       "set",
       "skills.disabled",
-      '["investment-memory","sec-edgar-research"]',
+      '["investment-memory","research-notes"]',
     ]);
     expect(restart).toHaveBeenCalledTimes(1);
     expect((await service.snapshot()).skills).toContainEqual(
-      expect.objectContaining({ name: "sec-edgar-research", enabled: false }),
+      expect.objectContaining({ name: "research-notes", enabled: false }),
     );
   });
 
@@ -491,14 +481,14 @@ describe("device settings", () => {
     const { commandCalls, platformToolsets, service } = harness();
     const discordBefore = [...platformToolsets.discord].sort();
     await expect(
-      service.setToolsetEnabled("pythia-eodhd", true),
-    ).resolves.toMatchObject({ name: "pythia-eodhd", enabled: true });
+      service.setToolsetEnabled("custom-prices", true),
+    ).resolves.toMatchObject({ name: "custom-prices", enabled: true });
     expect(commandCalls).toContainEqual([
       "-p",
       "pythia-test",
       "tools",
       "enable",
-      "pythia-eodhd",
+      "custom-prices",
       "--platform",
       "api_server",
     ]);
@@ -528,13 +518,13 @@ describe("device settings", () => {
   it("fails closed on command failure and readback loss", async () => {
     const failed = harness({ commandFailure: true });
     await expect(
-      failed.service.setSkillEnabled("sec-edgar-research", false),
+      failed.service.setSkillEnabled("research-notes", false),
     ).rejects.toMatchObject({ code: "hermes_command_failed" });
     expect(failed.restart).not.toHaveBeenCalled();
 
     const lost = harness({ readbackLoss: true });
     await expect(
-      lost.service.setToolsetEnabled("pythia-eodhd", true),
+      lost.service.setToolsetEnabled("custom-prices", true),
     ).rejects.toMatchObject({ code: "toolset_readback_failed" });
   });
 
@@ -550,8 +540,8 @@ describe("device settings", () => {
       },
     });
     await Promise.all([
-      service.setSkillEnabled("sec-edgar-research", false),
-      service.setToolsetEnabled("pythia-eodhd", true),
+      service.setSkillEnabled("research-notes", false),
+      service.setToolsetEnabled("custom-prices", true),
     ]);
     expect(maximum).toBe(1);
   });
@@ -573,9 +563,15 @@ describe("device settings", () => {
 
   it("retains settings and native choices across a service restart", async () => {
     const first = harness();
-    await first.service.setSecIdentity("Ralph Investor ralph@example.com");
-    await first.service.setEodhdToken("PERSISTED_TOKEN");
-    await first.service.setSkillEnabled("sec-edgar-research", false);
+    const stored = {
+      "settings.json":
+        '{"schema_version":1,"sec_identity":"Saved Investor investor@example.com","custom_setting":true}\n',
+      "secrets.json":
+        '{"schema_version":1,"eodhd_api_token":"PERSISTED_TOKEN","custom_secret":"PRESERVED"}\n',
+    };
+    for (const [name, content] of Object.entries(stored))
+      writeFileSync(join(first.configRoot, name), content, { mode: 0o600 });
+    await first.service.setSkillEnabled("research-notes", false);
     const restarted = createDeviceSettingsService({
       client: first.client,
       command: first.command,
@@ -588,10 +584,10 @@ describe("device settings", () => {
       restartHermes: first.restart,
     });
     const snapshot = await restarted.snapshot();
-    expect(snapshot.sec_identity.status).toBe("configured");
-    expect(snapshot.eodhd_credential.status).toBe("configured");
+    for (const [name, content] of Object.entries(stored))
+      expect(readFileSync(join(first.configRoot, name), "utf8")).toBe(content);
     expect(snapshot.skills).toContainEqual(
-      expect.objectContaining({ name: "sec-edgar-research", enabled: false }),
+      expect.objectContaining({ name: "research-notes", enabled: false }),
     );
   });
 });

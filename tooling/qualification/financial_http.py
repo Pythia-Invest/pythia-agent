@@ -140,6 +140,7 @@ async def main():
     synthetic_plugin(root)
     manager = get_plugin_manager()
     manager.discover_and_load()
+    assert not {'pythia_sec_company', 'pythia_eod_prices'} & set(registry.get_all_tool_names())
     feature_key = 'finance/pythia-market-data'
     feature = manager._plugins[feature_key]
     package = feature.module.__name__

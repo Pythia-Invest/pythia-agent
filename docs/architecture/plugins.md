@@ -5,6 +5,12 @@ optional Pythia-supported or community feature uses the same package boundary.
 There is no separate Pythia plugin inventory. Native Hermes discovers the selected
 package and controls whether it is enabled in the profile.
 
+Pythia's host support lives separately in `runtime/managed/core/`. It still uses
+the native Hermes extension hook under the `pythia` identity; `plugins/` contains
+the pluggable features and connectors. Core supplies operating guidance, Desk
+context and shared transport, not provider-specific research tools. See
+[ADR 0034](../decisions/0034-core-and-optional-features.md).
+
 The package owns its tools, domain implementation, bundled skills and explicitly
 exposed operations. Presentation assets and presets belong with the feature when
 it supplies them. Shared contracts, the widget SDK and reusable UI primitives are

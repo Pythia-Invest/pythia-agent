@@ -27,6 +27,8 @@ with patch.object(socket.socket, 'connect', side_effect=AssertionError('No netwo
     listing = json.loads(skills_list())
     assert listing['success'], listing
     names = {skill['name'] for skill in listing['skills']}
+    assert 'investment-memory' in names, listing
+    assert not {'sec-edgar-research', 'eodhd-market-data'} & names, listing
     viewed = json.loads(skill_view(qualified, preprocess=False))
     plugin = manager._plugins['pythia-market-data']
     if enabled:
