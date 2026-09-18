@@ -85,7 +85,7 @@ export async function disableSyntheticSkill(rootValue, stackName = "one") {
   const body = JSON.stringify({ enabled: false });
   const response = await requestJson({
     port: stack.ports.desk,
-    path: "/api/settings/skills/eodhd-market-data",
+    path: "/api/settings/skills/investment-memory",
     method: "POST",
     headers: {
       ...session.common,

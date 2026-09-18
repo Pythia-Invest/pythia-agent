@@ -54,23 +54,6 @@ async function readBody(request: Request) {
   }
 }
 
-function nullableTextField(
-  body: Record<string, unknown>,
-  field: string,
-  maximum: number,
-) {
-  if (body[field] === null) return null;
-  const value = typeof body[field] === "string" ? body[field].trim() : "";
-  if (!value || value.length > maximum || /[\0]/u.test(value)) {
-    throw new DeviceSettingsError(
-      `${field} must be a non-empty string, null, and at most ${maximum} characters.`,
-      400,
-      "invalid_settings_request",
-    );
-  }
-  return value;
-}
-
 function booleanField(body: Record<string, unknown>, field: string) {
   if (typeof body[field] !== "boolean") {
     throw new DeviceSettingsError(
@@ -101,32 +84,6 @@ export function createSettingsRoutes(settings: DeviceSettingsService) {
       if (rejection) return rejection;
       try {
         return result(await settings.snapshot());
-      } catch (error) {
-        return routeError(error);
-      }
-    },
-    async setSecIdentity(request: Request) {
-      const rejection = admitBrowserRequest(request, "mutation");
-      if (rejection) return rejection;
-      try {
-        const body = await readBody(request);
-        return result(
-          await settings.setSecIdentity(
-            nullableTextField(body, "identity", 320),
-          ),
-        );
-      } catch (error) {
-        return routeError(error);
-      }
-    },
-    async setEodhdToken(request: Request) {
-      const rejection = admitBrowserRequest(request, "mutation");
-      if (rejection) return rejection;
-      try {
-        const body = await readBody(request);
-        return result(
-          await settings.setEodhdToken(nullableTextField(body, "token", 512)),
-        );
       } catch (error) {
         return routeError(error);
       }

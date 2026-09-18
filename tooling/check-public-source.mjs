@@ -73,8 +73,6 @@ export function checkPublicSource(repository) {
   );
   const expectedLicenses = {
     hermes_agent: "MIT",
-    edgartools: "MIT",
-    eodhd: "MIT",
   };
   if (
     Object.keys(versions.dependencies ?? {})
@@ -82,7 +80,7 @@ export function checkPublicSource(repository) {
       .join("\0") !== Object.keys(expectedLicenses).sort().join("\0")
   ) {
     violations.push(
-      "runtime/versions.json: dependency provenance set is not the reviewed three-package boundary",
+      "runtime/versions.json: dependency provenance set is not the reviewed Hermes boundary",
     );
   }
   for (const [name, license] of Object.entries(expectedLicenses)) {
@@ -113,54 +111,13 @@ export function checkPublicSource(repository) {
     violations.push("LICENSE: expected the complete Apache-2.0 license text");
   }
   const managedNotice = readFileSync(
-    join(root, "runtime/managed/python/NOTICE.md"),
+    join(root, "runtime/hermes/NOTICE.md"),
     "utf8",
   );
-  for (const required of ["Hermes Agent", "EdgarTools", "MIT"]) {
+  for (const required of ["Hermes Agent", "MIT"]) {
     if (!managedNotice.includes(required)) {
-      violations.push(`runtime/managed/python/NOTICE.md: missing ${required}`);
+      violations.push(`runtime/hermes/NOTICE.md: missing ${required}`);
     }
-  }
-
-  const fixtureGuide = readFileSync(
-    join(root, "runtime/test/fixtures/README.md"),
-    "utf8",
-  );
-  for (const required of [
-    "authored examples, not recorded provider responses",
-    "SDK 1.1.0",
-    "EdgarTools 5.56.0",
-    "deliberately fictional",
-  ]) {
-    if (!fixtureGuide.includes(required)) {
-      violations.push(`runtime/test/fixtures/README.md: missing ${required}`);
-    }
-  }
-  const marketFixture = JSON.parse(
-    readFileSync(join(root, "runtime/test/fixtures/eodhd-daily.json"), "utf8"),
-  );
-  if (
-    !Array.isArray(marketFixture) ||
-    marketFixture.length === 0 ||
-    marketFixture.length > 10 ||
-    marketFixture.some((row) =>
-      Object.keys(row).some(
-        (key) =>
-          ![
-            "date",
-            "open",
-            "high",
-            "low",
-            "close",
-            "adjusted_close",
-            "volume",
-          ].includes(key),
-      ),
-    )
-  ) {
-    violations.push(
-      "runtime/test/fixtures/eodhd-daily.json: fixture is not bounded",
-    );
   }
 
   if (violations.length > 0) {

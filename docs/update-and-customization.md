@@ -89,16 +89,51 @@ Pythia uses Hermes's own extension and configuration rules:
 - Desk reads the authenticated native `/v1/skills` and `/v1/toolsets` APIs and
   shows Hermes's full reported toolset inventory with enabled flags.
 - Local profile plugins and project or profile skills use native Hermes
-  mechanisms. A local skill with the same name may override Pythia's managed
-  skill; Pythia does not add an extension registry.
+  mechanisms. A local skill with the same name may override a standalone
+  external skill. Bundled plugin skills have qualified names; customize their
+  owning plugin or disable that qualified skill. Pythia does not add an
+  extension registry.
+
+Bundled plugin installation and initial enablement are separate release choices.
+Fresh profiles enable the core `pythia` plugin and `pythia-market-data` through
+Hermes. A supported optional plugin can be shipped without being enabled; users
+enable it through native Hermes configuration. Later rebuilds and updates retain
+the existing enabled and disabled choices. Community plugins use normal Hermes
+installation and discovery and need no entry in Pythia's release payload list.
+
+Each managed copy carries `.pythia-managed-copy.json`, a content receipt listing
+its copied files and hashes. Updates replace a directory only when its contents
+still match that receipt. A changed or missing file, additional local file,
+invalid receipt, or linked directory preserves the whole plugin and produces an
+explicit update-skipped report. A local replacement remains user-owned, including
+when it uses the same native plugin name. Hermes diagnoses its compatibility;
+preservation does not certify that it implements the APIs required by other
+enabled plugins. Dependent registration fails visibly if required support is
+missing.
+
+Older copies without receipts are adopted only when their complete contents
+match the selected payload or an explicitly recorded prior release fingerprint.
+Unknown older copies are preserved for explicit reconciliation. Recognized
+CPython bytecode caches for copied Python modules are generated state and can be
+discarded during replacement; other extra files remain ownership conflicts.
+
+Release payloads allowlist individual nested skill and asset files, with real
+directories and regular files throughout. A plugin payload admits at most 512
+files, eight path components, 8 MiB per file, 32 MiB in total and a 256 KiB
+serialized receipt. Preparation
+validates all selected inputs before copying. Core validation uses native plugin
+doctor. Since that command isolates a single plugin, dependent feature packages
+are qualified with their copied dependencies together; ordinary updates do not
+claim an independent doctor pass for a preserved replacement or dependent feature.
 
 A fresh profile explicitly enables the same ten base toolsets for `cli`,
 `cron`, and `api_server`: `cronjob`, `delegation`, `file`, `memory`,
 `session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. The Pythia
-plugin adds `pythia-sec` and `pythia-eodhd`. These are initial values only;
-later native user edits are preserved.
+core adapter supplies `pythia-desk` for bounded Desk context. The retired SEC
+and EODHD toolsets are no longer fresh-profile defaults. These are initial
+values only; later native user edits are preserved.
 
-Managed skills declare native `metadata.hermes.requires_toolsets` when they
+Standalone managed skills declare native `metadata.hermes.requires_toolsets` when they
 need a tool. Where Hermes has toolset information, it uses that metadata to
 omit an unavailable skill from the generated prompt. On another Hermes
 platform, enabled tools may differ and the skill may therefore be absent from
@@ -106,6 +141,16 @@ that prompt. If toolset information is unavailable, Hermes's native behavior is
 to leave the skill visible. This is prompt relevance, not a security control,
 and Pythia does not calculate mismatches, hide entries, repair settings, or
 synchronize platforms.
+
+Bundled plugin skills use native `ctx.register_skill` and travel with their
+owning feature. At the pinned release they are discovered through `skills_list`
+and `skill_view`, rather than added to that automatic prompt index. Their native
+qualified names and global/platform disablement remain authoritative.
+
+The initial move from standalone skills to plugin bundles does not translate
+old disabled names. A disabled entry for `market-data` does not apply to
+`pythia-market-data:market-data`; any such pre-existing choice must use the
+qualified name. Profiles without those entries need no settings change.
 
 ## Editing managed source
 

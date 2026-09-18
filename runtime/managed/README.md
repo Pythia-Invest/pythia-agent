@@ -2,15 +2,27 @@
 
 This directory is Pythia-owned source updated with each release:
 
-- `runtime/managed/plugin/operating.py` is the authoritative release-owned
+- `runtime/managed/core/operating.py` is the authoritative release-owned
   source for the small always-on operating context registered by the Pythia
-  plugin.
+  core adapter.
 - `skills/` is loaded directly by Hermes through `skills.external_dirs`; native
   bundle references, scripts, templates, and assets remain beside `SKILL.md`.
-- `plugin/` is copied, never linked, into the selected Hermes profile.
-- `runner/` contains the bounded SEC/EODHD adapters and the narrow native
-  read-only session-context helper, run with the pinned Hermes environment.
-- `python/` pins the unmodified Python runtime dependencies.
+- `core/` contains Pythia's host support, including Desk context and shared
+  protected transport. It is copied into the selected Hermes profile using the
+  native extension mechanism under its existing `pythia` identity.
+- `plugins/market-data/` is a separately copied native feature: shared financial
+  contracts, identity, source resolution, protected resident HTTP/SSE and reusable
+  connector execution helpers. This payload includes no concrete shared connector.
+  Its financial skill is bundled inside the plugin.
+- `runner/` contains shared provider execution helpers and the narrow native
+  read-only session-context helper. The latter runs with the pinned Hermes
+  environment.
+
+Hermes preparation metadata lives in `runtime/hermes/`, outside these managed
+feature payloads. Core lifecycle probes use Hermes's prepared interpreter in
+bounded subprocesses. There is no separate core scripting environment; a future
+research plugin owns its own libraries and setup. Historical Python environments
+remain untouched; existing Basic Memory transitions may still use them.
 
 The profile, credentials, sessions, knowledge, caches, settings, and capability
 choices live outside this checkout. Editing managed source creates a local fork:
@@ -22,7 +34,7 @@ boundary.
 release-owned prompt authority. After initialization, the installed SOUL is
 user-owned and updates preserve it.
 
-The plugin's `desk_view.py` exposes bounded recent structured Desk context through
+Core's `desk_view.py` exposes bounded recent structured Desk context through
 `pythia_desk_view`; the fresh API-server toolset is `pythia-desk`. Native tool
 settings and native deferred tool discovery remain authoritative. The operating
 section `[PYTHIA_WORKSPACE_GUIDANCE_V1]` explains native memory, files, sessions
@@ -32,3 +44,7 @@ No new index, memory-provider integration or mandatory retrieval procedure exist
 Fresh seeds use one workspace with optional strategy briefs. Existing Basic
 Memory notes and user-edited seeds require the explicit preserved
 [transition](../../docs/update-and-customization.md#workspace-transition).
+
+Legacy core SEC/EODHD tools and their dedicated workers, skills and dependencies
+are retired. Their future connector packages own any replacement capability.
+See [ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).

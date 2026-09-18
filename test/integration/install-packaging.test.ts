@@ -51,10 +51,9 @@ function fixture() {
   const executables = {
     node: join(paths.runtimeRoot, "node", "22.16.0", "bin", "node"),
     python: join(paths.runtimeRoot, "python", "python3.12"),
-    managedPython: join(paths.managedPython, ".venv", "bin", "python"),
     uv: join(paths.runtimeRoot, "uv", "0.9.28", "uv"),
     hermes: join(paths.hermesSource, ".venv", "bin", "hermes"),
-    basicMemory: join(paths.managedPython, ".venv", "bin", "basic-memory"),
+    basicMemory: join(paths.legacyPython, ".venv", "bin", "basic-memory"),
     next: join(
       repositoryRoot,
       "apps",
@@ -235,9 +234,7 @@ describe("installed packaging", () => {
     expect(environments.desk).toContain(
       `PYTHIA_LIFECYCLE_COMMAND="${paths.installedCommand}"`,
     );
-    expect(environments.hermes).toContain(
-      `PYTHIA_PYTHON="${executables.managedPython}"`,
-    );
+    expect(JSON.stringify(environments)).not.toContain("PYTHIA_PYTHON");
     expect(environments.desk).toContain(
       `PYTHIA_INSTALL_CONFIG_HOME="${resolve(paths.configRoot, "..")}"`,
     );

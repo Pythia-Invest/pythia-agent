@@ -22,11 +22,7 @@ import type { HermesSkill } from "./types";
 const execFileAsync = promisify(execFile);
 export const CAPABILITY_NAME = /^[a-z0-9][a-z0-9._:-]{0,127}$/u;
 const PROFILE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/u;
-export const MANAGED_SKILL_NAMES = new Set([
-  "eodhd-market-data",
-  "investment-memory",
-  "sec-edgar-research",
-]);
+export const MANAGED_SKILL_NAMES = new Set(["investment-memory"]);
 
 export function safeIdentifier(value: string, label: string) {
   const normalized = value.trim();

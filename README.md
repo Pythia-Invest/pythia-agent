@@ -8,7 +8,8 @@ This repository is an early technical preview. Its current front doors are
 local feature development and explicit preview installation from a Git checkout.
 There is no stable release yet. See [supported environments](docs/support.md)
 for the exercised installation and browser surfaces. Research usefulness with
-real model, SEC, or EODHD credentials has not been qualified.
+real model credentials has not been qualified. Concrete financial connectors
+are delivered separately from the shared backend foundation.
 
 ## Try the Git preview on Ubuntu
 
@@ -56,10 +57,11 @@ only Design Lab.
 
 - Pythia Desk, a localhost browser interface for conversations, approvals,
   history, device setup, skills, and tools.
-- An exact, unmodified Hermes Agent runtime with Pythia skills and one copied
-  native plugin.
-- Bounded SEC filing/facts research through EdgarTools and daily market prices
-  through the official EODHD SDK.
+- An exact, unmodified Hermes Agent runtime with Pythia core support and native
+  feature packages.
+- Shared financial contracts, identity and preferred/pinned market-data reads;
+  concrete providers are separate integrations. Legacy SEC/EODHD core tools
+  have been retired.
 - One ordinary workspace for durable research and working artifacts, with a
   standalone reader and artifact viewing beside chat.
 

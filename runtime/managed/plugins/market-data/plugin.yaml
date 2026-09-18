@@ -1,0 +1,8 @@
+name: pythia-market-data
+version: 0.1.0
+description: Shared investment identity and market-data reads
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_market_data

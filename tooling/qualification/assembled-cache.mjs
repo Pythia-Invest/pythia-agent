@@ -11,7 +11,7 @@ export const QUALIFICATION_PARENT = join(
   ".local/qualification/t08",
 );
 export const CONTEXT_TOOL = "pythia_qualification_context_probe";
-export const CONTEXT_PASS_TOOLSET = "pythia-sec";
+export const CONTEXT_PASS_TOOLSET = "pythia-desk";
 export const CONTEXT_FAIL_TOOLSET = "pythia-qualification-context-fail";
 export const WORKSPACE_CANARY = "PYTHIA_T08_WORKSPACE_CONTEXT_CANARY";
 export const BUILDER_CANARY = "PYTHIA_T08_BUILDER_CONTEXT_CANARY";
@@ -95,13 +95,6 @@ function cacheInput(value) {
     "hermesRuntimePrefix",
     "hermesSource",
     "uvBinary",
-    "edgarArchive",
-    "edgarWheel",
-    "edgarPython",
-    "edgarRuntimePrefix",
-    "eodhdArchive",
-    "eodhdSourceArchive",
-    "eodhdPackage",
   ]) {
     if (!files[required])
       throw new Error(`Qualification cache input lacks ${required}.`);
@@ -124,7 +117,6 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
   for (const path of [
     files.hermesSource,
     files.hermesRuntimePrefix,
-    files.edgarRuntimePrefix,
     ...(files.uvCache ? [files.uvCache] : []),
   ]) {
     if (
@@ -144,37 +136,16 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
       files.hermesArchive,
       artifact(dependencies.hermes_agent, "github-tag-source-tarball").sha256,
     ),
-    edgarArchive: verifyArtifact(
-      files.edgarArchive,
-      artifact(dependencies.edgartools, "pypi-sdist").sha256,
-    ),
-    edgarWheel: verifyArtifact(
-      files.edgarWheel,
-      artifact(dependencies.edgartools, "pypi-wheel").sha256,
-    ),
-    eodhdArchive: verifyArtifact(
-      files.eodhdArchive,
-      artifact(dependencies.eodhd, "npm-tarball").sha256,
-    ),
-    eodhdSourceArchive: verifyArtifact(
-      files.eodhdSourceArchive,
-      artifact(dependencies.eodhd, "github-published-commit-source-tarball")
-        .sha256,
-    ),
   };
-  exactRegularFile(files.eodhdPackage);
   const installedDetails = {
     hermes_agent: pythonDistribution(
       files.hermesPython,
       "hermes-agent",
       "hermes_cli",
     ),
-    edgartools: pythonDistribution(files.edgarPython, "edgartools", "edgar"),
   };
   const installed = {
     hermes_agent: installedDetails.hermes_agent.version,
-    edgartools: installedDetails.edgartools.version,
-    eodhd: JSON.parse(readFileSync(files.eodhdPackage, "utf8")).version,
   };
   for (const [name, version] of Object.entries(installed)) {
     if (version !== dependencies[name].package_version) {
@@ -185,7 +156,6 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
   }
   const expectedOrigins = {
     hermes_agent: files.hermesSource,
-    edgartools: files.edgarRuntimePrefix,
   };
   for (const [name, expected] of Object.entries(expectedOrigins)) {
     const modulePath = resolve(installedDetails[name].module);
@@ -195,15 +165,10 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
       );
     }
   }
-  const edgarDirect = JSON.parse(
-    installedDetails.edgartools.direct_url ?? "null",
-  );
   const hermesDirect = JSON.parse(
     installedDetails.hermes_agent.direct_url ?? "null",
   );
   if (
-    resolve(fileURLToPath(edgarDirect?.url ?? "file:///missing")) !==
-      resolve(files.edgarWheel) ||
     resolve(fileURLToPath(hermesDirect?.url ?? "file:///missing")) !==
       resolve(files.hermesSource) ||
     hermesDirect?.dir_info?.editable !== true
@@ -217,12 +182,10 @@ export function verifyQualificationCache(input, repository = REPOSITORY) {
     hashes,
     installed,
     installed_origins: {
-      edgartools: installedDetails.edgartools.module,
       hermes_agent: installedDetails.hermes_agent.module,
     },
     pins: {
       hermes_commit: dependencies.hermes_agent.commit,
-      eodhd_commit: dependencies.eodhd.commit,
     },
     toolchain: { uv: uvVersion },
     non_pinned_source_checkouts_used_for_activation: false,

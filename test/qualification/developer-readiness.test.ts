@@ -138,7 +138,7 @@ describe("assembled developer readiness", () => {
     privateFile(preserved.auth, '{"synthetic":"oauth-owner"}\n');
     privateFile(
       preserved.choices,
-      "skills:\n  disabled: [eodhd-market-data]\n",
+      "skills:\n  disabled: [investment-memory]\n",
     );
     privateFile(preserved.knowledge, "# Synthetic knowledge\n");
     privateFile(preserved.session, '{"id":"synthetic-session"}\n');
@@ -162,6 +162,16 @@ describe("assembled developer readiness", () => {
         branch: "main",
         update_safe: true,
       },
+    });
+    // This fixture is an initialized Workspace installation; legacy transition
+    // admission is exercised separately by workspace-transition tests.
+    atomicWriteJson(paths.runtimeReceipt, {
+      workspace_guidance: "[PYTHIA_WORKSPACE_GUIDANCE_V1]",
+      stack: paths.id,
+      profile: paths.profile,
+      repository: paths.repositoryRoot,
+      hermes_root: paths.hermesRoot,
+      state_root: paths.stateRoot,
     });
     const refsBefore = git(checkout, ["show-ref"]);
     const headBefore = git(checkout, ["rev-parse", "HEAD"]);
@@ -277,8 +287,6 @@ describe("assembled developer readiness", () => {
         options.env ?? environment,
       );
     };
-    const managedPython = join(root, "managed-python");
-    mkdirSync(managedPython);
     const paths = resolveStackPaths({
       environment: {
         ...environment,
@@ -293,8 +301,6 @@ describe("assembled developer readiness", () => {
       {
         ...paths,
         hermesSource: join(root, "hermes-source"),
-        managedPython,
-        managedPythonSource: managedPython,
       },
       {
         ensureHermesSource: async () => undefined,
@@ -307,7 +313,6 @@ describe("assembled developer readiness", () => {
     );
     expect(commands).toEqual([
       "uv sync --frozen",
-      `uv sync --frozen --project ${managedPython}`,
       "pnpm install --frozen-lockfile",
       "pnpm run build:runtime",
     ]);
@@ -390,7 +395,7 @@ describe("assembled developer readiness", () => {
         readFileSync(
           join(
             assembled.stacks.one.worktree,
-            "runtime/managed/plugin/plugin.yaml",
+            "runtime/managed/core/plugin.yaml",
           ),
           "utf8",
         ),
@@ -399,7 +404,7 @@ describe("assembled developer readiness", () => {
         readFileSync(
           join(
             assembled.stacks.one.worktree,
-            "runtime/managed/plugin/__init__.py",
+            "runtime/managed/core/__init__.py",
           ),
           "utf8",
         ),

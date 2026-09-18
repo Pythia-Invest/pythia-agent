@@ -72,8 +72,6 @@ export function resolveInstallPaths(environment = process.env) {
     workspace: join(dataRoot, "workspace"),
     deskViewState: join(stateRoot, "desk-view"),
     knowledge: join(dataRoot, "knowledge"),
-    edgarData: join(dataRoot, "edgar"),
-    edgarCache: join(cacheRoot, "edgar"),
     processRoot: join(stateRoot, "processes"),
     receipt: join(stateRoot, "processes", "services.json"),
     hermesRestartRequest: join(stateRoot, "processes", "restart-hermes.json"),
@@ -107,13 +105,9 @@ export function resolveInstallPaths(environment = process.env) {
       "29112bef099274229cadff79cdff7bf7b99c4b77",
     ),
     managedRoot: checkout ? join(checkout, "runtime", "managed") : null,
-    managedPythonSource: checkout
-      ? join(checkout, "runtime", "managed", "python")
-      : null,
-    managedPython: join(runtimeRoot, "managed-python"),
-    managedPlugin: checkout
-      ? join(checkout, "runtime", "managed", "plugin")
-      : null,
+    // Historical environment retained only for the explicit Basic Memory transition.
+    legacyPython: join(runtimeRoot, "managed-python"),
+    managedCore: checkout ? join(checkout, "runtime", "managed", "core") : null,
     managedSkills: checkout
       ? join(checkout, "runtime", "managed", "skills")
       : null,

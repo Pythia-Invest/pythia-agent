@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SPEC = importlib.util.spec_from_file_location("desk_view_test", Path(__file__).parents[2] / "managed/plugin/desk_view.py")
+SPEC = importlib.util.spec_from_file_location("desk_view_test", Path(__file__).parents[2] / "managed/core/desk_view.py")
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)

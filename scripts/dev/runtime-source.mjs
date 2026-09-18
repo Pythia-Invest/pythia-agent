@@ -43,8 +43,6 @@ export function developmentPrivateRoots(paths) {
     paths.deskViewState,
     paths.cacheRoot,
     paths.fetchCache,
-    paths.edgarData,
-    paths.edgarCache,
     paths.testRoot,
   ];
 }

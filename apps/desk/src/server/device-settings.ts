@@ -19,14 +19,7 @@ import {
   sleep,
   withFileLock,
 } from "./device-settings-native";
-import {
-  atomicWriteStore,
-  requireStore,
-  resolveConfigRoot,
-  secIdentityStatus,
-  settingsReadiness,
-  tokenStatus,
-} from "./device-settings-store";
+import { resolveConfigRoot } from "./device-settings-store";
 import { hermesClient } from "./hermes";
 import type { HermesToolset } from "./types";
 import { initializeProfileModel } from "./model-initialization";
@@ -54,8 +47,6 @@ export function createDeviceSettingsService(
   function paths() {
     const configRoot = resolveConfigRoot(environment, options.configRoot);
     return {
-      secrets: join(configRoot, "secrets.json"),
-      settings: join(configRoot, "settings.json"),
       lock:
         options.lockPath ??
         (environment.PYTHIA_STATE_ROOT
@@ -203,7 +194,6 @@ export function createDeviceSettingsService(
       });
     },
     async snapshot() {
-      const current = paths();
       let profile: string | null = null;
       let skills: DeviceSkill[] = [];
       let toolsets: HermesToolset[] = [];
@@ -233,58 +223,11 @@ export function createDeviceSettingsService(
             ? "pythia auth openai-codex"
             : "just auth openai-codex",
         },
-        sec_identity: {
-          status: settingsReadiness(current.settings, "sec_identity", false),
-        },
-        eodhd_credential: {
-          status: settingsReadiness(current.secrets, "eodhd_api_token", true),
-        },
         skills,
         skills_status: skillsStatus,
         toolsets,
         toolsets_status: toolsetsStatus,
       };
-    },
-
-    async setSecIdentity(value) {
-      const current = paths();
-      const normalized = value?.trim() ?? null;
-      if (
-        normalized !== null &&
-        secIdentityStatus(normalized) !== "configured"
-      ) {
-        throw new DeviceSettingsError(
-          "Enter an SEC identity containing a name and email address.",
-          400,
-          "invalid_sec_identity",
-        );
-      }
-      return withFileLock(current.lock, async () => {
-        const store = requireStore(current.settings);
-        if (normalized === null) delete store.sec_identity;
-        else store.sec_identity = normalized;
-        atomicWriteStore(current.settings, store);
-        return { status: normalized === null ? "missing" : "configured" };
-      });
-    },
-
-    async setEodhdToken(value) {
-      const current = paths();
-      const normalized = value?.trim() ?? null;
-      if (normalized !== null && tokenStatus(normalized) !== "configured") {
-        throw new DeviceSettingsError(
-          "Enter a valid EODHD API token.",
-          400,
-          "invalid_eodhd_token",
-        );
-      }
-      return withFileLock(current.lock, async () => {
-        const store = requireStore(current.secrets);
-        if (normalized === null) delete store.eodhd_api_token;
-        else store.eodhd_api_token = normalized;
-        atomicWriteStore(current.secrets, store);
-        return { status: normalized === null ? "missing" : "configured" };
-      });
     },
 
     async setSkillEnabled(rawName, enabled) {

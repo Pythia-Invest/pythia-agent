@@ -21,7 +21,6 @@ it.skipIf(process.platform !== "linux")(
       const units = renderUnits(paths, {
         node: executable,
         python: executable,
-        managedPython: executable,
         uv: executable,
         hermes: executable,
         basicMemory: executable,

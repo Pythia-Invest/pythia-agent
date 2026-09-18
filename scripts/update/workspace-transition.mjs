@@ -6,7 +6,7 @@ import {
   atomicWriteJson,
   ensurePrivateDirectory,
 } from "../install/files.mjs";
-import { MANAGED_PLUGIN_FILES, refreshManagedPlugin } from "../dev/files.mjs";
+import { MANAGED_CORE_FILES, refreshManagedPlugin } from "../dev/files.mjs";
 import {
   VERSION,
   SEEDS,
@@ -59,7 +59,7 @@ export function applyWorkspaceTransition(paths, options = {}) {
       "Customized Basic Memory binding is preserved. Reconcile it using native Hermes configuration, then preview again.",
     );
   if (!state) {
-    regular(join(paths.managedPython, ".venv", "bin", "basic-memory"));
+    regular(join(paths.legacyPython, ".venv", "bin", "basic-memory"));
     if (!options.expected || options.expected !== preview.expected)
       throw new Error(
         "Preview state changed or --expect is missing; preview the concrete changes again.",
@@ -200,10 +200,14 @@ export function applyWorkspaceTransition(paths, options = {}) {
   if (!["owned-disabled", "absent"].includes(binding(paths, execute).status))
     throw new Error("Native MCP disable readback failed.");
   options.afterConfig?.();
-  refreshManagedPlugin(
-    paths.managedPlugin,
+  const pluginCopy = refreshManagedPlugin(
+    paths.managedCore,
     join(paths.profileRoot, "plugins", "pythia"),
   );
+  if (pluginCopy.status === "preserved")
+    throw new Error(
+      "Workspace transition preserved a locally owned Pythia plugin. Reconcile that replacement before staging the managed transition.",
+    );
   (
     options.pluginDoctor ??
     ((currentPaths) =>
@@ -214,12 +218,12 @@ export function applyWorkspaceTransition(paths, options = {}) {
         "--ci",
       ]))
   )(paths);
-  state.pluginFiles = MANAGED_PLUGIN_FILES.map((name) => ({
+  state.pluginFiles = MANAGED_CORE_FILES.map((name) => ({
     name,
-    sha256: digest(regular(join(paths.managedPlugin, name))),
+    sha256: digest(regular(join(paths.managedCore, name))),
   }));
   const legacyExecutable = join(
-    paths.managedPython,
+    paths.legacyPython,
     ".venv",
     "bin",
     "basic-memory",
@@ -238,7 +242,7 @@ export function assertStagedWorkspaceTransition(paths) {
   const state = receipt(paths);
   if (state?.phase !== "staged")
     throw new Error("No staged workspace transition is available.");
-  const executable = join(paths.managedPython, ".venv", "bin", "basic-memory");
+  const executable = join(paths.legacyPython, ".venv", "bin", "basic-memory");
   if (
     state.legacyExecutable?.path !== executable ||
     digest(regular(executable)) !== state.legacyExecutable.sha256

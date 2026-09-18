@@ -1,7 +1,7 @@
 "use client";
 
-import { Alert, Button, Input, Switch } from "@pythia/ui";
-import { useState, type ReactNode } from "react";
+import { Alert, Button, Switch } from "@pythia/ui";
+import type { ReactNode } from "react";
 import {
   useChangeDeviceSetting,
   useDeviceSettings,
@@ -69,91 +69,11 @@ function SettingsError({
   ) : null;
 }
 
-function CredentialForm({
-  label,
-  description,
-  status,
-  kind,
-  pending,
-  save,
-}: {
-  label: string;
-  description: string;
-  status: string;
-  kind: "sec" | "eodhd";
-  pending: boolean;
-  save: (kind: "sec" | "eodhd", value: string | null) => Promise<boolean>;
-}) {
-  const [value, setValue] = useState("");
-  return (
-    <form
-      data-slot="credential-form"
-      className="border-border border-b py-4 last:border-b-0"
-      aria-label={label}
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!pending && value.trim())
-          void save(kind, value.trim()).then((saved) => {
-            if (saved) setValue("");
-          });
-      }}
-    >
-      <SettingRow
-        label={label}
-        description={description}
-        control={
-          <span className="text-body text-foreground-secondary">
-            {readiness(status)}
-          </span>
-        }
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          aria-label={label}
-          autoComplete="off"
-          className="min-w-0 flex-1"
-          disabled={pending}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          type={kind === "eodhd" ? "password" : "text"}
-          placeholder={
-            kind === "sec" ? "Your name you@example.com" : "Paste token"
-          }
-        />
-        <Button disabled={pending || !value.trim()} size="sm" type="submit">
-          Save
-        </Button>
-        <Button
-          disabled={pending || status === "missing"}
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            void save(kind, null).then((saved) => {
-              if (saved) setValue("");
-            });
-          }}
-        >
-          Clear
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-export function DataSourceSettings() {
+export function ModelSettings() {
   const query = useDeviceSettings();
-  const change = useChangeDeviceSetting();
   const data = query.data;
-  const save = async (kind: "sec" | "eodhd", value: string | null) => {
-    try {
-      await change.mutateAsync({ kind, value });
-      return true;
-    } catch {
-      return false;
-    }
-  };
   return (
-    <div data-slot="data-source-settings">
+    <div data-slot="model-settings">
       {query.isPending ? <p role="status">Reading native settings…</p> : null}
       <SettingsError
         error={query.error}
@@ -161,7 +81,6 @@ export function DataSourceSettings() {
           void query.refetch();
         }}
       />
-      <SettingsError error={change.error} />
       {data ? (
         <>
           <SettingRow
@@ -174,22 +93,6 @@ export function DataSourceSettings() {
               {data.model_auth.setup_command}
             </code>
           ) : null}
-          <CredentialForm
-            label="SEC identity"
-            description="EdgarTools requires a name and email address."
-            status={data.sec_identity.status}
-            kind="sec"
-            pending={change.isPending}
-            save={save}
-          />
-          <CredentialForm
-            label="EODHD token"
-            description="The stored token is never shown again."
-            status={data.eodhd_credential.status}
-            kind="eodhd"
-            pending={change.isPending}
-            save={save}
-          />
         </>
       ) : null}
     </div>

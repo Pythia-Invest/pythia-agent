@@ -1,5 +1,59 @@
 # Hermes contract
 
+## Qualified market-data extension seams
+
+The core platform support uses native `ctx.register_platform_handler("api_server", factory)`.
+At the exact pin below, `BasePlatformAdapter._wire_plugin_handlers` passes the
+existing application and adapter; `APIServerAdapter.connect` invokes factories
+before route freeze. Registration alone does not authenticate routes. The shared
+adapter invokes `_expected_api_key` and `_check_auth`, fails closed on missing
+keys, binds trusted native platform/profile context and rejects another effective
+home. No Hermes source is modified.
+
+The financial tool holds a lazy profile backend. Protected HTTP dispatches that
+registered handler, sharing memory with agent calls. CLI shares implementation and
+durable state only. A bounded executor isolates blocking work from native chat and
+the event loop; cleanup cancels work and reaps owned children. Deliberately exposed
+specialist operations use the same adapter, never arbitrary native-tool dispatch.
+
+Contribution metadata uses the native tool parameter schema's standard `$comment`
+annotation. Projection reads Hermes registry schemas; native plugin, platform,
+disabled-toolset and readiness checks remain authoritative before reuse/publication.
+There is no additional capability inventory. The pinned native manager's loaded
+plugin module namespace supplies dependency helpers; connectors must require the
+native feature rather than invent import aliases or source loaders.
+
+Access also projects the pinned manager's active `_registration_order` handles
+to determine actual tool ownership. Manifest `provides_tools` and a specialist
+annotation are descriptions, not authority. Native category keys and legacy bare
+names are accepted with `plugins.disabled` taking precedence over `enabled`.
+Every shared contribution target must have an active native owner; specialist
+annotations must identify their actual owner. Post-execution checks deny result
+publication after access changes, including uncached shared calls and CLI reads.
+
+The protected address is `/v1/pythia/plugins/{plugin-id}/{operation}`. Market data
+declares `pythia-market-data/query` through the same mechanism as other features;
+the generic adapter does not depend on financial enablement. The native loaded
+core module supplies reusable transport helpers, with no separate operation
+inventory. The shared updates channel includes plugin and operation in each resource.
+
+Native `ctx.register_skill(name, path, description=...)` attaches a bundled
+skill to its plugin registration. The pinned runtime exposes its qualified name
+through `skills_list` and `skill_view`; these registered skills are not added to
+the automatic prompt skill index. Feature tools point to relevant bundled
+guidance. Disabling the plugin removes that native registration on restart.
+
+`scripts/dev/managed-plugins.mjs` explicitly copies core and feature files. Fresh
+profiles enable the declared default set through native commands; updates preserve
+existing choices and content-qualified user replacements.
+The copied-feature probe `tooling/qualification/financial_http.mjs` exercises the
+real API application, synthetic native tools, shared lifetime, authentication,
+profile/access revocation, preferred/pinned reads, cancellation and responsiveness.
+It starts no model/CLI subprocess during requests and uses disposable state only.
+See [ADR 0029](../../docs/decisions/0029-financial-http-and-runtime-lifetime.md).
+
+## Pinned installation
+
 This contract covers only Hermes Agent 0.21.0 at commit
 `29112bef099274229cadff79cdff7bf7b99c4b77` (release
 `v2026.8.31`). Pythia installs that source unmodified in its own environment.
@@ -216,10 +270,11 @@ reimplements this filter nor stores its result. See the tagged
 [agent prompt construction](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/agent/system_prompt.py), and
 [filter tests](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/tests/agent/test_prompt_builder.py).
 
-Pythia copies exactly one plugin into
-`<profile>/plugins/pythia/{plugin.yaml,__init__.py}`; it never symlinks or
-installs it as a package. Its manifest declares its name, version, description,
-and provided tools. Before activation, the copied directory must pass:
+Pythia copies the core plugin and platform support into `<profile>/plugins/pythia/`
+and the financial feature into `<profile>/plugins/pythia-market-data/`.
+Explicit allowlists include only runtime inputs, never builder guidance.
+Plugins are never symlinked or installed as Python packages. Their native
+manifests declare provided tools. Before activation, copied directories pass:
 
 ```text
 hermes -p <profile> plugins doctor <copied-plugin-directory> --ci
@@ -228,7 +283,7 @@ hermes -p <profile> plugins enable pythia --no-allow-tool-override
 
 `doctor --ci` uses the production manifest/import/register path and exits
 nonzero on a diagnostic error, but is validation rather than a security
-sandbox. The plugin must expose `register(ctx)` and may use only:
+sandbox. The plugin exposes `register(ctx)`. Qualified surfaces used here include:
 
 - `ctx.register_system_prompt_section(id, content, position="after_memory",
   max_chars=<at most 4000>)`; Hermes caps the combined registered prompt at
@@ -238,6 +293,10 @@ sandbox. The plugin must expose `register(ctx)` and may use only:
   override=False)`. Pythia never overrides a built-in name or capability.
   Handlers return a JSON-serializable value or string and convert bounded
   provider failures to the Pythia result shape.
+- `ctx.register_skill(name, path, description="", frontmatter=None)` for bundled,
+  explicitly discoverable feature guidance.
+- `ctx.register_platform_handler("api_server", factory)` for the shared platform
+  adapter on the existing HTTP application, never a new listener.
 
 Plugin/configuration changes take effect for a new process and new session;
 the lifecycle owner restarts Hermes. Evidence is the released
@@ -443,8 +502,8 @@ Desk upload contracts. See [ADR 0010](../../docs/decisions/0010-local-chat-attac
 selects native file tools, memory, session recall and skills as the existing
 storage/context owners. The managed `pythia.operating` section is registered
 `after_memory`, with a 4,000-character cap and marker
-`[PYTHIA_WORKSPACE_GUIDANCE_V1]`. Its source is `runtime/managed/plugin/operating.py`; registration
-stays in `runtime/managed/plugin/__init__.py`. The managed `investment-memory` skill depends on
+`[PYTHIA_WORKSPACE_GUIDANCE_V1]`. Its source is `runtime/managed/core/operating.py`; registration
+stays in `runtime/managed/core/__init__.py`. The managed `investment-memory` skill depends on
 `file`, not an MCP research store. It is selected when useful, not on every turn.
 
 Ordinary resume in `agent/conversation_loop.py::_restore_or_build_system_prompt`

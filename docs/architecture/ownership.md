@@ -25,9 +25,20 @@ Credentials, sessions, memory, Markdown knowledge, local configuration,
 capability choices, caches, and local extensions belong to the device and are
 preserved across Pythia updates. Markdown remains readable and user-owned.
 
-Users extend Pythia through Hermes-native local skills, plugins, and
-configuration. Native Hermes precedence applies: a same-name local skill can
-override a managed skill. Pythia does not add a parallel extension registry.
+Users extend Pythia through [Hermes-native feature packages](plugins.md), local skills, and
+configuration. Native Hermes precedence lets a same-name local skill override a
+standalone external skill. Bundled plugin skills have qualified names; a flat
+local name does not replace them. Customize the owning plugin or use native skill
+disablement. Pythia does not add a parallel extension registry.
+
+The [market-data owner](market-data.md) owns canonical financial meaning,
+identity, compatible source selection and resident request coordination. Provider
+plugins contribute native capabilities and evidence. The existing gateway hosts
+one shared HTTP/tool backend per profile; standalone CLI shares durable state and
+implementation, not memory. Protected transport, authentication and limits belong
+to Pythia, not to individual connectors. No concrete shared connector is bundled
+in the foundation increment. Legacy core SEC/EOD tools are retired; later
+connector packages own their replacements.
 
 Custom browser widgets use the local `@pythia/widget-sdk` and explicit prebuilt
 artifacts. The SDK reuses shared UI; it grants no native capability or credential
@@ -53,10 +64,11 @@ The installed lifecycle keeps these boundaries explicit:
 | Kind | Authoritative paths | Derived consumers | Update rule |
 | --- | --- | --- | --- |
 | Managed skill bundles | `<checkout>/runtime/managed/skills/<skill>/`, including `SKILL.md` and native supporting files | Hermes reads the bundle from the configured external directory | Update from the chosen checkout; never flatten or mirror into another registry. |
-| Managed runners | `<checkout>/runtime/managed/runner/sec.py`, `eodhd.ts` and `native_session_context.py` | SEC uses the locked managed Python environment; EODHD uses compiled output; native session context uses the pinned Hermes environment | Install the corresponding frozen dependency environment before compiling or invoking changed code. |
-| Managed plugin | `<checkout>/runtime/managed/plugin/` | Exact copied files at `<profile>/plugins/pythia/` | Stage, replace, run native plugin doctor, and preserve the user's enabled choice. No symlink. |
+| Core host support | `<checkout>/runtime/managed/core/` | Explicit copy at `<profile>/plugins/pythia/`, using Hermes's native extension hook | Core is product support, not an optional investment feature. Preserve its native identity, existing choices and edited replacements. |
+| Managed runners | `<checkout>/runtime/managed/runner/` shared provider helpers and `native_session_context.py` | Explicitly admitted compiled helpers; native session context uses the pinned Hermes environment | Prepare the corresponding frozen dependencies before compiling or invoking changed code. |
+| Managed feature packages | Explicit `runtime/managed/plugins/` payloads, including bundled skills | Exact copied files at `<profile>/plugins/<native-name>/` | Refresh only receipt-proven managed contents; preserve edited or unowned replacements and native enablement. No symlink. |
 | Desk | `<checkout>/apps/desk/` and its workspace dependencies | Dependency tree and production `.next/` build in the checkout | Frozen dependency install precedes the production build. |
-| Pinned native runtimes | `runtime/versions.json` plus managed locks | Pythia-owned Hermes source/environment and managed Python environment below `<runtime>` | Native frozen sync updates the existing environment; refreshed managed inputs do not discard a usable `.venv`. |
+| Pinned native runtimes | `runtime/versions.json` and `runtime/hermes/` preparation inputs | Pythia-owned Hermes source/environment; core lifecycle probes use its interpreter | Native frozen sync follows Hermes's upstream lock. No separate Python environment is prepared for core checks; old environments remain preserved for legacy transition handling. |
 | Seeds | `<checkout>/runtime/seeds/` | Profile SOUL/config defaults and workspace files | Copy only inside the first initialization transaction. The destination becomes user-owned; a later missing seed is not silently recreated. |
 | Device-owned state | `<config>` profile/auth/settings and local extensions; `<data>` workspace, knowledge, sessions, and memory | Native Hermes and Desk; legacy Basic Memory state is retained for explicit transition | Preserve across preparation, rebuild, update, and uninstall unless an explicit destructive operation says otherwise. |
 | Generated activation files | Installed command, role-scoped service environments, rendered user units, dependency/build output, and lifecycle receipts | The foreground or installed processes | Replace only through the lifecycle lock and transaction; never treat generated bytes as user configuration. |
@@ -103,8 +115,8 @@ there is no strategy/session database or research index.
 The private transient Desk-view cache belongs to device state outside research.
 Desk alone publishes it; the copied Pythia plugin reads a short-lived reference
 bound to the native session. Its location is role-allowlisted to Desk and Hermes,
-not provider runners. Copy only `__init__.py`, `operating.py`, `desk_view.py` and `plugin.yaml`
-into the managed plugin. The native context helper is a separately allowlisted
+not provider runners. The core payload also includes explicitly allowlisted
+platform transport support. The native context helper is a separately allowlisted
 runner, not another service.
 
 Preparation of an existing Basic Memory installation first checks its explicit

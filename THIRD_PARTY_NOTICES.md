@@ -1,8 +1,9 @@
 # Third-party notices
 
-Pythia-authored source is licensed under [Apache-2.0](LICENSE). Pythia installs
-the following reviewed runtime components from exact upstream artifacts; each
-component remains under its own license.
+Pythia-authored source is licensed under [Apache-2.0](LICENSE). Upstream
+components retain their own licenses. Current runtime dependencies are recorded
+in [`runtime/versions.json`](runtime/versions.json) and the lockfiles; notices for
+retired integrations remain below as historical references.
 
 ## Hermes Agent
 
@@ -12,18 +13,22 @@ licensed under MIT. Its source and license are available from the
 [qualified upstream revision](https://github.com/NousResearch/hermes-agent/tree/29112bef099274229cadff79cdff7bf7b99c4b77)
 and its [MIT license](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/LICENSE).
 
-## Basic Memory
+## Basic Memory (retired integration)
 
-Pythia runs Basic Memory 0.23.2 as a separate, unmodified process. Basic Memory
-is licensed under AGPL-3.0-or-later. Its corresponding source and license are
+Pythia previously ran Basic Memory 0.23.2 as a separate, unmodified process;
+[ADR 0013](docs/decisions/0013-workspace-and-native-research-context.md) retired
+that default. Basic Memory is licensed under AGPL-3.0-or-later. Its source and license are
 available from the
 [qualified upstream revision](https://github.com/basicmachines-co/basic-memory/tree/c0bd87c6d5a4a58034b1d6c8c5018e443b0bd048)
 and its
 [AGPL license](https://github.com/basicmachines-co/basic-memory/blob/c0bd87c6d5a4a58034b1d6c8c5018e443b0bd048/LICENSE).
 
-## Financial-data SDKs
+## Financial-data SDKs (retired core integrations)
 
-- EdgarTools 5.56.0 is licensed under MIT. The installed package comes from
+[ADR 0034](docs/decisions/0034-core-and-optional-features.md) removes these SDKs
+from core. Later connectors must record their own dependency and data rights.
+
+- EdgarTools 5.56.0 is licensed under MIT. The previously installed package came from
   [PyPI](https://pypi.org/project/edgartools/5.56.0/); its
   [license is published upstream](https://github.com/dgunning/edgartools/blob/v5.56.0/LICENSE.txt).
 - The EODHD Node.js SDK 1.1.0 is licensed under MIT. The qualified package
@@ -37,7 +42,6 @@ must obtain their own EODHD access and comply with the provider's terms and
 data-redistribution rights. Pythia does not commit provider responses. Access
 to SEC systems likewise remains subject to the SEC's access policies.
 
-Exact artifact URLs, hashes, source relationships, and license links are
-recorded in [`runtime/versions.json`](runtime/versions.json). JavaScript and
-Python lockfiles record the wider dependency graph; those dependencies retain
-their upstream licenses.
+Current artifact URLs, hashes, source relationships and license links are
+recorded in `runtime/versions.json`. JavaScript and Python lockfiles record the
+wider dependency graph; those dependencies retain their upstream licenses.

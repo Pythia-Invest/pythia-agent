@@ -103,8 +103,8 @@ describe("worktree identity and native command construction", () => {
     expect(a.ports).not.toEqual(b.ports);
     expect(a.workspace).not.toBe(b.workspace);
     expect(a.basicMemoryConfig).not.toBe(b.basicMemoryConfig);
-    expect(a.edgarData).not.toBe(b.edgarData);
-    expect(a.edgarCache).not.toBe(b.edgarCache);
+    expect(a.dataRoot).not.toBe(b.dataRoot);
+    expect(a.cacheRoot).not.toBe(b.cacheRoot);
     expect(a.hermesRoot).toBe(b.hermesRoot);
   });
 

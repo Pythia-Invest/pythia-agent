@@ -2,6 +2,8 @@
 
 The Basic Memory default and associated three-service/split-storage rulings below
 are superseded by [ADR 0013](0013-workspace-and-native-research-context.md).
+The original core SEC/EODHD financial slice is retired by
+[ADR 0034](0034-core-and-optional-features.md).
 The remaining native ownership and preservation decisions continue to apply.
 
 Pythia pins exact, inspected dependencies and consumes only the operations in

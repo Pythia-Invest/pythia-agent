@@ -18,7 +18,7 @@ import {
 import { useState } from "react";
 import {
   CapabilitySettings,
-  DataSourceSettings,
+  ModelSettings,
   SettingRow,
   UpdateSettings,
 } from "./settings-controls";
@@ -30,9 +30,9 @@ const sections = [
     description: "How the desk looks on this device.",
   },
   {
-    id: "data-sources",
-    label: "Data sources",
-    description: "Readiness and optional service credentials on this device.",
+    id: "models",
+    label: "Models",
+    description: "Native model authentication on this device.",
   },
   {
     id: "capabilities",
@@ -98,7 +98,7 @@ export function SettingsView() {
     >
       <TabsList
         aria-label="Settings sections"
-        className="hidden w-52 flex-none flex-col items-stretch gap-0.5 border-border border-r border-b-0 p-2 sm:flex"
+        className="hidden w-52 flex-none flex-col items-stretch gap-0.5 border-border/50 border-r border-b-0 p-2 sm:flex"
       >
         {sections.map((item) => (
           <Tab
@@ -156,7 +156,7 @@ export function SettingsView() {
                     label="Theme"
                   />
                 ) : null}
-                {item.id === "data-sources" ? <DataSourceSettings /> : null}
+                {item.id === "models" ? <ModelSettings /> : null}
                 {item.id === "capabilities" ? <CapabilitySettings /> : null}
                 {item.id === "updates" ? <UpdateSettings /> : null}
               </div>

@@ -68,8 +68,6 @@ function fakeSettings() {
         status: "missing" as const,
         setup_command: "just auth openai-codex",
       },
-      sec_identity: { status: "missing" as const },
-      eodhd_credential: { status: "missing" as const },
       basic_memory: { status: "ready" as const },
       skills: [],
       skills_status: "ready" as const,
@@ -81,8 +79,6 @@ function fakeSettings() {
       },
       toolsets_status: "ready" as const,
     })),
-    setSecIdentity: vi.fn(async () => ({ status: "configured" as const })),
-    setEodhdToken: vi.fn(async () => ({ status: "configured" as const })),
     setSkillEnabled: vi.fn(async (name: string, enabled: boolean) => ({
       name,
       enabled,
@@ -353,17 +349,23 @@ describe("Desk routes", () => {
   it("rejects settings mutations before body, state, or native command action", async () => {
     const settings = fakeSettings();
     const routes = createDeskRoutes(fakeClient(), settings);
-    const request = new Request(`${origin}/api/settings/eodhd-token`, {
-      body: JSON.stringify({ token: "NEVER_READ_SECRET" }),
+    const request = new Request(`${origin}/api/settings/toolsets/example`, {
+      body: JSON.stringify({ enabled: false }),
       headers: {
         "content-type": "application/json",
         host: "127.0.0.1:43121",
         origin,
       },
-      method: "PATCH",
+      method: "POST",
     });
-    expect((await routes.setEodhdToken(request)).status).toBe(403);
-    expect(settings.setEodhdToken).not.toHaveBeenCalled();
+    expect(
+      (
+        await routes.setToolsetEnabled(request, {
+          params: new Promise(() => undefined),
+        })
+      ).status,
+    ).toBe(403);
+    expect(settings.setToolsetEnabled).not.toHaveBeenCalled();
 
     const hostileSkill = new Request(`${origin}/api/settings/skills/secret`, {
       body: JSON.stringify({ enabled: false }),
@@ -402,22 +404,21 @@ describe("Desk routes", () => {
     expect(releases.snapshot).toHaveBeenCalledTimes(1);
   });
 
-  it("returns only readiness after admitted credential writes", async () => {
+  it("returns confirmed native capability state after an admitted settings change", async () => {
     const settings = fakeSettings();
     const routes = createDeskRoutes(fakeClient(), settings);
-    const secret = "PRIVATE_EODHD_VALUE";
-    const response = await routes.setEodhdToken(
+    const response = await routes.setToolsetEnabled(
       mutation(
-        "/api/settings/eodhd-token",
-        { token: secret },
+        "/api/settings/toolsets/example",
+        { enabled: true },
         "T".repeat(43),
-        "PATCH",
       ),
+      { params: Promise.resolve({ name: "example" }) },
     );
     expect(response.status).toBe(200);
-    const text = await response.text();
-    expect(text).toContain('"status":"configured"');
-    expect(text).not.toContain(secret);
-    expect(settings.setEodhdToken).toHaveBeenCalledWith(secret);
+    expect(await response.json()).toEqual({
+      toolset: { name: "example", enabled: true, configured: true, tools: [] },
+    });
+    expect(settings.setToolsetEnabled).toHaveBeenCalledWith("example", true);
   });
 });

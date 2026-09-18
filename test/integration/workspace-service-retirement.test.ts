@@ -117,7 +117,7 @@ describe("explicit legacy service retirement", () => {
       }
       if (args.includes("--property=FragmentPath")) return loaded ? file : "";
       if (args.includes("--property=ExecStart")) {
-        const exe = join(paths.managedPython, ".venv", "bin", "basic-memory");
+        const exe = join(paths.legacyPython, ".venv", "bin", "basic-memory");
         return `{ path=${exe} ; argv[]=${exe} mcp --transport streamable-http --host 127.0.0.1 --port 8643 --path /mcp --project production ; }`;
       }
       return control(args);

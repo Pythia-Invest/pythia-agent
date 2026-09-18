@@ -103,11 +103,11 @@ describe("private roots, environment, seeds, and copied assets", () => {
     );
   });
 
-  it("creates per-stack EDGAR data and cache as private bootstrap roots", () => {
+  it("creates per-stack data and cache as private bootstrap roots", () => {
     const root = temporaryRoot();
     const paths = resolveStackPaths({ environment: environment(root) });
     ensurePrivateTree(developmentPrivateRoots(paths));
-    for (const path of [paths.edgarData, paths.edgarCache]) {
+    for (const path of [paths.dataRoot, paths.cacheRoot]) {
       expect(lstatSync(path).isDirectory()).toBe(true);
       if (process.platform !== "win32") {
         expect(lstatSync(path).mode & 0o077).toBe(0);
@@ -129,6 +129,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
       NEXT_TELEMETRY_DISABLED: "0",
       HERMES_DISABLE_LAZY_INSTALLS: "0",
       ORDINARY_SETTING: "visible",
+      PYTHIA_PYTHON: "/retired/managed-python/.venv/bin/python",
     });
     expect(clean.OPENAI_API_KEY).toBeUndefined();
     expect(clean.AWS_SECRET_ACCESS_KEY).toBeUndefined();
@@ -151,11 +152,9 @@ describe("private roots, environment, seeds, and copied assets", () => {
     expect(clean.PYTHIA_STATE_ROOT).toBe(paths.stateRoot);
     expect(clean.PYTHIA_DESK_VIEW_STATE).toBe(paths.deskViewState);
     expect(clean.PYTHIA_MANAGED_ROOT).toBe(paths.managedRoot);
-    expect(clean.PYTHIA_EDGAR_DATA_DIR).toBe(paths.edgarData);
-    expect(clean.PYTHIA_EDGAR_CACHE_DIR).toBe(paths.edgarCache);
-    expect(clean.PYTHIA_PYTHON).toBe(
-      join(paths.managedPython, ".venv", "bin", "python"),
-    );
+    expect(clean.PYTHIA_EDGAR_DATA_DIR).toBeUndefined();
+    expect(clean.PYTHIA_EDGAR_CACHE_DIR).toBeUndefined();
+    expect(clean.PYTHIA_PYTHON).toBeUndefined();
     expect(clean.PYTHIA_NODE).toBe(process.execPath);
     expect(clean.PYTHIA_CONFIG_DIR).toBeUndefined();
     expect(clean.PYTHIA_HERMES_PROFILE).toBe(paths.profile);
@@ -216,7 +215,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
       paths.basicMemoryConfig,
     );
     expect(legacy?.command).toBe(
-      join(paths.managedPython, ".venv", "bin", "basic-memory"),
+      join(paths.legacyPython, ".venv", "bin", "basic-memory"),
     );
   });
 

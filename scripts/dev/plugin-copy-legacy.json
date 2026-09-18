@@ -1,0 +1,53 @@
+[
+  {
+    "name": "pythia",
+    "revision": "218a667bd8f4b1ad6f4fa2956a63cb1240d636e0",
+    "files": ["__init__.py", "desk_view.py", "operating.py", "plugin.yaml"],
+    "sha256": "76abbf9fe983db263450cfb73e1ce80a7bb61602bb0d2cf6eafeb3db7f5c5f8a"
+  },
+  {
+    "name": "pythia-market-data",
+    "revision": "218a667bd8f4b1ad6f4fa2956a63cb1240d636e0",
+    "files": [
+      "__init__.py",
+      "admission.py",
+      "backend.py",
+      "cache.py",
+      "connector.py",
+      "contributions.py",
+      "coordinated.py",
+      "credentials.py",
+      "definition.py",
+      "delivery.py",
+      "diagnostics.py",
+      "execution.py",
+      "failures.py",
+      "governor.py",
+      "http_transport.py",
+      "identity.py",
+      "identity_db.py",
+      "identity_matching.py",
+      "identity_overrides.py",
+      "identity_repair.py",
+      "live.py",
+      "live_batch.py",
+      "live_http.py",
+      "native_batch.py",
+      "plugin.yaml",
+      "preferences.py",
+      "process.py",
+      "process_stream.py",
+      "reads.py",
+      "request_context.py",
+      "resident_worker.py",
+      "selection.py",
+      "specialist.py",
+      "subscriptions.py",
+      "wire.py",
+      "wire_schema.py",
+      "worker_budget.py",
+      "worker_reads.py"
+    ],
+    "sha256": "50c0e322fe2997bfe9bfb33301a18037a4e4a0c0286f9c40e5487c4c2afc0afe"
+  }
+]

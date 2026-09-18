@@ -105,7 +105,7 @@ export function WorkspaceCompanion({ children }: { children: ReactNode }) {
       data-slot="workspace-companion-layout"
       className="min-w-0 flex-1 rounded-none border-0"
     >
-      <ResizablePanel className="flex min-w-0 flex-col">
+      <ResizablePanel className="flex min-w-0 flex-col bg-transparent">
         {children}
       </ResizablePanel>
       {panel ? (

@@ -4,15 +4,10 @@ import {
   workspaceTransitionStatus,
 } from "../update/workspace-transition.mjs";
 import { existsSync, lstatSync, rmSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
-import {
-  atomicWriteJson,
-  ensurePrivateTree,
-  readJson,
-  refreshManagedPlugin,
-  refreshManagedPythonSource,
-} from "./files.mjs";
+import { join } from "node:path";
+import { atomicWriteJson, ensurePrivateTree, readJson } from "./files.mjs";
 import { redactedEnvironment, runtimeEnvironment } from "./environment.mjs";
+import { refreshManagedPlugins } from "./managed-plugins.mjs";
 import {
   assertHermesRuntimePath,
   developmentPrivateRoots,
@@ -35,27 +30,14 @@ export async function prepareManagedRuntime(paths, options = {}) {
   const sourceContract =
     options.sourceContract ??
     readJson(
-      join(
-        paths.repositoryRoot,
-        "runtime",
-        "managed",
-        "python",
-        "hermes-source.json",
-      ),
+      join(paths.repositoryRoot, "runtime", "hermes", "hermes-source.json"),
     );
   const prepareHermesSource = options.ensureHermesSource ?? ensureHermesSource;
   const execute = options.runCommand ?? run;
   const environment =
     options.environment ??
     redactedEnvironment(options.sourceEnvironment ?? process.env);
-  const managedPythonSource =
-    paths.managedPythonSource ??
-    join(paths.repositoryRoot, "runtime", "managed", "python");
-
   await prepareHermesSource(paths, sourceContract);
-  if (resolve(managedPythonSource) !== resolve(paths.managedPython)) {
-    refreshManagedPythonSource(managedPythonSource, paths.managedPython);
-  }
 
   const [hermesUv, ...hermesUvArguments] = sourceContract.install.command;
   if (hermesUv !== "uv" || hermesUvArguments.length === 0) {
@@ -65,10 +47,6 @@ export async function prepareManagedRuntime(paths, options = {}) {
   }
   execute(hermesUv, hermesUvArguments, {
     cwd: paths.hermesSource,
-    env: { ...environment, UV_PYTHON: "3.12.11" },
-  });
-  execute("uv", ["sync", "--frozen", "--project", paths.managedPython], {
-    cwd: paths.repositoryRoot,
     env: { ...environment, UV_PYTHON: "3.12.11" },
   });
   execute("pnpm", ["install", "--frozen-lockfile"], {
@@ -229,30 +207,7 @@ export async function bootstrapRuntime(paths, options = {}) {
   }
   if (options.inheritSharedModel !== false)
     inheritModelDefaults(paths, values.hermes_api_key);
-  refreshManagedPlugin(
-    paths.managedPlugin,
-    join(paths.profileRoot, "plugins", "pythia"),
-  );
-  const copiedPlugin = join(paths.profileRoot, "plugins", "pythia");
-  hermesRun(
-    paths,
-    ["-p", paths.profile, "plugins", "doctor", copiedPlugin, "--ci"],
-    values.hermes_api_key,
-  );
-  if (freshProfile) {
-    hermesRun(
-      paths,
-      [
-        "-p",
-        paths.profile,
-        "plugins",
-        "enable",
-        "pythia",
-        "--no-allow-tool-override",
-      ],
-      values.hermes_api_key,
-    );
-  }
+  refreshManagedPlugins(paths, values.hermes_api_key, { freshProfile });
   const environment = runtimeEnvironment(paths, values.hermes_api_key);
   if (freshProfile) writeInitializationReceipt(paths, "complete");
   atomicWriteJson(paths.runtimeReceipt, {
@@ -264,7 +219,6 @@ export async function bootstrapRuntime(paths, options = {}) {
     state_root: paths.stateRoot,
     hermes: sourceContract,
     workspace_guidance: "[PYTHIA_WORKSPACE_GUIDANCE_V1]",
-    managed_python_lock: basename(join(paths.managedPython, "uv.lock")),
     initialized_at: new Date().toISOString(),
   });
   return { commands, environment };

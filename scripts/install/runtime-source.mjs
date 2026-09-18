@@ -54,8 +54,6 @@ export function ensureRoots(paths) {
     paths.hermesRoot,
     paths.workspace,
     paths.deskViewState,
-    paths.edgarData,
-    paths.edgarCache,
     paths.processRoot,
     paths.transactionRoot,
     paths.trustRoot,
@@ -84,7 +82,6 @@ export function installedExecutables(paths, environment = process.env) {
     node,
     uv,
     python,
-    managedPython: join(paths.managedPython, ".venv", "bin", "python"),
     hermes: join(paths.hermesSource, ".venv", "bin", "hermes"),
     next: join(
       paths.checkout,
