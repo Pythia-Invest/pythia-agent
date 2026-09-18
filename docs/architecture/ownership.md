@@ -26,8 +26,10 @@ capability choices, caches, and local extensions belong to the device and are
 preserved across Pythia updates. Markdown remains readable and user-owned.
 
 Users extend Pythia through [Hermes-native feature packages](plugins.md), local skills, and
-configuration. Native Hermes precedence applies: a same-name local skill can
-override a managed skill. Pythia does not add a parallel extension registry.
+configuration. Native Hermes precedence lets a same-name local skill override a
+standalone external skill. Bundled plugin skills have qualified names; a flat
+local name does not replace them. Customize the owning plugin or use native skill
+disablement. Pythia does not add a parallel extension registry.
 
 The [market-data owner](market-data.md) owns canonical financial meaning,
 identity, compatible source selection and resident request coordination. Provider
