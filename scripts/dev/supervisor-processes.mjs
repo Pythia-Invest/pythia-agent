@@ -194,7 +194,7 @@ export async function waitForNoReuseAddressPortRelease({
 
 export function waitForHermesPortRelease(paths, options = {}) {
   return waitForNoReuseAddressPortRelease({
-    python: join(paths.managedPython, ".venv", "bin", "python"),
+    python: join(paths.hermesSource, ".venv", "bin", "python"),
     host: "127.0.0.1",
     port: paths.ports.hermes,
     timeoutMs: 75_000,

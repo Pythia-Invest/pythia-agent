@@ -153,12 +153,7 @@ export function developmentServices(paths, environment) {
     };
     delete legacyEnvironment.API_SERVER_KEY;
     delete legacyEnvironment.PYTHIA_DESK_VIEW_STATE;
-    const executable = join(
-      paths.managedPython,
-      ".venv",
-      "bin",
-      "basic-memory",
-    );
+    const executable = join(paths.legacyPython, ".venv", "bin", "basic-memory");
     services.push({
       name: "basic-memory",
       port: paths.ports.memory,

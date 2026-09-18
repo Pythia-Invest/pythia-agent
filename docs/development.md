@@ -145,10 +145,12 @@ Stale or foreign requests fail closed.
 
 That `restart-hermes` operation is reserved for a settings-only change. It is
 not a substitute for `just dev-refresh`, whose shared preparation requires all
-three selected consumers to stop before managed files are replaced.
+selected consumers to stop before managed files are replaced.
 
-Managed tools receive only absolute runtime inputs: the managed source root,
-the locked Python interpreter and the pinned running Node executable.
+Managed tools receive absolute runtime inputs: the managed source root and the
+pinned Hermes and Node executables. Core lifecycle probes run with Hermes's
+prepared Python interpreter before startup or after shutdown; fresh setup does
+not create a second Python environment or export `PYTHIA_PYTHON`.
 Device settings remain under the
 canonical Pythia config root. No legacy config alias or credential value is
 added; ambient EDGAR and provider credentials are removed before startup.

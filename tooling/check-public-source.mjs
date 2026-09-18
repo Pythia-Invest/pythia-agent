@@ -111,12 +111,12 @@ export function checkPublicSource(repository) {
     violations.push("LICENSE: expected the complete Apache-2.0 license text");
   }
   const managedNotice = readFileSync(
-    join(root, "runtime/managed/python/NOTICE.md"),
+    join(root, "runtime/hermes/NOTICE.md"),
     "utf8",
   );
   for (const required of ["Hermes Agent", "MIT"]) {
     if (!managedNotice.includes(required)) {
-      violations.push(`runtime/managed/python/NOTICE.md: missing ${required}`);
+      violations.push(`runtime/hermes/NOTICE.md: missing ${required}`);
     }
   }
 

@@ -12,7 +12,6 @@ it("pins installed authentication and status to the root profile", () => {
       nativeAuth(
         {
           runtimeRoot: "/fixture/runtime",
-          managedPython: "/fixture/managed-python",
           hermesSource: "/fixture/hermes-source",
           hermesRoot: "/fixture/hermes",
           checkout: "/fixture/source",

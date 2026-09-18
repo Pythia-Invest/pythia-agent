@@ -105,7 +105,8 @@ export function resolveStackPaths(options = {}) {
     fetchCache: join(cacheRoot, "downloads"),
     hermesSource: join(cacheRoot, "hermes-source"),
     managedRoot,
-    managedPython: join(managedRoot, "python"),
+    // Historical environment retained only for the explicit Basic Memory transition.
+    legacyPython: join(managedRoot, "python"),
     managedCore: join(managedRoot, "core"),
     managedSkills: join(managedRoot, "skills"),
   };

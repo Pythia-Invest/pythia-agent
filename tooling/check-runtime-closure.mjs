@@ -1,10 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
 import { runtimeEnvironment } from "../scripts/dev/environment.mjs";
-import {
-  MANAGED_CORE_FILES,
-  MANAGED_PYTHON_SOURCE_FILES,
-} from "../scripts/dev/files.mjs";
+import { MANAGED_CORE_FILES } from "../scripts/dev/files.mjs";
 import { resolveInstallPaths } from "../scripts/install/paths.mjs";
 import {
   renderUnits,
@@ -38,7 +35,6 @@ const paths = resolveInstallPaths(syntheticEnvironment);
 const executables = {
   node: `${paths.runtimeRoot}/node/22.16.0/bin/node`,
   python: `${paths.runtimeRoot}/python/python3.12`,
-  managedPython: `${paths.managedPython}/.venv/bin/python`,
   uv: `${paths.runtimeRoot}/uv/0.9.28/uv`,
   hermes: `${paths.hermesSource}/.venv/bin/hermes`,
   next: `${paths.checkout}/apps/desk/node_modules/next/dist/bin/next`,
@@ -86,7 +82,7 @@ for (const role of ["hermes", "desk"]) {
       `service environment ${role}: missing shared Desk research root`,
     );
   }
-  if (/BASIC_MEMORY|FASTMCP|FASTEMBED/u.test(environment)) {
+  if (/BASIC_MEMORY|FASTMCP|FASTEMBED|PYTHIA_PYTHON=/u.test(environment)) {
     violations.push(
       `service environment ${role}: retired research dependency remains`,
     );
@@ -168,21 +164,21 @@ if (
     "Hermes: managed plugin source is not the exact runtime file allowlist",
   );
 }
-const managedPythonFiles = source.entries
+const hermesMetadataFiles = source.entries
   .map((item) => item.path)
-  .filter((path) => path.startsWith("runtime/managed/python/"));
+  .filter((path) => path.startsWith("runtime/hermes/"));
 if (
-  managedPythonFiles.join("\0") !==
+  hermesMetadataFiles.join("\0") !==
   [
-    ...MANAGED_PYTHON_SOURCE_FILES.map(
-      (path) => `runtime/managed/python/${path}`,
+    ...["NOTICE.md", "hermes-source.json"].map(
+      (path) => `runtime/hermes/${path}`,
     ),
   ]
     .sort((left, right) => left.localeCompare(right, "en"))
     .join("\0")
 ) {
   violations.push(
-    "installer: managed Python inputs are not the exact four-file allowlist",
+    "installer: Hermes preparation metadata differs from the exact allowlist",
   );
 }
 
@@ -259,8 +255,8 @@ const installedRuntimeFiles = new Set([
   ...["provider-budget.ts", "provider-errors.ts", "provider-worker.ts"].map(
     (path) => `runtime/managed/runner/${path}`,
   ),
-  ...MANAGED_PYTHON_SOURCE_FILES.map(
-    (path) => `runtime/managed/python/${path}`,
+  ...["NOTICE.md", "hermes-source.json"].map(
+    (path) => `runtime/hermes/${path}`,
   ),
   "runtime/managed/runner/native_session_context.py",
   "runtime/managed/runner/tsconfig.json",

@@ -29,8 +29,19 @@ credentials, settings, research and native user choices remain untouched.
 
 Retain the shared connector execution helpers and the native session-context
 helper. They have current consumers and do not grant arbitrary code execution.
-The existing managed Python environment remains a minimal lifecycle dependency;
-this change does not redesign its ownership or the legacy workspace transition.
+
+Core lifecycle checks use the interpreter in the prepared Hermes environment.
+They run as bounded processes outside the gateway, because they must work before
+Hermes starts and after it stops. They do not start an agent conversation or add
+packages to Hermes. Source preparation inputs live under `runtime/hermes/`.
+Fresh preparation creates no separate managed Python environment and does not
+export `PYTHIA_PYTHON` as a general execution environment.
+
+Existing old Python environments remain untouched. Only legacy Basic Memory
+transition and service-preservation code refers to their historical paths; those
+paths do not cause a fresh environment to be installed. Core startup must not
+depend on an optional research plugin. A future scripting plugin owns its
+libraries, environment and guidance through native Hermes execution mechanisms.
 
 ## Consequences
 
@@ -52,3 +63,5 @@ the platform boundary. Adding stub connectors would disguise missing support.
 Changing Hermes or adding a separate loader to avoid its native plugin mechanism
 would duplicate runtime ownership. Renaming installed identities or deleting
 saved provider values is unnecessary for clarifying source ownership.
+Keeping an otherwise empty Python environment for one standard-library lifecycle
+probe would unnecessarily couple core supervision to a former provider environment.

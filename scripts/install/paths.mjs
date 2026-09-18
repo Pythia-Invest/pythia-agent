@@ -105,10 +105,8 @@ export function resolveInstallPaths(environment = process.env) {
       "29112bef099274229cadff79cdff7bf7b99c4b77",
     ),
     managedRoot: checkout ? join(checkout, "runtime", "managed") : null,
-    managedPythonSource: checkout
-      ? join(checkout, "runtime", "managed", "python")
-      : null,
-    managedPython: join(runtimeRoot, "managed-python"),
+    // Historical environment retained only for the explicit Basic Memory transition.
+    legacyPython: join(runtimeRoot, "managed-python"),
     managedCore: checkout ? join(checkout, "runtime", "managed", "core") : null,
     managedSkills: checkout
       ? join(checkout, "runtime", "managed", "skills")

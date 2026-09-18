@@ -1,7 +1,7 @@
 """Read-only canonical device credentials for native dependent provider plugins.
 
 The device-settings service remains the sole writer. No ambient-secret fallback;
-legacy core keeps its independent reader and does not depend on this feature.
+retained provider values are read only by an explicitly invoking integration.
 """
 import json
 import os

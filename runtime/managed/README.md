@@ -17,8 +17,12 @@ This directory is Pythia-owned source updated with each release:
 - `runner/` contains shared provider execution helpers and the narrow native
   read-only session-context helper. The latter runs with the pinned Hermes
   environment.
-- `python/` defines the minimal managed Python environment retained by lifecycle
-  operations; it does not install research libraries or modify Hermes.
+
+Hermes preparation metadata lives in `runtime/hermes/`, outside these managed
+feature payloads. Core lifecycle probes use Hermes's prepared interpreter in
+bounded subprocesses. There is no separate core scripting environment; a future
+research plugin owns its own libraries and setup. Historical Python environments
+remain untouched; existing Basic Memory transitions may still use them.
 
 The profile, credentials, sessions, knowledge, caches, settings, and capability
 choices live outside this checkout. Editing managed source creates a local fork:

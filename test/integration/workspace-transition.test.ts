@@ -51,7 +51,7 @@ function fixture() {
     receipt: join(root, "state/foreground.json"),
     managedRoot: join(root, "managed"),
     managedCore: join(root, "managed/core"),
-    managedPython: join(root, "managed/python"),
+    legacyPython: join(root, "managed/python"),
     ports: { memory: 22001, hermes: 22000, desk: 22002 },
     cacheRoot: join(root, "cache"),
     managedSkills: join(root, "managed/skills"),
@@ -93,7 +93,7 @@ function fixture() {
     "Investor-owned existing research.",
   );
   write(
-    join(paths.managedPython, ".venv/bin/basic-memory"),
+    join(paths.legacyPython, ".venv/bin/basic-memory"),
     "synthetic preserved executable",
   );
   for (const name of MANAGED_CORE_FILES)
@@ -264,8 +264,12 @@ describe("explicit workspace storage transition", () => {
     expect(runtime.transition).toBe("staged");
     expect(runtime.environment.PYTHIA_WORKSPACE).toBe(f.paths.workspace);
     expect(
-      existsSync(join(f.paths.managedPython, ".venv/bin/basic-memory")),
-    ).toBe(true);
+      readFileSync(
+        join(f.paths.legacyPython, ".venv/bin/basic-memory"),
+        "utf8",
+      ),
+    ).toBe("synthetic preserved executable");
+    expect(runtime.environment.PYTHIA_PYTHON).toBeUndefined();
     expect(
       applyWorkspaceTransition(f.paths, {
         nativeConfig: f.nativeConfig,
@@ -433,7 +437,7 @@ describe("explicit workspace storage transition", () => {
     const f = fixture();
     const staged = applyWorkspaceTransition(f.paths, f.options());
     f.write(
-      join(f.paths.managedPython, ".venv/bin/basic-memory"),
+      join(f.paths.legacyPython, ".venv/bin/basic-memory"),
       "different executable",
     );
     expect(() => assertStagedWorkspaceTransition(f.paths)).toThrow(

@@ -18,12 +18,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   MANAGED_CORE_FILES,
   PLUGIN_COPY_RECEIPT,
-  MANAGED_PYTHON_SOURCE_FILES,
   refreshManagedPlugin,
-  refreshManagedPythonSource,
   atomicWriteJson,
   readJson,
 } from "../../scripts/dev/files.mjs";
+import { resolveInstallPaths } from "../../scripts/install/paths.mjs";
 import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import {
   ensureHermesSource,
@@ -361,97 +360,77 @@ printf '%s\\n' "$*" >> '${commandLog}'
     );
   });
 
-  it("refreshes only canonical managed Python inputs without replacing its environment", () => {
-    const root = temporaryRoot();
-    const source = join(root, "source");
-    const runtimeRoot = join(root, "runtime");
-    const destination = join(runtimeRoot, "managed-python");
-    mkdirSync(source);
-    for (const filename of MANAGED_PYTHON_SOURCE_FILES) {
-      writeFileSync(join(source, filename), `${filename}\n`);
-    }
-    mkdirSync(join(source, ".venv", "bin"), { recursive: true });
-    writeFileSync(join(source, ".venv", "bin", "python"), "generated\n");
-    mkdirSync(join(destination, ".venv"), { recursive: true });
-    writeFileSync(join(destination, ".venv", "stale"), "stale\n");
-    writeFileSync(join(destination, "obsolete-input.txt"), "remove me\n");
-    writeFileSync(join(runtimeRoot, "preserved"), "preserve me\n");
+  it.each(["development", "installed"])(
+    "prepares %s with only Hermes Python and preserves any legacy environment",
+    async (mode) => {
+      const root = temporaryRoot();
+      const developmentEnvironment = environment(root);
+      const paths =
+        mode === "development"
+          ? resolveStackPaths({ environment: developmentEnvironment })
+          : resolveInstallPaths({
+              HOME: root,
+              PYTHIA_CHECKOUT: developmentEnvironment.PYTHIA_DEV_REPO_ROOT,
+              PYTHIA_INSTALL_CONFIG_HOME: join(root, "config"),
+              PYTHIA_INSTALL_STATE_HOME: join(root, "state"),
+              PYTHIA_INSTALL_DATA_HOME: join(root, "data"),
+              PYTHIA_INSTALL_CACHE_HOME: join(root, "cache"),
+            });
+      const nativePython = join(paths.hermesSource, ".venv", "bin", "python");
+      mkdirSync(dirname(nativePython), { recursive: true });
+      writeFileSync(nativePython, "prepared Hermes interpreter\n");
+      const actions: { command: string; cwd: string }[] = [];
+      const options = {
+        environment: { PATH: "/fixture/bin" },
+        ensureHermesSource: async () => {
+          actions.push({ command: "hermes-source", cwd: paths.hermesSource });
+        },
+        runCommand: (
+          command: string,
+          args: string[],
+          options: { cwd: string },
+        ) => {
+          actions.push({
+            command: `${command} ${args.join(" ")}`,
+            cwd: options.cwd,
+          });
+          return "";
+        },
+      };
 
-    refreshManagedPythonSource(source, destination);
+      await prepareManagedRuntime(paths, options);
+      expect(existsSync(paths.legacyPython)).toBe(false);
+      const legacyFiles = {
+        ".venv/bin/python": "preserved legacy interpreter\n",
+        ".venv/bin/basic-memory": "preserved legacy Basic Memory\n",
+        "pyproject.toml": "preserved legacy dependencies\n",
+        "uv.lock": "preserved legacy lock\n",
+      };
+      for (const [filename, contents] of Object.entries(legacyFiles)) {
+        const path = join(paths.legacyPython, filename);
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, contents);
+      }
+      await prepareManagedRuntime(paths, options);
 
-    expect(readdirSync(destination).sort()).toEqual(
-      [...MANAGED_PYTHON_SOURCE_FILES, ".venv"].sort(),
-    );
-    expect(readFileSync(join(destination, ".venv", "stale"), "utf8")).toBe(
-      "stale\n",
-    );
-    expect(existsSync(join(destination, "obsolete-input.txt"))).toBe(false);
-    expect(readFileSync(join(runtimeRoot, "preserved"), "utf8")).toBe(
-      "preserve me\n",
-    );
-    rmSync(join(source, "uv.lock"));
-    symlinkSync(join(source, "pyproject.toml"), join(source, "uv.lock"));
-    expect(() => refreshManagedPythonSource(source, destination)).toThrow(
-      /input must be a regular file/u,
-    );
-    expect(readdirSync(destination).sort()).toEqual(
-      [...MANAGED_PYTHON_SOURCE_FILES, ".venv"].sort(),
-    );
-  });
-
-  it("prepares locked dependencies before one runner build and reuses native environments", async () => {
-    const root = temporaryRoot();
-    const resolved = resolveStackPaths({ environment: environment(root) });
-    const managedPythonSource = join(root, "managed-python-source");
-    const managedPython = join(root, "managed-python-runtime");
-    mkdirSync(managedPythonSource);
-    for (const filename of MANAGED_PYTHON_SOURCE_FILES) {
-      writeFileSync(join(managedPythonSource, filename), `${filename} first\n`);
-    }
-    mkdirSync(join(managedPython, ".venv", "bin"), { recursive: true });
-    writeFileSync(
-      join(managedPython, ".venv", "bin", "python"),
-      "preserved interpreter\n",
-    );
-    const paths = { ...resolved, managedPythonSource, managedPython };
-    const sourceContract = {
-      install: { command: ["uv", "sync", "--frozen", "--extra", "all"] },
-    };
-    const actions: string[] = [];
-    const options = {
-      sourceContract,
-      environment: { PATH: "/fixture/bin" },
-      ensureHermesSource: async () => {
-        actions.push("hermes-source");
-      },
-      runCommand: (command: string, args: string[]) => {
-        actions.push(`${command} ${args.join(" ")}`);
-        return "";
-      },
-    };
-
-    await prepareManagedRuntime(paths, options);
-    await prepareManagedRuntime(paths, options);
-    writeFileSync(join(managedPythonSource, "uv.lock"), "uv.lock second\n");
-    await prepareManagedRuntime(paths, options);
-
-    const onePreparation = [
-      "hermes-source",
-      "uv sync --frozen --extra all",
-      `uv sync --frozen --project ${managedPython}`,
-      "pnpm install --frozen-lockfile",
-      "pnpm run build:runtime",
-    ];
-    expect(actions).toEqual([
-      ...onePreparation,
-      ...onePreparation,
-      ...onePreparation,
-    ]);
-    expect(
-      readFileSync(join(managedPython, ".venv", "bin", "python"), "utf8"),
-    ).toBe("preserved interpreter\n");
-    expect(readFileSync(join(managedPython, "uv.lock"), "utf8")).toBe(
-      "uv.lock second\n",
-    );
-  });
+      const onePreparation = [
+        { command: "hermes-source", cwd: paths.hermesSource },
+        { command: "uv sync --frozen --extra all", cwd: paths.hermesSource },
+        {
+          command: "pnpm install --frozen-lockfile",
+          cwd: paths.repositoryRoot,
+        },
+        { command: "pnpm run build:runtime", cwd: paths.repositoryRoot },
+      ];
+      expect(actions).toEqual([...onePreparation, ...onePreparation]);
+      expect(readFileSync(nativePython, "utf8")).toBe(
+        "prepared Hermes interpreter\n",
+      );
+      for (const [filename, contents] of Object.entries(legacyFiles)) {
+        expect(readFileSync(join(paths.legacyPython, filename), "utf8")).toBe(
+          contents,
+        );
+      }
+    },
+  );
 });

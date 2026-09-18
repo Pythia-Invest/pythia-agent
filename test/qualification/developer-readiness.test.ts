@@ -287,8 +287,6 @@ describe("assembled developer readiness", () => {
         options.env ?? environment,
       );
     };
-    const managedPython = join(root, "managed-python");
-    mkdirSync(managedPython);
     const paths = resolveStackPaths({
       environment: {
         ...environment,
@@ -303,8 +301,6 @@ describe("assembled developer readiness", () => {
       {
         ...paths,
         hermesSource: join(root, "hermes-source"),
-        managedPython,
-        managedPythonSource: managedPython,
       },
       {
         ensureHermesSource: async () => undefined,
@@ -317,7 +313,6 @@ describe("assembled developer readiness", () => {
     );
     expect(commands).toEqual([
       "uv sync --frozen",
-      `uv sync --frozen --project ${managedPython}`,
       "pnpm install --frozen-lockfile",
       "pnpm run build:runtime",
     ]);

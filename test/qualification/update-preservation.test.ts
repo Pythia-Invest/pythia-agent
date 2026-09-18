@@ -156,7 +156,6 @@ function installedFixture() {
   const executables = {
     node: "/opt/pythia/node",
     python: "/opt/pythia/python",
-    managedPython: "/opt/pythia/managed-python",
     uv: "/opt/pythia/uv",
     hermes: "/opt/pythia/hermes",
     basicMemory: "/opt/pythia/basic-memory",
