@@ -16,6 +16,7 @@ export * from "./navigation";
 export * from "./overlays";
 export * from "./selection";
 export * from "./semantics";
+export * from "./market-widgets";
 export {
   DEFAULT_THEME_ROOT_ATTRIBUTES,
   THEME_BOOTSTRAP_SCRIPT,
