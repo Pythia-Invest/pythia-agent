@@ -8,6 +8,10 @@ This directory is Pythia-owned source updated with each release:
 - `skills/` is loaded directly by Hermes through `skills.external_dirs`; native
   bundle references, scripts, templates, and assets remain beside `SKILL.md`.
 - `plugin/` is copied, never linked, into the selected Hermes profile.
+- `plugins/market-data/` is a separately copied native feature: shared financial
+  contracts, identity, source resolution, protected resident HTTP/SSE and reusable
+  connector execution helpers. This payload includes no concrete shared connector;
+  existing core SEC/EOD capabilities remain independent.
 - `runner/` contains the bounded SEC/EODHD adapters and the narrow native
   read-only session-context helper, run with the pinned Hermes environment.
 - `python/` pins the unmodified Python runtime dependencies.

@@ -13,10 +13,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   MANAGED_PLUGIN_FILES,
+  PLUGIN_COPY_RECEIPT,
   MANAGED_PYTHON_SOURCE_FILES,
   refreshManagedPlugin,
   refreshManagedPythonSource,
@@ -86,6 +87,10 @@ mcp_servers:
     url: http://127.0.0.1:9999/mcp
 `;
     mkdirSync(managedPlugin, { recursive: true });
+    for (const name of MANAGED_PLUGIN_FILES) {
+      mkdirSync(dirname(join(managedPlugin, name)), { recursive: true });
+      writeFileSync(join(managedPlugin, name), "# synthetic plugin input\n");
+    }
     writeFileSync(join(managedPlugin, "__init__.py"), "MANAGED = True\n");
     writeFileSync(join(managedPlugin, "plugin.yaml"), "name: pythia\n");
     writeFileSync(
@@ -96,14 +101,11 @@ mcp_servers:
       join(managedPlugin, "desk_view.py"),
       "# synthetic view tool\n",
     );
-    mkdirSync(join(paths.profileRoot, "plugins", "pythia"), {
-      recursive: true,
-    });
-    writeFileSync(join(paths.profileRoot, "config.yaml"), userConfig);
-    writeFileSync(
-      join(paths.profileRoot, "plugins", "pythia", "plugin.yaml"),
-      "name: stale\n",
+    refreshManagedPlugin(
+      managedPlugin,
+      join(paths.profileRoot, "plugins", "pythia"),
     );
+    writeFileSync(join(paths.profileRoot, "config.yaml"), userConfig);
     mkdirSync(join(paths.hermesSource, ".venv", "bin"), { recursive: true });
     writeFileSync(
       hermes,
@@ -138,7 +140,12 @@ printf '%s\\n' "$*" >> '${commandLog}'
       ),
     ).toBe("name: pythia\n");
     expect(readFileSync(commandLog, "utf8").trim()).toBe(
-      `-p ${paths.profile} plugins doctor ${join(paths.profileRoot, "plugins", "pythia")} --ci`,
+      ["pythia"]
+        .map(
+          (name) =>
+            `-p ${paths.profile} plugins doctor ${join(paths.profileRoot, "plugins", name)} --ci`,
+        )
+        .join("\n"),
     );
   });
 
@@ -307,6 +314,10 @@ printf '%s\\n' "$*" >> '${commandLog}'
     const profile = join(root, "profile");
     const destination = join(profile, "plugins", "pythia");
     mkdirSync(source);
+    for (const name of MANAGED_PLUGIN_FILES) {
+      mkdirSync(dirname(join(source, name)), { recursive: true });
+      writeFileSync(join(source, name), "# synthetic plugin input\n");
+    }
     writeFileSync(join(source, "__init__.py"), "FIRST = True\n");
     writeFileSync(join(source, "plugin.yaml"), "name: first\n");
     writeFileSync(join(source, "desk_view.py"), "# synthetic view tool\n");
@@ -319,8 +330,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
       join(source, "__pycache__", "__init__.cpython-314.pyc"),
       "generated\n",
     );
-    mkdirSync(destination, { recursive: true });
-    writeFileSync(join(destination, "stale.pyc"), "stale\n");
+    mkdirSync(dirname(destination), { recursive: true });
     writeFileSync(`${destination}.previous`, "foreign sibling\n");
     writeFileSync(join(profile, "user-state"), "preserve me\n");
 
@@ -328,7 +338,10 @@ printf '%s\\n' "$*" >> '${commandLog}'
 
     expect(lstatSync(destination).isSymbolicLink()).toBe(false);
     expect(readdirSync(destination).sort()).toEqual(
-      [...MANAGED_PLUGIN_FILES].sort(),
+      [
+        ...new Set(MANAGED_PLUGIN_FILES.map((name) => name.split("/")[0])),
+        PLUGIN_COPY_RECEIPT,
+      ].sort(),
     );
     expect(readFileSync(join(profile, "user-state"), "utf8")).toBe(
       "preserve me\n",

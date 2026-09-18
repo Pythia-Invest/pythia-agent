@@ -1,0 +1,1780 @@
+[
+  {
+    "name": "equity_daily",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "description": "Synthetic values; IB API 10.50.2 BarData/time semantics, runtime/contracts/financial-data.md: date-only bars, unknown completion and volume scale; missing volume differs from zero."
+  },
+  {
+    "name": "crypto_scalar",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "crypto",
+            "id": "crypto:fictional"
+          }
+        },
+        "window": {
+          "start": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          },
+          "end": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-crypto-sample",
+        "subject": {
+          "kind": "crypto",
+          "id": "crypto:fictional"
+        },
+        "provider_ref": {
+          "provider": "synthetic_crypto",
+          "native_id": "fictional-coin",
+          "native_scope": "coin"
+        },
+        "measurement": "aggregate_price",
+        "shape": "scalar",
+        "fields": {
+          "value": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "none",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "unknown",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": null,
+        "session": "all",
+        "time_anchor": "instant",
+        "dataset": "synthetic_aggregate",
+        "venue": null,
+        "route": null,
+        "methodology": null,
+        "source_detail": null,
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "scalar",
+          "time": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "value": "0.000000000000000123456789"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "crypto",
+            "id": "crypto:fictional"
+          }
+        },
+        "reason": "preference",
+        "preference_revision": 1,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_crypto",
+        "native_ref": {
+          "provider": "synthetic_crypto",
+          "native_id": "fictional-coin",
+          "native_scope": "coin"
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "instant",
+          "value": "2026-01-05T12:34:56.123456+02:00"
+        },
+        "end": {
+          "kind": "instant",
+          "value": "2026-01-05T12:34:56.123456+02:00"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "description": "Synthetic aggregate scalar only, no source qualification or executable venue claim; v1 scalar wire contract."
+  },
+  {
+    "name": "non_price_count",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "company",
+            "id": "company:fictional"
+          }
+        },
+        "window": {
+          "start": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          },
+          "end": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-research-count",
+        "subject": {
+          "kind": "company",
+          "id": "company:fictional"
+        },
+        "provider_ref": {
+          "provider": "synthetic_research",
+          "native_id": "documents-1",
+          "native_scope": "research_subject"
+        },
+        "measurement": "count",
+        "shape": "scalar",
+        "fields": {
+          "value": {
+            "unit": {
+              "kind": "count",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "none",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "unknown",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": null,
+        "session": "all",
+        "time_anchor": "instant",
+        "dataset": "synthetic_document_count",
+        "venue": null,
+        "route": null,
+        "methodology": {
+          "id": "method:count-documents",
+          "version": "1"
+        },
+        "source_detail": null,
+        "market_data_type": "unknown"
+      },
+      "observations": [
+        {
+          "shape": "scalar",
+          "time": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "value": "42"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "company",
+            "id": "company:fictional"
+          }
+        },
+        "reason": "preference",
+        "preference_revision": 1,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_research",
+        "native_ref": {
+          "provider": "synthetic_research",
+          "native_id": "documents-1",
+          "native_scope": "research_subject"
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "instant",
+          "value": "2026-01-05T12:34:56.123456+02:00"
+        },
+        "end": {
+          "kind": "instant",
+          "value": "2026-01-05T12:34:56.123456+02:00"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "unknown"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "description": "Synthetic v1 representation example, not a custom-series or formula service."
+  },
+  {
+    "name": "partial_bars",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "partial",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "partial",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": [
+        {
+          "code": "source_partial",
+          "source_code": "2188",
+          "message": "Synthetic source limitation with useful bars.",
+          "severity": "warning"
+        }
+      ]
+    },
+    "description": "Synthetic useful partial bars shaped by IB API 10.50.2 issue 2188 contract; not a recorded response."
+  },
+  {
+    "name": "latest_unknown_time",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "latest",
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "crypto",
+            "id": "crypto:fictional"
+          }
+        },
+        "window": {
+          "start": null,
+          "end": null
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-crypto-sample",
+        "subject": {
+          "kind": "crypto",
+          "id": "crypto:fictional"
+        },
+        "provider_ref": {
+          "provider": "synthetic_crypto",
+          "native_id": "fictional-coin",
+          "native_scope": "coin"
+        },
+        "measurement": "aggregate_price",
+        "shape": "scalar",
+        "fields": {
+          "value": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "none",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "unknown",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": null,
+        "session": "all",
+        "time_anchor": "instant",
+        "dataset": "synthetic_aggregate",
+        "venue": null,
+        "route": null,
+        "methodology": null,
+        "source_detail": null,
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "scalar",
+          "time": {
+            "kind": "unknown"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "value": "0.000000000000000123456789"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "crypto",
+            "id": "crypto:fictional"
+          }
+        },
+        "reason": "preference",
+        "preference_revision": 1,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_crypto",
+        "native_ref": {
+          "provider": "synthetic_crypto",
+          "native_id": "fictional-coin",
+          "native_scope": "coin"
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": null,
+        "end": null
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "description": "Synthetic latest value whose source supplies no reliable timestamp; feed class is not freshness."
+  },
+  {
+    "name": "empty_success",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "empty",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": null,
+        "end": null
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "description": "Synthetic empty success is distinct from source failure; coverage still unknown."
+  },
+  {
+    "name": "unavailable",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "error",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": null,
+      "observations": [],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": null,
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": null,
+        "end": null
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": false,
+      "issues": [
+        {
+          "code": "unavailable",
+          "message": "Synthetic source unavailable.",
+          "severity": "error"
+        }
+      ]
+    },
+    "description": "Synthetic unavailable source does not establish absence."
+  },
+  {
+    "name": "contribution",
+    "kind": "contribution",
+    "value": {
+      "schema_version": 1,
+      "provider": "synthetic_equity",
+      "adapter_version": "synthetic-1",
+      "operations": [
+        {
+          "operation": "history",
+          "tool": "synthetic_history",
+          "effect": "read"
+        }
+      ],
+      "subject_kinds": ["instrument", "listing"]
+    },
+    "description": "Synthetic native contribution v1, no availability mirror or provider startup request."
+  },
+  {
+    "name": "instrument_evidence",
+    "kind": "evidence",
+    "value": {
+      "schema_version": 1,
+      "id": "evidence:synthetic-1",
+      "provider_ref": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "scope": "instrument",
+      "scheme": "isin",
+      "value": "ZZ0000000017",
+      "qualifiers": {
+        "share_class": "class-a"
+      },
+      "adapter_version": "synthetic-1",
+      "observed_at": null,
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "effective": {
+        "start": null,
+        "end": null
+      },
+      "authority": "source_asserted"
+    },
+    "description": "Invented identifier, not a claim about a real security; identity store must validate evidence before matching."
+  },
+  {
+    "name": "candidate_mapping",
+    "kind": "mapping",
+    "value": {
+      "schema_version": 1,
+      "id": "mapping:synthetic-1",
+      "provider_ref": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "target": {
+        "kind": "instrument",
+        "id": "instrument:fictional"
+      },
+      "status": "candidate",
+      "evidence_ids": ["evidence:synthetic-1"],
+      "rule_version": "synthetic-1",
+      "revision": 1,
+      "active_override": null
+    },
+    "description": "Schema example only; no matching algorithm or confirmation implied."
+  },
+  {
+    "name": "canonical_projection",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "instrument",
+            "id": "instrument:synthetic-canonical"
+          }
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "kind": "instrument",
+          "id": "instrument:synthetic-canonical"
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "instrument",
+            "id": "instrument:synthetic-canonical"
+          }
+        },
+        "reason": "preference",
+        "preference_revision": 1,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": 1,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "description": "Synthetic shared-owner canonical projection after a proven mapping; native series ID/provider_ref remain intact."
+  },
+  {
+    "name": "default_contribution",
+    "kind": "contribution",
+    "value": {
+      "schema_version": 1,
+      "provider": "synthetic",
+      "adapter_version": "1",
+      "operations": [
+        {
+          "operation": "series",
+          "tool": "synthetic_series",
+          "effect": "read"
+        }
+      ],
+      "subject_kinds": ["instrument"]
+    }
+  },
+  {
+    "name": "broker_contribution",
+    "kind": "contribution",
+    "value": {
+      "schema_version": 1,
+      "provider": "synthetic",
+      "adapter_version": "1",
+      "operations": [
+        {
+          "operation": "series",
+          "tool": "synthetic_series",
+          "effect": "read"
+        }
+      ],
+      "subject_kinds": ["instrument"],
+      "requires_broker_app": true
+    }
+  },
+  {
+    "name": "uncached_contribution",
+    "kind": "contribution",
+    "value": {
+      "schema_version": 1,
+      "provider": "synthetic",
+      "adapter_version": "1",
+      "operations": [
+        {
+          "operation": "series",
+          "tool": "synthetic_series",
+          "effect": "read"
+        }
+      ],
+      "subject_kinds": ["instrument"],
+      "requires_broker_app": false,
+      "observation_cache": "disabled"
+    }
+  },
+  {
+    "name": "equity_scalar_close",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-close"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-close",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "close",
+        "shape": "scalar",
+        "fields": {
+          "value": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "shape": "scalar",
+          "value": "124.1"
+        },
+        {
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "shape": "scalar",
+          "value": "124.1"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-close"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "description": "Synthetic close-only history preserves daily dates and currency units without inventing OHLC."
+  },
+  {
+    "name": "equity_close_snapshot_unknown_time",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "latest",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-close-snapshot"
+        },
+        "window": {
+          "start": null,
+          "end": null
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-close-snapshot",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "close",
+        "shape": "scalar",
+        "fields": {
+          "value": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "unknown",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "unknown",
+        "time_anchor": "unknown",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "time": {
+            "kind": "unknown"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "shape": "scalar",
+          "value": "124.1"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-close-snapshot"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": null,
+        "end": null
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "description": "Synthetic source-identified close snapshot; close flag does not prove observation time, adjustment or bar completion."
+  }
+]

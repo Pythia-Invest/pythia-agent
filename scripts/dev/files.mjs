@@ -17,6 +17,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { refreshCopiedPlugin } from "./plugin-copy.mjs";
+export {
+  assertManagedPluginSource,
+  PLUGIN_COPY_RECEIPT,
+} from "./plugin-copy.mjs";
 
 function fsyncDirectory(path) {
   const descriptor = openSync(path, "r");
@@ -32,6 +37,17 @@ export const MANAGED_PLUGIN_FILES = Object.freeze([
   "plugin.yaml",
   "desk_view.py",
   "operating.py",
+  "platform/__init__.py",
+  "platform/access.py",
+  "platform/admission.py",
+  "platform/request_context.py",
+  "platform/operations.py",
+  "platform/http.py",
+  "platform/live.py",
+  "platform/live_http.py",
+  "platform/subscription.py",
+  "platform/specialist.py",
+  "platform/assets.py",
 ]);
 
 export const MANAGED_PYTHON_SOURCE_FILES = Object.freeze([
@@ -137,51 +153,6 @@ export function copyFileIfAbsent(source, destination, mode = 0o600) {
   return true;
 }
 
-function refreshExactCopiedDirectory(source, destination, files, label) {
-  const sourceInfo = lstatSync(source);
-  if (sourceInfo.isSymbolicLink() || !sourceInfo.isDirectory()) {
-    throw new Error(`${label} source must be a real directory: ${source}`);
-  }
-  const sources = files.map((filename) => {
-    const path = join(source, filename);
-    const info = lstatSync(path);
-    if (info.isSymbolicLink() || !info.isFile()) {
-      throw new Error(`${label} input must be a regular file: ${path}`);
-    }
-    return [path, filename];
-  });
-  const parent = dirname(destination);
-  mkdirSync(parent, { recursive: true, mode: 0o700 });
-  const stage = mkdtempSync(join(parent, ".pythia-copy-"));
-  const stagedDestination = join(stage, "value");
-  const previous = join(stage, "previous");
-  mkdirSync(stagedDestination, { mode: 0o700 });
-  for (const [sourcePath, filename] of sources) {
-    const stagedPath = join(stagedDestination, filename);
-    copyFileSync(sourcePath, stagedPath);
-    chmodSync(stagedPath, 0o600);
-  }
-  if (existsSync(destination)) {
-    if (lstatSync(destination).isSymbolicLink()) {
-      rmSync(stage, { recursive: true, force: true });
-      throw new Error(
-        `Refusing to replace symlinked managed copy: ${destination}`,
-      );
-    }
-    renameSync(destination, previous);
-  }
-  try {
-    renameSync(stagedDestination, destination);
-  } catch (error) {
-    if (existsSync(previous)) {
-      renameSync(previous, destination);
-    }
-    throw error;
-  } finally {
-    rmSync(stage, { recursive: true, force: true });
-  }
-}
-
 function refreshExactFilesPreservingDirectory(
   source,
   destination,
@@ -254,13 +225,12 @@ function refreshExactFilesPreservingDirectory(
   }
 }
 
-export function refreshManagedPlugin(source, destination) {
-  refreshExactCopiedDirectory(
-    source,
-    destination,
-    MANAGED_PLUGIN_FILES,
-    "Managed plugin",
-  );
+export function refreshManagedPlugin(
+  source,
+  destination,
+  files = MANAGED_PLUGIN_FILES,
+) {
+  return refreshCopiedPlugin(source, destination, files);
 }
 
 export function refreshManagedPythonSource(source, destination) {

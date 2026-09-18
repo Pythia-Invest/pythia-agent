@@ -24,6 +24,10 @@ class RegistryContractContext:
     def __init__(self):
         self.sections = []
         self.tools = []
+        self.platform_handlers = []
+
+    def register_platform_handler(self, *args):
+        self.platform_handlers.append(args)
 
     def register_system_prompt_section(self, *args, **kwargs):
         self.sections.append((args, kwargs))
