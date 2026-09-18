@@ -12,6 +12,7 @@ import {
   UNIT_NAMES,
 } from "../scripts/install/systemd.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
+import { MANAGED_PLUGINS } from "../scripts/dev/managed-plugins.mjs";
 
 import {
   forbiddenPayloadText,
@@ -252,7 +253,12 @@ const promptAndContextFiles = new Set([
   ...skillFiles,
 ]);
 const installedRuntimeFiles = new Set([
-  ...MANAGED_PLUGIN_FILES.map((path) => `runtime/managed/plugin/${path}`),
+  ...MANAGED_PLUGINS.flatMap((plugin) =>
+    plugin.files.map((path) => `runtime/managed/${plugin.source}/${path}`),
+  ),
+  ...["provider-budget.ts", "provider-errors.ts", "provider-worker.ts"].map(
+    (path) => `runtime/managed/runner/${path}`,
+  ),
   ...MANAGED_PYTHON_SOURCE_FILES.map(
     (path) => `runtime/managed/python/${path}`,
   ),

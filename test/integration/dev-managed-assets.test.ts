@@ -138,7 +138,12 @@ printf '%s\\n' "$*" >> '${commandLog}'
       ),
     ).toBe("name: pythia\n");
     expect(readFileSync(commandLog, "utf8").trim()).toBe(
-      `-p ${paths.profile} plugins doctor ${join(paths.profileRoot, "plugins", "pythia")} --ci`,
+      ["pythia", "pythia-market-data"]
+        .map(
+          (name) =>
+            `-p ${paths.profile} plugins doctor ${join(paths.profileRoot, "plugins", name)} --ci`,
+        )
+        .join("\n"),
     );
   });
 

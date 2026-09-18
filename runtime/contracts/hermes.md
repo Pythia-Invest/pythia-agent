@@ -1,5 +1,46 @@
 # Hermes contract
 
+## Qualified market-data extension seams
+
+The shared financial owner uses native `ctx.register_platform_handler("api_server", factory)`.
+At the exact pin below, `BasePlatformAdapter._wire_plugin_handlers` passes the
+existing application and adapter; `APIServerAdapter.connect` invokes factories
+before route freeze. Registration alone does not authenticate routes. The shared
+adapter invokes `_expected_api_key` and `_check_auth`, fails closed on missing
+keys, binds trusted native platform/profile context and rejects another effective
+home. No Hermes source is modified.
+
+The financial tool holds a lazy profile backend. Protected HTTP dispatches that
+registered handler, sharing memory with agent calls. CLI shares implementation and
+durable state only. A bounded executor isolates blocking work from native chat and
+the event loop; cleanup cancels work and reaps owned children. Deliberately exposed
+specialist operations use the same adapter, never arbitrary native-tool dispatch.
+
+Contribution metadata uses the native tool parameter schema's standard `$comment`
+annotation. Projection reads Hermes registry schemas; native plugin, platform,
+disabled-toolset and readiness checks remain authoritative before reuse/publication.
+There is no additional capability inventory. The pinned native manager's loaded
+plugin module namespace supplies dependency helpers; connectors must require the
+native feature rather than invent import aliases or source loaders.
+
+Access also projects the pinned manager's active `_registration_order` handles
+to determine actual tool ownership. Manifest `provides_tools` and a specialist
+annotation are descriptions, not authority. Native category keys and legacy bare
+names are accepted with `plugins.disabled` taking precedence over `enabled`.
+Every shared contribution target must have an active native owner; specialist
+annotations must identify their actual owner. Post-execution checks deny result
+publication after access changes, including uncached shared calls and CLI reads.
+
+`scripts/dev/managed-plugins.mjs` explicitly copies core and feature files. Fresh
+profiles enable them through native commands; updates preserve existing choices.
+The copied-feature probe `tooling/qualification/financial_http.mjs` exercises the
+real API application, synthetic native tools, shared lifetime, authentication,
+profile/access revocation, preferred/pinned reads, cancellation and responsiveness.
+It starts no model/CLI subprocess during requests and uses disposable state only.
+See [ADR 0029](../../docs/decisions/0029-financial-http-and-runtime-lifetime.md).
+
+## Pinned installation
+
 This contract covers only Hermes Agent 0.21.0 at commit
 `29112bef099274229cadff79cdff7bf7b99c4b77` (release
 `v2026.8.31`). Pythia installs that source unmodified in its own environment.
@@ -216,10 +257,11 @@ reimplements this filter nor stores its result. See the tagged
 [agent prompt construction](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/agent/system_prompt.py), and
 [filter tests](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/tests/agent/test_prompt_builder.py).
 
-Pythia copies exactly one plugin into
-`<profile>/plugins/pythia/{plugin.yaml,__init__.py}`; it never symlinks or
-installs it as a package. Its manifest declares its name, version, description,
-and provided tools. Before activation, the copied directory must pass:
+Pythia copies the four-file core plugin into `<profile>/plugins/pythia/`
+and the financial feature into `<profile>/plugins/pythia-market-data/`.
+Explicit allowlists include only runtime inputs, never builder guidance.
+Plugins are never symlinked or installed as Python packages. Their native
+manifests declare provided tools. Before activation, copied directories pass:
 
 ```text
 hermes -p <profile> plugins doctor <copied-plugin-directory> --ci

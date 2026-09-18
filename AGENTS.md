@@ -47,6 +47,7 @@ Read additional guidance by the surface being changed:
 | Settings, credentials, lifecycle or updates | [Credential custody](docs/architecture/credential-custody.md) and [development](docs/development.md) |
 | The Claude Design export of `@pythia/ui` | [Design-system sync rule](.agents/rules/design-system-sync.md) and `.design-sync/NOTES.md` |
 | Tests | [Test allocation](.agents/testing.md) |
+| Financial connector capabilities or execution | [Financial connector rule](.agents/rules/financial-connectors.md) |
 
 Use the pinned dependency's documented native surface; inspect its relevant
 source/types before adapting it. If evidence challenges a decided boundary,

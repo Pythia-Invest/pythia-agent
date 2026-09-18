@@ -1,0 +1,4825 @@
+[
+  {
+    "name": "numeric_precision_loss",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": 124.1
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": true
+  },
+  {
+    "name": "invalid_session_date",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-02-30"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-02-30"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-02-30"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-02-30"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-02-30"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": true
+  },
+  {
+    "name": "naive_instant",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "crypto",
+            "id": "crypto:fictional"
+          }
+        },
+        "window": {
+          "start": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56"
+          },
+          "end": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-crypto-sample",
+        "subject": {
+          "kind": "crypto",
+          "id": "crypto:fictional"
+        },
+        "provider_ref": {
+          "provider": "synthetic_crypto",
+          "native_id": "fictional-coin",
+          "native_scope": "coin"
+        },
+        "measurement": "aggregate_price",
+        "shape": "scalar",
+        "fields": {
+          "value": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "none",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "unknown",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": null,
+        "session": "all",
+        "time_anchor": "instant",
+        "dataset": "synthetic_aggregate",
+        "venue": null,
+        "route": null,
+        "methodology": null,
+        "source_detail": null,
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "scalar",
+          "time": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "value": "0.000000000000000123456789"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "crypto",
+            "id": "crypto:fictional"
+          }
+        },
+        "reason": "preference",
+        "preference_revision": 1,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_crypto",
+        "native_ref": {
+          "provider": "synthetic_crypto",
+          "native_id": "fictional-coin",
+          "native_scope": "coin"
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "instant",
+          "value": "2026-01-05T12:34:56"
+        },
+        "end": {
+          "kind": "instant",
+          "value": "2026-01-05T12:34:56"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": true
+  },
+  {
+    "name": "nan",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "crypto",
+            "id": "crypto:fictional"
+          }
+        },
+        "window": {
+          "start": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          },
+          "end": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-crypto-sample",
+        "subject": {
+          "kind": "crypto",
+          "id": "crypto:fictional"
+        },
+        "provider_ref": {
+          "provider": "synthetic_crypto",
+          "native_id": "fictional-coin",
+          "native_scope": "coin"
+        },
+        "measurement": "aggregate_price",
+        "shape": "scalar",
+        "fields": {
+          "value": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "none",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "unknown",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": null,
+        "session": "all",
+        "time_anchor": "instant",
+        "dataset": "synthetic_aggregate",
+        "venue": null,
+        "route": null,
+        "methodology": null,
+        "source_detail": null,
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "scalar",
+          "time": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "value": "NaN"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "pythia",
+          "subject": {
+            "kind": "crypto",
+            "id": "crypto:fictional"
+          }
+        },
+        "reason": "preference",
+        "preference_revision": 1,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_crypto",
+        "native_ref": {
+          "provider": "synthetic_crypto",
+          "native_id": "fictional-coin",
+          "native_scope": "coin"
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "instant",
+          "value": "2026-01-05T12:34:56.123456+02:00"
+        },
+        "end": {
+          "kind": "instant",
+          "value": "2026-01-05T12:34:56.123456+02:00"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": true
+  },
+  {
+    "name": "bad_currency",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "usd",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": true
+  },
+  {
+    "name": "wrong_unit",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "count",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "negative_scale",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "-1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "false_complete",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "completed",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "false_fresh",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "fresh",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "strict_unknown_freshness",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "fresh",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "mixed_dates_instants",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "wrong_shape",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "scalar",
+          "time": {
+            "kind": "instant",
+            "value": "2026-01-05T12:34:56.123456+02:00"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "value": "0.000000000000000123456789"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "mismatched_provider",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "another",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "pinned_series_switch",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:different",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "identity_scope",
+    "kind": "mapping",
+    "value": {
+      "schema_version": 1,
+      "id": "mapping:synthetic-1",
+      "provider_ref": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "target": {
+        "kind": "instrument",
+        "id": "company:fictional"
+      },
+      "status": "candidate",
+      "evidence_ids": ["evidence:synthetic-1"],
+      "rule_version": "synthetic-1",
+      "revision": 1,
+      "active_override": null
+    },
+    "structural": false
+  },
+  {
+    "name": "isin_listing_claim",
+    "kind": "evidence",
+    "value": {
+      "schema_version": 1,
+      "id": "evidence:synthetic-1",
+      "provider_ref": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "scope": "listing",
+      "scheme": "isin",
+      "value": "ZZ0000000017",
+      "qualifiers": {
+        "share_class": "class-a"
+      },
+      "adapter_version": "synthetic-1",
+      "observed_at": null,
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "effective": {
+        "start": null,
+        "end": null
+      },
+      "authority": "source_asserted"
+    },
+    "structural": false
+  },
+  {
+    "name": "unsupported_network_qualifier",
+    "kind": "evidence",
+    "value": {
+      "schema_version": 1,
+      "id": "evidence:synthetic-1",
+      "provider_ref": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART",
+          "network": "fictional-chain"
+        }
+      },
+      "scope": "instrument",
+      "scheme": "isin",
+      "value": "ZZ0000000017",
+      "qualifiers": {
+        "share_class": "class-a"
+      },
+      "adapter_version": "synthetic-1",
+      "observed_at": null,
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "effective": {
+        "start": null,
+        "end": null
+      },
+      "authority": "source_asserted"
+    },
+    "structural": false
+  },
+  {
+    "name": "confirmed_without_evidence",
+    "kind": "mapping",
+    "value": {
+      "schema_version": 1,
+      "id": "mapping:synthetic-1",
+      "provider_ref": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "target": {
+        "kind": "instrument",
+        "id": "instrument:fictional"
+      },
+      "status": "confirmed",
+      "evidence_ids": [],
+      "rule_version": "synthetic-1",
+      "revision": 1,
+      "active_override": null
+    },
+    "structural": false
+  },
+  {
+    "name": "unsafe_effect",
+    "kind": "contribution",
+    "value": {
+      "schema_version": 1,
+      "provider": "synthetic_equity",
+      "adapter_version": "synthetic-1",
+      "operations": [
+        {
+          "operation": "history",
+          "tool": "synthetic_history",
+          "effect": "trade"
+        }
+      ],
+      "subject_kinds": ["instrument", "listing"]
+    },
+    "structural": true
+  },
+  {
+    "name": "unknown_version",
+    "kind": "contribution",
+    "value": {
+      "schema_version": 2,
+      "provider": "synthetic_equity",
+      "adapter_version": "synthetic-1",
+      "operations": [
+        {
+          "operation": "history",
+          "tool": "synthetic_history",
+          "effect": "read"
+        }
+      ],
+      "subject_kinds": ["instrument", "listing"]
+    },
+    "structural": true
+  },
+  {
+    "name": "arbitrary_proxy",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified",
+            "payload": {
+              "arbitrary": "nested"
+            }
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": true
+  },
+  {
+    "name": "partial_claims_complete",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "partial",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "complete",
+        "gaps": [],
+        "truncated": true,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": [
+        {
+          "code": "source_partial",
+          "source_code": "2188",
+          "message": "Synthetic source limitation with useful bars.",
+          "severity": "warning"
+        }
+      ]
+    },
+    "structural": false
+  },
+  {
+    "name": "returned_window_excludes_data",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-06"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-07"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "request_window_excludes_data",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-06"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-07"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "delayed"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "mismatched_feed_class",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "realtime"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": false
+  },
+  {
+    "name": "missing_series_feed_class",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        }
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": true
+  },
+  {
+    "name": "invalid_series_feed_class",
+    "kind": "read_result",
+    "value": {
+      "schema_version": 1,
+      "outcome": "ok",
+      "request": {
+        "schema_version": 1,
+        "operation": "history",
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "window": {
+          "start": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "end": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          }
+        },
+        "limit": 100,
+        "requirements": {
+          "freshness": "any",
+          "completion": "any",
+          "coverage": "any"
+        }
+      },
+      "series": {
+        "schema_version": 1,
+        "id": "series:synthetic-equity-daily",
+        "subject": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "provider_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "measurement": "ohlc",
+        "shape": "ohlc",
+        "fields": {
+          "open": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "high": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "low": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "close": {
+            "unit": {
+              "kind": "currency",
+              "code": "USD",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "split",
+              "anchor": null
+            }
+          },
+          "volume": {
+            "unit": {
+              "kind": "unknown",
+              "scale": "1"
+            },
+            "adjustment": {
+              "kind": "unknown",
+              "anchor": null
+            }
+          }
+        },
+        "interval": {
+          "kind": "day",
+          "count": 1
+        },
+        "calendar": null,
+        "timezone": "America/New_York",
+        "session": "regular",
+        "time_anchor": "session_date",
+        "dataset": "synthetic_trades",
+        "venue": null,
+        "route": "SMART",
+        "methodology": null,
+        "source_detail": {
+          "namespace": "synthetic_equity",
+          "values": {
+            "volume_unit": "unqualified"
+          }
+        },
+        "market_data_type": "live"
+      },
+      "observations": [
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1"
+        },
+        {
+          "shape": "ohlc",
+          "time": {
+            "kind": "session_date",
+            "value": "2026-01-05"
+          },
+          "interval": null,
+          "completion": {
+            "state": "unknown",
+            "basis": "unknown"
+          },
+          "open": "123.450000000000000001",
+          "high": "125",
+          "low": "122",
+          "close": "124.1",
+          "volume": "0"
+        }
+      ],
+      "selection": {
+        "view": {
+          "kind": "source",
+          "series_id": "series:synthetic-equity-daily"
+        },
+        "reason": "pinned",
+        "preference_revision": null,
+        "alternatives": []
+      },
+      "provenance": {
+        "provider": "synthetic_equity",
+        "native_ref": {
+          "provider": "synthetic_equity",
+          "native_id": "contract-17",
+          "native_scope": "contract",
+          "qualifiers": {
+            "currency": "USD",
+            "route": "SMART"
+          }
+        },
+        "adapter_version": "synthetic-1",
+        "retrieved_at": "2026-01-06T15:00:00Z",
+        "source_time": null,
+        "revision_vintage": null,
+        "mapping_revision": null,
+        "source_detail": null
+      },
+      "retrieved_at": "2026-01-06T15:00:00Z",
+      "returned_window": {
+        "start": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        },
+        "end": {
+          "kind": "session_date",
+          "value": "2026-01-05"
+        }
+      },
+      "coverage": {
+        "status": "unknown",
+        "gaps": [],
+        "truncated": false,
+        "continuation": null
+      },
+      "freshness": {
+        "status": "unknown",
+        "as_of": null,
+        "basis": "unknown",
+        "market_data_type": "delayed"
+      },
+      "requirements_satisfied": true,
+      "issues": []
+    },
+    "structural": true
+  },
+  {
+    "name": "alternative_is_not_subject",
+    "kind": "selection",
+    "value": {
+      "view": {
+        "kind": "source",
+        "series_id": "series:synthetic"
+      },
+      "reason": "pinned",
+      "preference_revision": null,
+      "alternatives": ["instrument:not-an-alternative"]
+    },
+    "structural": false
+  },
+  {
+    "name": "nonboolean_broker_dependency",
+    "kind": "contribution",
+    "value": {
+      "schema_version": 1,
+      "provider": "synthetic",
+      "adapter_version": "1",
+      "operations": [
+        {
+          "operation": "series",
+          "tool": "synthetic_series",
+          "effect": "read"
+        }
+      ],
+      "subject_kinds": ["instrument"],
+      "requires_broker_app": "true"
+    },
+    "structural": true
+  },
+  {
+    "name": "unknown_observation_cache_policy",
+    "kind": "contribution",
+    "value": {
+      "schema_version": 1,
+      "provider": "synthetic",
+      "adapter_version": "1",
+      "operations": [
+        {
+          "operation": "series",
+          "tool": "synthetic_series",
+          "effect": "read"
+        }
+      ],
+      "subject_kinds": ["instrument"],
+      "observation_cache": "forever"
+    },
+    "structural": true
+  },
+  {
+    "name": "close_requires_price_unit",
+    "kind": "series",
+    "value": {
+      "schema_version": 1,
+      "id": "series:synthetic-equity-close",
+      "subject": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "provider_ref": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "measurement": "close",
+      "shape": "scalar",
+      "fields": {
+        "value": {
+          "unit": {
+            "kind": "count",
+            "scale": "1"
+          },
+          "adjustment": {
+            "kind": "split",
+            "anchor": null
+          }
+        }
+      },
+      "interval": {
+        "kind": "day",
+        "count": 1
+      },
+      "calendar": null,
+      "timezone": "America/New_York",
+      "session": "regular",
+      "time_anchor": "session_date",
+      "dataset": "synthetic_trades",
+      "venue": null,
+      "route": "SMART",
+      "methodology": null,
+      "source_detail": {
+        "namespace": "synthetic_equity",
+        "values": {
+          "volume_unit": "unqualified"
+        }
+      },
+      "market_data_type": "delayed"
+    }
+  },
+  {
+    "name": "scalar_close_cannot_claim_ohlc",
+    "kind": "series",
+    "value": {
+      "schema_version": 1,
+      "id": "series:synthetic-equity-daily",
+      "subject": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "provider_ref": {
+        "provider": "synthetic_equity",
+        "native_id": "contract-17",
+        "native_scope": "contract",
+        "qualifiers": {
+          "currency": "USD",
+          "route": "SMART"
+        }
+      },
+      "measurement": "close",
+      "shape": "ohlc",
+      "fields": {
+        "open": {
+          "unit": {
+            "kind": "currency",
+            "code": "USD",
+            "scale": "1"
+          },
+          "adjustment": {
+            "kind": "split",
+            "anchor": null
+          }
+        },
+        "high": {
+          "unit": {
+            "kind": "currency",
+            "code": "USD",
+            "scale": "1"
+          },
+          "adjustment": {
+            "kind": "split",
+            "anchor": null
+          }
+        },
+        "low": {
+          "unit": {
+            "kind": "currency",
+            "code": "USD",
+            "scale": "1"
+          },
+          "adjustment": {
+            "kind": "split",
+            "anchor": null
+          }
+        },
+        "close": {
+          "unit": {
+            "kind": "currency",
+            "code": "USD",
+            "scale": "1"
+          },
+          "adjustment": {
+            "kind": "split",
+            "anchor": null
+          }
+        },
+        "volume": {
+          "unit": {
+            "kind": "unknown",
+            "scale": "1"
+          },
+          "adjustment": {
+            "kind": "unknown",
+            "anchor": null
+          }
+        }
+      },
+      "interval": {
+        "kind": "day",
+        "count": 1
+      },
+      "calendar": null,
+      "timezone": "America/New_York",
+      "session": "regular",
+      "time_anchor": "session_date",
+      "dataset": "synthetic_trades",
+      "venue": null,
+      "route": "SMART",
+      "methodology": null,
+      "source_detail": {
+        "namespace": "synthetic_equity",
+        "values": {
+          "volume_unit": "unqualified"
+        }
+      },
+      "market_data_type": "delayed"
+    }
+  }
+]

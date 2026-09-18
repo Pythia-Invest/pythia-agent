@@ -254,13 +254,12 @@ function refreshExactFilesPreservingDirectory(
   }
 }
 
-export function refreshManagedPlugin(source, destination) {
-  refreshExactCopiedDirectory(
-    source,
-    destination,
-    MANAGED_PLUGIN_FILES,
-    "Managed plugin",
-  );
+export function refreshManagedPlugin(
+  source,
+  destination,
+  files = MANAGED_PLUGIN_FILES,
+) {
+  refreshExactCopiedDirectory(source, destination, files, "Managed plugin");
 }
 
 export function refreshManagedPythonSource(source, destination) {

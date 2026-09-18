@@ -9,10 +9,10 @@ import {
   atomicWriteJson,
   ensurePrivateTree,
   readJson,
-  refreshManagedPlugin,
   refreshManagedPythonSource,
 } from "./files.mjs";
 import { redactedEnvironment, runtimeEnvironment } from "./environment.mjs";
+import { refreshManagedPlugins } from "./managed-plugins.mjs";
 import {
   assertHermesRuntimePath,
   developmentPrivateRoots,
@@ -229,30 +229,7 @@ export async function bootstrapRuntime(paths, options = {}) {
   }
   if (options.inheritSharedModel !== false)
     inheritModelDefaults(paths, values.hermes_api_key);
-  refreshManagedPlugin(
-    paths.managedPlugin,
-    join(paths.profileRoot, "plugins", "pythia"),
-  );
-  const copiedPlugin = join(paths.profileRoot, "plugins", "pythia");
-  hermesRun(
-    paths,
-    ["-p", paths.profile, "plugins", "doctor", copiedPlugin, "--ci"],
-    values.hermes_api_key,
-  );
-  if (freshProfile) {
-    hermesRun(
-      paths,
-      [
-        "-p",
-        paths.profile,
-        "plugins",
-        "enable",
-        "pythia",
-        "--no-allow-tool-override",
-      ],
-      values.hermes_api_key,
-    );
-  }
+  refreshManagedPlugins(paths, values.hermes_api_key, { freshProfile });
   const environment = runtimeEnvironment(paths, values.hermes_api_key);
   if (freshProfile) writeInitializationReceipt(paths, "complete");
   atomicWriteJson(paths.runtimeReceipt, {

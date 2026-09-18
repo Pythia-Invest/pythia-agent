@@ -1,5 +1,11 @@
 # Financial-data contracts
 
+The shared [market-data contracts](../../packages/market-data/README.md) and
+[native backend](../../packages/market-data/BACKEND.md) now provide canonical
+identity, preferred/pinned price/history reads and coordinated protected delivery.
+This foundation ships no concrete shared connector. The two original core tools
+documented below continue unchanged and are not implicitly shared contributions.
+
 The first slice has two independent, optional capabilities. Ordinary startup
 and CI use neither credential and make no provider request. A failed sibling
 operation is retained beside a successful result; it never erases that result.

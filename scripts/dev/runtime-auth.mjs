@@ -1,11 +1,11 @@
 import { assertWorkspaceTransitionReady } from "../update/workspace-transition.mjs";
 import { existsSync, lstatSync } from "node:fs";
 import { join } from "node:path";
-import { readJson, refreshManagedPlugin } from "./files.mjs";
+import { readJson } from "./files.mjs";
+import { refreshManagedPlugins } from "./managed-plugins.mjs";
 import { redactedEnvironment } from "./environment.mjs";
 import { run } from "./runtime-source.mjs";
 import {
-  hermesRun,
   nativeRootAuthArguments,
   runtimeCommands,
   secrets,
@@ -22,22 +22,7 @@ const OAUTH_PROVIDERS = new Set([
 
 export async function refreshRuntimeAssets(paths, apiKey) {
   assertWorkspaceTransitionReady(paths);
-  refreshManagedPlugin(
-    paths.managedPlugin,
-    join(paths.profileRoot, "plugins", "pythia"),
-  );
-  hermesRun(
-    paths,
-    [
-      "-p",
-      paths.profile,
-      "plugins",
-      "doctor",
-      join(paths.profileRoot, "plugins", "pythia"),
-      "--ci",
-    ],
-    apiKey,
-  );
+  refreshManagedPlugins(paths, apiKey);
 }
 
 export function readApiKey(paths) {
