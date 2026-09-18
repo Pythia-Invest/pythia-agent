@@ -89,8 +89,10 @@ Pythia uses Hermes's own extension and configuration rules:
 - Desk reads the authenticated native `/v1/skills` and `/v1/toolsets` APIs and
   shows Hermes's full reported toolset inventory with enabled flags.
 - Local profile plugins and project or profile skills use native Hermes
-  mechanisms. A local skill with the same name may override Pythia's managed
-  skill; Pythia does not add an extension registry.
+  mechanisms. A local skill with the same name may override a standalone
+  external skill. Bundled plugin skills have qualified names; customize their
+  owning plugin or disable that qualified skill. Pythia does not add an
+  extension registry.
 
 Bundled plugin installation and initial enablement are separate release choices.
 Fresh profiles enable the core `pythia` plugin and `pythia-market-data` through
@@ -130,7 +132,7 @@ A fresh profile explicitly enables the same ten base toolsets for `cli`,
 plugin adds `pythia-sec` and `pythia-eodhd`. These are initial values only;
 later native user edits are preserved.
 
-Managed skills declare native `metadata.hermes.requires_toolsets` when they
+Standalone managed skills declare native `metadata.hermes.requires_toolsets` when they
 need a tool. Where Hermes has toolset information, it uses that metadata to
 omit an unavailable skill from the generated prompt. On another Hermes
 platform, enabled tools may differ and the skill may therefore be absent from
@@ -138,6 +140,11 @@ that prompt. If toolset information is unavailable, Hermes's native behavior is
 to leave the skill visible. This is prompt relevance, not a security control,
 and Pythia does not calculate mismatches, hide entries, repair settings, or
 synchronize platforms.
+
+Bundled plugin skills use native `ctx.register_skill` and travel with their
+owning feature. At the pinned release they are discovered through `skills_list`
+and `skill_view`, rather than added to that automatic prompt index. Their native
+qualified names and global/platform disablement remain authoritative.
 
 ## Editing managed source
 
