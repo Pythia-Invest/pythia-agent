@@ -5,6 +5,10 @@ UI primitives, semantic presentation, theme/profile behavior, and the small
 set of approved runtime identity assets. It does not own routes, product data,
 validation, submission state, or workflows.
 
+For financial widget presentation, follow the
+[market widget rule](../../.agents/rules/market-widgets.md) and consume the shared
+display contract without adding provider or identity-resolution logic.
+
 Keep exports source-first and framework-neutral. Base UI is the primary
 primitive family; `cmdk`, React DayPicker, and `react-resizable-panels` retain
 their native keyboard, focus, dismissal, selection, calendar, and resize
