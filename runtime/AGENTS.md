@@ -20,6 +20,9 @@ fallback.
 
 For financial plugins and provider workers, follow the
 [connector rule](../.agents/rules/financial-connectors.md).
+For native feature packaging and operation exports, follow
+[plugin authoring](../docs/architecture/plugins.md) and the
+[plugin rule](../.agents/rules/plugin-authoring.md).
 
 Preserve provenance, dates, units and the distinction between evidence,
 estimates and judgment. Validate mechanically checkable facts in code where

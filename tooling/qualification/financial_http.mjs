@@ -6,7 +6,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { MANAGED_PLUGINS } from "../../scripts/dev/managed-plugins.mjs";
 
@@ -16,20 +16,27 @@ const source = process.argv[2];
 if (!source) throw Error("Pass the prepared pinned Hermes source directory.");
 const root = mkdtempSync(join(tmpdir(), "pythia-financial-http-"));
 try {
-  // Path-derived native keys must work without a duplicate bare-name enable.
-  const target = join(root, "plugins", "finance", "pythia-market-data");
-  mkdirSync(target, { recursive: true, mode: 0o700 });
-  const feature = MANAGED_PLUGINS.find(
-    (plugin) => plugin.name === "pythia-market-data",
-  );
-  for (const file of feature.files)
-    copyFileSync(
-      join("runtime/managed", feature.source, file),
-      join(target, file),
+  // Copy the actual release allowlists, including the core platform package.
+  // The financial feature's path-derived key needs no duplicate bare-name enable.
+  for (const name of ["pythia", "pythia-market-data"]) {
+    const plugin = MANAGED_PLUGINS.find((item) => item.name === name);
+    if (!plugin) throw Error(`Missing managed plugin payload: ${name}`);
+    const target = join(
+      root,
+      "plugins",
+      ...(name === "pythia" ? [name] : ["finance", name]),
     );
+    for (const file of plugin.files) {
+      mkdirSync(dirname(join(target, file)), { recursive: true, mode: 0o700 });
+      copyFileSync(
+        join("runtime/managed", plugin.source, file),
+        join(target, file),
+      );
+    }
+  }
   writeFileSync(
     join(root, "config.yaml"),
-    "plugins:\n  enabled: [finance/pythia-market-data]\nplatform_toolsets:\n  api_server: [pythia-market-data]\n",
+    "plugins:\n  enabled: [pythia, finance/pythia-market-data, research/synthetic]\nplatform_toolsets:\n  api_server: [pythia-market-data, synthetic]\n",
     { mode: 0o600 },
   );
   writeFileSync(join(root, "secrets.json"), "{}", { mode: 0o600 });

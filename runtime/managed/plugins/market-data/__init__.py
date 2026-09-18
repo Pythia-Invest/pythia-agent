@@ -1,11 +1,17 @@
 """Native market-data feature: one backend entry for tools and non-model callers."""
 import json
+from pathlib import Path
 from threading import RLock
 
 from .definition import SCHEMA, TOOL_NAME, TOOLSET
 
 
 def register(ctx):
+    ctx.register_skill(
+        'market-data', Path(__file__).parent / 'skills/market-data/SKILL.md',
+        description='Find investments, inspect identity evidence, choose series and read bounded market data.',
+        frontmatter={'platforms': ['linux', 'macos']},
+    )
     # Discovery describes schemas only; one lazy backend belongs to this native
     # feature context and is shared by its tool and HTTP handler. A standalone
     # CLI creates its own context using the same implementation and durable state.
@@ -43,20 +49,9 @@ def register(ctx):
         finally:
             cancel_signal.reset(token)
 
+    from .transport import register as register_transport
+    register_transport(ctx, SCHEMA, handle, feature_backend)
     ctx.register_tool(name=TOOL_NAME, toolset=TOOLSET, schema=SCHEMA, handler=handle)
-    from .http_transport import register as register_http
-    def resource_scope(resource):
-        if resource['operation'] != 'market-data':
-            return None
-        arguments = resource['arguments']
-        reads = arguments.get('reads', [arguments])
-        preferred = arguments.get('action') == 'get_preferences' or any(
-            item.get('request', {}).get('view', {}).get('kind') == 'pythia' for item in reads)
-        if not preferred:
-            return None
-        owner = feature_backend()
-        return [owner.preferences.get()['revision'], owner.identity.cache_token()]
-    register_http(ctx, resource_scope=resource_scope)
 
     def setup(parser):
         parser.add_argument("--platform", required=True, choices=["cli", "api_server"],

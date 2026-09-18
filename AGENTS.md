@@ -48,6 +48,7 @@ Read additional guidance by the surface being changed:
 | The Claude Design export of `@pythia/ui` | [Design-system sync rule](.agents/rules/design-system-sync.md) and `.design-sync/NOTES.md` |
 | Tests | [Test allocation](.agents/testing.md) |
 | Financial connector capabilities or execution | [Financial connector rule](.agents/rules/financial-connectors.md) |
+| Feature plugin packaging or operation exports | [Plugin authoring](docs/architecture/plugins.md) and [plugin rule](.agents/rules/plugin-authoring.md) |
 
 Use the pinned dependency's documented native surface; inspect its relevant
 source/types before adapting it. If evidence challenges a decided boundary,

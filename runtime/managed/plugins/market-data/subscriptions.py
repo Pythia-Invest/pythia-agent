@@ -1,35 +1,12 @@
 """Native subscription context; not a tool argument or a second registry."""
 from contextvars import copy_context
 import json
-from threading import Event, RLock
 
 from .contributions import project
 from .reads import prepare_read
+from ._platform import platform
 
-
-class Subscription:
-    def __init__(self, publish, window=None):
-        self.publish, self.closed = publish, Event()
-        self.window = window
-        self.lock, self.stops = RLock(), []
-
-    def emit(self, event):
-        if not self.closed.is_set():
-            self.publish(event)
-
-    def on_close(self, stop):
-        with self.lock:
-            if self.closed.is_set():
-                stop()
-            else:
-                self.stops.append(stop)
-
-    def close(self):
-        with self.lock:
-            self.closed.set()
-            stops, self.stops = self.stops, []
-        for stop in stops:
-            stop()
+Subscription = platform().subscription.Subscription
 
 
 def watch(backend, arguments, subscription):

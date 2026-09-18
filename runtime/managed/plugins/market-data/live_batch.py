@@ -4,7 +4,9 @@ import copy
 from datetime import datetime, timedelta, timezone
 import json
 
-from .admission import AdmissionError
+from ._platform import platform
+
+AdmissionError = platform().admission.AdmissionError
 
 
 def materialize(resource):
@@ -28,7 +30,7 @@ def validate_window(resource):
     reads = resource['arguments'].get('reads', [])
     if (not isinstance(window, dict) or set(window) != {'kind', 'days'}
             or window['kind'] not in ('sessions', 'rolling') or type(window['days']) is not int
-            or not 1 <= window['days'] <= 90 or resource['operation'] != 'market-data'
+            or not 1 <= window['days'] <= 90
             or resource['arguments'].get('action') != 'read_many' or len(reads) != 1
             or reads[0].get('request', {}).get('operation') != 'history'):
         raise AdmissionError('invalid_request', 400)
@@ -41,13 +43,23 @@ class LiveBatch:
 
     async def read(self, resource):
         request = materialize(resource)
-        if resource['operation'] != 'market-data' or request.get('action') != 'read_many' or len(request['reads']) != 1:
-            return json.loads(await self.run(resource['operation'], request, None))
+        if request.get('action') != 'read_many' or len(request['reads']) != 1:
+            return json.loads(await self.run(request, None))
         future = asyncio.get_running_loop().create_future()
         self.pending.append((request['reads'][0], future))
         if self.timer is None:
             self.timer = asyncio.get_running_loop().call_later(.01, self.flush)
-        return await future
+        raw = await future
+        result = raw['data'][0]
+        if result.get('outcome') == 'error':
+            issues = [item for item in result.get('issues', []) if item.get('severity', 'error') == 'error']
+            terminal = {'unavailable', 'authentication_failed', 'access_denied', 'reauthorization_required', 'unsupported_series', 'invalid_request', 'invalid_window', 'unsupported_window'}
+            selected = next((item for item in issues if item['code'] in terminal), None) or next((item for item in issues if item['code'] == 'rate_limit'), None) or next(iter(issues), {'code': 'source_unavailable'})
+            failure = AdmissionError(selected['code'], 403 if selected['code'] in terminal else 503)
+            failure.retry_after = selected.get('retry_after_seconds', raw.get('retry_after_seconds'))
+            failure.detail = {key: selected[key] for key in ('retry_after_seconds', 'limit_origin') if key in selected}
+            raise failure
+        return raw
 
     def flush(self):
         batch, self.pending, self.timer = self.pending, [], None
@@ -79,7 +91,7 @@ class LiveBatch:
 
     async def execute(self, entries):
         try:
-            value = json.loads(await self.run('market-data', {'action': 'read_many', 'reads': [item for item, _ in entries]}, None,
+            value = json.loads(await self.run({'action': 'read_many', 'reads': [item for item, _ in entries]}, None,
                                              lambda: all(future.cancelled() for _, future in entries)))
             if not isinstance(value.get('data'), list) or len(value['data']) != len(entries):
                 raise AdmissionError('invalid_response', 502)

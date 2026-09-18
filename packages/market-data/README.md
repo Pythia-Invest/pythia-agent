@@ -7,6 +7,12 @@ This package exports portable TypeScript backend types and `schema.json` (JSON
 Schema Draft 2020-12). It defines references, evidence, series and read results;
 it does not discover providers, match investments, execute reads or store data.
 
+This is the consumer library of the `pythia-market-data` feature, not a second
+installed Hermes plugin. Its separate directory/build lets TypeScript consumers
+use the feature's published interface without importing its Python runtime.
+A compatible user replacement can retain this contract; changing it requires
+updating the affected consumers too. See [feature packaging](../../docs/architecture/plugins.md).
+
 `runtime/managed/plugins/market-data/wire_schema.py` owns the closed structural
 shapes. Regenerate the package artifact from the repository root with
 `python3 packages/market-data/test/export_schema.py`; use `--check` to verify it.

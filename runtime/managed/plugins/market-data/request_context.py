@@ -1,21 +1,7 @@
-"""Cancellation shared across a financial request's bounded worker threads."""
-from contextvars import ContextVar
-from functools import wraps
+"""Compatibility imports for financial workers using shared platform context."""
+from ._platform import platform
 
-cancel_signal = ContextVar("pythia_financial_cancel", default=None)
-usage = ContextVar('pythia_financial_usage', default='research')
-
-
-def dashboard_operation(function):
-    """Trusted transport scope; never accepted from tool or HTTP arguments."""
-    @wraps(function)
-    def call(*args, **kwargs):
-        token = usage.set('dashboard')
-        try: return function(*args, **kwargs)
-        finally: usage.reset(token)
-    return call
-
-
-def cancelled():
-    callback = cancel_signal.get()
-    return bool(callback and callback())
+cancel_signal = platform().request_context.cancel_signal
+usage = platform().request_context.usage
+dashboard_operation = platform().request_context.dashboard_operation
+cancelled = platform().request_context.cancelled

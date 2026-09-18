@@ -92,6 +92,38 @@ Pythia uses Hermes's own extension and configuration rules:
   mechanisms. A local skill with the same name may override Pythia's managed
   skill; Pythia does not add an extension registry.
 
+Bundled plugin installation and initial enablement are separate release choices.
+Fresh profiles enable the core `pythia` plugin and `pythia-market-data` through
+Hermes. A supported optional plugin can be shipped without being enabled; users
+enable it through native Hermes configuration. Later rebuilds and updates retain
+the existing enabled and disabled choices. Community plugins use normal Hermes
+installation and discovery and need no entry in Pythia's release payload list.
+
+Each managed copy carries `.pythia-managed-copy.json`, a content receipt listing
+its copied files and hashes. Updates replace a directory only when its contents
+still match that receipt. A changed or missing file, additional local file,
+invalid receipt, or linked directory preserves the whole plugin and produces an
+explicit update-skipped report. A local replacement remains user-owned, including
+when it uses the same native plugin name. Hermes diagnoses its compatibility;
+preservation does not certify that it implements the APIs required by other
+enabled plugins. Dependent registration fails visibly if required support is
+missing.
+
+Older copies without receipts are adopted only when their complete contents
+match the selected payload or an explicitly recorded prior release fingerprint.
+Unknown older copies are preserved for explicit reconciliation. Recognized
+CPython bytecode caches for copied Python modules are generated state and can be
+discarded during replacement; other extra files remain ownership conflicts.
+
+Release payloads allowlist individual nested skill and asset files, with real
+directories and regular files throughout. A plugin payload admits at most 512
+files, eight path components, 8 MiB per file, 32 MiB in total and a 256 KiB
+serialized receipt. Preparation
+validates all selected inputs before copying. Core validation uses native plugin
+doctor. Since that command isolates a single plugin, dependent feature packages
+are qualified with their copied dependencies together; ordinary updates do not
+claim an independent doctor pass for a preserved replacement or dependent feature.
+
 A fresh profile explicitly enables the same ten base toolsets for `cli`,
 `cron`, and `api_server`: `cronjob`, `delegation`, `file`, `memory`,
 `session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. The Pythia

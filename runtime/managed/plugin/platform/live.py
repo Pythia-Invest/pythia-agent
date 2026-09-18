@@ -5,7 +5,7 @@ import json
 import time
 import uuid
 
-from .selection import fingerprint
+from .access import fingerprint
 
 
 class LiveReads:

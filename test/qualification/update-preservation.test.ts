@@ -10,7 +10,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { refreshManagedPlugin } from "../../scripts/dev/files.mjs";
+import {
+  MANAGED_PLUGIN_FILES,
+  PLUGIN_COPY_RECEIPT,
+  refreshManagedPlugin,
+} from "../../scripts/dev/files.mjs";
 import {
   atomicWriteJson,
   copyPrivateFile,
@@ -145,7 +149,10 @@ function installedFixture() {
     join(paths.checkout, "runtime", "managed", "plugin"),
     pluginDestination,
   );
-  file(join(pluginDestination, "stale-generated.pyc"), "stale\n");
+  file(
+    join(pluginDestination, "__pycache__/__init__.cpython-312.pyc"),
+    "stale\n",
+  );
   const executables = {
     node: "/opt/pythia/node",
     python: "/opt/pythia/python",
@@ -232,14 +239,16 @@ describe("signed A-to-B state preservation", () => {
       expect(hashTree(path), name).toBe(fixture.preservedBefore[name]);
     }
     expect(
-      existsSync(join(fixture.pluginDestination, "stale-generated.pyc")),
+      existsSync(
+        join(fixture.pluginDestination, "__pycache__/__init__.cpython-312.pyc"),
+      ),
     ).toBe(false);
-    expect(readdirSync(fixture.pluginDestination).sort()).toEqual([
-      "__init__.py",
-      "desk_view.py",
-      "operating.py",
-      "plugin.yaml",
-    ]);
+    expect(readdirSync(fixture.pluginDestination).sort()).toEqual(
+      [
+        ...new Set(MANAGED_PLUGIN_FILES.map((name) => name.split("/")[0])),
+        PLUGIN_COPY_RECEIPT,
+      ].sort(),
+    );
     expect(
       existsSync(
         join(
@@ -277,7 +286,12 @@ describe("signed A-to-B state preservation", () => {
         fixture.release.revisionB,
       );
       expect(
-        existsSync(join(fixture.pluginDestination, "stale-generated.pyc")),
+        existsSync(
+          join(
+            fixture.pluginDestination,
+            "__pycache__/__init__.cpython-312.pyc",
+          ),
+        ),
       ).toBe(stage === "dependency");
       expect(existsSync(join(fixture.paths.stateRoot, "migrations.json"))).toBe(
         stage === "migration" || stage === "unit",

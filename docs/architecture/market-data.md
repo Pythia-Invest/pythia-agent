@@ -35,8 +35,10 @@ source never authorizes fallback or history stitching. A preference change does
 not rewrite retained research or source pins. Unknown units, times, completion,
 coverage and entitlements remain explicit.
 
-The existing lifecycle copies explicit plugin files, validates with native
-doctor and enables managed plugins only for a fresh profile. Updates preserve
-existing native enabled choices and private plugin state. Activation requires
+The existing lifecycle copies explicit plugin files and bundled skills, validates
+with native doctor and enables only the declared default set for a fresh profile.
+Updates preserve existing native enabled choices, private plugin state and
+user-owned replacements. See the common [plugin convention](plugins.md).
+Activation requires
 the normal refresh and gateway restart; source files are not automatically live.
 There is no second registry, daemon, credential store or durable price archive.

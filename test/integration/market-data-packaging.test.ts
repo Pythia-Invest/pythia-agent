@@ -1,6 +1,7 @@
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -10,12 +11,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   MANAGED_PLUGINS,
   refreshManagedPlugins,
 } from "../../scripts/dev/managed-plugins.mjs";
+import { PLUGIN_COPY_RECEIPT } from "../../scripts/dev/files.mjs";
 
 const repository = new URL("../../", import.meta.url).pathname;
 const roots: string[] = [];
@@ -32,11 +34,13 @@ function fixture(profile = "fixture") {
   mkdirSync(profileRoot);
   for (const { source, files } of MANAGED_PLUGINS) {
     mkdirSync(join(managedRoot, source), { recursive: true });
-    for (const file of files)
+    for (const file of files) {
+      mkdirSync(dirname(join(managedRoot, source, file)), { recursive: true });
       copyFileSync(
         join(repository, "runtime/managed", source, file),
         join(managedRoot, source, file),
       );
+    }
   }
   return {
     root,
@@ -48,7 +52,7 @@ function fixture(profile = "fixture") {
 }
 
 describe("native market-data lifecycle payload", () => {
-  it("copies all installed helpers exactly, removes stale copies and preserves native choices/state", () => {
+  it("copies allowlisted nested inputs and preserves native choices and plugin state", () => {
     const paths = fixture("profile with spaces");
     const config = `plugins:
   enabled: [pythia]
@@ -74,20 +78,21 @@ platform_toolsets:
     const execute = (_paths: unknown, args: string[]) => {
       commands.push(args);
     };
-    for (const { source, name } of MANAGED_PLUGINS) {
+    for (const { source } of MANAGED_PLUGINS) {
       mkdirSync(join(paths.managedRoot, source, "__pycache__"));
       writeFileSync(
         join(paths.managedRoot, source, "AGENTS.md"),
         "builder-only",
       );
-      const destination = join(paths.profileRoot, "plugins", name);
-      mkdirSync(destination, { recursive: true });
-      writeFileSync(join(destination, "obsolete.py"), "stale");
     }
     refreshManagedPlugins(paths, "synthetic", { execute });
     for (const { source, name, files } of MANAGED_PLUGINS) {
       const destination = join(paths.profileRoot, "plugins", name);
-      expect(readdirSync(destination).sort()).toEqual([...files].sort());
+      expect(
+        readdirSync(destination, { recursive: true })
+          .filter((name) => lstatSync(join(destination, String(name))).isFile())
+          .sort(),
+      ).toEqual([...files, PLUGIN_COPY_RECEIPT].sort());
       for (const file of files)
         expect(readFileSync(join(destination, file))).toEqual(
           readFileSync(join(paths.managedRoot, source, file)),
@@ -102,7 +107,7 @@ platform_toolsets:
         "utf8",
       ),
     ).toBe("user-owned");
-    expect(commands.map((args) => args[3])).toEqual(["doctor", "doctor"]);
+    expect(commands.map((args) => args[3])).toEqual(["doctor"]);
     expect(commands.every((args) => args[1] === paths.profile)).toBe(true);
   });
 
@@ -123,17 +128,13 @@ platform_toolsets:
     });
     expect(commands.map((args) => args[3])).toEqual([
       "doctor",
-      "doctor",
       "enable",
       "enable",
     ]);
     expect(
       commands.filter((args) => args[3] === "doctor").map((args) => args[4]),
-    ).toEqual([
-      join(paths.profileRoot, "plugins", "pythia"),
-      join(paths.profileRoot, "plugins", "pythia-market-data"),
-    ]);
-    expect(commands.slice(2).map((args) => args[4])).toEqual([
+    ).toEqual([join(paths.profileRoot, "plugins", "pythia")]);
+    expect(commands.slice(1).map((args) => args[4])).toEqual([
       "pythia",
       "pythia-market-data",
     ]);
@@ -182,9 +183,93 @@ platform_toolsets:
     mkdirSync(foreign);
     writeFileSync(join(foreign, "keep"), "untouched");
     symlinkSync(foreign, core);
-    expect(() =>
-      refreshManagedPlugins(paths, "synthetic", { execute }),
-    ).toThrow(/symlinked/u);
+    const reports: string[] = [];
+    expect(
+      refreshManagedPlugins(paths, "synthetic", {
+        execute,
+        report: (message: string) => reports.push(message),
+      })[0]?.status,
+    ).toBe("preserved");
+    expect(reports[0]).toContain("Preserved local plugin pythia");
     expect(readFileSync(join(foreign, "keep"), "utf8")).toBe("untouched");
+  });
+
+  it("installs optional payloads without enabling them and leaves omitted/community plugins alone", () => {
+    const paths = fixture();
+    const community = join(paths.profileRoot, "plugins", "community");
+    mkdirSync(community, { recursive: true });
+    writeFileSync(join(community, "plugin.yaml"), "name: community\n");
+    const commands: string[][] = [];
+    const core = MANAGED_PLUGINS.find((plugin) => plugin.name === "pythia");
+    if (!core) throw new Error("Missing core payload fixture");
+    const payloads = [
+      ...MANAGED_PLUGINS,
+      {
+        ...core,
+        name: "optional",
+        doctor: false,
+        enabledByDefault: false,
+      },
+      {
+        ...core,
+        name: "not-installed",
+        install: false,
+        source: "does-not-exist",
+      },
+    ];
+    refreshManagedPlugins(paths, "synthetic", {
+      freshProfile: true,
+      payloads,
+      execute: (_paths: unknown, args: string[]) => {
+        commands.push(args);
+      },
+    });
+    expect(
+      existsSync(join(paths.profileRoot, "plugins/optional/plugin.yaml")),
+    ).toBe(true);
+    expect(existsSync(join(paths.profileRoot, "plugins/not-installed"))).toBe(
+      false,
+    );
+    expect(
+      commands.filter((args) => args[3] === "enable").map((args) => args[4]),
+    ).toEqual(["pythia", "pythia-market-data"]);
+    expect(readFileSync(join(community, "plugin.yaml"), "utf8")).toBe(
+      "name: community\n",
+    );
+    commands.length = 0;
+    refreshManagedPlugins(paths, "synthetic", {
+      payloads,
+      execute: (_paths: unknown, args: string[]) => {
+        commands.push(args);
+      },
+    });
+    expect(
+      commands.some((args) => args[3] === "enable" || args[3] === "disable"),
+    ).toBe(false);
+  });
+
+  it("reports a user replacement without doctoring, enabling or claiming its ownership", () => {
+    const paths = fixture();
+    const destination = join(paths.profileRoot, "plugins/pythia");
+    mkdirSync(destination, { recursive: true });
+    writeFileSync(join(destination, "plugin.yaml"), "name: user-replacement\n");
+    const commands: string[][] = [];
+    const reports: string[] = [];
+    const result = refreshManagedPlugins(paths, "synthetic", {
+      freshProfile: true,
+      report: (message: string) => reports.push(message),
+      execute: (_paths: unknown, args: string[]) => {
+        commands.push(args);
+      },
+    });
+    expect(result[0]?.status).toBe("preserved");
+    expect(reports[0]).toContain("unreceipted");
+    expect(
+      commands.some((args) => args[4] === "pythia" || args[4] === destination),
+    ).toBe(false);
+    expect(existsSync(join(destination, PLUGIN_COPY_RECEIPT))).toBe(false);
+    expect(readFileSync(join(destination, "plugin.yaml"), "utf8")).toBe(
+      "name: user-replacement\n",
+    );
   });
 });

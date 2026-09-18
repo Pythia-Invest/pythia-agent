@@ -12,12 +12,25 @@ import sys
 import tempfile
 import threading
 import unittest
+from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[2] / "managed/plugins/market-data"
 PACKAGE = "market_identity_fixture"
 spec = importlib.util.spec_from_file_location(PACKAGE, ROOT / "__init__.py", submodule_search_locations=[str(ROOT)])
 module = importlib.util.module_from_spec(spec)
 sys.modules[PACKAGE] = module
+# Isolated dependency injection for provider-free domain tests. The assembled
+# qualification exercises actual native discovery and dependency ownership.
+PLATFORM = 'pythia_platform_fixture'
+platform_root = ROOT.parents[1] / 'plugin' / 'platform'
+platform_spec = importlib.util.spec_from_file_location(PLATFORM, platform_root / '__init__.py',
+                                                     submodule_search_locations=[str(platform_root)])
+platform_module = importlib.util.module_from_spec(platform_spec)
+sys.modules[PLATFORM] = platform_module
+platform_spec.loader.exec_module(platform_module)
+dependency = ModuleType(PACKAGE + '._platform')
+dependency.platform = lambda: platform_module
+sys.modules[dependency.__name__] = dependency
 # Identity modules are provider-free: don't execute the native plugin initializer.
 from importlib import import_module
 identity = import_module(f"{PACKAGE}.identity")

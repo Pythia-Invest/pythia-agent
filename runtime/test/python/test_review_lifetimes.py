@@ -6,11 +6,11 @@ import importlib
 from threading import Event
 import unittest
 
-from test_market_data_identity import PACKAGE
+from test_market_data_identity import PACKAGE, PLATFORM
 
 cache = importlib.import_module(PACKAGE + '.cache')
-context = importlib.import_module(PACKAGE + '.request_context')
-LiveReads = importlib.import_module(PACKAGE + '.live').LiveReads
+context = importlib.import_module(PLATFORM + '.request_context')
+LiveReads = importlib.import_module(PLATFORM + '.live').LiveReads
 
 
 class NestedConsumers(unittest.TestCase):

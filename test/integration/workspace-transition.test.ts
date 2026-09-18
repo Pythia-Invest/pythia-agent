@@ -159,6 +159,17 @@ afterEach(() => {
 });
 
 describe("explicit workspace storage transition", () => {
+  it("does not claim a staged plugin replacement when a local plugin is preserved", () => {
+    const f = fixture();
+    const local = join(f.paths.profileRoot, "plugins/pythia/plugin.yaml");
+    f.write(local, "name: investor-owned\n");
+    expect(() => applyWorkspaceTransition(f.paths, f.options())).toThrow(
+      /preserved a locally owned/,
+    );
+    expect(readFileSync(local, "utf8")).toBe("name: investor-owned\n");
+    expect(() => assertStagedWorkspaceTransition(f.paths)).toThrow(/No staged/);
+  });
+
   it("previews concrete custom seed diffs, legacy links and binding without writes", () => {
     const f = fixture();
     const result = previewWorkspaceTransition(f.paths, {

@@ -165,7 +165,7 @@ if (
     .join("\0")
 ) {
   violations.push(
-    "Hermes: managed plugin source is not the exact four-file allowlist",
+    "Hermes: managed plugin source is not the exact runtime file allowlist",
   );
 }
 const managedPythonFiles = source.entries

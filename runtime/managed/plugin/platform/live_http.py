@@ -3,21 +3,18 @@ import asyncio
 import json
 
 from .live import LiveReads
-from .live_batch import LiveBatch, validate_window
-from .selection import fingerprint
+from .access import fingerprint
 
 
-def install(app, authorize, read_body, error, run, inspect, subscribe):
+def install(app, authorize, read_body, error, poll, inspect, subscribe):
     from aiohttp import web
     streams = set()
-    batch = LiveBatch(run)
 
     async def access(request):
         return await inspect(request)
 
     async def read(request):
-        raw = await batch.read(request)
-        result = raw['data'][0] if request['operation'] == 'market-data' and isinstance(raw.get('data'), list) and len(raw['data']) == 1 else raw
+        raw = result = await poll(request)
         if result.get('outcome') == 'error':
             from .admission import AdmissionError
             issues = [issue for issue in result.get('issues', []) if issue.get('severity', 'error') == 'error']
@@ -54,12 +51,18 @@ def install(app, authorize, read_body, error, run, inspect, subscribe):
             if not isinstance(resources, list) or not 1 <= len(resources) <= 64:
                 return error('invalid_request', 400)
             for resource in resources:
-                if (not isinstance(resource, dict) or not {'operation', 'arguments'} <= set(resource) <= {'operation', 'arguments', 'window'}
-                        or not isinstance(resource['operation'], str) or not isinstance(resource['arguments'], dict)):
+                if (not isinstance(resource, dict) or not {'plugin', 'operation', 'arguments'} <= set(resource) <= {'plugin', 'operation', 'arguments', 'window'}
+                        or not isinstance(resource['plugin'], str) or not isinstance(resource['operation'], str)
+                        or not isinstance(resource['arguments'], dict)):
                     return error('invalid_request', 400)
-                if resource['operation'] == 'market-data' and resource['arguments'].get('action') not in ('read', 'read_many', 'get_preferences'):
-                    return error('unsupported_operation', 400)
-                validate_window(resource)
+                resource['read_only'] = True
+                try:
+                    await inspect(resource)
+                except Exception as failure:
+                    # A revoked/missing operation resets only its resource;
+                    # unrelated authorized subscriptions retain their channel.
+                    if getattr(failure, 'status', 400) not in (401, 403, 404, 409):
+                        raise
             if len({fingerprint(item) for item in resources}) != len(resources):
                 return error('invalid_request', 400)
 
@@ -98,8 +101,9 @@ def install(app, authorize, read_body, error, run, inspect, subscribe):
                     try:
                         if await inspect(resources[event['index']]) != event.get('_scope'):
                             raise ValueError('access_changed')
-                    except Exception:
-                        event = {**event, 'type': 'reset', 'state': 'unavailable', 'code': 'access_changed'}
+                    except Exception as failure:
+                        event = {**event, 'type': 'reset', 'state': 'unavailable',
+                                 'code': getattr(failure, 'code', 'access_changed')}
                         event.pop('data', None)
                     event.pop('_scope', None)
                     encoded = ('data: ' + json.dumps(event, allow_nan=False) + '\n\n').encode()
@@ -119,7 +123,6 @@ def install(app, authorize, read_body, error, run, inspect, subscribe):
 
     async def cleanup(_app):
         await hub.close()
-        await batch.close()
     app.on_shutdown.append(cleanup)
     for path in ('/v1/pythia/updates', '/p/{profile}/v1/pythia/updates'):
         app.router.add_post(path, handler)

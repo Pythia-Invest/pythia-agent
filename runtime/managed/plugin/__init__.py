@@ -352,6 +352,8 @@ def _eod_prices(args: dict[str, Any], **_kwargs: Any) -> str:
 
 
 def register(ctx: Any) -> None:
+    from . import platform
+    platform.register(ctx)
     ctx.register_tool(
         name="pythia_desk_view",
         toolset="pythia-desk",

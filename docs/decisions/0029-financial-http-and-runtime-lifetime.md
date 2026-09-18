@@ -2,6 +2,12 @@
 
 ## Context
 
+The package and route ownership described here is superseded by
+[ADR 0033](0033-native-feature-packages.md): transport lives in the platform
+support package and all feature reads use plugin-qualified operation addresses.
+The former `/financial` and unqualified specialist paths below describe the
+initial design, not the current public interface.
+
 The runtime/authentication boundary remains accepted. [ADR 0030](0030-coordinated-reads-and-live-updates.md)
 supersedes this ADR's initial four-request rejection policy, HTTP-local specialist
 cache and withholding of transiently stale display values. It adds bounded

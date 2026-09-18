@@ -1,9 +1,6 @@
 """Common series criteria and one-source selection, with no provider translation."""
 import hashlib
 import json
-import os
-from pathlib import Path
-import stat
 from datetime import datetime
 
 from .wire import validate, validate_parameters, parameter_schema, require
@@ -84,37 +81,13 @@ def fingerprint(value):
 
 
 def canonical_access_revision():
-    """Metadata only for the platform-owned atomic secret store; never open it."""
-    root = os.environ.get("PYTHIA_CONFIG_ROOT")
-    if not root or not Path(root).is_absolute():
-        return None
-    try:
-        directory = Path(root).lstat()
-        info = (Path(root) / "secrets.json").lstat()
-        if (not stat.S_ISDIR(directory.st_mode) or not stat.S_ISREG(info.st_mode)
-                or any(item.st_uid != os.getuid() or item.st_mode & 0o077 for item in (directory, info))
-                or not directory.st_mode & stat.S_IXUSR or not info.st_mode & stat.S_IRUSR):
-            return None
-        return [info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns]
-    except OSError:
-        return None
+    from ._platform import platform
+    return platform().access.canonical_access_revision()
 
 
 def native_access_scope():
-    """Memory-only caller/config fingerprint and safe cache eligibility.
-
-    Native environment changes and canonical secret-store atomic replacement are
-    separate access changes. Unsafe/missing metadata bypasses caching, not reads.
-    """
-    from gateway.session_context import get_session_env
-    from hermes_cli.config import load_config_readonly
-    from .request_context import usage
-    revision = canonical_access_revision()
-    return {"cacheable": revision is not None,
-            "scope": fingerprint({"platform": get_session_env("HERMES_SESSION_PLATFORM", ""),
-                                  "usage": usage.get(),
-                                  "config": load_config_readonly(), "environment": dict(os.environ),
-                                  "canonical_store": revision})}
+    from ._platform import platform
+    return platform().access.native_access_scope()
 
 
 def selector(series):

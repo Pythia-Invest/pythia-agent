@@ -2,7 +2,7 @@
 
 ## Qualified market-data extension seams
 
-The shared financial owner uses native `ctx.register_platform_handler("api_server", factory)`.
+The core platform support uses native `ctx.register_platform_handler("api_server", factory)`.
 At the exact pin below, `BasePlatformAdapter._wire_plugin_handlers` passes the
 existing application and adapter; `APIServerAdapter.connect` invokes factories
 before route freeze. Registration alone does not authenticate routes. The shared
@@ -31,8 +31,21 @@ Every shared contribution target must have an active native owner; specialist
 annotations must identify their actual owner. Post-execution checks deny result
 publication after access changes, including uncached shared calls and CLI reads.
 
+The protected address is `/v1/pythia/plugins/{plugin-id}/{operation}`. Market data
+declares `pythia-market-data/query` through the same mechanism as other features;
+the generic adapter does not depend on financial enablement. The native loaded
+core module supplies reusable transport helpers, with no separate operation
+inventory. The shared updates channel includes plugin and operation in each resource.
+
+Native `ctx.register_skill(name, path, description=...)` attaches a bundled
+skill to its plugin registration. The pinned runtime exposes its qualified name
+through `skills_list` and `skill_view`; these registered skills are not added to
+the automatic prompt skill index. Feature tools point to relevant bundled
+guidance. Disabling the plugin removes that native registration on restart.
+
 `scripts/dev/managed-plugins.mjs` explicitly copies core and feature files. Fresh
-profiles enable them through native commands; updates preserve existing choices.
+profiles enable the declared default set through native commands; updates preserve
+existing choices and content-qualified user replacements.
 The copied-feature probe `tooling/qualification/financial_http.mjs` exercises the
 real API application, synthetic native tools, shared lifetime, authentication,
 profile/access revocation, preferred/pinned reads, cancellation and responsiveness.
@@ -257,7 +270,7 @@ reimplements this filter nor stores its result. See the tagged
 [agent prompt construction](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/agent/system_prompt.py), and
 [filter tests](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/tests/agent/test_prompt_builder.py).
 
-Pythia copies the four-file core plugin into `<profile>/plugins/pythia/`
+Pythia copies the core plugin and platform support into `<profile>/plugins/pythia/`
 and the financial feature into `<profile>/plugins/pythia-market-data/`.
 Explicit allowlists include only runtime inputs, never builder guidance.
 Plugins are never symlinked or installed as Python packages. Their native
@@ -270,7 +283,7 @@ hermes -p <profile> plugins enable pythia --no-allow-tool-override
 
 `doctor --ci` uses the production manifest/import/register path and exits
 nonzero on a diagnostic error, but is validation rather than a security
-sandbox. The plugin must expose `register(ctx)` and may use only:
+sandbox. The plugin exposes `register(ctx)`. Qualified surfaces used here include:
 
 - `ctx.register_system_prompt_section(id, content, position="after_memory",
   max_chars=<at most 4000>)`; Hermes caps the combined registered prompt at
@@ -280,6 +293,10 @@ sandbox. The plugin must expose `register(ctx)` and may use only:
   override=False)`. Pythia never overrides a built-in name or capability.
   Handlers return a JSON-serializable value or string and convert bounded
   provider failures to the Pythia result shape.
+- `ctx.register_skill(name, path, description="", frontmatter=None)` for bundled,
+  explicitly discoverable feature guidance.
+- `ctx.register_platform_handler("api_server", factory)` for the shared platform
+  adapter on the existing HTTP application, never a new listener.
 
 Plugin/configuration changes take effect for a new process and new session;
 the lifecycle owner restarts Hermes. Evidence is the released

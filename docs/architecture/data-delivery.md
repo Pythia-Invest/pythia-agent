@@ -8,7 +8,7 @@ or durable scheduler.
 
 ## Ownership and limits
 
-The native api_server factory installs financial, specialist and SSE routes before
+The platform's native api_server factory installs plugin-operation and SSE routes before
 application startup. HTTP and agent tools enter the same lazy profile backend.
 Standalone CLI shares code and durable state, with its own memory. Native
 permissions and current access are checked before execution, reuse and publication.
@@ -48,8 +48,11 @@ credits are not a billing ledger. See [connector support](connector-support.md).
 ## Protocol
 
 POST /v1/pythia/updates (also under /p/{profile}) accepts
-`{resources: [{operation, arguments, window?}]}`. Operations are the deliberately
+`{resources: [{plugin, operation, arguments, window?}]}`. Operations are the deliberately
 exposed native operations from protected reads; this is not arbitrary-tool dispatch.
+Shared financial resources use `plugin: "pythia-market-data"` and
+`operation: "query"`. The transport is independent of financial enablement;
+financial batching, relative windows and series qualifications remain feature-owned.
 Financial subscriptions permit read/read_many/get_preferences, never mutations.
 Only the factory's profile is served; effective-home mismatch fails closed.
 

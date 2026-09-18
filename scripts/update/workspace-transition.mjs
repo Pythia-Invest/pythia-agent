@@ -200,10 +200,14 @@ export function applyWorkspaceTransition(paths, options = {}) {
   if (!["owned-disabled", "absent"].includes(binding(paths, execute).status))
     throw new Error("Native MCP disable readback failed.");
   options.afterConfig?.();
-  refreshManagedPlugin(
+  const pluginCopy = refreshManagedPlugin(
     paths.managedPlugin,
     join(paths.profileRoot, "plugins", "pythia"),
   );
+  if (pluginCopy.status === "preserved")
+    throw new Error(
+      "Workspace transition preserved a locally owned Pythia plugin. Reconcile that replacement before staging the managed transition.",
+    );
   (
     options.pluginDoctor ??
     ((currentPaths) =>

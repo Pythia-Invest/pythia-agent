@@ -25,6 +25,8 @@ Verify the pinned Hermes surface and provider documentation for the capability
 being added; examples from another connector do not establish identical semantics.
 These financial requirements do not add a market-data dependency to unrelated
 native plugins.
+Package the feature through the common [plugin convention](./plugin-authoring.md),
+including bundled native skills and explicitly owned operation exports.
 
 ## Ownership and capability
 

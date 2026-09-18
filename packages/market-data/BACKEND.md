@@ -3,7 +3,7 @@
 The managed `market-data` plugin binds one ordinary `Backend` instance to native
 `ctx.state.data_dir`. The `pythia_market_data` tool and platform-bound native CLI
 `hermes market-data --platform cli --request '<JSON>'` dispatch through the same implementation.
-The running gateway's protected `POST /v1/pythia/financial` dispatches the native
+The running gateway's protected `POST /v1/pythia/plugins/pythia-market-data/query` dispatches the native
 tool handler and shares its profile-bound backend instance. CLI processes have
 their own instance. Describe/startup
 only inspect native contributions; they never test live entitlements. Every
@@ -153,10 +153,12 @@ metadata. Desk composition and consumer-side coordination are a later increment.
 
 ## Protected HTTP
 
-The existing API bearer authenticates both `/v1/pythia/financial` and
-`/v1/pythia/plugins/{operation}`. The body is `{arguments, reuse_scope?}`;
+The existing API bearer authenticates
+`/v1/pythia/plugins/{plugin-id}/{operation}`. Shared financial actions use
+`pythia-market-data/query`. The body is `{arguments, reuse_scope?}`;
 the financial `arguments` is an action object from the table above. Only native
-tools explicitly marked with `pythia_http_operation` are specialist targets.
+tools explicitly marked with `pythia_http_operation` are targets, and the plugin
+address must identify the actual native owner.
 Providers declare these with `register_read_command(..., schema=..., plugin=...)`;
 the same native schema supports standalone CLI and protected HTTP. A plugin
 does not implement authentication, register another financial route or gain

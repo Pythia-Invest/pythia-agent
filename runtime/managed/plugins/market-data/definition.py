@@ -13,6 +13,7 @@ SCHEMA = {
     "name": TOOL_NAME,
     "description": (
         "Inspect sources, search or resolve native investments, describe series and read prices/history by canonical subject. "
+        "For workflow guidance, load skill_view(name='pythia-market-data:market-data'); skills_list discovers bundled skills. "
         "Use read_many to coordinate a watchlist or several reads; each item retains its source and full financial semantics. "
         "Preferences can be scoped by subject kind, currency, venue, interval, measurement, session or adjustment. "
         "Read criteria select measurement, interval, session, price adjustment, source class or venue; ambiguity requires more detail. "
