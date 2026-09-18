@@ -37,9 +37,7 @@ export function WorkspaceCompanion({ children }: { children: ReactNode }) {
           <ChatTabs
             kind="file"
             activeId={reader.artifact.path}
-            draft={false}
             onClose={reader.closeFile}
-            onCloseDraft={() => {}}
             onSelect={(path) => {
               const file = reader.files.find((file) => file.path === path);
               if (file) reader.open(file);

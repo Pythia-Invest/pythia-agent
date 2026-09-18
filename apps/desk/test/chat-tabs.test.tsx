@@ -14,14 +14,10 @@ const ids = tabs.map((tab) => tab.id);
 
 function render(overrides: Partial<Parameters<typeof ChatTabs>[0]> = {}) {
   return renderToStaticMarkup(
-    <Tabs
-      value={overrides.draft ? "draft" : `session:${overrides.activeId ?? "a"}`}
-    >
+    <Tabs value={overrides.activeId ?? "a"}>
       <ChatTabs
         activeId="a"
-        draft={false}
         onClose={vi.fn()}
-        onCloseDraft={vi.fn()}
         onSelect={vi.fn()}
         tabs={tabs}
         {...overrides}
@@ -33,7 +29,7 @@ function render(overrides: Partial<Parameters<typeof ChatTabs>[0]> = {}) {
 describe("tab layout", () => {
   it("keeps all chats available before measurement and while they fit", () => {
     for (const width of [0, 300, 900]) {
-      const layout = layOutTabs(ids, "a", width, false);
+      const layout = layOutTabs(ids, "a", width);
       expect(layout.visibleIds).toEqual(ids);
       expect(layout.hiddenIds).toEqual([]);
     }
@@ -41,22 +37,18 @@ describe("tab layout", () => {
 
   it("keeps the active chat reachable and accounts for every overflowed tab", () => {
     const many = ["a", "b", "c", "d", "e", "f", "g", "h"];
-    const layout = layOutTabs(many, "f", 340, false);
+    const layout = layOutTabs(many, "f", 340);
     expect(layout.visibleIds).toContain("f");
     expect(layout.visibleIds.length).toBeLessThan(many.length);
     expect([...layout.visibleIds, ...layout.hiddenIds].sort()).toEqual(many);
-    expect(layOutTabs(ids, "c", 120, false).visibleIds).toEqual(["c"]);
+    expect(layOutTabs(ids, "c", 120).visibleIds).toEqual(["c"]);
   });
 
-  it("reserves a tab for the unsaved chat, including in a narrow dock", () => {
-    const saved = layOutTabs(ids, "c", 300, false);
-    const draft = layOutTabs(ids, null, 300, true);
-    expect(draft.visibleIds.length).toBeLessThan(saved.visibleIds.length);
-    expect([...draft.visibleIds, ...draft.hiddenIds].sort()).toEqual(ids);
-    expect(layOutTabs(ids, null, 120, true)).toEqual({
-      visibleIds: [],
-      hiddenIds: ids,
-    });
+  it("treats draft identifiers like any other tab in overflow", () => {
+    const all = [...ids, "draft:1", "draft:2"];
+    const layout = layOutTabs(all, "draft:2", 120);
+    expect(layout.visibleIds).toEqual(["draft:2"]);
+    expect(layout.hiddenIds).toEqual(all.slice(0, -1));
   });
 });
 
@@ -82,7 +74,7 @@ describe("opening and closing tabs", () => {
     });
   });
 
-  it("falls back to a fresh composer when the last tab closes", () => {
+  it("leaves no active tab when the last tab closes", () => {
     expect(closeTab(["a"], "a", "a")).toEqual({ activeId: null, openIds: [] });
   });
 });
@@ -96,15 +88,17 @@ describe("ChatTabs", () => {
     expect(markup).toContain('aria-label="Close Northwind dividend cover"');
   });
 
-  it("shows an unsaved chat as its own tab", () => {
-    const markup = render({ activeId: null, draft: true, tabs: [] });
-    expect(markup).toContain("New chat");
-    // Nothing to fall back to, so closing the lone draft is not offered.
-    expect(markup).not.toContain('aria-label="Close New chat"');
-  });
-
-  it("lets the unsaved chat be closed once another tab can take over", () => {
-    const markup = render({ activeId: null, draft: true });
-    expect(markup).toContain('aria-label="Close New chat"');
+  it("offers closing for every draft, including the last one", () => {
+    const drafts = [
+      { id: "draft:1", title: "New chat" },
+      { id: "draft:2", title: "New chat" },
+    ];
+    for (const tabs of [drafts, drafts.slice(0, 1)]) {
+      const markup = render({ activeId: "draft:1", tabs });
+      expect(markup.match(/role="tab"/g)).toHaveLength(tabs.length);
+      expect(markup.match(/aria-label="Close New chat"/g)).toHaveLength(
+        tabs.length,
+      );
+    }
   });
 });
