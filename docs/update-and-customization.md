@@ -146,6 +146,11 @@ owning feature. At the pinned release they are discovered through `skills_list`
 and `skill_view`, rather than added to that automatic prompt index. Their native
 qualified names and global/platform disablement remain authoritative.
 
+The initial move from standalone skills to plugin bundles does not translate
+old disabled names. A disabled entry for `market-data` does not apply to
+`pythia-market-data:market-data`; any such pre-existing choice must use the
+qualified name. Profiles without those entries need no settings change.
+
 ## Editing managed source
 
 Changing tracked managed source creates a local fork in practical terms. The

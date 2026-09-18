@@ -33,6 +33,13 @@ release these skills are available through explicit `skills_list` / `skill_view`
 discovery, rather than the automatic system-prompt skill index. Tool guidance
 must make the relevant skill discoverable without injecting its full contents.
 
+This initial packaging change does not migrate disabled entries for the former
+standalone skill names. Native settings must address the qualified name, such as
+`pythia-market-data:market-data`; a bare `market-data` entry does not disable it.
+The transition requires no new settings writer or exception to credential
+custody. Future changes to established skill names must separately address
+compatibility for affected installations.
+
 Platform support owns authenticated transport, trusted profile context, native
 access checks, validation, bounded execution and cleanup. It is independent of
 financial feature enablement. A plugin declares operations on its native tool
