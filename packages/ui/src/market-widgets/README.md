@@ -21,6 +21,21 @@ reduced-motion preferences. Loading, missing observations, unavailable results,
 delayed data and closed markets remain distinct. Public components document
 their ownership and behavior beside the implementation.
 
+## Complete compositions
+
+| Export | Purpose and significant props |
+| --- | --- |
+| `InstrumentTile` | Compact identity, price/change and optional path, range or book; accepts `item`, `options`, `loading` and `className`. The caller sets its width. |
+| `InstrumentCompactTile` | Chart-free two-line summary with the same inputs and meanings. |
+| `InstrumentTable` | A 352px-wide compact table by default; accepts a shared `read`, presentation `options`, optional `action(item)` content and a `className` width override. |
+| `InstrumentReadState` | Loading/empty/error list presentation; loading uses the table skeleton. Render a ready list with `InstrumentTable`. |
+
+`InstrumentWidgetOptions` controls name, unit, change format, history height and
+other optional display parts. It does not select a provider or chart window.
+For a chart-free compact tile no history request is needed. For a table, disable
+`path` when the application has no history to display. Failed or unsupported
+history should be qualified by the data owner, not replaced by another feed.
+
 Inspect stable synthetic examples in Design Lab at
-`/components/market-presentation`. The examples demonstrate the primitives,
-not a fetching workflow or a shipped dashboard.
+`/components/market-presentation` and `/components/instrument-widgets`. These
+demonstrate presentation and composition, not fetching or a shipped dashboard.

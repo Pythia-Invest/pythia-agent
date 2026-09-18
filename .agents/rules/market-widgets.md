@@ -3,10 +3,12 @@ description: "Compose financial presentation from shared display, status and pat
 paths:
   - "packages/ui/src/market-widgets/**/*"
   - "apps/design-lab/src/app/examples/*market-presentation*.{ts,tsx}"
+  - "apps/design-lab/src/app/examples/*market-widget*.{ts,tsx}"
   - "docs/architecture/market-widget-presentation.md"
 globs:
   - "packages/ui/src/market-widgets/**/*"
   - "apps/design-lab/src/app/examples/*market-presentation*.{ts,tsx}"
+  - "apps/design-lab/src/app/examples/*market-widget*.{ts,tsx}"
   - "docs/architecture/market-widget-presentation.md"
 ---
 

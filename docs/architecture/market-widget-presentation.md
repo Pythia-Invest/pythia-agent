@@ -14,9 +14,10 @@ identity, units, observation timing, delay, session and comparison evidence when
 preparing the display model. They must not infer equivalence from a ticker or name.
 
 This layer is usable without Desk or a provider. The Design Lab's
-`/components/market-presentation` examples use only invented inputs. Concrete
-instrument tiles, compact tiles, tables and dashboard configuration are separate
-compositions; this boundary does not introduce a widget or connector registry.
+`/components/market-presentation` and `/components/instrument-widgets` examples
+use only invented inputs. Concrete instrument tiles, compact tiles and tables
+compose this same foundation. Dashboard configuration remains an application
+concern; this boundary does not introduce a widget or connector registry.
 
 ## Display contract
 
@@ -88,6 +89,42 @@ Applications own fetching, cache eligibility, error messages, navigation and
 full source inspection. Custom views should compose these shared parts where
 their semantics fit. A provider-specific capability may need a new presentation;
 it must not fabricate fields merely to fit these primitives.
+
+## Ready-to-compose instrument views
+
+Three exported compositions share the same `InstrumentDisplay` inputs and
+presentation primitives:
+
+- `InstrumentTile` shows an identity, regular price/change, optional history,
+  extended quote, range and venue-qualified book. Its `compact` option delegates
+  to the compact component; the caller chooses tile width through `className`.
+- `InstrumentCompactTile` is a two-line, chart-free summary. It preserves the
+  same price, comparison, activity and extended-session meanings in less space.
+- `InstrumentTable` accepts an `InstrumentRead` and renders a compact semantic
+  table with identity, optional history, price/change and an optional action
+  column. Its default 352px width lets multiple lists sit beside one another;
+  it fits narrower containers and accepts a caller width override. Status icons
+  remain adjacent to the ticker, rather than between identity and the curve.
+
+`options` select presentation, not retrieval semantics. Switching views must not
+change the provider, observation window, comparison basis or canonical subject.
+The host requests only the data its chosen composition needs. None of these
+components supplies a watchlist, screener, lookup, refresh policy or navigation
+workflow. Table action content belongs to its caller.
+
+Known identities and reserved geometry remain during loading; a missing ticker
+stays blank rather than displaying a native lookup ID. Price placeholders are
+static, while the small history indicator may pulse. Independent history loading
+does not hide a ready price. Empty/error list states use `InstrumentReadState`;
+the caller's message distinguishes an empty selection from a failed read.
+Background refreshes can keep an eligible previous display rather than switching
+the whole view back to loading.
+
+The table retains row/column semantics and visually hidden column headings.
+Status controls share the same keyboard/touch targets as tiles. Direction has
+signs and text as well as color, and all compositions use the same existing
+light/dark semantic tokens. Synthetic Lab examples cover narrow lists, loading,
+missing/unavailable values, extended sessions, units and display switches.
 
 ## Rationale and rejected alternatives
 
