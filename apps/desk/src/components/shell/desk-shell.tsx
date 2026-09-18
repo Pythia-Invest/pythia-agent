@@ -248,7 +248,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
     (session) => session.id === routeSessionId,
   );
   const surface = (
-    <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-raised">
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col">
       {chatSurface ? (
         <div
           className={
@@ -293,7 +293,9 @@ export function DeskShell({ children }: { children: ReactNode }) {
       onOpenChange={setDrawerOpen}
       swipeDirection="right"
     >
-      <div className="flex h-dvh overflow-hidden">
+      {/* One canvas for every routed workspace. Pages and layout wrappers
+          stay transparent; bounded cards and auxiliary panels own elevation. */}
+      <div className="flex h-dvh overflow-hidden bg-canvas text-foreground">
         {navigation}
         {!wide ? (
           <Drawer.Portal>
@@ -301,7 +303,8 @@ export function DeskShell({ children }: { children: ReactNode }) {
             <Drawer.Viewport>
               <Drawer.Popup
                 aria-label="Navigation"
-                className="border-0 data-[swipe-direction=right]:w-[min(24rem,calc(100vw-3rem))]"
+                data-theme="dark"
+                className="border-0 bg-raised data-[swipe-direction=right]:w-[min(24rem,calc(100vw-3rem))]"
               >
                 <Drawer.Content className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
                   <NavRail
