@@ -7,6 +7,9 @@ import {
 import { deskViewStore, type DeskViewStore } from "./view-context/store";
 import { createWorkspaceRoutes } from "./workspace/routes";
 import { createWidgetRoutes } from "./widget-routes";
+import { createPluginReadRoutes } from "./plugin-read-routes";
+import { createDataUpdateRoutes } from "./data-update-routes";
+import { createFinancialDataRoutes } from "./financial-data-routes";
 import { workspaceStore, type WorkspaceStore } from "./workspace/store";
 import {
   result,
@@ -100,6 +103,9 @@ export function createDeskRoutes(
 ) {
   return {
     ...createWidgetRoutes(),
+    ...createPluginReadRoutes(),
+    ...createDataUpdateRoutes(),
+    ...createFinancialDataRoutes(),
     ...createWorkspaceRoutes(workspace),
     ...createWorkspaceRunRoutes(
       client,

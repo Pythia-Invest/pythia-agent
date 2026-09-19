@@ -10,7 +10,8 @@
     "test:integration": "vitest run test/device-settings.test.ts test/model-initialization.test.ts test/attachments.test.ts test/workspace-files.test.ts test/desk-view.test.ts test/native-session-context.test.ts test/workspace-reader-integration.test.tsx test/workspace-turn-context.test.ts",
     "test:unit": "tsc --noEmit --project tsconfig.test.json && vitest run --passWithNoTests --exclude test/device-settings.test.ts --exclude test/model-initialization.test.ts --exclude test/attachments.test.ts --exclude test/workspace-files.test.ts --exclude test/desk-view.test.ts --exclude test/native-session-context.test.ts --exclude test/workspace-reader-integration.test.tsx --exclude test/workspace-turn-context.test.ts",
     "test:e2e": "playwright test",
-    "test:qualification:widgets": "node qualification/widgets.mjs"
+    "test:qualification:widgets": "node qualification/widgets.mjs",
+    "test:qualification:data": "node qualification/data.mjs"
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
@@ -30,7 +31,8 @@
     "shiki": "4.4.3",
     "streamdown": "catalog:",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@pythia/market-data": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "catalog:",
