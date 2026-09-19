@@ -9,9 +9,10 @@ owner rather than independent refresh systems.
 
 ## Decision
 
-The backend and protected update channel are implemented in this foundation.
-The Desk adoption and concrete streaming connector described below are accepted
-consumer requirements delivered separately, not claims of this payload's coverage.
+The backend, protected update channel and generic Desk query/binding transport
+are implemented. Markets composition, request-local hydration and concrete streaming
+connectors remain separate consumers; their requirements below are accepted
+architecture, not claims of delivered page or provider coverage.
 
 The existing native Hermes application owns a profile-scoped data coordinator.
 Desk declares visible demand, hydrates initial snapshots and receives multiplexed

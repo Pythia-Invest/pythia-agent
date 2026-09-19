@@ -355,3 +355,65 @@ instances, errors, cleanup and native denial on desktop and narrow viewports.
 The synthetic loopback servers and copied build are removed in `finally`; it
 uses no live profile, credential, provider or installed service. This is separate
 from the existing smoke suite against a running Desk.
+
+### Shared data and widget bindings
+
+`BoundWidget` runs a compiled module's optional `WidgetBinding` inside the existing
+Desk provider tree. The binding describes primary and deferred queries and adapts
+results for its component. `useDataQueries` supplies TanStack state through one
+reference-counted native update channel per Desk API client. Identical active
+resources share publications; final release cancels demand. Remounting a dormant
+query waits for a new native publication, even if TanStack retains an old value.
+Hidden pages suspend their channel and resume through current native validation.
+Disabled queries expose neither cached data nor old errors. Structurally identical
+resource arguments share demand regardless of object member order.
+
+`DeskApi.pluginRead` and `usePluginWidgetData` provide one-shot declared reads.
+Streaming must be selected explicitly with `delivery: "updates"`; an unsupported
+native update declaration stays visible instead of falling back to repeated reads.
+Successful explicit reads publish through the same resource owner, so current and
+later consumers receive the new result. Native denial or invalid intent clears
+that publication; transient failure retains it with a stale qualifier. Active
+resources retain native generation/revision cursors across channel rebuilds, so
+already-seen native snapshots cannot replace a newer explicit read. Native resets
+always apply, including a same-revision denial. Terminal withdrawal discards the
+cursor with the data; only a subsequently admitted native publication can restore
+that revision. Presentation status leaves request lifetime with TanStack, and a
+native reset cancels any pending read before clearing its result. Previously unseen native revisions
+and new generations remain authoritative; Desk does not infer financial ordering
+from timestamps. Reconnection removes only a transport error and preserves any
+underlying provider qualifier.
+
+Bindings own request keys, decoding and display meaning. They may provide a
+`readResource` for explicit Retry; otherwise Retry refreshes the shared update
+channel. Feature code must use distinct query keys for distinct operations and
+inputs. Native denial clears affected data, while transient delivery errors retain
+only active authorized values with an error qualifier supplied to the binding.
+The module's owning surface still revalidates presentation descriptors and
+unmounts contributions when unavailable.
+
+The browser uses admitted `POST /api/data/read` and `POST /api/data/updates`.
+Both enforce the current browser session before parsing bounded bodies; the
+server uses only the configured profile and server-held Hermes bearer. Reads set
+native `read_only` and streams enter the existing read-only native subscription
+route. Redirects are rejected. No tool execution context comes from a widget.
+The update proxy forwards streams without buffering a whole response. Each
+subscription has at most 64 resources and 64 KiB of actual encoded request bytes;
+malformed intent requires explicit correction or Retry. Connection establishment,
+frame size, inactivity and cancellation are bounded separately.
+
+Canonical financial `DeskApi.financialRead` / `financialPreferences` adapters are
+available under `/api/markets/read` and `/api/markets/preferences`; the server's
+`financialDataService` also supports future request-local hydration. The public
+`@pythia/market-data/widgets` library owns financial requests, decoders, bindings
+and display semantics. Desk only batches duplicate reads, bounds its cache and
+revalidates native reuse scope before returning cached values. This layer ships
+no Markets dashboard composition, presets, SSR hydration or provider integrations.
+
+Run `pnpm --filter @pythia/desk test:qualification:data` for the disposable
+production browser qualification. It builds the copied real Desk, then compiles
+the feature-owned canonical financial widget and a synthetic research widget.
+Both use actual admitted module and data routes against a synthetic native
+endpoint. The proof covers mixed demand, shared resources, live updates, local
+state, explicit snapshot/preference reads, final-consumer cancellation, dormant
+cache revalidation and native withdrawal. It uses no real provider or profile.

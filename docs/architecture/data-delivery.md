@@ -2,8 +2,8 @@
 
 [ADR 0030](../decisions/0030-coordinated-reads-and-live-updates.md) keeps financial
 meaning and demand coordination in the existing Hermes API application. This
-increment implements the native backend; Desk subscription, hydration and widget
-composition will adopt it separately. There is no additional service, registry
+implementation includes the native backend and reusable Desk read/update/binding
+transport. Markets composition and request-local hydration remain separate consumers. There is no additional service, registry
 or durable scheduler.
 
 ## Ownership and limits
@@ -80,6 +80,36 @@ results stay whole and bound to their original source/query. No history stitchin
 or quote substitution hides missing data. Preferred preference/identity changes
 reset resource generations; pins and retained research preserve intent.
 
+## Desk transport
+
+Desk proxies explicit read-only native operations through admitted `/api/data/read`
+and `/api/data/updates` routes. The server holds the profile and bearer; redirects
+are rejected. The browser owns one multiplexed channel per Desk client, reference
+counts identical resources and suspends hidden-page demand. TanStack owns query
+state. Active peers share their authorized publication; dormant cached values
+wait for fresh native validation; disabled queries expose no retained result.
+Equivalent JSON objects share demand independently of member order. Successful
+explicit retries publish raw native results through this same owner, keeping
+feature decoding local to each query. Native generation/revision cursors survive active-channel rebuilds, so
+known older replay cannot undo a manual publication. Same-revision resets still
+clear data and its cursor, allowing a subsequently authorized publication of the
+same revision to restore access. Unseen native revisions/new generations remain
+authoritative. Native reset cancels pending reads independently of presentation
+status; a delayed read cannot restore withdrawn data.
+A recovered connection restores the prior qualification, including provider stale
+status, rather than equating transport health with fresh observations.
+Reset clears data and transient failure carries
+a stale qualifier. Invalid subscriptions wait for explicit retry or changed intent.
+
+`BoundWidget` executes a module-owned primary/deferred binding through that generic
+coordinator. Binding code owns decoding, query keys and result meaning, including
+specialist schemas. The public financial widget library provides the canonical
+binding. Desk's financial read/preference adapters only validate that library's
+contract, batch duplicate requests and revalidate bounded cache entries against
+the native reuse scope. Cache capacity is 128 entries / 8 MB, with 2 MB per entry;
+inflight keys are capped at 128 and native batches at 32 reads / 16,000 requested
+observations. Cancellation detaches one consumer and aborts only an unneeded batch.
+
 ## Evidence and next consumers
 
 Synthetic Python regressions exercise sharing, bounded execution, batching,
@@ -89,9 +119,13 @@ HTTP/tool backend, zero model/CLI subprocesses, auth/profile/disablement, deadli
 and responsive native health. Run
 `node tooling/qualification/financial_http.mjs <prepared-hermes-source>`.
 
-The accepted Desk consumer design is one channel for visible page demand, separate
-quote/history loading, request-local server hydration and bounded per-read query
-caches. Hidden/departed pages release demand; changing preferences updates preferred
-views. This increment does not ship that client or claim browser/provider/paid
-stream/production-service qualification. Each concrete connector must qualify its
-native batch and push behavior separately.
+The synthetic production Desk qualification runs with
+`pnpm --filter @pythia/desk test:qualification:data`. It builds the real copied app
+with the pinned webpack toolchain, compiles canonical financial and nonfinancial
+widget modules afterwards, and exercises admitted native read/update/asset routes.
+It covers resource sharing, state-preserving updates, cancellation, dormant cache
+revalidation and withdrawal without real providers, profiles or installed services.
+
+Markets page composition and request-local hydration remain future consumers.
+This delivery makes no paid-stream or production-service qualification claim.
+Each concrete connector must qualify its native batch and push behavior separately.

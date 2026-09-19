@@ -1,4 +1,13 @@
+import { BrowserRequest, DeskApiError, bodyError } from "./browser-request";
+export { DeskApiError } from "./browser-request";
 import { readLimitedBytes } from "./response-bytes";
+import type { ReadInput } from "@pythia/market-data";
+import type { FinancialRead } from "@pythia/market-data/widgets/contract";
+import {
+  readDataUpdates,
+  type DataResource,
+  type PluginRequest,
+} from "./data-protocol";
 import type { NativeSessionContext } from "@/workspace/session-context";
 import type { DeskRunStart, WorkspaceTurn } from "@/workspace/references";
 import type { DeskViewPublication } from "@/view-context/types";
@@ -26,41 +35,6 @@ import type { HermesToolset } from "@/server/types";
 import type { DeskReleaseStatus } from "@/server/release-status";
 import type { ModelCatalog, ModelSelection } from "@/server/model-catalog";
 
-type ErrorBody = { error?: { code?: unknown; message?: unknown } };
-
-export class DeskApiError extends Error {
-  readonly code: string | undefined;
-  readonly status: number;
-
-  constructor(message: string, status: number, code?: string) {
-    super(message);
-    this.name = "DeskApiError";
-    this.status = status;
-    this.code = code;
-  }
-}
-
-async function bodyError(response: Response) {
-  try {
-    const body = (await response.json()) as ErrorBody;
-    return {
-      code: typeof body.error?.code === "string" ? body.error.code : undefined,
-      message:
-        typeof body.error?.message === "string"
-          ? body.error.message
-          : "Pythia Desk could not complete the request.",
-    };
-  } catch {
-    return { message: "Pythia Desk could not complete the request." };
-  }
-}
-
-async function requireJson<T>(response: Response): Promise<T> {
-  if (response.ok) return (await response.json()) as T;
-  const error = await bodyError(response);
-  throw new DeskApiError(error.message, response.status, error.code);
-}
-
 function parseFrame(frame: string) {
   const data = frame
     .split(/\r?\n/u)
@@ -75,57 +49,79 @@ function parseFrame(frame: string) {
   }
 }
 
-export class DeskApi {
-  #csrfToken = "";
-
-  async initialize() {
-    const response = await requireJson<{ csrf_token: string }>(
-      await fetch("/api/browser-session", { cache: "no-store" }),
-    );
-    this.#csrfToken = response.csrf_token;
+export class DeskApi extends BrowserRequest {
+  async *dataUpdates(resources: DataResource[], signal: AbortSignal) {
+    if (!this.csrfToken) await this.initialize();
+    const response = await fetch("/api/data/updates", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Pythia-CSRF": this.csrfToken,
+      },
+      body: JSON.stringify({ resources }),
+    });
+    if (!response.ok) {
+      const error = await bodyError(response);
+      throw new DeskApiError(error.message, response.status, error.code);
+    }
+    if (
+      !response.headers.get("content-type")?.startsWith("text/event-stream")
+    ) {
+      await response.body?.cancel();
+      throw new DeskApiError("The update stream was invalid.", 502);
+    }
+    yield* readDataUpdates(response);
   }
 
-  async #json<T>(path: string, init: RequestInit = {}) {
-    const headers = new Headers(init.headers);
-    if (init.body !== undefined) {
-      // Mutations need the browser-session token; reads do not.
-      if (!this.#csrfToken) await this.initialize();
-      headers.set("Content-Type", "application/json");
-      headers.set("X-Pythia-CSRF", this.#csrfToken);
-    }
-    return requireJson<T>(
-      await fetch(path, {
-        ...init,
-        cache: "no-store",
-        credentials: "same-origin",
-        headers,
-      }),
+  financialRead(reads: ReadInput[], signal?: AbortSignal) {
+    return this.json<FinancialRead[]>("/api/markets/read", {
+      method: "POST",
+      body: JSON.stringify({ reads }),
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  pluginRead(request: PluginRequest, signal?: AbortSignal) {
+    return this.json<unknown>("/api/data/read", {
+      method: "POST",
+      body: JSON.stringify(request),
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  financialPreferences(signal?: AbortSignal) {
+    return this.json<{ revision: number }>(
+      "/api/markets/preferences",
+      signal ? { signal } : {},
     );
   }
 
   workspaceEntry(path: string, signal?: AbortSignal) {
-    return this.#json<WorkspaceEntry>(
+    return this.json<WorkspaceEntry>(
       `/api/workspace/entry?${new URLSearchParams({ path })}`,
       { ...(signal ? { signal } : {}) },
     );
   }
 
   workspaceList(path: string, signal?: AbortSignal) {
-    return this.#json<WorkspaceListing>(
+    return this.json<WorkspaceListing>(
       `/api/workspace/list?${new URLSearchParams({ path })}`,
       { ...(signal ? { signal } : {}) },
     );
   }
 
   workspaceSearch(path: string, q: string, signal?: AbortSignal) {
-    return this.#json<WorkspaceSearch>(
+    return this.json<WorkspaceSearch>(
       `/api/workspace/search?${new URLSearchParams({ path, q })}`,
       { ...(signal ? { signal } : {}) },
     );
   }
 
   resolveWorkspaceHostPath(hostPath: string, signal?: AbortSignal) {
-    return this.#json<{ path: string }>(
+    return this.json<{ path: string }>(
       `/api/workspace/resolve?${new URLSearchParams({ hostPath })}`,
       { ...(signal ? { signal } : {}) },
     );
@@ -180,23 +176,23 @@ export class DeskApi {
 
   async listSessions(limit = 60, offset = 0) {
     return (
-      await this.#json<{ data: HermesSession[] }>(
+      await this.json<{ data: HermesSession[] }>(
         `/api/sessions?limit=${limit}&offset=${offset}`,
       )
     ).data;
   }
 
   settings() {
-    return this.#json<DeviceSettingsSnapshot>("/api/settings");
+    return this.json<DeviceSettingsSnapshot>("/api/settings");
   }
 
   updateStatus() {
-    return this.#json<DeskReleaseStatus>("/api/update-status");
+    return this.json<DeskReleaseStatus>("/api/update-status");
   }
 
   async setSkillEnabled(name: string, enabled: boolean) {
     return (
-      await this.#json<{ skill: DeviceSkill }>(
+      await this.json<{ skill: DeviceSkill }>(
         `/api/settings/skills/${encodeURIComponent(name)}`,
         { body: JSON.stringify({ enabled }), method: "POST" },
       )
@@ -205,7 +201,7 @@ export class DeskApi {
 
   async setToolsetEnabled(name: string, enabled: boolean) {
     return (
-      await this.#json<{ toolset: HermesToolset }>(
+      await this.json<{ toolset: HermesToolset }>(
         `/api/settings/toolsets/${encodeURIComponent(name)}`,
         { body: JSON.stringify({ enabled }), method: "POST" },
       )
@@ -214,7 +210,7 @@ export class DeskApi {
 
   async createSession(title: string) {
     return (
-      await this.#json<{ session: HermesSession }>("/api/sessions", {
+      await this.json<{ session: HermesSession }>("/api/sessions", {
         body: JSON.stringify({ title }),
         method: "POST",
       })
@@ -223,7 +219,7 @@ export class DeskApi {
 
   async renameSession(sessionId: string, title: string) {
     return (
-      await this.#json<{ session: HermesSession }>(
+      await this.json<{ session: HermesSession }>(
         `/api/sessions/${encodeURIComponent(sessionId)}`,
         { body: JSON.stringify({ title }), method: "PATCH" },
       )
@@ -231,24 +227,24 @@ export class DeskApi {
   }
 
   listMessages(sessionId: string, limit = 100, offset = 0) {
-    return this.#json<HermesMessagePage>(
+    return this.json<HermesMessagePage>(
       `/api/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}&offset=${offset}`,
     );
   }
 
   sessionContext(sessionId: string, signal?: AbortSignal) {
-    return this.#json<NativeSessionContext>(
+    return this.json<NativeSessionContext>(
       `/api/sessions/${encodeURIComponent(sessionId)}/context`,
       signal ? { signal } : undefined,
     );
   }
 
   capabilities() {
-    return this.#json<HermesCapabilities>("/api/capabilities");
+    return this.json<HermesCapabilities>("/api/capabilities");
   }
 
   modelOptions(refresh = false) {
-    return this.#json<ModelCatalog>(
+    return this.json<ModelCatalog>(
       `/api/models${refresh ? "?refresh=true" : ""}`,
     );
   }
@@ -269,7 +265,7 @@ export class DeskApi {
     file: { name: string; mediaType: string; data: string },
     signal?: AbortSignal,
   ) {
-    return this.#json<Attachment>("/api/attachments", {
+    return this.json<Attachment>("/api/attachments", {
       method: "POST",
       body: JSON.stringify(file),
       ...(signal ? { ...(signal ? { signal } : {}) } : {}),
@@ -283,7 +279,7 @@ export class DeskApi {
     attachments?: string[],
     workspace?: WorkspaceTurn,
   ) {
-    return this.#json<DeskRunStart>("/api/runs", {
+    return this.json<DeskRunStart>("/api/runs", {
       body: JSON.stringify({
         session_id: sessionId,
         input,
@@ -296,11 +292,11 @@ export class DeskApi {
   }
 
   getRun(runId: string) {
-    return this.#json<RunStatus>(`/api/runs/${encodeURIComponent(runId)}`);
+    return this.json<RunStatus>(`/api/runs/${encodeURIComponent(runId)}`);
   }
 
   respondToApproval(runId: string, choice: ApprovalChoice, requestId?: string) {
-    return this.#json(`/api/runs/${encodeURIComponent(runId)}/approval`, {
+    return this.json(`/api/runs/${encodeURIComponent(runId)}/approval`, {
       body: JSON.stringify({
         choice,
         ...(requestId ? { request_id: requestId } : {}),
@@ -310,21 +306,21 @@ export class DeskApi {
   }
 
   publishDeskView(publication: DeskViewPublication) {
-    return this.#json<{ expires_at: number }>("/api/desk-view/publish", {
+    return this.json<{ expires_at: number }>("/api/desk-view/publish", {
       method: "POST",
       body: JSON.stringify(publication),
     });
   }
 
   terminateDeskView(tab_id: string, view_reference: string) {
-    return this.#json("/api/desk-view/terminate", {
+    return this.json("/api/desk-view/terminate", {
       method: "POST",
       body: JSON.stringify({ tab_id, view_reference }),
     });
   }
 
   steerRun(runId: string, input: string, workspace?: WorkspaceTurn) {
-    return this.#json<{
+    return this.json<{
       run_id: string;
       accepted: boolean;
       desk_view?: DeskRunStart["desk_view"];
@@ -335,13 +331,10 @@ export class DeskApi {
   }
 
   stopRun(runId: string) {
-    return this.#json<RunStatus>(
-      `/api/runs/${encodeURIComponent(runId)}/stop`,
-      {
-        body: "{}",
-        method: "POST",
-      },
-    );
+    return this.json<RunStatus>(`/api/runs/${encodeURIComponent(runId)}/stop`, {
+      body: "{}",
+      method: "POST",
+    });
   }
 
   async *streamRun(runId: string, signal: AbortSignal) {

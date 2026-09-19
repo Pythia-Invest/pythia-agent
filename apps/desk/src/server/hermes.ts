@@ -75,6 +75,7 @@ export function createHermesRequest(options: HermesClientOptions = {}) {
       response = await fetcher(`${baseUrl}${path}`, {
         ...init,
         cache: "no-store",
+        redirect: "error",
         headers,
       });
     } catch (error) {
