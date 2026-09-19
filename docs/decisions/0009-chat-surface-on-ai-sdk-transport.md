@@ -279,6 +279,25 @@ at that minimum so adding another chat cannot enlarge the remaining tabs. This a
 to the narrower research dock. Active-tab expansion and inactive icon-only
 tabs were rejected because switching conversations shifted their targets.
 
+An unsent dock chat is an ordinary independently closable tab, not the fallback
+when no native session is selected. Each New chat action appends a distinct UI
+identity with its own text, attachments, workspace references and model selection.
+The existing `DeskDrafts` owner keys editor contents by that tab identity; after
+first send, references target the native session's composer. Inactive panels use
+native Base UI keep-mounted/inert behavior so switching does not reset the composer;
+the shell retains unsent text and model choice across hiding and navigation.
+This is in-memory editor state, cleared on page reload, not a second session store.
+On first send, Hermes creates the session and that same tab adopts its session
+ID without moving or stealing focus. A late response cannot reopen a closed tab.
+Pending session creation belongs to the tab, so hiding and reopening the dock
+does not enable a second first-send request. Failed creation releases that guard
+for retry; a tab already bound to a session cannot be promoted again.
+Closing a tab never deletes the native conversation or cancels its run. Closing
+the active tab selects its neighbour; closing the last leaves an empty dock with
+the New chat action available. A single shared draft and automatically spawning
+a replacement after every close were rejected because opening and closing then
+failed to behave like ordinary browser tabs.
+
 Native `reasoning.available` previews can repeat the first 500 characters of
 already streamed assistant content. Desk recognizes that prefix and promotes
 terminal previews to ordinary answer text even when the final output is equal.

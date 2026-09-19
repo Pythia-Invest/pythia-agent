@@ -295,6 +295,54 @@ test("references a file without sending or losing the draft, then includes obser
   expect(f.chat.unexpected).toEqual([]);
 });
 
+test("workspace references stay with the selected independent draft through its first send", async ({
+  page,
+}) => {
+  test.skip(
+    (page.viewportSize()?.width ?? 0) < 900,
+    "Cross-panel targeting qualification; narrow reference behavior is covered above.",
+  );
+  const f = await workspaceFixture(page);
+  await page.goto("/workspace/research/notes.md");
+  const dock = page.getByRole("complementary", { name: "Pythia", exact: true });
+  const editor = dock.getByRole("textbox", { name: "Message Pythia" });
+  const references = dock.locator(
+    '[data-slot="composer"] [data-slot="workspace-reference-cards"]',
+  );
+  await editor.fill("Keep first draft");
+  await dock.getByRole("button", { name: "New chat", exact: true }).click();
+  await editor.fill("Research second draft");
+  await page
+    .getByRole("button", { name: "Reference in chat", exact: true })
+    .click();
+  await expect(references).toContainText("notes.md");
+  const drafts = dock.getByRole("tab", { name: "New chat", exact: true });
+  await drafts.first().click();
+  await expect(editor).toHaveValue("Keep first draft");
+  await expect(references).toBeHidden();
+  await drafts.last().click();
+  await expect(editor).toHaveValue("Research second draft");
+  await dock.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect.poll(() => f.chat.submissions.length).toBe(1);
+  expect(f.chat.workspaces[0]?.context?.references[0]).toMatchObject({
+    path: "research/notes.md",
+    revision: "version-1",
+  });
+  await f.chat.emit([
+    { event: "run.completed", run_id: "synthetic-run", output: "Done" },
+  ]);
+  // The tab keeps its UI identity after sending, but references now target the
+  // native session's composer rather than the retired draft key.
+  await page
+    .getByRole("button", { name: "Reference in chat", exact: true })
+    .click();
+  await expect(references).toContainText("notes.md");
+  await drafts.first().click();
+  await expect(editor).toHaveValue("Keep first draft");
+  await expect(references).toBeHidden();
+  expect(f.chat.unexpected).toEqual([]);
+});
+
 test("opening a docked chat artifact navigates the standalone reader and keeps its live stream", async ({
   page,
 }) => {

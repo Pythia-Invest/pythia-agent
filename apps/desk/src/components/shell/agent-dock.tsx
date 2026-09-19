@@ -8,22 +8,27 @@ import { NewChat } from "@/components/chat/new-chat";
 import type { HermesSession } from "@/server/types";
 import { ChatHistory } from "./chat-history";
 import { type ChatTab, ChatTabs } from "./chat-tabs";
+import type { DockTab } from "./use-dock-tabs";
+import type { NewChatDraft } from "@/components/chat/new-chat";
 
 export interface AgentDockProps {
   onCloseChat: (sessionId: string) => void;
   onHide: () => void;
-  /** Clears the docked conversation back to a fresh composer, in place. */
+  /** Opens another independently closable draft. */
   onNewChat: () => void;
   /** Swaps the docked conversation without leaving the current page. */
   onSelectChat: (sessionId: string) => void;
+  onSelectTab: (tabId: string) => void;
+  onDraftChange: (tabId: string, draft: NewChatDraft) => void;
+  onStarted: (tabId: string, sessionId: string) => void;
   onTogglePin: (sessionId: string) => void;
   pinnedIds: ReadonlySet<string>;
-  /** The conversation to show, or null for the unsaved "New chat" tab. */
-  sessionId: string | null;
+  /** Active UI tab, or null after all tabs have been closed. */
+  activeId: string | null;
   /** Every chat, for the history behind the clock. */
   sessions: readonly HermesSession[];
   /** Open chats, in strip order. */
-  tabs: readonly ChatTab[];
+  tabs: readonly (ChatTab & DockTab)[];
 }
 
 /**
@@ -41,7 +46,10 @@ export function AgentDock({
   onSelectChat,
   onTogglePin,
   pinnedIds,
-  sessionId,
+  activeId,
+  onSelectTab,
+  onDraftChange,
+  onStarted,
   sessions,
   tabs,
 }: AgentDockProps) {
@@ -52,24 +60,16 @@ export function AgentDock({
     >
       <Tabs
         className="flex min-h-0 flex-1 flex-col"
-        value={sessionId ? `session:${sessionId}` : "draft"}
+        value={activeId}
         onValueChange={(value) => {
-          if (typeof value === "string" && value.startsWith("session:"))
-            onSelectChat(value.slice(8));
-          else if (value === "draft") onNewChat();
+          if (typeof value === "string") onSelectTab(value);
         }}
       >
         <header className="flex h-10 flex-none items-stretch border-border/50 border-b bg-canvas">
           <ChatTabs
-            activeId={sessionId}
-            draft={sessionId === null}
+            activeId={activeId}
             onClose={onCloseChat}
-            onCloseDraft={() => {
-              // The strip only offers this while a tab exists to fall back to.
-              const last = tabs.at(-1);
-              if (last) onSelectChat(last.id);
-            }}
-            onSelect={onSelectChat}
+            onSelect={onSelectTab}
             tabs={tabs}
           />
           <div className="flex flex-none items-center gap-0.5 px-1">
@@ -79,7 +79,11 @@ export function AgentDock({
             <ChatHistory
               onSelect={onSelectChat}
               onTogglePin={onTogglePin}
-              openIds={new Set(tabs.map((tab) => tab.id))}
+              openIds={
+                new Set(
+                  tabs.flatMap((tab) => (tab.sessionId ? [tab.sessionId] : [])),
+                )
+              }
               pinnedIds={pinnedIds}
               sessions={sessions}
             />
@@ -93,16 +97,26 @@ export function AgentDock({
         {tabs.map((tab) => (
           <TabPanel
             key={tab.id}
-            value={`session:${tab.id}`}
-            className="flex min-h-0 flex-1 flex-col py-0"
+            value={tab.id}
+            keepMounted
+            className="flex inert:hidden min-h-0 flex-1 flex-col py-0 data-[hidden]:hidden"
           >
-            <ChatView sessionId={tab.id} />
+            {tab.sessionId ? (
+              <ChatView sessionId={tab.sessionId} />
+            ) : (
+              <NewChat
+                draftKey={tab.id}
+                draft={tab.draft}
+                onDraftChange={(draft) => onDraftChange(tab.id, draft)}
+                onStarted={(sessionId) => onStarted(tab.id, sessionId)}
+              />
+            )}
           </TabPanel>
         ))}
-        {sessionId === null ? (
-          <TabPanel value="draft" className="flex min-h-0 flex-1 flex-col py-0">
-            <NewChat onStarted={onSelectChat} />
-          </TabPanel>
+        {tabs.length === 0 ? (
+          <p className="m-auto text-body text-foreground-secondary">
+            Open a chat to get started.
+          </p>
         ) : null}
       </Tabs>
     </aside>

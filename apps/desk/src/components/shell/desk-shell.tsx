@@ -1,4 +1,5 @@
 "use client";
+// pythia-structure-ignore: One route/dock/workspace composition owns reference targeting and shell layout; visual panels and state stores are already separate components.
 
 import { useReferenceActions } from "@/components/workspace/workspace-interactions";
 import { useWorkspaceReader } from "@/components/workspace/reader-context";
@@ -15,7 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useDeskApi, useDeskView } from "@/client/providers";
+import { useDeskApi, useDeskView, useDeskDrafts } from "@/client/providers";
 import { deskKeys, useSessions } from "@/client/queries";
 import { WorkspaceCompanion } from "@/components/workspace/workspace-companion";
 import { ShellDock, useWideShell } from "./shell-dock";
@@ -70,6 +71,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
   const sessions = useSessions();
   const api = useDeskApi();
   const viewPublisher = useDeskView();
+  const drafts = useDeskDrafts();
   const publishedRoute = useRef(pathname);
   const reader = useWorkspaceReader();
   const referenceActions = useReferenceActions();
@@ -158,12 +160,15 @@ export function DeskShell({ children }: { children: ReactNode }) {
    */
   const routeSessionId = params.sessionId ?? null;
   const dock = useDockTabs(sessions.data ?? [], routeSessionId);
+  const activeDockTab = dock.tabs.find((tab) => tab.id === dock.activeId);
+  const referenceTarget =
+    activeDockTab?.sessionId ?? activeDockTab?.id ?? "new";
   useEffect(() => {
     referenceActions?.register(
       chatSurface
         ? (routeSessionId ?? "new")
         : wide && layout.dockOpen
-          ? (dock.activeId ?? "new")
+          ? referenceTarget
           : null,
       (target) => {
         if (!wide)
@@ -177,8 +182,15 @@ export function DeskShell({ children }: { children: ReactNode }) {
             target === "new" ? "/" : `/c/${encodeURIComponent(target)}`,
           );
         else {
-          if (target === "new") dock.draft();
-          else dock.open(target);
+          if (target === "new") {
+            const id = dock.draft();
+            drafts.update(id, drafts.get("new"));
+            drafts.clear("new");
+          } else if (
+            dock.tabs.some((tab) => tab.id === target && !tab.sessionId)
+          ) {
+            dock.select(target);
+          } else dock.open(target);
           updateLayout({ dockOpen: true });
         }
       },
@@ -190,7 +202,10 @@ export function DeskShell({ children }: { children: ReactNode }) {
     routeSessionId,
     wide,
     layout.dockOpen,
-    dock.activeId,
+    referenceTarget,
+    drafts,
+    dock.tabs,
+    dock.select,
     dock.draft,
     dock.open,
     router,
@@ -365,7 +380,10 @@ export function DeskShell({ children }: { children: ReactNode }) {
                     onSelectChat={dock.open}
                     onTogglePin={handleTogglePin}
                     pinnedIds={pinnedIds}
-                    sessionId={dock.activeId}
+                    activeId={dock.activeId}
+                    onSelectTab={dock.select}
+                    onDraftChange={dock.edit}
+                    onStarted={dock.started}
                     sessions={sessions.data ?? []}
                     tabs={dock.tabs}
                   />

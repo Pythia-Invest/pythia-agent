@@ -26,6 +26,9 @@ import {
 } from "./model-picker";
 
 export interface NewChatProps {
+  draftKey?: string | undefined;
+  draft?: NewChatDraft | undefined;
+  onDraftChange?: ((draft: NewChatDraft) => void) | undefined;
   /**
    * Hands back the session the first prompt created instead of routing to it.
    * The docked panel uses this to open the new chat where it already is.
@@ -33,20 +36,38 @@ export interface NewChatProps {
   onStarted?: ((sessionId: string) => void) | undefined;
 }
 
-/**
- * The empty surface behind "New chat". The first prompt creates the Hermes
- * session, which then takes over and sends it — on the chat route by default,
- * or in place wherever `onStarted` puts it.
- */
-export function NewChat({ onStarted }: NewChatProps = {}) {
+/** Unsent editor state, owned by an individual dock tab, not a native session. */
+export interface NewChatDraft {
+  selection?: ModelSelection | undefined;
+  /** Survives hiding the dock while native session creation is pending. */
+  creating?: boolean;
+}
+
+/** First send creates a native session, then hands off in place or by route. */
+export function NewChat({
+  draftKey = "new",
+  onStarted,
+  draft,
+  onDraftChange,
+}: NewChatProps = {}) {
   const api = useDeskApi();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [creating, setCreating] = useState(false);
+  const [localCreating, setLocalCreating] = useState(false);
+  const creating = draft?.creating ?? localCreating;
+  const setCreating = (next: boolean) => {
+    setLocalCreating(next);
+    if (draft) onDraftChange?.({ ...draft, creating: next });
+  };
   const models = useModelOptions();
-  const [selection, setSelection] = useState<ModelSelection | undefined>(() =>
-    readModelPreference(),
-  );
+  const [localSelection, setLocalSelection] = useState<
+    ModelSelection | undefined
+  >(() => readModelPreference());
+  const selection = draft?.selection ?? localSelection;
+  const setSelection = (next: ModelSelection) => {
+    setLocalSelection(next);
+    if (draft) onDraftChange?.({ ...draft, selection: next });
+  };
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [modelManagerOpen, setModelManagerOpen] = useState(false);
   const resolvedSelection =
@@ -56,23 +77,27 @@ export function NewChat({ onStarted }: NewChatProps = {}) {
   useEffect(() => {
     if (!models.data) return;
     const next = resolvedSelection ?? defaultSelection(models.data);
-    if (next && next !== selection) {
+    if (next && (next !== selection || (draft && !draft.selection))) {
       setSelection(next);
       writeModelPreference(next);
     }
-  }, [models.data, resolvedSelection, selection]);
+  }, [models.data, resolvedSelection, selection, draft?.selection]);
 
   const start = async (
     prompt: string,
     attachments: Attachment[] = [],
     context?: WorkspaceContext,
   ) => {
+    if (creating)
+      throw new Error("Your first message is already being submitted.");
     setCreating(true);
     try {
       const session = await api.createSession(
         titleFromPrompt(prompt || attachments[0]?.name || "New chat"),
       );
       storePendingPrompt(session.id, prompt, attachments, context);
+      if (resolvedSelection)
+        writeModelPreference(resolvedSelection, session.id);
       void queryClient.invalidateQueries({ queryKey: deskKeys.sessions });
       if (onStarted) onStarted(session.id);
       else {
@@ -93,6 +118,7 @@ export function NewChat({ onStarted }: NewChatProps = {}) {
         composer={
           <div className={CHAT_MEASURE_CLASS}>
             <Composer
+              draftKey={draftKey}
               controls={
                 models.data && resolvedSelection ? (
                   <ModelPicker

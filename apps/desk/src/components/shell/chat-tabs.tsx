@@ -8,6 +8,7 @@ import { layOutTabs } from "./tabs-model";
 export interface ChatTab {
   id: string;
   title: string;
+  sessionId?: string;
   description?: string;
   icon?: ReactNode;
 }
@@ -15,15 +16,8 @@ export interface ChatTab {
 export interface ChatTabsProps {
   kind?: "chat" | "file";
   activeId: string | null;
-  /** True while no chat is open: the strip shows an unsaved "New chat" tab. */
-  draft: boolean;
-  onClose: (sessionId: string) => void;
-  /**
-   * Closes the unsaved chat and falls back to another tab. Only called when
-   * one exists — a lone draft has nothing to close to.
-   */
-  onCloseDraft: () => void;
-  onSelect: (sessionId: string) => void;
+  onClose: (tabId: string) => void;
+  onSelect: (tabId: string) => void;
   /**
    * Chats with a run in flight, shown as a pulsing signal dot in place of the
    * chat glyph. The desk has no index of active runs yet, so the shell passes
@@ -77,7 +71,7 @@ function Tab({
       )}
     >
       <UITab
-        value={`${kind === "file" ? "file" : "session"}:${tab.id}`}
+        value={kind === "file" ? `file:${tab.id}` : tab.id}
         aria-label={tab.title}
         className={cn(
           "motion-fast flex min-h-0 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-0 text-start transition-colors hover:bg-transparent focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 data-active:border-transparent",
@@ -105,8 +99,13 @@ function Tab({
               aria-hidden="true"
               className="size-3.5 shrink-0 text-foreground-secondary"
             />
-          ) : (
+          ) : tab.sessionId ? (
             <TabStatus running={running} />
+          ) : (
+            <SquarePen
+              aria-hidden="true"
+              className="size-3.5 shrink-0 text-foreground-secondary"
+            />
           ))}
         <span
           className={cn(
@@ -151,9 +150,7 @@ function Tab({
 export function ChatTabs({
   kind = "chat",
   activeId,
-  draft,
   onClose,
-  onCloseDraft,
   onSelect,
   runningIds,
   tabs,
@@ -171,7 +168,7 @@ export function ChatTabs({
   }, []);
 
   const ids = tabs.map((tab) => tab.id);
-  const { visibleIds, hiddenIds } = layOutTabs(ids, activeId, width, draft);
+  const { visibleIds, hiddenIds } = layOutTabs(ids, activeId, width);
   // Once tabs reach the readable minimum, overflow must not make the remaining
   // tabs grow again. Both saved chats and the draft use this same width rule.
   const tabClassName = cn(
@@ -204,45 +201,6 @@ export function ChatTabs({
           />
         );
       })}
-      {draft ? (
-        // The unsaved chat is a tab of its own so the strip does not jump when
-        // the first prompt turns it into a real one.
-        <div data-slot="chat-tab" className={cn(tabClassName, "bg-raised")}>
-          <UITab
-            value="draft"
-            className={cn(
-              "flex min-h-0 min-w-0 flex-1 items-center gap-1.5 border-0 py-0 pl-3 text-foreground data-active:border-transparent",
-              tabs.length ? "pr-7" : "pr-3",
-            )}
-          >
-            <SquarePen
-              aria-hidden="true"
-              className="size-3.5 flex-none stroke-[1.6] text-foreground-secondary"
-            />
-            <span className="min-w-0 flex-1 truncate font-medium text-body">
-              New chat
-            </span>
-          </UITab>
-          {/* Closing the only tab would leave the dock showing nothing, so
-              the draft is closable only alongside a chat to fall back to. */}
-          {tabs.length ? (
-            <span className="absolute inset-y-0 right-1 flex items-center">
-              <IconButton
-                className="size-5 rounded-sm text-foreground-secondary"
-                label="Close New chat"
-                onClick={onCloseDraft}
-                size="sm"
-              >
-                <X aria-hidden="true" className="stroke-[1.6]" />
-              </IconButton>
-            </span>
-          ) : null}
-          <span
-            aria-hidden="true"
-            className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground/35"
-          />
-        </div>
-      ) : null}
       {hiddenIds.length ? (
         <Popover.Root open={overflowOpen} onOpenChange={setOverflowOpen}>
           <Popover.Trigger
