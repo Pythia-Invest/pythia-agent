@@ -23,6 +23,7 @@ from gateway.session_context import set_session_vars, clear_session_vars
 from hermes_cli.plugins import get_plugin_manager, PluginContext
 from tools.registry import registry
 from native_hermes_source import validate_source_binding
+from widget_presentations import qualify_widget_presentations
 
 FINANCIAL_PATH = '/v1/pythia/plugins/pythia-market-data/query'
 SYNTHETIC_PATH = '/v1/pythia/plugins/synthetic/query'
@@ -192,6 +193,7 @@ async def main():
                         body['reuse_scope'] = reuse_scope
                     return await client.post(base + path, headers=auth, json=body, **kwargs)
                 with patch('subprocess.Popen', side_effect=AssertionError('No command or model subprocess is allowed')):
+                    await qualify_widget_presentations(post, disable, root)
                     for auth in ({}, {'Authorization': 'Bearer wrong'}):
                         assert (await post({'action': 'get_preferences'}, auth=auth)).status == 401
                     adapter._api_key = ''

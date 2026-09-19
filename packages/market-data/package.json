@@ -6,10 +6,19 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./schema.json": "./schema.json"
+    "./schema.json": "./schema.json",
+    "./widgets": "./src/widgets/index.ts",
+    "./widgets/contract": "./src/widgets/contract.ts"
   },
   "scripts": {
     "check": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
     "test:unit": "vitest run test"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@pythia/widget-sdk": "workspace:*",
+    "@types/react": "catalog:"
   }
 }

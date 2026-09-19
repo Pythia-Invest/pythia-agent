@@ -23,9 +23,7 @@ type HermesClientOptions = {
   fetch?: typeof fetch;
 };
 
-export function createHermesClient(
-  options: HermesClientOptions = {},
-): HermesClient {
+export function createHermesRequest(options: HermesClientOptions = {}) {
   const fetcher = options.fetch ?? fetch;
 
   function config() {
@@ -109,6 +107,13 @@ export function createHermesClient(
     );
   }
 
+  return request;
+}
+
+export function createHermesClient(
+  options: HermesClientOptions = {},
+): HermesClient {
+  const request = createHermesRequest(options);
   async function json(path: string, init?: RequestInit) {
     return object(await (await request(path, init)).json());
   }

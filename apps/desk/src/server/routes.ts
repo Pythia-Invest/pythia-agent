@@ -6,6 +6,7 @@ import {
 } from "./native-session-context";
 import { deskViewStore, type DeskViewStore } from "./view-context/store";
 import { createWorkspaceRoutes } from "./workspace/routes";
+import { createWidgetRoutes } from "./widget-routes";
 import { workspaceStore, type WorkspaceStore } from "./workspace/store";
 import {
   result,
@@ -98,6 +99,7 @@ export function createDeskRoutes(
   sessionContext = createNativeSessionContextReader(),
 ) {
   return {
+    ...createWidgetRoutes(),
     ...createWorkspaceRoutes(workspace),
     ...createWorkspaceRunRoutes(
       client,

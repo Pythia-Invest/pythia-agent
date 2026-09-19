@@ -5,6 +5,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./market-widgets": "./src/market-widgets/index.ts",
+    "./class-name": "./src/class-name.ts",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {

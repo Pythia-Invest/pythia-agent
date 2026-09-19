@@ -1,11 +1,13 @@
 ---
 description: "Compose financial presentation from shared display, status and path primitives."
 paths:
+  - "packages/widget-sdk/**/*"
   - "packages/ui/src/market-widgets/**/*"
   - "apps/design-lab/src/app/examples/*market-presentation*.{ts,tsx}"
   - "apps/design-lab/src/app/examples/*market-widget*.{ts,tsx}"
   - "docs/architecture/market-widget-presentation.md"
 globs:
+  - "packages/widget-sdk/**/*"
   - "packages/ui/src/market-widgets/**/*"
   - "apps/design-lab/src/app/examples/*market-presentation*.{ts,tsx}"
   - "apps/design-lab/src/app/examples/*market-widget*.{ts,tsx}"
@@ -17,6 +19,12 @@ globs:
 Read the [presentation boundary](../../docs/architecture/market-widget-presentation.md).
 Keep financial contracts and domain decisions in their owners; this rule guides
 component authors rather than defining a second widget framework.
+
+Feature packaging, shared dependencies and module hosting follow the
+[widget authoring rule](./widget-authoring.md). Market-data supplies canonical
+widgets; connectors can supply specialist widgets through the same extension
+mechanism. Both may reuse these presentation components without implying their
+data operations or financial meanings are interchangeable.
 
 `@pythia/ui` renders supplied `InstrumentDisplay`/`InstrumentPath` values without
 provider, HTTP, credential or filesystem knowledge. Reuse its status, change and

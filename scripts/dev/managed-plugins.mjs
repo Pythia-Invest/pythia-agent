@@ -28,6 +28,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     files: Object.freeze([
       "__init__.py",
       "_platform.py",
+      "presentation.py",
       "transport.py",
       "plugin.yaml",
       "backend.py",
@@ -63,6 +64,11 @@ export const MANAGED_PLUGINS = Object.freeze([
       "wire.py",
       "wire_schema.py",
       "skills/market-data/SKILL.md",
+      "widgets/instrument-tile.tsx",
+      "widgets/instrument-compact-tile.tsx",
+      "widgets/instrument-table.tsx",
+      "widgets/instruments.tsx",
+      "dist/widgets/instruments.mjs",
     ]),
   }),
 ]);

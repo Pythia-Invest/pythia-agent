@@ -5,6 +5,7 @@
       "apps/**",
       "packages/**",
       "runtime/managed/runner/**",
+      "runtime/managed/plugins/**",
       "runtime/test/**",
       "scripts/**",
       "test/**",

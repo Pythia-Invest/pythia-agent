@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build": "pnpm run build:runtime && node tooling/run-turbo.mjs build",
-    "build:runtime": "tsc --project runtime/managed/runner/tsconfig.json",
+    "build:runtime": "tsc --project runtime/managed/runner/tsconfig.json && node scripts/dev/build-managed-widgets.mjs",
+    "widget:build": "node packages/widget-sdk/build.mjs",
     "check": "node tooling/run-turbo.mjs check",
     "check:boundaries": "node tooling/check-boundaries.mjs",
     "check:structure": "node tooling/check-structure.mjs",
@@ -31,6 +32,7 @@
     "@types/node": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@pythia/market-data": "workspace:*"
   }
 }

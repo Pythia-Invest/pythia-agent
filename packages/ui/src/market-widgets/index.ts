@@ -18,3 +18,4 @@ export { InstrumentPathView } from "./instrument-path";
 export { InstrumentTile } from "./instrument-tile";
 export { InstrumentCompactTile } from "./instrument-compact-tile";
 export { InstrumentTable, InstrumentReadState } from "./instrument-table";
+export { instrumentNumber } from "./format";

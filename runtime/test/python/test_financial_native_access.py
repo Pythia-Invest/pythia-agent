@@ -8,7 +8,9 @@ import contextlib
 import importlib
 import io
 import json
+from pathlib import Path
 import sys
+import tempfile
 from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -330,6 +332,34 @@ class NativeAccessTests(unittest.TestCase):
             commands[0](SimpleNamespace(platform='cli', request='{}', reuse_scope=None))
         self.assertEqual(json.loads(output.getvalue())['data'], {'value': 7})
         self.assertEqual(self.dispatches, ['synthetic_search', 'synthetic_search'])
+
+    def test_widgets_use_actual_owner_and_recheck_permission_before_publication(self):
+        widgets = importlib.import_module(PLATFORM + '.widgets')
+        directory = self.enterContext(tempfile.TemporaryDirectory())
+        root = Path(directory).resolve()
+        (root / 'view.mjs').write_text('export const synthetic = true;', encoding='utf-8')
+        def register(**tool):
+            self.schemas[tool['name']] = tool['schema']
+            self.entries[tool['name']] = SimpleNamespace(handler=tool['handler'])
+            self.add_plugin(self.provider_key, 'synthetic', tool['name'])
+            self.handler = lambda: json.loads(tool['handler']({}))
+        ctx = SimpleNamespace(plugin_id=self.provider_key, manifest=SimpleNamespace(path=str(root)),
+                              register_tool=register)
+        widgets.register_widget_presentation(ctx, tool_name='synthetic_widgets', toolset='synthetic',
+            widgets=[{'id': 'view', 'asset': 'view', 'input_contract': 'synthetic.v1'}], assets={'view': 'view.mjs'})
+        result = json.loads(transport.execute(self.provider_key, 'widgets', {}, None, lambda: False, read_only=True))
+        self.assertEqual(result['data']['widgets'][0]['id'], 'view')
+        self.assertNotIn('delivery', result)
+        with self.assertRaises(transport.Rejected):
+            transport.execute(self.feature_key, 'widgets', {}, None, lambda: False, read_only=True)
+        self.config['plugins']['disabled'] = [self.provider_key]
+        with self.assertRaises(transport.Rejected):
+            transport.execute(self.provider_key, 'widgets', {}, None, lambda: False, read_only=True)
+        self.config['plugins'].pop('disabled')
+        self.handler = self.revoke_during_read
+        with self.assertRaises(transport.Rejected) as caught:
+            transport.execute(self.provider_key, 'widgets', {}, None, lambda: False, read_only=True)
+        self.assertEqual(caught.exception.code, 'access_changed')
 
 
 if __name__ == '__main__':

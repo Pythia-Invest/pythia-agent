@@ -10,6 +10,8 @@ import {
 } from "../scripts/install/systemd.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
 import { MANAGED_PLUGINS } from "../scripts/dev/managed-plugins.mjs";
+import { MANAGED_WIDGET_BUILDS } from "../scripts/dev/managed-widget-builds.mjs";
+import { assertManagedPluginSource } from "../scripts/dev/files.mjs";
 
 import {
   forbiddenPayloadText,
@@ -263,8 +265,31 @@ const installedRuntimeFiles = new Set([
   "runtime/seeds/manifest.json",
   ...promptAndContextFiles,
 ]);
+const widgetBuilds = new Map(
+  MANAGED_WIDGET_BUILDS.map((build) => [build.output, build.entry]),
+);
 for (const path of installedRuntimeFiles) {
-  if (!source.entries.some((entry) => entry.path === path)) {
+  const widgetSource = widgetBuilds.get(path);
+  if (widgetSource) {
+    if (
+      !source.entries.some((entry) => entry.path === widgetSource) ||
+      !installedRuntimeFiles.has(widgetSource) ||
+      source.entries.some((entry) => entry.path === path)
+    )
+      violations.push(
+        `widget build: requires copied public source and uncommitted output ${path}`,
+      );
+    try {
+      // Only these reviewed build outputs may enter the copied closure without
+      // being Git source. Keep the same regular-file/parent/size admission.
+      assertManagedPluginSource(root, [path]);
+    } catch {
+      violations.push(
+        `widget build: missing or invalid compiled artifact ${path}`,
+      );
+      continue;
+    }
+  } else if (!source.entries.some((entry) => entry.path === path)) {
     violations.push(`runtime input: missing source ${path}`);
     continue;
   }

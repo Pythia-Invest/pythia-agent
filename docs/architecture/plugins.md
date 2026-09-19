@@ -16,6 +16,23 @@ exposed operations. Presentation assets and presets belong with the feature when
 it supplies them. Shared contracts, the widget SDK and reusable UI primitives are
 dependencies, not competing feature installations.
 
+## Widgets belong to the supplying feature
+
+Market-data supplies standard widgets backed by canonical financial operations.
+Connectors may supply specialist widgets backed by their own declared operations.
+Both reuse the public widget SDK and UI components, and users may mix them on one
+page. A canonical widget can follow source preferences or pin a compatible series;
+a specialist widget remains explicitly bound to its provider operation.
+
+Package widget entry points, input contracts, data bindings and explicit assets
+with the feature. Desk supplies generic hosting and protected delivery. Source
+libraries may be built separately; a feature installation supplies its frontend
+contributions without editing Desk. Backend-only plugins and standalone user
+renderers remain valid. The [widget decision](../decisions/0032-local-widget-sdk.md)
+defines shared runtime compatibility and the trust boundary.
+The [widget SDK guide](../../packages/widget-sdk/README.md) covers authoring,
+building, native registration, data bindings and explicit user overrides.
+
 ## Installation, defaults and customization
 
 Release payload lists determine which supported packages Pythia copies, and which

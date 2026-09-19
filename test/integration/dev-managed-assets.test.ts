@@ -32,6 +32,7 @@ import {
 } from "../../scripts/dev/runtime.mjs";
 import { recoverDevelopmentInitialization } from "../../scripts/dev/supervisor.mjs";
 import { copySourceSnapshot } from "../../tooling/source-snapshot.mjs";
+import { buildManagedWidgets } from "../../scripts/dev/build-managed-widgets.mjs";
 
 const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
   /\/$/u,
@@ -121,6 +122,9 @@ printf '%s\\n' "$*" >> '${commandLog}'
       state_root: paths.stateRoot,
     });
 
+    // A fresh source snapshot contains no generated widgets. Explicit
+    // preparation must finish before copied-source validation or refresh.
+    await buildManagedWidgets(paths.repositoryRoot);
     await refreshRuntimeAssets(
       { ...paths, managedCore },
       "safe-local-key-value",

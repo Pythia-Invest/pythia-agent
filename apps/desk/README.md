@@ -313,3 +313,45 @@ PDF.js character maps are generated from the pinned dependency by
 `public/_pdfjs/` output is ignored; it contains no workspace or device data.
 The production viewer regressions live in `e2e/workspace-formats.spec.ts`,
 including non-Latin PDFs and file-tab position restoration.
+
+### Shared widget modules
+
+`WidgetHost` loads an admitted, revision-pinned module into Desk's existing React
+tree. It supplies the exact Desk React and SDK imports, shares the loaded factory
+between instances, preserves component state across data updates and releases
+module styles when its last instance unmounts. `useWidgetModule` and
+`LoadedWidgetHost` expose the same boundary to feature-owned data coordinators.
+The feature owns current presentation selection and removes a host when its
+native presentation is disabled or unavailable. The host accepts compiled modules;
+the unreleased HTML/iframe widget format has been removed.
+
+`GET /api/plugins/{plugin}/widgets` reads the native plugin's fixed read-only
+`widgets` operation. Its validated descriptors identify content-pinned URLs under
+`/api/plugins/{plugin}/widgets/{asset}?revision={sha256}`. Each asset HTTP request
+passes browser admission, rechecks native enablement and verifies the returned
+digest; responses use `no-store`. The browser module cache retains code already
+loaded until page reload; it grants no native operation authority. A changed
+artifact uses a new digest URL.
+Failed loads expose an explicit retry using a new browser import URL while
+retaining the required revision digest. Up to three attempts per revision are
+allowed; successful modules/factories remain shared under their canonical URL.
+The host retains at most 128 revision records until reload, including failures.
+After repeated failure, reload or update the artifact. Render failures remain
+isolated to their instance until remount, renderer revision change or an explicit
+presentation selection change; ordinary data/theme updates preserve state.
+
+Run the provider-free production qualification with:
+
+```sh
+pnpm --filter @pythia/desk test:qualification:widgets
+```
+
+This explicit qualification copies the complete Desk app into an owned temporary
+tree, builds it with the pinned Next webpack toolchain, then builds an external
+widget. Chromium exercises that artifact through Desk's actual admitted asset
+routes and a synthetic native endpoint. It checks shared React/UI identity,
+context, scoped styles, theme and data updates, independent state, repeated
+instances, errors, cleanup and native denial on desktop and narrow viewports.
+The synthetic loopback servers and copied build are removed in `finally`; it
+uses no live profile, credential, provider or installed service. This is separate
+from the existing smoke suite against a running Desk.

@@ -75,3 +75,5 @@ def register(ctx):
             clear_session_vars(tokens)
 
     ctx.register_cli_command("market-data", "Inspect and read connected market data", setup, command)
+    from .presentation import register as register_presentation
+    register_presentation(ctx)
