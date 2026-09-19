@@ -19,7 +19,6 @@ export {
   type InstrumentWidgetOptions,
 } from "@pythia/ui/market-widgets";
 export { cn } from "@pythia/ui/class-name";
-export { mountWidget } from "./mount";
 export type {
   WidgetBinding,
   WidgetBindingContext,
@@ -31,8 +30,4 @@ export type {
 export type {
   WidgetAppearance,
   WidgetProps,
-  WidgetSnapshot,
-  WidgetTheme,
-  WidgetRenderMessage,
-  WidgetFrameMessage,
 } from "./types";

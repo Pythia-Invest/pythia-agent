@@ -84,7 +84,6 @@ function WidgetContent({
 /**
  * A trusted module in the existing Desk React tree. The feature owns selection,
  * admitted data reads and removal when its current native descriptor disappears.
- * Explicit legacy HTML renderers use their separate isolated host.
  */
 export function useWidgetModule(moduleUrl: string) {
   const [attempt, setAttempt] = React.useState(0);

@@ -48,7 +48,6 @@ function Harness() {
   const props = {
     options: { compact: revision > 0 },
     settings: { label: revision ? "updated" : "initial" },
-    theme: { foreground: "", background: "", up: "", down: "" },
     timeZone: revision ? "Europe/Brussels" : "UTC",
     locale: revision ? "fr-BE" : "en-US",
     appearance: { theme: resolvedTheme, profile: "product" as const },

@@ -9,11 +9,12 @@ copying Pythia's status, price and chart implementations. Plain HTML renderers
 cannot import the source-first React components in `@pythia/ui`. Making those
 components public in a repository alone does not provide a usable extension API.
 
-The first SDK built self-contained HTML with a separate React/UI copy per frame.
-That remains useful for existing isolated HTML renderers, but duplicates code and
-runtime work across a dense dashboard. The accepted feature-package model calls
-for market-data, connector and user widgets to reuse the same supported frontend
-implementation. User-installed frontend modules are trusted application code.
+The first SDK built self-contained HTML with a separate React/UI copy per frame,
+duplicating code and runtime work across a dense dashboard. This widget feature
+has not shipped; preserving that experimental format has no product requirement.
+The accepted feature-package model calls for market-data, connector and user
+widgets to reuse the same supported frontend implementation. User-installed
+frontend modules are trusted application code.
 
 ## Ruling
 
@@ -43,9 +44,9 @@ SDK imports; it does not mean copying all underlying primitives. Explicit
 configuration selects a renderer or replaces a built-in renderer. Removing that
 override restores the built-in. Normal Pythia updates do not rewrite the user's
 source, configuration or artifact. Module artifacts use the compatible SDK supplied
-by the running host. Legacy self-contained HTML retains its bundled implementation
-until explicitly rebuilt. A format transition never silently gives an old HTML
-renderer the authority of an application module.
+by the running host. Modules are the only supported widget format. Old HTML
+configurations fail validation; no migration, iframe host, HTML compiler or
+message protocol is retained. User files are not rewritten or removed.
 
 The host delivers data, display options, JSON settings, locale, timezone and
 resolved appearance as component props. Ordinary data and appearance updates
@@ -60,11 +61,6 @@ operation; they are not a sandbox for malicious code or runaway work. Provider
 credentials stay server-side, native operation permissions remain enforced, and
 the host's standard data path coordinates reads and updates. The SDK adds no
 provider polling, independent authentication or second update channel.
-
-Legacy HTML continues through the explicit script-only iframe path without
-same-origin authority. Its existing message protocol, network restrictions and
-bounded height/error notifications remain a compatibility surface, not the new
-module execution contract.
 
 Frontend artifacts belong to their native feature package or an explicitly
 selected user-owned file. Market-data ships canonical widget contributions;
@@ -96,7 +92,7 @@ Ordinary users can install prebuilt modules; authors need the local build tool.
 The host checks artifact format, runtime compatibility and required public exports
 before invoking a generated widget factory. The runtime interface includes public
 SDK semantics, not only envelope shape. Breaking changes require an interface
-version change. SDK release versions and legacy wire versions are separate.
+version change. SDK release versions are separate from runtime interface versions.
 
 Shared React/UI imports bind to the exact host objects. Only deliberate public
 exports are supported; private Desk modules and arbitrary package resolution are
@@ -117,8 +113,9 @@ Reimplementing controls or bundling React/UI per standard widget defeats reuse.
 Rebuilding all of Desk for every plugin install couples independent user features
 to the application build. A new plugin registry, marketplace, general dependency
 negotiator or build daemon is unnecessary. A small declared host surface and
-explicit compatible modules are sufficient. Isolated HTML remains supported for
-existing selections, with its distinct trust and performance characteristics.
+explicit compatible modules are sufficient. Retaining the unreleased HTML path
+would require two compilers, hosts and communication contracts without a deployed
+compatibility need. It is removed rather than maintained as a second widget API.
 
 See [shared UI ownership](0003-ui-and-design-lab.md),
 [styling](0007-tailwind-styling-layer.md) and the

@@ -44,9 +44,9 @@ Browser widget modules use the local `@pythia/widget-sdk` and explicit prebuilt
 artifacts, sharing Desk's React and public UI implementation. Features own their
 widget contributions and data bindings; Desk owns generic hosting and transport.
 These modules are trusted frontend code with Desk-origin access. Server-side native
-operation checks and credential custody remain authoritative. Existing HTML
-renderers keep their separate isolated execution path. User source and renderer
-selections remain user-owned. See
+operation checks and credential custody remain authoritative. Modules are the only
+supported widget format; the unreleased HTML experiment is retired. User source
+and renderer selections remain user-owned. See
 [ADR 0032](../decisions/0032-local-widget-sdk.md).
 
 ## Source is not runtime input

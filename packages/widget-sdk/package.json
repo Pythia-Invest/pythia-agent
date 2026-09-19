@@ -6,7 +6,6 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./protocol": "./src/protocol.ts",
     "./runtime": "./src/runtime.ts"
   },
   "scripts": {

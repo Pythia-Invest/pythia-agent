@@ -82,8 +82,7 @@ exported assets. Desk owns generic hosting, layout and protected delivery. Share
 library source may be built separately, but installing the feature supplies its
 widget contributions without editing or rebuilding Desk. Native declarations are
 the authority; a frontend cache of loaded modules is not another plugin inventory.
-See [ADR 0032](0032-local-widget-sdk.md) for trusted modules, shared dependencies
-and the separate legacy HTML path.
+See [ADR 0032](0032-local-widget-sdk.md) for trusted modules and shared dependencies.
 
 ## Consequences
 

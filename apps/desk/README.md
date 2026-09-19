@@ -322,8 +322,8 @@ between instances, preserves component state across data updates and releases
 module styles when its last instance unmounts. `useWidgetModule` and
 `LoadedWidgetHost` expose the same boundary to feature-owned data coordinators.
 The feature owns current presentation selection and removes a host when its
-native presentation is disabled or unavailable. Explicit legacy HTML renderers
-keep their isolated host.
+native presentation is disabled or unavailable. The host accepts compiled modules;
+the unreleased HTML/iframe widget format has been removed.
 
 `GET /api/plugins/{plugin}/widgets` reads the native plugin's fixed read-only
 `widgets` operation. Its validated descriptors identify content-pinned URLs under

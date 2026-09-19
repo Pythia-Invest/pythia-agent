@@ -35,8 +35,8 @@ Compile explicit module artifacts using the supported builder. Bind React and
 public SDK imports to the host runtime; preserve compatibility checks and scoped
 styles. Do not bundle another React/UI copy, apply a document reset, import Desk
 internals, or compile/install dependencies during dashboard reads. Keep editable
-source and user selections intact. Legacy HTML is an explicit separate format;
-never silently upgrade it into same-origin executable code.
+source and user selections intact. Modules are the only supported widget format;
+do not restore the retired HTML compiler, iframe host or message protocol.
 
 Module widgets are trusted frontend code, not sandboxed content. Presentation
 access does not grant data-operation access. Use the host's coordinated read/update

@@ -1,5 +1,4 @@
 // Format marker only: this is not a signature or an assertion of trusted code.
-export const WIDGET_ARTIFACT_MARKER = "<!-- pythia-widget-sdk:1 -->";
 export const WIDGET_MODULE_MARKER = "// pythia-widget-module:1";
 // This ABI includes the supported React imports and the SDK's component props
 // and behavior. Breaking those contracts requires a new runtime version.

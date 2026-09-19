@@ -7,6 +7,7 @@ import type { WidgetProps } from "./types";
 import type { WidgetBinding } from "./binding";
 
 export {
+  MAX_WIDGET_ARTIFACT_BYTES,
   WIDGET_MODULE_MARKER,
   WIDGET_RUNTIME_VERSION,
   WIDGET_SDK_VERSION,

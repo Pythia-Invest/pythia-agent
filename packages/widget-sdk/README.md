@@ -53,15 +53,14 @@ Copy a small example composition to start a personal variant and keep SDK import
 ## Host contract
 
 `WidgetProps` contains `data`, standard display `options`, custom JSON `settings`,
-legacy theme colors, optional resolved `appearance`, `locale` and `timeZone`.
+optional resolved `appearance`, `locale` and `timeZone`.
 Optional `presentation` identifies the selected native widget declaration. A
 feature may publish several presentations from one artifact and interpret that
 identifier in its own component; Desk does not switch on those names. The supplied
 tile, compact tile and table share one artifact and one financial binding.
-`WidgetSnapshot` contains the shared `InstrumentRead` plus `source`, `detail` and
-optional `retrievedAt`. A display reference is not evidence of cross-provider
-identity. Preserve supplied source, units, time, gaps, change baselines and missing
-values. Use the supplied locale/timezone for raw instants; keep date-only values
+The default data type is the shared `InstrumentRead`. A display reference is not
+evidence of cross-provider identity. Preserve source, units, time, gaps, change
+baselines and missing values. Use the supplied locale/timezone for raw instants; keep date-only values
 as calendar dates.
 
 The generic host caches imported module code and its factory result, renders
@@ -76,9 +75,9 @@ load attempts before requiring reload or an updated artifact. Cached code grants
 no native access. A render error remains isolated until remount, revision change
 or an explicit presentation selection change.
 
-The default data type is an instrument snapshot. `WidgetProps` also accepts an
-explicit data/settings type for a host with another supported contract. This
-does not automatically add that dataset to Desk or authorize a backend call.
+`WidgetProps` also accepts an explicit data/settings type for a host with another
+supported contract. This does not automatically add that dataset to Desk or
+authorize a backend call.
 
 The feature-owned binding constructs requests and interprets their results.
 This foundation's `WidgetHost` loads code/styles and renders caller-supplied props;
@@ -115,10 +114,10 @@ financial server rendering. Desk does not execute arbitrary browser modules on
 the server: adding a new module does not automatically add server rendering for
 a new dataset. Specialist operations keep their own explicit data contract.
 
-Module widgets are trusted code running alongside Desk. Their browser-origin
-access is broader than an isolated HTML frame; scoped CSS and error boundaries
-are not a security sandbox. Provider credentials stay server-side, and every
-backend operation still enforces native authorization. The SDK itself creates no
+Module widgets are trusted code running alongside Desk with access to its browser
+origin. Scoped CSS and error boundaries are not a security sandbox. Provider
+credentials stay server-side, and every backend operation still enforces native
+authorization. The SDK itself creates no
 provider client, polling timer, filesystem bridge or native capability.
 
 ## Distribution and configuration
@@ -183,17 +182,9 @@ match a widget declaration for that asset. A local module interprets its explici
 configured presentation ID itself.
 The Markets page and its configuration loader remain a dependent integration;
 this package does not introduce a dashboard editor or marketplace installer.
-Existing file or plugin entries without `format: "module"` retain their HTML
-meaning; changing a filename extension alone does not opt into module authority.
-
-## Existing HTML widgets
-
-Existing `.html` artifacts retain their explicit isolated-frame path. Building an
-`.html` target remains a compatibility option and bundles its own React/UI code.
-The legacy `protocol` and `mountWidget` exports support that path. Normal updates
-do not convert HTML to modules or change its execution authority. A module must be
-explicitly built and selected. Module and HTML formats have separate markers;
-neither marker is a signature or a guarantee that authored code is safe.
+Modules are the only widget format. The earlier unreleased HTML/iframe format has
+been removed; old HTML configurations are rejected without rewriting user files.
+The module marker is a format identifier, not a signature or a safety guarantee.
 
 ## Check a widget
 

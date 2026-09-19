@@ -20,10 +20,8 @@ import { afterEach, expect, test } from "vitest";
 import { buildWidget } from "../../build.mjs";
 import {
   MAX_WIDGET_ARTIFACT_BYTES,
-  WIDGET_ARTIFACT_MARKER,
   WIDGET_MODULE_MARKER,
 } from "../../src/artifact.mjs";
-import { customWidgetDocument } from "../../src/protocol";
 
 const host: WidgetHost = { react, reactDom, jsxRuntime, sdk };
 const directories: string[] = [];
@@ -55,10 +53,7 @@ test("builds an inert module that receives the actual host React, context, and U
     join(directory, "node_modules", "local-caption", "index.js"),
     'export default "Local dependency";',
   );
-  await writeFile(
-    join(directory, "detail.css"),
-    '.detail::after{content:"</style>"}',
-  );
+  await writeFile(join(directory, "detail.css"), ".detail { padding: 3px }");
   await writeFile(
     entry,
     `
@@ -73,7 +68,6 @@ test("builds an inert module that receives the actual host React, context, and U
       return <section className={cn("p-3 text-foreground bg-raised", expanded && "grid gap-2")}>
         <button className="detail" onClick={() => setExpanded(!expanded)}>{caption}: {context}</button>
         {data.rows.map(item => <InstrumentTile key={item.symbol} item={item} />)}
-        <span>{"</script><script>not executable markup</script>"}</span>
       </section>;
     }
     Widget.identity = { useState, InstrumentTile };
@@ -118,12 +112,6 @@ test("builds an inert module that receives the actual host React, context, and U
         data: { rows: [], context },
         options: {},
         settings: {},
-        theme: {
-          foreground: "black",
-          background: "white",
-          up: "green",
-          down: "red",
-        },
         locale: "en-US",
         timeZone: "UTC",
       }),
@@ -140,72 +128,22 @@ test("builds an inert module that receives the actual host React, context, and U
   );
 }, 20_000);
 
-test.each(["mjs", "html"])(
-  "a failed %s build leaves an existing artifact and source intact",
-  async (format) => {
-    const directory = await project();
-    const entry = join(directory, "widget.tsx");
-    const output = join(directory, `widget.${format}`);
-    const source =
-      'import Missing from "missing-component"; export default Missing;';
-    await writeFile(entry, source);
-    await writeFile(output, "Previously reviewed artifact");
-    await expect(buildWidget(entry, output)).rejects.toThrow(
-      /missing-component/,
-    );
-    expect(await readFile(output, "utf8")).toBe("Previously reviewed artifact");
-    expect(await readFile(entry, "utf8")).toBe(source);
-    expect((await readdir(directory)).sort()).toEqual([
-      `widget.${format}`,
-      "widget.tsx",
-    ]);
-  },
-);
-
-test("an explicit HTML output retains the legacy self-contained iframe format", async () => {
+test("a failed build leaves an existing artifact and source intact", async () => {
   const directory = await project();
   const entry = join(directory, "widget.tsx");
-  const output = join(directory, "widget.html");
-  await writeFile(
-    join(directory, "detail.css"),
-    '.detail::after{content:"</style>"}',
-  );
-  await writeFile(
-    entry,
-    `
-    import { useState } from "react";
-    import { InstrumentTable } from "@pythia/widget-sdk";
-    import "./detail.css";
-    export default function Widget({data,options}) {
-      const [expanded,setExpanded]=useState(false);
-      return <section className="p-3 text-foreground bg-raised">
-        <button className="detail" onClick={()=>setExpanded(!expanded)}>{String(expanded)}</button>
-        <InstrumentTable read={data} options={options}/>
-        <span>{"</script><script>not executable markup</script>"}</span>
-      </section>;
-    }
-  `,
-  );
-  const result = await buildWidget(entry, output);
-  const html = await readFile(output, "utf8");
-  expect(html.startsWith(WIDGET_ARTIFACT_MARKER)).toBe(true);
-  expect(html.startsWith(WIDGET_MODULE_MARKER)).toBe(false);
-  expect(result.bytes).toBe(Buffer.byteLength(html));
-  expect(result.bytes).toBeLessThanOrEqual(MAX_WIDGET_ARTIFACT_BYTES);
-  expect(html.match(/<\/script>/gi)).toHaveLength(1);
-  expect(html.match(/<\/style>/gi)).toHaveLength(1);
-  expect(html).not.toMatch(/<(?:script|link)[^>]+(?:src|href)=/i);
-  const document = customWidgetDocument(html);
-  expect(document.indexOf("Content-Security-Policy")).toBeLessThan(
-    document.indexOf(WIDGET_ARTIFACT_MARKER),
-  );
-  expect(document).toContain("connect-src 'none'");
-  expect(await readdir(directory)).toEqual([
-    "detail.css",
-    "widget.html",
+  const output = join(directory, "widget.mjs");
+  const source =
+    'import Missing from "missing-component"; export default Missing;';
+  await writeFile(entry, source);
+  await writeFile(output, "Previously reviewed artifact");
+  await expect(buildWidget(entry, output)).rejects.toThrow(/missing-component/);
+  expect(await readFile(output, "utf8")).toBe("Previously reviewed artifact");
+  expect(await readFile(entry, "utf8")).toBe(source);
+  expect((await readdir(directory)).sort()).toEqual([
+    "widget.mjs",
     "widget.tsx",
   ]);
-}, 20_000);
+});
 
 test("rejects oversized output before replacing an existing artifact", async () => {
   const directory = await project();

@@ -4,11 +4,7 @@ import { mkdir, open, realpath, rename, rm, stat } from "node:fs/promises";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { bundleWidget } from "./compiler/browser.mjs";
-import { legacyArtifact } from "./compiler/legacy.mjs";
-import {
-  requiredImports,
-  runtimeImports,
-} from "./compiler/runtime-imports.mjs";
+import { requiredImports } from "./compiler/runtime-imports.mjs";
 import { compileStyles, scopeStyles } from "./compiler/styles.mjs";
 import {
   MAX_WIDGET_ARTIFACT_BYTES,
@@ -42,10 +38,8 @@ export async function buildWidget(entry, output) {
   const target = resolve(output);
   if (!(await stat(source)).isFile() || !/\.[cm]?[jt]sx?$/.test(source))
     throw new Error("Choose a JavaScript or TypeScript React component file.");
-  if (![".mjs", ".html"].includes(extname(target).toLowerCase()))
-    throw new Error(
-      "Choose an .mjs module output, or an .html output for explicit legacy iframe compatibility.",
-    );
+  if (extname(target).toLowerCase() !== ".mjs")
+    throw new Error("The widget output must be an .mjs file.");
   const existingTarget = await realpath(target).catch((error) => {
     if (error.code === "ENOENT") return undefined;
     throw error;
@@ -53,10 +47,7 @@ export async function buildWidget(entry, output) {
   if (source === target || source === existingTarget)
     throw new Error("The output cannot replace the component source.");
 
-  const artifact =
-    extname(target).toLowerCase() === ".html"
-      ? await legacyArtifact(source, packageDirectory)
-      : await moduleArtifact(source);
+  const artifact = await moduleArtifact(source);
   const bytes = Buffer.byteLength(artifact, "utf8");
   if (bytes > MAX_WIDGET_ARTIFACT_BYTES)
     throw new Error(
@@ -72,10 +63,8 @@ export async function buildWidget(entry, output) {
 
 async function moduleArtifact(source) {
   const { javascript, authoredCss, metafile } = await bundleWidget(
-    `export {default} from ${JSON.stringify(source)};export * from ${JSON.stringify(source)};`,
+    source,
     packageDirectory,
-    [runtimeImports()],
-    "__pythiaWidget",
   );
   const styles = await compileStyles(javascript, authoredCss, packageDirectory);
   const imports = requiredImports(metafile);
@@ -108,7 +97,7 @@ if (
   const [entry, output, ...extra] = process.argv.slice(2);
   if (!entry || !output || extra.length) {
     process.stderr.write(
-      "Usage: pnpm widget:build <component.tsx> <widgets/name.mjs|widgets/name.html>\n",
+      "Usage: pnpm widget:build <component.tsx> <widgets/name.mjs>\n",
     );
     process.exitCode = 1;
   } else {

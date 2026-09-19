@@ -1,16 +1,12 @@
 import { resolve } from "node:path";
 import { build, formatMessages } from "esbuild";
+import { runtimeImports } from "./runtime-imports.mjs";
 
-/** Shared static browser compilation and import admission for both formats. */
-export async function bundleWidget(
-  contents,
-  packageDirectory,
-  plugins,
-  globalName,
-) {
+/** Static browser compilation with explicit bindings to the host runtime. */
+export async function bundleWidget(source, packageDirectory) {
   const bundle = await build({
     stdin: {
-      contents,
+      contents: `export {default} from ${JSON.stringify(source)};export * from ${JSON.stringify(source)};`,
       loader: "tsx",
       resolveDir: packageDirectory,
       sourcefile: "pythia-widget-entry.tsx",
@@ -24,7 +20,7 @@ export async function bundleWidget(
     metafile: true,
     outfile: "widget.js",
     format: "iife",
-    globalName,
+    globalName: "__pythiaWidget",
     platform: "browser",
     target: "es2022",
     jsx: "automatic",
@@ -43,7 +39,7 @@ export async function bundleWidget(
       ".woff": "dataurl",
       ".woff2": "dataurl",
     },
-    plugins,
+    plugins: [runtimeImports()],
   });
   if (bundle.warnings.some((warning) => warning.id === "empty-import-meta"))
     throw new Error(
