@@ -6,7 +6,7 @@ from ._platform import platform
 
 class FinancialDelivery:
     push = True
-    READ_ACTIONS = {'describe', 'call', 'search', 'details', 'series', 'read', 'read_many',
+    READ_ACTIONS = {'describe', 'call', 'search', 'search_catalogue', 'details', 'series', 'read', 'read_many',
                     'get_preferences', 'inspect_identity', 'inspect_subject', 'inspect_repair'}
 
     def __init__(self, backend_factory):

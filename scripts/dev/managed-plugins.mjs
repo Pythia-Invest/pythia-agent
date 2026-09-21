@@ -53,6 +53,8 @@ export const MANAGED_PLUGINS = Object.freeze([
       "execution.py",
       "identity.py",
       "identity_db.py",
+      "catalogue.py",
+      "search.py",
       "identity_matching.py",
       "identity_overrides.py",
       "identity_repair.py",

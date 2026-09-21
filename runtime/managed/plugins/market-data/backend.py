@@ -4,7 +4,7 @@ from contextlib import contextmanager, nullcontext
 
 from .cache import ReadCache, ReadCancelled
 from .identity import IdentityStore
-from .preferences import Preferences
+from .preferences import Preferences, applicable_order
 from .selection import CRITERIA, available, compatible_ref, fingerprint, native_access_scope, matches, permits_implicit, caches_observations
 from .wire import WireError, require, validate, validate_parameters
 
@@ -83,7 +83,7 @@ class Backend:
         native = validate("provider_ref", native_ref)
         return self.source(native["provider"], "details", {"native_ref": native})
 
-    def resolve(self, native_ref, scope, mapping_id=None):
+    def resolve(self, native_ref, scope, mapping_id=None, *, search_adoption=False):
         native = validate("provider_ref", native_ref)
         require(scope in ("company", "instrument", "listing", "crypto"), "identity", "invalid subject scope")
         response = self.details(native)
@@ -99,6 +99,18 @@ class Backend:
         require(actual["provider"] == native["provider"], "identity", "source provider differs")
         evidence = chosen.get("evidence")
         require(type(evidence) is list, "identity", "source has no normalized evidence contract")
+        if search_adoption:
+            explicit = chosen.get('kind', chosen.get('scope'))
+            supported = {item.get('scope') for item in evidence if type(item) is dict and item.get('authority') == 'source_asserted'}
+            if explicit in ('company', 'instrument', 'listing', 'crypto'):
+                supported.add(explicit)
+            if not supported:
+                sources, _ = self.context()
+                supported = {kind for source in sources if source['contribution']['provider'] == actual['provider']
+                             for kind in source['contribution'].get('subject_kinds', [])}
+            require(scope in supported, 'identity', 'source does not establish the requested subject scope')
+        from .search import candidate
+        label = candidate(chosen, actual['provider'], [scope])
         ids = self.identity.ingest(actual, evidence)
         if mapping_id is not None:
             saved = self.identity.inspect(mapping_id)
@@ -106,6 +118,8 @@ class Backend:
             result = self.identity.refresh(mapping_id, ids)
         else:
             result = self.identity.save(actual, scope, ids)
+        from .catalogue import remember
+        remember(self.identity, actual, scope, label)
         return envelope(result, mutation=True, issues=response.get("issues", []))
 
     def series(self, binding, criteria):
@@ -151,11 +165,36 @@ class Backend:
             for op in source['operations'] if op['operation'] == 'series')
         return self.source(native['provider'], 'series', {'native_ref': native, **({'criteria': criteria} if accepts else {})})
 
+    def adoption_binding(self, saved):
+        """Keep an explicit source usable when preferred reads exclude it.
+
+        Adoption has no read criteria. Check default eligibility for the selected
+        source's implemented price operations, without probing series or changing
+        preferences. Actual reads still qualify their full requested semantics.
+        """
+        native, subject = saved['native_ref'], saved['intent_subject']
+        mappings = self.identity.bindings(subject)['mappings']
+        if not any(row['id'] == saved['mapping']['id'] for row in mappings):
+            return native
+        sources, _ = self.context()
+        operations = [operation for operation in ('latest', 'history') if available(sources, native['provider'], operation)]
+        if not operations or not available(sources, native['provider'], 'series'):
+            return native
+        preferences = self.preferences.get()
+        for operation in operations:
+            explicit, _ = applicable_order(preferences, operation, subject, {})
+            if not any(available(sources, row['provider_ref']['provider'], operation)
+                       and available(sources, row['provider_ref']['provider'], 'series')
+                       and permits_implicit(sources, row['provider_ref']['provider'], explicit) for row in mappings):
+                return native
+        return subject
+
     def handle(self, request):
         require(type(request) is dict, "backend", "expected request object")
         self.context()  # Native feature eligibility applies to local actions too.
         action = request.get("action")
         shapes = {
+            "search_catalogue": ({"query"}, {"limit"}), "adopt_search": ({"native_ref", "scope"}, set()),
             "search": ({"provider", "query"}, set()), "details": ({"native_ref"}, set()),
             "resolve_save": ({"native_ref", "scope"}, set()), "series": ({"binding"}, {"criteria"}),
             "read": ({"request"}, {"criteria", "series"}), "read_many": ({"reads"}, set()), "get_preferences": (set(), set()),
@@ -171,6 +210,23 @@ class Backend:
         require(required <= fields <= required | optional, "backend", "invalid action fields")
         criteria = request.get("criteria", {})
         validate_parameters(CRITERIA, criteria)
+        if action == 'search_catalogue':
+            from .search import search
+            key = fingerprint({'search': request, 'access': self.context()[1], 'identity': self.identity.cache_token()})
+            return self.cache.coalesce(key, lambda: search(self, request['query'], request.get('limit', 30)))
+        if action == 'adopt_search':
+            result = self.resolve(request['native_ref'], request['scope'], search_adoption=True)
+            if result.get('effect') != 'local_write':
+                if result.get('outcome') == 'error':
+                    return result
+                return envelope(None, outcome='error', issues=[*result.get('issues', []), {
+                    'code': 'identity_not_selected', 'message': 'No unique investment reference could be selected.', 'severity': 'error'}])
+            from .search import status
+            saved = result['data']
+            subject = saved['intent_subject']
+            return envelope({'subject': subject, 'binding': self.adoption_binding(saved),
+                             'identity_status': status(saved['mapping']['status']), 'mapping_id': saved['mapping']['id']},
+                            mutation=True, issues=result['issues'])
         if action == "search":
             require(type(request["query"]) is str and 1 <= len(request["query"]) <= 512, "search", "invalid query")
             return self.source(request["provider"], "search", {"query": request["query"]})

@@ -8,6 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { MANAGED_PLUGINS } from "../../scripts/dev/managed-plugins.mjs";
 
 // Run with the exact prepared Hermes source/environment; no ambient accounts,
@@ -63,7 +64,33 @@ try {
         result.error?.message ||
         "Financial HTTP qualification failed.",
     );
-  console.log(result.stdout.trim());
+  const report = JSON.parse(result.stdout.trim().split("\n").at(-1));
+  const schemas = pathToFileURL(resolve("packages/market-data/src/search.ts"));
+  const wireCheck = spawnSync(
+    process.execPath,
+    [
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `import { readFileSync } from 'node:fs';
+       const schemas = await import(${JSON.stringify(schemas.href)});
+       const wire = JSON.parse(readFileSync(0, 'utf8'));
+       schemas.investmentSearchResponseSchema.parse(wire.search);
+       schemas.investmentAdoptResponseSchema.parse(wire.adopt);`,
+    ],
+    {
+      input: JSON.stringify(report.shared_search_native_wire),
+      encoding: "utf8",
+      timeout: 10_000,
+    },
+  );
+  if (wireCheck.status !== 0)
+    throw Error(
+      wireCheck.stderr || "Native search wire consumer check failed.",
+    );
+  delete report.shared_search_native_wire;
+  report.shared_search_native_discovery_adoption_and_ts_contracts = "passed";
+  console.log(JSON.stringify(report));
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

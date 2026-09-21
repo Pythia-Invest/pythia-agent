@@ -10,6 +10,7 @@ import { createWidgetRoutes } from "./widget-routes";
 import { createPluginReadRoutes } from "./plugin-read-routes";
 import { createDataUpdateRoutes } from "./data-update-routes";
 import { createFinancialDataRoutes } from "./financial-data-routes";
+import { createInvestmentSearchRoutes } from "./investment-search-routes";
 import { workspaceStore, type WorkspaceStore } from "./workspace/store";
 import {
   result,
@@ -106,6 +107,7 @@ export function createDeskRoutes(
     ...createPluginReadRoutes(),
     ...createDataUpdateRoutes(),
     ...createFinancialDataRoutes(),
+    ...createInvestmentSearchRoutes(),
     ...createWorkspaceRoutes(workspace),
     ...createWorkspaceRunRoutes(
       client,

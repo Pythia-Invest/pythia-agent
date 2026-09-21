@@ -24,6 +24,7 @@ from hermes_cli.plugins import get_plugin_manager, PluginContext
 from tools.registry import registry
 from native_hermes_source import validate_source_binding
 from widget_presentations import qualify_widget_presentations
+from financial_search import qualify_shared_search
 
 FINANCIAL_PATH = '/v1/pythia/plugins/pythia-market-data/query'
 SYNTHETIC_PATH = '/v1/pythia/plugins/synthetic/query'
@@ -85,6 +86,8 @@ def synthetic_plugin(root):
             ctx.register_tool(name='synthetic_undeclared', toolset='synthetic',
                 schema={'name': 'synthetic_undeclared', 'parameters': {'type': 'object'}},
                 handler=lambda *_args, **_kwargs: counts.update(undeclared=counts['undeclared'] + 1))
+            from financial_search import register_sources
+            register_sources(ctx, counts)
         '''))
 
 
@@ -262,6 +265,7 @@ async def main():
                     finally:
                         other_stream.close()
                     config.write_text(initial_config)
+                    search_wire = await qualify_shared_search(post, schemas.TOOL_NAME, counts)
                     disable('synthetic')
                     assert (await post({}, SYNTHETIC_PATH)).status == 403
                     assert (await post({'action': 'get_preferences'})).status == 200
@@ -383,7 +387,8 @@ async def main():
     print(json.dumps({'http_and_tool_backends': len(instances), 'auth_profile_disable_limits_timeout_and_event_loop': 'passed',
                       'native_category_key_and_explicit_deny': 'passed',
                       'unrelated_plugin_query_and_updates_without_financial_access': 'passed',
-                      'read_only_admission_receipts_and_resource_isolation': 'passed', 'model_or_cli_subprocesses': 0}))
+                      'read_only_admission_receipts_and_resource_isolation': 'passed', 'model_or_cli_subprocesses': 0,
+                      'shared_search_native_wire': search_wire}))
 
 
 asyncio.run(main())

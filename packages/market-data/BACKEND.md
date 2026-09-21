@@ -14,6 +14,8 @@ Arguments are flat action objects. The backend rejects unrelated fields.
 | Action | Required fields | Optional fields / result |
 | --- | --- | --- |
 | `search` | `provider`, `query` | Source candidates; no identity save |
+| `search_catalogue` | `query` | Optional `limit` (1–100, default 30); investment-first results, per-source coverage, explicit truncation |
+| `adopt_search` | `native_ref`, `scope` | Re-fetch details; return stable `subject`, usable `binding`, `identity_status`, `mapping_id` |
 | `details` | `native_ref` | Source candidates, normalized evidence and issues |
 | `resolve_save` | `native_ref`, `scope` | Reads details and explicitly saves one selected native identity |
 | `series` | `binding` | `criteria`; returns matching definitions |
@@ -36,6 +38,45 @@ available; `call` requires provider, operation and native-schema arguments and
 accepts only operations in that provider's validated contribution. `describe`
 does not catalogue every native tool. Specialist native tools remain separate
 from the shared `call` operations.
+
+Shared search queries all search-capable native contributions; unavailable ones
+are reported without execution. Equivalent concurrent requests share in-flight
+work through the resident cache and existing bounded executor. Search does not
+retain provider response caches, ingest evidence or create identities. Each
+source is limited to 200 interpreted candidates, pairwise grouping to 4096
+comparisons, and visible results to the requested limit; reached bounds are
+reported rather than described as complete coverage. A source failure preserves
+successful siblings and their individual retry qualifications. Source access and
+identity generation are checked again before publication.
+
+`src/search.ts` exports validated Desk contracts. Normalized connector candidates
+contain `provider_ref`, optional `name`, `symbol`, explicit `kind`/`scope`,
+`currency`, `venue`, and up to 32 scalar `metadata` fields. Existing `evidence`
+can establish presentation scope and known listing qualifiers; provider-specific
+type strings never infer identity scope. Unknown fields are not projected as raw
+provider payloads. A candidate with unknown scope stays inspectable, not adoptable
+by guessing. `details` must return the selected reference and normalized evidence
+before adoption can succeed.
+
+Adoption failures with empty or ambiguous details return `outcome: "error"`,
+`data: null`, preserved source/identity issues and `identity_not_selected`; they
+do not claim a local write. A successful adoption can return an explicit native
+binding even when identity is confirmed: default canonical eligibility still
+honors broker opt-in and available price operations. Adoption does not change
+preferences or probe provider series to make an excluded route eligible.
+
+Confirmed listing associations and pure supported scoped comparisons can group
+search references without a write. Instrument equivalence alone does not group
+different listings/currencies. Current rules have no cross-provider listing
+qualification; this increment does not claim EODHD/Yahoo/IBKR listing equivalence
+or ship those connector implementations. Future qualified rules use the existing
+identity owner. Display names and symbol similarity never establish associations.
+
+Adopted identities remain searchable while a connector is disabled, with its
+reference marked unavailable. This is retained user-owned catalogue metadata,
+not permission to retrieve data or reuse unavailable provider responses. Details
+and adoption still enforce native source availability. No broker or provider
+connection is automatically enabled.
 
 `binding` is a canonical subject or provider reference. Common read criteria
 are measurement, interval, session, price adjustment, market-data type,

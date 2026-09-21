@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS revisions (
 CREATE TABLE IF NOT EXISTS overrides (
  id TEXT PRIMARY KEY, mapping_id TEXT NOT NULL, target TEXT NOT NULL, effect TEXT NOT NULL,
  evidence_ids TEXT NOT NULL, state TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS catalogue_labels (
+ native_key TEXT NOT NULL, scope TEXT NOT NULL, data TEXT NOT NULL, search_text TEXT NOT NULL,
+ PRIMARY KEY(native_key, scope));
 """
 
 

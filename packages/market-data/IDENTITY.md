@@ -1,5 +1,31 @@
 # Identity backend consumer interface
 
+Shared investment search stores selected display labels in `catalogue_labels`
+inside the existing private identity database. The additive table is created for
+existing databases without replacing subjects, mappings or revision history.
+Only explicit adoption/resolve/details-refresh mutations update it; provider
+search results are not an automatically ingested catalogue. Stored normalized
+search text supports local label filtering before decoding metadata/evidence.
+Older subjects without labels remain searchable by their retained native ID.
+
+`adopt_search` reuses the identity owner's save/repair behavior. It returns the
+immutable intent subject and either a currently routable canonical binding or
+an explicitly source-bound reference. A stable ID does not establish equivalence:
+unsupported associations remain unresolved. Caller-supplied subject scope must
+be supported by actual details metadata/evidence or the native contribution;
+scope is not invented from the display ticker. Repeated adoption preserves IDs.
+Confirmed identity also retains a native binding when default preferred reads
+would exclude its source, such as a broker without saved opt-in. Identity status
+and current source eligibility are separate; adoption never changes preferences.
+Disconnected source references retain their user-adopted labels with unavailable
+status, but do not grant provider access or canonical routing.
+
+Search grouping reuses supported pure comparisons and current evidence versions
+without writing evidence. Instrument equivalence does not identify a listing.
+Conflicting candidate metadata is exposed as unresolved/conflicting rather than
+letting whichever source row arrived last dictate identity. This increment adds
+no company/instrument/listing relationship graph or new cross-provider rules.
+
 `runtime/managed/plugins/market-data/identity.py` exports
 `IdentityStore(data_dir, *, rules=None, evidence_versions=None)`. Pass the actual
 native feature `PluginState.data_dir`; do not compute another profile or global
