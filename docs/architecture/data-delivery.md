@@ -129,3 +129,16 @@ revalidation and withdrawal without real providers, profiles or installed servic
 Markets page composition and request-local hydration remain future consumers.
 This delivery makes no paid-stream or production-service qualification claim.
 Each concrete connector must qualify its native batch and push behavior separately.
+
+## Follow-up during widget adoption
+
+Use the next real news or filings widget to evaluate binding ergonomics. Extract
+small helpers only where resource declarations, query keys or decoding show
+repeated boilerplate; do not add a speculative binding framework.
+
+Keep TanStack's query-state responsibility separate from the shared coordinator's
+resource subscriptions and publications. New widgets should use this delivery
+path rather than introduce another cache or their own refresh loops. Preserve
+generation/revision tracking, reset semantics and cancellation protections when
+simplifying: they prevent reconnect replay and late reads from restoring obsolete
+or withdrawn data.
