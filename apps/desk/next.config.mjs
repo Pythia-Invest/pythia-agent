@@ -32,7 +32,11 @@ const nextConfig = {
     ];
   },
   poweredByHeader: false,
-  transpilePackages: ["@pythia/ui", "@pythia/widget-sdk"],
+  transpilePackages: [
+    "@pythia/ui",
+    "@pythia/widget-sdk",
+    "@pythia/market-data",
+  ],
 };
 
 export default nextConfig;

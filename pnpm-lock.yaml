@@ -171,6 +171,9 @@ importers:
       '@ai-sdk/react':
         specifier: 'catalog:'
         version: 4.0.96(react@19.2.7)(zod@4.5.4)
+      '@pythia/market-data':
+        specifier: workspace:*
+        version: link:../../packages/market-data
       '@pythia/ui':
         specifier: workspace:*
         version: link:../../packages/ui
