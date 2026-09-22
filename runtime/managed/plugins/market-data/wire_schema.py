@@ -148,6 +148,8 @@ DEFS = {
                                  "tool": NAMESPACE, "effect": enum("read")}), 1),
         "subject_kinds": array(SCOPE, 1)}, {"requires_broker_app": {"type": "boolean"},
         "observation_cache": enum("default", "disabled"),
+        "search": obj({"modes": array(enum("text", "symbol", "identifier"), 1)},
+                      {"identifier_schemes": array(NAMESPACE)}),
         "cadence": obj({}, {key: {"type": "integer", "minimum": 1, "maximum": 86400} for key in ("latest", "history", "series")})}),
 }
 

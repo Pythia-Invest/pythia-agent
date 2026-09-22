@@ -27,6 +27,10 @@ class SearchTests(unittest.TestCase):
         self.fail = {}
         self.calls = []
         self.hook = None
+        self.declarations = {}
+        self.ordering = {}
+        self.arguments = []
+        self.parameters = {}
         self.backend = self.make_backend()
 
     def row(self, provider, symbol):
@@ -34,12 +38,15 @@ class SearchTests(unittest.TestCase):
                 'name': 'Synthetic Apple', 'symbol': symbol, 'kind': 'instrument', 'evidence': []}
 
     def project(self):
-        return [{'contribution': {'provider': provider, 'adapter_version': '1', 'subject_kinds': ['instrument', 'listing']},
-                 'operations': [{'operation': operation, 'available': enabled} for operation in ('search', 'details')]}
+        return [{'contribution': {'provider': provider, 'adapter_version': '1', 'subject_kinds': ['instrument', 'listing'],
+                                 **({'search': self.declarations[provider]} if provider in self.declarations else {})},
+                 'operations': [{'operation': operation, 'available': enabled,
+                                 'parameters': self.parameters.get(provider)} for operation in ('search', 'details')]}
                 for provider, enabled in sorted(self.enabled.items())], False
 
     def call(self, provider, operation, arguments):
         self.calls.append((provider, operation))
+        self.arguments.append((provider, operation, arguments))
         if self.hook:
             self.hook(provider, operation)
         if provider in self.fail:
@@ -47,7 +54,107 @@ class SearchTests(unittest.TestCase):
         rows = copy.deepcopy(self.rows[provider])
         if operation == 'details':
             rows = [row for row in rows if row['provider_ref'] == arguments['native_ref']]
-        return {'schema_version': 1, 'outcome': 'ok' if rows else 'empty', 'data': rows, 'issues': []}
+        return {'schema_version': 1, 'outcome': 'ok' if rows else 'empty', 'data': rows, 'issues': [],
+                **({'search_ordering': self.ordering[provider]} if provider in self.ordering else {})}
+
+    def test_provider_order_is_preserved_and_large_catalogue_cannot_hide_other_sources(self):
+        self.enabled = {'stocks': True, 'tokens': True}
+        self.rows = {'stocks': [{**self.row('stocks', 'AAPL'), 'name': 'Apple Inc.'},
+                               {**self.row('stocks', 'APPLE'), 'name': 'Obscure Apple Product'}],
+                     'tokens': [{**self.row('tokens', f'APPLE{i}'), 'name': 'Apple token'} for i in range(50)]}
+        self.ordering = {'stocks': 'relevance', 'tokens': 'prominence'}
+        found = self.search(limit=4)['data']['results']
+        self.assertIn('AAPL', [row['symbol'] for row in found[:2]])
+        stock_rows = [row['symbol'] for row in found if row['references'][0]['native_ref']['provider'] == 'stocks']
+        self.assertEqual(stock_rows, ['AAPL', 'APPLE'])
+
+    def test_unspecified_order_uses_names_and_symbols_without_alphabetical_ticker_bias(self):
+        self.rows['synthetic'] = [{**self.row('synthetic', 'OTHER'), 'name': 'Other investment'},
+                                  {**self.row('synthetic', 'AAPL'), 'name': 'Apple'}]
+        self.assertEqual(self.search()['data']['results'][0]['symbol'], 'AAPL')
+        ranking = import_module(f'{PACKAGE}.search_ranking')
+        self.assertEqual(ranking.relevance('apple', {'symbol': 'APPLE'}),
+                         ranking.relevance('apple', {'name': 'Apple'}))
+
+    def test_modes_skip_unsupported_input_without_failure_and_dispatch_one_call(self):
+        self.declarations['synthetic'] = {'modes': ['symbol']}
+        for query in ('Apple Incorporated', 'US0378331005', 'isin:US0378331005'):
+            result = self.search(query=query)
+            self.assertEqual(result['outcome'], 'empty')
+            self.assertEqual(result['data']['coverage'][0]['status'], 'unsupported')
+        self.assertEqual(self.calls, [])
+        self.search(query='NVDA')
+        self.assertEqual(self.arguments[-1][2], {'query': 'NVDA', 'mode': 'symbol'})
+        self.declarations['synthetic'] = {'modes': ['text', 'symbol', 'identifier'], 'identifier_schemes': ['isin']}
+        self.search(query='US0378331005')
+        self.assertEqual(self.arguments[-1][2], {'query': 'US0378331005', 'mode': 'identifier', 'identifier_scheme': 'isin'})
+        self.search(query='Nvidia')
+        self.assertEqual(self.arguments[-1][2], {'query': 'Nvidia', 'mode': 'text'})
+        self.assertEqual(len(self.calls), 3)
+        ranking = import_module(f'{PACKAGE}.search_ranking')
+        params = {'properties': {'query': {'maxLength': 12}}}
+        self.assertEqual(ranking.arguments('isin:US0378331005', self.declarations['synthetic'], params),
+                         {'query': 'US0378331005', 'mode': 'identifier', 'identifier_scheme': 'isin'})
+        self.assertIsNone(ranking.arguments('A much longer investment name', self.declarations['synthetic'], params))
+        self.assertEqual(ranking.arguments('us0378331005', self.declarations['synthetic'], params),
+                         {'query': 'US0378331005', 'mode': 'identifier', 'identifier_scheme': 'isin'})
+        self.assertEqual(ranking.arguments('BBG000B9XRY4', {'modes': ['identifier'], 'identifier_schemes': ['figi', 'isin']}),
+                         {'query': 'BBG000B9XRY4', 'mode': 'identifier', 'identifier_scheme': 'figi'})
+
+    def test_malformed_source_constraint_does_not_discard_successful_sibling(self):
+        self.enabled['broken'] = True
+        self.rows['broken'] = []
+        self.parameters['broken'] = {'properties': {'query': {'maxLength': 'invalid'}}}
+        result = self.search()
+        self.assertEqual(result['outcome'], 'partial')
+        self.assertEqual(len(result['data']['results']), 1)
+        self.assertEqual(result['data']['coverage'][0]['issues'][0]['code'], 'invalid_contribution')
+        self.assertNotIn(('broken', 'search'), self.calls)
+
+    def test_adopting_lower_provider_result_does_not_override_source_order(self):
+        first = self.rows['synthetic'][0]
+        second = {**self.row('synthetic', 'AAPL'), 'name': 'Apple'}
+        self.rows['synthetic'] = [first, second]
+        self.ordering['synthetic'] = 'relevance'
+        self.adopt(second)
+        self.assertEqual([row['symbol'] for row in self.search()['data']['results']], ['APPLE', 'AAPL'])
+
+    def test_fused_group_does_not_gain_votes_from_additional_providers(self):
+        ranking = import_module(f'{PACKAGE}.search_ranking')
+        one, two = ({'id': name, 'name': 'Apple', 'symbol': name, 'subject': None,
+                     'references': [{'native_ref': self.row(name, name)['provider_ref']}]}
+                    for name in ('one', 'two'))
+        key = lambda row: import_module(f'{PACKAGE}.identity_db').native_key(row['references'][0]['native_ref'])
+        order = {'a': [key(one)], 'b': [key(two)]}
+        before = ranking.rank('apple', [one, two], order, {}, {'a': 'relevance', 'b': 'relevance'})
+        order['c'] = [key(two)]
+        self.assertEqual(ranking.rank('apple', [one, two], order, {}, dict.fromkeys(('a', 'b', 'c'), 'relevance')), before)
+
+    def test_round_ties_respect_search_semantics_without_connector_specific_rules(self):
+        self.enabled = dict.fromkeys(('broad', 'catalogue', 'symbol-only'), True)
+        self.declarations = {'broad': {'modes': ['text']}, 'catalogue': {'modes': ['text']},
+                             'symbol-only': {'modes': ['symbol']}}
+        self.ordering = {'broad': 'relevance', 'catalogue': 'prominence', 'symbol-only': 'prominence'}
+        self.rows = {provider: [{**self.row(provider, 'NVDA'), 'name': 'Nvidia product'}]
+                     for provider in self.enabled}
+        found = self.search(query='NVDA')['data']['results']
+        self.assertEqual([row['references'][0]['native_ref']['provider'] for row in found],
+                         ['broad', 'catalogue', 'symbol-only'])
+        self.rows['broad'][0].update(name='Ethereum USD', symbol='ETH-USD')
+        self.rows['catalogue'][0].update(name='Ethereum', symbol='ETH')
+        self.rows['symbol-only'][0].update(name='Unrelated token', symbol='ETHEREUM')
+        found = self.search(query='Ethereum')['data']['results']
+        self.assertEqual([row['references'][0]['native_ref']['provider'] for row in found],
+                         ['catalogue', 'broad', 'symbol-only'])
+
+    def test_legacy_undeclared_search_does_not_claim_general_text_relevance(self):
+        self.enabled = {'declared': True, 'legacy': True}
+        self.declarations = {'declared': {'modes': ['text']}}
+        self.ordering = {'declared': 'relevance'}
+        self.rows = {'declared': [{**self.row('declared', 'AAPL'), 'name': 'Apple Inc.'}],
+                     'legacy': [{**self.row('legacy', 'APPLE'), 'name': 'Unrelated token'}]}
+        found = self.search()['data']['results']
+        self.assertEqual([row['symbol'] for row in found], ['AAPL', 'APPLE'])
 
     def make_backend(self):
         return Backend(self.directory.name, source_call=self.call, source_projection=self.project,

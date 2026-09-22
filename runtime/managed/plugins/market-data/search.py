@@ -4,6 +4,7 @@ Names rank results, never associate investments. Search does not ingest evidence
 selection re-fetches details through the existing explicit identity mutation.
 """
 import hashlib
+import re
 
 from . import catalogue
 from .cache import ReadCancelled
@@ -13,6 +14,7 @@ from .identity_matching import compare
 from .identity_repair import evidence_current
 from .request_context import cancelled
 from .selection import available, compatible_ref
+from .search_ranking import arguments, rank
 from .wire import WireError, require, validate
 
 SCOPES = ('company', 'instrument', 'listing', 'crypto')
@@ -82,6 +84,10 @@ def search(backend, query, limit=30):
     providers = sorted(source['contribution']['provider'] for source in sources
                        if any(op['operation'] == 'search' for op in source['operations']))
     kinds = {source['contribution']['provider']: source['contribution'].get('subject_kinds', []) for source in sources}
+    declarations = {source['contribution']['provider']: source['contribution'].get('search') for source in sources}
+    parameters = {source['contribution']['provider']: op.get('parameters') for source in sources
+                  for op in source['operations'] if op['operation'] == 'search'}
+    source_modes = {}
 
     def fetch(provider):
         if cancelled():
@@ -89,7 +95,15 @@ def search(backend, query, limit=30):
         if not available(sources, provider, 'search'):
             return provider, {'outcome': 'unavailable', 'data': [], 'issues': []}
         try:
-            return provider, backend.source(provider, 'search', {'query': query})
+            request = arguments(query, declarations[provider], parameters[provider])
+        except (TypeError, ValueError, AttributeError, re.error):
+            from .execution import failure
+            return provider, failure('invalid_contribution')
+        if request is None:
+            return provider, {'outcome': 'unsupported', 'data': [], 'issues': []}
+        source_modes[provider] = request.get('mode')
+        try:
+            return provider, backend.source(provider, 'search', request)
         except ReadCancelled:
             raise
         except Exception:
@@ -105,7 +119,10 @@ def search(backend, query, limit=30):
         return envelope({'results': [], 'coverage': [], 'truncated': False}, outcome='error',
                         issues=[issue('access_changed', 'Connected source access changed. Search again.')])
     all_labels, proofs, coverage, issues, conflicts = {}, {}, [], [], set()
+    source_order, ordering = {}, {}
     for provider, response in responses:
+        source_order[provider] = []
+        ordering[provider] = response.get('search_ordering')
         raw = response.get('data')
         provider_issues = list(response.get('issues', []))
         outcome = response.get('outcome', 'error')
@@ -121,6 +138,7 @@ def search(backend, query, limit=30):
                 try:
                     label = candidate(value, provider, kinds.get(provider, []))
                     key = native_key(label['native_ref'])
+                    source_order[provider].append(key)
                     if key in all_labels and all_labels[key] != label:
                         conflicts.add(key)
                         # Keep the exact source reference usable for inspection,
@@ -148,6 +166,8 @@ def search(backend, query, limit=30):
         if key not in refs and len(refs) == 1 and key not in conflicts:
             actual_key, saved_row = next(iter(refs.items()))
             actual = saved_row['native_ref']
+            source_order[label['native_ref']['provider']] = [actual_key if item == key else item
+                for item in source_order.get(label['native_ref']['provider'], [])]
             all_labels.pop(key)
             proofs.pop(key, None)  # Old assertions bind the original exact ref.
             all_labels.setdefault(actual_key, {**label, 'native_ref': actual,
@@ -217,7 +237,7 @@ def search(backend, query, limit=30):
         groups[group_key]['references'].append(ref)
         if groups[group_key]['subject'] is None and subject is not None:
             groups[group_key].update(subject=subject, identity_status=identity_status)
-    ranked = sorted(groups.values(), key=lambda row: (_rank(query, row), row['id']))
+    ranked = rank(query, list(groups.values()), source_order, source_modes, ordering)
     truncated = grouping_limited or len(ranked) > limit or any(row['truncated'] for row in coverage)
     failed = any(row['status'] in ('error', 'partial', 'unavailable') for row in coverage)
     outcome = 'partial' if ranked and (failed or truncated) else 'ok' if ranked else 'error' if failed else 'empty'
@@ -237,10 +257,3 @@ def _matches(query, label):
     haystack = ' '.join(str(label.get(key) or '') for key in ('name', 'symbol'))
     haystack += ' ' + label['native_ref']['native_id']
     return all(word in haystack.casefold() for word in query.casefold().split())
-
-
-def _rank(query, row):
-    query = query.casefold()
-    symbol, name = ((row.get(key) or '').casefold() for key in ('symbol', 'name'))
-    return (0 if symbol == query else 1 if name == query else 2 if symbol.startswith(query) else
-            3 if name.startswith(query) else 4, 0 if row['subject'] else 1, name, symbol)

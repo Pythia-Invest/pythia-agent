@@ -70,7 +70,14 @@ export const investmentSearchDataSchema = z
       z
         .object({
           provider: text,
-          status: z.enum(["ok", "empty", "partial", "error", "unavailable"]),
+          status: z.enum([
+            "ok",
+            "empty",
+            "partial",
+            "error",
+            "unavailable",
+            "unsupported",
+          ]),
           issues: z.array(issue),
           truncated: z.boolean(),
         })

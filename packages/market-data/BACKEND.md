@@ -49,6 +49,31 @@ reported rather than described as complete coverage. A source failure preserves
 successful siblings and their individual retry qualifications. Source access and
 identity generation are checked again before publication.
 
+Contributions optionally declare `search: {modes: ["text", "symbol", "identifier"],
+identifier_schemes: ["isin"]}`. Declare only implemented modes; identifier schemes
+are required for identifier dispatch. Shared search makes one call per source:
+supported explicit `scheme:value` or recognized ISIN/FIGI/LEI lookup first, otherwise
+text search, otherwise a syntactically valid symbol lookup. It passes `mode` and,
+for identifiers, `identifier_scheme` in addition to `query`. Unsupported input
+or native query length/pattern restrictions yield `coverage.status: "unsupported"`
+without a provider call or failure. Undeclared legacy search receives only `query`.
+Connectors own provider-specific validation and must admit their declared modes
+in their native tool schemas.
+
+Search responses may declare `search_ordering: "relevance" | "prominence" |
+"unspecified"`. Array position supplies the ordinal rank; no numeric scores are
+compared across providers. An optional candidate `matched_on` can describe name,
+symbol, identifier or alias matching, but is not identity evidence or a ranking
+override. Pythia preserves declared ordering and lexically orders unspecified
+lists, treating exact names and exact symbols equally. It interleaves source lists
+by position. Within a round, declared text/identifier search precedes symbol-only
+or undeclared legacy lookup,
+then lexical relevance, relevance-qualified ordering and retained identity break
+ties. Proven
+groups receive their best position, never summed source votes. No details, prices
+or per-candidate enrichment calls are required. This is bounded rank fusion, not a
+claim that popularity or source positions are globally comparable relevance scores.
+
 `src/search.ts` exports validated Desk contracts. Normalized connector candidates
 contain `provider_ref`, optional `name`, `symbol`, explicit `kind`/`scope`,
 `currency`, `venue`, and up to 32 scalar `metadata` fields. Existing `evidence`

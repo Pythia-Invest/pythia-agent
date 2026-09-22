@@ -1520,6 +1520,31 @@
         "observation_cache": {
           "enum": ["default", "disabled"]
         },
+        "search": {
+          "type": "object",
+          "properties": {
+            "modes": {
+              "type": "array",
+              "items": {
+                "enum": ["text", "symbol", "identifier"]
+              },
+              "minItems": 1,
+              "maxItems": 10000
+            },
+            "identifier_schemes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]*$",
+                "maxLength": 64
+              },
+              "minItems": 0,
+              "maxItems": 10000
+            }
+          },
+          "required": ["modes"],
+          "additionalProperties": false
+        },
         "cadence": {
           "type": "object",
           "properties": {

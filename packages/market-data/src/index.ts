@@ -310,6 +310,10 @@ export interface Contribution {
   subject_kinds: Scope[];
   requires_broker_app?: boolean;
   observation_cache?: "default" | "disabled";
+  search?: {
+    modes: ("text" | "symbol" | "identifier")[];
+    identifier_schemes?: string[];
+  };
   cadence?: Partial<Record<"latest" | "history" | "series", number>>;
 }
 export interface WireTypes {

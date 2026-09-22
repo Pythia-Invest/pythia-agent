@@ -53,6 +53,15 @@ function ReferenceDetails({ result }: { result: InvestmentSearchResult }) {
   );
 }
 
+function productLabel(result: InvestmentSearchResult) {
+  const labels = new Set(
+    result.references
+      .map((reference) => reference.metadata?.product_type)
+      .filter((value): value is string => typeof value === "string"),
+  );
+  return labels.size === 1 ? [...labels][0] : result.kind;
+}
+
 /** One investment-first search. Chat filtering retains its existing shell state;
  * workspace filename search remains owned by the workspace surface. */
 export function InvestmentSearch({
@@ -230,7 +239,9 @@ export function InvestmentSearch({
                 {response?.outcome === "error" ? (
                   <p role="alert">Investment search could not be completed.</p>
                 ) : null}
-                {response?.outcome === "partial" ? (
+                {response?.data.coverage.some((source) =>
+                  ["error", "partial", "unavailable"].includes(source.status),
+                ) ? (
                   <p
                     role="status"
                     className="mb-2 text-body text-foreground-secondary"
@@ -272,7 +283,7 @@ export function InvestmentSearch({
                             result.symbol,
                             result.venue,
                             result.currency,
-                            result.kind,
+                            productLabel(result),
                           ]
                             .filter(Boolean)
                             .join(" · ")}
