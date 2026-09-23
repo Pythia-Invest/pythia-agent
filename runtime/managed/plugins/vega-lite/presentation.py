@@ -11,7 +11,7 @@ def register(ctx):
     if getattr(support, 'API_VERSION', None) != 1 or not callable(register_widgets):
         logging.getLogger(__name__).warning('Research visual presentation requires enabled Pythia core platform v1; file creation remains available.')
         return
-    register_widgets(ctx, tool_name='pythia_research_visual_widgets', toolset='pythia-research-visuals',
+    register_widgets(ctx, tool_name='pythia_vega_lite_widgets', toolset='pythia-vega-lite',
                      widgets=({'id': 'research-visual', 'asset': 'research-visual',
-                               'input_contract': 'pythia.research-visual.v1'},),
+                               'input_contract': 'pythia.vega-lite.v1'},),
                      assets={'research-visual': 'dist/widgets/research-visual.mjs'})

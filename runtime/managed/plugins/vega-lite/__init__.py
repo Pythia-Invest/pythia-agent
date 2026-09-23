@@ -7,7 +7,7 @@ from .artifacts import SCHEMA, create, read, update
 
 
 def register(ctx):
-    ctx.register_skill('research-visuals', Path(__file__).parent / 'skills/research-visuals/SKILL.md',
+    ctx.register_skill('vega-lite', Path(__file__).parent / 'skills/vega-lite/SKILL.md',
                        description='Explore investment questions with interactive Vega-Lite visuals and retain their inputs and snapshots.',
                        frontmatter={'platforms': ['linux', 'macos']})
 
@@ -48,13 +48,13 @@ def register(ctx):
         except OSError:
             return json.dumps({'error': 'Cannot access this workspace file. Check the destination; symlinks are not supported.'})
 
-    ctx.register_tool(name='pythia_research_visual', toolset='pythia-research-visuals', handler=handle,
-                      schema={'name': 'pythia_research_visual',
-                              'description': 'Create, read, revise, or export an interactive Vega-Lite research visual. Omit destination on create for a working file. Return its Markdown link so the investor can open it beside chat. See pythia-research-visuals:research-visuals for guidance.',
+    ctx.register_tool(name='pythia_vega_lite', toolset='pythia-vega-lite', handler=handle,
+                      schema={'name': 'pythia_vega_lite',
+                              'description': 'Create, read, revise, or export an interactive Vega-Lite research visual. Omit destination on create for a working file. Return its Markdown link so the investor can open it beside chat. See pythia-vega-lite:vega-lite for guidance.',
                               'parameters': {'type': 'object', 'properties': {
                                   'action': {'type': 'string', 'enum': ['create', 'read', 'update', 'export'], 'default': 'create'},
                                   'artifact': SCHEMA,
-                                  'destination': {'type': 'string', 'description': 'Relative .pythia-visual.json workspace path. Required for read, update and export.'},
+                                  'destination': {'type': 'string', 'description': 'Relative .vega-lite.json workspace path. Required for read, update and export.'},
                                   'revision': {'type': 'string', 'description': 'Revision returned by read; required for update to detect stale edits.'},
                                   'output': {'type': 'string', 'description': 'Optional new .svg workspace path for export. Defaults to working/visuals/.'}},
                                   'additionalProperties': False}})

@@ -209,3 +209,24 @@ it("discloses omitted saved notebook outputs and figures", () => {
     expect(result.kind === "notebook" && result.limited).toBe(true);
   }
 });
+
+it("classifies compound JSON as text only after content inspection", () => {
+  const stat = {
+    size: 2,
+    mtime: new Date(0),
+    isDirectory: () => false,
+  } as Stats;
+  const visual = describeBytes(
+    "case/Model.VEGA-LITE.JSON",
+    stat,
+    Buffer.from("{}"),
+  );
+  expect(visual).toMatchObject({
+    kind: "text",
+    mediaType: "application/json",
+    previewable: true,
+  });
+  expect(
+    describeBytes("model.vega-lite.json", stat, Buffer.from([0, 255])).kind,
+  ).toBe("download");
+});

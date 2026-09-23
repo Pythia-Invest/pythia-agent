@@ -71,7 +71,7 @@ describe("declarative visual host", () => {
   });
 
   it("embeds only standalone explicit workspace visual links through the actual Markdown renderer", () => {
-    const href = "/workspace/working/example.pythia-visual.json";
+    const href = "/workspace/working/example.vega-lite.json";
     const render = (text: string) =>
       renderToStaticMarkup(<AssistantText text={text} streaming={false} />);
     const preview = render(`[Explore](${href})`);
@@ -86,11 +86,11 @@ describe("declarative visual host", () => {
       `See [Explore](${href}) for details.`,
       `\`[Explore](${href})\``,
       `\`\`\`md\n[Explore](${href})\n\`\`\``,
-      "[External](https://example.test/example.pythia-visual.json)",
+      "[External](https://example.test/example.vega-lite.json)",
       "[Ordinary JSON](/workspace/example.json)",
     ])
       expect(render(text)).not.toContain('data-slot="chat-visual"');
-    expect(visualLinkPath(href)).toBe("working/example.pythia-visual.json");
-    expect(visualLinkPath("file:///example.pythia-visual.json")).toBeNull();
+    expect(visualLinkPath(href)).toBe("working/example.vega-lite.json");
+    expect(visualLinkPath("file:///example.vega-lite.json")).toBeNull();
   });
 });

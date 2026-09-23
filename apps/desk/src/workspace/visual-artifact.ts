@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { resolveWorkspaceLink } from "./paths";
+import { compoundFileType } from "./file-types";
 
 export const VISUAL_ARTIFACT_BYTES = 262_144;
 export const isVisualArtifact = (path: string) =>
-  path.endsWith(".pythia-visual.json");
+  compoundFileType(path)?.preview === "visual";
 
 // Desk owns only the file envelope and native presentation selection. The
 // supplying feature validates its data; no file can supply executable code.

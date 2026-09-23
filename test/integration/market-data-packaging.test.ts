@@ -99,9 +99,11 @@ platform_toolsets:
           .sort(),
       ).toEqual([...files, PLUGIN_COPY_RECEIPT].sort());
       for (const file of files)
-        expect(readFileSync(join(destination, file))).toEqual(
-          readFileSync(join(paths.managedRoot, source, file)),
-        );
+        expect(
+          readFileSync(join(destination, file)).equals(
+            readFileSync(join(paths.managedRoot, source, file)),
+          ),
+        ).toBe(true);
     }
     expect(readFileSync(join(paths.profileRoot, "config.yaml"), "utf8")).toBe(
       config,
@@ -143,7 +145,7 @@ platform_toolsets:
     expect(commands.slice(1).map((args) => args[4])).toEqual([
       "pythia",
       "pythia-market-data",
-      "pythia-research-visuals",
+      "pythia-vega-lite",
     ]);
     const failed: string[][] = [];
     expect(() =>
@@ -258,7 +260,7 @@ platform_toolsets:
     );
     expect(
       commands.filter((args) => args[3] === "enable").map((args) => args[4]),
-    ).toEqual(["pythia", "pythia-market-data", "pythia-research-visuals"]);
+    ).toEqual(["pythia", "pythia-market-data", "pythia-vega-lite"]);
     expect(readFileSync(join(community, "plugin.yaml"), "utf8")).toBe(
       "name: community\n",
     );

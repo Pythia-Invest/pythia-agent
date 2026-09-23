@@ -14,17 +14,17 @@ silently inherit that code's authority.
 
 ## Ruling
 
-The native `pythia-research-visuals` feature owns its tools, schema, skill and
+The native `pythia-vega-lite` feature owns its tools, schema, skill and
 prebuilt renderer. Hermes remains unmodified. A visual is an ordinary
-`.pythia-visual.json` file: a versioned envelope containing title, summary,
+`.vega-lite.json` file: a versioned envelope containing title, summary,
 presentation reference, and feature-owned data. The feature data contains a
 native Vega-Lite specification, inline source data, sources, date, assumptions
 and optional saved scalar parameter values.
 
 Desk's envelope handling is general: it matches the requested plugin, widget
 and input contract against the currently enabled plugin's existing presentation
-declaration. This first feature uses `pythia-research-visuals`, `research-visual`
-and `pythia.research-visual.v1`. Files cannot provide module URLs, executable
+declaration. This first feature uses `pythia-vega-lite`, `research-visual`
+and `pythia.vega-lite.v1`. Files cannot provide module URLs, executable
 source or new plugin registrations. There is no parallel capability registry.
 
 A standalone Markdown visual link in assistant prose renders a compact,
@@ -156,3 +156,24 @@ The description is visible below the figure title. Sources, the as-of date and
 authored assumptions appear in a compact footer. The former About disclosure
 and copied scenario-context block are removed: they repeated visible content
 and exposed raw parameters. Copy scenario context remains a toolbar action.
+
+### Compound extensions and library identity
+
+The supplied plugin is named for its implementation: `pythia-vega-lite`, with
+`.vega-lite.json` files and the `pythia.vega-lite.v1` input contract. We retain
+the generic `pythia-visual` JSON envelope and existing widget hosting boundary.
+This distinguishes a library-specific authoring format from the shared viewer.
+
+Filename classification uses a shared, typed compound-extension matcher. The
+longest registered suffix wins, matching the decoded basename case-insensitively;
+folder names and suffixes followed by another extension do not match. A
+nonempty stem is required. Source highlighting and server classification use
+the same declaration. Files are validated on opening; chat needs no content
+read to choose a card. This replaces scattered `endsWith` checks, without a
+new plugin registry or automatic content sniffing for chat.
+
+The previous plugin and extension were unreleased prototypes. They are not
+aliases for the new identity: old files remain ordinary inspectable JSON, and
+profile choices and research contents are preserved. Automatic rewrites or
+redirecting old plugin authority to a new plugin were rejected. Existing
+profiles adopt the new plugin explicitly; fresh profiles enable it by default.

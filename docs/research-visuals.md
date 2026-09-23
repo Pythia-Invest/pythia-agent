@@ -1,7 +1,7 @@
-# Research visuals
+# Vega-Lite visuals
 
-The supplied native `pythia-research-visuals` plugin creates interactive research
-figures as ordinary `.pythia-visual.json` workspace files. Each file contains a
+The supplied native `pythia-vega-lite` plugin creates interactive research
+figures as ordinary `.vega-lite.json` workspace files. Each file contains a
 native Vega-Lite specification, its source data, assumptions and relevant date.
 A compact chart card in chat opens the existing companion reader. Workspace reopens the same file.
 
@@ -10,7 +10,7 @@ A compact chart card in chat opens the existing companion reader. Workspace reop
 Activate the changed checkout through the supported installation or development
 workflow. Fresh profiles enable this supplied feature by default. Existing
 profiles preserve their native enablement choices; enable
-`pythia-research-visuals` through Hermes if needed. Source changes alone do not
+`pythia-vega-lite` through Hermes if needed. Source changes alone do not
 modify a running installation.
 
 Ask Pythia to visualize available data: compare historical results with several
@@ -20,7 +20,7 @@ parameter controls and data transforms. Financial meaning still needs explicit
 sources, units, assumptions and a distinction between actuals and estimates.
 The renderer is not a prescribed valuation model or a spreadsheet engine.
 
-The native `pythia_research_visual` tool has `create`, `read`, `update` and
+The native `pythia_vega_lite` tool has `create`, `read`, `update` and
 `export` actions. Creation without a chosen
 path uses `working/visuals/`; an explicit workspace-relative path can place the
 file alongside a case or other research. Creating does not overwrite an existing
@@ -115,3 +115,26 @@ array indices. Native point, legend and interval selections remain supported.
 This narrows Vega-Lite's executable expression surface without replacing its
 compiler or interpreter. Input and export sizes are bounded; the in-page
 renderer is not a separate CPU or memory sandbox.
+
+## File type and plugin identity
+
+The plugin is `pythia-vega-lite`, its tool is `pythia_vega_lite`, and its
+qualified skill is `pythia-vega-lite:vega-lite`. Its files use the compound
+extension `.vega-lite.json`. The JSON envelope remains `pythia-visual` so Desk
+can host other visual formats through their own native presentation contracts.
+This is a Pythia envelope containing a Vega-Lite spec, not a bare Vega-Lite spec.
+
+Desk's shared `workspace/file-types.ts` owns filename classification. Its typed
+matcher uses the basename, matches case-insensitively, and selects the longest
+declared suffix before ordinary-extension fallback. Future compound formats
+add a declaration and reuse chat, Workspace and source-language recognition;
+they still need their own installed renderer and data validation. The extension
+selects presentation, never executable code or permission.
+
+This replaces the unreleased `pythia-research-visuals` prototype and its
+`.pythia-visual.json` filenames. No user files or profile choices are rewritten.
+Prototype files remain readable as ordinary JSON; adopting one requires an
+explicit new `.vega-lite.json` copy with the new plugin and input-contract
+references. Existing profiles enable the renamed plugin explicitly through
+Hermes; the old prototype can be disabled there. Fresh profiles use the new
+identity by default.

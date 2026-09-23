@@ -5,15 +5,15 @@ import { expressionInterpreter } from "vega-interpreter";
 import {
   createRuntime,
   denyLoader,
-} from "../managed/plugins/research-visuals/widgets/runtime";
+} from "../managed/plugins/vega-lite/widgets/runtime";
 import {
   MAX_SNAPSHOT_INPUT_BYTES,
   renderSnapshot,
   renderSnapshotInput,
   SNAPSHOT_ERROR,
-} from "../managed/plugins/research-visuals/snapshot";
-import type { Visual } from "../managed/plugins/research-visuals/widgets/visual";
-import { assertSafeSvg } from "../managed/plugins/research-visuals/widgets/svg";
+} from "../managed/plugins/vega-lite/snapshot";
+import type { Visual } from "../managed/plugins/vega-lite/widgets/visual";
+import { assertSafeSvg } from "../managed/plugins/vega-lite/widgets/svg";
 
 // Synthetic native Vega-Lite text marks make recalculated values observable
 // without relying on incidental SVG paths or layout measurements.
@@ -24,9 +24,9 @@ function artifact(): Visual {
     title: "Synthetic calculation",
     summary: "Synthetic data for snapshot verification.",
     presentation: {
-      plugin: "pythia-research-visuals",
+      plugin: "pythia-vega-lite",
       widget: "research-visual",
-      input_contract: "pythia.research-visual.v1",
+      input_contract: "pythia.vega-lite.v1",
     },
     data: {
       kind: "vega-lite",

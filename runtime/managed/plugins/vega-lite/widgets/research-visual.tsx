@@ -86,7 +86,7 @@ function ResearchVisual({
         new Blob([serializeScenario(visual, parameters)], {
           type: "application/json",
         }),
-        "research-scenario.pythia-visual.json",
+        "research-scenario.vega-lite.json",
       );
       setNotice("Scenario downloaded with current parameters.");
     } catch {

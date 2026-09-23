@@ -141,12 +141,12 @@ def validate(artifact):
     return content
 
 
-def clean_path(destination, suffix='.pythia-visual.json'):
+def clean_path(destination, suffix='.vega-lite.json'):
     if not isinstance(destination, str) or len(destination) > 1024 or '\\' in destination or any(ord(char) < 32 or ord(char) == 127 for char in destination):
         raise ValueError('Use a relative workspace destination.')
     path = PurePosixPath(destination)
     if (path.is_absolute() or str(path) != destination or '..' in path.parts or any(part in EXCLUDED for part in path.parts)
-            or not path.name.endswith(suffix)):
+            or len(path.name) <= len(suffix) or not path.name.lower().endswith(suffix)):
         raise ValueError(f'Use a relative workspace destination ending in {suffix}.')
     return path
 
@@ -192,7 +192,7 @@ def result(destination, content, *, artifact=None):
 
 def create(artifact, destination, workspace):
     content = validate(artifact)
-    destination = f'working/visuals/{uuid4().hex}.pythia-visual.json' if destination is None else destination
+    destination = f'working/visuals/{uuid4().hex}.vega-lite.json' if destination is None else destination
     path = clean_path(destination)
     with parent_directory(workspace, path, create_parents=True) as directory:
         descriptor = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,

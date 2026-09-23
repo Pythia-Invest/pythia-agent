@@ -7,9 +7,9 @@ export const exampleVisual: Visual = {
   summary:
     "Synthetic example · Adjust the assumptions of an invented business. No real company or forecast.",
   presentation: {
-    plugin: "pythia-research-visuals",
+    plugin: "pythia-vega-lite",
     widget: "research-visual",
-    input_contract: "pythia.research-visual.v1",
+    input_contract: "pythia.vega-lite.v1",
   },
   data: {
     kind: "vega-lite",

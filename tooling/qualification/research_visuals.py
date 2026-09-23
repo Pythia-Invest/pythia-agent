@@ -25,7 +25,7 @@ if enabled:
 original_popen = subprocess.Popen
 
 def snapshot_process_only(args, **kwargs):
-    expected = [os.environ['PYTHIA_NODE'], '--max-old-space-size=128', str(root / 'plugins/pythia-research-visuals/dist/snapshot.mjs')]
+    expected = [os.environ['PYTHIA_NODE'], '--max-old-space-size=128', str(root / 'plugins/pythia-vega-lite/dist/snapshot.mjs')]
     assert len(args) == 3 and args[1] == expected[1] and all(Path(args[index]).resolve() == Path(expected[index]).resolve() for index in [0, 2]), 'Only the bundled local snapshot process may run'
     assert kwargs.get('env') == {}, 'Snapshot process must not inherit credentials or Node options'
     return original_popen(args, **kwargs)
@@ -35,28 +35,28 @@ with patch.object(socket.socket,'connect',side_effect=AssertionError('No network
     from tools.registry import registry
     from tools.skills_tool import skill_view
     manager=get_plugin_manager(); manager.discover_and_load()
-    plugin=manager._plugins['pythia-research-visuals']
+    plugin=manager._plugins['pythia-vega-lite']
     assert plugin.enabled == enabled, plugin.error
-    entry=registry.get_entry('pythia_research_visual')
+    entry=registry.get_entry('pythia_vega_lite')
     if enabled:
         assert plugin.module is not None, plugin.error
         assert entry is not None
-        skill=json.loads(skill_view('pythia-research-visuals:research-visuals',preprocess=False)); assert skill['success'],skill
+        skill=json.loads(skill_view('pythia-vega-lite:vega-lite',preprocess=False)); assert skill['success'],skill
         value=json.loads((root/'fixture.json').read_text())
-        result=json.loads(registry.dispatch('pythia_research_visual',{'artifact':value,'destination':'working/native.pythia-visual.json'}))
+        result=json.loads(registry.dispatch('pythia_vega_lite',{'artifact':value,'destination':'working/native.vega-lite.json'}))
         assert result.get('schema_version')==1,result
-        assert json.loads((root/'workspace/working/native.pythia-visual.json').read_text())==value
-        reopened=json.loads(registry.dispatch('pythia_research_visual', {'action':'read','destination':'working/native.pythia-visual.json'}))
+        assert json.loads((root/'workspace/working/native.vega-lite.json').read_text())==value
+        reopened=json.loads(registry.dispatch('pythia_vega_lite', {'action':'read','destination':'working/native.vega-lite.json'}))
         value['data']['parameters']['growth'] = .2
-        updated=json.loads(registry.dispatch('pythia_research_visual', {'action':'update','destination':'working/native.pythia-visual.json','artifact':value,'revision':reopened['data']['revision']}))
+        updated=json.loads(registry.dispatch('pythia_vega_lite', {'action':'update','destination':'working/native.vega-lite.json','artifact':value,'revision':reopened['data']['revision']}))
         assert updated.get('schema_version')==1, updated
-        exported=json.loads(registry.dispatch('pythia_research_visual', {'action':'export','destination':'working/native.pythia-visual.json','output':'research/snapshot.svg'}))
+        exported=json.loads(registry.dispatch('pythia_vega_lite', {'action':'export','destination':'working/native.vega-lite.json','output':'research/snapshot.svg'}))
         assert exported.get('schema_version')==1, exported
         assert (root/'workspace/research/snapshot.svg').read_text().startswith('<svg')
-        result=json.loads(registry.dispatch('pythia_research_visual_widgets',{})); assert result.get('schema_version')==1,result
+        result=json.loads(registry.dispatch('pythia_vega_lite_widgets',{})); assert result.get('schema_version')==1,result
         assert result['data']['widgets'][0]['id']=='research-visual',result
         print(json.dumps({'native_plugin':True,'skill':True,'creation':True,'revision':True,'svg_export':True,'presentation':True}))
     else:
         assert entry is None
-        assert manager.find_plugin_skill('pythia-research-visuals:research-visuals') is None
+        assert manager.find_plugin_skill('pythia-vega-lite:vega-lite') is None
         print(json.dumps({'disabled_tool_absent':True,'disabled_skill_absent':True}))

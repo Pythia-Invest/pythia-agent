@@ -6,9 +6,9 @@ export type Visual = {
   title: string;
   summary: string;
   presentation: {
-    plugin: "pythia-research-visuals";
+    plugin: "pythia-vega-lite";
     widget: "research-visual";
-    input_contract: "pythia.research-visual.v1";
+    input_contract: "pythia.vega-lite.v1";
   };
   data: {
     kind: "vega-lite";
@@ -198,9 +198,9 @@ export function isVisual(value: unknown): value is Visual {
     )
       return false;
     if (
-      v.presentation.plugin !== "pythia-research-visuals" ||
+      v.presentation.plugin !== "pythia-vega-lite" ||
       v.presentation.widget !== "research-visual" ||
-      v.presentation.input_contract !== "pythia.research-visual.v1"
+      v.presentation.input_contract !== "pythia.vega-lite.v1"
     )
       return false;
     const d = v.data;

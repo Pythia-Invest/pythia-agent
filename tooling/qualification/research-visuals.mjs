@@ -27,9 +27,9 @@ try {
       title: "Synthetic valuation",
       summary: "Synthetic earnings model for native qualification.",
       presentation: {
-        plugin: "pythia-research-visuals",
+        plugin: "pythia-vega-lite",
         widget: "research-visual",
-        input_contract: "pythia.research-visual.v1",
+        input_contract: "pythia.vega-lite.v1",
       },
       data: {
         kind: "vega-lite",
@@ -66,7 +66,7 @@ try {
   for (const mode of ["enabled", "disabled"]) {
     writeFileSync(
       join(root, "config.yaml"),
-      `plugins:\n  enabled: [pythia, pythia-research-visuals]\n  disabled: ${mode === "disabled" ? "[pythia-research-visuals]" : "[]"}\nplatform_toolsets:\n  api_server: [pythia-research-visuals]\n`,
+      `plugins:\n  enabled: [pythia, pythia-vega-lite]\n  disabled: ${mode === "disabled" ? "[pythia-vega-lite]" : "[]"}\nplatform_toolsets:\n  api_server: [pythia-vega-lite]\n`,
     );
     const result = spawnSync(
       join(source, ".venv/bin/python"),

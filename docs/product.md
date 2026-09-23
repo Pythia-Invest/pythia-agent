@@ -72,7 +72,7 @@ and invalidation cost, using the smallest solution that meets the need.
 
 ## Workspace and conversation
 
-The supplied [Research visuals plugin](research-visuals.md) creates interactive
+The supplied [Vega-Lite plugin](research-visuals.md) creates interactive
 figures from native Vega-Lite specifications: charts, annotated comparisons,
 forecast scenarios and bounded parameter-driven calculations. Clickable chat
 previews open in the existing companion reader; Workspace reopens the same

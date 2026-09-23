@@ -2,16 +2,16 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { fixture } from "./stream-fixture";
 
-const path = "research/synthetic-growth.pythia-visual.json";
+const path = "research/synthetic-growth.vega-lite.json";
 const artifact = {
   format: "pythia-visual",
   version: 1,
   title: "Synthetic growth scenario",
   summary: "Invented revenue sensitivity for browser qualification.",
   presentation: {
-    plugin: "pythia-research-visuals",
+    plugin: "pythia-vega-lite",
     widget: "research-visual",
-    input_contract: "pythia.research-visual.v1",
+    input_contract: "pythia.vega-lite.v1",
   },
   data: {
     kind: "vega-lite",
@@ -53,7 +53,7 @@ const artifact = {
   },
 };
 
-// Requires the built, enabled research-visuals plugin on PYTHIA_DESK_URL.
+// Requires the built, enabled Vega-Lite plugin on PYTHIA_DESK_URL.
 // Only its read-only presentation/module routes reach the running stack;
 // history and artifact bytes are synthetic, and all other APIs stay intercepted.
 test("chat visual opens the native renderer and keeps scenario changes local", async ({
@@ -71,7 +71,7 @@ test("chat visual opens the native renderer and keeps scenario changes local", a
       return route.fulfill({
         json: {
           path,
-          name: "synthetic-growth.pythia-visual.json",
+          name: "synthetic-growth.vega-lite.json",
           kind: "text",
           size: Buffer.byteLength(body),
           modified: "2026-09-22T00:00:00.000Z",
@@ -89,12 +89,12 @@ test("chat visual opens the native renderer and keeps scenario changes local", a
     return route.fallback();
   });
   await page.route(
-    "**/api/plugins/pythia-research-visuals/widgets**",
+    "**/api/plugins/pythia-vega-lite/widgets**",
     async (route) => {
       const url = new URL(route.request().url());
       if (
         route.request().method() === "GET" &&
-        url.pathname === "/api/plugins/pythia-research-visuals/widgets"
+        url.pathname === "/api/plugins/pythia-vega-lite/widgets"
       ) {
         descriptorReads += 1;
         if (denyRenderer)
@@ -118,8 +118,8 @@ test("chat visual opens the native renderer and keeps scenario changes local", a
       if (
         route.request().method() === "GET" &&
         [
-          "/api/plugins/pythia-research-visuals/widgets",
-          "/api/plugins/pythia-research-visuals/widgets/research-visual",
+          "/api/plugins/pythia-vega-lite/widgets",
+          "/api/plugins/pythia-vega-lite/widgets/research-visual",
         ].includes(url.pathname)
       )
         return route.continue();
@@ -229,7 +229,7 @@ test("chat visual opens the native renderer and keeps scenario changes local", a
 
   await companion
     .getByRole("button", {
-      name: "Close synthetic-growth.pythia-visual.json",
+      name: "Close synthetic-growth.vega-lite.json",
       exact: true,
     })
     .click();
@@ -241,7 +241,7 @@ test("chat visual opens the native renderer and keeps scenario changes local", a
 
   await companion
     .getByRole("button", {
-      name: "Close synthetic-growth.pythia-visual.json",
+      name: "Close synthetic-growth.vega-lite.json",
       exact: true,
     })
     .click();

@@ -22,13 +22,13 @@
       "type": "object",
       "properties": {
         "plugin": {
-          "const": "pythia-research-visuals"
+          "const": "pythia-vega-lite"
         },
         "widget": {
           "const": "research-visual"
         },
         "input_contract": {
-          "const": "pythia.research-visual.v1"
+          "const": "pythia.vega-lite.v1"
         }
       },
       "required": [

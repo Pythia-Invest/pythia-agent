@@ -14,7 +14,7 @@ const requireSdk = createRequire(resolve(sdk, "package.json"));
 const { build } = requireSdk("esbuild");
 const { compile } = requireSdk("@tailwindcss/node");
 const { Scanner } = requireSdk("@tailwindcss/oxide");
-const feature = resolve(root, "runtime/managed/plugins/research-visuals");
+const feature = resolve(root, "runtime/managed/plugins/vega-lite");
 const output = resolve(root, ".local/research-visuals-preview.html");
 const artifact = resolve(feature, "dist/widgets/research-visual.mjs");
 await buildWidget(resolve(feature, "widgets/research-visual.tsx"), artifact);
@@ -108,7 +108,7 @@ const { exampleVisual } = await import(
   `data:text/javascript;base64,${Buffer.from(fixture.outputFiles[0].text).toString("base64")}`
 );
 await writeFile(
-  resolve(root, ".local/example.pythia-visual.json"),
+  resolve(root, ".local/example.vega-lite.json"),
   `${JSON.stringify(exampleVisual, null, 2)}\n`,
 );
 console.log(`Preview: ${output}`);

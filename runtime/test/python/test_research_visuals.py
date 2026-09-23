@@ -15,7 +15,7 @@ from unittest.mock import patch
 if importlib.util.find_spec('jsonschema') is None:
     raise unittest.SkipTest('Requires Hermes jsonschema; run tooling/qualification/research-visuals.mjs with the prepared pinned Hermes source.')
 
-ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/research-visuals'
+ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/vega-lite'
 SPEC = importlib.util.spec_from_file_location('research_visual_test_plugin', ROOT / '__init__.py',
                                             submodule_search_locations=[str(ROOT)])
 PLUGIN = importlib.util.module_from_spec(SPEC)
@@ -28,8 +28,8 @@ SNAPSHOTS = __import__(SPEC.name + '.snapshots', fromlist=['export'])
 def artifact():
     return {'format': 'pythia-visual', 'version': 1, 'title': 'Synthetic revenue',
             'summary': 'Illustrative annual revenue in EUR millions.',
-            'presentation': {'plugin': 'pythia-research-visuals', 'widget': 'research-visual',
-                             'input_contract': 'pythia.research-visual.v1'},
+            'presentation': {'plugin': 'pythia-vega-lite', 'widget': 'research-visual',
+                             'input_contract': 'pythia.vega-lite.v1'},
             'data': {'kind': 'vega-lite', 'asOf': '2026-09-19', 'sources': [],
                      'assumptions': ['Synthetic example, not reported company data.'],
                      'spec': {'data': {'values': [{'year': 2025, 'revenue': 100}, {'year': 2026, 'revenue': 110}]},
@@ -40,6 +40,12 @@ def artifact():
 
 
 class ResearchVisualTest(unittest.TestCase):
+    def test_compound_extension_accepts_case_and_multiple_dots(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            path = 'case/Synthetic.model.VEGA-LITE.JSON'
+            ARTIFACTS.create(artifact(), path, workspace)
+            self.assertEqual(ARTIFACTS.read(path, workspace)['data']['artifact'], artifact())
+
     def test_create_default_reopen_and_preserve_existing_snapshot(self):
         with tempfile.TemporaryDirectory() as workspace:
             created = ARTIFACTS.create(artifact(), None, workspace)['data']
@@ -53,7 +59,7 @@ class ResearchVisualTest(unittest.TestCase):
 
     def test_update_detects_stale_revisions_and_saves_parameters(self):
         with tempfile.TemporaryDirectory() as workspace:
-            created = ARTIFACTS.create(artifact(), 'case/model.pythia-visual.json', workspace)['data']
+            created = ARTIFACTS.create(artifact(), 'case/model.vega-lite.json', workspace)['data']
             changed = artifact(); changed['data']['parameters'] = {'growth': .1}
             updated = ARTIFACTS.update(changed, created['path'], workspace, created['revision'])['data']
             self.assertNotEqual(created['revision'], updated['revision'])
@@ -66,20 +72,20 @@ class ResearchVisualTest(unittest.TestCase):
     def test_paths_cannot_escape_or_follow_symlinks(self):
         with tempfile.TemporaryDirectory() as workspace, tempfile.TemporaryDirectory() as outside:
             Path(workspace, 'link').symlink_to(outside, target_is_directory=True)
-            for destination in ['../escape.pythia-visual.json', '/escape.pythia-visual.json',
-                                'a/../escape.pythia-visual.json', 'a//escape.pythia-visual.json',
-                                'link/escape.pythia-visual.json', '.private/escape.pythia-visual.json',
-                                '.git/escape.pythia-visual.json', 'bad\nname.pythia-visual.json',
-                                'bad\rname.pythia-visual.json', 'wrong.json']:
+            for destination in ['../escape.vega-lite.json', '/escape.vega-lite.json',
+                                'a/../escape.vega-lite.json', 'a//escape.vega-lite.json',
+                                'link/escape.vega-lite.json', '.private/escape.vega-lite.json',
+                                '.git/escape.vega-lite.json', 'bad\nname.vega-lite.json',
+                                'bad\rname.vega-lite.json', 'wrong.json', '.vega-lite.json', 'model.vega-lite.json.bak']:
                 with self.subTest(destination=destination), self.assertRaises((OSError, ValueError)):
                     ARTIFACTS.create(artifact(), destination, workspace)
-            Path(workspace, 'existing.pythia-visual.json').symlink_to(Path(outside, 'escape.json'))
+            Path(workspace, 'existing.vega-lite.json').symlink_to(Path(outside, 'escape.json'))
             with self.assertRaises(FileExistsError):
-                ARTIFACTS.create(artifact(), 'existing.pythia-visual.json', workspace)
+                ARTIFACTS.create(artifact(), 'existing.vega-lite.json', workspace)
             with self.assertRaises(OSError):
-                ARTIFACTS.read('existing.pythia-visual.json', workspace)
+                ARTIFACTS.read('existing.vega-lite.json', workspace)
             with self.assertRaises(OSError):
-                ARTIFACTS.update(artifact(), 'existing.pythia-visual.json', workspace, '0' * 64)
+                ARTIFACTS.update(artifact(), 'existing.vega-lite.json', workspace, '0' * 64)
             self.assertEqual(list(Path(outside).iterdir()), [])
 
     def test_contract_rejects_external_data_nonfinite_and_oversize(self):
@@ -166,7 +172,7 @@ class ResearchVisualTest(unittest.TestCase):
 
     def test_native_registration_and_tool_smoke(self):
         registered, skills, presentations = {}, [], []
-        ctx = SimpleNamespace(plugin_id='pythia-research-visuals',
+        ctx = SimpleNamespace(plugin_id='pythia-vega-lite',
                               register_tool=lambda **value: registered.update({value['name']: value}),
                               register_skill=lambda *args, **kwargs: skills.append(args))
         support = SimpleNamespace(API_VERSION=1, register_widget_presentation=lambda *args, **kw: presentations.append(kw))
@@ -176,8 +182,8 @@ class ResearchVisualTest(unittest.TestCase):
         with patch.dict(sys.modules, {'hermes_cli.plugins': native}):
             PLUGIN.register(ctx)
         self.assertTrue(Path(skills[0][1]).is_file())
-        self.assertEqual(presentations[0]['widgets'][0]['input_contract'], 'pythia.research-visual.v1')
-        tool = registered['pythia_research_visual']
+        self.assertEqual(presentations[0]['widgets'][0]['input_contract'], 'pythia.vega-lite.v1')
+        tool = registered['pythia_vega_lite']
         self.assertNotIn('$comment', tool['schema']['parameters'])
         with tempfile.TemporaryDirectory() as workspace, patch.dict(os.environ, {'PYTHIA_WORKSPACE': workspace}), \
                 patch.object(SNAPSHOTS, 'render_svg', return_value=b'<svg/>') as render:
@@ -190,14 +196,14 @@ class ResearchVisualTest(unittest.TestCase):
             self.assertEqual(render.call_count, 2)
             saved = Path(workspace, result['path']).read_bytes()
             render.side_effect = ValueError('Visual does not compile.')
-            failed_create = json.loads(tool['handler']({'artifact': artifact(), 'destination': 'broken.pythia-visual.json'}))
+            failed_create = json.loads(tool['handler']({'artifact': artifact(), 'destination': 'broken.vega-lite.json'}))
             self.assertIn('error', failed_create)
-            self.assertFalse(Path(workspace, 'broken.pythia-visual.json').exists())
+            self.assertFalse(Path(workspace, 'broken.vega-lite.json').exists())
             failed_update = json.loads(tool['handler']({'action': 'update', 'artifact': artifact(),
                 'destination': result['path'], 'revision': updated['data']['revision']}))
             self.assertIn('error', failed_update)
             self.assertEqual(Path(workspace, result['path']).read_bytes(), saved)
-            self.assertIn('error', json.loads(tool['handler']({'artifact': artifact(), 'destination': '../escape.pythia-visual.json'})))
+            self.assertIn('error', json.loads(tool['handler']({'artifact': artifact(), 'destination': '../escape.vega-lite.json'})))
 
 
 if __name__ == '__main__':

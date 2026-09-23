@@ -1,7 +1,8 @@
+import { baseFileExtension, compoundFileType } from "@/workspace/file-types";
 import { OFFICE_BYTES } from "@/workspace/previews/formats";
 import { constants, type Stats } from "node:fs";
 import { lstat, open, realpath, type FileHandle } from "node:fs/promises";
-import { isAbsolute, join, relative, sep, extname } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { HermesApiError } from "../hermes-records";
 import {
   WORKSPACE_PREVIEW_BYTES,
@@ -145,7 +146,7 @@ export async function describe(
 }
 export function textPath(path: string) {
   return /^\.(md|markdown|txt|csv|tsv|py|js|ts|tsx|jsx|json|yaml|yml|toml|sh|css|sql|r|rs|go|java|c|h|cpp|log)$/u.test(
-    extname(path).toLowerCase(),
+    baseFileExtension(path),
   );
 }
 export function describeBytes(
@@ -164,7 +165,7 @@ export function describeBytes(
     previewable: false,
   };
   if (!prefix) return entry;
-  const ext = extname(path).toLowerCase();
+  const ext = baseFileExtension(path);
   if (
     prefix.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
   ) {
@@ -249,6 +250,9 @@ export function describeBytes(
     entry.kind = "video";
     entry.mediaType = "video/webm";
   }
+  const compoundType = compoundFileType(path);
+  if (entry.kind === "text" && compoundType)
+    entry.mediaType = compoundType.mediaType;
   entry.previewable =
     ["image", "pdf", "audio", "video"].includes(entry.kind) ||
     (["spreadsheet", "document", "csv", "notebook"].includes(entry.kind) &&

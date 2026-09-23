@@ -72,11 +72,11 @@ export const MANAGED_PLUGINS = Object.freeze([
     ]),
   }),
   Object.freeze({
-    name: "pythia-research-visuals",
+    name: "pythia-vega-lite",
     install: true,
     enabledByDefault: true,
     doctor: false,
-    source: "plugins/research-visuals",
+    source: "plugins/vega-lite",
     files: Object.freeze([
       "__init__.py",
       "artifacts.py",
@@ -86,7 +86,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "artifact.schema.json",
       "presentation.py",
       "plugin.yaml",
-      "skills/research-visuals/SKILL.md",
+      "skills/vega-lite/SKILL.md",
       "widgets/research-visual.tsx",
       "widgets/plot.tsx",
       "widgets/plot-layout.ts",

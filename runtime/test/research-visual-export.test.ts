@@ -4,8 +4,8 @@ import { expressionInterpreter } from "vega-interpreter";
 import {
   createRuntime,
   denyLoader,
-} from "../managed/plugins/research-visuals/widgets/runtime";
-import { restoreExportState } from "../managed/plugins/research-visuals/widgets/export-state";
+} from "../managed/plugins/vega-lite/widgets/runtime";
+import { restoreExportState } from "../managed/plugins/vega-lite/widgets/export-state";
 
 it.each([false, true])(
   "reprojects native interval brushes without changing the data range (fit=%s)",

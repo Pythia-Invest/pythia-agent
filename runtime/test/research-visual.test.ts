@@ -1,15 +1,15 @@
 import {
   preparePlot,
   responsivePlot,
-} from "../managed/plugins/research-visuals/widgets/plot-layout";
+} from "../managed/plugins/vega-lite/widgets/plot-layout";
 import { describe, expect, it } from "vitest";
 import { View } from "vega";
 import { expressionInterpreter } from "vega-interpreter";
-import { exampleVisual } from "../managed/plugins/research-visuals/widgets/example";
+import { exampleVisual } from "../managed/plugins/vega-lite/widgets/example";
 import {
   createRuntime,
   denyLoader,
-} from "../managed/plugins/research-visuals/widgets/runtime";
+} from "../managed/plugins/vega-lite/widgets/runtime";
 import {
   isVisual,
   parameterDefaults,
@@ -17,7 +17,7 @@ import {
   scenarioContext,
   serializeScenario,
   validateSpec,
-} from "../managed/plugins/research-visuals/widgets/visual";
+} from "../managed/plugins/vega-lite/widgets/visual";
 
 describe("native research visuals", () => {
   it("admits optional-value and dollar-named parameters without persisting expressions or selections", async () => {

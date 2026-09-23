@@ -1,3 +1,5 @@
+import { compoundFileType, fileExtension } from "../file-types";
+
 /** Small presentation map, not executable language support. Unknown UTF-8 files
  * can still be inspected as text; HTML and SVG are always shown as source. */
 export const languages: Record<string, string> = {
@@ -60,13 +62,15 @@ export const languages: Record<string, string> = {
   mdx: "mdx",
 };
 export function extension(path: string) {
-  return path.split("/").at(-1)?.split(".").at(-1)?.toLowerCase() ?? "";
+  return fileExtension(path).slice(1);
 }
 export function codeLanguage(path: string) {
   const name = path.split("/").at(-1)?.toLowerCase();
   if (name === "dockerfile") return "dockerfile";
   if (name === "makefile") return "makefile";
-  return languages[extension(path)] ?? "text";
+  return (
+    compoundFileType(path)?.language ?? languages[extension(path)] ?? "text"
+  );
 }
 export const OFFICE_BYTES = 10 * 1024 * 1024;
 export const TEXT_RENDER_CHARS = 100_000;
