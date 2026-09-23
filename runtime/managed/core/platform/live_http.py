@@ -6,6 +6,23 @@ from .live import LiveReads
 from .access import fingerprint
 
 
+async def wait_for_update(request, wake):
+    # Native Hermes does not cancel handlers when clients disconnect. Inspect the
+    # public transport while idle, without extra heartbeats or a watcher task.
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 10
+    while request.transport and not request.transport.is_closing():
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise asyncio.TimeoutError
+        try:
+            await asyncio.wait_for(wake.wait(), timeout=min(.25, remaining))
+            return True
+        except asyncio.TimeoutError:
+            pass
+    return False
+
+
 def install(app, authorize, read_body, error, poll, inspect, subscribe):
     from aiohttp import web
     streams = set()
@@ -86,7 +103,8 @@ def install(app, authorize, read_body, error, poll, inspect, subscribe):
                 if denied is not None:
                     break
                 try:
-                    await asyncio.wait_for(wake.wait(), timeout=10)
+                    if not await wait_for_update(request, wake):
+                        break
                 except asyncio.TimeoutError:
                     await asyncio.wait_for(response.write(b': heartbeat\n\n'), timeout=5)
                     continue

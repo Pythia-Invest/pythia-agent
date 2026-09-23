@@ -37,6 +37,13 @@ a two-second release grace avoids repeated setup during brief transitions. Grace
 expiry cancels active work independently of its polling loop. Retiring tasks stay
 tracked through gateway shutdown. Connector push can publish to this same owner;
 SSE is downstream transport, not a requirement on providers.
+Push notifications wake delivery immediately; the one-second access recheck
+remains a fallback while no events arrive. Idle HTTP streams check the native
+request transport every 250 ms because Hermes does not cancel disconnected
+handlers. A lost transport enters the same release grace without waiting for
+the ten-second heartbeat; other subscribers retain their demand, and a reconnect
+within the grace reuses the resource. This uses the native transport surface
+without changing Hermes or its server-wide cancellation policy.
 
 Actual outbound operations, including SDK setup/fan-out, request connector budget
 permits. A local short burst waits in a bounded FIFO; saturation is busy. Quota
@@ -114,6 +121,10 @@ observations. Cancellation detaches one consumer and aborts only an unneeded bat
 
 Synthetic Python regressions exercise sharing, bounded execution, batching,
 cancellation, release during active polling, reset/revocation and failure meaning.
+The provider-free loopback check runs with
+`<prepared-hermes-source>/.venv/bin/python tooling/qualification/update_streams.py`.
+It verifies prompt idle-disconnect cleanup, shared demand and reconnect grace on
+native aiohttp with handler cancellation disabled.
 The copied pinned-Hermes qualification checks native route registration, one shared
 HTTP/tool backend, zero model/CLI subprocesses, auth/profile/disablement, deadlines
 and responsive native health. Run
