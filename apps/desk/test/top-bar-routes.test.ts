@@ -59,8 +59,9 @@ async function fixture() {
     writeFile(join(root, TOP_BAR_CONFIG_PATH), JSON.stringify(value));
   return { root, native, routes, config };
 }
-test("missing selection preserves core; configured native top bar is revalidated every read", async () => {
+test("explicit core selection is preserved; configured native top bar is revalidated every read", async () => {
   const { routes, native, config } = await fixture();
+  await config({ version: 1, renderer: null });
   expect(await (await routes.topBar(request())).json()).toEqual({
     renderer: null,
     settings: {},

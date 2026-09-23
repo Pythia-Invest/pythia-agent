@@ -14,7 +14,7 @@ from .contributions import ContextUnavailable, eligible_tools, project
 from .wire import WireError, validate, validate_read_result
 
 MAX_JSON_BYTES = 2_000_000
-OPERATIONS = {"search", "details", "series", "latest", "history", "read_batch"}
+OPERATIONS = {"search", "details", "identifiers", "identify", "series", "latest", "history", "read_batch"}
 
 
 def issue(code):
@@ -62,7 +62,13 @@ def dispatch(request, *, backend_factory=None):
             if set(request) != {"action"}:
                 return failure("invalid_request")
             sources, invalid = project()
+            search_sources = {source['contribution']['provider'] for source in sources
+                              if any(op['operation'] == 'search' for op in source['operations'])}
+            if backend_factory is not None:
+                from .catalogue import providers
+                search_sources.update(providers(backend_factory().identity))
             return {"schema_version": 1, "outcome": "ok", "sources": sources,
+                    "search_sources": sorted(search_sources),
                     "issues": [issue("invalid_contribution")] if invalid else []}
         if set(request) != {"action", "provider", "operation", "arguments"}:
             return failure("invalid_request")

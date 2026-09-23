@@ -28,6 +28,8 @@ does not install a provider or prove an account's access.
 - [Connector support](connector-support.md): reusable execution, batching,
   cancellation, budgets, structured failures and Hermes logs.
 - [Data delivery](data-delivery.md): resident HTTP/SSE and demand lifetime.
+- [Shared investment search](../decisions/0035-shared-investment-search.md):
+  investment-first discovery, retained catalogue labels and explicit adoption.
 
 Provider preferences are deterministic application logic. Only proven identities,
 compatible series and eligible operations participate. Failure after selecting a

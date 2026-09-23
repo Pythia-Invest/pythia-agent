@@ -1,8 +1,8 @@
 ---
 name: market-data
 title: Investment identity and market data
-description: Find a source-native investment, inspect its identity evidence, choose a price series, or read bounded latest and historical market data.
-version: 0.3.0
+description: Search investments across connected sources, retain stable identities, choose a price series, or read bounded latest and historical market data.
+version: 0.4.0
 license: Apache-2.0
 platforms: [linux, macos]
 metadata:
@@ -28,7 +28,20 @@ they are not an expanded `call` namespace. Local readiness does not establish lo
 Configured access mode is explicit user intent, not something to change after
 a denied request or infer from which credential happens to exist.
 
-Search with `action: "search"`, `provider` and `query`. Use the selected
+Search with `action: "search_catalogue"` and `query`. Results lead with investment
+labels; `references` and `coverage` expose source details, availability and
+incomplete searches. Names rank candidates but do not prove equivalence. Distinct
+provider references remain separate, even when their canonical identity is known.
+To retain a selected result,
+use `adopt_search` with its exact available `native_ref` and known `scope`. It
+returns a stable `subject` and defaults to the selected source's `binding`, without
+external reconciliation. Use `resolve_save` for deliberate identity qualification.
+Unknown scope
+needs connector metadata; do not guess it from a ticker. Search never saves
+identities or calls details for every candidate.
+
+Explicit source search remains available as `action: "search"`, `provider` and
+`query`. Use the selected
 `provider_ref` as `native_ref` for `details` only when that source contributes it;
 otherwise use the reference directly for series and reads. Search/details do not
 save identities. Preserve native IDs and qualifiers; a symbol/name is a discovery

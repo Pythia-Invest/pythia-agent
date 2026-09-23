@@ -1,5 +1,33 @@
 # Identity backend consumer interface
 
+Shared investment search stores selected display labels in `catalogue_labels`
+inside the existing private identity database. The additive table is created for
+existing databases without replacing subjects, mappings or revision history.
+Only explicit adoption/resolve/details-refresh mutations update it; provider
+search results are not an automatically ingested catalogue. Stored normalized
+search text supports local label filtering before decoding metadata/evidence.
+Older subjects without labels remain searchable by their retained native ID.
+
+`adopt_search` reuses the identity owner's save/repair behavior. Ordinary single-reference
+selection skips external enrichment and defaults to a source-bound result. It returns the
+immutable intent subject and either a currently routable canonical binding or
+an explicitly source-bound reference. A stable ID does not establish equivalence:
+unsupported associations remain unresolved. Caller-supplied subject scope must
+be supported by actual details metadata/evidence or the native contribution;
+scope is not invented from the display ticker. Repeated adoption preserves IDs.
+Confirmed identity also retains a native binding when default preferred reads
+would exclude its source, such as a broker without saved opt-in. Identity status
+and current source eligibility are separate; adoption never changes preferences.
+Disconnected source references retain their user-adopted labels with unavailable
+status, but do not grant provider access or canonical routing.
+
+Search keeps provider references separate and performs no external qualification.
+Explicit resolution retains the evidence rules below; instrument equivalence does not identify a listing.
+Conflicting candidate metadata is exposed as unresolved/conflicting rather than
+letting whichever source row arrived last dictate identity. Qualified instruments
+retain separate native references and listing labels; they do not add a
+company/instrument/listing relationship graph or collapse provider series.
+
 `runtime/managed/plugins/market-data/identity.py` exports
 `IdentityStore(data_dir, *, rules=None, evidence_versions=None)`. Pass the actual
 native feature `PluginState.data_dir`; do not compute another profile or global
@@ -9,24 +37,53 @@ short `BEGIN IMMEDIATE` transactions, revision history and a monotonic mapping
 generation. It rejects linked, nonregular, foreign-owned or permissive state
 paths. It opens no provider connections, listeners or background jobs.
 
-Current matching supports qualified IBKR and EODHD equity evidence. A native
+Current matching supports qualified equity evidence. A native
 IBKR conId assertion supports its own contract binding. A checksummed, actually
 asserted instrument ISIN can prove instrument equivalence across IBKR contracts
 unless known share-class/identifier evidence contradicts it. An EODHD
 `catalogue` reference names the exact source-returned `CODE.EXCHANGE`; qualified
-native instrument evidence supports that exact catalogue intent. Common Stock
-classification belongs to the trusted EODHD adapter: missing, ambiguous or
-receipt classifications provide no qualified native/ISIN assertions.
+native instrument evidence supports that exact catalogue intent. EODHD-reported
+ISINs are retained as metadata, not promoted to instrument identity assertions:
+its catalogue can label a receipt Common Stock and report an underlying-share
+ISIN. Consequently the old EODHD/IBKR and EODHD/EODHD ISIN joining rules are
+retired. The adapter and rule version changes trigger existing repair behavior;
+they do not delete retained subjects or silently rewrite historical intent.
 
-The concrete IBKR/EODHD rule joins one instrument in either save order only
-when both have source-asserted native instrument evidence and the same actual,
-checksum-valid instrument ISIN, without contradictory identifiers or explicit
-share classes. Distinct provider references, currencies and series stay distinct.
-The same qualified native-plus-ISIN evidence also proves instrument equivalence
-between EODHD catalogue references, without an IBKR intermediary.
-These rules need no paid reference catalogue or suffix/name/ticker inference;
-incomplete reverse lookup is not evidence of uniqueness or absence. Missing or
-query-only identifiers do not cross-confirm; native source reads remain useful.
+Optional reference qualification uses enabled native operations: EODHD's
+`identifiers` supplies exact-symbol FIGI records, and OpenFIGI's `identify`
+supplies classified reference records. A unique returned common-stock record
+must corroborate the requested FIGI and supply a share-class FIGI. Yahoo's
+currently qualified path uses its explicit `NMS` exchange metadata, the `XNGS`
+segment MIC request, and the returned `UW` exchange code and exact ticker. It
+does not invent a currency, rewrite a ticker, or infer a venue from a suffix.
+Other Yahoo exchanges and financial product types remain unqualified until
+their evidence paths are demonstrated. A query constraint alone is not returned
+identity evidence. Multiple reference hits remain unresolved even if they share
+an identifier.
+
+Pythia owns these narrow qualification rules and the distinction between a
+share-class, composite and listing FIGI; connectors retrieve native facts without
+deciding cross-provider equivalence. Evidence retains the reference authority,
+record ID, security classification and adapter revision. Equal qualified
+share-class FIGIs can join instrument groups while currencies, listings and
+source series remain distinct. A listing FIGI or issuer identifier is not
+silently reinterpreted as a share-class identifier.
+
+Qualification is optional: an absent or inaccessible reference connector leaves
+ordinary native search usable. It adds no direct HTTP path, mandatory paid
+catalogue or separate plugin registry. Explicit resolution qualifies a bounded
+set of at most eight selected equity references. Ordinary search and single-reference
+adoption do not invoke this enrichment. Re-adopting a reference retains previously
+qualified reference evidence when fresh source assertions are unchanged apart
+from observation IDs and timestamps. Changed assertions replace that proof and
+run normal repair; retained proof remains subject to rule and adapter-version
+invalidation. Explicit resolution and refresh replace evidence through their
+qualified path. Requests use the profile's resident
+native execution and metadata cache, with configuration/access-aware keys and
+publication checks. Successful reference reads are reused for five minutes;
+reference failures are not cached as successful proof. Failures are reported as
+issues and safe structured diagnostics, without provider payloads or credentials.
+Search never persists an identity; explicit adoption/resolution owns durable writes.
 
 An IBKR listing requires actual listing-scoped native evidence with primary
 venue and currency; SMART routing is not a venue. Listing equivalence requires

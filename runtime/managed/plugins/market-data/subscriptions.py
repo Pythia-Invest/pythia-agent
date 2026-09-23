@@ -12,6 +12,9 @@ Subscription = platform().subscription.Subscription
 def watch(backend, arguments, subscription):
     """Select through the normal financial reader; validate every pushed result
     through its same identity, semantics and publication path."""
+    if arguments.get('action') == 'search_catalogue':
+        from .search_subscription import watch_search
+        return watch_search(backend, arguments, subscription)
     if arguments.get('action') != 'read_many' or len(arguments.get('reads', [])) != 1:
         return {'schema_version': 1, 'mode': 'poll'}
     from .coordinated import validate_input

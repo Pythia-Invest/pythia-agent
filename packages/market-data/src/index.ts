@@ -60,6 +60,14 @@ export interface Evidence {
   retrieved_at: Instant;
   effective: Window;
   authority: "source_asserted" | "query_only" | "unknown";
+  identifier_context?: {
+    authority: "openfigi";
+    level: "share_class" | "composite" | "listing";
+    security_type: string;
+    market_sector: string;
+    adapter_version: string;
+    reference_id: string;
+  };
 }
 export interface Mapping {
   schema_version: 1;
@@ -300,6 +308,8 @@ export interface Contribution {
     operation:
       | "search"
       | "details"
+      | "identifiers"
+      | "identify"
       | "series"
       | "latest"
       | "history"
@@ -310,6 +320,10 @@ export interface Contribution {
   subject_kinds: Scope[];
   requires_broker_app?: boolean;
   observation_cache?: "default" | "disabled";
+  search?: {
+    modes: ("text" | "symbol" | "identifier")[];
+    identifier_schemes?: string[];
+  };
   cadence?: Partial<Record<"latest" | "history" | "series", number>>;
 }
 export interface WireTypes {

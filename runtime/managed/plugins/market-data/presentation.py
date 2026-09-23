@@ -9,11 +9,12 @@ import logging
 from ._platform import platform
 
 WIDGETS = (
+    {'id': 'top-bar', 'asset': 'top-bar', 'input_contract': 'pythia.desk-topbar.v1'},
     {'id': 'instrument-tile', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
     {'id': 'instrument-compact-tile', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
     {'id': 'instrument-table', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
 )
-ASSETS = {'instruments': 'dist/widgets/instruments.mjs'}
+ASSETS = {'instruments': 'dist/widgets/instruments.mjs', 'top-bar': 'dist/widgets/top-bar.mjs'}
 
 
 def register(ctx):

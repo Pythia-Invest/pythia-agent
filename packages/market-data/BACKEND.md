@@ -5,8 +5,8 @@ The managed `market-data` plugin binds one ordinary `Backend` instance to native
 `hermes market-data --platform cli --request '<JSON>'` dispatch through the same implementation.
 The running gateway's protected `POST /v1/pythia/plugins/pythia-market-data/query` dispatches the native
 tool handler and shares its profile-bound backend instance. CLI processes have
-their own instance. Describe/startup
-only inspect native contributions; they never test live entitlements. Every
+their own instance. Describe inspects native contributions and retained source IDs;
+startup inspects native contributions. Neither tests live entitlements. Every
 source operation rechecks native feature/source availability and platform scope.
 
 Arguments are flat action objects. The backend rejects unrelated fields.
@@ -14,6 +14,8 @@ Arguments are flat action objects. The backend rejects unrelated fields.
 | Action | Required fields | Optional fields / result |
 | --- | --- | --- |
 | `search` | `provider`, `query` | Source candidates; no identity save |
+| `search_catalogue` | `query` | Optional `limit` (1–100, default 30) and `providers` (0–16); investment-first results, per-source coverage, explicit truncation |
+| `adopt_search` | `native_ref`, `scope` | Optional `references` (2–8) for instrument-group selection and `binding_mode` (`source` default for a single reference, `preferred` for a group); re-fetch details and return stable `subject`, usable `binding`, `identity_status`, `mapping_id` |
 | `details` | `native_ref` | Source candidates, normalized evidence and issues |
 | `resolve_save` | `native_ref`, `scope` | Reads details and explicitly saves one selected native identity |
 | `series` | `binding` | `criteria`; returns matching definitions |
@@ -35,7 +37,111 @@ apply supported dependency repairs using retained evidence, as described in the
 available; `call` requires provider, operation and native-schema arguments and
 accepts only operations in that provider's validated contribution. `describe`
 does not catalogue every native tool. Specialist native tools remain separate
-from the shared `call` operations.
+from the shared `call` operations. Its `search_sources` array lists sorted provider
+IDs from declared search operations and retained identity mappings, including
+disabled and no-longer-registered providers. This is a filter inventory, not
+availability or entitlement evidence: `sources[].operations[].available` and
+search-result reference availability remain separate. Omitting `providers` from
+`search_catalogue` includes all matching retained references; an explicit array
+filters both live sources and retained references, and an empty array selects none.
+
+Shared search queries all search-capable native contributions; unavailable ones
+are reported without execution. Equivalent concurrent requests share in-flight
+work through the resident cache and existing bounded executor. Search does not
+retain provider response caches, ingest evidence or create identities. Each
+source is limited to 200 interpreted candidates and visible results to the
+requested limit; reached bounds are
+reported rather than described as complete coverage. A source failure preserves
+successful siblings and their individual retry qualifications. Source access and
+identity generation are checked again before publication.
+
+Contributions optionally declare `search: {modes: ["text", "symbol", "identifier"],
+identifier_schemes: ["isin"]}`. Declare only implemented modes; identifier schemes
+are required for identifier dispatch. Shared search makes one call per source:
+supported explicit `scheme:value` or recognized ISIN/FIGI/LEI lookup first, otherwise
+text search, otherwise a syntactically valid symbol lookup. It passes `mode` and,
+for identifiers, `identifier_scheme` in addition to `query`. Unsupported input
+or native query length/pattern restrictions yield `coverage.status: "unsupported"`
+without a provider call or failure. Undeclared legacy search receives only `query`.
+Connectors own provider-specific validation and must admit their declared modes
+in their native tool schemas.
+
+Search responses may declare `search_ordering: "relevance" | "prominence" |
+"unspecified"`. Array position supplies the ordinal rank; no numeric scores are
+compared across providers. An optional candidate `matched_on` can describe name,
+symbol, identifier or alias matching, but is not identity evidence or a ranking
+override. Pythia blends normalized name/symbol match quality (exact, whole words,
+prefix, substring, other) with logarithmically discounted native position
+(`floor(log2(position + 1))`, zero-based position). This prevents both a source's
+first weak match and a deep exact ticker collision from dominating other sources.
+Punctuation normalization is only for relevance: it never rewrites a provider
+reference or establishes equivalence. A declared text/relevance search's first
+answer retains an alias allowance when its display fields do not contain the
+query. Declared relevance order is preserved within that source; prominence-only
+catalogues can be reordered for stronger lexical matches. Each source's own
+reference labels determine its match.
+Symbol-only or undeclared searches cannot claim equivalent name matching
+from a colliding ticker. Unspecified lists first receive lexical ordering.
+Match quality, declared mode, source position, ordering and retained identity
+break ties deterministically. No details, identifier lookups or prices are required
+for ranking. This is bounded rank fusion, not a
+claim that popularity or source positions are globally comparable relevance scores.
+
+Search returns separate provider references without external reconciliation.
+Individual references preserve their kind, venue, currency and retained subject.
+Search does not ingest evidence or create subjects, and known equivalent
+references still appear separately.
+
+With `references`, adoption requires instrument scope and revalidates every
+selected source and all pairwise associations before local persistence. It
+returns a canonical binding; source order does not pin a provider or venue.
+References without current shared proof return `identity_not_qualified` before
+identity writes. Existing ambiguous canonical subjects are retained, not merged
+destructively. Ordinary single-reference adoption skips external qualification
+and defaults to `binding_mode: "source"`, returning the selected native reference
+even when a preferred canonical binding exists; it cannot accompany a reference
+group. Explicit `binding_mode: "preferred"` can use existing qualified mappings.
+This selects a source, not a full pinned series descriptor. Adoption rechecks
+access and cancellation before identity writes.
+Instrument equivalence never makes different price series interchangeable;
+read selection still qualifies currency, venue and requested financial semantics.
+
+`src/search.ts` exports validated Desk contracts. Normalized connector candidates
+contain `provider_ref`, optional `name`, `symbol`, explicit `kind`/`scope`,
+`currency`, `venue`, optional `category`, and up to 32 scalar `metadata` fields.
+Category is a shared product classification: `equity`, `etf`, `fund`, `index`,
+`forex`, `crypto`, `future`, `option`, `bond`, `commodity` or `other`. It is separate
+from identity scope: an ETF can be a listing, a future an instrument. Connectors
+translate explicit native types or catalogue scope; missing knowledge stays null,
+never inferred from a product name or ticker. Conflicting grouped categories stay
+unknown. Category enables provider-independent presentation filters; it is not
+identity evidence, an entitlement claim, or a preference for one asset class.
+Desk filters the returned window, not the provider's full universe.
+Existing `evidence`
+can establish presentation scope and known listing qualifiers; provider-specific
+type strings never infer identity scope. Unknown fields are not projected as raw
+provider payloads. A candidate with unknown scope stays inspectable, not adoptable
+by guessing. `details` must return the selected reference and normalized evidence
+before adoption can succeed.
+
+Adoption failures with empty or ambiguous details return `outcome: "error"`,
+`data: null`, preserved source/identity issues and `identity_not_selected`; they
+do not claim a local write. A successful adoption can return an explicit native
+binding even when identity is confirmed: default canonical eligibility still
+honors broker opt-in and available price operations. Adoption does not change
+preferences or probe provider series to make an excluded route eligible.
+
+Search does not group references, including already confirmed associations. Instrument equivalence alone does not group
+different listings/currencies. Current rules have no cross-provider listing
+qualification; this increment does not claim EODHD/Yahoo/IBKR listing equivalence
+or ship those connector implementations. Future qualified rules use the existing
+identity owner. Display names and symbol similarity never establish associations.
+
+Adopted identities remain searchable while a connector is disabled, with its
+reference marked unavailable. This is retained user-owned catalogue metadata,
+not permission to retrieve data or reuse unavailable provider responses. Details
+and adoption still enforce native source availability. No broker or provider
+connection is automatically enabled.
 
 `binding` is a canonical subject or provider reference. Common read criteria
 are measurement, interval, session, price adjustment, market-data type,

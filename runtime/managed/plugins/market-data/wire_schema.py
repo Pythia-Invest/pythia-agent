@@ -56,7 +56,9 @@ DEFS = {
         "value": TEXT, "qualifiers": ref("qualifiers"), "adapter_version": TEXT,
         "observed_at": nullable(INSTANT), "retrieved_at": INSTANT,
         "effective": ref("window"), "authority": enum("source_asserted", "query_only", "unknown"),
-    }),
+    }, {"identifier_context": obj({"authority": enum("openfigi"),
+        "level": enum("share_class", "composite", "listing"), "security_type": TEXT,
+        "market_sector": TEXT, "adapter_version": TEXT, "reference_id": TEXT})}),
     "mapping": obj({
         "schema_version": VERSION, "id": ID, "provider_ref": ref("provider_ref"),
         "target": ref("subject"), "status": enum("candidate", "confirmed", "conflicting", "rejected"),
@@ -144,10 +146,12 @@ DEFS = {
         "requirements_satisfied": {"type": "boolean"}, "issues": array(ref("issue"))},
         {"price_context": ref("price_context")}),
     "contribution": obj({"schema_version": VERSION, "provider": NAMESPACE, "adapter_version": TEXT,
-        "operations": array(obj({"operation": enum("search", "details", "series", "latest", "history", "read_batch"),
+        "operations": array(obj({"operation": enum("search", "details", "identifiers", "identify", "series", "latest", "history", "read_batch"),
                                  "tool": NAMESPACE, "effect": enum("read")}), 1),
         "subject_kinds": array(SCOPE, 1)}, {"requires_broker_app": {"type": "boolean"},
         "observation_cache": enum("default", "disabled"),
+        "search": obj({"modes": array(enum("text", "symbol", "identifier"), 1)},
+                      {"identifier_schemes": array(NAMESPACE)}),
         "cadence": obj({}, {key: {"type": "integer", "minimum": 1, "maximum": 86400} for key in ("latest", "history", "series")})}),
 }
 
