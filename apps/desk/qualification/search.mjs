@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { cp, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
 import { createQualificationProcesses } from "./processes.mjs";
+import { buildWidget } from "../../../packages/widget-sdk/build.mjs";
+import { search, adopted } from "./search-fixture.mjs";
 
 const require = createRequire(import.meta.url);
 const desk = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -29,92 +40,6 @@ let denied = false,
   releaseAdoption,
   pendingSearch = false,
   cancelled = false;
-const reference = {
-  provider: "synthetic",
-  native_id: "AAPL",
-  native_scope: "listing",
-  qualifiers: { currency: "USD", venue: "Synthetic exchange" },
-};
-const investment = {
-  id: "candidate:aapl",
-  subject: null,
-  name: "Apple ordinary share",
-  symbol: "AAPL",
-  kind: "listing",
-  currency: "USD",
-  venue: "Synthetic exchange",
-  identity_status: "unresolved",
-  references: [
-    {
-      native_ref: reference,
-      name: "Apple ordinary share",
-      symbol: "AAPL",
-      status: "unresolved",
-      available: true,
-      metadata: { security_type: "Common stock" },
-    },
-  ],
-};
-function search(query) {
-  return {
-    schema_version: 1,
-    outcome: query === "partial" ? "partial" : "ok",
-    issues: [],
-    data: {
-      results:
-        query === "empty"
-          ? []
-          : [
-              investment,
-              {
-                ...investment,
-                id: "candidate:receipt",
-                name: "Apple depositary receipt",
-                currency: "ARS",
-                venue: "Argentina",
-                references: [
-                  {
-                    ...investment.references[0],
-                    native_ref: { ...reference, native_id: "AAPL.BA" },
-                  },
-                ],
-              },
-            ],
-      coverage: [
-        {
-          provider: "synthetic",
-          status: query === "partial" ? "error" : "ok",
-          issues:
-            query === "partial"
-              ? [
-                  {
-                    code: "temporary",
-                    message: "Synthetic source unavailable",
-                    severity: "warning",
-                  },
-                ]
-              : [],
-          truncated: false,
-        },
-      ],
-      truncated: false,
-    },
-  };
-}
-function adopted() {
-  return {
-    schema_version: 1,
-    outcome: "partial",
-    effect: "local_write",
-    issues: [],
-    data: {
-      subject: { kind: "listing", id: "listing:stable-aapl" },
-      binding: reference,
-      identity_status: "unresolved",
-      mapping_id: "mapping:stable-aapl",
-    },
-  };
-}
 try {
   await mkdir(appDirectory, { recursive: true });
   for (const name of [
@@ -165,12 +90,23 @@ try {
     [require.resolve("next/dist/bin/next"), "build", "--webpack"],
     { cwd: appDirectory, env: environment, stdio: "inherit" },
   );
+  const artifact = join(temporary, "search.mjs");
+  await buildWidget(
+    join(root, "runtime/managed/plugins/market-data/widgets/top-bar.tsx"),
+    artifact,
+  );
+  const moduleContent = await readFile(artifact, "utf8");
+  const digest = createHash("sha256").update(moduleContent).digest("hex");
+  const workspace = join(temporary, "workspace");
+  await mkdir(join(workspace, "desk"), { recursive: true });
+  const topBarConfig = join(workspace, "desk/top-bar.json");
+  const events = (res, data) => {
+    res.write(
+      `data: ${JSON.stringify({ schema_version: 1, index: 0, generation: "qualification", revision: 1, type: "snapshot", state: "ready", data })}\n\n`,
+    );
+  };
   native = createServer(async (req, res) => {
     assert.equal(req.headers.authorization, "Bearer synthetic-search-key");
-    if (!req.url.endsWith("/plugins/pythia-market-data/query")) {
-      res.writeHead(404).end();
-      return;
-    }
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
@@ -183,8 +119,69 @@ try {
       );
       return;
     }
+    if (req.url.endsWith("/plugins/pythia-market-data/widgets")) {
+      res.setHeader("content-type", "application/json");
+      const asset = {
+        id: "top-bar",
+        sha256: digest,
+        bytes: Buffer.byteLength(moduleContent),
+        media_type: "text/javascript",
+      };
+      res.end(
+        JSON.stringify({
+          schema_version: 1,
+          data: body.arguments.asset
+            ? { ...asset, asset: "top-bar", content: moduleContent }
+            : {
+                version: 1,
+                widgets: [
+                  {
+                    id: "top-bar",
+                    asset: "top-bar",
+                    input_contract: "pythia.desk-topbar.v1",
+                  },
+                ],
+                assets: [asset],
+              },
+        }),
+      );
+      return;
+    }
+    if (req.url.endsWith("/v1/pythia/updates")) {
+      const query = body.resources[0].arguments.query;
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.write(": connected\n\n");
+      if (query === "slow") {
+        pendingSearch = true;
+        res.on("close", () => {
+          cancelled = true;
+        });
+        return;
+      }
+      events(res, {
+        progress: [{ provider: "synthetic", status: "ok", elapsed_ms: 1 }],
+        result: search(query),
+      });
+      return;
+    }
+    if (!req.url.endsWith("/plugins/pythia-market-data/query")) {
+      res.writeHead(404).end();
+      return;
+    }
     res.setHeader("content-type", "application/json");
-    if (body.arguments.action === "search_catalogue") {
+    if (body.arguments.action === "describe") {
+      res.end(
+        JSON.stringify({
+          sources: [
+            {
+              contribution: { provider: "synthetic" },
+              operations: [{ operation: "search", available: true }],
+            },
+          ],
+          search_sources: ["synthetic"],
+        }),
+      );
+    } else if (body.arguments.action === "search_catalogue") {
       assert.equal(body.read_only, true);
       if (body.arguments.query === "slow") {
         pendingSearch = true;
@@ -210,6 +207,7 @@ try {
         PYTHIA_HERMES_PROFILE: "synthetic",
         PYTHIA_HERMES_API_URL: `http://127.0.0.1:${native.address().port}`,
         API_SERVER_KEY: "synthetic-search-key",
+        PYTHIA_WORKSPACE: workspace,
       },
       stdio: ["ignore", "inherit", "inherit", "ipc"],
     },
@@ -241,10 +239,10 @@ try {
     return route.continue();
   });
   await page.goto(origin);
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  const input = page.getByRole("searchbox", {
+  const input = page.getByRole("combobox", {
     name: "Search investments and chats",
   });
+  await input.click();
   await expect(input).toBeFocused();
   await input.fill("apple");
   const ordinary = page.getByRole("button", { name: /Apple ordinary share/ });
@@ -254,9 +252,11 @@ try {
     page.getByRole("button", { name: /Apple depositary receipt/ }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Apple research" }),
+    page.getByRole("button", { name: "Apple research", exact: true }),
   ).toBeVisible();
-  await input.press("Tab");
+  await input.press("ArrowDown");
+  await expect(page.getByRole("button", { name: /synthetic: / })).toBeFocused();
+  await ordinary.focus();
   await expect(ordinary).toBeFocused();
   await ordinary.press("Enter");
   await expect.poll(() => Boolean(releaseAdoption)).toBe(true);
@@ -266,15 +266,18 @@ try {
   releaseAdoption();
   releaseAdoption = undefined;
   await expect(
-    page.getByText("No investments found.", { exact: true }),
+    page.getByText(
+      "No matches in this category. Try another filter or search.",
+      { exact: true },
+    ),
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Selected investment" }),
   ).toHaveCount(0);
   await input.fill("partial");
-  await expect(
-    page.getByText("Some sources could not be fully searched."),
-  ).toBeVisible();
+  await expect(ordinary).toBeVisible();
+  await page.getByText("Search coverage", { exact: true }).click();
+  await expect(page.getByText(/Synthetic source unavailable/)).toBeVisible();
   await ordinary.click();
   await expect.poll(() => Boolean(releaseAdoption)).toBe(true);
   releaseAdoption();
@@ -282,15 +285,16 @@ try {
   await expect(
     page.getByRole("region", { name: "Selected investment" }),
   ).toBeVisible();
-  await page.getByText("Stable reference", { exact: true }).click();
-  await expect(page.getByText(/listing:stable-aapl/)).toBeVisible();
-  // Close/reopen forces current native authorization, never cached results.
+  // Brief close/reopen reuses the bounded display cache without another read.
+  const readCount = requests.length;
   await input.press("Escape");
-  await expect(
-    page.getByRole("button", { name: "Search", exact: true }),
-  ).toBeFocused();
+  await expect(input).toBeFocused();
+  await input.click();
+  await expect(ordinary).toBeVisible();
+  assert.equal(requests.length, readCount);
+  // A new request still enforces current native authorization.
   denied = true;
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await input.fill("denied");
   await expect(
     page.getByText(
       "Investment search is unavailable. Your chats are still searchable.",
@@ -321,6 +325,23 @@ try {
   await expect(
     page.getByRole("textbox", { name: "Message Pythia", exact: true }),
   ).toHaveValue(/listing:stable-aapl/);
+  // A user-owned explicit core selection replaces the module, and removal
+  // restores the shipped default without altering the feature or its data.
+  await writeFile(topBarConfig, JSON.stringify({ version: 1, renderer: null }));
+  await page.reload();
+  await expect(input).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Open navigation", exact: true }),
+  ).toBeVisible();
+  await rm(topBarConfig);
+  await page.reload();
+  await expect(input).toBeVisible();
+  denied = true;
+  await page.reload();
+  await expect(input).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Open navigation", exact: true }),
+  ).toBeVisible();
   assert.deepEqual(errors, []);
   assert(requests.length > 0);
   console.log(
@@ -329,9 +350,12 @@ try {
         productionSearch: true,
         nativeReadAndAdopt: true,
         keyboardAndNarrow: true,
-        identityDetails: true,
+        compiledFeatureModule: true,
+        coreOverrideAndRestoration: true,
+        unavailableFeatureFallback: true,
         partialAndFailure: true,
         authorizationRevalidation: true,
+        cachedReopen: true,
         cancellation: true,
         staleSelectionRejected: true,
         researchDraft: true,

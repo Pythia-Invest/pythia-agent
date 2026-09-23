@@ -7,6 +7,8 @@ from .identity_matching import compare, pair_rule, rule_for
 
 def evidence_current(records, expected_versions):
     return all(expected_versions.get(e["provider_ref"]["provider"]) in (None, e["adapter_version"])
+               and (not e.get('identifier_context') or expected_versions.get(e['identifier_context']['authority'])
+                    in (None, e['identifier_context']['adapter_version']))
                for e in records)
 
 
@@ -16,6 +18,11 @@ def dependencies(native, evidence, rules, expected_versions, target_records=(), 
     result = {"observed": sorted({e["adapter_version"] for e in evidence}),
               "expected": expected_versions.get(provider),
               "target_evidence_ids": sorted(e["id"] for e in target_records)}
+    reference_contexts = [row['identifier_context'] for row in [*evidence, *target_records] if row.get('identifier_context')]
+    if reference_contexts:
+        result['reference_data'] = {authority: {
+            'observed': sorted({row['adapter_version'] for row in reference_contexts if row['authority'] == authority}),
+            'expected': expected_versions.get(authority)} for authority in sorted({row['authority'] for row in reference_contexts})}
     providers = {provider, *(e["provider_ref"]["provider"] for e in target_records)}
     if target_native is not None:
         providers.add(target_native["provider"])

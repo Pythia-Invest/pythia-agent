@@ -2,6 +2,22 @@ import { z } from "zod";
 
 const text = z.string().min(1).max(512);
 const scope = z.enum(["company", "instrument", "listing", "crypto"]);
+// Presentation classification is distinct from identity scope. A listing can
+// represent an equity, ETF or another product; unknown remains unclassified.
+export const investmentCategorySchema = z.enum([
+  "equity",
+  "etf",
+  "fund",
+  "index",
+  "forex",
+  "crypto",
+  "future",
+  "option",
+  "bond",
+  "commodity",
+  "other",
+]);
+export type InvestmentCategory = z.infer<typeof investmentCategorySchema>;
 const qualifiers = z
   .object({
     currency: text.optional(),
@@ -44,6 +60,10 @@ export const investmentSearchReferenceSchema = z
     native_ref: nativeRef,
     name: text.nullable(),
     symbol: text.nullable(),
+    kind: scope.nullable().optional(),
+    currency: text.nullable().optional(),
+    venue: text.nullable().optional(),
+    subject: subject.nullable().optional(),
     status: identityStatus,
     available: z.boolean(),
     mapping_id: text.optional(),
@@ -57,6 +77,7 @@ export const investmentSearchResultSchema = z
     name: text.nullable(),
     symbol: text.nullable(),
     kind: scope.nullable(),
+    category: investmentCategorySchema.nullable().optional(),
     currency: text.nullable(),
     venue: text.nullable(),
     identity_status: identityStatus,
@@ -98,6 +119,8 @@ export const investmentAdoptRequestSchema = z
   .object({
     native_ref: nativeRef,
     scope,
+    references: z.array(nativeRef).min(2).max(8).optional(),
+    binding_mode: z.enum(["preferred", "source"]).optional(),
   })
   .strict();
 export const investmentAdoptDataSchema = z
@@ -119,6 +142,9 @@ export const investmentAdoptResponseSchema = z
   .strict();
 export type InvestmentSearchResult = z.infer<
   typeof investmentSearchResultSchema
+>;
+export type InvestmentSearchReference = z.infer<
+  typeof investmentSearchReferenceSchema
 >;
 export type InvestmentSearchData = z.infer<typeof investmentSearchDataSchema>;
 export type InvestmentSearchRequest = z.infer<

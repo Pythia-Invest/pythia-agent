@@ -1,9 +1,9 @@
 """Synthetic normalized equity assertions; no provider payloads or connections.
 
-EODHD Common Stock search/enrichment supplies native catalogue + optional actual
-ISIN (https://eodhd.com/financial-apis/search-api-for-stocks-etfs-mutual-funds).
-IBKR ContractDetails supplies conId/secIdList. ZZ ISINs are invented checksums.
-Adapter-owned Type qualification precedes this internal evidence boundary.
+EODHD native catalogue/ISIN assertions do not establish cross-reference identity.
+Qualified fixtures add synthetic OpenFIGI share-class evidence shaped by
+https://www.openfigi.com/api/documentation. IBKR ContractDetails supplies
+conId/secIdList. ZZ ISINs and FIGIs here are invented, never provider responses.
 """
 import json
 import tempfile
@@ -32,6 +32,12 @@ def records(ref, standard=None, *, version=None, suffix='', share_class=None, na
             row['value'], row['authority'] = ref['native_id'], native_authority
         else:
             row['authority'] = isin_authority
+    if standard and native_authority == isin_authority == 'source_asserted':
+        rows.append({**rows[0], 'id': rows[0]['id'] + '-share-class', 'scope': 'instrument',
+                     'scheme': 'figi', 'value': 'BBG' + standard[2:11],
+                     'identifier_context': {'authority': 'openfigi', 'level': 'share_class',
+                         'security_type': 'Common Stock', 'market_sector': 'Equity',
+                         'adapter_version': '1', 'reference_id': 'BBG' + standard[2:11]}})
     return rows
 
 
@@ -55,6 +61,42 @@ class EquityMatchingTests(unittest.TestCase):
     def save(self, ref, rows=None, *, store=None, scope='instrument'):
         store = store or self.store
         return store.save(ref, scope, store.ingest(ref, rows if rows is not None else records(ref, isin(301))))
+
+    def test_bare_catalogue_isin_cannot_merge_receipt_or_another_provider(self):
+        a, b = catalogue('ORDINARY.US'), catalogue('RECEIPT.BA')
+        rows_a, rows_b = records(a, isin(401))[:2], records(b, isin(401))[:2]
+        self.assertEqual(matching.compare(a, rows_a, b, rows_b, 'instrument'), 'candidate')
+        self.assertEqual(matching.compare(native(401), records(native(401), isin(401))[:2], b, rows_b, 'instrument'), 'candidate')
+        self.assertEqual(matching.compare(a, rows_a, a, rows_a, 'instrument'), 'confirmed')
+
+    def test_share_class_proof_rejects_composite_wrong_type_and_stale_reference_version(self):
+        a, b = catalogue(), native(401)
+        left, right = records(a, isin(401)), records(b, isin(401))
+        right[-1]['identifier_context']['level'] = 'composite'
+        self.assertNotEqual(matching.compare(a, left, b, right, 'instrument'), 'confirmed')
+        right[-1]['identifier_context']['level'] = 'share_class'
+        right[-1]['identifier_context']['security_type'] = 'Depositary Receipt'
+        self.assertEqual(matching.compare(a, left, b, right, 'instrument'), 'conflicting')
+        saved = self.save(a, left)
+        updated = identity.IdentityStore(self.directory.name, evidence_versions={**VERSIONS, 'openfigi': '2'})
+        self.assertEqual(updated.inspect(saved['mapping']['id'])['repair'], 'pending_evidence_refresh')
+
+    def test_retired_isin_rule_rechecks_existing_cross_provider_mapping(self):
+        class OldISINRule(matching.EquityRules):
+            versions = {**matching.RULE_VERSIONS, PAIR: 'old', 'eodhd_instrument_isin': 'old'}
+            def evaluate(self, native_ref, rows, target, target_rows, scope):
+                if scope == 'instrument' and {r['value'] for r in rows if r['scheme'] == 'isin'} & {r['value'] for r in target_rows if r['scheme'] == 'isin'}:
+                    return 'confirmed'
+                return super().evaluate(native_ref, rows, target, target_rows, scope)
+        old = identity.IdentityStore(self.directory.name, rules=OldISINRule(), evidence_versions=VERSIONS)
+        a, b = catalogue(), native(402)
+        first = self.save(a, records(a, isin(402))[:2], store=old)
+        merged = self.save(b, records(b, isin(402))[:2], store=old)
+        self.assertEqual(first['mapping']['target'], merged['mapping']['target'])
+        repaired = self.store.inspect(merged['mapping']['id'])
+        self.assertEqual(repaired['mapping']['status'], 'candidate')
+        self.assertEqual(repaired['intent_subject'], merged['intent_subject'])
+        self.assertEqual(self.store.history(merged['mapping']['id'])[0], merged['mapping'])
 
     def test_both_save_orders_join_same_instrument_but_never_listing_or_reference(self):
         for reverse in (False, True):
@@ -97,7 +139,7 @@ class EquityMatchingTests(unittest.TestCase):
         variants = [records(right), records(right, isin(302), isin_authority='query_only'),
                     records(right, isin(303)), records(right, isin(302), share_class='B'),
                     records(right, isin(302), native_authority='query_only'),
-                    records(right, isin(302))[1:]]
+                    records(right, isin(302))[1:2]]
         conflicting = records(right, isin(302))
         conflicting.append({**conflicting[1], 'id': conflicting[1]['id'] + '-other', 'value': isin(303)})
         variants.append(conflicting)
@@ -108,7 +150,7 @@ class EquityMatchingTests(unittest.TestCase):
         for scope in ('listing', 'company', 'crypto'):
             self.assertNotEqual(matching.compare(left, actual, right, records(right, isin(302)), scope), 'confirmed')
         wrong_scope = {**right, 'native_scope': 'contract'}
-        self.assertEqual(matching.compare(left, actual, wrong_scope, records(wrong_scope, isin(302)), 'instrument'), 'candidate')
+        self.assertEqual(matching.compare(left, actual, wrong_scope, records(wrong_scope, isin(302))[:2], 'instrument'), 'candidate')
         bad = records(right, isin(302))
         bad[1]['value'] = bad[1]['value'][:-1] + str((int(bad[1]['value'][-1]) + 1) % 10)
         with self.assertRaises(wire.WireError):
@@ -159,7 +201,7 @@ class EquityMatchingTests(unittest.TestCase):
                 overridden = store.apply_override(linked['mapping']['id'], 'positive', linked['mapping']['evidence_ids'])
                 self.assertIsNotNone(overridden['mapping']['active_override'])
                 class Corrected(matching.EquityRules):
-                    versions = {**matching.RULE_VERSIONS, PAIR: '2'}
+                    versions = {**matching.RULE_VERSIONS, PAIR: '3'}
                 changed = identity.IdentityStore(directory, rules=Corrected(), evidence_versions=VERSIONS)
                 current = changed.inspect(linked['mapping']['id'])
                 self.assertIsNone(current['mapping']['active_override'])

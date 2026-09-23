@@ -11,15 +11,14 @@ from .cache import ReadCancelled
 from .coordinated import parallel
 from .identity_db import native_key
 from .identity_matching import compare
-from .identity_repair import evidence_current
 from .request_context import cancelled
 from .selection import available, compatible_ref
-from .search_ranking import arguments, rank
+from .search_ranking import arguments, normalized, rank
 from .wire import WireError, require, validate
 
 SCOPES = ('company', 'instrument', 'listing', 'crypto')
+CATEGORIES = ('equity', 'etf', 'fund', 'index', 'forex', 'crypto', 'future', 'option', 'bond', 'commodity', 'other')
 MAX_CANDIDATES_PER_SOURCE = 200
-MAX_COMPARISONS = 4096
 
 
 def text(value):
@@ -60,7 +59,9 @@ def candidate(value, provider, kinds=()):
     for key in ('provider_type', 'description', 'exchange', 'country'):
         if text(value.get(key)) and key not in metadata and len(metadata) < 32:
             metadata[key] = value[key]
-    return {'native_ref': native, 'name': text(value.get('name')) or named('name'),
+    category = value.get('category')
+    require(category is None or category in CATEGORIES, 'search', 'invalid product category')
+    return {'native_ref': native, 'name': text(value.get('name')) or named('name'), 'category': category,
             'symbol': text(value.get('symbol')) or named('ticker'), 'kind': kind,
             'currency': text(value.get('currency')) or qualifiers.get('currency') or listing_fact('currency'),
             'venue': text(value.get('venue')) or qualifiers.get('venue') or listing_fact('venue'), 'metadata': metadata}
@@ -74,15 +75,19 @@ def issue(code, message):
     return {'code': code, 'message': message, 'severity': 'warning'}
 
 
-def search(backend, query, limit=30):
+def search(backend, query, limit=30, selected_providers=None, progress=None):
     from .backend import envelope
     require(type(query) is str and 1 <= len(query.strip()) <= 512, 'search', 'invalid query')
     require(type(limit) is int and 1 <= limit <= 100, 'search', 'invalid limit')
     query = query.strip()
+    require(selected_providers is None or (type(selected_providers) is list and
+            len(selected_providers) <= 16 and all(type(p) is str and 0 < len(p) <= 256 for p in selected_providers)),
+            'search', 'invalid providers')
     sources, access = backend.context()
     generation = backend.identity.cache_token()
     providers = sorted(source['contribution']['provider'] for source in sources
-                       if any(op['operation'] == 'search' for op in source['operations']))
+                       if any(op['operation'] == 'search' for op in source['operations']) and
+                       (selected_providers is None or source['contribution']['provider'] in selected_providers))
     kinds = {source['contribution']['provider']: source['contribution'].get('subject_kinds', []) for source in sources}
     declarations = {source['contribution']['provider']: source['contribution'].get('search') for source in sources}
     parameters = {source['contribution']['provider']: op.get('parameters') for source in sources
@@ -110,7 +115,14 @@ def search(backend, query, limit=30):
             from .execution import failure
             return provider, failure('source_error')
 
-    responses = parallel(fetch, providers)
+    def tracked(provider):
+        import time
+        started = time.monotonic()
+        result = fetch(provider)
+        if progress and not cancelled():
+            progress(provider, result[1].get('outcome', 'error'), round((time.monotonic() - started) * 1000))
+        return result
+    responses = parallel(tracked, providers)
     if cancelled():
         raise ReadCancelled()
     current, current_access = backend.context()
@@ -144,7 +156,7 @@ def search(backend, query, limit=30):
                         # Keep the exact source reference usable for inspection,
                         # but neither conflicting label becomes authoritative.
                         all_labels[key] = {**label, 'name': None, 'symbol': None, 'kind': None,
-                                           'currency': None, 'venue': None, 'metadata': {}}
+                                           'currency': None, 'venue': None, 'category': None, 'metadata': {}}
                         raise WireError('search: contradictory candidate labels')
                     if key in conflicts:
                         continue
@@ -159,17 +171,19 @@ def search(backend, query, limit=30):
     # Preserve the retained identity and its labels even while its connector is
     # unavailable. Such rows are explicitly non-routable, not cached source data.
     saved = catalogue.entries(backend.identity, query, all_labels.keys())
+    if selected_providers is not None:
+        saved = [row for row in saved if row['native_ref']['provider'] in selected_providers]
     for key, label in list(all_labels.items()):
         compatible = [row for row in saved if compatible_ref(label['native_ref'], row['native_ref'])
                       and (label['kind'] is None or row['scope'] == label['kind'])]
         refs = {native_key(row['native_ref']): row for row in compatible}
-        if key not in refs and len(refs) == 1 and key not in conflicts:
+        if key not in refs and len(refs) == 1 and key not in conflicts and not proofs.get(key):
             actual_key, saved_row = next(iter(refs.items()))
             actual = saved_row['native_ref']
             source_order[label['native_ref']['provider']] = [actual_key if item == key else item
                 for item in source_order.get(label['native_ref']['provider'], [])]
             all_labels.pop(key)
-            proofs.pop(key, None)  # Old assertions bind the original exact ref.
+            proofs.pop(key, None)
             all_labels.setdefault(actual_key, {**label, 'native_ref': actual,
                 'currency': label['currency'] or actual.get('qualifiers', {}).get('currency'),
                 'venue': label['venue'] or actual.get('qualifiers', {}).get('venue')})
@@ -185,75 +199,48 @@ def search(backend, query, limit=30):
             if _matches(query, label):
                 all_labels[key] = label
                 proofs[key] = row['evidence']
-    groups, representatives, comparisons = {}, {}, 0
-    grouping_limited = False
+    # Discovery keeps one result per source reference, even when retained
+    # canonical mappings establish equivalence. No reference-data calls here.
+    results = []
     for key, label in all_labels.items():
         matches = saved_by_native.get(key, [])
-        # Prefer the precise listing where retained. A common instrument ISIN
-        # never collapses two venue/currency results into one listing.
         mapping = next((row for row in matches if row['scope'] == label['kind']), None)
-        if mapping is None and len(matches) == 1:
-            mapping = matches[0]
         identity_status = 'conflicting' if key in conflicts else status(mapping['status']) if mapping else 'unresolved'
         if mapping and proofs.get(key) and compare(label['native_ref'], proofs[key], mapping['native_ref'], mapping['evidence'], mapping['scope']) == 'conflicting':
             identity_status = 'conflicting'
         subject = {'kind': mapping['scope'], 'id': mapping['intent_subject']} if mapping else None
-        group_key = 'native:' + hashlib.sha256(key.encode()).hexdigest()
-        group_scope = mapping['scope'] if mapping else label['kind']
-        if mapping and identity_status == 'confirmed' and mapping['scope'] in ('listing', 'crypto', 'company') and mapping['target'] == mapping['intent_subject']:
-            # Only the exact confirmed target is grouping authority; include the
-            # selected listing context rather than collapse instrument mappings.
-            context = native_key({'target': mapping['target'], 'venue': label['venue'], 'currency': label['currency']})
-            group_key = 'subject:' + hashlib.sha256(context.encode()).hexdigest()
-        # Pure comparison can group freshly discovered references without
-        # writing identities. Instrument equivalence alone is never sufficient
-        # for grouping listing/feed search candidates.
-        records = proofs.get(key, [])
-        if identity_status != 'conflicting' and group_scope in ('listing', 'crypto', 'company'):
-            for old_key, members in representatives.items():
-                if comparisons + len(members) > MAX_COMPARISONS:
-                    grouping_limited = True
-                    break
-                compatible = True
-                for old_label, old_scope, old_records in members:
-                    comparisons += 1
-                    if (old_scope != group_scope or not evidence_current(records + old_records, backend.identity.evidence_versions)
-                            or compare(label['native_ref'], records, old_label['native_ref'], old_records, group_scope) != 'confirmed'):
-                        compatible = False
-                        break
-                if compatible:
-                    group_key = old_key
-                    break
-            representatives.setdefault(group_key, []).append((label, group_scope, records))
         ref = {'native_ref': label['native_ref'], 'name': label['name'], 'symbol': label['symbol'],
                'status': identity_status, 'available': available(current, label['native_ref']['provider'], 'details'),
+               'kind': label['kind'], 'currency': label['currency'], 'venue': label['venue'],
                'metadata': label['metadata']}
         if mapping:
-            ref['mapping_id'] = mapping['id']
-        if group_key not in groups:
-            groups[group_key] = {'id': group_key, 'subject': subject, 'name': label['name'], 'symbol': label['symbol'],
-                                 'kind': mapping['scope'] if mapping else label['kind'], 'currency': label['currency'],
-                                 'venue': label['venue'], 'identity_status': identity_status, 'references': []}
-        groups[group_key]['references'].append(ref)
-        if groups[group_key]['subject'] is None and subject is not None:
-            groups[group_key].update(subject=subject, identity_status=identity_status)
-    ranked = rank(query, list(groups.values()), source_order, source_modes, ordering)
-    truncated = grouping_limited or len(ranked) > limit or any(row['truncated'] for row in coverage)
+            ref.update(mapping_id=mapping['id'], subject=subject)
+        results.append({'id': 'native:' + hashlib.sha256(key.encode()).hexdigest(),
+                        'subject': subject, 'name': label['name'], 'symbol': label['symbol'],
+                        'kind': label['kind'], 'category': label.get('category'),
+                        'currency': label['currency'], 'venue': label['venue'],
+                        'identity_status': identity_status, 'references': [ref]})
+    ranked = rank(query, results, source_order, source_modes, ordering)
+    truncated = len(ranked) > limit or any(row['truncated'] for row in coverage)
     failed = any(row['status'] in ('error', 'partial', 'unavailable') for row in coverage)
-    outcome = 'partial' if ranked and (failed or truncated) else 'ok' if ranked else 'error' if failed else 'empty'
+    searched = any(row['status'] in ('ok', 'empty') for row in coverage)
+    outcome = ('partial' if failed and (ranked or searched) or ranked and truncated else
+               'ok' if ranked else 'error' if failed else 'empty')
     if truncated:
         issues.append(issue('search_limited', 'More candidates may exist. Refine your search.'))
-    if grouping_limited:
-        issues.append(issue('grouping_limited', 'Some identity comparisons exceeded the search budget; separate results may refer to the same investment.'))
     if failed and not issues:
         issues.append(issue('source_unavailable', 'Some connected sources could not be searched.'))
     if backend.identity.cache_token() != generation or backend.context()[1] != access:
         return envelope({'results': [], 'coverage': [], 'truncated': False}, outcome='error',
                         issues=[issue('catalogue_changed', 'Investment identity or source access changed. Search again.')])
+    # Repeated bounded-enrichment warnings describe one search limitation.
+    # Source coverage still retains each source's full issue/retry metadata.
+    issues = list({(item['code'], item['message'], item.get('severity'), item.get('retry_after_seconds')): item
+                   for item in issues}.values())
     return envelope({'results': ranked[:limit], 'coverage': coverage, 'truncated': truncated}, outcome=outcome, issues=issues)
 
 
 def _matches(query, label):
     haystack = ' '.join(str(label.get(key) or '') for key in ('name', 'symbol'))
     haystack += ' ' + label['native_ref']['native_id']
-    return all(word in haystack.casefold() for word in query.casefold().split())
+    return all(word in normalized(haystack) for word in (normalized(query).split() or [query.casefold()]))

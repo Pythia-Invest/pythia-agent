@@ -13,6 +13,7 @@ export const deskKeys = {
   messages: (sessionId: string) => ["sessions", sessionId, "messages"] as const,
   models: ["models"] as const,
   capabilities: ["capabilities"] as const,
+  investmentSearch: ["investment-search"] as const,
 };
 
 export const MESSAGE_PAGE_SIZE = 100;

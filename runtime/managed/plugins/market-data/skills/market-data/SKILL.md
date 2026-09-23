@@ -29,12 +29,14 @@ Configured access mode is explicit user intent, not something to change after
 a denied request or infer from which credential happens to exist.
 
 Search with `action: "search_catalogue"` and `query`. Results lead with investment
-identity; `references` and `coverage` expose source details, availability and
+labels; `references` and `coverage` expose source details, availability and
 incomplete searches. Names rank candidates but do not prove equivalence. Distinct
-listings and unresolved associations remain separate. To retain a selected result,
+provider references remain separate, even when their canonical identity is known.
+To retain a selected result,
 use `adopt_search` with its exact available `native_ref` and known `scope`. It
-returns a stable `subject` and a usable `binding`: unresolved identities retain
-an explicit source binding, not automatic provider substitution. Unknown scope
+returns a stable `subject` and defaults to the selected source's `binding`, without
+external reconciliation. Use `resolve_save` for deliberate identity qualification.
+Unknown scope
 needs connector metadata; do not guess it from a ticker. Search never saves
 identities or calls details for every candidate.
 

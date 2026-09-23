@@ -2,6 +2,14 @@
 import json
 
 from .identity_db import dumps, native_key, evidence_rows
+from .search_ranking import normalized
+
+
+def providers(store):
+    """Retained source names for filtering; no evidence or availability claim."""
+    with store.database.connection() as db:
+        return [row[0] for row in db.execute(
+            "SELECT DISTINCT json_extract(native_key, '$.provider') FROM mappings ORDER BY 1")]
 
 
 def remember(store, native, scope, label):
@@ -18,11 +26,12 @@ def entries(store, query, native_keys):
     # decoding every saved metadata/evidence document for a narrow search.
     with store._access() as db:
         db.create_function('pythia_native_id', 1, lambda value: json.loads(value)['native_id'].casefold())
+        db.create_function('pythia_search_text', 1, normalized)
         select = '''SELECT m.id, m.native_key, m.scope, m.intent_subject,
             m.target, m.status, m.evidence_ids, l.data FROM mappings m LEFT JOIN catalogue_labels l
             ON l.native_key=m.native_key AND l.scope=m.scope WHERE '''
-        words = query.casefold().split()
-        condition = ' AND '.join('instr(COALESCE(l.search_text, pythia_native_id(m.native_key)), ?) > 0' for _ in words)
+        words = normalized(query).split() or [query.casefold()]
+        condition = ' AND '.join('instr(pythia_search_text(COALESCE(l.search_text, pythia_native_id(m.native_key))), ?) > 0' for _ in words)
         rows = {row['id']: row for row in db.execute(select + condition, words)}
         keys = list(native_keys)
         for start in range(0, len(keys), 100):

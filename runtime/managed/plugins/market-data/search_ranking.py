@@ -42,46 +42,87 @@ def _interpret(query, declaration):
 
 
 def relevance(query, row):
-    """Names and symbols have equal standing; neither proves identity."""
-    query = query.casefold()
-    values = [(row.get(key) or '').casefold() for key in ('name', 'symbol')]
+    """Presentation-only matching; punctuation normalization never rewrites refs."""
+    query = normalized(query)
+    if not query:
+        return 4
+    values = [normalized(row.get(key) or '') for key in ('name', 'symbol')]
     if query in values:
         return 0
-    if any(value.startswith(query) for value in values):
+    words = query.split()
+    if words and any(all(word in value.split() for word in words) for value in values):
         return 1
-    if any(all(word in value for word in query.split()) for value in values):
+    if query and any(value.startswith(query) for value in values):
         return 2
-    return 3  # An ordered provider can match an alias absent from display fields.
+    if words and any(all(word in value for word in words) for value in values):
+        return 3
+    return 4
+
+
+def normalized(value):
+    return ' '.join(re.findall(r'[^\W_]+', value.casefold()))
+
+
+def quality(query, row, mode, ordering, position):
+    value = relevance(query, row)
+    # A native text search can recognize an alias absent from display labels.
+    # Preserve its first relevance-ranked answer, not every substring candidate.
+    if mode == 'identifier':
+        return 0
+    if mode == 'text' and ordering == 'relevance' and position == 0 and value == 4:
+        return 1
+    # Symbol-only catalogues cannot tell a company name from a colliding ticker.
+    if mode != 'text' and mode != 'identifier' and value == 0:
+        if normalized(query) != normalized(row.get('name') or ''):
+            return 2
+    return value
 
 
 def rank(query, groups, source_order, source_modes, ordering):
-    """Interleave source lists without adding votes for duplicate references.
+    """Blend match quality with logarithmically discounted native position.
 
-    Provider scores are not comparable. Use ordinal position in each list;
-    source-independent lexical relevance breaks ties within each round. A group
-    appearing in several lists gets its best position, never summed votes.
+    Provider scores are not comparable. Neither a catalogue's first weak match
+    nor its hundredth exact ticker collision should dominate all other sources.
+    A group gets its best score, never summed votes.
     """
-    by_native = {native_key(ref['native_ref']): row for row in groups
+    by_native = {native_key(ref['native_ref']): (row, ref) for row in groups
                  for ref in row['references']}
     scores = {}
     for provider, keys in source_order.items():
-        rows, seen = [], set()
+        rows, labels = [], {}
         for key in keys:
-            row = by_native.get(key)
-            if row is not None and row['id'] not in seen:
-                seen.add(row['id'])
+            match = by_native.get(key)
+            if match is None:
+                continue
+            row, ref = match
+            label = {field: ref.get(field, row.get(field)) for field in ('name', 'symbol')}
+            if row['id'] not in labels:
                 rows.append(row)
+                labels[row['id']] = label
+            elif relevance(query, label) < relevance(query, labels[row['id']]):
+                labels[row['id']] = label
         if ordering.get(provider) not in ('relevance', 'prominence'):
-            rows.sort(key=lambda row: (relevance(query, row), row['id']))
+            rows.sort(key=lambda row: (relevance(query, labels[row['id']]), row['id']))
+        preceding = (0, 0)
         for position, row in enumerate(rows):
-            score = (position, 0 if source_modes.get(provider) in ('text', 'identifier') else 1,
-                     relevance(query, row), 0 if ordering.get(provider) == 'relevance' else 1)
+            mode, order = source_modes.get(provider), ordering.get(provider)
+            match = quality(query, labels[row['id']], mode, order, position)
+            quality_score = (match + (position + 1).bit_length() - 1, match)
+            # Native relevance may include aliases absent from our labels. Do
+            # not invert that order; prominence-only catalogues permit reranking.
+            if order == 'relevance':
+                quality_score = max(preceding, quality_score)
+                preceding = quality_score
+            score = (*quality_score,
+                     0 if mode in ('text', 'identifier') else 1,
+                     position, 0 if order == 'relevance' else 1)
             scores[row['id']] = min(scores.get(row['id'], score), score)
     # Saved-only entries form a local list. Adoption must not reorder candidates
     # already supplied by a meaningfully ordered provider response.
     retained = sorted((row for row in groups if row['subject'] and row['id'] not in scores),
                       key=lambda row: (relevance(query, row), row['id']))
     for position, row in enumerate(retained):
-        scores[row['id']] = (position, 0, relevance(query, row), 1)
-    return sorted(groups, key=lambda row: (scores.get(row['id'], (10000, 0, 3, 1)),
+        match = relevance(query, row)
+        scores[row['id']] = (match + (position + 1).bit_length() - 1, match, 0, position, 1)
+    return sorted(groups, key=lambda row: (scores.get(row['id'], (10000, 4, 1, 10000, 1)),
                                           0 if row['subject'] else 1, row['id']))

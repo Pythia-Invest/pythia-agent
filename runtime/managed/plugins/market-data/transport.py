@@ -15,7 +15,7 @@ class FinancialDelivery:
     def inspect(self, resource, *, updates=False):
         from .live_batch import validate_window
         arguments = resource['arguments']
-        if updates and arguments.get('action') not in ('read', 'read_many', 'get_preferences'):
+        if updates and arguments.get('action') not in ('read', 'read_many', 'get_preferences', 'search_catalogue'):
             raise platform().admission.AdmissionError('unsupported_operation', 404)
         validate_window(resource)
         reads = arguments.get('reads', [arguments])

@@ -18,16 +18,21 @@ SCHEMA = {
         "Preferences can be scoped by subject kind, currency, venue, interval, measurement, session or adjustment. "
         "Read criteria select measurement, interval, session, price adjustment, source class or venue; ambiguity requires more detail. "
         "Pinned reads require the retained full series descriptor. Selected-source failure never falls back. "
-        "adopt_search returns a stable selected subject and usable binding, using an explicit native binding when identity is unresolved. "
+        "search_catalogue returns separate provider references without reconciliation calls. "
+        "Single-reference adopt_search defaults to a source-bound binding without external qualification; resolve_save performs deliberate qualification. "
         "adopt_search, resolve_save, refresh_identity, set_preferences, apply_override and revoke_override write local feature state; "
         "search/details do not save identities. Overrides cite existing source evidence IDs, never supplied assertions."
     ),
     "parameters": {"type": "object", "additionalProperties": False, "required": ["action"], "properties": {
         "action": {"type": "string", "enum": ACTIONS},
-        "provider": TEXT, "operation": {"type": "string", "enum": ["search", "details", "series", "latest", "history"]},
+        "provider": TEXT, "operation": {"type": "string", "enum": ["search", "details", "series", "latest", "history", "identifiers", "identify"]},
         "arguments": {"type": "object", "description": "Specialist arguments for explicit call, matching the native source schema."},
         "query": TEXT, "limit": {"type": "integer", "minimum": 1, "maximum": 100},
         "native_ref": parameter_schema("provider_ref"), "binding": parameter_schema("binding"),
+        "references": {"type": "array", "minItems": 2, "maxItems": 8, "items": parameter_schema("provider_ref"),
+                       "description": "Explicit instrument-group adoption: revalidate every selected reference before saving a shared subject."},
+        "binding_mode": {"type": "string", "enum": ["preferred", "source"],
+                         "description": "Single-reference adoption defaults to source mode; grouped adoption defaults to preferred mode. Source mode retains the single explicitly selected native reference."},
         "scope": {"type": "string", "enum": ["company", "instrument", "listing", "crypto"]},
         "request": parameter_schema("read_request"), "criteria": CRITERIA,
         "reads": {"type": "array", "minItems": 1, "maxItems": 32, "items": {

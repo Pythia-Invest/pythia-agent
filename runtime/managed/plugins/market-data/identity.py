@@ -54,7 +54,7 @@ class IdentityStore:
         require(all(item["provider_ref"] == native for item in rows), "identity", "evidence is for another native reference")
         return rows
 
-    def save(self, native_ref, scope, evidence_ids):
+    def save(self, native_ref, scope, evidence_ids, *, retain_reference_evidence=False):
         """Explicit local identity mutation for a user-selected native reference."""
         native = validate("provider_ref", native_ref)
         require(scope in ("company", "instrument", "listing", "crypto"), "identity", "invalid subject scope")
@@ -63,6 +63,20 @@ class IdentityStore:
             evidence = self._evidence(db, native, evidence_ids)
             existing = db.execute("SELECT * FROM mappings WHERE native_key=? AND scope=?", (native_key(native), scope)).fetchone()
             if existing:
+                if retain_reference_evidence:
+                    previous = evidence_rows(db, json.loads(existing["evidence_ids"]))
+                    # Ordinary adoption refreshes source details, but deliberately
+                    # does not re-run reference qualification. Keep that separate
+                    # proof only while its source assertions are unchanged. IDs
+                    # and observation times identify reads, not financial facts.
+                    def assertions(records):
+                        return {dumps({key: value for key, value in record.items()
+                                      if key not in ("id", "observed_at", "retrieved_at")})
+                                for record in records if not record.get("identifier_context")}
+                    if (not any(record.get("identifier_context") for record in evidence)
+                            and assertions(evidence) == assertions(previous)):
+                        evidence_ids = [*evidence_ids, *(record["id"] for record in previous
+                                                       if record.get("identifier_context"))]
                 if json.loads(existing["evidence_ids"]) != evidence_ids:
                     return self._refresh(db, existing, evidence_ids)
                 return self._inspect(db, existing["id"])

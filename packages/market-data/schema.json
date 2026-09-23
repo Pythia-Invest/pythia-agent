@@ -229,6 +229,46 @@
         },
         "authority": {
           "enum": ["source_asserted", "query_only", "unknown"]
+        },
+        "identifier_context": {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "enum": ["openfigi"]
+            },
+            "level": {
+              "enum": ["share_class", "composite", "listing"]
+            },
+            "security_type": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "market_sector": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "adapter_version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "reference_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "authority",
+            "level",
+            "security_type",
+            "market_sector",
+            "adapter_version",
+            "reference_id"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -1485,6 +1525,8 @@
                 "enum": [
                   "search",
                   "details",
+                  "identifiers",
+                  "identify",
                   "series",
                   "latest",
                   "history",

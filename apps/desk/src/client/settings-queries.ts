@@ -32,12 +32,20 @@ export function useChangeDeviceSetting() {
   const cache = useQueryClient();
   return useMutation({
     mutationFn: async (change: SettingChange) => {
+      // Drop display snapshots before native permissions start changing.
+      await cache.cancelQueries({ queryKey: deskKeys.investmentSearch });
+      cache.removeQueries({ queryKey: deskKeys.investmentSearch });
       switch (change.kind) {
         case "skill":
           return api.setSkillEnabled(change.name, change.enabled);
         case "toolset":
           return api.setToolsetEnabled(change.name, change.enabled);
       }
+    },
+    onSettled: async () => {
+      // Also discard any search started while the native mutation was pending.
+      await cache.cancelQueries({ queryKey: deskKeys.investmentSearch });
+      await cache.resetQueries({ queryKey: deskKeys.investmentSearch });
     },
     onSuccess: async () => {
       await Promise.all(
