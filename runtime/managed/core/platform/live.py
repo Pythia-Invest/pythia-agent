@@ -8,6 +8,14 @@ import uuid
 from .access import fingerprint
 
 
+async def wait_for_push(wake):
+    try:
+        await asyncio.wait_for(wake.wait(), timeout=1)
+    except asyncio.TimeoutError:
+        pass
+    wake.clear()
+
+
 class LiveReads:
     def __init__(self, read, access, *, subscribe=None, limit=256, grace=2):
         self.read, self.access = read, access
@@ -109,10 +117,12 @@ class LiveReads:
                         resource['scope'] = current
                     if mode is None and time.monotonic() >= due:
                         generation = resource['generation']
+                        push_wake = asyncio.Event()
                         def receive(event, expected=generation):
                             def enqueue():
                                 if resource['generation'] == expected:
                                     resource['pending'] = event
+                                    push_wake.set()
                             if not self.closed:
                                 loop.call_soon_threadsafe(enqueue)
                         stop = await self.subscribe(resource['request'], receive) if self.subscribe else None
@@ -131,7 +141,7 @@ class LiveReads:
                                 if type(retry) not in (int, float) or not 0 <= retry <= 86400:
                                     retry = 0
                                 due = time.monotonic() + max(300 if event['state'] == 'unavailable' else 15, retry)
-                        await asyncio.sleep(1)
+                        await wait_for_push(push_wake)
                         continue
                     if mode == 'poll' and time.monotonic() >= due:
                         value, cadence = await self.read(resource['request'])
