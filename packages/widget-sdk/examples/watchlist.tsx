@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   InstrumentTable,
   type InstrumentRead,
+  type InstrumentWidgetOptions,
   type WidgetProps,
 } from "@pythia/widget-sdk";
 
@@ -11,7 +12,7 @@ export default function Watchlist({
   data,
   options,
   settings,
-}: WidgetProps<InstrumentRead>) {
+}: WidgetProps<InstrumentRead, InstrumentWidgetOptions>) {
   const [showBoth, setShowBoth] = useState(false);
   const title =
     typeof settings.title === "string" ? settings.title : "Watchlist";

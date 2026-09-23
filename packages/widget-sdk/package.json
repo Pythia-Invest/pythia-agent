@@ -15,7 +15,8 @@
     "test:integration": "vitest run test/integration"
   },
   "dependencies": {
-    "@pythia/ui": "workspace:*"
+    "@pythia/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.2.0",

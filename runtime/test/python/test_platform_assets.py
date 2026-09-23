@@ -1,10 +1,14 @@
 """Explicit bundled artifacts stay within their package and bounded byte budget."""
 import os
+import importlib
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from test_market_data_identity import platform_module
+from test_market_data_identity import PLATFORM, platform_module
+
+assets = importlib.import_module(PLATFORM + '.assets')
 
 
 class BundledAssets(unittest.TestCase):
@@ -34,3 +38,22 @@ class BundledAssets(unittest.TestCase):
             for path in ('alias/demo.html', 'linked.html', 'hard.html', 'real/demo.html'):
                 with self.subTest(path=path), self.assertRaises((ValueError, OSError)):
                     platform_module.read_bundled_asset(root, path)
+
+    def test_concurrent_file_edit_is_rejected_before_metadata_can_be_cached(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            file = root / 'view.mjs'
+            file.write_text('before', encoding='utf-8')
+            module = assets.BundledModule(root, 'view.mjs')
+            read = os.read
+            changed = False
+            def edit_during_read(handle, count):
+                nonlocal changed
+                chunk = read(handle, count)
+                if not changed:
+                    changed = True
+                    file.write_text('after!', encoding='utf-8')
+                return chunk
+            with patch.object(assets.os, 'read', side_effect=edit_during_read):
+                with self.assertRaisesRegex(ValueError, 'changed during read'): module.read()
+            self.assertEqual(module.read(include_content=True)[1], 'after!')

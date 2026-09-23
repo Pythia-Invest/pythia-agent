@@ -84,6 +84,21 @@ export class DeskApi extends BrowserRequest {
     });
   }
 
+  topBar(signal?: AbortSignal) {
+    return this.json<import("@/top-bar/config").TopBarSelection>(
+      "/api/desk/top-bar",
+      signal ? { signal } : {},
+    );
+  }
+
+  pluginInvoke(request: PluginRequest, signal?: AbortSignal) {
+    return this.json<unknown>("/api/data/invoke", {
+      method: "POST",
+      body: JSON.stringify(request),
+      ...(signal ? { signal } : {}),
+    });
+  }
+
   pluginRead(request: PluginRequest, signal?: AbortSignal) {
     return this.json<unknown>("/api/data/read", {
       method: "POST",

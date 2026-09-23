@@ -8,6 +8,8 @@ import { historyToMessages } from "./chat-message";
  */
 export const deskKeys = {
   settings: ["settings"] as const,
+  topBar: ["desk-top-bar"] as const,
+  plugins: ["plugin"] as const,
   release: ["release-status"] as const,
   sessions: ["sessions"] as const,
   messages: (sessionId: string) => ["sessions", sessionId, "messages"] as const,

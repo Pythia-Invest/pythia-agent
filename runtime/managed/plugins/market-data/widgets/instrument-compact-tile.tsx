@@ -3,13 +3,14 @@ import {
   InstrumentCompactTile,
   InstrumentReadState,
   type InstrumentRead,
+  type InstrumentWidgetOptions,
   type WidgetProps,
 } from "@pythia/widget-sdk";
 
 export default function Compact({
   data,
   options,
-}: WidgetProps<InstrumentRead>) {
+}: WidgetProps<InstrumentRead, InstrumentWidgetOptions>) {
   if (data.state === "error" || data.state === "empty" || !data.rows.length)
     return <InstrumentReadState read={data} />;
   return (

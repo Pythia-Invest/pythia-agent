@@ -6,6 +6,8 @@ import {
 } from "./native-session-context";
 import { deskViewStore, type DeskViewStore } from "./view-context/store";
 import { createWorkspaceRoutes } from "./workspace/routes";
+import { createTopBarRoutes } from "./top-bar-routes";
+import { createPluginInvokeRoutes } from "./plugin-invoke-routes";
 import { createWidgetRoutes } from "./widget-routes";
 import { createPluginReadRoutes } from "./plugin-read-routes";
 import { createDataUpdateRoutes } from "./data-update-routes";
@@ -103,6 +105,8 @@ export function createDeskRoutes(
 ) {
   return {
     ...createWidgetRoutes(),
+    ...createTopBarRoutes(workspace),
+    ...createPluginInvokeRoutes(),
     ...createPluginReadRoutes(),
     ...createDataUpdateRoutes(),
     ...createFinancialDataRoutes(),

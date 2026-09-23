@@ -1,10 +1,9 @@
 """Bounded widget exports on the contributing plugin's native registration."""
-import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
 
-from .assets import read_bundled_asset
+from .assets import BundledModule
 from .operations import declare_operation
 
 MAX_ASSET_BYTES = 1_048_576
@@ -50,12 +49,12 @@ def register_widget_presentation(ctx, *, tool_name, toolset, widgets, assets):
     if not root.is_absolute() or root.resolve() != root:
         raise ValueError('widget assets require a native filesystem plugin')
 
-    def read(identifier):
-        content = read_bundled_asset(root, asset_paths[identifier], max_bytes=MAX_ASSET_BYTES)
-        encoded = content.encode('utf-8')
-        if not encoded: raise ValueError('empty widget asset')
-        return {'id': identifier, 'media_type': 'text/javascript',
-                'bytes': len(encoded), 'sha256': hashlib.sha256(encoded).hexdigest()}, content
+    modules = {identifier: BundledModule(root, path, max_bytes=MAX_ASSET_BYTES)
+               for identifier, path in asset_paths.items()}
+
+    def read(identifier, *, include_content=False):
+        metadata, content = modules[identifier].read(include_content=include_content)
+        return {'id': identifier, 'media_type': 'text/javascript', **metadata}, content
 
     def handle(arguments, **_context):
         if (not isinstance(arguments, dict) or set(arguments) - {'asset'}
@@ -64,7 +63,7 @@ def register_widget_presentation(ctx, *, tool_name, toolset, widgets, assets):
             return json.dumps({'error': 'Unknown widget asset.'})
         try:
             if 'asset' in arguments:
-                metadata, content = read(arguments['asset'])
+                metadata, content = read(arguments['asset'], include_content=True)
                 data = {'asset': metadata.pop('id'), **metadata, 'content': content}
             else:
                 data = {'version': 1, 'widgets': declarations,

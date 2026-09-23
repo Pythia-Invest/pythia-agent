@@ -1,5 +1,8 @@
 import { type Context, useContext, useEffect, useState } from "react";
 import {
+  Button,
+  Popover,
+  useQueryClient,
   InstrumentPrice,
   type InstrumentDisplay,
   type WidgetProps,
@@ -16,6 +19,7 @@ counters.widgetFactories = (counters.widgetFactories ?? 0) + 1;
 type Data = {
   context: Context<string>;
   hostUseState: typeof useState;
+  hostQueryClient: ReturnType<typeof useQueryClient>;
   hostInstrumentPrice: typeof InstrumentPrice;
   item: InstrumentDisplay;
   crash: boolean;
@@ -30,6 +34,7 @@ export default function QualificationWidget({
   appearance,
   presentation,
 }: WidgetProps<Data>) {
+  const queryClient = useQueryClient();
   const [count, setCount] = useState(0);
   const context = useContext(data.context);
   useEffect(() => {
@@ -64,6 +69,22 @@ export default function QualificationWidget({
       </span>
       <p>React identity: {String(useState === data.hostUseState)}</p>
       <p>UI identity: {String(InstrumentPrice === data.hostInstrumentPrice)}</p>
+      <p>
+        Query context identity: {String(queryClient === data.hostQueryClient)}
+      </p>
+      <Popover.Root>
+        <Popover.Trigger render={<Button size="sm" />}>
+          Open scoped popup
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Positioner>
+            <Popover.Popup className="p-[23px]">
+              <Popover.Title>Scoped widget popup</Popover.Title>
+              <Popover.Close>Close popup</Popover.Close>
+            </Popover.Popup>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </Popover.Root>
       <p>{context}</p>
       <p>
         {String(settings.label)} / {String(options.compact)} / {locale} /{" "}

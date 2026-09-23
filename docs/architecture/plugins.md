@@ -178,3 +178,15 @@ The backend foundation includes the market-data skill and operations. Concrete
 connectors and the Desk/widget package integration are dependent increments; this
 document does not claim that a backend-only install has already installed them.
 The durable decision is [ADR 0033](../decisions/0033-native-feature-packages.md).
+
+## Desk top bars
+
+A feature can supply the complete Desk top bar through the existing native widget
+asset declaration with `input_contract: pythia.desk-topbar.v1`. The user's workspace
+`desk/top-bar.json` selects the plugin, presentation and JSON settings. The
+plugin's native presentation declaration determines its compiled asset.
+Community packages use the same mechanism without editing or rebuilding Desk.
+The SDK exposes host controls and protected read/update/explicit-invoke transport;
+Desk retains the core controls when a contribution becomes unavailable. See the
+[SDK example and contract](../../packages/widget-sdk/README.md#replace-the-desk-top-bar)
+and [ADR 0036](../decisions/0036-replaceable-desk-top-bar.md).
