@@ -1,5 +1,3 @@
-import type { InstrumentRead, InstrumentWidgetOptions } from "@pythia/ui";
-
 export type WidgetAppearance = {
   theme: "light" | "dark";
   profile: "product" | "public";
@@ -7,11 +5,12 @@ export type WidgetAppearance = {
 
 /** Data and settings remain host-owned. Local React state can control display. */
 export type WidgetProps<
-  TData = InstrumentRead,
+  TData = unknown,
+  TOptions = Record<string, unknown>,
   TSettings = Record<string, unknown>,
 > = {
   data: TData;
-  options: InstrumentWidgetOptions;
+  options: TOptions;
   settings: TSettings;
   /** Selected native presentation id. One feature module may render several
    * declared views; only the owning feature interprets this value. */

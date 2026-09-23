@@ -23,11 +23,13 @@ export { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 export type {
   TopBarProps,
   TopBarContext,
+} from "./top-bar";
+export type {
   PluginTransport,
   PluginRequest,
   DataResource,
   DataUpdate,
-} from "./top-bar";
+} from "./transport";
 export { Popover } from "./scope";
 export { cn } from "@pythia/ui/class-name";
 export type {

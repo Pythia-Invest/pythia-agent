@@ -25,7 +25,6 @@ function request(origin = "http://localhost:8644") {
 }
 const renderer = {
   plugin: "community/example",
-  asset: "header",
   presentation: "topbar",
 };
 async function fixture() {
@@ -85,6 +84,31 @@ test("missing selection preserves core; configured native top bar is revalidated
   });
   expect((await (await routes.topBar(request())).json()).renderer).toEqual(
     renderer,
+  );
+  // A plugin can move its presentation to another bundle without editing the
+  // investor's selection. The native declaration owns that association.
+  native.mockResolvedValueOnce({
+    version: 1,
+    widgets: [
+      {
+        id: "topbar",
+        asset: "replacement",
+        input_contract: "pythia.desk-topbar.v1",
+      },
+    ],
+    assets: [
+      {
+        id: "replacement",
+        sha256: "b".repeat(64),
+        bytes: 120,
+        moduleUrl:
+          "/api/plugins/community%2Fexample/widgets/replacement?revision=" +
+          "b".repeat(64),
+      },
+    ],
+  });
+  expect((await (await routes.topBar(request())).json()).moduleUrl).toContain(
+    "/replacement?revision=",
   );
 });
 test("invalid configuration, wrong input contract, missing module, and links fail visibly to core", async () => {

@@ -1,9 +1,15 @@
-import type { InstrumentRead, WidgetProps } from "@pythia/widget-sdk";
+import type {
+  InstrumentRead,
+  InstrumentWidgetOptions,
+  WidgetProps,
+} from "@pythia/widget-sdk";
 import Instruments from "../../../runtime/managed/plugins/market-data/widgets/instruments";
 export { binding } from "../../../runtime/managed/plugins/market-data/widgets/instruments";
 
 /** Observe the real canonical binding result even when shared UI would hide it. */
-export default function FinancialProbe(props: WidgetProps<InstrumentRead>) {
+export default function FinancialProbe(
+  props: WidgetProps<InstrumentRead, InstrumentWidgetOptions>,
+) {
   return (
     <div
       data-slot="canonical-binding-probe"

@@ -8,7 +8,6 @@ const rendererSchema = z
       .string()
       .max(129)
       .regex(/^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)?$/u),
-    asset: z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/u),
     presentation: z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/u),
   })
   .strict();
