@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "pythia-visual"
+    },
+    "version": {
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "presentation": {
+      "type": "object",
+      "properties": {
+        "plugin": {
+          "const": "pythia-vega-lite"
+        },
+        "widget": {
+          "const": "research-visual"
+        },
+        "input_contract": {
+          "const": "pythia.vega-lite.v1"
+        }
+      },
+      "required": [
+        "plugin",
+        "widget",
+        "input_contract"
+      ],
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "vega-lite"
+        },
+        "asOf": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "format": "date"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048,
+                "pattern": "^https?://"
+              },
+              "date": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10,
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "format": "date"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0,
+          "maxItems": 20
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "minItems": 0,
+          "maxItems": 20
+        },
+        "spec": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "A native Vega-Lite specification using inline data only. Supports layers, facets, transforms, bound parameters and selections."
+        },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 64,
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "description": "Optional saved scalar values for named top-level editable Vega-Lite variable parameters; selection and expression-derived parameters are excluded."
+        }
+      },
+      "required": [
+        "kind",
+        "asOf",
+        "sources",
+        "assumptions",
+        "spec"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "title",
+    "summary",
+    "presentation",
+    "data"
+  ],
+  "additionalProperties": false
+}

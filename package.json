@@ -15,7 +15,7 @@
     "check": "node tooling/run-turbo.mjs check",
     "check:boundaries": "node tooling/check-boundaries.mjs",
     "check:structure": "node tooling/check-structure.mjs",
-    "check:types": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project runtime/managed/runner/tsconfig.json",
+    "check:types": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project runtime/managed/runner/tsconfig.json && tsc --project runtime/tsconfig.widgets.json",
     "dev": "node tooling/run-turbo.mjs dev --parallel",
     "lint": "node tooling/run-biome.mjs",
     "test": "pnpm run test:fast && pnpm run test:system",
@@ -27,12 +27,15 @@
     "test:unit": "vitest run --config vitest.root.config.mts test/unit && node tooling/run-turbo.mjs test:unit"
   },
   "devDependencies": {
-    "@types/json-schema": "7.0.15",
     "@biomejs/biome": "catalog:",
+    "@pythia/market-data": "workspace:*",
+    "@types/json-schema": "7.0.15",
     "@types/node": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "@pythia/market-data": "workspace:*"
+    "vega": "6.4.0",
+    "vega-interpreter": "2.3.2",
+    "vega-lite": "6.4.3",
+    "vitest": "catalog:"
   }
 }

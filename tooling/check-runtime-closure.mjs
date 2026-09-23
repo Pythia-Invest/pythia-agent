@@ -10,9 +10,11 @@ import {
 } from "../scripts/install/systemd.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
 import { MANAGED_PLUGINS } from "../scripts/dev/managed-plugins.mjs";
-import { MANAGED_WIDGET_BUILDS } from "../scripts/dev/managed-widget-builds.mjs";
+import {
+  MANAGED_WIDGET_BUILDS,
+  MANAGED_NODE_BUILDS,
+} from "../scripts/dev/managed-widget-builds.mjs";
 import { assertManagedPluginSource } from "../scripts/dev/files.mjs";
-
 import {
   forbiddenPayloadText,
   isBuilderInstructionSource,
@@ -22,7 +24,6 @@ import {
   violations,
   walk,
 } from "./runtime-closure-policy.mjs";
-
 const syntheticEnvironment = {
   HOME: "/home/pythia-test",
   PYTHIA_CHECKOUT: root,
@@ -266,7 +267,10 @@ const installedRuntimeFiles = new Set([
   ...promptAndContextFiles,
 ]);
 const widgetBuilds = new Map(
-  MANAGED_WIDGET_BUILDS.map((build) => [build.output, build.entry]),
+  [...MANAGED_WIDGET_BUILDS, ...MANAGED_NODE_BUILDS].map((build) => [
+    build.output,
+    build.entry,
+  ]),
 );
 for (const path of installedRuntimeFiles) {
   const widgetSource = widgetBuilds.get(path);
@@ -390,7 +394,6 @@ if (!existsSync(join(nextRoot, "BUILD_ID"))) {
 if (violations.length > 0) {
   throw new Error(`Runtime closure check failed:\n${violations.join("\n")}`);
 }
-
 console.log(
   `Runtime closure check passed (${source.entries.length} source files; ${skillRoots.size} managed skills).`,
 );

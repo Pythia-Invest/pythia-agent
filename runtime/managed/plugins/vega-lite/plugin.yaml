@@ -1,0 +1,9 @@
+name: pythia-vega-lite
+version: 0.1.0
+description: Interactive Vega-Lite research visuals and portable snapshots
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_vega_lite
+  - pythia_vega_lite_widgets

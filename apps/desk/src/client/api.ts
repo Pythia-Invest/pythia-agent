@@ -1,3 +1,4 @@
+import { parseRunFrame } from "./run-protocol";
 import { BrowserRequest, DeskApiError, bodyError } from "./browser-request";
 export { DeskApiError } from "./browser-request";
 import { readLimitedBytes } from "./response-bytes";
@@ -8,6 +9,7 @@ import {
   type DataResource,
   type PluginRequest,
 } from "./data-protocol";
+import type { VisualPresentation } from "@/workspace/visual-artifact";
 import type { NativeSessionContext } from "@/workspace/session-context";
 import type { DeskRunStart, WorkspaceTurn } from "@/workspace/references";
 import type { DeskViewPublication } from "@/view-context/types";
@@ -21,7 +23,6 @@ import { workspaceContentUrl } from "@/workspace/paths";
 import type { Attachment } from "@/attachments";
 import type {
   ApprovalChoice,
-  DeskRunEvent,
   HermesMessagePage,
   HermesCapabilities,
   HermesSession,
@@ -34,20 +35,6 @@ import type {
 import type { HermesToolset } from "@/server/types";
 import type { DeskReleaseStatus } from "@/server/release-status";
 import type { ModelCatalog, ModelSelection } from "@/server/model-catalog";
-
-function parseFrame(frame: string) {
-  const data = frame
-    .split(/\r?\n/u)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n");
-  if (!data) return null;
-  try {
-    return JSON.parse(data) as DeskRunEvent;
-  } catch {
-    return null;
-  }
-}
 
 export class DeskApi extends BrowserRequest {
   async *dataUpdates(resources: DataResource[], signal: AbortSignal) {
@@ -117,6 +104,13 @@ export class DeskApi extends BrowserRequest {
   workspaceEntry(path: string, signal?: AbortSignal) {
     return this.json<WorkspaceEntry>(
       `/api/workspace/entry?${new URLSearchParams({ path })}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  widgetPresentation(plugin: string, signal?: AbortSignal) {
+    return this.json<VisualPresentation>(
+      `/api/plugins/${encodeURIComponent(plugin)}/widgets`,
       { ...(signal ? { signal } : {}) },
     );
   }
@@ -377,13 +371,13 @@ export class DeskApi extends BrowserRequest {
         const frames = buffer.split(/\r?\n\r?\n/u);
         buffer = frames.pop() ?? "";
         for (const frame of frames) {
-          const event = parseFrame(frame);
+          const event = parseRunFrame(frame);
           if (event) yield event;
         }
         if (done) break;
       }
       if (buffer.trim()) {
-        const event = parseFrame(buffer);
+        const event = parseRunFrame(buffer);
         if (event) yield event;
       }
     } finally {

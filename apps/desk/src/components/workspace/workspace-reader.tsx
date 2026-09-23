@@ -9,8 +9,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { WorkspaceReaderFrame } from "./workspace-reader-frame";
 import { useWorkspaceEntry, useWorkspaceText } from "@/client/queries";
 import { workspaceUrl } from "@/workspace/paths";
+import { isVisualArtifact } from "@/workspace/visual-artifact";
 import type { WorkspaceEntry } from "@/workspace/types";
 import {
   useWorkspaceReader,
@@ -41,11 +43,15 @@ export function WorkspaceReader({
     path,
     displayed?.revision ?? "",
     Boolean(
-      displayed?.previewable && ["markdown", "text"].includes(displayed.kind),
+      displayed?.previewable &&
+        ["markdown", "text"].includes(displayed.kind) &&
+        !isVisualArtifact(path),
     ),
   );
   const textual =
-    displayed?.previewable && ["markdown", "text"].includes(displayed.kind);
+    displayed?.previewable &&
+    ["markdown", "text"].includes(displayed.kind) &&
+    !isVisualArtifact(path);
   const displayedRevision =
     textual && content.data ? content.data.revision : displayed?.revision;
   const [updatedPath, setUpdatedPath] = useState<string | null>(null);
@@ -68,9 +74,10 @@ export function WorkspaceReader({
   const [readyRevision, setReadyRevision] = useState<string>();
   const previewReady =
     !displayed?.previewable ||
-    !["pdf", "csv", "spreadsheet", "document", "notebook"].includes(
-      displayed.kind,
-    ) ||
+    (!isVisualArtifact(path) &&
+      !["pdf", "csv", "spreadsheet", "document", "notebook"].includes(
+        displayed.kind,
+      )) ||
     readyRevision === displayed.revision;
   const onPreviewReady = useCallback(
     () => setReadyRevision(displayed?.revision),
@@ -264,10 +271,7 @@ export function WorkspaceReader({
     [onOpen, path],
   );
   return (
-    <section
-      data-slot="workspace-reader"
-      className="@container flex min-h-0 min-w-0 flex-1 flex-col"
-    >
+    <WorkspaceReaderFrame>
       {placement === "companion" || displayed?.kind !== "directory" ? (
         <WorkspaceToolbar
           path={path}
@@ -388,6 +392,6 @@ export function WorkspaceReader({
           ) : null}
         </div>
       </div>
-    </section>
+    </WorkspaceReaderFrame>
   );
 }

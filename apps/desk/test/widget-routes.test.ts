@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { MAX_WIDGET_ARTIFACT_BYTES } from "@pythia/widget-sdk/runtime";
 import { describe, expect, it, vi } from "vitest";
 import { HermesApiError } from "@/server/hermes";
 import { createWidgetRoutes } from "@/server/widget-routes";
@@ -139,7 +140,7 @@ describe("native widget asset admission", () => {
     expect((await routes.widgetAsset(request(), context)).status).toBe(502);
   });
 
-  it.each([undefined, 0, 1.5, 1_048_577])(
+  it.each([undefined, 0, 1.5, MAX_WIDGET_ARTIFACT_BYTES + 1])(
     "rejects missing or out-of-budget descriptor byte sizes (%s)",
     async (bytes) => {
       const routes = createWidgetRoutes(async () => ({
