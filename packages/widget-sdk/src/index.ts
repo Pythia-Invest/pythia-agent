@@ -31,3 +31,25 @@ export type {
   WidgetAppearance,
   WidgetProps,
 } from "./types";
+
+export {
+  Button,
+  Menu,
+  Tabs,
+  TabsList,
+  Tab,
+  TabPanel,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableCaption,
+} from "@pythia/ui";
+export {
+  WidgetToolbar,
+  WidgetToolbarProvider,
+  WidgetToolbarOutlet,
+  WidgetScope,
+} from "./toolbar";

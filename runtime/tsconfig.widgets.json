@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "paths": {
+      "react": ["../apps/desk/node_modules/@types/react"],
+      "react/*": ["../apps/desk/node_modules/@types/react/*"],
+      "@pythia/widget-sdk": ["../packages/widget-sdk/src/index.ts"],
+      "@pythia/market-data/widgets": ["../packages/market-data/src/widgets/index.ts"]
+    }
+  },
+  "include": ["managed/plugins/*/widgets/**/*.ts", "managed/plugins/*/widgets/**/*.tsx"]
+}

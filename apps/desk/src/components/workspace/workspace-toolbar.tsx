@@ -1,5 +1,6 @@
 "use client";
 
+import { WidgetToolbarOutlet } from "@pythia/widget-sdk";
 import { Download } from "lucide-react";
 import type { ReactNode } from "react";
 import { workspaceContentUrl } from "@/workspace/paths";
@@ -38,6 +39,7 @@ export function WorkspaceToolbar({
           onOpen={onOpen}
         />
       </div>
+      <WidgetToolbarOutlet />
       {reference}
       {file ? (
         <a

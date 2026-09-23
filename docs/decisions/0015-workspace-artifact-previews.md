@@ -1,5 +1,9 @@
 # ADR 0015: Passive workspace artifact previews
 
+[ADR 0035](0035-conversational-research-visuals.md) adds a bounded JSON visual
+format rendered by an enabled, installed plugin. The passive execution policy
+below remains in force for HTML, SVG, notebooks and ordinary documents.
+
 ## Context
 
 Research artifacts include scripts, financial models, notebooks and documents.

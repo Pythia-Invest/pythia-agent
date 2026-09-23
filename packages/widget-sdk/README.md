@@ -159,6 +159,11 @@ asset in the feature payload. Adding another supplied feature also requires its
 explicit lifecycle build/copy declaration. A community package ships its compiled
 assets with its normal native plugin installation. Runtime reads do not build it.
 
+Compiled modules are bounded to 1 MiB, including code and styles. The research
+visual renderer demonstrates the need for a locally bundled chart library;
+modules remain loaded only when used. All delivery boundaries enforce the same
+budget. See [ADR 0035](../../docs/decisions/0035-conversational-research-visuals.md).
+
 Desk reads that operation through protected transport, then serves the declared
 asset at a content-digest URL. It verifies the returned digest and rechecks native
 access before publishing bytes. Loaded-code caching is independent of permission
@@ -196,3 +201,18 @@ boundaries need an actual production host check, not only a component fixture.
 
 See [ADR 0032](../../docs/decisions/0032-local-widget-sdk.md) for ownership,
 compatibility and the rejected alternatives.
+
+## Reader actions and shared controls
+
+`Button`, `Menu`, `Tabs`/`TabsList`/`Tab`/`TabPanel`, and native `Table` parts
+are public SDK exports backed by the host's shared UI. Use them for controls;
+do not bundle a second UI implementation.
+
+A widget may place compact commands inside `WidgetToolbar`. The reader supplies
+one `WidgetToolbarProvider` and `WidgetToolbarOutlet`; a React portal places the
+commands in that existing toolbar and removes them with the widget. Standalone
+hosts without a provider render the same commands locally. `WidgetScope` is a
+host concern: it preserves the compiled stylesheet scope around toolbar content.
+Shared overlay components own their portal styling; do not rely on widget-scoped
+CSS reaching a document-level menu portal. This is placement, not an action
+registry or a new transport, and gives generated visual files no new authority.

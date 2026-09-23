@@ -1,3 +1,4 @@
+import { inheritProviderDefaults } from "./provider-defaults.mjs";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -158,8 +159,13 @@ export function inheritModelDefaults(
     typeof current === "string"
       ? current.trim()
       : current && Object.keys(current).length
-  )
+  ) {
+    // Fill only a missing named route. Existing selections, provider overrides
+    // and credential choices remain native profile-owned configuration.
+    if (current && typeof current === "object")
+      inheritProviderDefaults(paths, apiKey, current.provider, execute);
     return false;
+  }
   const shared = JSON.parse(
     execute(
       paths,
@@ -185,6 +191,7 @@ export function inheritModelDefaults(
     }
     selection[key] = value;
   }
+  inheritProviderDefaults(paths, apiKey, selection.provider, execute);
   // Upstream treats bare `model` as string-typed even for a JSON object.
   // Dotted native setters create the mapping without writing YAML ourselves.
   for (const [key, value] of Object.entries(selection)) {

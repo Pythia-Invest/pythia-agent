@@ -331,3 +331,19 @@ preparation replaces dependencies or owned services. Preview is read-only;
 staging preserves notes/configuration and the old usable environment. Fresh
 native-session guidance evidence is required before retirement. Routine startup
 does not migrate personal notes or overwrite user-owned instruction seeds.
+
+## Shared custom model providers
+
+Configure the selected custom provider once in Pythia's default Hermes profile,
+then add its credential centrally with `just auth custom:<name> api-key`. New
+worktrees inherit supported non-secret routing and use Hermes' native root
+authentication fallback. A root `.env` value alone does not supply fresh named
+profiles; register it with native authentication rather than copying `.env`.
+
+`just dev-init`/ordinary preparation fills a missing selected custom-provider
+route, including in existing worktrees, while preserving existing model choices
+and all configured provider overrides. Routing defaults are copied when absent,
+not synchronized over local settings. Credentials remain independently
+changeable; no authentication or inference probe is part of readiness. See
+[ADR 0036](decisions/0036-shared-development-provider-defaults.md) for supported
+routing fields, native profile credential precedence and limits.

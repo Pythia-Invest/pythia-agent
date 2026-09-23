@@ -76,7 +76,9 @@ function WidgetContent({
   const Component = widget.Component;
   return (
     <div data-slot="widget-content" data-pythia-widget={widget.metadata.scope}>
-      <Component {...props} />
+      <WidgetSdk.WidgetScope scope={widget.metadata.scope}>
+        <Component {...props} />
+      </WidgetSdk.WidgetScope>
     </div>
   );
 }

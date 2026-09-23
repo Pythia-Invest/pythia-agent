@@ -3,11 +3,12 @@ import { admitBrowserRequest } from "./admission";
 import { profileFrom } from "./device-settings-native";
 import { createHermesRequest, HermesApiError } from "./hermes";
 import { result, routeError } from "./route-utils";
+import { MAX_WIDGET_ARTIFACT_BYTES } from "@pythia/widget-sdk/runtime";
 
 const pluginPattern = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)?$/u;
 const assetPattern = /^[a-z][a-z0-9_-]{0,63}$/u;
 const digestPattern = /^[a-f0-9]{64}$/u;
-const moduleLimit = 1_048_576;
+const moduleLimit = MAX_WIDGET_ARTIFACT_BYTES;
 type RouteContext = { params: Promise<Record<string, string>> };
 type WidgetRead = (
   plugin: string,
@@ -52,7 +53,7 @@ export function createWidgetReader(): WidgetRead {
         const { value, done } = await reader.read();
         if (done) break;
         length += value.byteLength;
-        // JSON escaping can expand the admitted 1 MiB UTF-8 module.
+        // JSON escaping can expand the admitted UTF-8 module.
         if (length > moduleLimit * 6 + 65_536) throw invalidNative();
         chunks.push(value);
       }

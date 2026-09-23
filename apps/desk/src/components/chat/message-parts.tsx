@@ -5,6 +5,7 @@ import { useCodeHighlight } from "@/components/workspace/previews/code";
 import { CHAT_MARKDOWN_SANITIZER } from "@/components/workspace/markdown-policy";
 
 import { ChatArtifactLink } from "@/components/workspace/workspace-link";
+import { VisualParagraph } from "./visual-paragraph";
 import { Button, cn } from "@pythia/ui";
 import { Streamdown } from "streamdown";
 import { useState } from "react";
@@ -29,7 +30,7 @@ import { ChatError, ChatNote } from "./chat-status";
  * deciding whether to re-render.
  */
 const ARTIFACT_REHYPE = [CHAT_MARKDOWN_SANITIZER];
-const ARTIFACT_COMPONENTS = { a: ChatArtifactLink };
+const ARTIFACT_COMPONENTS = { a: ChatArtifactLink, p: VisualParagraph };
 
 export const LINK_SAFETY = { enabled: true, onLinkCheck: () => true } as const;
 

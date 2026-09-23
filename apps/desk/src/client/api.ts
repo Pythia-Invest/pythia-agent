@@ -8,6 +8,7 @@ import {
   type DataResource,
   type PluginRequest,
 } from "./data-protocol";
+import type { VisualPresentation } from "@/workspace/visual-artifact";
 import type { NativeSessionContext } from "@/workspace/session-context";
 import type { DeskRunStart, WorkspaceTurn } from "@/workspace/references";
 import type { DeskViewPublication } from "@/view-context/types";
@@ -102,6 +103,13 @@ export class DeskApi extends BrowserRequest {
   workspaceEntry(path: string, signal?: AbortSignal) {
     return this.json<WorkspaceEntry>(
       `/api/workspace/entry?${new URLSearchParams({ path })}`,
+      { ...(signal ? { signal } : {}) },
+    );
+  }
+
+  widgetPresentation(plugin: string, signal?: AbortSignal) {
+    return this.json<VisualPresentation>(
+      `/api/plugins/${encodeURIComponent(plugin)}/widgets`,
       { ...(signal ? { signal } : {}) },
     );
   }

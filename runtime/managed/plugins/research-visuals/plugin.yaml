@@ -1,0 +1,9 @@
+name: pythia-research-visuals
+version: 0.1.0
+description: Interactive Vega-Lite research visuals and portable snapshots
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_research_visual
+  - pythia_research_visual_widgets

@@ -72,6 +72,17 @@ and invalidation cost, using the smallest solution that meets the need.
 
 ## Workspace and conversation
 
+The supplied [Research visuals plugin](research-visuals.md) creates interactive
+figures from native Vega-Lite specifications: charts, annotated comparisons,
+forecast scenarios and bounded parameter-driven calculations. Clickable chat
+previews open in the existing companion reader; Workspace reopens the same
+ordinary files. Data, assumptions and source dates stay with the visual.
+Working figures can be retained with a case, and native tools revise them with
+content-revision checks. Browser parameter changes can be downloaded or copied
+into chat; they do not silently change saved research or become agent context.
+See [ADR 0035](decisions/0035-conversational-research-visuals.md) for the first
+version's scope, library choice and trust boundary.
+
 Workspace is the persistent place behind conversation: one ordinary file tree
 for working material and durable research. Desk makes outputs tangible through
 a companion viewer beside chat and a standalone explorer with fuzzy filename and

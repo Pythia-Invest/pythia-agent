@@ -1,6 +1,10 @@
 "use client";
 
 import { workspaceKeys } from "@/workspace/query-keys";
+import {
+  parseVisualArtifact,
+  VISUAL_ARTIFACT_BYTES,
+} from "@/workspace/visual-artifact";
 export { workspaceKeys } from "@/workspace/query-keys";
 
 import {
@@ -11,6 +15,7 @@ import {
 } from "@tanstack/react-query";
 import { historyToMessages } from "./chat-message";
 import { useDeskApi } from "./providers";
+import { DeskApiError } from "./browser-request";
 import { useCallback } from "react";
 
 import { deskKeys, MESSAGE_PAGE_SIZE } from "./query-cache";
@@ -135,6 +140,51 @@ export function useWorkspaceEntry(path: string) {
     queryFn: ({ signal }) => api.workspaceEntry(path, signal),
     refetchInterval: 5_000,
     refetchOnWindowFocus: true,
+  });
+}
+
+/** Historical visuals are snapshots; opening one does not poll its data. */
+export function useVisualArtifact(
+  path: string,
+  revision: string,
+  enabled = true,
+) {
+  const api = useDeskApi();
+  return useQuery({
+    queryKey: ["workspace", "visual", path, revision],
+    queryFn: async ({ signal }) => {
+      const bytes = await api.workspaceBytes(
+        path,
+        revision,
+        VISUAL_ARTIFACT_BYTES,
+        signal,
+      );
+      return parseVisualArtifact(
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+      );
+    },
+    enabled: enabled && Boolean(revision),
+    gcTime: 30_000,
+    retry: false,
+  });
+}
+
+/** Cached code is not authority. Each mounted host rechecks enablement and
+ * withdraws the renderer if native access is revoked or cannot be verified. */
+export function useVisualPresentation(plugin: string) {
+  const api = useDeskApi();
+  return useQuery({
+    queryKey: ["widget-presentation", plugin],
+    queryFn: ({ signal }) => api.widgetPresentation(plugin, signal),
+    staleTime: 0,
+    gcTime: 0,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+    // A cancelled native read may still be releasing its worker on remount.
+    // Only retry admission pressure; permission/enablement failures stay terminal.
+    retry: (failures, error) =>
+      failures < 2 && error instanceof DeskApiError && error.status === 429,
+    retryDelay: 1_000,
   });
 }
 

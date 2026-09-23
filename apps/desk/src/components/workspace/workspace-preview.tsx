@@ -3,6 +3,11 @@
 import dynamic from "next/dynamic";
 import { RasterPreview } from "./previews/image";
 import { CodePreview } from "./previews/code";
+import { isVisualArtifact } from "@/workspace/visual-artifact";
+const VisualPreview = dynamic(() => import("./previews/visual"), {
+  ssr: false,
+  loading: () => <p role="status">Loading visual…</p>,
+});
 const ParsedPreview = dynamic(() => import("./previews/parsed"), {
   ssr: false,
   loading: () => <p role="status">Loading preview…</p>,
@@ -62,6 +67,14 @@ export function WorkspacePreview({
         key={entry.revision}
         url={contentUrl(entry)}
         entry={entry}
+      />
+    );
+  if (entry.kind === "text" && isVisualArtifact(entry.path))
+    return (
+      <VisualPreview
+        key={`${entry.path}:${entry.revision}`}
+        entry={entry}
+        onReady={onReady}
       />
     );
   if (entry.kind === "pdf")
