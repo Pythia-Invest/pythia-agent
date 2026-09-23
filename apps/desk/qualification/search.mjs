@@ -17,11 +17,16 @@ import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
 import { createQualificationProcesses } from "./processes.mjs";
 import { buildWidget } from "../../../packages/widget-sdk/build.mjs";
-import { search, adopted } from "./search-fixture.mjs";
+import { adopted, sendSearchUpdate } from "./search-fixture.mjs";
 import {
   createTopBarLifecycleFixture,
   qualifyTopBarLifecycle,
 } from "./search-topbar-lifecycle.mjs";
+
+import {
+  createSearchPerformanceProbe,
+  qualifySearchPerformance,
+} from "./search-performance.mjs";
 
 const require = createRequire(import.meta.url);
 const desk = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,6 +45,7 @@ deadline.unref();
 const processes = createQualificationProcesses(abort.signal);
 let browser, native;
 const requests = [];
+const performanceProbe = createSearchPerformanceProbe();
 let denied = false,
   releaseAdoption,
   pendingSearch = false,
@@ -105,11 +111,6 @@ try {
   await mkdir(join(workspace, "desk"), { recursive: true });
   const topBarConfig = join(workspace, "desk/top-bar.json");
   const lifecycleFixture = await createTopBarLifecycleFixture(root, temporary);
-  const events = (res, data) => {
-    res.write(
-      `data: ${JSON.stringify({ schema_version: 1, index: 0, generation: "qualification", revision: 1, type: "snapshot", state: "ready", data })}\n\n`,
-    );
-  };
   native = createServer(async (req, res) => {
     assert.equal(req.headers.authorization, "Bearer synthetic-search-key");
     const chunks = [];
@@ -117,6 +118,7 @@ try {
     const payload = Buffer.concat(chunks).toString();
     const body = payload ? JSON.parse(payload) : {};
     requests.push(body);
+    performanceProbe.native(req.url, body);
     if (denied) {
       res.writeHead(403, { "content-type": "application/json" }).end(
         JSON.stringify({
@@ -165,9 +167,9 @@ try {
         });
         return;
       }
-      events(res, {
+      sendSearchUpdate(res, {
         progress: [{ provider: "synthetic", status: "ok", elapsed_ms: 1 }],
-        result: search(query),
+        result: performanceProbe.search(query),
       });
       return;
     }
@@ -197,7 +199,7 @@ try {
         });
         return;
       }
-      res.end(JSON.stringify(search(body.arguments.query)));
+      res.end(JSON.stringify(performanceProbe.search(body.arguments.query)));
     } else if (body.arguments.action === "adopt_search") {
       assert.equal(body.read_only, undefined);
       releaseAdoption = () => res.end(JSON.stringify(adopted()));
@@ -245,7 +247,11 @@ try {
       });
     return route.continue();
   });
-  await page.goto(origin);
+  const performanceEvidence = await qualifySearchPerformance(
+    page,
+    origin,
+    performanceProbe,
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   const lifecycleEvidence = await qualifyTopBarLifecycle({
     page,
@@ -363,6 +369,7 @@ try {
     JSON.stringify(
       {
         ...lifecycleEvidence,
+        searchPerformance: performanceEvidence,
         productionSearch: true,
         nativeReadAndAdopt: true,
         keyboardAndNarrow: true,

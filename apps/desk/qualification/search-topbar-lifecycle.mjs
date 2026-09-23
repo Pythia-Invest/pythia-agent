@@ -88,7 +88,6 @@ export async function qualifyTopBarLifecycle({ page, fixture, topBarConfig }) {
       version: 1,
       renderer: {
         plugin: "qualification-top-bar",
-        asset: "probe",
         presentation: "probe",
       },
     }),

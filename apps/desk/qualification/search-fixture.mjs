@@ -89,3 +89,9 @@ export function adopted() {
     },
   };
 }
+
+export function sendSearchUpdate(res, data) {
+  res.write(
+    `data: ${JSON.stringify({ schema_version: 1, index: 0, generation: "qualification", revision: 1, type: "snapshot", state: "ready", data })}\n\n`,
+  );
+}
