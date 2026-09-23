@@ -13,11 +13,12 @@ async def qualify_widget_presentations(post, disable, root):
     metadata = result['data']
     assert metadata['version'] == 1
     assert {row['id'] for row in metadata['widgets']} == {
-        'instrument-tile', 'instrument-compact-tile', 'instrument-table'}
+        'instrument-tile', 'instrument-compact-tile', 'instrument-table', 'top-bar'}
     for descriptor in metadata['widgets']:
-        assert descriptor['input_contract'] == 'pythia.instrument-read.v1'
-        assert descriptor['asset'] == 'instruments'
-    assert len(metadata['assets']) == 1
+        top_bar = descriptor['id'] == 'top-bar'
+        assert descriptor['input_contract'] == ('pythia.desk-topbar.v1' if top_bar else 'pythia.instrument-read.v1')
+        assert descriptor['asset'] == ('top-bar' if top_bar else 'instruments')
+    assert {asset['id'] for asset in metadata['assets']} == {'instruments', 'top-bar'}
     for asset in metadata['assets']:
         response = await post({'asset': asset['id']}, path, read_only=True)
         assert response.status == 200, await response.text()

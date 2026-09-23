@@ -108,9 +108,10 @@ associations unresolved. No reference-data provider is needed for ordinary
 search or source-bound selection. The shared financial contracts and widgets
 continue to support source-bound and canonical reads.
 
-Parallel external searches still wait for the current bounded aggregate response;
-progressive publication is not implemented here. Removing reconciliation reduces
-work but does not guarantee subsecond latency from every remote provider.
+Parallel external searches publish source progress as it arrives. Result rows
+wait for the bounded aggregate response so network timing does not change their
+ranking. Removing reconciliation reduces work but does not guarantee subsecond
+latency from every remote provider.
 
 This increment does not implement a complete issuer/instrument/listing relationship
 graph, merge existing subjects destructively, or add a financial detail page.
