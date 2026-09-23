@@ -2,10 +2,6 @@ import { BrowserRequest, DeskApiError, bodyError } from "./browser-request";
 export { DeskApiError } from "./browser-request";
 import { readLimitedBytes } from "./response-bytes";
 import type { ReadInput } from "@pythia/market-data";
-import {
-  investmentAdoptResponseSchema,
-  type InvestmentAdoptRequest,
-} from "@pythia/market-data/search";
 import type { FinancialRead } from "@pythia/market-data/widgets/contract";
 import {
   readDataUpdates,
@@ -54,14 +50,6 @@ function parseFrame(frame: string) {
 }
 
 export class DeskApi extends BrowserRequest {
-  async adoptInvestment(input: InvestmentAdoptRequest) {
-    return investmentAdoptResponseSchema.parse(
-      await this.json<unknown>("/api/markets/adopt", {
-        method: "POST",
-        body: JSON.stringify(input),
-      }),
-    );
-  }
   async *dataUpdates(resources: DataResource[], signal: AbortSignal) {
     if (!this.csrfToken) await this.initialize();
     const response = await fetch("/api/data/updates", {
