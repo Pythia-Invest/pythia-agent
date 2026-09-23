@@ -196,3 +196,60 @@ boundaries need an actual production host check, not only a component fixture.
 
 See [ADR 0032](../../docs/decisions/0032-local-widget-sdk.md) for ownership,
 compatibility and the rejected alternatives.
+
+## Replace the Desk top bar
+
+A complete header is an ordinary compiled native widget with input contract
+`pythia.desk-topbar.v1`. Start from [examples/top-bar.tsx](examples/top-bar.tsx)
+and compile it with the same `pnpm widget:build <entry.tsx> <asset.mjs>` command.
+Declare the asset and a presentation in the native package's existing `widgets`
+export. No Desk rebuild or new plugin registry is needed.
+
+Create `desk/top-bar.json` in the configured workspace:
+
+```json
+{
+  "version": 1,
+  "renderer": {
+    "plugin": "example-research",
+    "asset": "header",
+    "presentation": "topbar"
+  },
+  "settings": { "prompt": "Help me explore a research question." }
+}
+```
+
+The native presentation must declare `id: topbar`, `asset: header`, and
+`input_contract: pythia.desk-topbar.v1`. Settings are bounded JSON passed to the
+module; the author owns their semantics. Set `renderer` to `null` to choose the
+core header explicitly. Removing the file restores the product default.
+Configuration and native availability refresh on focus and every 15 seconds;
+invalid settings or unavailable modules restore the core controls with a status
+message, preserving the file for correction.
+
+`TopBarProps` is `WidgetProps<TopBarContext>`. Its `data` supplies `title`, `query`,
+`onQueryChange`, host `actions`, available `{id,title}` chat summaries, `openChat`,
+`prepareChat`, and `transport`. Keep the supplied actions reachable in narrow
+layouts: they include mobile navigation. `prepareChat(text)` appends to an unsent
+new-chat draft and focuses it; it never sends. Chat summaries cover the currently
+available native list, not complete history.
+
+`transport.read(request, signal?)`, `transport.invoke(request, signal?)`, and
+`transport.updates(resources, signal)` use protected native plugin exports. Requests
+carry `{plugin, operation, arguments}`; update resources may add `window`. Read and
+update calls enforce read-only eligibility; call `invoke` only from a deliberate
+user action. Native ownership and permission checks are authoritative for each
+operation. Transport requests are cancelled when the contribution is withdrawn.
+
+The SDK exports Desk's actual `useQuery`, `useMutation`, `useQueryClient`, `Button`,
+`EmptyState`, `Popover`, and `Skeleton`. Feature data keys start with
+`['plugin', nativePluginId, ...]` to participate in settings-change withdrawal.
+Consume cancellation in queries, revalidate native access before presenting
+retained data, and show native denial as unavailable. The SDK Popover portal
+preserves scoped author styles while using the shared popup implementation.
+
+A feature may publish reusable source components that another plugin bundles into
+its artifact through ordinary imports. This is a build dependency, not runtime
+module discovery. Declare any backend plugin dependency through native
+`requires_plugins` and handle unavailable operations; that declaration does not
+install a package or grant access to it. See [ADR 0036](../../docs/decisions/0036-replaceable-desk-top-bar.md).

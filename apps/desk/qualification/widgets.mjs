@@ -154,6 +154,17 @@ try {
     const second = page.getByRole("region", { name: "Instance 2" });
     await expect(first.getByText("React identity: true")).toBeVisible();
     await expect(second.getByText("UI identity: true")).toBeVisible();
+    await expect(first.getByText("Query context identity: true")).toBeVisible();
+    await first.getByRole("button", { name: "Open scoped popup" }).click();
+    const scopedPopup = page.locator('[data-slot="popover-popup"]');
+    await expect(scopedPopup.getByText("Scoped widget popup")).toBeVisible();
+    assert.equal(
+      await scopedPopup.evaluate(
+        (element) => getComputedStyle(element).paddingTop,
+      ),
+      "23px",
+    );
+    await page.getByRole("button", { name: "Close popup" }).click();
     await expect(first.getByText("host-context-0")).toBeVisible();
     assert.equal(await page.locator("iframe").count(), 0);
     assert.equal(assetReads.get("probe"), 1);
