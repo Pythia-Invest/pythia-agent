@@ -6,6 +6,7 @@ import {
   QueryClient,
   QueryClientProvider,
   useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 import { WidgetHost } from "@/components/widgets/widget-host";
 
@@ -20,6 +21,7 @@ const item = {
 };
 
 function Harness() {
+  const hostQueryClient = useQueryClient();
   const [revision, setRevision] = useState(0);
   const [visible, setVisible] = useState(true);
   const [crash, setCrash] = useState(false);
@@ -102,6 +104,7 @@ function Harness() {
                 data={{
                   context: SharedContext,
                   hostUseState: useState,
+                  hostQueryClient,
                   hostInstrumentPrice: InstrumentPrice,
                   item,
                   crash: index === 0 && crash,

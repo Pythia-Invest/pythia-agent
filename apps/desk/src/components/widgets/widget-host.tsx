@@ -4,7 +4,10 @@ import * as React from "react";
 import * as ReactDom from "react-dom";
 import * as JsxRuntime from "react/jsx-runtime";
 import * as WidgetSdk from "@pythia/widget-sdk";
-import type { WidgetHost as WidgetRuntime } from "@pythia/widget-sdk/runtime";
+import {
+  WidgetStyleScope,
+  type WidgetHost as WidgetRuntime,
+} from "@pythia/widget-sdk/runtime";
 import {
   createWidgetModuleLoader,
   type LoadedWidget,
@@ -43,8 +46,16 @@ function retainStyles(widget: LoadedWidget) {
   };
 }
 
+type WidgetFallback =
+  | React.ReactNode
+  | ((retry?: () => void) => React.ReactNode);
+
 class WidgetErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  {
+    children: React.ReactNode;
+    fallback?: WidgetFallback;
+    onError?: (() => void) | undefined;
+  },
   { failed: boolean }
 > {
   override state = { failed: false };
@@ -53,15 +64,23 @@ class WidgetErrorBoundary extends React.Component<
     return { failed: true };
   }
 
+  override componentDidCatch() {
+    this.props.onError?.();
+  }
+
   override render() {
-    return this.state.failed ? (
-      <p role="status" className="text-error text-xs">
-        Widget could not be displayed. Update its renderer or restore the
-        default.
-      </p>
-    ) : (
-      this.props.children
-    );
+    const fallback =
+      typeof this.props.fallback === "function"
+        ? this.props.fallback(() => this.setState({ failed: false }))
+        : this.props.fallback;
+    return this.state.failed
+      ? (fallback ?? (
+          <p role="status" className="text-error text-xs">
+            Widget could not be displayed. Update its renderer or restore the
+            default.
+          </p>
+        ))
+      : this.props.children;
   }
 }
 
@@ -76,7 +95,9 @@ function WidgetContent({
   const Component = widget.Component;
   return (
     <div data-slot="widget-content" data-pythia-widget={widget.metadata.scope}>
-      <Component {...props} />
+      <WidgetStyleScope value={widget.metadata.scope}>
+        <Component {...props} />
+      </WidgetStyleScope>
     </div>
   );
 }
@@ -132,12 +153,17 @@ export function LoadedWidgetHost({
   name,
   widget,
   embedded = false,
+  fallback,
+  onError,
   ...props
 }: WidgetSdk.WidgetProps<unknown> & {
   moduleUrl: string;
   name: string;
   widget: LoadedWidget;
   embedded?: boolean;
+  fallback?: WidgetFallback;
+  loadingFallback?: React.ReactNode;
+  onError?: (() => void) | undefined;
 }) {
   const Root = embedded ? "div" : "section";
   return (
@@ -148,6 +174,8 @@ export function LoadedWidgetHost({
     >
       <WidgetErrorBoundary
         key={JSON.stringify([moduleUrl, props.presentation])}
+        fallback={fallback}
+        onError={onError}
       >
         <WidgetContent widget={widget} props={props} />
       </WidgetErrorBoundary>
@@ -159,13 +187,22 @@ export function WidgetHost({
   moduleUrl,
   name,
   embedded = false,
+  fallback,
+  loadingFallback,
+  onError,
   ...props
 }: WidgetSdk.WidgetProps<unknown> & {
   moduleUrl: string;
   name: string;
   embedded?: boolean;
+  fallback?: WidgetFallback;
+  loadingFallback?: React.ReactNode;
+  onError?: (() => void) | undefined;
 }) {
   const active = useWidgetModule(moduleUrl);
+  React.useEffect(() => {
+    if (active?.error) onError?.();
+  }, [active?.error, onError]);
   if (active?.widget) {
     return (
       <LoadedWidgetHost
@@ -173,10 +210,15 @@ export function WidgetHost({
         name={name}
         widget={active.widget}
         embedded={embedded}
+        fallback={fallback}
+        onError={onError}
         {...props}
       />
     );
   }
+  if (!active?.error && loadingFallback !== undefined) return loadingFallback;
+  if (fallback !== undefined)
+    return typeof fallback === "function" ? fallback(active?.retry) : fallback;
   const Root = embedded ? "div" : "section";
   return (
     <Root

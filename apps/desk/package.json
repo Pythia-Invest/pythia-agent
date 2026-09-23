@@ -7,8 +7,8 @@
     "check": "next typegen && tsc --noEmit --project tsconfig.json",
     "dev": "node scripts/pdf-assets.mjs && next dev --webpack",
     "test": "pnpm run test:unit && pnpm run test:integration",
-    "test:integration": "vitest run test/device-settings.test.ts test/model-initialization.test.ts test/attachments.test.ts test/workspace-files.test.ts test/desk-view.test.ts test/native-session-context.test.ts test/workspace-reader-integration.test.tsx test/workspace-turn-context.test.ts",
-    "test:unit": "tsc --noEmit --project tsconfig.test.json && vitest run --passWithNoTests --exclude test/device-settings.test.ts --exclude test/model-initialization.test.ts --exclude test/attachments.test.ts --exclude test/workspace-files.test.ts --exclude test/desk-view.test.ts --exclude test/native-session-context.test.ts --exclude test/workspace-reader-integration.test.tsx --exclude test/workspace-turn-context.test.ts",
+    "test:integration": "vitest run test/top-bar-routes.test.ts test/device-settings.test.ts test/model-initialization.test.ts test/attachments.test.ts test/workspace-files.test.ts test/desk-view.test.ts test/native-session-context.test.ts test/workspace-reader-integration.test.tsx test/workspace-turn-context.test.ts",
+    "test:unit": "tsc --noEmit --project tsconfig.test.json && vitest run --passWithNoTests --exclude test/top-bar-routes.test.ts --exclude test/device-settings.test.ts --exclude test/model-initialization.test.ts --exclude test/attachments.test.ts --exclude test/workspace-files.test.ts --exclude test/desk-view.test.ts --exclude test/native-session-context.test.ts --exclude test/workspace-reader-integration.test.tsx --exclude test/workspace-turn-context.test.ts",
     "test:e2e": "playwright test",
     "test:qualification:widgets": "node qualification/widgets.mjs",
     "test:qualification:data": "node qualification/data.mjs"

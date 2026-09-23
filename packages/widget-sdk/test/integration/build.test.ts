@@ -225,3 +225,34 @@ test("unsupported host imports and missing SDK exports fail before replacing a m
     expect(await readFile(output, "utf8")).toBe("Prior widget");
   }
 });
+
+test("top-bar hooks and shared controls receive host exports without another query context", async () => {
+  const directory = await project();
+  const entry = join(directory, "topbar.tsx");
+  const output = join(directory, "topbar.mjs");
+  await writeFile(
+    entry,
+    `
+    import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+    import { Button, EmptyState, Popover, Skeleton } from "@pythia/widget-sdk";
+    export default function TopBar() { return null; }
+    TopBar.identity = { useQuery, useMutation, useQueryClient, Button, EmptyState, Popover, Skeleton };
+  `,
+  );
+  await buildWidget(entry, output);
+  const artifact: unknown = await import(pathToFileURL(output).href);
+  assertWidgetModule(artifact, host);
+  const { Component } = artifact.createWidget(host);
+  expect(
+    (Component as typeof Component & { identity: unknown }).identity,
+  ).toEqual({
+    useQuery: sdk.useQuery,
+    useMutation: sdk.useMutation,
+    useQueryClient: sdk.useQueryClient,
+    Button: sdk.Button,
+    EmptyState: sdk.EmptyState,
+    Popover: sdk.Popover,
+    Skeleton: sdk.Skeleton,
+  });
+  expect((await readFile(output, "utf8")).length).toBeLessThan(15_000);
+});

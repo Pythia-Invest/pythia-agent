@@ -1,3 +1,4 @@
+export { WidgetStyleScope } from "./scope";
 import type { ComponentType } from "react";
 import {
   MAX_WIDGET_ARTIFACT_BYTES,

@@ -31,6 +31,15 @@ export function useChangeDeviceSetting() {
   const api = useDeskApi();
   const cache = useQueryClient();
   return useMutation({
+    mutationKey: ["native-settings"],
+    onMutate: async () => {
+      // Withdraw native contribution data while restart/readback changes authority.
+      cache.setQueryData(deskKeys.topBar, { renderer: null, settings: {} });
+      await cache.cancelQueries({ queryKey: deskKeys.plugins });
+      cache.removeQueries({ queryKey: deskKeys.plugins });
+      await cache.cancelQueries({ queryKey: deskKeys.topBar });
+      cache.setQueryData(deskKeys.topBar, { renderer: null, settings: {} });
+    },
     mutationFn: async (change: SettingChange) => {
       switch (change.kind) {
         case "skill":
@@ -39,11 +48,15 @@ export function useChangeDeviceSetting() {
           return api.setToolsetEnabled(change.name, change.enabled);
       }
     },
-    onSuccess: async () => {
+    onSettled: async () => {
       await Promise.all(
-        [deskKeys.settings, deskKeys.models, deskKeys.capabilities].map(
-          (queryKey) => cache.invalidateQueries({ queryKey }),
-        ),
+        [
+          deskKeys.settings,
+          deskKeys.models,
+          deskKeys.capabilities,
+          deskKeys.topBar,
+          deskKeys.plugins,
+        ].map((queryKey) => cache.invalidateQueries({ queryKey })),
       );
     },
   });
