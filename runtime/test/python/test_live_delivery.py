@@ -15,6 +15,26 @@ LiveReads = live.LiveReads
 
 
 class Delivery(unittest.IsolatedAsyncioTestCase):
+    async def test_push_notification_wakes_delivery_immediately(self):
+        subscribed, published = asyncio.Queue(), asyncio.Queue()
+        async def access(_): return 'allowed'
+        async def read(_): raise AssertionError('Push must not poll')
+        async def subscribe(_, publish):
+            subscribed.put_nowait(publish)
+            return lambda: None
+        async def publish(_, event): published.put_nowait(event)
+        hub = LiveReads(read, access, subscribe=subscribe)
+        try:
+            await hub.attach([{'operation': 'synthetic', 'arguments': {}}], publish)
+            receive = await asyncio.wait_for(subscribed.get(), 1)
+            # A worker-thread notification must reach the consumer without the
+            # one-second idle access check delaying each pushed result.
+            await asyncio.to_thread(receive, {'type': 'snapshot', 'state': 'ready', 'data': 42})
+            event = await asyncio.wait_for(published.get(), .5)
+            self.assertEqual(event['data'], 42)
+        finally:
+            await hub.close()
+
     async def test_push_reconnect_honors_retry_delay_and_cancels_when_unused(self):
         for state, delay in (('stale', 120), ('unavailable', 600)):
             with self.subTest(state=state):
@@ -34,8 +54,8 @@ class Delivery(unittest.IsolatedAsyncioTestCase):
                     return lambda: stopped.append(index)
                 async def publish(_, event): events.append(event)
                 runtime = SimpleNamespace(**{name: getattr(asyncio, name) for name in (
-                    'create_task', 'get_running_loop', 'CancelledError', 'to_thread', 'gather')}, sleep=sleep)
-                with patch.object(live, 'time', SimpleNamespace(monotonic=lambda: clock[0])), patch.object(live, 'asyncio', runtime):
+                    'create_task', 'get_running_loop', 'CancelledError', 'to_thread', 'gather', 'Event')}, sleep=sleep)
+                with patch.object(live, 'time', SimpleNamespace(monotonic=lambda: clock[0])), patch.object(live, 'asyncio', runtime), patch.object(live, 'wait_for_push', sleep):
                     hub = LiveReads(read, access, subscribe=subscribe, grace=0)
                     try:
                         handles = await hub.attach([{'operation': 'synthetic', 'arguments': {}}], publish)
