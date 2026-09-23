@@ -11,10 +11,10 @@ selection and native operation permissions remain with their existing owners.
 Create a `.tsx` file outside the managed checkout:
 
 ```tsx
-import { InstrumentTable, type InstrumentRead, type WidgetProps } from "@pythia/widget-sdk";
+import { InstrumentTable, type InstrumentRead, type InstrumentWidgetOptions, type WidgetProps } from "@pythia/widget-sdk";
 export { financialBinding as binding } from "@pythia/market-data/widgets";
 
-export default function MyWatchlist({ data, options }: WidgetProps<InstrumentRead>) {
+export default function MyWatchlist({ data, options }: WidgetProps<InstrumentRead, InstrumentWidgetOptions>) {
   return <InstrumentTable read={data} options={options} />;
 }
 ```
@@ -52,13 +52,15 @@ Copy a small example composition to start a personal variant and keep SDK import
 
 ## Host contract
 
-`WidgetProps` contains `data`, standard display `options`, custom JSON `settings`,
+`WidgetProps<Data, Options, Settings>` contains typed `data`, display `options`, custom JSON `settings`,
 optional resolved `appearance`, `locale` and `timeZone`.
 Optional `presentation` identifies the selected native widget declaration. A
 feature may publish several presentations from one artifact and interpret that
 identifier in its own component; Desk does not switch on those names. The supplied
 tile, compact tile and table share one artifact and one financial binding.
-The default data type is the shared `InstrumentRead`. A display reference is not
+Data defaults to `unknown`; options and settings default to generic records. The
+financial components explicitly use `InstrumentRead` and `InstrumentWidgetOptions`.
+A display reference is not
 evidence of cross-provider identity. Preserve source, units, time, gaps, change
 baselines and missing values. Use the supplied locale/timezone for raw instants; keep date-only values
 as calendar dates.
@@ -75,8 +77,8 @@ load attempts before requiring reload or an updated artifact. Cached code grants
 no native access. A render error remains isolated until remount, revision change
 or an explicit presentation selection change.
 
-`WidgetProps` also accepts an explicit data/settings type for a host with another
-supported contract. This does not automatically add that dataset to Desk or
+Nonfinancial components can supply their own data, options and settings types
+for another supported contract. This does not automatically add that dataset to Desk or
 authorize a backend call.
 
 The feature-owned binding constructs requests and interprets their results.
@@ -212,7 +214,6 @@ Create `desk/top-bar.json` in the configured workspace:
   "version": 1,
   "renderer": {
     "plugin": "example-research",
-    "asset": "header",
     "presentation": "topbar"
   },
   "settings": { "prompt": "Help me explore a research question." }

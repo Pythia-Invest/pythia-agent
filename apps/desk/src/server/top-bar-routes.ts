@@ -60,10 +60,9 @@ export function createTopBarRoutes(
         const widget = native.widgets.find(
           (item) =>
             item.id === selected.presentation &&
-            item.asset === selected.asset &&
             item.input_contract === TOP_BAR_INPUT_CONTRACT,
         );
-        const asset = native.assets.find((item) => item.id === selected.asset);
+        const asset = native.assets.find((item) => item.id === widget?.asset);
         if (!widget || !asset) throw Error("presentation unavailable");
         return result({
           renderer: selected,

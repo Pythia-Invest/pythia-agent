@@ -11,8 +11,10 @@ slot registry or editor would duplicate those owners.
 
 The whole top bar is one native module contribution with input contract
 `pythia.desk-topbar.v1`, using the existing `WidgetProps<TopBarContext>` envelope.
-`desk/top-bar.json` in the user-owned workspace selects `{plugin, asset,
-presentation}` and JSON settings. A missing file uses the product default;
+`desk/top-bar.json` in the user-owned workspace selects `{plugin, presentation}`
+and JSON settings. The native declaration determines the presentation's asset;
+users do not duplicate that association in configuration. A missing file uses the
+product default;
 explicit `renderer: null` selects the core header. Invalid configuration remains
 untouched and restores a visible core fallback. The initial product default is
 the existing title, chat filter, shortcut and navigation actions.
@@ -25,6 +27,16 @@ and readback run. Missing, disabled, incompatible and crashing contributions
 retain core title, search and navigation controls. Module cache entries cache code
 only, never permission. Replacement or withdrawal cancels host transport demand.
 
+Native widget metadata retains only hashes and byte counts for unchanged assets,
+bounded by the plugin's declared asset set. Each request still opens and validates
+the current file; edits, replacements or missing files invalidate reuse. Content
+reads remain fresh and native access checks run on every operation. This keeps
+the periodic recheck inexpensive without adding filesystem watchers or caching
+permission decisions.
+
+The SDK's base component props parameterize data, display options and settings;
+they have no financial defaults. Financial presentations explicitly select their
+own types. Generic protected transport types are separate from top-bar context.
 The context supplies generic title/query controls, actions, available native chat
 summaries, `openChat`, and `prepareChat`. Preparation preserves existing unsent
 text and never sends a message. No domain identity or market-data helper belongs
