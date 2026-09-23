@@ -8,12 +8,12 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { WidgetStyleScope } from "./scope";
 
 const ToolbarContext = createContext<{
   target: HTMLDivElement | null;
   attach: (element: HTMLDivElement | null) => void;
 } | null>(null);
-const ScopeContext = createContext<string | undefined>(undefined);
 
 /** Host-owned placement. Each reader gets its own outlet and lifetime. */
 export function WidgetToolbarProvider({ children }: { children: ReactNode }) {
@@ -32,21 +32,10 @@ export function WidgetToolbarOutlet() {
   );
 }
 
-/** Carries the compiled stylesheet scope through portals, without global CSS. */
-export function WidgetScope({
-  scope,
-  children,
-}: {
-  scope: string;
-  children: ReactNode;
-}) {
-  return <ScopeContext value={scope}>{children}</ScopeContext>;
-}
-
 /** Render feature commands in the reader toolbar, or locally in standalone hosts. */
 export function WidgetToolbar({ children }: { children: ReactNode }) {
   const context = useContext(ToolbarContext);
-  const scope = useContext(ScopeContext);
+  const scope = useContext(WidgetStyleScope);
   const content = (
     <div
       data-pythia-widget={scope}

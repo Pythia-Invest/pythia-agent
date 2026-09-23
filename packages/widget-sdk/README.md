@@ -11,10 +11,10 @@ selection and native operation permissions remain with their existing owners.
 Create a `.tsx` file outside the managed checkout:
 
 ```tsx
-import { InstrumentTable, type InstrumentRead, type WidgetProps } from "@pythia/widget-sdk";
+import { InstrumentTable, type InstrumentRead, type InstrumentWidgetOptions, type WidgetProps } from "@pythia/widget-sdk";
 export { financialBinding as binding } from "@pythia/market-data/widgets";
 
-export default function MyWatchlist({ data, options }: WidgetProps<InstrumentRead>) {
+export default function MyWatchlist({ data, options }: WidgetProps<InstrumentRead, InstrumentWidgetOptions>) {
   return <InstrumentTable read={data} options={options} />;
 }
 ```
@@ -52,13 +52,15 @@ Copy a small example composition to start a personal variant and keep SDK import
 
 ## Host contract
 
-`WidgetProps` contains `data`, standard display `options`, custom JSON `settings`,
+`WidgetProps<Data, Options, Settings>` contains typed `data`, display `options`, custom JSON `settings`,
 optional resolved `appearance`, `locale` and `timeZone`.
 Optional `presentation` identifies the selected native widget declaration. A
 feature may publish several presentations from one artifact and interpret that
 identifier in its own component; Desk does not switch on those names. The supplied
 tile, compact tile and table share one artifact and one financial binding.
-The default data type is the shared `InstrumentRead`. A display reference is not
+Data defaults to `unknown`; options and settings default to generic records. The
+financial components explicitly use `InstrumentRead` and `InstrumentWidgetOptions`.
+A display reference is not
 evidence of cross-provider identity. Preserve source, units, time, gaps, change
 baselines and missing values. Use the supplied locale/timezone for raw instants; keep date-only values
 as calendar dates.
@@ -75,8 +77,8 @@ load attempts before requiring reload or an updated artifact. Cached code grants
 no native access. A render error remains isolated until remount, revision change
 or an explicit presentation selection change.
 
-`WidgetProps` also accepts an explicit data/settings type for a host with another
-supported contract. This does not automatically add that dataset to Desk or
+Nonfinancial components can supply their own data, options and settings types
+for another supported contract. This does not automatically add that dataset to Desk or
 authorize a backend call.
 
 The feature-owned binding constructs requests and interprets their results.
@@ -211,8 +213,64 @@ do not bundle a second UI implementation.
 A widget may place compact commands inside `WidgetToolbar`. The reader supplies
 one `WidgetToolbarProvider` and `WidgetToolbarOutlet`; a React portal places the
 commands in that existing toolbar and removes them with the widget. Standalone
-hosts without a provider render the same commands locally. `WidgetScope` is a
+hosts without a provider render the same commands locally. `WidgetStyleScope` is a
 host concern: it preserves the compiled stylesheet scope around toolbar content.
 Shared overlay components own their portal styling; do not rely on widget-scoped
 CSS reaching a document-level menu portal. This is placement, not an action
 registry or a new transport, and gives generated visual files no new authority.
+
+## Replace the Desk top bar
+
+A complete header is an ordinary compiled native widget with input contract
+`pythia.desk-topbar.v1`. Start from [examples/top-bar.tsx](examples/top-bar.tsx)
+and compile it with the same `pnpm widget:build <entry.tsx> <asset.mjs>` command.
+Declare the asset and a presentation in the native package's existing `widgets`
+export. No Desk rebuild or new plugin registry is needed.
+
+Create `desk/top-bar.json` in the configured workspace:
+
+```json
+{
+  "version": 1,
+  "renderer": {
+    "plugin": "example-research",
+    "presentation": "topbar"
+  },
+  "settings": { "prompt": "Help me explore a research question." }
+}
+```
+
+The native presentation must declare `id: topbar`, `asset: header`, and
+`input_contract: pythia.desk-topbar.v1`. Settings are bounded JSON passed to the
+module; the author owns their semantics. Set `renderer` to `null` to choose the
+core header explicitly. Removing the file restores the product default.
+Configuration and native availability refresh on focus and every 15 seconds;
+invalid settings or unavailable modules restore the core controls with a status
+message, preserving the file for correction.
+
+`TopBarProps` is `WidgetProps<TopBarContext>`. Its `data` supplies `title`, `query`,
+`onQueryChange`, host `actions`, available `{id,title}` chat summaries, `openChat`,
+`prepareChat`, and `transport`. Keep the supplied actions reachable in narrow
+layouts: they include mobile navigation. `prepareChat(text)` appends to an unsent
+new-chat draft and focuses it; it never sends. Chat summaries cover the currently
+available native list, not complete history.
+
+`transport.read(request, signal?)`, `transport.invoke(request, signal?)`, and
+`transport.updates(resources, signal)` use protected native plugin exports. Requests
+carry `{plugin, operation, arguments}`; update resources may add `window`. Read and
+update calls enforce read-only eligibility; call `invoke` only from a deliberate
+user action. Native ownership and permission checks are authoritative for each
+operation. Transport requests are cancelled when the contribution is withdrawn.
+
+The SDK exports Desk's actual `useQuery`, `useMutation`, `useQueryClient`, `Button`,
+`EmptyState`, `Popover`, and `Skeleton`. Feature data keys start with
+`['plugin', nativePluginId, ...]` to participate in settings-change withdrawal.
+Consume cancellation in queries, revalidate native access before presenting
+retained data, and show native denial as unavailable. The SDK Popover portal
+preserves scoped author styles while using the shared popup implementation.
+
+A feature may publish reusable source components that another plugin bundles into
+its artifact through ordinary imports. This is a build dependency, not runtime
+module discovery. Declare any backend plugin dependency through native
+`requires_plugins` and handle unavailable operations; that declaration does not
+install a package or grant access to it. See [ADR 0036](../../docs/decisions/0036-replaceable-desk-top-bar.md).

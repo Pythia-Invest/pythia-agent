@@ -33,7 +33,7 @@ import * as reactDom from "react-dom";
 import * as jsxRuntime from "react/jsx-runtime";
 import { createRoot } from "react-dom/client";
 import * as sdk from "./src/index.ts";
-import { assertWidgetModule } from "./src/runtime.ts";
+import { assertWidgetModule, WidgetStyleScope } from "./src/runtime.ts";
 import * as widget from ${JSON.stringify(artifact)};
 import { exampleVisual } from ${JSON.stringify(resolve(feature, "widgets/example.ts"))};
 const host = {react, reactDom, jsxRuntime, sdk};
@@ -69,7 +69,7 @@ if (mode === "filtered") {
 function App() {
   const [theme, setTheme] = React.useState("light");
   const changeTheme = () => { const next = theme === "light" ? "dark" : "light"; document.documentElement.dataset.theme = next; setTheme(next); };
-  return <sdk.WidgetToolbarProvider><main><header className="preview-header"><div><p>PYTHIA · RESEARCH VISUALS</p><h1>Synthetic interactive preview</h1><p>Explore an invented business. This is the actual plugin renderer, using local sample data.</p></div><button onClick={changeTheme}>Use {theme === "light" ? "dark" : "light"} theme</button></header><sdk.WidgetToolbarOutlet/><div className="preview-card" data-pythia-widget={widget.metadata.scope}><sdk.WidgetScope scope={widget.metadata.scope}><Component data={input} options={{}} settings={{}} locale="en-US" timeZone="UTC" appearance={{theme,profile:"product"}} /></sdk.WidgetScope></div></main></sdk.WidgetToolbarProvider>;
+  return <sdk.WidgetToolbarProvider><main><header className="preview-header"><div><p>PYTHIA · RESEARCH VISUALS</p><h1>Synthetic interactive preview</h1><p>Explore an invented business. This is the actual plugin renderer, using local sample data.</p></div><button onClick={changeTheme}>Use {theme === "light" ? "dark" : "light"} theme</button></header><sdk.WidgetToolbarOutlet/><div className="preview-card" data-pythia-widget={widget.metadata.scope}><WidgetStyleScope value={widget.metadata.scope}><Component data={input} options={{}} settings={{}} locale="en-US" timeZone="UTC" appearance={{theme,profile:"product"}} /></WidgetStyleScope></div></main></sdk.WidgetToolbarProvider>;
 }
 createRoot(document.getElementById("root")).render(<App/>);
 `,

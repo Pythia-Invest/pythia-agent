@@ -18,6 +18,19 @@ export {
   type InstrumentRead,
   type InstrumentWidgetOptions,
 } from "@pythia/ui/market-widgets";
+export { Button, EmptyState, Skeleton } from "@pythia/ui";
+export { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+export type {
+  TopBarProps,
+  TopBarContext,
+} from "./top-bar";
+export type {
+  PluginTransport,
+  PluginRequest,
+  DataResource,
+  DataUpdate,
+} from "./transport";
+export { Popover } from "./scope";
 export { cn } from "@pythia/ui/class-name";
 export type {
   WidgetBinding,
@@ -33,7 +46,6 @@ export type {
 } from "./types";
 
 export {
-  Button,
   Menu,
   Tabs,
   TabsList,
@@ -51,5 +63,4 @@ export {
   WidgetToolbar,
   WidgetToolbarProvider,
   WidgetToolbarOutlet,
-  WidgetScope,
 } from "./toolbar";

@@ -32,7 +32,7 @@ import { shellLayout } from "./shell-layout";
 import { useLocalLayout } from "@/layout/use-local-layout";
 import { useDockTabs } from "./use-dock-tabs";
 import { NavRail } from "./nav-rail";
-import { TopBar } from "./top-bar";
+import { ModuleTopBar } from "./module-top-bar";
 import {
   chatTitle,
   PINNED_STORAGE_KEY,
@@ -338,7 +338,22 @@ export function DeskShell({ children }: { children: ReactNode }) {
           </Drawer.Portal>
         ) : null}
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar
+          <ModuleTopBar
+            chats={(sessions.data ?? []).map((session) => ({
+              id: session.id,
+              title: chatTitle(session),
+            }))}
+            openChat={(id) => {
+              if ((sessions.data ?? []).some((session) => session.id === id))
+                router.push(`/c/${encodeURIComponent(id)}`);
+            }}
+            prepareChat={(text) => {
+              const current = drafts.get("new").text;
+              drafts.update("new", {
+                text: current ? `${current}\n\n${text}` : text,
+              });
+              handleNewChat();
+            }}
             actions={
               <Drawer.Trigger
                 render={

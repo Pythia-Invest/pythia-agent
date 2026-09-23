@@ -3,10 +3,14 @@ import {
   InstrumentReadState,
   InstrumentTile,
   type InstrumentRead,
+  type InstrumentWidgetOptions,
   type WidgetProps,
 } from "@pythia/widget-sdk";
 
-export default function Tiles({ data, options }: WidgetProps<InstrumentRead>) {
+export default function Tiles({
+  data,
+  options,
+}: WidgetProps<InstrumentRead, InstrumentWidgetOptions>) {
   if (data.state === "error" || data.state === "empty" || !data.rows.length)
     return <InstrumentReadState read={data} />;
   return (

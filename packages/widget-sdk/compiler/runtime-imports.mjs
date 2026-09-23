@@ -57,7 +57,6 @@ const surfaces = {
     "version",
   ],
   sdk: [
-    "Button",
     "Menu",
     "Tabs",
     "TabsList",
@@ -84,6 +83,13 @@ const surfaces = {
     "InstrumentSparkline",
     "instrumentNumber",
     "cn",
+    "Button",
+    "EmptyState",
+    "Popover",
+    "Skeleton",
+    "useQuery",
+    "useMutation",
+    "useQueryClient",
   ],
 };
 
@@ -92,6 +98,7 @@ const imports = {
   "react/jsx-runtime": "jsxRuntime",
   "react-dom": "reactDom",
   "@pythia/widget-sdk": "sdk",
+  "@tanstack/react-query": "sdk",
 };
 
 export function runtimeImports() {
@@ -101,7 +108,7 @@ export function runtimeImports() {
       builder.onResolve(
         {
           filter:
-            /^(?:@pythia\/(?:widget-sdk|ui)(?:\/|$)|react(?:\/|$)|react-dom(?:\/|$))/,
+            /^(?:@tanstack\/react-query(?:\/|$)|@pythia\/(?:widget-sdk|ui)(?:\/|$)|react(?:\/|$)|react-dom(?:\/|$))/,
         },
         (args) => {
           const surface = imports[args.path];

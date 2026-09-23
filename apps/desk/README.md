@@ -181,8 +181,11 @@ dismissing the phone drawer retains its open tabs for the next file opening.
 The Name/Type/Size listing shares file icons with search results. Sidebar pins
 and width preferences from the earlier layout are retained but unused by this
 variant.
-The shared shell header always retains its window title, main search field and
-Cmd/Ctrl+K shortcut. Workspace never replaces or customizes that layout header.
+The default shared shell header retains its window title, chat search field and
+Cmd/Ctrl+K shortcut. Workspace does not replace that header. Users may select a
+complete native plugin top bar through workspace `desk/top-bar.json`; see
+[the SDK guide](../../packages/widget-sdk/README.md#replace-the-desk-top-bar).
+Invalid or unavailable contributions retain the core header and navigation actions.
 A separate toolbar inside the Workspace page, beneath the shell header, owns
 Back/Forward, Up, Workspace home, the current folder path and a folder-scoped
 search field.

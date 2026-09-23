@@ -345,5 +345,5 @@ route, including in existing worktrees, while preserving existing model choices
 and all configured provider overrides. Routing defaults are copied when absent,
 not synchronized over local settings. Credentials remain independently
 changeable; no authentication or inference probe is part of readiness. See
-[ADR 0036](decisions/0036-shared-development-provider-defaults.md) for supported
+[ADR 0037](decisions/0037-shared-development-provider-defaults.md) for supported
 routing fields, native profile credential precedence and limits.

@@ -2,10 +2,14 @@ export { financialBinding as binding } from "@pythia/market-data/widgets";
 import {
   InstrumentTable,
   type InstrumentRead,
+  type InstrumentWidgetOptions,
   type WidgetProps,
 } from "@pythia/widget-sdk";
 
 /** Input is already qualified display data; this module does no source reads. */
-export default function Table({ data, options }: WidgetProps<InstrumentRead>) {
+export default function Table({
+  data,
+  options,
+}: WidgetProps<InstrumentRead, InstrumentWidgetOptions>) {
   return <InstrumentTable read={data} options={options} />;
 }

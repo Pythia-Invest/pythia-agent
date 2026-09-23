@@ -2,6 +2,8 @@
 import hashlib
 import importlib
 import json
+import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -11,6 +13,7 @@ from unittest.mock import patch
 from test_market_data_identity import PACKAGE, PLATFORM, platform_module
 
 widgets = importlib.import_module(PLATFORM + '.widgets')
+asset_reader = importlib.import_module(PLATFORM + '.assets')
 operations = importlib.import_module(PLATFORM + '.operations')
 presentation = importlib.import_module(PACKAGE + '.presentation')
 
@@ -75,6 +78,54 @@ class WidgetPresentations(unittest.TestCase):
                             [{'id': 'view', 'asset': 'view', 'input_contract': 'view v1'}]):
             with self.subTest(definitions=definitions), self.assertRaises(ValueError):
                 self.register(widgets=definitions)
+
+    def test_warm_and_concurrent_metadata_skip_bytes_but_content_reads_do_not(self):
+        handle = self.register()['handler']
+        with patch.object(asset_reader, '_read', wraps=asset_reader._read) as read:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                results = list(executor.map(lambda _: json.loads(handle({})), range(12)))
+            self.assertTrue(all(result == results[0] for result in results))
+            self.assertEqual(read.call_count, 1)
+            content = json.loads(handle({'asset': 'view'}))['data']
+            self.assertEqual(content['content'], self.content)
+            self.assertEqual(read.call_count, 2)
+            self.assertEqual(json.loads(handle({})), results[0])
+            self.assertEqual(read.call_count, 2)
+
+    def test_same_size_edits_and_atomic_replacements_invalidate_metadata(self):
+        handle = self.register()['handler']
+        initial = json.loads(handle({}))['data']['assets'][0]
+        original_stat = self.file.stat()
+        changed = self.content.replace('synthetic', 'different')
+        self.file.write_text(changed, encoding='utf-8')
+        # An editor may preserve mtime; ctime must still invalidate an in-place edit.
+        os.utime(self.file, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        edited = json.loads(handle({}))['data']['assets'][0]
+        self.assertNotEqual(edited['sha256'], initial['sha256'])
+        replacement = self.root / 'replacement.mjs'
+        replacement.write_text(self.content, encoding='utf-8')
+        os.utime(replacement, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        replacement.replace(self.file)
+        self.assertEqual(json.loads(handle({}))['data']['assets'][0], initial)
+
+    def test_warm_metadata_does_not_hide_invalid_current_files(self):
+        outside = self.root / 'unlisted.mjs'
+        outside.write_text('unlisted', encoding='utf-8')
+        def broken_link(): self.file.symlink_to(outside)
+        def hard_link(): os.link(outside, self.file)
+        for mutate in (lambda: None, broken_link, hard_link,
+                       lambda: self.file.write_bytes(b''),
+                       lambda: self.file.write_bytes(b'\xff'),
+                       lambda: self.file.write_bytes(b'a' * (widgets.MAX_ASSET_BYTES + 1))):
+            with self.subTest(mutate=mutate):
+                handle = self.register()['handler']
+                self.assertIn('data', json.loads(handle({})))
+                self.file.unlink()
+                mutate()
+                self.assertIn('error', json.loads(handle({})))
+                self.assertIn('error', json.loads(handle({'asset': 'view'})))
+                if self.file.exists() or self.file.is_symlink(): self.file.unlink()
+                self.file.write_text(self.content, encoding='utf-8')
 
     def test_missing_linked_empty_oversized_or_non_utf8_modules_are_errors_not_assets(self):
         handle = self.register()['handler']

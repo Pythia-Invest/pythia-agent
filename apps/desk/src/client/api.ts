@@ -1,3 +1,4 @@
+import { parseRunFrame } from "./run-protocol";
 import { BrowserRequest, DeskApiError, bodyError } from "./browser-request";
 export { DeskApiError } from "./browser-request";
 import { readLimitedBytes } from "./response-bytes";
@@ -22,7 +23,6 @@ import { workspaceContentUrl } from "@/workspace/paths";
 import type { Attachment } from "@/attachments";
 import type {
   ApprovalChoice,
-  DeskRunEvent,
   HermesMessagePage,
   HermesCapabilities,
   HermesSession,
@@ -35,20 +35,6 @@ import type {
 import type { HermesToolset } from "@/server/types";
 import type { DeskReleaseStatus } from "@/server/release-status";
 import type { ModelCatalog, ModelSelection } from "@/server/model-catalog";
-
-function parseFrame(frame: string) {
-  const data = frame
-    .split(/\r?\n/u)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n");
-  if (!data) return null;
-  try {
-    return JSON.parse(data) as DeskRunEvent;
-  } catch {
-    return null;
-  }
-}
 
 export class DeskApi extends BrowserRequest {
   async *dataUpdates(resources: DataResource[], signal: AbortSignal) {
@@ -81,6 +67,21 @@ export class DeskApi extends BrowserRequest {
     return this.json<FinancialRead[]>("/api/markets/read", {
       method: "POST",
       body: JSON.stringify({ reads }),
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  topBar(signal?: AbortSignal) {
+    return this.json<import("@/top-bar/config").TopBarSelection>(
+      "/api/desk/top-bar",
+      signal ? { signal } : {},
+    );
+  }
+
+  pluginInvoke(request: PluginRequest, signal?: AbortSignal) {
+    return this.json<unknown>("/api/data/invoke", {
+      method: "POST",
+      body: JSON.stringify(request),
       ...(signal ? { signal } : {}),
     });
   }
@@ -370,13 +371,13 @@ export class DeskApi extends BrowserRequest {
         const frames = buffer.split(/\r?\n\r?\n/u);
         buffer = frames.pop() ?? "";
         for (const frame of frames) {
-          const event = parseFrame(frame);
+          const event = parseRunFrame(frame);
           if (event) yield event;
         }
         if (done) break;
       }
       if (buffer.trim()) {
-        const event = parseFrame(buffer);
+        const event = parseRunFrame(buffer);
         if (event) yield event;
       }
     } finally {

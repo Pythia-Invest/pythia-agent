@@ -51,3 +51,10 @@ For financial views, also follow the [market widget rule](./market-widgets.md).
 Reserve loading geometry, preserve healthy state across updates, and expose useful
 errors without hiding failures as empty data. Qualify new host/runtime boundaries
 in the actual production build; compiler success alone is insufficient.
+
+Desk's whole top bar uses this same module boundary with input contract
+`pythia.desk-topbar.v1`; see [ADR 0036](../../docs/decisions/0036-replaceable-desk-top-bar.md).
+Keep domain search/components in their feature package. Reuse SDK query hooks and
+controls, prefix feature cache keys with `['plugin', pluginId, ...]`, and consume
+transport cancellation. Explicit user actions may invoke deliberate native exports
+through the protected mutation route; automatic reads and updates remain read-only.
