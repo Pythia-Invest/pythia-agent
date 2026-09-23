@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { fixture } from "./stream-fixture";
 
-const path = "research/synthetic-growth.vega-lite.json";
+const path = "research/synthetic-growth.pythia-vega-lite.json";
 const artifact = {
   format: "pythia-visual",
   version: 1,
@@ -71,7 +71,7 @@ test("chat visual opens the native renderer and keeps scenario changes local", a
       return route.fulfill({
         json: {
           path,
-          name: "synthetic-growth.vega-lite.json",
+          name: "synthetic-growth.pythia-vega-lite.json",
           kind: "text",
           size: Buffer.byteLength(body),
           modified: "2026-09-22T00:00:00.000Z",
@@ -229,7 +229,7 @@ test("chat visual opens the native renderer and keeps scenario changes local", a
 
   await companion
     .getByRole("button", {
-      name: "Close synthetic-growth.vega-lite.json",
+      name: "Close synthetic-growth.pythia-vega-lite.json",
       exact: true,
     })
     .click();
@@ -241,7 +241,7 @@ test("chat visual opens the native renderer and keeps scenario changes local", a
 
   await companion
     .getByRole("button", {
-      name: "Close synthetic-growth.vega-lite.json",
+      name: "Close synthetic-growth.pythia-vega-lite.json",
       exact: true,
     })
     .click();

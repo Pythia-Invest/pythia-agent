@@ -35,7 +35,7 @@ export function extensionMatcher<const T extends { extension: FileExtension }>(
 // Add future compound formats here; chat, Workspace and highlighting share this match.
 export const compoundFileTypes = [
   {
-    extension: ".vega-lite.json",
+    extension: ".pythia-vega-lite.json",
     preview: "visual",
     language: "json",
     mediaType: "application/json",

@@ -217,7 +217,7 @@ it("classifies compound JSON as text only after content inspection", () => {
     isDirectory: () => false,
   } as Stats;
   const visual = describeBytes(
-    "case/Model.VEGA-LITE.JSON",
+    "case/Model.PYTHIA-VEGA-LITE.JSON",
     stat,
     Buffer.from("{}"),
   );
@@ -227,6 +227,7 @@ it("classifies compound JSON as text only after content inspection", () => {
     previewable: true,
   });
   expect(
-    describeBytes("model.vega-lite.json", stat, Buffer.from([0, 255])).kind,
+    describeBytes("model.pythia-vega-lite.json", stat, Buffer.from([0, 255]))
+      .kind,
   ).toBe("download");
 });

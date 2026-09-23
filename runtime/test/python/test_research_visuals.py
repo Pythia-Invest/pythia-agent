@@ -42,7 +42,7 @@ def artifact():
 class ResearchVisualTest(unittest.TestCase):
     def test_compound_extension_accepts_case_and_multiple_dots(self):
         with tempfile.TemporaryDirectory() as workspace:
-            path = 'case/Synthetic.model.VEGA-LITE.JSON'
+            path = 'case/Synthetic.model.PYTHIA-VEGA-LITE.JSON'
             ARTIFACTS.create(artifact(), path, workspace)
             self.assertEqual(ARTIFACTS.read(path, workspace)['data']['artifact'], artifact())
 
@@ -59,7 +59,7 @@ class ResearchVisualTest(unittest.TestCase):
 
     def test_update_detects_stale_revisions_and_saves_parameters(self):
         with tempfile.TemporaryDirectory() as workspace:
-            created = ARTIFACTS.create(artifact(), 'case/model.vega-lite.json', workspace)['data']
+            created = ARTIFACTS.create(artifact(), 'case/model.pythia-vega-lite.json', workspace)['data']
             changed = artifact(); changed['data']['parameters'] = {'growth': .1}
             updated = ARTIFACTS.update(changed, created['path'], workspace, created['revision'])['data']
             self.assertNotEqual(created['revision'], updated['revision'])
@@ -72,20 +72,20 @@ class ResearchVisualTest(unittest.TestCase):
     def test_paths_cannot_escape_or_follow_symlinks(self):
         with tempfile.TemporaryDirectory() as workspace, tempfile.TemporaryDirectory() as outside:
             Path(workspace, 'link').symlink_to(outside, target_is_directory=True)
-            for destination in ['../escape.vega-lite.json', '/escape.vega-lite.json',
-                                'a/../escape.vega-lite.json', 'a//escape.vega-lite.json',
-                                'link/escape.vega-lite.json', '.private/escape.vega-lite.json',
-                                '.git/escape.vega-lite.json', 'bad\nname.vega-lite.json',
-                                'bad\rname.vega-lite.json', 'wrong.json', '.vega-lite.json', 'model.vega-lite.json.bak']:
+            for destination in ['../escape.pythia-vega-lite.json', '/escape.pythia-vega-lite.json',
+                                'a/../escape.pythia-vega-lite.json', 'a//escape.pythia-vega-lite.json',
+                                'link/escape.pythia-vega-lite.json', '.private/escape.pythia-vega-lite.json',
+                                '.git/escape.pythia-vega-lite.json', 'bad\nname.pythia-vega-lite.json',
+                                'bad\rname.pythia-vega-lite.json', 'wrong.json', 'model.vega-lite.json', '.pythia-vega-lite.json', 'model.pythia-vega-lite.json.bak']:
                 with self.subTest(destination=destination), self.assertRaises((OSError, ValueError)):
                     ARTIFACTS.create(artifact(), destination, workspace)
-            Path(workspace, 'existing.vega-lite.json').symlink_to(Path(outside, 'escape.json'))
+            Path(workspace, 'existing.pythia-vega-lite.json').symlink_to(Path(outside, 'escape.json'))
             with self.assertRaises(FileExistsError):
-                ARTIFACTS.create(artifact(), 'existing.vega-lite.json', workspace)
+                ARTIFACTS.create(artifact(), 'existing.pythia-vega-lite.json', workspace)
             with self.assertRaises(OSError):
-                ARTIFACTS.read('existing.vega-lite.json', workspace)
+                ARTIFACTS.read('existing.pythia-vega-lite.json', workspace)
             with self.assertRaises(OSError):
-                ARTIFACTS.update(artifact(), 'existing.vega-lite.json', workspace, '0' * 64)
+                ARTIFACTS.update(artifact(), 'existing.pythia-vega-lite.json', workspace, '0' * 64)
             self.assertEqual(list(Path(outside).iterdir()), [])
 
     def test_contract_rejects_external_data_nonfinite_and_oversize(self):
@@ -196,14 +196,14 @@ class ResearchVisualTest(unittest.TestCase):
             self.assertEqual(render.call_count, 2)
             saved = Path(workspace, result['path']).read_bytes()
             render.side_effect = ValueError('Visual does not compile.')
-            failed_create = json.loads(tool['handler']({'artifact': artifact(), 'destination': 'broken.vega-lite.json'}))
+            failed_create = json.loads(tool['handler']({'artifact': artifact(), 'destination': 'broken.pythia-vega-lite.json'}))
             self.assertIn('error', failed_create)
-            self.assertFalse(Path(workspace, 'broken.vega-lite.json').exists())
+            self.assertFalse(Path(workspace, 'broken.pythia-vega-lite.json').exists())
             failed_update = json.loads(tool['handler']({'action': 'update', 'artifact': artifact(),
                 'destination': result['path'], 'revision': updated['data']['revision']}))
             self.assertIn('error', failed_update)
             self.assertEqual(Path(workspace, result['path']).read_bytes(), saved)
-            self.assertIn('error', json.loads(tool['handler']({'artifact': artifact(), 'destination': '../escape.vega-lite.json'})))
+            self.assertIn('error', json.loads(tool['handler']({'artifact': artifact(), 'destination': '../escape.pythia-vega-lite.json'})))
 
 
 if __name__ == '__main__':

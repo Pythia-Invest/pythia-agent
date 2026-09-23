@@ -43,14 +43,14 @@ with patch.object(socket.socket,'connect',side_effect=AssertionError('No network
         assert entry is not None
         skill=json.loads(skill_view('pythia-vega-lite:vega-lite',preprocess=False)); assert skill['success'],skill
         value=json.loads((root/'fixture.json').read_text())
-        result=json.loads(registry.dispatch('pythia_vega_lite',{'artifact':value,'destination':'working/native.vega-lite.json'}))
+        result=json.loads(registry.dispatch('pythia_vega_lite',{'artifact':value,'destination':'working/native.pythia-vega-lite.json'}))
         assert result.get('schema_version')==1,result
-        assert json.loads((root/'workspace/working/native.vega-lite.json').read_text())==value
-        reopened=json.loads(registry.dispatch('pythia_vega_lite', {'action':'read','destination':'working/native.vega-lite.json'}))
+        assert json.loads((root/'workspace/working/native.pythia-vega-lite.json').read_text())==value
+        reopened=json.loads(registry.dispatch('pythia_vega_lite', {'action':'read','destination':'working/native.pythia-vega-lite.json'}))
         value['data']['parameters']['growth'] = .2
-        updated=json.loads(registry.dispatch('pythia_vega_lite', {'action':'update','destination':'working/native.vega-lite.json','artifact':value,'revision':reopened['data']['revision']}))
+        updated=json.loads(registry.dispatch('pythia_vega_lite', {'action':'update','destination':'working/native.pythia-vega-lite.json','artifact':value,'revision':reopened['data']['revision']}))
         assert updated.get('schema_version')==1, updated
-        exported=json.loads(registry.dispatch('pythia_vega_lite', {'action':'export','destination':'working/native.vega-lite.json','output':'research/snapshot.svg'}))
+        exported=json.loads(registry.dispatch('pythia_vega_lite', {'action':'export','destination':'working/native.pythia-vega-lite.json','output':'research/snapshot.svg'}))
         assert exported.get('schema_version')==1, exported
         assert (root/'workspace/research/snapshot.svg').read_text().startswith('<svg')
         result=json.loads(registry.dispatch('pythia_vega_lite_widgets',{})); assert result.get('schema_version')==1,result

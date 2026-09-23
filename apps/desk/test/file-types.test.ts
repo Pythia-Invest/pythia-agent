@@ -29,15 +29,17 @@ describe("compound file extensions", () => {
   });
 
   it("does not match directory names, trailing extensions or a missing filename stem", () => {
-    const match = extensionMatcher([{ extension: ".vega-lite.json" }] as const);
+    const match = extensionMatcher([
+      { extension: ".pythia-vega-lite.json" },
+    ] as const);
     for (const path of [
-      "model.vega-lite.json/notes.json",
-      "model.vega-lite.json.bak",
-      "model.vega-lite.json/",
-      ".vega-lite.json",
-      "modelvega-lite.json",
-      "model.vega-lite.json?download=true",
-      "model.vega-lite.json#section",
+      "model.pythia-vega-lite.json/notes.json",
+      "model.pythia-vega-lite.json.bak",
+      "model.pythia-vega-lite.json/",
+      ".pythia-vega-lite.json",
+      "modelpythia-vega-lite.json",
+      "model.pythia-vega-lite.json?download=true",
+      "model.pythia-vega-lite.json#section",
     ])
       expect(match(path)).toBeUndefined();
     expect(baseFileExtension(".env")).toBe("");
@@ -58,17 +60,18 @@ describe("compound file extensions", () => {
   });
 
   it("shares recognition with chat, Workspace and source highlighting", () => {
-    const path = "case/Synthetic model.VEGA-LITE.JSON";
-    expect(fileExtension(path)).toBe(".vega-lite.json");
+    const path = "case/Synthetic model.PYTHIA-VEGA-LITE.JSON";
+    expect(fileExtension(path)).toBe(".pythia-vega-lite.json");
     expect(baseFileExtension(path)).toBe(".json");
     expect(compoundFileType(path)?.preview).toBe("visual");
     expect(isVisualArtifact(path)).toBe(true);
     expect(
-      visualLinkPath("/workspace/case/Synthetic%20model.VEGA-LITE.JSON"),
+      visualLinkPath("/workspace/case/Synthetic%20model.PYTHIA-VEGA-LITE.JSON"),
     ).toBe(path);
     expect(codeLanguage(path)).toBe("json");
     expect(codeLanguage("notes.json")).toBe("json");
     expect(isVisualArtifact("notes.json")).toBe(false);
+    expect(isVisualArtifact("model.vega-lite.json")).toBe(false);
     expect(isVisualArtifact("old.pythia-visual.json")).toBe(false);
   });
 });

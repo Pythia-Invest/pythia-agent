@@ -10,7 +10,7 @@ understand. A short textual answer is sufficient for a simple fact. Choose the
 visual that fits the question: a trend, peer comparison, distribution, waterfall,
 sensitivity heatmap, or interactive model rather than a fixed chart catalogue.
 
-`pythia_vega_lite` stores ordinary `.vega-lite.json` workspace files.
+`pythia_vega_lite` stores ordinary `.pythia-vega-lite.json` workspace files.
 Create an artifact with `data.kind: "vega-lite"` and a native Vega-Lite `data.spec`.
 Use inline `data.values`, layers, facets, transforms, tooltips, selections, and
 bound variable `params` as appropriate. No remote data URLs, image marks, DOM

@@ -54,7 +54,7 @@ def register(ctx):
                               'parameters': {'type': 'object', 'properties': {
                                   'action': {'type': 'string', 'enum': ['create', 'read', 'update', 'export'], 'default': 'create'},
                                   'artifact': SCHEMA,
-                                  'destination': {'type': 'string', 'description': 'Relative .vega-lite.json workspace path. Required for read, update and export.'},
+                                  'destination': {'type': 'string', 'description': 'Relative .pythia-vega-lite.json workspace path. Required for read, update and export.'},
                                   'revision': {'type': 'string', 'description': 'Revision returned by read; required for update to detect stale edits.'},
                                   'output': {'type': 'string', 'description': 'Optional new .svg workspace path for export. Defaults to working/visuals/.'}},
                                   'additionalProperties': False}})

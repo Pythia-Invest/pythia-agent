@@ -1,7 +1,7 @@
 # Vega-Lite visuals
 
 The supplied native `pythia-vega-lite` plugin creates interactive research
-figures as ordinary `.vega-lite.json` workspace files. Each file contains a
+figures as ordinary `.pythia-vega-lite.json` workspace files. Each file contains a
 native Vega-Lite specification, its source data, assumptions and relevant date.
 A compact chart card in chat opens the existing companion reader. Workspace reopens the same file.
 
@@ -120,7 +120,7 @@ renderer is not a separate CPU or memory sandbox.
 
 The plugin is `pythia-vega-lite`, its tool is `pythia_vega_lite`, and its
 qualified skill is `pythia-vega-lite:vega-lite`. Its files use the compound
-extension `.vega-lite.json`. The JSON envelope remains `pythia-visual` so Desk
+extension `.pythia-vega-lite.json`, matching the plugin name. The JSON envelope remains `pythia-visual` so Desk
 can host other visual formats through their own native presentation contracts.
 This is a Pythia envelope containing a Vega-Lite spec, not a bare Vega-Lite spec.
 
@@ -132,9 +132,9 @@ they still need their own installed renderer and data validation. The extension
 selects presentation, never executable code or permission.
 
 This replaces the unreleased `pythia-research-visuals` prototype and its
-`.pythia-visual.json` filenames. No user files or profile choices are rewritten.
+`.pythia-visual.json` filenames, as well as the interim `.vega-lite.json` suffix. No user files or profile choices are rewritten.
 Prototype files remain readable as ordinary JSON; adopting one requires an
-explicit new `.vega-lite.json` copy with the new plugin and input-contract
+explicit new `.pythia-vega-lite.json` copy with the new plugin and input-contract
 references. Existing profiles enable the renamed plugin explicitly through
 Hermes; the old prototype can be disabled there. Fresh profiles use the new
 identity by default.

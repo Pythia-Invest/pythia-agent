@@ -16,7 +16,7 @@ silently inherit that code's authority.
 
 The native `pythia-vega-lite` feature owns its tools, schema, skill and
 prebuilt renderer. Hermes remains unmodified. A visual is an ordinary
-`.vega-lite.json` file: a versioned envelope containing title, summary,
+`.pythia-vega-lite.json` file: a versioned envelope containing title, summary,
 presentation reference, and feature-owned data. The feature data contains a
 native Vega-Lite specification, inline source data, sources, date, assumptions
 and optional saved scalar parameter values.
@@ -160,9 +160,11 @@ and exposed raw parameters. Copy scenario context remains a toolbar action.
 ### Compound extensions and library identity
 
 The supplied plugin is named for its implementation: `pythia-vega-lite`, with
-`.vega-lite.json` files and the `pythia.vega-lite.v1` input contract. We retain
+`.pythia-vega-lite.json` files and the `pythia.vega-lite.v1` input contract. We retain
 the generic `pythia-visual` JSON envelope and existing widget hosting boundary.
-This distinguishes a library-specific authoring format from the shared viewer.
+The compound extension matches the plugin name, distinguishing its envelope
+from a bare Vega-Lite specification and from the shared viewer. The shorter
+`.vega-lite.json` suffix was rejected because it omits the owning plugin identity.
 
 Filename classification uses a shared, typed compound-extension matcher. The
 longest registered suffix wins, matching the decoded basename case-insensitively;
