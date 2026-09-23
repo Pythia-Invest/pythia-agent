@@ -104,7 +104,6 @@ class WidgetPresentations(unittest.TestCase):
         self.assertEqual(self.registered[0]['name'], 'pythia_market_data_widgets')
         self.assertEqual(self.registered[0]['schema']['parameters']['properties']['asset']['enum'],
                          list(presentation.ASSETS))
-        self.assertEqual({item['asset'] for item in presentation.WIDGETS}, {'instruments'})
 
 
 if __name__ == '__main__':

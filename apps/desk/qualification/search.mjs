@@ -18,6 +18,10 @@ import { chromium, expect } from "@playwright/test";
 import { createQualificationProcesses } from "./processes.mjs";
 import { buildWidget } from "../../../packages/widget-sdk/build.mjs";
 import { search, adopted } from "./search-fixture.mjs";
+import {
+  createTopBarLifecycleFixture,
+  qualifyTopBarLifecycle,
+} from "./search-topbar-lifecycle.mjs";
 
 const require = createRequire(import.meta.url);
 const desk = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -100,6 +104,7 @@ try {
   const workspace = join(temporary, "workspace");
   await mkdir(join(workspace, "desk"), { recursive: true });
   const topBarConfig = join(workspace, "desk/top-bar.json");
+  const lifecycleFixture = await createTopBarLifecycleFixture(root, temporary);
   const events = (res, data) => {
     res.write(
       `data: ${JSON.stringify({ schema_version: 1, index: 0, generation: "qualification", revision: 1, type: "snapshot", state: "ready", data })}\n\n`,
@@ -109,7 +114,8 @@ try {
     assert.equal(req.headers.authorization, "Bearer synthetic-search-key");
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
+    const payload = Buffer.concat(chunks).toString();
+    const body = payload ? JSON.parse(payload) : {};
     requests.push(body);
     if (denied) {
       res.writeHead(403, { "content-type": "application/json" }).end(
@@ -119,6 +125,7 @@ try {
       );
       return;
     }
+    if (lifecycleFixture.handle(req, res, body)) return;
     if (req.url.endsWith("/plugins/pythia-market-data/widgets")) {
       res.setHeader("content-type", "application/json");
       const asset = {
@@ -239,6 +246,14 @@ try {
     return route.continue();
   });
   await page.goto(origin);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const lifecycleEvidence = await qualifyTopBarLifecycle({
+    page,
+    fixture: lifecycleFixture,
+    topBarConfig,
+  });
+  console.log(JSON.stringify(lifecycleEvidence));
+  await page.setViewportSize({ width: 1280, height: 900 });
   const input = page.getByRole("combobox", {
     name: "Search investments and chats",
   });
@@ -347,6 +362,7 @@ try {
   console.log(
     JSON.stringify(
       {
+        ...lifecycleEvidence,
         productionSearch: true,
         nativeReadAndAdopt: true,
         keyboardAndNarrow: true,

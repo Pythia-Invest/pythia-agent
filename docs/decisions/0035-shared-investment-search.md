@@ -33,10 +33,10 @@ dispatches one appropriate request per source and reports unsupported input
 without treating it as a source failure. Legacy undeclared search remains usable
 with conservative unspecified ordering. Native schemas remain authoritative.
 Responses can qualify their ordering as relevance or prominence; absent ordering
-uses local name/symbol matching. Pythia interleaves source ranks, favoring text or
-identifier search over symbol-only lookup within each round, then text relevance
-and relevance-qualified provider ordering. It does not globally prioritize exact
-ticker matches. Names and
+uses local name/symbol matching. Pythia combines match quality with a logarithmic
+discount for position in each source's results. Declared text and identifier
+search, qualified provider ordering and stable tie breakers inform the combined
+ranking. It does not globally prioritize exact ticker matches. Names and
 symbols have equal standing, and repeated provider appearances never add votes.
 This small policy prevents one large catalogue from hiding other sources while
 preserving useful provider ordering. It needs no per-candidate enrichment reads.

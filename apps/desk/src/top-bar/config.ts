@@ -14,7 +14,11 @@ const rendererSchema = z
   .strict();
 export type TopBarRenderer = z.infer<typeof rendererSchema>;
 /** Product default only; a user's explicit null always selects the core bar. */
-export const DEFAULT_TOP_BAR: TopBarRenderer | null = null;
+export const DEFAULT_TOP_BAR: TopBarRenderer | null = {
+  plugin: "pythia-market-data",
+  asset: "top-bar",
+  presentation: "top-bar",
+};
 export const topBarConfigSchema = z
   .object({
     version: z.literal(1),

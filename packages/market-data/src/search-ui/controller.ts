@@ -109,15 +109,17 @@ export function useInvestmentSearch(
     key: string;
     rows: z.infer<typeof progressSchema>["progress"];
   }>({ key: "", rows: [] });
-  useEffect(() => {
-    if (!enabled) void releaseInvestmentSearch(client, query, providerKey);
-  }, [client, query, enabled, providerKey]);
   const result = useQuery({
     ...investmentSearchOptions(transport, query, providers, (rows) =>
       setProgress({ key: progressKey, rows }),
     ),
     enabled: enabled && query.length > 0,
   });
+  // The observer applies enabled:false in useQuery's effect first. Only then
+  // can this instance release the request if no other observer still needs it.
+  useEffect(() => {
+    if (!enabled) void releaseInvestmentSearch(client, query, providerKey);
+  }, [client, query, enabled, providerKey]);
   return {
     ...result,
     progress: progress.key === progressKey ? progress.rows : [],

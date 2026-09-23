@@ -53,6 +53,7 @@ export const investmentSearchRequestSchema = z
   .object({
     query: z.string().trim().min(1).max(512),
     limit: z.number().int().min(1).max(100).optional(),
+    providers: z.array(z.string().min(1).max(256)).max(16).optional(),
   })
   .strict();
 export const investmentSearchReferenceSchema = z

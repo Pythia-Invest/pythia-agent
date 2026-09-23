@@ -14,8 +14,8 @@ Arguments are flat action objects. The backend rejects unrelated fields.
 | Action | Required fields | Optional fields / result |
 | --- | --- | --- |
 | `search` | `provider`, `query` | Source candidates; no identity save |
-| `search_catalogue` | `query` | Optional `limit` (1–100, default 30); investment-first results, per-source coverage, explicit truncation |
-| `adopt_search` | `native_ref`, `scope` | Optional `references` (2–8) for instrument-group selection and `binding_mode` (`preferred` default or `source`); re-fetch details and return stable `subject`, usable `binding`, `identity_status`, `mapping_id` |
+| `search_catalogue` | `query` | Optional `limit` (1–100, default 30) and `providers` (0–16); investment-first results, per-source coverage, explicit truncation |
+| `adopt_search` | `native_ref`, `scope` | Optional `references` (2–8) for instrument-group selection and `binding_mode` (`source` default for a single reference, `preferred` for a group); re-fetch details and return stable `subject`, usable `binding`, `identity_status`, `mapping_id` |
 | `details` | `native_ref` | Source candidates, normalized evidence and issues |
 | `resolve_save` | `native_ref`, `scope` | Reads details and explicitly saves one selected native identity |
 | `series` | `binding` | `criteria`; returns matching definitions |
@@ -49,8 +49,8 @@ Shared search queries all search-capable native contributions; unavailable ones
 are reported without execution. Equivalent concurrent requests share in-flight
 work through the resident cache and existing bounded executor. Search does not
 retain provider response caches, ingest evidence or create identities. Each
-source is limited to 200 interpreted candidates, pairwise grouping to 4096
-comparisons, and visible results to the requested limit; reached bounds are
+source is limited to 200 interpreted candidates and visible results to the
+requested limit; reached bounds are
 reported rather than described as complete coverage. A source failure preserves
 successful siblings and their individual retry qualifications. Source access and
 identity generation are checked again before publication.
