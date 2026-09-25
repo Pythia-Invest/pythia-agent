@@ -82,9 +82,9 @@ CREATE TABLE assertions (
   retrieved_at TEXT NOT NULL,
   CHECK (subject_id LIKE level || ':%'),
   CHECK ((scheme IN ('lei', 'cik') AND level = 'issuer')
-      OR (scheme IN ('isin', 'cusip', 'share_class_figi') AND level = 'security')
+      OR (scheme IN ('isin', 'share_class_figi') AND level = 'security')
       OR (scheme = 'composite_figi' AND level = 'composite')
-      OR (scheme IN ('figi', 'ticker_mic', 'sedol', 'caip19') AND level = 'listing')),
+      OR (scheme IN ('figi', 'ticker_mic', 'caip19') AND level = 'listing')),
   CHECK ((tier = 'T0' AND authority IN ('source_asserted', 'snapshot'))
       OR (tier = 'T1' AND authority = 'rule_confirmed')
       OR (tier = 'T3' AND authority IN ('model_confirmed', 'model_suggested'))

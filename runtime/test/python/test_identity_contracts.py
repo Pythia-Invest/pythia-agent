@@ -35,7 +35,7 @@ YAHOO = {
 EODHD = {
     "schema_version": 1, "plugin": "eodhd", "provider": "eodhd", "label": "EODHD",
     "addressing": {"native": [{"native_scope": "catalogue", "level": "listing"}, {"native_scope": "composite", "level": "composite"}],
-                   "schemes": {"security": ["isin", "cusip", "share_class_figi"], "issuer": ["lei", "cik"]},
+                   "schemes": {"security": ["isin", "share_class_figi"], "issuer": ["lei", "cik"]},
                    "venues": {"mic_table": {"XAMS": {"code": "AS"}}, "composites": ["US"]}},
     "content": {"quote": {"level": "listing", "via": "listing", "tool": "eodhd_quote"},
                 "fundamentals": {"level": "issuer", "via": "listing", "tool": "eodhd_fundamentals"}},

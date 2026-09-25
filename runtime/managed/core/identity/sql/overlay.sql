@@ -50,8 +50,8 @@ CREATE INDEX records_ticker ON records (mic, ticker_root);
 CREATE TABLE record_identifiers (
   native_scope TEXT NOT NULL,
   native_id TEXT NOT NULL,
-  scheme TEXT NOT NULL CHECK (scheme IN ('lei', 'cik', 'isin', 'cusip', 'share_class_figi', 'composite_figi', 'figi',
-                                         'ticker_mic', 'sedol', 'caip19')),
+  scheme TEXT NOT NULL CHECK (scheme IN ('lei', 'cik', 'isin', 'share_class_figi', 'composite_figi', 'figi',
+                                         'ticker_mic', 'caip19')),
   value TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'self' CHECK (role IN ('self', 'underlying')),
   PRIMARY KEY (native_scope, native_id, scheme, value, role),

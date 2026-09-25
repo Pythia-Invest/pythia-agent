@@ -26,12 +26,10 @@ class Scheme(StrEnum):
     LEI = "lei"
     CIK = "cik"
     ISIN = "isin"
-    CUSIP = "cusip"
     SHARE_CLASS_FIGI = "share_class_figi"
     COMPOSITE_FIGI = "composite_figi"
     FIGI = "figi"
     TICKER_MIC = "ticker_mic"
-    SEDOL = "sedol"
     CAIP19 = "caip19"
 
 
@@ -41,12 +39,10 @@ SCHEME_LEVEL: dict[Scheme, Level] = {
     Scheme.LEI: Level.ISSUER,
     Scheme.CIK: Level.ISSUER,
     Scheme.ISIN: Level.SECURITY,
-    Scheme.CUSIP: Level.SECURITY,
     Scheme.SHARE_CLASS_FIGI: Level.SECURITY,
     Scheme.COMPOSITE_FIGI: Level.COMPOSITE,
     Scheme.FIGI: Level.LISTING,
     Scheme.TICKER_MIC: Level.LISTING,
-    Scheme.SEDOL: Level.LISTING,
     Scheme.CAIP19: Level.LISTING,
 }
 
@@ -69,13 +65,11 @@ _PATTERNS = {
     Scheme.LEI: re.compile(r"^[A-Z0-9]{18}[0-9]{2}$"),
     Scheme.CIK: re.compile(r"^[0-9]{10}$"),
     Scheme.ISIN: re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$"),
-    Scheme.CUSIP: re.compile(r"^[A-Z0-9]{8}[0-9]$"),
     Scheme.SHARE_CLASS_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
     Scheme.COMPOSITE_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
     Scheme.FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
     # ROOT[/CLASS]@MIC, e.g. ASML@XAMS or BRK/B@XNYS. Punctuation is the plugin's concern.
     Scheme.TICKER_MIC: re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}(/[A-Z0-9]{1,4})?@[A-Z0-9]{4}$"),
-    Scheme.SEDOL: re.compile(r"^[B-DF-HJ-NP-TV-Z0-9]{6}[0-9]$"),
     # CAIP-19: chain_id "/" asset_namespace ":" asset_reference [ "/" token_id ]
     Scheme.CAIP19: re.compile(
         r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}/[-a-z0-9]{3,8}:[-.%a-zA-Z0-9]{1,128}(/[-.%a-zA-Z0-9]{1,78})?$"),
@@ -99,7 +93,7 @@ def _luhn_digits(digits: str) -> bool:
 
 
 def _alternating(value: str) -> int:
-    """FIGI/CUSIP check digit: double every second character value, sum digits."""
+    """FIGI check digit: double every second character value, sum digits."""
     total = 0
     for index, character in enumerate(value[:-1]):
         number = _value(character) * (2 if index % 2 == 1 else 1)
@@ -112,12 +106,8 @@ def _checksum(scheme: Scheme, value: str) -> bool:
         return _luhn_digits("".join(str(_value(character)) for character in value))
     if scheme is Scheme.LEI:
         return int("".join(str(_value(character)) for character in value)) % 97 == 1
-    if scheme in (Scheme.FIGI, Scheme.COMPOSITE_FIGI, Scheme.SHARE_CLASS_FIGI, Scheme.CUSIP):
+    if scheme in (Scheme.FIGI, Scheme.COMPOSITE_FIGI, Scheme.SHARE_CLASS_FIGI):
         return _alternating(value) == int(value[-1])
-    if scheme is Scheme.SEDOL:
-        weights = (1, 3, 1, 7, 3, 9)
-        total = sum(_value(character) * weight for character, weight in zip(value, weights))
-        return (10 - total % 10) % 10 == int(value[-1])
     return True
 
 
