@@ -165,6 +165,8 @@ platform_toolsets:
       "enable",
       "enable",
       "enable",
+      "enable",
+      "enable",
     ]);
     expect(
       commands.filter((args) => args[3] === "doctor").map((args) => args[4]),
@@ -173,6 +175,8 @@ platform_toolsets:
       "pythia",
       "pythia-market-data",
       "pythia-yahoo-discovery",
+      "pythia-sec",
+      "pythia-openfigi",
     ]);
     const failed: string[][] = [];
     expect(() =>
@@ -290,7 +294,13 @@ platform_toolsets:
     );
     expect(
       commands.filter((args) => args[3] === "enable").map((args) => args[4]),
-    ).toEqual(["pythia", "pythia-market-data", "pythia-yahoo-discovery"]);
+    ).toEqual([
+      "pythia",
+      "pythia-market-data",
+      "pythia-yahoo-discovery",
+      "pythia-sec",
+      "pythia-openfigi",
+    ]);
     expect(readFileSync(join(community, "plugin.yaml"), "utf8")).toBe(
       "name: community\n",
     );
