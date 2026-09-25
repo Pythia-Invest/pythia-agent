@@ -404,3 +404,45 @@ test("Yahoo has no free-text search; ISIN resolve returns listing rows only", as
   });
   expect(JSON.stringify(result)).not.toContain("Synthetic");
 });
+test("Yahoo news is keyed by a validated symbol and keeps only items tagged with it", async () => {
+  const search = vi.fn(async () => ({
+    quotes: [{ isYahooFinance: true, symbol: "OTHER" }],
+    news: [
+      {
+        uuid: "one",
+        title: "Tagged",
+        publisher: "Synthetic Wire",
+        link: "https://example.test/one",
+        providerPublishTime: new Date("2026-01-02T12:00:00Z"),
+        type: "STORY",
+        relatedTickers: ["SYNTH", "OTHER"],
+      },
+      { uuid: "two", title: "Untagged", relatedTickers: ["OTHER"] },
+      { uuid: "three", title: "No tickers" },
+    ],
+  }));
+  const sdk = { search } as unknown as Client;
+  for (const args of [
+    { symbol: "free text" },
+    { symbol: "SYNTH", options: { count: 21 } },
+    { symbol: "SYNTH", options: { quotesCount: 5 } },
+  ])
+    expect(
+      await execute({ operation: "news", arguments: args }, sdk),
+    ).toMatchObject({ data: null, issues: ["invalid_request"] });
+  expect(search).not.toHaveBeenCalled();
+  const result = await execute(
+    { operation: "news", arguments: { symbol: "SYNTH" } },
+    sdk,
+  );
+  expect(search).toHaveBeenCalledWith(
+    "SYNTH",
+    expect.objectContaining({ quotesCount: 0, newsCount: 10 }),
+  );
+  expect(result.data).toMatchObject({
+    source: "yahoo.news",
+    result: { symbol: "SYNTH", news: [{ uuid: "one", title: "Tagged" }] },
+  });
+  expect(JSON.stringify(result)).not.toContain("Untagged");
+  expect(result.data).not.toHaveProperty("result.quotes");
+});

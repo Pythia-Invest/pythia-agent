@@ -1,5 +1,6 @@
 /** Owned, bounded public Yahoo SDK execution. No browser/account cookies or MCP.
- * There is no free-text search: the only Yahoo lookup is `resolve_isin`. */
+ * There is no free-text search: Yahoo's search endpoint is reached only by
+ * `resolve_isin` (a checksummed ISIN) and `news` (a validated symbol). */
 import YahooFinance from "yahoo-finance2";
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
@@ -20,6 +21,7 @@ export const methods = [
   "recommendationsBySymbol",
   "screener",
   "trendingSymbols",
+  "news",
 ] as const;
 const noop = () => {};
 export function client(): Client {
@@ -175,6 +177,47 @@ async function resolveIsin(sdk: Client, code: string) {
     }),
   };
 }
+/** News Yahoo tags with this exact symbol. The query is a validated symbol and
+ * untagged items are dropped, so free text cannot turn this into a search. */
+async function symbolNews(
+  sdk: Client,
+  code: string,
+  options: Record<string, unknown>,
+) {
+  const count = options.count ?? 10;
+  if (
+    Object.keys(options).some((key) => key !== "count") ||
+    !Number.isInteger(count) ||
+    Number(count) < 1 ||
+    Number(count) > 20
+  )
+    throw Error("invalid_request");
+  const found = await sdk.search(code, {
+    quotesCount: 0,
+    newsCount: Number(count),
+    enableFuzzyQuery: false,
+    enableCb: false,
+    enableNavLinks: false,
+  });
+  return {
+    symbol: code,
+    news: found.news.flatMap((item) =>
+      item.relatedTickers?.includes(code)
+        ? [
+            {
+              uuid: item.uuid,
+              title: item.title,
+              publisher: item.publisher,
+              link: item.link,
+              published_at: item.providerPublishTime,
+              type: item.type,
+              related_tickers: item.relatedTickers,
+            },
+          ]
+        : [],
+    ),
+  };
+}
 export async function execute(input: unknown, sdk: Client = client()) {
   const fetched = new Date().toISOString();
   try {
@@ -235,6 +278,9 @@ export async function execute(input: unknown, sdk: Client = client()) {
         break;
       case "insights":
         data = await sdk.insights(symbol(args.symbol), options);
+        break;
+      case "news":
+        data = await symbolNews(sdk, symbol(args.symbol), options);
         break;
     }
     const result = {
