@@ -6,6 +6,7 @@ library supplies bounded reads. There is deliberately no search operation.
 import importlib
 import json
 from pathlib import Path
+import time
 
 from . import facts, identity, reports
 from .definition import TOOLS, schemas
@@ -46,8 +47,15 @@ class Reader:
             clean = self.wire.validate_parameters(self.definitions[operation]['parameters'], arguments)
             refresh = clean.pop('refresh', False)
             budget = self.connector.connection(identity.PROVIDER, 'public', concurrency=2, per_minute=60)
+            # One deadline for all reads of an operation, inside the protected
+            # HTTP adapter's 30-second limit.
+            deadline = time.monotonic() + 25
 
             def fetch(url, label, validate, age=3600, scope=None):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise self.connector.SourceFailure({'error': 'timeout'})
+
                 def prepare(raw):
                     try:
                         return {**raw, 'data': validate(raw['data'], raw['observed_at'])}
@@ -55,7 +63,7 @@ class Reader:
                         code = 'missing_observation' if str(error) == 'missing_observation' else 'invalid_response'
                         raise self.connector.SourceFailure({'error': code}) from None
                 return self.reads.read([__file__], {'operation': label, 'url': url}, {},
-                    cancelled=cancelled, budget=budget, age=0 if refresh else age, timeout=20,
+                    cancelled=cancelled, budget=budget, age=0 if refresh else age, timeout=min(20, remaining),
                     prepare_result=prepare, cache_scope=['xbrl-validated:2', cache_scope, scope])
 
             def validate_reports(raw, stamp):
@@ -95,7 +103,8 @@ class Reader:
 
             def project(raw, stamp):
                 return facts.read(raw, identifier, selected, stamp, limit, clean.get('concepts'))
-            document = fetch(selected['json_url'], 'report_facts', project,
+            # The key includes the report hash, and a report never changes.
+            document = fetch(selected['json_url'], 'report_facts', project, age=86400,
                 scope={'hash': selected['hash'], 'report_id': selected['id'],
                        'limit': limit, 'concepts': clean.get('concepts')})
             return envelope(document['data'])

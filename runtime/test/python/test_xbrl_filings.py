@@ -9,7 +9,9 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from test_gleif_connector import SkillContext, register_with_market_data
 from test_market_data_identity import wire
@@ -218,6 +220,19 @@ class XbrlSemantics(unittest.TestCase):
         result = reader.invoke('filings', {'native_ref': REF})
         self.assertEqual(result['issues'][0]['retry_after_seconds'], 12)
         self.assertEqual(result['issues'][0]['code'], 'rate_limit')
+
+    def test_one_deadline_bounds_metadata_and_report_reads(self):
+        clock = [0]
+        class SlowTransport(FakeTransport):
+            def run_worker(self, *args, **options):
+                clock[0] += 26
+                return super().run_worker(*args, **options)
+        transport = SlowTransport([metadata(), document()])
+        reader = plugin.Reader(wire, connector, transport=transport)
+        with patch.object(plugin, 'time', SimpleNamespace(monotonic=lambda: clock[0])):
+            result = reader.invoke('fundamentals', {'native_ref': REF})
+        self.assertEqual(result['issues'][0]['code'], 'timeout')
+        self.assertEqual(len(transport.requests), 1)
 
     def test_filings_and_fundamentals_share_one_metadata_request(self):
         transport = FakeTransport([metadata(), document()])

@@ -74,10 +74,10 @@ observations. URLs stay on the fixed HTTPS origin and under the expected LEI pat
 redirects are rejected.
 
 Reads use the shared worker cache and in-flight coordination, a two-request,
-sixty-per-minute local connection budget, cancellation and bounded HTTP
-timeouts. Domain validation runs before cache publication, so malformed HTTP 200
+sixty-per-minute local connection budget, cancellation and one 25-second
+deadline shared by an operation's reads. Domain validation runs before cache publication, so malformed HTTP 200
 responses are not retained. Report cache identity includes the source report hash
-and requested projection. The local budget is conservative policy, not a
+and requested projection, so projected facts are kept for a day. The local budget is conservative policy, not a
 published provider quota. Throttling, access denial, unavailable reports and
 malformed responses remain distinct. Native access is checked before and after
 each read. `refresh` bypasses the retained entity check.
