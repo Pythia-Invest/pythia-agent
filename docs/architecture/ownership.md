@@ -31,8 +31,13 @@ standalone external skill. Bundled plugin skills have qualified names; a flat
 local name does not replace them. Customize the owning plugin or use native skill
 disablement. Pythia does not add a parallel extension registry.
 
-The [market-data owner](market-data.md) owns canonical financial meaning,
-identity, compatible source selection and resident request coordination. Provider
+Core owns canonical investment identity: subject levels, claims, the
+resolution queue, the identity stores and local search
+([ADR 0037](../decisions/0037-identity-backbone.md)). Plugins contribute claims
+and declare what they can address in `contract.json`
+([ADR 0038](../decisions/0038-plugin-addressing-contract.md)). The
+[market-data owner](market-data.md) owns financial meaning, compatible source
+selection and resident request coordination. Provider
 plugins contribute native capabilities and evidence. The existing gateway hosts
 one shared HTTP/tool backend per profile; standalone CLI shares durable state and
 implementation, not memory. Protected transport, authentication and limits belong
