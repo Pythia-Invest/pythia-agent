@@ -107,6 +107,23 @@ export const MANAGED_PLUGINS = Object.freeze([
       "skills/gleif/SKILL.md",
     ]),
   }),
+  Object.freeze({
+    name: "pythia-xbrl-filings",
+    install: true,
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/xbrl-filings",
+    files: Object.freeze([
+      "__init__.py",
+      "definition.py",
+      "identity.py",
+      "reports.py",
+      "facts.py",
+      "plugin.yaml",
+      "README.md",
+      "skills/xbrl-filings/SKILL.md",
+    ]),
+  }),
 ]);
 
 // Core runner helpers shared by every connector worker, validated once rather
