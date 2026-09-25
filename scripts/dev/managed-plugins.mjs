@@ -88,19 +88,42 @@ export const MANAGED_PLUGINS = Object.freeze([
       "series.py",
       "results.py",
     ]),
+    workers: Object.freeze(["yahoo.ts", "yahoo-prices.ts", "yahoo-options.ts"]),
   }),
 ]);
 
-// Connector worker sources run in place from the managed root after
-// `build:runtime`; they are release inputs, not copied plugin files.
-export const MANAGED_PROVIDER_WORKERS = Object.freeze([
+// Core runner helpers shared by every connector worker, validated once rather
+// than repeated in each payload's `workers`.
+export const MANAGED_RUNNER_SHARED = Object.freeze([
   "provider-budget.ts",
   "provider-errors.ts",
   "provider-worker.ts",
-  "yahoo.ts",
-  "yahoo-prices.ts",
-  "yahoo-options.ts",
 ]);
+
+/**
+ * Runner inputs a payload declares, relative to `runner/`: its `workers`
+ * sources and their `build:runtime` outputs (`dist/<name>.js`). Workers run in
+ * place from the managed root; they are release inputs, not profile copies.
+ */
+export function managedWorkerFiles(plugin) {
+  const sources = plugin.workers ?? [];
+  return Object.freeze({
+    sources,
+    compiled: Object.freeze(
+      sources.map((name) => `dist/${name.replace(/\.ts$/u, ".js")}`),
+    ),
+  });
+}
+
+/** Every payload's workers plus, once, the shared helpers they import. */
+export function managedRunnerFiles(plugins) {
+  const workers = plugins
+    .map(managedWorkerFiles)
+    .filter((files) => files.sources.length);
+  return workers.length
+    ? [managedWorkerFiles({ workers: MANAGED_RUNNER_SHARED }), ...workers]
+    : [];
+}
 
 export function refreshManagedPlugins(
   paths,
@@ -123,10 +146,12 @@ export function refreshManagedPlugins(
       destination: join(paths.profileRoot, "plugins", plugin.name),
     }));
   // Validate the entire input set before replacing any copied native package.
-  assertManagedPluginSource(
-    join(paths.managedRoot, "runner"),
-    MANAGED_PROVIDER_WORKERS,
-  );
+  const runnerFiles = managedRunnerFiles(copies).flatMap((files) => [
+    ...files.sources,
+    ...files.compiled,
+  ]);
+  if (runnerFiles.length)
+    assertManagedPluginSource(join(paths.managedRoot, "runner"), runnerFiles);
   for (const plugin of copies)
     assertManagedPluginSource(plugin.source, plugin.files);
   const results = [];

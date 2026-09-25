@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -17,7 +18,8 @@ import { buildManagedWidgets } from "../../scripts/dev/build-managed-widgets.mjs
 import { MANAGED_WIDGET_BUILDS } from "../../scripts/dev/managed-widget-builds.mjs";
 import {
   MANAGED_PLUGINS,
-  MANAGED_PROVIDER_WORKERS,
+  managedRunnerFiles,
+  managedWorkerFiles,
   refreshManagedPlugins,
 } from "../../scripts/dev/managed-plugins.mjs";
 import { PLUGIN_COPY_RECEIPT } from "../../scripts/dev/files.mjs";
@@ -25,7 +27,14 @@ import { PLUGIN_COPY_RECEIPT } from "../../scripts/dev/files.mjs";
 const repository = new URL("../../", import.meta.url).pathname;
 // Packaging consumes actual compiled release inputs, just like explicit runtime
 // preparation. Never rely on committed bundles or a previous contributor build.
-beforeAll(() => buildManagedWidgets(repository), 30_000);
+beforeAll(async () => {
+  execFileSync(process.execPath, [
+    join(repository, "node_modules/typescript/bin/tsc"),
+    "--project",
+    join(repository, "runtime/managed/runner/tsconfig.json"),
+  ]);
+  await buildManagedWidgets(repository);
+}, 60_000);
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0))
@@ -48,10 +57,15 @@ function fixture(profile = "fixture") {
       );
     }
   }
-  for (const file of MANAGED_PROVIDER_WORKERS) {
-    const destination = join(managedRoot, "runner", file);
-    mkdirSync(dirname(destination), { recursive: true });
-    copyFileSync(join(repository, "runtime/managed/runner", file), destination);
+  for (const { sources, compiled } of managedRunnerFiles(MANAGED_PLUGINS)) {
+    for (const file of [...sources, ...compiled]) {
+      const destination = join(managedRoot, "runner", file);
+      mkdirSync(dirname(destination), { recursive: true });
+      copyFileSync(
+        join(repository, "runtime/managed/runner", file),
+        destination,
+      );
+    }
   }
   return {
     root,
@@ -202,6 +216,25 @@ platform_toolsets:
     ).toBe("preserved");
     expect(reports[0]).toContain("Preserved local plugin pythia");
     expect(readFileSync(join(foreign, "keep"), "utf8")).toBe("untouched");
+  });
+
+  it("requires compiled connector workers before any package is replaced", () => {
+    const paths = fixture();
+    const worker = MANAGED_PLUGINS.flatMap(
+      (plugin) => managedWorkerFiles(plugin).compiled,
+    )[0];
+    if (!worker) throw Error("Missing managed connector worker.");
+    rmSync(join(paths.managedRoot, "runner", worker));
+    const commands: string[][] = [];
+    expect(() =>
+      refreshManagedPlugins(paths, "synthetic", {
+        execute: (_paths: unknown, args: string[]) => {
+          commands.push(args);
+        },
+      }),
+    ).toThrow();
+    expect(commands).toEqual([]);
+    expect(existsSync(join(paths.profileRoot, "plugins"))).toBe(false);
   });
 
   it("requires explicit widget compilation before any package is replaced", () => {
