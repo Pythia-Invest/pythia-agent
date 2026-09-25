@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "check": "check_configuration",
   "fields": [
     {
       "key": "sec_identity",
       "kind": "identity",
       "label": "SEC contact",
-      "help": "SEC requires it as the User-Agent of every request: a name followed by an email address, e.g. 'Example Research research@example.org'.",
+      "description": "SEC requires it as the User-Agent of every request: a name followed by an email address, e.g. 'Example Research research@example.org'.",
+      "url": "https://www.sec.gov/os/accessing-edgar-data",
       "required": true
     }
   ]
