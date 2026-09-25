@@ -38,15 +38,14 @@ class Reader:
         self.wire, self.connector = wire, connector
         self.definitions = schemas(wire)
         if transport is None:
-            transport = connector.Transport(provider=identity.PROVIDER, origins=(identity.ORIGIN,),
-                headers={'User-Agent': 'Pythia investment research'}, max_bytes=16_000_000)
+            transport = connector.Transport(provider=identity.PROVIDER, origins=(identity.ORIGIN,), max_bytes=16_000_000)
         self.reads = connector.WorkerReads(transport)
 
     def invoke(self, operation, arguments, cancelled=None, cache_scope=None):
         try:
             clean = self.wire.validate_parameters(self.definitions[operation]['parameters'], arguments)
             refresh = clean.pop('refresh', False)
-            budget = self.connector.connection(identity.PROVIDER, 'public', concurrency=2, per_minute=60)
+            budget = self.connector.connection(identity.PROVIDER, concurrency=2, per_minute=60)
             # One deadline for all reads of an operation, inside the protected
             # HTTP adapter's 30-second limit.
             deadline = time.monotonic() + 25
@@ -128,11 +127,11 @@ class Reader:
 
 
 def register(ctx):
+    wire, connector, selection = helpers(ctx)
+    reader = Reader(wire, connector)
     ctx.register_skill('xbrl-filings', Path(__file__).parent / 'skills/xbrl-filings/SKILL.md',
         description='Read public ESEF and other XBRL annual report links and reported financial facts by company LEI.',
         frontmatter={'platforms': ['linux', 'macos']})
-    wire, connector, selection = helpers(ctx)
-    reader = Reader(wire, connector)
     for operation, schema in reader.definitions.items():
         def handler(arguments, _operation=operation, **context):
             helpers(ctx)
