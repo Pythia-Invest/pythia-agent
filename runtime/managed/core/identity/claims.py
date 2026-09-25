@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Mapping, Protocol
 
-from .manifest import CatalogueMode, Manifest
+from .manifest import Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
 from .schemes import (
     CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, TICKER, Level, Scheme, normalize_identifier,
@@ -198,10 +198,8 @@ def check_batch(batch: ClaimBatch, manifest: Manifest) -> None:
     """Mechanical contract checks for a batch against its plugin's validated manifest."""
     if (batch.plugin, batch.provider) != (manifest.plugin, manifest.provider):
         raise _fail(None, "plugin or provider differs from the manifest")
-    catalogue = manifest.catalogue
-    if batch.origin is BatchOrigin.CATALOGUE:
-        if catalogue is None or catalogue.mode is not CatalogueMode.BULK or batch.scope not in catalogue.scopes:
-            raise _fail(None, "no declared bulk catalogue scope")
+    if batch.origin is BatchOrigin.CATALOGUE and batch.scope not in manifest.catalogue_scopes:
+        raise _fail(None, "no declared bulk catalogue scope")
     if batch.origin is BatchOrigin.RESOLVE and manifest.resolve is None:
         raise _fail(None, "no declared resolve")
     seen: set[tuple[str, str]] = set()

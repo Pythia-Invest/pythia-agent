@@ -20,28 +20,23 @@ FIXTURES = Path(__file__).parent / "fixtures/identity"
 PROVENANCE = {"plugin": "eodhd", "source": "eodhd", "adapter_version": "1", "retrieved_at": "2026-09-25T10:00:00Z"}
 
 YAHOO = {
-    "schema_version": 1, "plugin": "yahoo", "provider": "yahoo", "label": "Yahoo Finance",
-    "addressing": {
-        "native": [{"native_scope": "symbol", "level": "listing", "asset_classes": ["equity"]}],
-        "schemes": {"listing": ["ticker_mic"], "security": ["isin"]},
-        "venues": {"mic_table": {"XAMS": {"suffix": ".AS"}, "XNGS": {"suffix": ""}}, "composites": ["US"]},
-        "symbol_rules": {"class_separator": "-", "pad": {"XHKG": 4}, "strip_trailing_dot": ["XLON"]},
-    },
+    "plugin": "yahoo", "provider": "yahoo",
+    "addressing": {"native": [{"native_scope": "symbol", "level": "listing", "asset_classes": ["equity"]}],
+                   "schemes": {"listing": ["ticker_mic"], "security": ["isin"]},
+                   "mic_table": {"XAMS": ".AS", "XNAS": ""}},
     "content": {"quote": {"level": "listing", "via": "listing", "tool": "yahoo_quote"},
                 "news": {"level": "security", "via": "listing", "tool": "yahoo_news"}},
-    "catalogue": {"mode": "resolve_only", "binding_ttl_seconds": 2592000},
-    "resolve": {"tool": "yahoo_resolve", "input_schemes": ["isin"], "echoes": ["ticker_mic"], "cost": {"calls": 1, "credits": 0}},
+    "resolve": {"tool": "yahoo_resolve", "input_schemes": ["isin"], "echoes": ["ticker_mic"]},
 }
 EODHD = {
-    "schema_version": 1, "plugin": "eodhd", "provider": "eodhd", "label": "EODHD",
+    "plugin": "eodhd", "provider": "eodhd",
     "addressing": {"native": [{"native_scope": "catalogue", "level": "listing"}, {"native_scope": "composite", "level": "composite"}],
                    "schemes": {"security": ["isin", "share_class_figi"], "issuer": ["lei", "cik"]},
-                   "venues": {"mic_table": {"XAMS": {"code": "AS"}}, "composites": ["US"]}},
+                   "mic_table": {"XAMS": "AS"}},
     "content": {"quote": {"level": "listing", "via": "listing", "tool": "eodhd_quote"},
-                "fundamentals": {"level": "issuer", "via": "listing", "tool": "eodhd_fundamentals"}},
-    "catalogue": {"mode": "bulk", "tool": "eodhd_catalogue", "scopes": ["as", "us"], "max_age_seconds": 86400},
-    "resolve": {"tool": "eodhd_resolve", "input_schemes": ["isin", "figi", "lei"], "echoes": ["isin", "figi"],
-                "cost": {"calls": 1, "credits": 1}},
+                "financials": {"level": "issuer", "via": "listing", "tool": "eodhd_fundamentals"}},
+    "catalogue": {"mode": "bulk", "tool": "eodhd_catalogue", "scopes": ["as", "us"]},
+    "resolve": {"tool": "eodhd_resolve", "input_schemes": ["isin", "figi", "lei"], "echoes": ["isin", "figi"]},
 }
 
 
@@ -212,25 +207,27 @@ class FixtureTest(unittest.TestCase):
 class ManifestTest(unittest.TestCase):
     def test_accepts_resolve_only_and_bulk_catalogue_plugins(self):
         yahoo = identity.validate_manifest(YAHOO)
-        self.assertIs(yahoo.catalogue.mode, identity.CatalogueMode.RESOLVE_ONLY)
-        self.assertEqual(yahoo.addressing.mic_table["XAMS"].suffix, ".AS")
+        self.assertIs(yahoo.catalogue, identity.CatalogueMode.RESOLVE_ONLY)
         eodhd = identity.validate_manifest(EODHD)
-        self.assertIs(eodhd.content[identity.Section.FUNDAMENTALS].level, identity.Level.ISSUER)
+        self.assertIs(eodhd.content[identity.Section.FINANCIALS].level, identity.Level.ISSUER)
 
-    def test_rejects_contract_violations(self):
+    def test_rejects_contract_violations_at_their_path(self):
         cases = {
-            "provider search is not part of": lambda value: value.update(search={"tool": "yahoo_search"}),
-            "isin identifies a security": lambda value: value["addressing"]["schemes"].update(listing=["isin"]),
-            "broader reference cannot address": lambda value: value["content"].update(
+            "manifest.search": lambda value: value.update(search={"tool": "yahoo_search"}),
+            "addressing.schemes.listing": lambda value: value["addressing"]["schemes"].update(listing=["isin"]),
+            "content.chart.via": lambda value: value["content"].update(
                 chart={"level": "listing", "via": "security", "tool": "yahoo_chart"}),
-            "resolve_only requires a resolve": lambda value: value.pop("resolve"),
-            "unknown field": lambda value: value["catalogue"].update(tool="yahoo_catalogue"),
+            "addressing.native[0]": lambda value: (value.pop("resolve"), value["addressing"].pop("mic_table")),
+            "catalogue": lambda value: value.update(catalogue={"mode": "resolve_only", "scopes": ["all"]}),
+            "addressing.native": lambda value: value["addressing"].update(native=5),
         }
-        for message, change in cases.items():
+        for path, change in cases.items():
             document = copy.deepcopy(YAHOO)
             change(document)
-            with self.subTest(message=message), self.assertRaisesRegex(identity.ManifestError, message):
-                identity.validate_manifest(document)
+            with self.subTest(path=path):
+                with self.assertRaises(identity.ManifestError) as caught:
+                    identity.validate_manifest(document)
+                self.assertTrue(str(caught.exception).startswith(path), caught.exception)
 
 
 class ClaimTest(unittest.TestCase):

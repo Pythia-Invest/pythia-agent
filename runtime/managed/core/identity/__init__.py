@@ -16,7 +16,7 @@ from .claims import (
     RecordAttributes,
     RecordClaim, RelationClaim, check_batch,
 )
-from .manifest import MANIFEST_FILE, PAGE_BUDGET, CatalogueMode, Manifest, ManifestError, Section, validate_manifest
+from .manifest import MANIFEST_FILE, CatalogueMode, Manifest, ManifestError, Section, validate_manifest
 from .model import (
     Binding, Composite, IdentifierAssertion, Issuer, Listing, Provenance, ProviderRef, Relation, Security,
     Subject, Validity, evidence_id,
