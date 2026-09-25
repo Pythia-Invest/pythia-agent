@@ -24,7 +24,9 @@ def identifiers(coin, symbol, pairs):
 def page(snapshot, arguments):
     if (not isinstance(snapshot, dict) or not isinstance(snapshot.get('rows'), list)
             or len(snapshot['rows']) > 100000 or not isinstance(snapshot.get('version'), str)
-            or len(snapshot['version']) != 64 or not isinstance(snapshot.get('retrieved_at'), str)):
+            or len(snapshot['version']) != 64 or not isinstance(snapshot.get('retrieved_at'), str)
+            or not isinstance(snapshot.get('rejected'), dict)
+            or any(type(snapshot['rejected'].get(key)) is not int for key in ('rows', 'contracts'))):
         raise ValueError('invalid_response')
     offset, limit = int(arguments.get('cursor', '0')), arguments.get('limit', 1000)
     if offset > len(snapshot['rows']):
@@ -57,5 +59,7 @@ def page(snapshot, arguments):
     return {'rows': rows, 'scope': 'coins', 'version': snapshot['version'], 'total': len(snapshot['rows']),
             'next_cursor': str(end) if end < len(snapshot['rows']) else None,
             'complete': True, 'retrieved_at': snapshot['retrieved_at'], 'retention': RETENTION,
+            # Malformed source rows and contract pairs the worker skipped.
+            'rejected': {key: snapshot['rejected'][key] for key in ('rows', 'contracts')},
             'rank_coverage': snapshot.get('rank_coverage', 'unavailable'),
             'source_url': snapshot.get('source_url', 'https://api.coingecko.com/api/v3/coins/list?include_platform=true')}

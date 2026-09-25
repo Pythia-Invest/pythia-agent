@@ -53,12 +53,17 @@ One sync makes two bulk requests, each counted by the shared connection budget:
    `market_cap` as rank signals. A zero market cap means unknown supply and is
    kept unknown. Prices and volumes are not retained.
 
-A rank failure leaves rank facts unknown and never discards the list. Pages of
-at most 1,000 rows share one 30-minute in-memory snapshot with a content-derived
-version. Each row carries `provider_ref`, `name`, `symbol` and source-asserted
-identifiers: `coingecko.id`, `symbol` and `contract_address` with its CoinGecko
-platform `network`. Symbols, contracts and ranks never prove equivalence between
-coins or providers; the identity owner decides joins and derives CAIP-19.
+A malformed coin row (including every copy of a duplicated ID) or contract pair
+is skipped and counted in each page's `rejected`; only a response that is not a
+list or exceeds the size bounds fails the sync. A rank failure leaves rank facts
+unknown and never discards the list.
+
+Pages of at most 1,000 rows share one 30-minute in-memory snapshot with a
+content-derived version. Each row carries `provider_ref`, `name`, `symbol` and
+source-asserted identifiers: `coingecko.id`, `symbol` and `contract_address`
+with its CoinGecko platform `network`. Symbols, contracts and ranks never prove
+equivalence between coins or providers; the identity owner decides joins and
+derives CAIP-19.
 
 Native coins such as Bitcoin, Ether and Solana carry no contract. Joining
 native coins across providers, and mapping platform names to CAIP-2 chains,

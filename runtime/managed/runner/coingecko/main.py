@@ -9,6 +9,7 @@ from urllib.parse import urlencode, quote
 from urllib.request import Request, HTTPSHandler, HTTPRedirectHandler, ProxyHandler, build_opener
 from urllib.error import HTTPError, URLError
 import socket
+from collections import Counter
 from functools import lru_cache
 
 LIMIT = 1_500_000
@@ -134,48 +135,58 @@ def text(value, limit=512):
 
 
 def contracts(platforms):
-    """Source-asserted (platform, address) deployments, in a stable order.
+    """Source-asserted (platform, address) deployments in a stable order, and
+    the number of malformed pairs skipped.
 
     Native coins carry no contract; CoinGecko may also return an empty pair for
     them. Addresses keep their source spelling: normalization and CAIP-19
     derivation belong to the identity owner, not to this source adapter.
     """
     if platforms is None:
-        return []
+        return [], 0
     if not isinstance(platforms, dict) or len(platforms) > 256:
         raise ValueError()
-    pairs = []
+    pairs, skipped = [], 0
     for network, address in platforms.items():
         if network == '' or address in ('', None):
             continue
-        if not native_id(network) or not text(address) or not address.strip():
-            raise ValueError()
-        pairs.append([network, address])
-    return sorted(pairs)
+        if native_id(network) and text(address) and address.strip():
+            pairs.append([network, address])
+        else:
+            skipped += 1
+    return sorted(pairs), skipped
 
 
 def catalogue_snapshot(data):
     """Pack reference metadata to fit the bounded worker transport.
 
-    The HTTP source supplies the complete active list. Refuse an oversized or
-    malformed snapshot rather than publishing a silently incomplete catalogue.
+    The HTTP source supplies the complete active list. Refuse a list that is
+    not one or is oversized; skip a malformed row or contract pair and count it
+    in `rejected`, so a partial catalogue is never silent.
     """
     if not isinstance(data, list) or len(data) > 100000:
         raise ValueError()
-    seen, rows = set(), []
+    ids = Counter(row.get('id') for row in data if isinstance(row, dict) and isinstance(row.get('id'), str))
+    rows, rejected = [], {'rows': 0, 'contracts': 0}
     for row in data:
-        if not isinstance(row, dict):
-            raise ValueError()
-        identifier, symbol, name = (row.get(key) for key in ('id', 'symbol', 'name'))
-        if not native_id(identifier) or identifier in seen or not text(symbol) or not text(name) or not name:
-            raise ValueError()
-        seen.add(identifier)
-        rows.append([identifier, symbol, name, contracts(row.get('platforms'))])
+        try:
+            if not isinstance(row, dict):
+                raise ValueError()
+            identifier, symbol, name = (row.get(key) for key in ('id', 'symbol', 'name'))
+            # A duplicated ID is ambiguous: every copy is rejected.
+            if not native_id(identifier) or ids[identifier] > 1 or not text(symbol) or not text(name) or not name:
+                raise ValueError()
+            pairs, skipped = contracts(row.get('platforms'))
+        except ValueError:
+            rejected['rows'] += 1
+            continue
+        rejected['contracts'] += skipped
+        rows.append([identifier, symbol, name, pairs])
     rows.sort(key=lambda row: row[0])
     packed = json.dumps(rows, ensure_ascii=False, separators=(',', ':')).encode()
     if len(packed) > PACKED_LIMIT:
         raise ValueError()
-    return {'rows': rows, 'version': hashlib.sha256(packed).hexdigest(),
+    return {'rows': rows, 'rejected': rejected, 'version': hashlib.sha256(packed).hexdigest(),
             'retrieved_at': datetime.now(timezone.utc).isoformat()}
 
 

@@ -86,20 +86,26 @@ class Catalogue(unittest.TestCase):
             with self.assertRaises(ValueError):
                 worker.request_spec(bad)
 
-    def test_snapshot_keeps_contracts_skips_native_placeholders_and_rejects_bad_rows(self):
+    def test_snapshot_keeps_contracts_skips_native_placeholders_and_counts_bad_rows(self):
         snapshot = worker.catalogue_snapshot(LIST)
         self.assertEqual(snapshot['rows'], [['alpha-native', 'alp', 'Synthetic Alpha', []],
                                             ['beta-native', '', 'Synthetic Beta', []],
                                             ['zeta-token', 'zet', 'Synthetic Zeta', [['chain-a', '0xA0'], ['chain-b', '0xB0']]]])
+        self.assertEqual(snapshot['rejected'], {'rows': 0, 'contracts': 0})
         self.assertEqual(snapshot['version'], worker.catalogue_snapshot(list(reversed(LIST)))['version'])
+        # One malformed row or pair never fails the list; each one is counted.
         for row in ({'id': 'x', 'symbol': 's', 'name': 'N', 'platforms': ['chain-a']},
-                    {'id': 'x', 'symbol': 's', 'name': 'N', 'platforms': {'chain-a': '0x\n1'}},
-                    {'id': 'x', 'symbol': 's', 'name': 'N', 'platforms': {'chain-a': 7}},
-                    {'id': 'x', 'symbol': 's', 'name': ''}, {'id': 'bad\nid', 'symbol': 's', 'name': 'N'}):
-            with self.assertRaises(ValueError):
-                worker.catalogue_snapshot([row])
+                    {'id': 'x', 'symbol': 's', 'name': ''}, {'id': 'bad\nid', 'symbol': 's', 'name': 'N'}, 'not-a-row'):
+            snapshot = worker.catalogue_snapshot(LIST + [row])
+            self.assertEqual((len(snapshot['rows']), snapshot['rejected']), (3, {'rows': 1, 'contracts': 0}))
+        for address in ('0x\n1', 7, '   '):
+            snapshot = worker.catalogue_snapshot([{'id': 'x', 'symbol': 's', 'name': 'N', 'platforms': {'chain-a': address, 'chain-b': '0xB0'}}])
+            self.assertEqual((snapshot['rows'][0][3], snapshot['rejected']), ([['chain-b', '0xB0']], {'rows': 0, 'contracts': 1}))
+        duplicated = worker.catalogue_snapshot(LIST + [{**LIST[0], 'name': 'Other'}])
+        self.assertEqual([row[0] for row in duplicated['rows']], ['alpha-native', 'beta-native'], 'an ambiguous ID is never adopted')
+        self.assertEqual(catalogue.page(duplicated, {'scope': 'coins'})['rejected'], {'rows': 2, 'contracts': 0})
         with self.assertRaises(ValueError):
-            worker.catalogue_snapshot(LIST + [LIST[0]])
+            worker.catalogue_snapshot({'rows': LIST})
         with self.assertRaises(ValueError):  # Refuse rather than truncate an oversized list.
             worker.catalogue_snapshot([{'id': f'coin-{i}', 'symbol': 's', 'name': 'n' * 400,
                                         'platforms': {'chain-a': 'a' * 400}} for i in range(9000)])
