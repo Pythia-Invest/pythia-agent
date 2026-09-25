@@ -85,3 +85,54 @@ investor rematching, code-only fixes and permanent force-match overrides leave
 incorrect associations hidden. A universal merge engine, automatic fallback,
 renumbering every reference or rewriting retained research would sacrifice
 scope, intent or evidence beyond this requirement.
+
+## Amendment (2026-09)
+
+This amendment changes the ruling above. The original text is kept as the
+record of the provider-bound model.
+
+**The backbone replaces the evidence model.** ADR 0037 replaces the
+provider-bound evidence model with a core-owned, subject-keyed identity
+backbone. The replaced model has three parts:
+
+- source-pair rules for IBKR, EODHD, CoinGecko and CoinMarketCap;
+- proof that both sides carry native assertions;
+- the IBKR-only listing proof.
+
+In the backbone, provider references are bindings to issuer, security, listing
+or crypto subjects, joined at ingest by identifier agreement. Several guarantees
+of this ADR carry forward unchanged:
+
+- Retained intent and saved references are never rewritten.
+- Contradictions are quarantined as visible conflicts and never merged.
+- Unknown or multiple targets are never guessed.
+- Revisions remain inspectable.
+- Only current confirmed bindings route canonical reads.
+
+**New authorities.** Evidence authority gains four values alongside
+`source_asserted`, `query_only` and `unknown`:
+
+- `snapshot`: asserted by a verified reference snapshot release (ADR 0039),
+  recorded with its release version.
+- `model_confirmed`: a matcher verdict at or above the threshold calibrated for
+  that relation.
+- `model_suggested`: a matcher verdict below that threshold. It stays a
+  candidate and never routes a canonical read.
+- `user_attested`: an association the user stated, for example in conversation
+  or in an import, and the agent recorded.
+
+An authority may confirm an association when no identifier proves it. It never
+confirms an association against contradicting identifier evidence.
+Contradicting identifiers at the same level and within their validity windows
+always win. So do the mechanical depositary-receipt and share-class guards. A
+later contradiction reopens a model or user confirmation as a conflict. Every
+confirmation shows its authority wherever the association appears, and it can
+be revoked.
+
+**Repair is agent-facing.** When a plugin update changes a rule, a connector or
+a snapshot release, the affected matches are repaired automatically. Until such
+an update supplies proof, the agent may apply or revoke overrides. An override
+records the authority of its basis and obeys the rule above. A later update that
+supplies proof retires the override. Users never fix matches by hand: there is
+no manual matching surface. A user corrects a match by telling the agent, and the
+conflict and residual queues serve the agent, not the user.
