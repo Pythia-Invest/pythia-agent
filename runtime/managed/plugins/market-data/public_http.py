@@ -98,7 +98,9 @@ class Transport:
         if any(not isinstance(key, str) or not isinstance(value, str) or
                any(char in key + value for char in '\r\n') for key, value in self.headers.items()):
             raise ValueError('invalid_headers')
-        self.opener = opener if opener is not None else build_opener(HTTPSHandler(context=_https_context(provider)), NoRedirect())
+        # Trust is resolved on first use: a broken CA configuration fails reads
+        # with a diagnostic instead of failing plugin registration.
+        self.opener = opener
 
     def _request(self, request):
         url = request.get('url')
@@ -121,6 +123,8 @@ class Transport:
             if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 0 < timeout <= 120:
                 raise ValueError('invalid_request')
             req = self._request(request)
+            if self.opener is None:
+                self.opener = build_opener(HTTPSHandler(context=_https_context(self.provider)), NoRedirect())
             check()
             with budget.slot(check):
                 check()

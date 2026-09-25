@@ -84,6 +84,11 @@ class PublicHttpTests(unittest.TestCase):
              patch.dict(os.environ, {'SSL_CERT_FILE': directory + '/missing.pem'}, clear=True):
             with self.assertRaises(OSError):
                 http._https_context()
+            # Broken trust fails the read, not construction at plugin registration.
+            transport = http.Transport(provider='synthetic', origins=('https://data.example',))
+            with self.assertRaises(reads_module.SourceFailure) as caught:
+                self.read(transport)
+            self.assertEqual(caught.exception.raw['error'], 'network_error')
 
     def test_response_limits_and_malformed_payloads_are_never_successes(self):
         cases = [
