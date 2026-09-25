@@ -1,8 +1,6 @@
 """SEC reporting-entity evidence; a CIK identifies a filer, not a security or listing.
 
 Public formats: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
-These functions are pure so the same parsing serves runtime reads and offline
-reference builds.
 """
 import re
 
@@ -61,17 +59,12 @@ def listing(symbol, exchange):
     return {'ticker': {'symbol': symbol}, **({'venue': venue} if exchange else {})}
 
 
-def directory_records(raw, observed_at):
-    """One row per SEC ticker line, in the file's own order (``rank``).
-
-    The order is SEC's, exposed for the core to evaluate as a ranking signal; it
-    is not a market value. Several lines can share one CIK (share classes,
-    preferreds, warrants), and none of them proves security equivalence.
-    """
+def _directory_lines(raw):
+    """``(cik, name, listing)`` per SEC ticker line; several lines can share one CIK."""
     if not isinstance(raw, dict) or raw.get('fields') != ['cik', 'name', 'ticker', 'exchange'] or not isinstance(raw.get('data'), list):
         raise ValueError('invalid_response')
-    records = []
-    for position, row in enumerate(raw['data'], 1):
+    lines = []
+    for row in raw['data']:
         if not isinstance(row, list) or len(row) != 4:
             raise ValueError('invalid_response')
         number, name, symbol, exchange = row
@@ -81,29 +74,26 @@ def directory_records(raw, observed_at):
             value = cik(number)
         except ValueError:
             raise ValueError('invalid_response') from None
-        records.append({'native_ref': reference(value), 'level': 'listing', 'name': name,
-                        **listing(symbol, exchange), 'identifiers': [identifier(value)],
-                        'rank': position, 'observed_at': observed_at, 'source_url': DIRECTORY_URL})
-    return records
+        lines.append((value, name, listing(symbol, exchange)))
+    return lines
 
 
 def directory_matches(raw, observed_at, symbol, mic=None):
-    """Exact ticker (and optional operating MIC) matches, grouped per filer."""
+    """Exact ticker (and optional operating MIC) matches, grouped per filer.
+
+    Every line of a matching filer is returned (share classes, preferreds,
+    warrants); none of them proves security equivalence.
+    """
     wanted = symbol.casefold()
     filers = {}
-    for row in directory_records(raw, observed_at):
-        filers.setdefault(row['native_ref']['native_id'], []).append(row)
-    matches = []
-    for rows in filers.values():
-        if not any(row['ticker']['symbol'].casefold() == wanted
-                   and (mic is None or row.get('venue', {}).get('operating_mic') == mic) for row in rows):
-            continue
-        first = rows[0]
-        matches.append({'native_ref': first['native_ref'], 'native_level': 'issuer', 'name': first['name'],
-                        'identifiers': first['identifiers'],
-                        'listings': [{key: row[key] for key in ('ticker', 'venue') if key in row} for row in rows],
-                        'observed_at': observed_at, 'source_url': DIRECTORY_URL})
-    return matches
+    for number, name, line in _directory_lines(raw):
+        filers.setdefault(number, (name, []))[1].append(line)
+    return [{'native_ref': reference(number), 'native_level': 'issuer', 'name': name,
+             'identifiers': [identifier(number)], 'listings': lines,
+             'observed_at': observed_at, 'source_url': DIRECTORY_URL}
+            for number, (name, lines) in filers.items()
+            if any(line['ticker']['symbol'].casefold() == wanted
+                   and (mic is None or line.get('venue', {}).get('operating_mic') == mic) for line in lines)]
 
 
 def _date(value):

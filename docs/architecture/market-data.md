@@ -20,9 +20,9 @@ retired; other connector packages must supply those capabilities explicitly.
 Enabling the owner does not install a provider or prove an account's access.
 
 Two open-data reference connectors are bundled as well. The
-[SEC connector](../../runtime/managed/plugins/sec/README.md) supplies the ticker
-catalogue, filer resolve, filings and reported US GAAP/IFRS facts; it needs an
-configured SEC contact (name and email). The [OpenFIGI connector](../../runtime/managed/plugins/openfigi/README.md)
+[SEC connector](../../runtime/managed/plugins/sec/README.md) supplies filer
+resolve, filings and reported US GAAP/IFRS facts; it needs a configured SEC
+contact (name and email). The [OpenFIGI connector](../../runtime/managed/plugins/openfigi/README.md)
 resolves identifiers to FIGIs, and its API key is optional. Neither offers
 provider search, and both return evidence rather than identity decisions.
 

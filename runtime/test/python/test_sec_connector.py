@@ -25,7 +25,6 @@ sys.modules[spec.name] = plugin
 spec.loader.exec_module(plugin)
 identity = importlib.import_module('sec_fixture.identity')
 financials = importlib.import_module('sec_fixture.financials')
-catalogue = importlib.import_module('sec_fixture.catalogue')
 client = importlib.import_module('sec_fixture.client')
 connector = importlib.import_module(wire.__package__ + '.connector')
 
@@ -80,29 +79,17 @@ def reader(documents=None, configuration=None):
 
 
 class SecIdentity(unittest.TestCase):
-    def test_ticker_lines_are_typed_listing_rows_under_the_filer_cik(self):
-        rows = identity.directory_records(DIRECTORY, STAMP)
-        self.assertEqual([row['rank'] for row in rows], [1, 2, 3, 4])
-        self.assertEqual(rows[0]['native_ref'], REF)
-        self.assertEqual(rows[0]['identifiers'], [{'scheme': 'cik', 'value': CIK, 'level': 'issuer', 'authority': 'source_asserted'}])
-        self.assertEqual(rows[1]['venue'], {'provider_code': 'NYSE', 'operating_mic': 'XNYS'})
-        self.assertEqual(rows[2]['venue'], {'provider_code': 'OTC', 'operating_mic': 'OTCM'})
-        self.assertNotIn('venue', rows[3])
+    def test_ticker_lines_keep_sec_labels_with_operating_mics_under_the_filer_cik(self):
+        example, stale = identity.directory_matches(DIRECTORY, STAMP, 'EXA')
+        self.assertEqual(example['native_ref'], REF)
+        self.assertEqual(example['identifiers'], [{'scheme': 'cik', 'value': CIK, 'level': 'issuer', 'authority': 'source_asserted'}])
+        self.assertEqual(example['listings'][1], {'ticker': {'symbol': 'EXA-B'}, 'venue': {'provider_code': 'NYSE', 'operating_mic': 'XNYS'}})
+        self.assertEqual(stale['listings'], [{'ticker': {'symbol': 'EXA'}}])
+        other = identity.directory_matches(DIRECTORY, STAMP, 'OTHR')[0]
+        self.assertEqual(other['listings'][0]['venue'], {'provider_code': 'OTC', 'operating_mic': 'OTCM'})
         for broken in ({**DIRECTORY, 'fields': ['cik', 'ticker']}, {**DIRECTORY, 'data': [[0, 'Zero', 'Z', 'NYSE']]}):
             with self.subTest(broken=broken['fields']), self.assertRaisesRegex(ValueError, 'invalid_response'):
-                identity.directory_records(broken, STAMP)
-
-    def test_catalogue_pages_are_bound_to_one_file_version(self):
-        first = catalogue.page(DIRECTORY, STAMP, limit=3)
-        self.assertEqual((len(first['rows']), first['total']), (3, 4))
-        second = catalogue.page(DIRECTORY, STAMP, limit=3, cursor=first['next_cursor'])
-        self.assertEqual([row['rank'] for row in second['rows']], [4])
-        self.assertIsNone(second['next_cursor'])
-        changed = deepcopy(DIRECTORY)
-        changed['data'][0][1] = 'Renamed Example'
-        instance, _ = reader({'directory': changed})
-        result = instance.invoke('catalogue', {'scope': 'company-tickers-exchange', 'cursor': first['next_cursor']})
-        self.assertEqual(result['issues'][0]['code'], 'snapshot_changed')
+                identity.directory_matches(broken, STAMP, 'Z')
 
     def test_resolve_by_ticker_is_exact_filters_by_operating_mic_and_keeps_ambiguity(self):
         instance, transport = reader({'directory': DIRECTORY})

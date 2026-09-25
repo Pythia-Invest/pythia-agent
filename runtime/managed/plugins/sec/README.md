@@ -2,12 +2,11 @@
 
 `pythia-sec` is a Hermes-native plugin that reads SEC's public EDGAR data. It
 contributes reference evidence and issuer content; Pythia's core owns identity
-decisions. It has no user-facing search: discovery is a local read of Pythia's
-directory, which this plugin's catalogue helps to fill.
+decisions. It has no search and no catalogue: discovery is a local read of
+Pythia's directory, and the reference builder ingests SEC's ticker file itself.
 
 | Operation | Tool | Source | Returns |
 | --- | --- | --- | --- |
-| `catalogue` | `pythia_sec_catalogue` | `company_tickers_exchange.json` | One row per SEC ticker line: filer CIK (issuer level), ticker, SEC exchange label and its ISO 10383 operating MIC, and SEC's own file order as `rank`. Cursor paging is bound to one file version. |
 | `resolve` | `pythia_sec_resolve` | ticker file or `submissions/CIK##########.json` | Filer identity by exact CIK, or by exact ticker with an optional operating MIC: echoed CIK, current and former names, listed lines. Several filers for one ticker are all returned with an `ambiguous` warning. |
 | `filings` | `pythia_sec_filings` | submissions | Recent filings with form, filing date, report period and document link, including 20-F, 40-F and 6-K. |
 | `fundamentals` | `pythia_sec_fundamentals` | `api/xbrl/companyfacts` | Latest annual US GAAP or IFRS (`ifrs-full`, used by foreign private issuers) facts with exact periods, units and filing provenance. |
@@ -23,9 +22,6 @@ and `OTC` to OTCM. A CIK identifies a filer, not a security. Several ticker line
 (share classes, preferreds, warrants) can share one CIK, and none of them proves
 security equivalence. Tickers keep SEC's own spelling, with `-` as the class
 separator (for example `BRK-B`).
-
-The identity and catalogue parsing functions are pure, so an offline reference
-build can reuse them on the same files.
 
 ## Configuration
 

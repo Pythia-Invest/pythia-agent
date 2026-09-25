@@ -1,4 +1,4 @@
-"""Native SEC reference connector: ticker catalogue, filer resolve and filing content.
+"""Native SEC reference connector: filer resolve and filing content.
 
 It uses the market-data plugin's shared execution helpers and reads its declared
 configuration through core; identity decisions stay with Pythia's core.
@@ -6,7 +6,7 @@ configuration through core; identity decisions stay with Pythia's core.
 import importlib
 import json
 
-from . import catalogue, financials, identity
+from . import financials, identity
 from .client import Transport
 from .definition import TOOLS, schemas
 
@@ -72,10 +72,6 @@ class Reader:
                 return self.reads.read([__file__], request, {}, cancelled=cancelled, cache_scope=scope,
                                        age=AGES[endpoint] if reuse else 0, budget=budget, timeout=15)
 
-            if operation == 'catalogue':
-                raw = fetch('directory')
-                return envelope(catalogue.page(raw['data'], raw['observed_at'],
-                                               limit=clean.get('limit', 1000), cursor=clean.get('cursor')))
             if operation == 'resolve':
                 return self.resolve(clean, fetch)
             number = identity.from_reference(clean['native_ref'])
@@ -90,8 +86,6 @@ class Reader:
             return envelope(financials.native_facts(raw['data'], number, raw['observed_at'],
                 clean['taxonomy'], clean['concepts'], clean.get('limit', 100)))
         except (ValueError, KeyError, TypeError) as error:
-            if str(error) == 'snapshot_changed':
-                return failure('snapshot_changed', 'The SEC ticker file changed while paging. Restart without a cursor.')
             if str(error) == 'invalid_request' or isinstance(error, self.wire.WireError):
                 return failure('invalid_request', 'The SEC request is invalid.')
             return failure('invalid_response', 'SEC returned data that could not be interpreted safely. Retry the read.')

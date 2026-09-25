@@ -104,7 +104,6 @@ export const MANAGED_PLUGINS = Object.freeze([
       "definition.py",
       "client.py",
       "identity.py",
-      "catalogue.py",
       "financials.py",
     ]),
   }),
