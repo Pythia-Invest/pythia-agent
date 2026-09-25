@@ -98,7 +98,7 @@ CREATE TABLE verdicts (
   resolver TEXT NOT NULL CHECK (resolver IN ('rules', 'agent', 'plugin', 'user')),
   plugin TEXT NOT NULL,            -- 'pythia' for core rules, the agent and manual resolution
   authority TEXT NOT NULL CHECK (authority IN ('rule_confirmed', 'model_confirmed', 'model_suggested', 'user_attested')),
-  relation TEXT NOT NULL CHECK (relation IN ('same_listing', 'same_security', 'same_issuer', 'depositary_receipt_of',
+  relation TEXT NOT NULL CHECK (relation IN ('same_listing', 'same_composite', 'same_security', 'same_issuer', 'depositary_receipt_of',
                                              'unrelated', 'none', 'ambiguous')),
   chosen_id TEXT,
   confidence REAL CHECK (confidence IS NULL OR confidence BETWEEN 0 AND 1),
@@ -107,7 +107,7 @@ CREATE TABLE verdicts (
   input_digest TEXT,
   rule_id TEXT,
   rationale TEXT,
-  outcome TEXT NOT NULL CHECK (outcome IN ('confirmed', 'suggested', 'blocked', 'no_match')),
+  outcome TEXT NOT NULL CHECK (outcome IN ('confirmed', 'suggested', 'blocked', 'ambiguous', 'no_match')),
   created_at TEXT NOT NULL,
   CHECK ((resolver = 'rules' AND authority = 'rule_confirmed' AND rule_id IS NOT NULL)
       OR (resolver IN ('agent', 'plugin') AND authority IN ('model_confirmed', 'model_suggested'))

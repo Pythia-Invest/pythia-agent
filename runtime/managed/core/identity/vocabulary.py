@@ -93,6 +93,7 @@ class VerdictRelation(StrEnum):
     """The closed answer set of a resolver verdict on a queue item."""
 
     SAME_LISTING = "same_listing"
+    SAME_COMPOSITE = "same_composite"
     SAME_SECURITY = "same_security"
     SAME_ISSUER = "same_issuer"
     DEPOSITARY_RECEIPT_OF = "depositary_receipt_of"

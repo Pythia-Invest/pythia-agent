@@ -46,6 +46,10 @@ SCHEME_LEVEL: dict[Scheme, Level] = {
     Scheme.CAIP19: Level.LISTING,
 }
 
+# Schemes with one current value per subject: two different values valid at the same
+# time contradict each other. A ticker is an attribute (reused, renamed) and never does.
+SINGLE_VALUED = frozenset(Scheme) - {Scheme.TICKER_MIC}
+
 # <level>:<key scheme>:<key>, derived from open identifiers (see subject_id below).
 SUBJECT_ID = re.compile(
     r"^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/-]{4,200}$")

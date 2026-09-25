@@ -11,11 +11,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Iterable, Sequence
 
-from .claims import DIGEST
-from .model import Provenance, ProviderRef, _coerce, _require
-from .schemes import INSTANT, Scheme, subject_level
-from .vocabulary import Authority, VerdictRelation
+from .claims import DIGEST, IdentifierValue
+from .model import IdentifierAssertion, Provenance, ProviderRef, _coerce, _require
+from .schemes import INSTANT, SINGLE_VALUED, Level, Scheme, subject_level
+from .vocabulary import Authority, EvidenceTier, IdentifierRole, InstrumentKind, VerdictRelation
 
 
 class QueueItemKind(StrEnum):
@@ -54,14 +55,23 @@ class ResolverKind(StrEnum):
 
 
 MODEL_AUTHORITIES = frozenset({Authority.MODEL_CONFIRMED, Authority.MODEL_SUGGESTED})
-NO_MATCH = frozenset({VerdictRelation.NONE, VerdictRelation.AMBIGUOUS, VerdictRelation.UNRELATED})
+# The level a definite answer's chosen subject must have (unrelated: any level).
+RELATION_LEVEL = {
+    VerdictRelation.SAME_LISTING: Level.LISTING,
+    VerdictRelation.SAME_COMPOSITE: Level.COMPOSITE,
+    VerdictRelation.SAME_SECURITY: Level.SECURITY,
+    VerdictRelation.SAME_ISSUER: Level.ISSUER,
+    VerdictRelation.DEPOSITARY_RECEIPT_OF: Level.SECURITY,
+}
+SAME_INSTRUMENT = frozenset({VerdictRelation.SAME_LISTING, VerdictRelation.SAME_COMPOSITE, VerdictRelation.SAME_SECURITY})
 
 
 class VerdictOutcome(StrEnum):
     CONFIRMED = "confirmed"  # binding or relation confirmed with the verdict's authority
     SUGGESTED = "suggested"  # kept as a candidate; never routes a canonical read
     BLOCKED = "blocked"      # identifier proof or a mechanical guard contradicts it; a guard conflict opens
-    NO_MATCH = "no_match"    # none / ambiguous / unrelated: the item stays unresolved or is dismissed
+    AMBIGUOUS = "ambiguous"  # several candidates fit or resolvers disagree: the item stays open
+    NO_MATCH = "no_match"    # none or unrelated: the item stays unresolved or is dismissed
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +128,10 @@ class Verdict:
                  f"verdict: a {self.resolver} resolver cannot claim {self.authority}")
         _require((self.chosen_id is None) == (self.relation in (VerdictRelation.NONE, VerdictRelation.AMBIGUOUS)),
                  "verdict: chosen_id is required exactly for a definite answer")
-        if self.chosen_id is not None:
+        if self.relation in RELATION_LEVEL:
+            _require(subject_level(self.chosen_id) is RELATION_LEVEL[self.relation],
+                     f"verdict: {self.relation} chooses a {RELATION_LEVEL[self.relation]}")
+        elif self.chosen_id is not None:
             subject_level(self.chosen_id)
         model = self.authority in MODEL_AUTHORITIES
         _require(model == all(value is not None for value in (self.confidence, self.model, self.prompt_version, self.input_digest)),
@@ -130,29 +143,63 @@ class Verdict:
         _require(self.rationale is None or len(self.rationale) <= 400, "verdict: rationale at most 400 characters")
 
 
-def decide(verdict: Verdict, item: QueueItem, *, contradicted: bool, guarded: bool,
-           threshold: float | None) -> VerdictOutcome:
-    """The authority rule, identical for every resolver.
+def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str) -> bool:
+    """Rule 2: identifier evidence contradicts an association.
 
-    A verdict may confirm in the absence of identifier proof, never against it.
-    `contradicted`: current identifier evidence at the same level contradicts the
-    answer. `guarded`: a
-    mechanical depositary-receipt or share-class guard forbids it. Both always
-    win. A model verdict confirms only at or above the relation's gold-calibrated
-    `threshold`; with no calibrated threshold it can only suggest.
+    `claimed`: the record's identifiers; only those naming the record itself count.
+    `evidence`: the assertions on the chosen subject and its ancestors. A T0
+    assertion of a single-valued scheme, valid at `as_of`, contradicts when its
+    value differs. Open reference evidence (snapshot) prevails; a provider's own
+    assertion (source_asserted) counts only where no open evidence has that scheme.
     """
-    if verdict.item_id != item.id:
+    claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
+    current = [item for item in evidence if item.scheme in SINGLE_VALUED and item.scheme in claims
+               and item.tier is EvidenceTier.T0 and item.validity.contains(as_of)]
+    open_schemes = {item.scheme for item in current if item.authority is Authority.SNAPSHOT}
+    return any(item.value != claims[item.scheme] for item in current
+               if item.authority is Authority.SNAPSHOT or item.scheme not in open_schemes)
+
+
+def guarded(relation: VerdictRelation, record_kind: InstrumentKind | None, subject_kind: InstrumentKind | None) -> bool:
+    """The depositary-receipt guard: a receipt and a share are never the same instrument,
+    and only a receipt is a receipt of a share. Unknown kinds trip nothing."""
+    if record_kind is None or subject_kind is None:
+        return False
+    receipt = (InstrumentKind(record_kind) is InstrumentKind.DEPOSITARY_RECEIPT,
+               InstrumentKind(subject_kind) is InstrumentKind.DEPOSITARY_RECEIPT)
+    if relation in SAME_INSTRUMENT:
+        return receipt[0] != receipt[1]
+    return relation is VerdictRelation.DEPOSITARY_RECEIPT_OF and receipt != (True, False)
+
+
+def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierValue],
+           evidence: Iterable[IdentifierAssertion], as_of: str, record_kind: InstrumentKind | None,
+           subject_kind: InstrumentKind | None, prior: Sequence[Verdict] = (),
+           threshold: float | None = None) -> VerdictOutcome:
+    """The authority rule (ADR 0037), identical for every resolver.
+
+    A verdict may confirm in the absence of identifier proof, never against it:
+    contradicting identifier evidence and the receipt guard always block. If the
+    resolver found several candidates, or a standing `prior` verdict on the item
+    gives a different answer, nothing is confirmed. A model verdict confirms only
+    at or above the relation's gold-calibrated `threshold`; without one it suggests.
+    """
+    if verdict.item_id != item.id or any(other.item_id != item.id for other in prior):
         raise ValueError("verdict: answers a different queue item")
     if verdict.chosen_id is not None and verdict.chosen_id not in item.candidate_ids:
         raise ValueError("verdict: chosen_id must come from the item's candidates")
-    if verdict.relation in NO_MATCH:
+    if verdict.relation is VerdictRelation.AMBIGUOUS:
+        return VerdictOutcome.AMBIGUOUS
+    if verdict.relation in (VerdictRelation.NONE, VerdictRelation.UNRELATED):
         return VerdictOutcome.NO_MATCH
-    if contradicted or guarded:
+    if contradicts(claimed, evidence, as_of) or guarded(verdict.relation, record_kind, subject_kind):
         return VerdictOutcome.BLOCKED
+    answer = (verdict.relation, verdict.chosen_id)
+    if any(other.chosen_id is not None and (other.relation, other.chosen_id) != answer for other in prior):
+        return VerdictOutcome.AMBIGUOUS
     if verdict.authority is Authority.MODEL_SUGGESTED:
         return VerdictOutcome.SUGGESTED
     if verdict.authority is Authority.MODEL_CONFIRMED:
         calibrated = threshold is not None and verdict.confidence is not None and verdict.confidence >= threshold
         return VerdictOutcome.CONFIRMED if calibrated else VerdictOutcome.SUGGESTED
     return VerdictOutcome.CONFIRMED
-

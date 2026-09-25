@@ -249,33 +249,64 @@ class ClaimTest(unittest.TestCase):
 
 
 class ResolutionTest(unittest.TestCase):
-    item = None
+    LISTING = "listing:isin:NL0010273215:XAMS:EUR"
+    ADYEN = "security:isin:NL0012969182"
 
-    def setUp(self):
-        self.item = identity.QueueItem(id="q1", kind="residual", reason="no_key", subject_ids=["listing:provisional:eodhd:catalogue:ADYEY.US"],
-                                       candidate_ids=["security:isin:NL0012969182"], evidence_ids=[], state="open",
-                                       opened_at="2026-09-25T10:00:00Z")
+    def item(self, subject, candidate):
+        return identity.QueueItem(id="q1", kind="residual", reason="no_key", subject_ids=[subject],
+                                  candidate_ids=[candidate], evidence_ids=[], state="open",
+                                  opened_at="2026-09-25T10:00:00Z")
 
     def verdict(self, **overrides):
-        value = {"item_id": "q1", "resolver": "plugin", "authority": "model_confirmed", "relation": "same_security",
-                 "chosen_id": "security:isin:NL0012969182", "confidence": 0.97, "model": "jev-1.13.0", "prompt_version": "p1",
-                 "input_digest": "sha256:" + "0" * 64,
-                 "provenance": {**PROVENANCE, "plugin": "jev", "source": "jev"}}
+        value = {"item_id": "q1", "resolver": "plugin", "authority": "model_confirmed", "relation": "same_listing",
+                 "chosen_id": self.LISTING, "confidence": 0.97, "model": "jev-1.13.0", "prompt_version": "p1",
+                 "input_digest": "sha256:" + "0" * 64, "provenance": {**PROVENANCE, "plugin": "jev", "source": "jev"}}
         return identity.Verdict(**{**value, **overrides})
 
+    def figi(self, value, authority="snapshot"):
+        return identity.IdentifierAssertion(subject_id=self.LISTING, scheme="figi", value=value, authority=authority,
+                                            provenance={**PROVENANCE, "plugin": "openfigi", "source": "openfigi"})
+
+    def decide(self, verdict, claimed_figi="BBG000C1HT47", evidence=None, **facts):
+        item = self.item("listing:provisional:eodhd:catalogue:ASML.AS", self.LISTING)
+        facts = {"as_of": "2026-09-25", "record_kind": None, "subject_kind": None, "threshold": 0.95, **facts}
+        claimed = [identity.IdentifierValue("figi", claimed_figi)]
+        return identity.decide(verdict, item, claimed=claimed, evidence=evidence or [self.figi("BBG000C1HT47")], **facts)
+
     def test_one_authority_rule_for_every_resolver(self):
-        decide, outcome = identity.decide, identity.VerdictOutcome
-        verdict = self.verdict()
-        self.assertIs(decide(verdict, self.item, contradicted=False, guarded=False, threshold=0.99), outcome.SUGGESTED)
-        self.assertIs(decide(verdict, self.item, contradicted=False, guarded=False, threshold=None), outcome.SUGGESTED)
-        self.assertIs(decide(verdict, self.item, contradicted=False, guarded=False, threshold=0.95), outcome.CONFIRMED)
-        self.assertIs(decide(verdict, self.item, contradicted=False, guarded=True, threshold=0.95), outcome.BLOCKED)
+        outcome = identity.VerdictOutcome
+        self.assertIs(self.decide(self.verdict()), outcome.CONFIRMED)
+        self.assertIs(self.decide(self.verdict(), threshold=0.99), outcome.SUGGESTED)
+        self.assertIs(self.decide(self.verdict(), threshold=None), outcome.SUGGESTED)
+        self.assertIs(self.decide(self.verdict(), claimed_figi="BBG000K6N6G7"), outcome.BLOCKED)
         user = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None, prompt_version=None,
                             input_digest=None, provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
-        self.assertIs(decide(user, self.item, contradicted=False, guarded=False, threshold=None), outcome.CONFIRMED)
-        self.assertIs(decide(user, self.item, contradicted=True, guarded=False, threshold=None), outcome.BLOCKED)
-        with self.assertRaisesRegex(ValueError, "cannot claim user_attested"):
-            self.verdict(authority="user_attested")
+        self.assertIs(self.decide(user, threshold=None), outcome.CONFIRMED)
+        self.assertIs(self.decide(user, claimed_figi="BBG000K6N6G7"), outcome.BLOCKED)
+        other = self.verdict(relation="unrelated")
+        self.assertIs(self.decide(self.verdict(), prior=[other]), outcome.AMBIGUOUS)
+        self.assertIs(self.decide(self.verdict(relation="ambiguous", chosen_id=None)), outcome.AMBIGUOUS)
+
+    def test_open_evidence_outranks_a_providers_identifier(self):
+        outcome = identity.VerdictOutcome
+        stale = self.figi("BBG000K6N6G7", authority="source_asserted")
+        self.assertIs(self.decide(self.verdict(), evidence=[self.figi("BBG000C1HT47"), stale]), outcome.CONFIRMED)
+        self.assertIs(self.decide(self.verdict(), evidence=[stale]), outcome.BLOCKED)
+
+    def test_a_receipt_is_never_the_same_security_as_its_underlying(self):
+        outcome = identity.VerdictOutcome
+        item = self.item("composite:provisional:eodhd:catalogue:ADYEY.US", self.ADYEN)
+        facts = {"claimed": [], "evidence": [], "as_of": "2026-09-25", "threshold": 0.95,
+                 "record_kind": "depositary_receipt", "subject_kind": "ordinary"}
+        same = self.verdict(relation="same_security", chosen_id=self.ADYEN)
+        self.assertIs(identity.decide(same, item, **facts), outcome.BLOCKED)
+        receipt = self.verdict(relation="depositary_receipt_of", chosen_id=self.ADYEN)
+        self.assertIs(identity.decide(receipt, item, **facts), outcome.CONFIRMED)
+
+    def test_verdicts_are_well_formed(self):
+        for overrides in ({"authority": "user_attested"}, {"relation": "same_security"}):
+            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                self.verdict(**overrides)
 
 
 if __name__ == "__main__":
