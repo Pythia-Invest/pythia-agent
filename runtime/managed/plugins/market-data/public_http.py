@@ -8,7 +8,6 @@ The synchronous socket timeout bounds blocking network operations. Cancellation
 and the total deadline are checked between them; DNS resolution remains subject
 to the operating system resolver. No extra event loop, worker or queue is added.
 """
-import base64
 from datetime import datetime, timezone
 from http.client import HTTPException
 import json
@@ -75,12 +74,11 @@ def _https_context(provider=None):
 
 
 class Transport:
-    """WorkerReads-compatible JSON/text GETs, with explicitly approved origins.
+    """WorkerReads-compatible JSON GETs, with explicitly approved origins.
 
-    ``format='base64'`` returns a base64 string for binary formats, so the result
-    can use the existing JSON-sized cache. Decode and parse in the connector.
-    Headers and upper bounds are connector policy, never forwarded user input.
-    The injectable opener has urllib's ``open(Request, timeout=...)`` interface.
+    Headers and the response size bound are connector policy, never forwarded
+    user input. The injectable opener has urllib's ``open(Request, timeout=...)``
+    interface.
     """
 
     def __init__(self, *, provider, origins, headers=None, max_bytes=8_000_000,
@@ -106,16 +104,8 @@ class Transport:
         url = request.get('url')
         if _origin(url) not in self.origins:
             raise ValueError('invalid_request')
-        mode = request.get('format')
-        if mode not in ('json', 'text', 'base64'):
-            raise ValueError('invalid_request')
-        encoding = request.get('encoding', 'utf-8-sig')
-        if encoding not in ('utf-8', 'utf-8-sig', 'ascii', 'iso-8859-1'):
-            raise ValueError('invalid_request')
-        limit = _size(request.get('max_bytes', self.max_bytes), self.max_bytes)
-        accept = 'application/json' if mode == 'json' else '*/*'
-        headers = {'Accept': accept, **self.headers, 'Accept-Encoding': 'identity'}
-        return Request(url, headers=headers, method='GET'), mode, encoding, limit
+        headers = {'Accept': 'application/json', **self.headers, 'Accept-Encoding': 'identity'}
+        return Request(url, headers=headers, method='GET')
 
     def run_worker(self, _command, request, _environment, *, cancelled, budget, timeout=12):
         started, status, code = self.clock(), None, None
@@ -130,7 +120,7 @@ class Transport:
         try:
             if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 0 < timeout <= 120:
                 raise ValueError('invalid_request')
-            req, mode, encoding, limit = self._request(request)
+            req = self._request(request)
             check()
             with budget.slot(check):
                 check()
@@ -142,10 +132,10 @@ class Transport:
                         raise HTTPError(req.full_url, status, '', response.headers, None)
                     if status == 204:
                         raise SourceFailure({'error': 'missing_observation'})
-                    content = self._content(response, limit, check)
+                    content = self._content(response, self.max_bytes, check)
                 check()
                 try:
-                    data = self._parse(content, mode, encoding)
+                    data = self._parse(content)
                 except (ValueError, UnicodeError, RecursionError):
                     raise SourceFailure({'error': 'invalid_response'}) from None
                 check()
@@ -178,9 +168,6 @@ class Transport:
                       'tls_error' if isinstance(reason, ssl.SSLError) else
                       'dns_error' if isinstance(reason, socket.gaierror) else
                       'connection_reset' if isinstance(reason, ConnectionResetError) else code)
-            if isinstance(reason, ssl.SSLCertVerificationError):
-                detail = {10: 'certificate_expired', 19: 'certificate_self_signed', 20: 'certificate_issuer_unavailable',
-                          21: 'certificate_chain_incomplete', 62: 'certificate_hostname_mismatch'}.get(getattr(reason, 'verify_code', None), detail)
             diagnostics.emit('outbound_network_failed', level='warning', provider=self.provider,
                              operation=request.get('operation'), request_id=reference, code=detail)
             raise self._failure({'error': code}, reference) from None
@@ -236,12 +223,7 @@ class Transport:
         return b''.join(chunks)
 
     @staticmethod
-    def _parse(content, mode, encoding):
-        if mode == 'base64':
-            return base64.b64encode(content).decode('ascii')
-        value = content.decode(encoding)
-        if mode == 'text':
-            return value
+    def _parse(content):
         def invalid_constant(_value):
             raise ValueError('invalid_json')
         def finite_number(value):
@@ -249,4 +231,4 @@ class Transport:
             if not math.isfinite(number):
                 raise ValueError('invalid_json')
             return number
-        return json.loads(value, parse_constant=invalid_constant, parse_float=finite_number)
+        return json.loads(content.decode('utf-8-sig'), parse_constant=invalid_constant, parse_float=finite_number)

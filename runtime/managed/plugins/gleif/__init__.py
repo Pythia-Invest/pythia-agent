@@ -62,7 +62,7 @@ class Reader:
                         raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
                     return raw
                 # Resolve and profile share one validated native LEI record.
-                return self.reads.read([__file__], {'operation': 'lei-record', 'url': url, 'format': 'json'}, {},
+                return self.reads.read([__file__], {'operation': 'lei-record', 'url': url}, {},
                     age=0 if refresh else 86400,
                     cache_scope={'access': cache_scope, 'validation': 'gleif-records-v2'},
                     prepare_result=prepare, cancelled=cancelled, budget=budget, timeout=min(10, remaining))

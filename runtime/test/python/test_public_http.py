@@ -1,5 +1,4 @@
 """Synthetic public HTTP boundaries using urllib's documented response shape."""
-import base64
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from http.client import BadStatusLine, IncompleteRead
@@ -43,8 +42,7 @@ class PublicHttpTests(unittest.TestCase):
                               opener=opener or Opener(), **kwargs)
 
     def read(self, transport, *, budget=None, cancelled=lambda: False, **request):
-        return transport.run_worker([], {'operation': 'facts', 'url': 'https://data.example/facts',
-                                         'format': 'json', **request}, {},
+        return transport.run_worker([], {'operation': 'facts', 'url': 'https://data.example/facts', **request}, {},
                                     budget=budget or governor.Governor(), cancelled=cancelled)
 
     def test_fixed_https_origins_and_redirects_are_not_followed(self):
@@ -87,24 +85,6 @@ class PublicHttpTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 http._https_context()
 
-    def test_explicit_formats_preserve_text_and_binary_and_share_existing_cache(self):
-        for mode, content, expected in (
-            ('json', b'{"value": "1.2300"}', {'value': '1.2300'}),
-            ('text', b'\xef\xbb\xbfTIME_PERIOD,OBS_VALUE\n2026-01,1.2300\n', 'TIME_PERIOD,OBS_VALUE\n2026-01,1.2300\n'),
-            ('base64', b'\x00\xff\xfe', base64.b64encode(b'\x00\xff\xfe').decode()),
-        ):
-            with self.subTest(mode=mode):
-                opener = Opener(lambda: Response(content))
-                budget = governor.Governor()
-                reads = reads_module.WorkerReads(self.transport(opener))
-                request = {'operation': 'facts', 'url': 'https://data.example/facts', 'format': mode}
-                first = reads.read([__file__], request, {}, age=60, budget=budget, cancelled=lambda: False)
-                second = reads.read([__file__], request, {}, age=60, budget=budget, cancelled=lambda: False)
-                self.assertEqual(first, second)
-                self.assertEqual(first['data'], expected)
-                self.assertEqual((budget.metrics['calls'], budget.active, len(opener.calls)), (1, 0, 1))
-                self.assertEqual(opener.calls[0][0].get_header('Accept-encoding'), 'identity')
-
     def test_response_limits_and_malformed_payloads_are_never_successes(self):
         cases = [
             (b'x' * 17, {}, 'output_limit'),
@@ -125,9 +105,6 @@ class PublicHttpTests(unittest.TestCase):
                 self.assertEqual(caught.exception.raw['error'], code)
                 self.assertTrue(response.closed)
                 self.assertEqual(budget.active, 0)
-        with self.assertRaises(reads_module.SourceFailure) as caught:
-            self.read(self.transport(max_bytes=16), max_bytes=17)
-        self.assertEqual(caught.exception.raw['error'], 'invalid_request')
 
     def test_malformed_http_and_truncated_chunked_body_are_safe_logged_failures(self):
         for error in (BadStatusLine('PRIVATE'), IncompleteRead(b'PRIVATE', 10)):
@@ -181,7 +158,7 @@ class PublicHttpTests(unittest.TestCase):
                 return Response()
             with self.subTest(status=status):
                 reads = reads_module.WorkerReads(self.transport(Opener(factory)))
-                request = {'operation': 'facts', 'url': 'https://data.example/facts', 'format': 'json'}
+                request = {'operation': 'facts', 'url': 'https://data.example/facts'}
                 budget = governor.Governor()
                 with self.assertRaises(reads_module.SourceFailure) as caught:
                     reads.read([__file__], request, {}, age=60, budget=budget)
@@ -250,7 +227,7 @@ class PublicHttpTests(unittest.TestCase):
                 return super().read1(size)
         opener, budget = Opener(WaitingResponse), governor.Governor()
         reads = reads_module.WorkerReads(self.transport(opener))
-        request = {'operation': 'facts', 'url': 'https://data.example/facts', 'format': 'json'}
+        request = {'operation': 'facts', 'url': 'https://data.example/facts'}
         def read(second=False):
             def cancelled():
                 if second:
@@ -267,25 +244,26 @@ class PublicHttpTests(unittest.TestCase):
         self.assertEqual((len(opener.calls), budget.metrics['calls']), (1, 1))
 
     def test_domain_validation_rejects_bad_success_before_cache_and_projects_once(self):
-        bodies = iter((b'NOT_CSV', b'VALUE\n3\n', b'VALUE\n4\n'))
+        bodies = iter((b'{"other": 3}', b'{"value": 3}', b'{"value": 4}'))
         opener, prepared = Opener(lambda: Response(next(bodies))), []
         reads, budget = reads_module.WorkerReads(self.transport(opener)), governor.Governor()
-        request = {'operation': 'facts', 'url': 'https://data.example/facts', 'format': 'text'}
+        request = {'operation': 'facts', 'url': 'https://data.example/facts'}
         def prepare(raw):
             prepared.append(True)
-            if not raw['data'].startswith('VALUE\n'):
+            if 'value' not in raw['data']:
                 raise reads_module.SourceFailure({'error': 'invalid_response'})
-            return {**raw, 'data': {'value': raw['data'].splitlines()[1]}}
+            return {**raw, 'data': {'value': str(raw['data']['value'])}}
         def read(scope):
             return reads.read([__file__], request, {}, age=60, budget=budget,
                               cache_scope=scope, prepare_result=prepare)
         with self.assertRaises(reads_module.SourceFailure) as caught:
-            read('synthetic-csv-v1')
+            read('synthetic-v1')
         self.assertEqual(caught.exception.raw['error'], 'invalid_response')
-        self.assertEqual(read('synthetic-csv-v1')['data'], {'value': '3'})
-        self.assertEqual(read('synthetic-csv-v1')['data'], {'value': '3'})
+        self.assertEqual(read('synthetic-v1')['data'], {'value': '3'})
+        self.assertEqual(read('synthetic-v1')['data'], {'value': '3'})
         self.assertEqual((len(opener.calls), len(prepared)), (2, 2))
-        self.assertEqual(read('synthetic-csv-v2')['data'], {'value': '4'})
+        self.assertEqual(opener.calls[0][0].get_header('Accept-encoding'), 'identity')
+        self.assertEqual(read('synthetic-v2')['data'], {'value': '4'})
         self.assertEqual((len(opener.calls), len(prepared)), (3, 3))
 
 

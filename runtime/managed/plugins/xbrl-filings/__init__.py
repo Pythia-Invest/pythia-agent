@@ -54,7 +54,7 @@ class Reader:
                         return {**raw, 'data': validate(raw['data'], raw['observed_at'])}
                     except (ValueError, KeyError, TypeError, AttributeError):
                         raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
-                return self.reads.read([__file__], {'operation': label, 'url': url, 'format': 'json'}, {},
+                return self.reads.read([__file__], {'operation': label, 'url': url}, {},
                     cancelled=cancelled, budget=budget, age=0 if refresh else age, timeout=20,
                     prepare_result=prepare, cache_scope=['xbrl-validated:2', cache_scope, scope])
 
