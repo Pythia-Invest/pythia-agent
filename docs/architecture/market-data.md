@@ -18,6 +18,8 @@ skill, plus the credential-free [Yahoo Finance connector](../../runtime/managed/
 installed, enabled native contributions. The original core SEC/EODHD tools are
 retired; other connector packages must supply those capabilities explicitly.
 Enabling the owner does not install a provider or prove an account's access.
+The bundled [CoinMarketCap connector](../../runtime/managed/plugins/coinmarketcap/README.md)
+needs the user's API key and reports `not_configured` until one is saved.
 
 - [Wire contracts](../../packages/market-data/README.md): subject, series,
   observation and read result, with provenance and financial semantics.

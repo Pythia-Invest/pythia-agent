@@ -90,6 +90,27 @@ export const MANAGED_PLUGINS = Object.freeze([
     ]),
     workers: Object.freeze(["yahoo.ts", "yahoo-prices.ts", "yahoo-options.ts"]),
   }),
+  Object.freeze({
+    name: "pythia-coinmarketcap",
+    install: true,
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/coinmarketcap",
+    // The isolated Python worker is copied with the package; no runner workers.
+    files: Object.freeze([
+      "__init__.py",
+      "plugin.yaml",
+      "configuration.json",
+      "README.md",
+      "catalogue.py",
+      "config.py",
+      "definition.py",
+      "identity.py",
+      "profile.py",
+      "series.py",
+      "worker.py",
+    ]),
+  }),
 ]);
 
 // Core runner helpers shared by every connector worker, validated once rather
