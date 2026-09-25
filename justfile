@@ -60,6 +60,10 @@ qualify:
 test-e2e desk_url:
     PYTHIA_DESK_URL="{{desk_url}}" pnpm --filter @pythia/desk test:e2e
 
+# Build the open reference snapshot from public sources (network; see tooling/reference-builder/README.md).
+reference-snapshot *args:
+    python3 tooling/reference-builder/run.py {{args}}
+
 # The only registry/network dependency check.
 audit:
     pnpm audit --prod --audit-level high
