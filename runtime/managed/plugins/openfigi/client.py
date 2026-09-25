@@ -16,6 +16,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from . import mapping
 
 MAX_BYTES = 8_000_000
+# Keyed requests: at most 25 starts per 6 seconds. Keyless requests are limited
+# to 25 per minute by the connection budget alone.
+KEYED_WINDOW = (25, 6.0)
 STATUS = {400: 'invalid_request', 401: 'authentication_failed', 403: 'access_denied', 413: 'invalid_request', 429: 'rate_limit'}
 
 
@@ -30,23 +33,22 @@ class Transport:
     def __init__(self, connector, opener=None, clock=time.monotonic):
         self.connector, self.clock = connector, clock
         self.opener = opener or build_opener(NoRedirect())
-        self._lock = Lock()
-        self._starts = {False: deque(), True: deque()}
+        self._lock, self._starts = Lock(), deque()
 
-    def _pace(self, keyed, cancelled, deadline):
-        # Request starts per documented window, in addition to the per-minute budget.
-        limit = mapping.LIMITS[keyed]
+    def _pace(self, cancelled, deadline):
+        """Defer a keyed request start until the documented window allows it."""
+        requests, window = KEYED_WINDOW
         while True:
             if cancelled():
                 raise RuntimeError('cancelled')
             with self._lock:
-                now, starts = self.clock(), self._starts[keyed]
-                while starts and starts[0] <= now - limit['window']:
+                now, starts = self.clock(), self._starts
+                while starts and starts[0] <= now - window:
                     starts.popleft()
-                if len(starts) < limit['requests']:
+                if len(starts) < requests:
                     starts.append(now)
                     return
-                delay = starts[0] + limit['window'] - now
+                delay = starts[0] + window - now
             if now + delay > deadline:
                 raise self.connector.SourceFailure({'error': 'rate_limit', 'limit_origin': 'connector',
                                                     'retry_after': math.ceil(delay)})
@@ -59,10 +61,11 @@ class Transport:
         if key:
             headers['X-OPENFIGI-APIKEY'] = key
         request = Request(mapping.URL, data=json.dumps(jobs).encode(), headers=headers, method='POST')
+        if key:
+            self._pace(cancelled, deadline)  # Waits without holding a budget slot.
         started, status = self.clock(), None
         try:
             with budget.slot(cancelled):
-                self._pace(bool(key), cancelled, deadline)
                 remaining = deadline - self.clock()
                 if remaining <= 0:
                     raise TimeoutError('timeout')
@@ -75,7 +78,8 @@ class Transport:
                         if size > MAX_BYTES:
                             raise RuntimeError('output_limit')
                         content.append(chunk)
-            return mapping.rows(json.loads(b''.join(content)), len(jobs))
+            answers = mapping.rows(json.loads(b''.join(content)), len(jobs))
+            return [mapping.result(job, row) for job, row in zip(jobs, answers)]
         except HTTPError as error:
             status = error.code
             raw = {'error': STATUS.get(error.code, 'source_unavailable'), 'http_status': error.code}
@@ -99,20 +103,19 @@ class Transport:
                                 http_status=status, duration_ms=round((self.clock() - started) * 1000))
 
     def run_worker(self, _command, request, _environment, *, cancelled, budget, timeout=30):
-        jobs, key = mapping.validate(request['jobs']), request.get('key')
+        jobs, key = request['jobs'], request.get('key')  # Validated by the resolver.
         deadline, results, issues, raw = self.clock() + timeout, [], [], {}
         for batch in mapping.batches(jobs, bool(key)):
             try:
-                answers = self._post(batch, key, cancelled=cancelled, budget=budget, deadline=deadline)
+                results.extend(self._post(batch, key, cancelled=cancelled, budget=budget, deadline=deadline))
             except RuntimeError as error:
                 if not results:
                     raise
-                # Keep completed batches; report the rest as not attempted.
+                # Keep answered batches; this batch and later ones stay unanswered.
                 raw = getattr(error, 'raw', None) or {'error': str(error)}
                 issues.append(raw.get('error') or 'source_unavailable')
-                results.extend({'job': job, 'outcome': 'not_attempted', 'candidates': []} for job in jobs[len(results):])
+                results.extend({'job': job, 'outcome': 'unanswered', 'candidates': []} for job in jobs[len(results):])
                 break
-            results.extend(mapping.result(job, row) for job, row in zip(batch, answers))
         if any(row['outcome'] == 'error' for row in results):
             issues.append('provider_error')  # Not retained: the next read retries.
         return {'data': {'provider': 'openfigi', 'source_url': mapping.URL, 'results': results},

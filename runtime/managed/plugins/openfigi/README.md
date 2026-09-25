@@ -21,8 +21,8 @@ ISINs are checked for shape and check digit before any request, which
 catches malformed input but does not prove issuance. Results keep job order.
 Each job is `found` with every candidate (`figi`, `compositeFIGI`,
 `shareClassFIGI`, `ticker`, `exchCode`, `name`, security types, market sector),
-`not_found`, `error` with the provider's short message, or `not_attempted` when a
-limit stopped the call. One ISIN normally maps to many venue listings, and the
+`not_found`, `error` with the provider's short message, or `unanswered` when a
+request failed or a limit stopped the call. One ISIN normally maps to many venue listings, and the
 connector never picks one. FIGIs identify instruments, not legal issuers.
 
 ## Configuration and limits
@@ -40,8 +40,9 @@ The limits follow OpenFIGI's rate-limit table (consulted 2026-09-25). Without a
 key a request carries up to 10 jobs and at most 25 requests start per minute.
 With a key a request carries up to 100 jobs and at most 25 requests start per 6
 seconds. One call accepts up to 100 jobs and is split into requests of the
-allowed size. When a later request is throttled, earlier answers are kept and the
-remaining jobs are reported with the retry delay. The endpoint section of the
+allowed size. When a later request fails or is throttled, earlier answers are
+kept and the remaining jobs are reported as unanswered, with the retry delay when
+there is one. The endpoint section of the
 same page still says 5 keyless jobs, but a 6-job keyless request was accepted on
 2026-09-25. A provider rejection (HTTP 413) is reported, not retried.
 Successful answers are retained in memory for 24 hours; partial or failed ones

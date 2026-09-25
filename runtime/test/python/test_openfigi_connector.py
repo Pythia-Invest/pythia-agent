@@ -111,7 +111,7 @@ class OpenFigiResolve(unittest.TestCase):
         instance = resolver(opener)
         result = instance.invoke({'jobs': self.jobs(15)})
         self.assertEqual(result['outcome'], 'partial')
-        self.assertEqual([row['outcome'] for row in result['data']['results']], ['found'] * 10 + ['not_attempted'] * 5)
+        self.assertEqual([row['outcome'] for row in result['data']['results']], ['found'] * 10 + ['unanswered'] * 5)
         self.assertEqual((result['issues'][0]['code'], result['issues'][0]['retry_after_seconds']), ('rate_limit', 7))
         # The provider throttle also pauses the shared budget; nothing more is sent.
         self.assertEqual(instance.invoke({'jobs': self.jobs(15)})['issues'][0]['code'], 'rate_limit')
@@ -119,6 +119,14 @@ class OpenFigiResolve(unittest.TestCase):
         governor._owners.clear()  # After the cooldown the partial answer is not reused.
         self.assertEqual(instance.invoke({'jobs': self.jobs(15)})['outcome'], 'ok')
         self.assertEqual(len(opener.requests), 4)
+
+    def test_unreadable_later_batch_keeps_earlier_answers(self):
+        def unreadable(jobs):
+            return [{'data': [{**candidate(1), 'figi': 'not-a-figi'}]} for _ in jobs]
+        result = resolver(Opener([found, unreadable])).invoke({'jobs': self.jobs(15)})
+        self.assertEqual(result['outcome'], 'partial')
+        self.assertEqual([row['outcome'] for row in result['data']['results']], ['found'] * 10 + ['unanswered'] * 5)
+        self.assertEqual(result['issues'][0]['code'], 'invalid_response')
 
     def test_success_is_retained_and_an_invalid_key_falls_back_to_keyless_limits(self):
         opener = Opener([found])
@@ -138,12 +146,12 @@ class OpenFigiResolve(unittest.TestCase):
         now = [100.0]
         transport = client.Transport(connector, opener=Opener([]), clock=lambda: now[0])
         for _ in range(25):
-            transport._pace(True, lambda: False, deadline=101.0)
+            transport._pace(lambda: False, deadline=101.0)
         with self.assertRaises(connector.SourceFailure) as caught:
-            transport._pace(True, lambda: False, deadline=101.0)
+            transport._pace(lambda: False, deadline=101.0)
         self.assertEqual((caught.exception.raw['error'], caught.exception.raw['retry_after']), ('rate_limit', 6))
         now[0] = 106.5
-        transport._pace(True, lambda: False, deadline=107.0)
+        transport._pace(lambda: False, deadline=107.0)
 
 
 if __name__ == '__main__':

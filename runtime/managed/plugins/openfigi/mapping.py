@@ -7,11 +7,10 @@ import re
 URL = 'https://api.openfigi.com/v3/mapping'
 ID_TYPES = ('ID_ISIN', 'TICKER')
 FILTERS = {'micCode': 4, 'exchCode': 16}
-# The rate-limit table allows 10 jobs per request and 25 requests per minute
-# without a key, and 100 jobs and 25 requests per 6 seconds with one. The
-# endpoint section still says 5 keyless jobs, but a 6-job keyless request was
-# accepted on 2026-09-25; a provider 413 is reported, not retried.
-LIMITS = {False: {'jobs': 10, 'requests': 25, 'window': 60.0}, True: {'jobs': 100, 'requests': 25, 'window': 6.0}}
+# The rate-limit table allows 10 jobs per request without a key and 100 with
+# one. The endpoint section still says 5 keyless jobs, but a 6-job keyless
+# request was accepted on 2026-09-25; a provider 413 is reported, not retried.
+JOBS = {False: 10, True: 100}
 MAX_JOBS = 100
 CANDIDATE_FIELDS = ('figi', 'compositeFIGI', 'shareClassFIGI', 'ticker', 'exchCode', 'name',
                     'securityType', 'securityType2', 'marketSector', 'securityDescription')
@@ -57,7 +56,7 @@ def validate(jobs):
 
 
 def batches(jobs, keyed):
-    size = LIMITS[bool(keyed)]['jobs']
+    size = JOBS[bool(keyed)]
     return [jobs[offset:offset + size] for offset in range(0, len(jobs), size)]
 
 

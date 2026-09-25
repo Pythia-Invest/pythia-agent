@@ -60,18 +60,18 @@ class Resolver:
     def envelope(self, raw, notes):
         results = raw['data']['results']
         counts = {state: sum(row['outcome'] == state for row in results)
-                  for state in ('found', 'not_found', 'error', 'not_attempted')}
+                  for state in ('found', 'not_found', 'error', 'unanswered')}
         issues = list(notes)
         if counts['error']:
             issues.append({'code': 'provider_error', 'severity': 'error',
                            'message': f"OpenFIGI could not map {counts['error']} job(s); see each job's message."})
-        if counts['not_attempted']:
+        if counts['unanswered']:
             code = next((item for item in raw.get('issues', []) if item != 'provider_error'), 'source_unavailable')
             skipped = self.connector.qualify_failure({'issues': [{'code': code, 'severity': 'error',
-                'message': f"{counts['not_attempted']} job(s) were not attempted."}]}, {**raw, 'error': code})
+                'message': f"{counts['unanswered']} job(s) were not answered."}]}, {**raw, 'error': code})
             issues.extend(skipped['issues'])
         answered = counts['found'] + counts['not_found']
-        failed = counts['error'] + counts['not_attempted']
+        failed = counts['error'] + counts['unanswered']
         outcome = ('partial' if answered else 'error') if failed else 'ok' if counts['found'] else 'empty'
         data = {**raw['data'], 'observed_at': raw['observed_at']}
         return {'schema_version': 1, 'outcome': outcome, 'data': data, 'issues': issues}
