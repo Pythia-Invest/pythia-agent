@@ -5,8 +5,8 @@
 -- reference-local.sqlite3, also with this schema.
 -- Subject IDs are deterministic, derived from open identifiers
 -- (identity.schemes.subject_id), so every install and rebuild agrees on them.
--- A re-key (a better key became known), merge or split is recorded in id_aliases;
--- a changed natural key (new ISIN, LEI merger) is a successor_of relation.
+-- A re-key (a better key became known) is recorded in id_aliases; a changed
+-- natural key (new ISIN, LEI merger) is a successor_of relation.
 -- Scheme/level pairs are fixed here so an ISIN can never identify a listing.
 
 CREATE TABLE release (
@@ -115,22 +115,19 @@ CREATE TABLE relations (
 CREATE INDEX relations_from ON relations (from_id, type);
 CREATE INDEX relations_to ON relations (to_id, type);
 
--- Names and aliases for search (legal, other, former, transliterated, brand).
+-- Other names a subject is searched by (former names, brands, symbols).
 CREATE TABLE names (
   subject_id TEXT NOT NULL,
   name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 512),
-  kind TEXT NOT NULL CHECK (kind IN ('legal', 'other', 'former', 'transliterated', 'brand', 'symbol')),
-  language TEXT,
   source TEXT NOT NULL,
   valid_to TEXT,
-  PRIMARY KEY (subject_id, name, kind)
+  PRIMARY KEY (subject_id, name)
 );
 
 -- Saved subject IDs resolve through this chain; they are never rewritten.
 CREATE TABLE id_aliases (
   old_id TEXT PRIMARY KEY,
   new_id TEXT NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('rekey', 'merge', 'split')),
   release TEXT NOT NULL,
   CHECK (old_id <> new_id)
 );
@@ -140,8 +137,7 @@ CREATE TABLE venues (
   mic TEXT PRIMARY KEY CHECK (length(mic) = 4),
   operating_mic TEXT NOT NULL CHECK (length(operating_mic) = 4),
   name TEXT NOT NULL,
-  country TEXT CHECK (country IS NULL OR length(country) = 2),
-  category TEXT NOT NULL CHECK (category IN ('regulated', 'mtf', 'otc', 'other'))
+  country TEXT CHECK (country IS NULL OR length(country) = 2)
 );
 
 CREATE TABLE chains (
