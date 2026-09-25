@@ -30,9 +30,9 @@ build and never wait on a refresh or contact a source while the investor types.
 **Fetching respects each source's terms and load.** Every request to the SEC
 declares a User-Agent with a contact. That contact is the investor's configured
 identity. Pythia ships no default contact, so SEC stages wait until the investor
-enters one, which Settings asks for. Requests stay within each source's
-published rate limits and prefer delta files over full downloads. A free
-OpenFIGI key is optional and held under credential custody.
+configures one: the SEC plugin's required `sec_identity`. Requests stay within
+each source's published rate limits and prefer delta files over full downloads.
+A free OpenFIGI key is optional and held under credential custody.
 
 **Provenance is shown.** Records keep their source and as-of date, and provenance
 appears where data is shown (ADR 0028).
@@ -60,8 +60,8 @@ SEC ticker, about 17,000 OpenFIGI jobs. Its network-bound build took about 6
 minutes with a free OpenFIGI key. Keyless, it took a little over an hour, almost
 all of it in the OpenFIGI step. The build runs in stages. The first stages
 supply SEC tickers and EU issuer and security names. The OpenFIGI step adds EU
-tickers and FIGIs. The app shows progress and labels coverage that is not yet
-complete. The free key is offered as the fast path, and it is never required.
+tickers and FIGIs. Build progress and incomplete coverage are labelled. A free
+key is the fast path, and it is never required.
 
 **Load and breakage are per device.** Each install fetches from the sources
 itself. Weekly full refreshes of the ISIN-to-LEI file alone would pull about
@@ -74,9 +74,10 @@ the as-of date of each source.
 **A Yahoo-only install** needs no paid key. It gets EU and SEC-listed search
 grouped by issuer and security, and delayed prices through Yahoo symbols derived
 from ticker and MIC. It also gets a GLEIF profile, SEC filings, and ESEF filings
-where they are available. The SEC parts arrive once the SEC contact is set.
-Sections without a source say so and name what would fill them. A provider improves exactly what it covers. Global coverage arrives
-through plugins over time.
+where they are available. The SEC parts arrive once `sec_identity` is
+configured. Sections without a source say so and name what would fill them. A
+provider improves exactly what it covers. Global coverage arrives through
+plugins over time.
 
 **Provider terms stay with the investor.** Anything the investor exports or
 shares is their responsibility under the provider's terms. A multi-user or team
