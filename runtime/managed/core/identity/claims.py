@@ -29,8 +29,8 @@ _DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING:
 
 class BatchOrigin(StrEnum):
     CATALOGUE = "catalogue"  # a page of a bulk catalogue scope
-    RESOLVE = "resolve"      # the answer to one budgeted resolve request
-    REFERENCE = "reference"  # an open reference source run by the reference builder
+    RESOLVE = "resolve"      # the answer to one resolve request
+    # Open reference sources never emit: the reference builder writes the reference store itself.
 
 
 @dataclass(frozen=True, slots=True)
