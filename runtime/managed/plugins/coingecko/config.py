@@ -36,7 +36,11 @@ def key_reader(ctx, platform, credentials):
 
 def access(mode, credential):
     """Resolve (access, token) from the configured mode and (status, value) key."""
-    status, token = credential() if mode != 'keyless' else ('missing', None)
+    try:
+        status, token = credential() if mode != 'keyless' else ('missing', None)
+    except ValueError:
+        # An unreadable declaration yields no key, so `auto` stays keyless.
+        status, token = 'missing', None
     if mode == 'keyless' or (mode == 'auto' and status == 'missing'):
         return 'keyless', None
     if status != 'configured':
