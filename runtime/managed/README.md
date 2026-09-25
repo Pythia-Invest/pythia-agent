@@ -12,8 +12,9 @@ This directory is Pythia-owned source updated with each release:
   native extension mechanism under its existing `pythia` identity.
 - `plugins/market-data/` is a separately copied native feature: shared financial
   contracts, identity, source resolution, protected resident HTTP/SSE and reusable
-  connector execution helpers. This payload includes no concrete shared connector.
-  Its financial skill is bundled inside the plugin.
+  connector execution helpers. Its financial skill is bundled inside the plugin.
+- Connector packages such as `plugins/eodhd/` are separately copied native
+  features with their own bundled skills and `runner/` workers.
 - `runner/` contains shared provider execution helpers and the narrow native
   read-only session-context helper. The latter runs with the pinned Hermes
   environment.
@@ -46,5 +47,6 @@ Memory notes and user-edited seeds require the explicit preserved
 [transition](../../docs/update-and-customization.md#workspace-transition).
 
 Legacy core SEC/EODHD tools and their dedicated workers, skills and dependencies
-are retired. Their future connector packages own any replacement capability.
+are retired. Connector packages own replacement capabilities through their own
+native toolsets.
 See [ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).

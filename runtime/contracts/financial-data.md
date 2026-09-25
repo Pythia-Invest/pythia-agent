@@ -3,10 +3,11 @@
 The shared [market-data contracts](../../packages/market-data/README.md) and
 [native backend](../../packages/market-data/BACKEND.md) now provide canonical
 identity, preferred/pinned price/history reads and coordinated protected delivery.
-This foundation ships no concrete shared connector. The two original core tools
-documented below are retired by [ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).
-The following contracts record historical integration evidence for future
-connector work; they do not describe installed tools or current qualification.
+The [EODHD connector](../../docs/architecture/eodhd.md) supplies shared and
+specialist reads through its own native package. The two original core tools
+documented below remain retired by [ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).
+The following sections record their historical integration evidence; the
+connector document owns current EODHD support and qualification.
 
 The first slice has two independent, optional capabilities. Ordinary startup
 and CI use neither credential and make no provider request. A failed sibling
