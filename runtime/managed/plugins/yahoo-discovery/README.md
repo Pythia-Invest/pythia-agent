@@ -1,0 +1,41 @@
+# Yahoo Finance connector
+
+A content connector for Yahoo Finance's public data. It needs no account or
+credential. Exact-symbol details, source-pinned price series, bounded
+specialist research (quote, chart, historical, quoteSummary, fundamentals,
+options, insights, recommendations, screener, trending) and Desk dashboards run
+through `yahoo-finance2` 4.0.2 in the owned resident worker
+(`runtime/managed/runner/yahoo*.ts`). SDK setup and requests share the connection
+budget; the native unload hook releases the worker. The connector does not use
+browser cookies or private account access.
+
+## Personal use only
+
+Yahoo's terms limit use to personal, non-commercial purposes and prohibit
+redistribution and building a competing database or feed. Yahoo data therefore
+stays on the device of the person who requested it:
+
+- reads are cached only in memory, within the market-data owner's cache policy
+  (seconds to minutes), and nothing is written to disk;
+- Yahoo rows never enter a catalogue, overlay, reference snapshot, export or
+  other shared artefact, and must not be committed as fixtures;
+- tests use synthetic Yahoo-shaped values.
+
+## Identity
+
+Yahoo returns no ISIN, FIGI, LEI or CIK. A Yahoo symbol is a mutable listing
+reference, not an identifier. `details` preserves Yahoo's venue and currency
+qualifiers and asserts no identity evidence, so a saved Yahoo reference stays an
+unresolved candidate under [ADR 0012](../../../../docs/decisions/0012-investment-identity-and-repair.md).
+Yahoo `EQUITY` is not promoted to Common Stock or proof of an issuer. Name or
+ticker similarity never creates a canonical relationship.
+
+## No provider search
+
+Investment search is a local read of Pythia's directory; this connector offers
+no free-text search. The worker's only lookup is `resolve_isin`, which accepts a
+checksum-valid ISIN and returns listing rows (symbol, exchange, quote type).
+`resolve.py` turns that into a query-only hint verified by one exact metadata
+read. Yahoo keys an ISIN to its primary listing only, so the hint never proves
+the other listings of a security. The helper is not registered as a tool yet;
+the plugin addressing contract adopts it as this connector's `resolve`.

@@ -1,0 +1,15 @@
+name: pythia-yahoo-discovery
+version: 0.3.0
+description: Yahoo Finance public prices and investment research content (personal use)
+license: Apache-2.0
+requires_plugins:
+  - pythia-market-data
+provides_tools:
+  - pythia_yahoo_trending
+  - pythia_yahoo_details
+  - pythia_yahoo_read_batch
+  - pythia_yahoo_series
+  - pythia_yahoo_latest
+  - pythia_yahoo_history
+  - pythia_yahoo_research
+  - pythia_yahoo_dashboard
