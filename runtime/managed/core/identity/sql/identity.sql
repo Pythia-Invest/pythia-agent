@@ -26,11 +26,10 @@ CREATE TABLE subjects (
 
 CREATE TABLE relations (
   evidence_id TEXT PRIMARY KEY CHECK (evidence_id LIKE 'ev:%'),
-  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'share_class_of', 'parent_of', 'wraps', 'successor_of')),
+  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'wraps', 'successor_of')),
   from_id TEXT NOT NULL,
   to_id TEXT NOT NULL,
   ratio TEXT,
-  parent_kind TEXT,
   valid_from TEXT,
   valid_to TEXT,
   tier TEXT NOT NULL CHECK (tier IN ('T0', 'T1', 'T3', 'T4')),
@@ -55,7 +54,6 @@ CREATE TABLE bindings (
   tier TEXT CHECK (tier IS NULL OR tier IN ('T0', 'T1', 'T3', 'T4')),
   authority TEXT NOT NULL,
   rule_id TEXT,                    -- versioned rule for T1, e.g. 'ticker_mic@1'
-  join_rule TEXT CHECK (join_rule IS NULL OR join_rule IN ('isin_mic', 'isin', 'figi_cusip', 'ticker_mic', 'residual')),
   evidence_ids TEXT NOT NULL,
   valid_from TEXT,
   valid_to TEXT,
@@ -101,7 +99,7 @@ CREATE TABLE verdicts (
   plugin TEXT NOT NULL,            -- 'pythia' for core rules, the agent and manual resolution
   authority TEXT NOT NULL CHECK (authority IN ('rule_confirmed', 'model_confirmed', 'model_suggested', 'user_attested')),
   relation TEXT NOT NULL CHECK (relation IN ('same_listing', 'same_security', 'same_issuer', 'depositary_receipt_of',
-                                             'share_class_of', 'unrelated', 'none', 'ambiguous')),
+                                             'unrelated', 'none', 'ambiguous')),
   chosen_id TEXT,
   rejected_evidence_ids TEXT NOT NULL DEFAULT '[]',
   confidence REAL CHECK (confidence IS NULL OR confidence BETWEEN 0 AND 1),

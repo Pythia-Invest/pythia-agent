@@ -26,9 +26,8 @@ CREATE TABLE securities (
   id TEXT PRIMARY KEY CHECK (id LIKE 'security:%'),
   issuer_id TEXT REFERENCES issuers(id),
   name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 512),
-  asset_class TEXT NOT NULL CHECK (asset_class IN ('equity', 'fund', 'bond', 'index', 'fx', 'commodity', 'crypto')),
-  kind TEXT NOT NULL CHECK (kind IN ('ordinary', 'preferred', 'depositary_receipt', 'etf', 'fund', 'bond',
-                                     'index', 'fx', 'coin', 'token', 'other')),
+  asset_class TEXT NOT NULL CHECK (asset_class IN ('equity', 'crypto')),
+  kind TEXT NOT NULL CHECK (kind IN ('ordinary', 'depositary_receipt', 'coin', 'token')),
   cfi TEXT CHECK (cfi IS NULL OR length(cfi) = 6),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'unknown')),
   CHECK ((asset_class = 'crypto') = (kind IN ('coin', 'token')))
@@ -98,11 +97,10 @@ CREATE INDEX assertions_subject ON assertions (subject_id);
 -- Typed edges between distinct subjects. Relations never merge subjects.
 CREATE TABLE relations (
   evidence_id TEXT PRIMARY KEY CHECK (evidence_id LIKE 'ev:%'),
-  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'share_class_of', 'parent_of', 'wraps', 'successor_of')),
+  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'wraps', 'successor_of')),
   from_id TEXT NOT NULL,
   to_id TEXT NOT NULL,
   ratio TEXT,
-  parent_kind TEXT,
   valid_from TEXT,
   valid_to TEXT,
   tier TEXT NOT NULL CHECK (tier IN ('T0', 'T1', 'T3', 'T4')),
@@ -114,11 +112,7 @@ CREATE TABLE relations (
   adapter_version TEXT NOT NULL,
   retrieved_at TEXT NOT NULL,
   CHECK (from_id <> to_id),
-  CHECK ((type = 'parent_of' AND from_id LIKE 'issuer:%' AND to_id LIKE 'issuer:%'
-          AND parent_kind IN ('direct', 'ultimate'))
-      OR (type = 'successor_of' AND parent_kind IS NULL)
-      OR (type IN ('depositary_receipt_of', 'share_class_of', 'wraps') AND from_id LIKE 'security:%'
-          AND to_id LIKE 'security:%' AND parent_kind IS NULL)),
+  CHECK (type = 'successor_of' OR (from_id LIKE 'security:%' AND to_id LIKE 'security:%')),
   CHECK (ratio IS NULL OR type = 'depositary_receipt_of'),
   CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to)
 );

@@ -29,8 +29,8 @@ from .schemes import (
     ticker_mic,
 )
 from .vocabulary import (
-    AUTHORITY_TIER, JOIN_ORDER, AssetClass, Authority, BindingStatus, EvidenceTier, IdentifierRole, InstrumentKind,
-    JoinRule, RelationType, SubjectStatus, VerdictRelation,
+    AUTHORITY_TIER, AssetClass, Authority, BindingStatus, EvidenceTier, IdentifierRole, InstrumentKind, RelationType,
+    SubjectStatus, VerdictRelation,
 )
 
 API_VERSION = 1

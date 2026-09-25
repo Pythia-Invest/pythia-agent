@@ -143,7 +143,6 @@ class RelationClaim:
     provenance: Provenance
     validity: Validity = field(default_factory=Validity)
     ratio: str | None = None
-    parent_kind: str | None = None
 
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, from_key=IdentifierValue, to_key=IdentifierValue, provenance=Provenance,
@@ -154,8 +153,6 @@ class RelationClaim:
         _require(self.from_key != self.to_key, "relation claim: endpoints must differ")
         _require(self.ratio is None or (self.type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(self.ratio))),
                  "relation claim: ratio is a decimal on receipts only")
-        _require((self.parent_kind in ("direct", "ultimate")) == (self.type is RelationType.PARENT_OF),
-                 "relation claim: parent_kind is direct or ultimate on parent_of only")
 
 
 Claim = RecordClaim | RelationClaim

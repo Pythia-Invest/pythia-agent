@@ -125,7 +125,6 @@ class IdentifierAssertion:
         object.__setattr__(self, "value", normalize_identifier(self.scheme, self.value))
         _require(subject_level(self.subject_id) is SCHEME_LEVEL[self.scheme],
                  f"assertion: {self.scheme} cannot identify a {subject_level(self.subject_id)}")
-        _require(AUTHORITY_TIER[self.authority] is not None, "assertion: unknown or echoed provenance is not evidence")
 
     @property
     def level(self) -> Level:
@@ -133,7 +132,7 @@ class IdentifierAssertion:
 
     @property
     def tier(self) -> EvidenceTier:
-        return AUTHORITY_TIER[self.authority]  # type: ignore[return-value]
+        return AUTHORITY_TIER[self.authority]
 
     @property
     def evidence_id(self) -> str:
@@ -270,7 +269,7 @@ class Binding:
         return subject_level(self.subject_id)
 
     @property
-    def tier(self) -> EvidenceTier | None:
+    def tier(self) -> EvidenceTier:
         return AUTHORITY_TIER[self.authority]
 
 
@@ -284,8 +283,7 @@ class Relation:
     authority: Authority
     provenance: Provenance
     validity: Validity = field(default_factory=Validity)
-    ratio: str | None = None        # depositary_receipt_of: underlying shares per receipt
-    parent_kind: str | None = None  # parent_of: direct | ultimate
+    ratio: str | None = None  # depositary_receipt_of: underlying shares per receipt
 
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, authority=Authority, provenance=Provenance, validity=Validity)
@@ -296,6 +294,3 @@ class Relation:
                  f"relation: {self.type} links subjects at the wrong levels")
         _require(self.ratio is None or (self.type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(self.ratio))),
                  "relation.ratio: decimal, receipts only")
-        _require((self.parent_kind in ("direct", "ultimate")) == (self.type is RelationType.PARENT_OF),
-                 "relation.parent_kind: direct or ultimate, parent_of only")
-        _require(AUTHORITY_TIER[self.authority] is not None, "relation: unknown or echoed provenance is not evidence")

@@ -22,7 +22,7 @@ PROVENANCE = {"plugin": "eodhd", "source": "eodhd", "adapter_version": "1", "ret
 YAHOO = {
     "schema_version": 1, "plugin": "yahoo", "provider": "yahoo", "label": "Yahoo Finance",
     "addressing": {
-        "native": [{"native_scope": "symbol", "level": "listing", "asset_classes": ["equity", "fund", "index"]}],
+        "native": [{"native_scope": "symbol", "level": "listing", "asset_classes": ["equity"]}],
         "schemes": {"listing": ["ticker_mic"], "security": ["isin"]},
         "venues": {"mic_table": {"XAMS": {"suffix": ".AS"}, "XNGS": {"suffix": ""}}, "composites": ["US"]},
         "symbol_rules": {"class_separator": "-", "pad": {"XHKG": 4}, "strip_trailing_dot": ["XLON"]},

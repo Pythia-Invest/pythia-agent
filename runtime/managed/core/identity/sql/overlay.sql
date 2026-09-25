@@ -64,7 +64,7 @@ CREATE TABLE join_outcomes (
   native_scope TEXT NOT NULL,
   native_id TEXT NOT NULL,
   subject_id TEXT NOT NULL,
-  join_rule TEXT NOT NULL CHECK (join_rule IN ('isin_mic', 'isin', 'figi_cusip', 'ticker_mic', 'residual')),
+  rule_id TEXT,                    -- the versioned join rule that placed it, e.g. 'isin_mic@1'
   outcome TEXT NOT NULL CHECK (outcome IN ('bound', 'created', 'residual', 'conflict')),
   claim_digest TEXT NOT NULL,
   decided_at TEXT NOT NULL,
