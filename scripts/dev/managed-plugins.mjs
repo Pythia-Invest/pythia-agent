@@ -91,6 +91,22 @@ export const MANAGED_PLUGINS = Object.freeze([
     ]),
     workers: Object.freeze(["yahoo.ts", "yahoo-prices.ts", "yahoo-options.ts"]),
   }),
+  Object.freeze({
+    name: "pythia-gleif",
+    install: true,
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/gleif",
+    files: Object.freeze([
+      "__init__.py",
+      "definition.py",
+      "records.py",
+      "profile.py",
+      "plugin.yaml",
+      "README.md",
+      "skills/gleif/SKILL.md",
+    ]),
+  }),
 ]);
 
 // Core runner helpers shared by every connector worker, validated once rather
