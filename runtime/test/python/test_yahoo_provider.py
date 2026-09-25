@@ -19,7 +19,6 @@ identity = importlib.import_module('test_yahoo.identity')
 series = importlib.import_module('test_yahoo.series')
 results = importlib.import_module('test_yahoo.results')
 definition = importlib.import_module('test_yahoo.definition')
-resolve = importlib.import_module('test_yahoo.resolve')
 wire = importlib.import_module('test_yahoo_feature.wire')
 bind_feature_platform('test_yahoo_feature')
 
@@ -32,6 +31,9 @@ class Yahoo(unittest.TestCase):
         calls = []
         def worker(_command, request, _environment, **_kwargs):
             calls.append(request)
+            if request['operation'] == 'news':
+                return {'data': {'source': 'yahoo.news', 'retrieved_at': '2026-01-01T00:00:00Z',
+                                 'result': {'symbol': 'SYNTH.AS', 'news': []}}, 'issues': []}
             return {'data': {'common': {'SYNTH.AS': {'metadata': dict(metadata)}},
                 'display': {'quotes': [], 'retrieved_at': '2026-01-01T00:00:00Z'}}, 'issues': []}
         process = types.SimpleNamespace(run_worker=worker, shutdown=lambda: None)
@@ -54,49 +56,19 @@ class Yahoo(unittest.TestCase):
                     patch.object(connector, 'NativeBatch', return_value=batch), \
                     patch.dict(os.environ, {'PYTHIA_MANAGED_ROOT': directory, 'PYTHIA_NODE': str(node)}):
                 provider.register(ctx)
-                self.assertEqual(set(ctx.tools), {*provider.TOOLS.values(), 'pythia_yahoo_trending'})
                 self.assertNotIn('pythia_yahoo_search', ctx.tools)
-                declared = {op['operation'] for schema in provider.schemas(wire).values() if '$comment' in schema['parameters']
-                            for op in json.loads(schema['parameters']['$comment'])['pythia_market_data']['operations']}
-                self.assertEqual(declared, {'details', 'series', 'latest', 'history', 'read_batch'})
-                research = json.loads(ctx.tools[provider.TOOLS['research']]({'operation': 'search', 'symbol': 'SYNTH'}))
-                self.assertEqual(research['issues'][0]['code'], 'invalid_request')
+                research = ctx.tools[provider.TOOLS['research']]
+                # Neither a search operation nor free text as a news key reaches Yahoo.
+                for arguments in ({'operation': 'search', 'symbol': 'SYNTH'}, {'operation': 'news', 'symbol': 'free text'}):
+                    self.assertEqual(json.loads(research(arguments))['issues'][0]['code'], 'invalid_request')
+                news = json.loads(research({'operation': 'news', 'symbol': 'SYNTH.AS'}))
+                self.assertEqual(news['data']['result'], {'symbol': 'SYNTH.AS', 'news': []})
                 details = json.loads(ctx.tools[provider.TOOLS['details']]({'native_ref': native}))['data'][0]
                 # Exact metadata adds Yahoo's venue/currency but asserts no identity evidence.
                 self.assertEqual(details['provider_ref']['qualifiers'], {'currency': 'EUR', 'venue': 'AMS'})
                 self.assertEqual(details['evidence'], [])
-        self.assertEqual(calls, [{'operation': 'quote_bundle', 'arguments': {'symbols': ['SYNTH.AS']}}])
-
-    def test_isin_resolve_is_a_verified_query_only_hint(self):
-        isin = 'NL0010273215'
-        metadata = {'symbol': 'SYNTH.AS', 'type': 'EQUITY', 'currency': 'EUR', 'exchange': 'AMS'}
-        def reply(rows, meta=metadata):
-            calls = []
-            def call(endpoint, args):
-                calls.append((endpoint, args))
-                if endpoint == 'resolve_isin':
-                    return {'data': {'result': {'isin': isin, 'quotes': rows}}, 'issues': []}
-                return {'data': dict(meta), 'issues': []}
-            return call, calls
-        call, calls = reply([{'symbol': 'SYNTH.AS', 'exchange': 'AMS', 'quoteType': 'EQUITY'},
-                             {'symbol': isin + '.SG', 'exchange': 'STU', 'quoteType': 'EQUITY'}])
-        self.assertEqual(resolve.by_isin(isin, call), {'status': 'resolved', 'native_level': 'listing', 'echoed': {},
-            'native_ref': {'provider': 'yahoo', 'native_scope': 'symbol', 'native_id': 'SYNTH.AS',
-                           'qualifiers': {'currency': 'EUR', 'venue': 'AMS'}},
-            'query': {'scheme': 'isin', 'value': isin, 'authority': 'query_only'}})
-        self.assertEqual(calls, [('resolve_isin', {'isin': isin}), ('metadata', {'symbol': 'SYNTH.AS'})])
-        call, _ = reply([])
-        self.assertEqual(resolve.by_isin(isin, call)['status'], 'not_found')
-        call, calls = reply([{'symbol': 'ONE', 'exchange': 'NMS'}, {'symbol': 'TWO', 'exchange': 'PNK'}])
-        ambiguous = resolve.by_isin(isin, call)
-        self.assertEqual([ref['native_id'] for ref in ambiguous['candidates']], ['ONE', 'TWO'])
-        self.assertEqual(len(calls), 1)
-        call, _ = reply([{'symbol': 'SYNTH.AS'}], {**metadata, 'symbol': 'OTHER.AS'})
-        with self.assertRaises(ValueError):
-            resolve.by_isin(isin, call)
-        for value in ('NL0010273216', 'ASML', 'nl0010273215', None):
-            with self.subTest(value=value), self.assertRaises(ValueError):
-                resolve.by_isin(value, lambda *_: self.fail('invalid input reached Yahoo'))
+        self.assertEqual(calls, [{'operation': 'news', 'arguments': {'symbol': 'SYNTH.AS', 'options': {}}},
+                                 {'operation': 'quote_bundle', 'arguments': {'symbols': ['SYNTH.AS']}}])
 
     def test_identity_and_units_do_not_infer_equivalence_or_index_currency(self):
         metadata = {'symbol': 'SYNTH', 'type': 'EQUITY', 'currency': 'USD', 'exchange': 'SYN'}
@@ -110,12 +82,10 @@ class Yahoo(unittest.TestCase):
         self.assertEqual(receipt['metadata']['native_currency'], 'GBp')
         self.assertNotIn('currency', receipt['provider_ref'].get('qualifiers', {}))
         self.assertEqual(receipt['venue'], 'Synthetic Exchange')
-        # Search quoteType and details type must expose the same shared scope.
-        searched = identity.candidate({'symbol': 'SYNTH', 'quoteType': 'EQUITY'})
-        self.assertEqual(searched['kind'], candidate['kind'])
-        self.assertIsNone(identity.candidate({'symbol': 'SYNTH', 'quoteType': 'NEW_TYPE'})['kind'])
+        # An unknown Yahoo type stays unscoped rather than guessed.
+        self.assertIsNone(identity.candidate({'symbol': 'SYNTH', 'type': 'NEW_TYPE'})['kind'])
         with self.assertRaises(ValueError):
-            identity.candidate({'name': 'Non-instrument search result'})
+            identity.candidate({'name': 'Row without a symbol'})
         native = candidate['provider_ref']
         for mode in series.MODES:
             value = wire.validate('series', series.definition(native, mode, metadata))

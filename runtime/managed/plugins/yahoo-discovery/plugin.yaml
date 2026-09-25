@@ -5,7 +5,6 @@ license: Apache-2.0
 requires_plugins:
   - pythia-market-data
 provides_tools:
-  - pythia_yahoo_trending
   - pythia_yahoo_details
   - pythia_yahoo_read_batch
   - pythia_yahoo_series

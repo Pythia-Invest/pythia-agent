@@ -9,6 +9,11 @@ import {
   UNIT_NAMES,
 } from "../scripts/install/systemd.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
+import {
+  MANAGED_PLUGINS,
+  managedRunnerBuilds,
+} from "../scripts/dev/managed-plugins.mjs";
+import { MANAGED_WIDGET_BUILDS } from "../scripts/dev/managed-widget-builds.mjs";
 import { assertManagedPluginSource } from "../scripts/dev/files.mjs";
 
 import {
@@ -16,7 +21,6 @@ import {
   isBuilderInstructionSource,
   normalized,
   rejectSourcePath,
-  releaseInputs,
   root,
   violations,
   walk,
@@ -249,9 +253,16 @@ const promptAndContextFiles = new Set([
   authoritativePromptSource,
   ...skillFiles,
 ]);
-const release = releaseInputs();
+// Widget bundles and connector workers; a worker without an output runs as source.
+const builds = [
+  ...MANAGED_WIDGET_BUILDS,
+  ...managedRunnerBuilds(MANAGED_PLUGINS),
+];
 const installedRuntimeFiles = new Set([
-  ...release.files,
+  ...MANAGED_PLUGINS.flatMap((plugin) =>
+    plugin.files.map((path) => `runtime/managed/${plugin.source}/${path}`),
+  ),
+  ...builds.flatMap((build) => [build.entry, build.output].filter(Boolean)),
   ...["NOTICE.md", "hermes-source.json"].map(
     (path) => `runtime/hermes/${path}`,
   ),
@@ -260,8 +271,11 @@ const installedRuntimeFiles = new Set([
   "runtime/seeds/manifest.json",
   ...promptAndContextFiles,
 ]);
+const buildSources = new Map(
+  builds.map((build) => [build.output, build.entry]),
+);
 for (const path of installedRuntimeFiles) {
-  const buildSource = release.builds.get(path);
+  const buildSource = buildSources.get(path);
   if (buildSource) {
     if (
       !source.entries.some((entry) => entry.path === buildSource) ||

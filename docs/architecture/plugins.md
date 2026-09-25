@@ -38,6 +38,10 @@ building, native registration, data bindings and explicit user overrides.
 Release payload lists determine which supported packages Pythia copies, and which
 ones it enables when creating a fresh profile. They are build/lifecycle allowlists,
 not runtime discovery. Existing profiles keep their native enablement choices.
+A payload's `files` are copied into the profile. Its optional `workers` name
+connector workers under `runtime/managed/runner/` that run in place from the
+checkout: TypeScript workers compile through `build:runtime`, other workers
+(for example Python) run as source. Never list a worker in `files`.
 Community packages do not need to be added to those release lists: install them
 through Hermes's supported local plugin mechanism.
 
