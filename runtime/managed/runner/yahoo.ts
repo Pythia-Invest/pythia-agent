@@ -77,11 +77,9 @@ export function record(value: unknown): Record<string, unknown> {
     throw Error("invalid_request");
   return value as Record<string, unknown>;
 }
+const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=-]{0,63}$/u;
 export function symbol(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    !/^[A-Za-z0-9^][A-Za-z0-9.^=-]{0,63}$/u.test(value)
-  )
+  if (typeof value !== "string" || !SYMBOL.test(value))
     throw Error("invalid_request");
   return value;
 }
@@ -154,19 +152,27 @@ async function resolveIsin(sdk: Client, code: string) {
     enableCb: false,
     enableNavLinks: false,
   });
+  const seen = new Set<string>();
   return {
     isin: code,
-    quotes: found.quotes.flatMap((q) =>
-      q.isYahooFinance && typeof q.symbol === "string"
-        ? [
-            {
-              symbol: symbol(q.symbol),
-              exchange: typeof q.exchange === "string" ? q.exchange : null,
-              quoteType: typeof q.quoteType === "string" ? q.quoteType : null,
-            },
-          ]
-        : [],
-    ),
+    // Rows with an unusable or repeated symbol are skipped, not fatal.
+    quotes: found.quotes.flatMap((q) => {
+      if (
+        !q.isYahooFinance ||
+        typeof q.symbol !== "string" ||
+        !SYMBOL.test(q.symbol) ||
+        seen.has(q.symbol)
+      )
+        return [];
+      seen.add(q.symbol);
+      return [
+        {
+          symbol: q.symbol,
+          exchange: typeof q.exchange === "string" ? q.exchange : null,
+          quoteType: typeof q.quoteType === "string" ? q.quoteType : null,
+        },
+      ];
+    }),
   };
 }
 export async function execute(input: unknown, sdk: Client = client()) {
@@ -175,15 +181,7 @@ export async function execute(input: unknown, sdk: Client = client()) {
     const request = record(input),
       args = record(request.arguments);
     const operation = String(request.operation);
-    if (
-      [
-        "dashboard",
-        "metadata",
-        "price_read",
-        "price_batch",
-        "quote_bundle",
-      ].includes(operation)
-    )
+    if (["dashboard", "price_read", "quote_bundle"].includes(operation))
       return { data: await yahooPrices(sdk, operation, args), issues: [] };
     if (operation === "resolve_isin")
       return {
