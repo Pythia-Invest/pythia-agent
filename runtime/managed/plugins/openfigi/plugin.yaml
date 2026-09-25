@@ -1,0 +1,8 @@
+name: pythia-openfigi
+version: 0.1.0
+description: OpenFIGI identifier resolution for ISINs, CUSIPs, FIGIs and venue-qualified tickers
+license: Apache-2.0
+requires_plugins:
+  - pythia-market-data
+provides_tools:
+  - pythia_openfigi_resolve

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "fields": [
+    {
+      "key": "openfigi_api_key",
+      "kind": "secret",
+      "label": "OpenFIGI API key",
+      "help": "Optional. A free key raises OpenFIGI's limits from 10 to 100 identifiers per request.",
+      "required": false
+    }
+  ]
+}

@@ -109,6 +109,23 @@ export const MANAGED_PLUGINS = Object.freeze([
       "financials.py",
     ]),
   }),
+  Object.freeze({
+    name: "pythia-openfigi",
+    install: true,
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/openfigi",
+    files: Object.freeze([
+      "__init__.py",
+      "plugin.yaml",
+      "configuration.json",
+      "configuration_shim.py",
+      "README.md",
+      "definition.py",
+      "client.py",
+      "mapping.py",
+    ]),
+  }),
 ]);
 
 // Core runner helpers shared by every connector worker, validated once rather
