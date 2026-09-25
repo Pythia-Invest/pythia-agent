@@ -49,6 +49,18 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "platform/specialist.py",
   "platform/assets.py",
   "platform/widgets.py",
+  "identity/__init__.py",
+  "identity/claims.py",
+  "identity/directory.py",
+  "identity/manifest.py",
+  "identity/model.py",
+  "identity/resolution.py",
+  "identity/schemes.py",
+  "identity/vocabulary.py",
+  "identity/sql/directory.sql",
+  "identity/sql/identity.sql",
+  "identity/sql/overlay.sql",
+  "identity/sql/reference.sql",
 ]);
 
 export function ensurePrivateDirectory(path) {

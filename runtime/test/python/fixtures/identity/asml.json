@@ -1,0 +1,78 @@
+{
+  "provenance_note": "Hand-written backbone fixture. Identifiers were checked on 2026-09-25 against open sources: GLEIF API lei-records?filter[isin]=NL0010273215 and =USN070592100 (golden copy 2026-09-25: LEI 724500Y6DUVHQD6OXN27, ASML Holding N.V., NL, legal form B5PM, KvK 17085815); SEC company_tickers_exchange.json (CIK 937966, ASML, Nasdaq); OpenFIGI v3 /mapping keyless (ID_ISIN NL0010273215 -> ASML NA figi BBG000C1HT47, composite BBG000C1HSN8, share class BBG001S7Q066; ID_ISIN USN070592100 and TICKER ASML micCode XNGS -> ASML UW figi BBG000K6N6G7, composite BBG000K6MRN4, share class BBG001SCG0R3, securityType2 'Depositary Receipt', NY Reg Shrs). No provider response is recorded. Yahoo and EODHD symbols are those providers' public symbol conventions for these lines and were not fetched. The NASDAQ line is ASML's New York Registry Shares: a distinct security linked by depositary_receipt_of, never merged with the ordinary share.",
+  "issuers": [
+    {"id": "ref:issuer:asml0001", "name": "ASML Holding N.V.", "country": "NL", "legal_form": "B5PM"}
+  ],
+  "securities": [
+    {"id": "ref:security:asmlord1", "issuer_id": "ref:issuer:asml0001", "name": "ASML Holding N.V.", "asset_class": "equity", "kind": "ordinary"},
+    {"id": "ref:security:asmlnyrs", "issuer_id": "ref:issuer:asml0001", "name": "ASML Holding N.V. New York Registry Shares", "asset_class": "equity", "kind": "depositary_receipt"}
+  ],
+  "composites": [
+    {"id": "ref:composite:asmlnl01", "security_id": "ref:security:asmlord1", "country": "NL"},
+    {"id": "ref:composite:asmlus01", "security_id": "ref:security:asmlnyrs", "country": "US"}
+  ],
+  "listings": [
+    {"id": "ref:listing:asmlxams", "security_id": "ref:security:asmlord1", "composite_id": "ref:composite:asmlnl01", "ticker_root": "ASML", "mic": "XAMS", "operating_mic": "XAMS", "currency": "EUR", "primary": true},
+    {"id": "ref:listing:asmlxngs", "security_id": "ref:security:asmlnyrs", "composite_id": "ref:composite:asmlus01", "ticker_root": "ASML", "mic": "XNGS", "operating_mic": "XNAS", "currency": "USD", "primary": true}
+  ],
+  "assertions": [
+    {"subject_id": "ref:issuer:asml0001", "scheme": "lei", "value": "724500Y6DUVHQD6OXN27", "authority": "snapshot",
+     "provenance": {"plugin": "gleif", "source": "gleif", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "724500Y6DUVHQD6OXN27", "source_version": "golden-copy-2026-09-25"}},
+    {"subject_id": "ref:issuer:asml0001", "scheme": "cik", "value": "937966", "authority": "snapshot",
+     "provenance": {"plugin": "sec", "source": "sec", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "company_tickers_exchange:ASML"}},
+    {"subject_id": "ref:security:asmlord1", "scheme": "isin", "value": "NL0010273215", "authority": "snapshot",
+     "provenance": {"plugin": "gleif", "source": "gleif", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "isin-lei:NL0010273215", "source_version": "golden-copy-2026-09-25"}},
+    {"subject_id": "ref:security:asmlord1", "scheme": "share_class_figi", "value": "BBG001S7Q066", "authority": "snapshot",
+     "provenance": {"plugin": "openfigi", "source": "openfigi", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "ID_ISIN:NL0010273215"}},
+    {"subject_id": "ref:composite:asmlnl01", "scheme": "composite_figi", "value": "BBG000C1HSN8", "authority": "snapshot",
+     "provenance": {"plugin": "openfigi", "source": "openfigi", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "ID_ISIN:NL0010273215"}},
+    {"subject_id": "ref:listing:asmlxams", "scheme": "figi", "value": "BBG000C1HT47", "authority": "snapshot",
+     "provenance": {"plugin": "openfigi", "source": "openfigi", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "ID_ISIN:NL0010273215"}},
+    {"subject_id": "ref:listing:asmlxams", "scheme": "ticker_mic", "value": "ASML@XAMS", "authority": "snapshot",
+     "provenance": {"plugin": "openfigi", "source": "openfigi", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "local_only", "source_record": "TICKER:ASML@XAMS"}},
+    {"subject_id": "ref:security:asmlnyrs", "scheme": "isin", "value": "USN070592100", "authority": "snapshot",
+     "provenance": {"plugin": "gleif", "source": "gleif", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "local_only", "source_record": "isin-lei:USN070592100", "source_version": "golden-copy-2026-09-25"}},
+    {"subject_id": "ref:security:asmlnyrs", "scheme": "share_class_figi", "value": "BBG001SCG0R3", "authority": "snapshot",
+     "provenance": {"plugin": "openfigi", "source": "openfigi", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "ID_ISIN:USN070592100"}},
+    {"subject_id": "ref:composite:asmlus01", "scheme": "composite_figi", "value": "BBG000K6MRN4", "authority": "snapshot",
+     "provenance": {"plugin": "openfigi", "source": "openfigi", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "ID_ISIN:USN070592100"}},
+    {"subject_id": "ref:listing:asmlxngs", "scheme": "figi", "value": "BBG000K6N6G7", "authority": "snapshot",
+     "provenance": {"plugin": "openfigi", "source": "openfigi", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "TICKER:ASML@XNGS"}},
+    {"subject_id": "ref:listing:asmlxngs", "scheme": "ticker_mic", "value": "ASML@XNGS", "authority": "snapshot",
+     "provenance": {"plugin": "sec", "source": "sec", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "company_tickers_exchange:ASML"}}
+  ],
+  "relations": [
+    {"type": "depositary_receipt_of", "from_id": "ref:security:asmlnyrs", "to_id": "ref:security:asmlord1", "ratio": "1", "authority": "curated",
+     "provenance": {"plugin": "pythia", "source": "pythia.curated", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "OpenFIGI securityType2 'Depositary Receipt' on BBG001SCG0R3; same GLEIF LEI for both ISINs"}}
+  ],
+  "bindings": [
+    {"provider_ref": {"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol"}, "subject_id": "ref:listing:asmlxams",
+     "status": "confirmed", "authority": "rule_confirmed", "rule_id": "yahoo.mic_table@1", "evidence_refs": [["ref:listing:asmlxams", "ticker_mic"]],
+     "note": "Derived deterministically from ASML@XAMS through the Yahoo manifest's MIC table; verified by one quote on first use."},
+    {"provider_ref": {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"}, "subject_id": "ref:listing:asmlxams",
+     "status": "confirmed", "authority": "source_asserted", "evidence_refs": [["ref:security:asmlord1", "isin"], ["ref:listing:asmlxams", "ticker_mic"]],
+     "note": "Join rule isin_mic: the catalogue row's ISIN and the AS -> XAMS crosswalk agree with the reference listing."},
+    {"provider_ref": {"provider": "yahoo", "native_id": "ASML", "native_scope": "symbol"}, "subject_id": "ref:listing:asmlxngs",
+     "status": "confirmed", "authority": "rule_confirmed", "rule_id": "yahoo.mic_table@1", "evidence_refs": [["ref:listing:asmlxngs", "ticker_mic"]],
+     "note": "US venues carry no Yahoo suffix."},
+    {"provider_ref": {"provider": "eodhd", "native_id": "ASML.US", "native_scope": "catalogue"}, "subject_id": "ref:composite:asmlus01",
+     "status": "confirmed", "authority": "source_asserted", "evidence_refs": [["ref:security:asmlnyrs", "isin"], ["ref:composite:asmlus01", "composite_figi"]],
+     "note": "EODHD's .US suffix is the US composite, not a venue, so the binding is at composite level."}
+  ],
+  "directory_rows": [
+    {"row_id": "ref:listing:asmlxams", "row_kind": "listing", "security_id": "ref:security:asmlord1", "issuer_id": "ref:issuer:asml0001", "composite_id": "ref:composite:asmlnl01", "group_key": "ref:issuer:asml0001",
+     "mic": "XAMS", "operating_mic": "XAMS", "ticker_root": "ASML", "ticker_class": null, "ticker_display": "ASML", "currency": "EUR", "price_scale": "1",
+     "name": "ASML Holding N.V.", "issuer_name": "ASML Holding N.V.", "kind": "ordinary", "asset_class": "equity", "country": "NL", "venue_label": "Euronext Amsterdam",
+     "isin": "NL0010273215", "lei": "724500Y6DUVHQD6OXN27", "cik": "0000937966", "figi": "BBG000C1HT47", "share_class_figi": "BBG001S7Q066", "composite_figi": "BBG000C1HSN8",
+     "primary_listing": true, "home_market": true, "depositary_of": null, "status": "active", "tier": "snapshot",
+     "provider_refs": [{"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol"}, {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"}],
+     "sources": ["gleif", "sec", "openfigi"], "aliases": [], "rank_size": null, "rank_signals": {}, "as_of": "2026-09-25"},
+    {"row_id": "ref:listing:asmlxngs", "row_kind": "listing", "security_id": "ref:security:asmlnyrs", "issuer_id": "ref:issuer:asml0001", "composite_id": "ref:composite:asmlus01", "group_key": "ref:issuer:asml0001",
+     "mic": "XNGS", "operating_mic": "XNAS", "ticker_root": "ASML", "ticker_class": null, "ticker_display": "ASML", "currency": "USD", "price_scale": "1",
+     "name": "ASML Holding N.V. New York Registry Shares", "issuer_name": "ASML Holding N.V.", "kind": "depositary_receipt", "asset_class": "equity", "country": "US", "venue_label": "Nasdaq Global Select",
+     "isin": "USN070592100", "lei": "724500Y6DUVHQD6OXN27", "cik": "0000937966", "figi": "BBG000K6N6G7", "share_class_figi": "BBG001SCG0R3", "composite_figi": "BBG000K6MRN4",
+     "primary_listing": true, "home_market": false, "depositary_of": "ref:security:asmlord1", "status": "active", "tier": "snapshot",
+     "provider_refs": [{"provider": "yahoo", "native_id": "ASML", "native_scope": "symbol"}, {"provider": "eodhd", "native_id": "ASML.US", "native_scope": "catalogue"}],
+     "sources": ["gleif", "sec", "openfigi"], "aliases": [], "rank_size": null, "rank_signals": {}, "as_of": "2026-09-25"}
+  ]
+}
