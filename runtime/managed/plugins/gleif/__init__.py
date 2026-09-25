@@ -66,19 +66,18 @@ class Reader:
                     cache_scope={'access': cache_scope, 'validation': 'gleif-records-v2'},
                     prepare_result=prepare, cancelled=cancelled, budget=budget, timeout=min(10, remaining))
 
-            def validate_records(raw, *, expected=None, limit=None):
-                rows = records.collection(raw['data'], limit)[0] if limit else [raw['data']['data']]
-                for row in rows:
-                    records.record(row, expected)
-                    # A cached record must work for every consumer of this read.
-                    profile(row, raw['observed_at'])
-                    parent_requests(row)
-                    records.candidate(row)
+            def validate_record(raw, expected):
+                row = raw['data']['data']
+                records.record(row, expected)
+                # The cached LEI record must work for every consumer of this read.
+                profile(row, raw['observed_at'])
+                parent_requests(row)
+                records.candidate(row)
 
             if operation == 'resolve':
-                return self.resolve(clean, fetch, validate_records)
+                return self.resolve(clean, fetch, validate_record)
             identifier = records.from_reference(clean['native_ref'])
-            raw = fetch(records.endpoint(identifier), lambda raw: validate_records(raw, expected=identifier))
+            raw = fetch(records.endpoint(identifier), lambda raw: validate_record(raw, identifier))
             row = raw['data'].get('data')
             records.record(row, identifier)
             summary = profile(row, raw['observed_at'])
@@ -113,7 +112,7 @@ class Reader:
         scheme = 'isin' if 'isin' in clean else 'lei'
         return {'scheme': scheme, 'value': clean[scheme]}
 
-    def resolve(self, clean, fetch, validate_records):
+    def resolve(self, clean, fetch, validate_record):
         """Echo the identifiers GLEIF asserts; the caller decides whether they agree."""
         if ('isin' in clean) == ('lei' in clean):
             raise ValueError('invalid_request')
@@ -121,12 +120,13 @@ class Reader:
         if 'isin' in clean:
             requested = records.isin(clean['isin'])
             url = records.endpoint(**{'filter[isin]': requested, 'page[size]': 10})
-            raw = fetch(url, lambda raw: validate_records(raw, limit=10))
+            # Only resolve reads this collection, so its rows need only be candidates.
+            raw = fetch(url, lambda raw: [records.candidate(row) for row in records.collection(raw['data'], 10)[0]])
             rows, truncated = records.collection(raw['data'], 10)
         else:
             requested = None
             url = records.endpoint(records.lei(clean['lei']))
-            raw = fetch(url, lambda raw: validate_records(raw, expected=clean['lei']))
+            raw = fetch(url, lambda raw: validate_record(raw, clean['lei']))
             row = raw['data'].get('data')
             records.record(row, clean['lei'])
             rows, truncated = [row], False

@@ -136,6 +136,13 @@ class GleifSemantics(unittest.TestCase):
         self.assertEqual(data['source_url'], isin_url(identifier))
         self.assertEqual(data['request'], {'scheme': 'isin', 'value': identifier})
 
+    def test_isin_resolve_does_not_require_profile_only_fields(self):
+        identifier, row = isin(8), record()
+        row['attributes']['registration']['lastUpdateDate'] = '2025-02-29'
+        transport = Transport({isin_url(identifier): payload([row])})
+        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'isin': identifier})
+        self.assertEqual((result['outcome'], result['data']['status']), ('ok', 'resolved'), result)
+
     def test_several_issuers_for_one_isin_are_ambiguous_never_picked(self):
         identifier = isin(8)
         transport = Transport({isin_url(identifier): payload([record(), record(SECOND)])})
