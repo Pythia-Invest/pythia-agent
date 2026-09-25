@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "check": "check_configuration",
+  "fields": [
+    {
+      "key": "coinmarketcap_api_key",
+      "kind": "secret",
+      "label": "CoinMarketCap API key",
+      "help": "A free Basic key from coinmarketcap.com/api covers the coin catalogue, quotes, coin profiles and recent history. Data stays on this device.",
+      "required": true
+    }
+  ]
+}
