@@ -88,51 +88,50 @@ scope, intent or evidence beyond this requirement.
 
 ## Amendment (2026-09)
 
-This amendment changes the ruling above. The original text is kept as the
-record of the provider-bound model.
+ADR 0037 replaces the provider-bound evidence model above with a core-owned,
+subject-keyed identity backbone. The source-pair rules and the IBKR-only listing
+proof go with it. The original text is kept as the record of that model.
 
-**The backbone replaces the evidence model.** ADR 0037 replaces the
-provider-bound evidence model with a core-owned, subject-keyed identity
-backbone. The replaced model has three parts:
+These passages are superseded:
 
-- source-pair rules for IBKR, EODHD, CoinGecko and CoinMarketCap;
-- proof that both sides carry native assertions;
-- the IBKR-only listing proof.
+- **Ruling, overrides paragraph:** "Positive overrides must prove the scoped
+  target against all current evidence. Negative overrides need contradiction
+  and cannot nominate a replacement."
+- **Ruling, lineage paragraph:** "Only current proven `bindings()` may route
+  canonical intent". Current *confirmed* bindings now route canonical intent,
+  including confirmations made without identifier proof.
+- **Rejected alternatives:** the rejection of "manual investor rematching" and
+  "permanent force-match overrides". Manual resolution is one allowed resolver.
+  Its confirmations stay inspectable and yield to contradicting identifiers.
 
-In the backbone, provider references are bindings to issuer, security, listing
-or crypto subjects, joined at ingest by identifier agreement. Several guarantees
-of this ADR carry forward unchanged:
+One invariant governs every confirmation. A resolver may confirm an association
+when no identifier proves it. It never confirms one against current
+contradicting identifier evidence.
 
-- Retained intent and saved references are never rewritten.
-- Contradictions are quarantined as visible conflicts and never merged.
-- Unknown or multiple targets are never guessed.
-- Revisions remain inspectable.
-- Only current confirmed bindings route canonical reads.
+Conflicts and residuals collect in one core-owned queue. The investor chooses
+among interchangeable resolvers:
 
-**New authorities.** Evidence authority gains four values alongside
-`source_asserted`, `query_only` and `unknown`:
+- built-in rules;
+- the Hermes agent;
+- an optional matcher plugin such as Jev;
+- manual resolution.
 
-- `snapshot`: asserted by a verified reference snapshot release (ADR 0039),
-  recorded with its release version.
-- `model_confirmed`: a matcher verdict at or above the threshold calibrated for
-  that relation.
-- `model_suggested`: a matcher verdict below that threshold. It stays a
-  candidate and never routes a canonical read.
-- `user_attested`: an association the user stated, for example in conversation
-  or in an import, and the agent recorded.
+Manual resolution is allowed and never required. Plugin updates repair affected
+matches automatically.
 
-An authority may confirm an association when no identifier proves it. It never
-confirms an association against contradicting identifier evidence.
-Contradicting identifiers at the same level and within their validity windows
-always win. So do the mechanical depositary-receipt and share-class guards. A
-later contradiction reopens a model or user confirmation as a conflict. Every
-confirmation shows its authority wherever the association appears, and it can
-be revoked.
+The remaining guarantees of this ADR stand:
 
-**Repair is agent-facing.** When a plugin update changes a rule, a connector or
-a snapshot release, the affected matches are repaired automatically. Until such
-an update supplies proof, the agent may apply or revoke overrides. An override
-records the authority of its basis and obeys the rule above. A later update that
-supplies proof retires the override. Users never fix matches by hand: there is
-no manual matching surface. A user corrects a match by telling the agent, and the
-conflict and residual queues serve the agent, not the user.
+- retained intent;
+- no guessing between unknown or multiple targets;
+- quarantined contradictions;
+- inspectable revisions.
+
+ADR 0037 owns the authority vocabulary and the edge cases:
+
+- which authorities may confirm;
+- what counts as contradicting evidence across levels and validity windows;
+- what happens when several targets qualify;
+- revocation;
+- repair dependencies.
+
+It also owns the matching change to the ADR 0011 wire authority enum.
