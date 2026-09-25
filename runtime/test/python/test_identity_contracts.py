@@ -125,7 +125,6 @@ class StoreSchemaTest(unittest.TestCase):
             with self.subTest(store=store):
                 tables = {row[0] for row in database(store).execute("SELECT name FROM sqlite_master WHERE type='table'")}
                 self.assertTrue(tables)
-        self.assertEqual(identity.Store.IDENTITY.schema_version, 2)
 
     def test_levels_are_enforced_by_types_and_by_sql(self):
         fixture = load("asml.json")

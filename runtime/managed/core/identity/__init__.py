@@ -3,8 +3,8 @@
 Core-owned meaning shared by every plugin: subject levels, identifier schemes,
 evidence tiers, typed claims, the resolution queue and its authority rule, the
 store schemas and the plugin contract manifest. Plugins reach
-it through the loaded core module's `identity` attribute and check
-`API_VERSION`. Pure standard library; no I/O at import.
+it through the loaded core module's `identity` attribute. Pure standard
+library; no I/O at import.
 """
 from __future__ import annotations
 
@@ -33,19 +33,12 @@ from .vocabulary import (
     SubjectStatus, VerdictRelation,
 )
 
-API_VERSION = 1
-
-
 class Store(StrEnum):
-    """Backbone stores and the SQLite `user_version` each schema carries."""
+    """Backbone stores, each with its own SQLite schema."""
 
     REFERENCE = "reference"  # reference/<release>.sqlite3 (read-only) and reference-local.sqlite3
-    IDENTITY = "identity"    # identity.sqlite3, v2 of the private identity store
+    IDENTITY = "identity"    # identity.sqlite3, the private identity store
     OVERLAY = "overlay"      # overlay-<plugin>.sqlite3, one per bulk-catalogue plugin
-
-    @property
-    def schema_version(self) -> int:
-        return 2 if self is Store.IDENTITY else 1
 
 
 def schema_sql(store: Store | str) -> str:

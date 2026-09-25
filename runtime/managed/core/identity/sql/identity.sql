@@ -1,4 +1,4 @@
--- Identity store v2 (ADR 0037): private, transactional, device-local.
+-- Identity store (ADR 0037): private, transactional, device-local.
 -- Holds what the device decided on top of the reference store: subjects the
 -- reference lacks, local relations, provider bindings, the resolution queue
 -- (residuals and conflicts) and resolver verdicts. Missing evidence never erases
@@ -7,7 +7,7 @@
 -- instants, JSON as TEXT validated by the store module, FTS5 only in the directory.
 
 CREATE TABLE metadata (
-  key TEXT PRIMARY KEY,           -- schema_version (2), generation, reference_release
+  key TEXT PRIMARY KEY,           -- schema_version, generation, reference_release
   value TEXT NOT NULL
 );
 
