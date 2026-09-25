@@ -26,6 +26,9 @@
     "test:system": "vitest run --config vitest.root.config.mts test/system --passWithNoTests",
     "test:unit": "vitest run --config vitest.root.config.mts test/unit && node tooling/run-turbo.mjs test:unit"
   },
+  "dependencies": {
+    "yahoo-finance2": "4.0.2"
+  },
   "devDependencies": {
     "@types/json-schema": "7.0.15",
     "@biomejs/biome": "catalog:",
