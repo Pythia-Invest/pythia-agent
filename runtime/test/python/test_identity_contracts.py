@@ -207,8 +207,7 @@ class FixtureTest(unittest.TestCase):
                     "id": f"{name}:{index}", "provider": ref.provider, "native_id": ref.native_id,
                     "native_scope": ref.native_scope, "subject_id": binding.subject_id, "level": binding.level.value,
                     "status": binding.status.value, "tier": binding.tier.value, "authority": binding.authority.value,
-                    "rule_id": binding.rule_id, "evidence_ids": list(binding.evidence_ids),
-                    "record_digest": model.evidence_id({"binding": ref.wire(), "subject": binding.subject_id}), "revision": 1})
+                    "rule_id": binding.rule_id, "evidence_ids": list(binding.evidence_ids)})
 
 
 class ManifestTest(unittest.TestCase):
