@@ -12,11 +12,13 @@ This directory is Pythia-owned source updated with each release:
   native extension mechanism under its existing `pythia` identity.
 - `plugins/market-data/` is a separately copied native feature: shared financial
   contracts, identity, source resolution, protected resident HTTP/SSE and reusable
-  connector execution helpers. This payload includes no concrete shared connector.
+  connector execution helpers. Concrete connectors are separate packages.
   Its financial skill is bundled inside the plugin.
-- `runner/` contains shared provider execution helpers and the narrow native
-  read-only session-context helper. The latter runs with the pinned Hermes
-  environment.
+- `plugins/yahoo-discovery/` is the bundled credential-free Yahoo Finance
+  connector.
+- `runner/` contains shared provider execution helpers, the connector workers
+  that payloads declare, and the narrow native read-only session-context
+  helper. The latter runs with the pinned Hermes environment.
 
 Hermes preparation metadata lives in `runtime/hermes/`, outside these managed
 feature payloads. Core lifecycle probes use Hermes's prepared interpreter in
