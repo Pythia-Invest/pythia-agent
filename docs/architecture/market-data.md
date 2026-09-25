@@ -29,6 +29,18 @@ does not install a provider or prove an account's access.
   cancellation, budgets, structured failures and Hermes logs.
 - [Data delivery](data-delivery.md): resident HTTP/SSE and demand lifetime.
 
+The identity direction has changed. ADR 0037 replaces the provider-bound rules in
+the identity document with a core-owned backbone of issuer, security, listing
+and crypto subjects. Provider symbols become bindings, joined at ingest by
+identifier agreement. The [ADR 0012 amendment](../decisions/0012-investment-identity-and-repair.md#amendment-2026-09)
+adds the new authorities and agent-facing repair. Investment search reads a local
+directory built from an open reference snapshot and the user's connected
+providers, and it calls no provider while the user types. Public CI builds the
+snapshot and publishes it to GitHub Releases under the rights in
+[ADR 0039](../decisions/0039-hybrid-distribution-and-rights.md). Licensed
+provider data stays on the device. The identity document describes the
+implemented rules until identity v2 replaces them.
+
 Provider preferences are deterministic application logic. Only proven identities,
 compatible series and eligible operations participate. Failure after selecting a
 source never authorizes fallback or history stitching. A preference change does

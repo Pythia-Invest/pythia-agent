@@ -58,6 +58,12 @@ source preferences; pinned series and retained research preserve their intent.
 The backend foundation is available first; concrete shared connectors and reusable
 Desk widgets are separate increments. See [market data](architecture/market-data.md).
 
+Investment search reads a local directory built from an open reference snapshot
+and the investor's own connected providers, and it calls no provider while the
+investor types. No paid provider is required. Licensed provider data stays on
+the device and is never redistributed; see
+[ADR 0039](decisions/0039-hybrid-distribution-and-rights.md).
+
 Responsiveness and predictable resource use take priority over feature breadth.
 Pythia must remain productive as ordinary research files and chat history grow,
 including when Desk is accessed remotely. Defer or simplify features that make
