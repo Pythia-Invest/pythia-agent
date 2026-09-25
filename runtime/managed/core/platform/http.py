@@ -5,6 +5,7 @@ import json
 from .access import (ContextUnavailable, eligible_tools, fingerprint, native_access_scope,
                      native_plugin_enabled)
 from .admission import Admission, AdmissionError
+from .configuration import declared as declared_configuration
 from .operations import inspect_resource, resolve, result_issues, support_for
 from .request_context import cancel_signal, dashboard_operation, read_only_required
 from .subscription import Subscription
@@ -190,6 +191,18 @@ def register(ctx, *, workers=4, timeout=30):
             except asyncio.CancelledError: raise
             except Exception: return error('unavailable', 503)
 
+        async def configuration(request):
+            # Static declarations only: custody values are never read or returned here.
+            denied = authorize(request)
+            if denied is not None: return denied
+            try:
+                rows = await control.run(('configuration',), lambda _cancelled: declared_configuration(), timeout=timeout)
+                return web.json_response({'schema_version': 1, 'data': {'plugins': rows}},
+                                         headers={'Cache-Control': 'no-store'})
+            except Rejected as rejected: return error(rejected.code, rejected.status)
+            except asyncio.CancelledError: raise
+            except Exception: return error('unavailable', 503)
+
         from .live_http import install
         install(app, authorize, read_body, error, poll, access, subscribe)
 
@@ -202,4 +215,6 @@ def register(ctx, *, workers=4, timeout=30):
         path = '/v1/pythia/plugins/{plugin:.+}/{operation}'
         app.router.add_post(path, handler)
         app.router.add_post('/p/{profile}' + path, handler)
+        app.router.add_get('/v1/pythia/configuration', configuration)
+        app.router.add_get('/p/{profile}/v1/pythia/configuration', configuration)
     ctx.register_platform_handler('api_server', factory)

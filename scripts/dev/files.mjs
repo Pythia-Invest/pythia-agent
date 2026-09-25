@@ -49,6 +49,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "platform/specialist.py",
   "platform/assets.py",
   "platform/widgets.py",
+  "platform/configuration.py",
 ]);
 
 export function ensurePrivateDirectory(path) {

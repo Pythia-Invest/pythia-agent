@@ -36,6 +36,8 @@ declares `pythia-market-data/query` through the same mechanism as other features
 the generic adapter does not depend on financial enablement. The native loaded
 core module supplies reusable transport helpers, with no separate operation
 inventory. The shared updates channel includes plugin and operation in each resource.
+`GET /v1/pythia/configuration` returns the static `configuration.json`
+declarations of loaded, natively enabled plugins; it reads no stored values.
 
 Native `ctx.register_skill(name, path, description=...)` attaches a bundled
 skill to its plugin registration. The pinned runtime exposes its qualified name
