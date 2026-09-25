@@ -90,6 +90,43 @@ export const MANAGED_PLUGINS = Object.freeze([
     ]),
     workers: Object.freeze(["yahoo.ts", "yahoo-prices.ts", "yahoo-options.ts"]),
   }),
+  Object.freeze({
+    name: "pythia-eodhd",
+    install: true,
+    // Makes no provider request until its declared configuration
+    // (configuration.json) is complete; Settings shows what it needs.
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/eodhd",
+    files: Object.freeze([
+      "__init__.py",
+      "plugin.yaml",
+      "configuration.json",
+      "configuration.py",
+      "definition.py",
+      "identity.py",
+      "catalogue_pages.py",
+      "series.py",
+      "results.py",
+      "stream.py",
+      "stream_results.py",
+      "session_context.py",
+      "skills/eodhd/SKILL.md",
+    ]),
+    workers: Object.freeze([
+      "eodhd-live.ts",
+      "eodhd-stream-reference.ts",
+      "eodhd-market-data.ts",
+      "eodhd-market-data-operations.ts",
+      "eodhd-market-data-values.ts",
+      "eodhd-market-data-errors.ts",
+      "eodhd-market-data-ranking.ts",
+      "eodhd-market-data-dashboard.ts",
+      "eodhd-market-data-movers.ts",
+      "eodhd-market-data-research.ts",
+      "eodhd-market-data-fundamentals.ts",
+    ]),
+  }),
 ]);
 
 // Core runner helpers shared by every connector worker, validated once rather
