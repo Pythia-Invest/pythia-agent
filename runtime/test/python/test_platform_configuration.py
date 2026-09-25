@@ -15,7 +15,8 @@ access = importlib.import_module(PLATFORM + '.access')
 credentials = importlib.import_module(PACKAGE + '.credentials')
 
 CONTACT = {'key': 'sec_identity', 'kind': 'identity', 'label': 'SEC contact',
-           'help': 'Name email@example.org', 'required': True}
+           'description': 'Name email@example.org', 'url': 'https://www.sec.gov/os/accessing-edgar-data',
+           'required': True}
 TOKEN = {'key': 'example_api_token', 'kind': 'secret', 'label': 'Example API token'}
 
 
@@ -38,7 +39,10 @@ class PluginConfiguration(unittest.TestCase):
         return path
 
     def test_declarations_reject_reserved_duplicate_and_unsafe_entries(self):
-        for fields in ([{**TOKEN, 'key': 'schema_version'}], [{**TOKEN, 'key': 'hermes_api_key'}], [TOKEN, TOKEN],
+        for fields in ([{**TOKEN, 'key': 'schema_version'}], [{**TOKEN, 'key': 'hermes_api_key'}],
+                       [{**TOKEN, 'key': 'hermes_settings_token'}], [{**TOKEN, 'key': 'pythia_anything'}], [TOKEN, TOKEN],
+                       [{**TOKEN, 'url': 'http://example.org'}], [{**TOKEN, 'url': 'https://user@example.org'}],
+                       [{**TOKEN, 'help': 'renamed to description'}],
                        [{**TOKEN, 'kind': 'oauth'}], [{**TOKEN, 'label': 'Token\r\nX-Injected: 1'}],
                        [{**TOKEN, 'extra': True}], [{**TOKEN, 'required': 'yes'}], [{**TOKEN, 'key': 'Upper'}]):
             with self.subTest(fields=fields), self.assertRaises(ValueError):
@@ -47,7 +51,7 @@ class PluginConfiguration(unittest.TestCase):
             with self.subTest(declaration=declaration), self.assertRaises(ValueError):
                 configuration.parse(declaration)
         self.assertEqual(configuration.parse({'schema_version': 1, 'fields': [TOKEN]}),
-                         [{**TOKEN, 'help': '', 'required': False}])
+                         [{**TOKEN, 'description': '', 'required': False}])
 
     def test_values_come_from_private_files_and_required_fields_gate_the_plugin(self):
         self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('missing', None))
@@ -63,8 +67,9 @@ class PluginConfiguration(unittest.TestCase):
         self.assertEqual(configuration.value(self.ctx, 'sec_identity'),
                          ('configured', 'Example Person person@example.org'))
         self.assertIsNone(configuration.needs_configuration(self.ctx))
-        with self.assertRaises(ValueError):
-            configuration.value(self.ctx, 'hermes_api_key')
+        for reserved in ('hermes_api_key', 'hermes_settings_token'):
+            with self.assertRaises(ValueError):
+                configuration.read('secret', reserved)
 
         settings.chmod(0o644)  # A loosened file is refused and reported, never read.
         self.assertEqual(configuration.missing(self.ctx)[0]['status'], 'invalid')

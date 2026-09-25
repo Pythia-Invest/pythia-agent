@@ -11,12 +11,15 @@ import os
 from pathlib import Path
 import re
 import stat
+from urllib.parse import urlsplit
 
 FILENAME = 'configuration.json'
 KEY = re.compile(r'[a-z][a-z0-9_]{2,63}')
 STORES = {'secret': 'secrets.json', 'identity': 'settings.json'}
-# Core custody fields a declaration may not name. Keep this the only list.
-RESERVED = frozenset({'schema_version', 'hermes_api_key'})
+# Custody fields a declaration may not name. Keep these the only lists.
+RESERVED = frozenset({'schema_version'})
+RESERVED_PREFIXES = ('hermes_', 'pythia_')
+FIELD_KEYS = frozenset({'key', 'kind', 'label', 'description', 'url', 'required'})
 MAX_BYTES = 65536
 _declarations = {}
 
@@ -29,6 +32,25 @@ def _text(value, maximum):
     return isinstance(value, str) and 0 < len(value.strip()) <= maximum and not _control(value)
 
 
+def _reserved(key):
+    return key in RESERVED or key.startswith(RESERVED_PREFIXES)
+
+
+def _https(value):
+    if not isinstance(value, str) or len(value) > 512 or _control(value) or any(c.isspace() for c in value):
+        return False
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return parts.scheme == 'https' and bool(parts.hostname) and not parts.username and not parts.password
+
+
+def _plugin_dir(ctx):
+    """The plugin package directory: the only host-specific input to this module."""
+    return Path(ctx.manifest.path)
+
+
 def parse(raw):
     """Validate a declaration; return its fields or raise ValueError."""
     if not isinstance(raw, dict) or set(raw) != {'schema_version', 'fields'} or raw['schema_version'] != 1:
@@ -37,15 +59,18 @@ def parse(raw):
         raise ValueError('fields must be a list')
     parsed, keys = [], set()
     for item in raw['fields']:
-        if (not isinstance(item, dict) or not {'key', 'kind', 'label'} <= set(item) <= {'key', 'kind', 'label', 'help', 'required'}
+        if (not isinstance(item, dict) or not {'key', 'kind', 'label'} <= set(item) <= FIELD_KEYS
                 or not isinstance(item['key'], str) or not KEY.fullmatch(item['key'])
-                or item['key'] in RESERVED or item['key'] in keys or item['kind'] not in STORES
-                or not _text(item['label'], 80) or ('help' in item and not _text(item['help'], 400))
+                or _reserved(item['key']) or item['key'] in keys or item['kind'] not in STORES
+                or not _text(item['label'], 80)
+                or ('description' in item and not _text(item['description'], 400))
+                or ('url' in item and not _https(item['url']))
                 or type(item.get('required', False)) is not bool):
             raise ValueError('invalid configuration field')
         keys.add(item['key'])
         parsed.append({'key': item['key'], 'kind': item['kind'], 'label': item['label'].strip(),
-                       'help': item.get('help', '').strip(), 'required': item.get('required', False)})
+                       'description': item.get('description', '').strip(), 'required': item.get('required', False),
+                       **({'url': item['url']} if 'url' in item else {})})
     return parsed
 
 
@@ -63,7 +88,7 @@ def _read_json(path):
 
 def fields(ctx):
     """The calling plugin's declared fields; an absent file declares none."""
-    path = Path(ctx.manifest.path) / FILENAME
+    path = _plugin_dir(ctx) / FILENAME
     try:
         info = path.lstat()
     except FileNotFoundError:
@@ -81,7 +106,7 @@ def read(kind, key):
     The value is returned only when configured: a string without control
     characters or surrounding whitespace; a secret also has no inner whitespace.
     """
-    if kind not in STORES or not KEY.fullmatch(key) or key in RESERVED:
+    if kind not in STORES or not isinstance(key, str) or not KEY.fullmatch(key) or _reserved(key):
         raise ValueError('invalid configuration key')
     raw = os.environ.get('PYTHIA_CONFIG_ROOT')
     if not raw or not Path(raw).is_absolute():

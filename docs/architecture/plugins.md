@@ -155,7 +155,8 @@ code:
   "schema_version": 1,
   "fields": [
     {"key": "sec_identity", "kind": "identity", "label": "SEC contact",
-     "help": "Your name and email address, sent as the SEC User-Agent.", "required": true},
+     "description": "Your name and email address, sent as the SEC User-Agent.",
+     "url": "https://www.sec.gov/os/accessing-edgar-data", "required": true},
     {"key": "openfigi_api_key", "kind": "secret", "label": "OpenFIGI API key"}
   ]
 }
@@ -163,12 +164,14 @@ code:
 
 - `key` matches `^[a-z][a-z0-9_]{2,63}$` and names the field in the store.
   Reuse an existing name, such as `eodhd_api_token`, so saved values keep
-  working. `schema_version` and `hermes_api_key` are reserved; core's
-  `configuration.RESERVED` is the only list.
+  working. `schema_version` and every key starting with `hermes_` or `pythia_`
+  are reserved for host custody; core's `configuration.RESERVED` and
+  `RESERVED_PREFIXES` are the only lists.
 - `kind` is `secret`, stored in `secrets.json`, or `identity`, one line of text
   stored in `settings.json`. The plugin cannot choose another file.
-- `label` (at most 80 characters) is required. `help` (at most 400) and
-  `required` (default `false`) are optional.
+- `label` (at most 80 characters) is required. `description` (at most 400),
+  `url` (an `https` page explaining how to obtain the value) and `required`
+  (default `false`) are optional.
 - A bundled plugin lists `configuration.json` among its copied files in
   `scripts/dev/managed-plugins.mjs`.
 
@@ -189,7 +192,9 @@ Desk to Hermes. If `settings.json` does not exist, create it with
 must stay private: `chmod 600 ~/.config/pythia/secrets.json ~/.config/pythia/settings.json`.
 A file readable by others is refused and reported as invalid, never read.
 Values are read on each use; no restart is needed. A secret has no whitespace;
-neither kind may contain control characters or surrounding spaces.
+neither kind may contain control characters or surrounding spaces. Core checks
+only this. Provider-specific format rules, such as the email address in an SEC
+contact, belong to the plugin that uses the value.
 
 ### Reading values and needing configuration
 
