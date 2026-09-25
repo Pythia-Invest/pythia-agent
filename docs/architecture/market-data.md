@@ -29,6 +29,13 @@ Enabling the owner does not install a provider or prove an account's access.
   cancellation, budgets, structured failures and Hermes logs.
 - [Data delivery](data-delivery.md): resident HTTP/SSE and demand lifetime.
 
+Two keyless issuer-level connectors also ship by default and use the same
+connector support: [GLEIF](../../runtime/managed/plugins/gleif/README.md) resolves an
+LEI or ISIN to legal-entity references and reads the legal profile, and
+[filings.xbrl.org](../../runtime/managed/plugins/xbrl-filings/README.md) reads ESEF
+report links and reported facts. Both are addressed by LEI and contribute no
+market-data series or search.
+
 Provider preferences are deterministic application logic. Only proven identities,
 compatible series and eligible operations participate. Failure after selecting a
 source never authorizes fallback or history stitching. A preference change does
