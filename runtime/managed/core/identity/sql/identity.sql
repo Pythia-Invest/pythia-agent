@@ -1,6 +1,6 @@
 -- Identity store v2 (ADR 0037): private, transactional, device-local.
--- Holds what the device decided on top of the reference store: local subjects,
--- local assertions and relations, provider bindings with revisions, the
+-- Holds what the device decided on top of the reference store: subjects the
+-- reference lacks, local assertions and relations, provider bindings with revisions, the
 -- resolution queue (residuals and conflicts), resolver verdicts, overrides and
 -- applied aliases.
 -- Rules carried from the lab:
@@ -16,16 +16,17 @@ CREATE TABLE metadata (
   value TEXT NOT NULL
 );
 
--- Subjects created on the device (from an overlay row, a resolve or the agent).
--- Promoted to a reference subject through aliases when an identifier later agrees.
+-- Subjects no reference build knows yet: IDs derived from their open identifiers,
+-- or provisional IDs derived from the provider reference that introduced them.
+-- Descriptive provider fields stay in that plugin's overlay store, so this file
+-- (with user state) holds no provider data. Re-keyed through aliases later.
 CREATE TABLE subjects (
-  id TEXT PRIMARY KEY CHECK (id LIKE 'local:%'),
+  id TEXT PRIMARY KEY,
   level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
   parent_id TEXT,                  -- issuer of a security, security of a composite/listing
-  record TEXT NOT NULL,  -- the model.* record as JSON
   created_by TEXT NOT NULL,        -- plugin id or 'agent'
   created_at TEXT NOT NULL,
-  CHECK (id LIKE 'local:' || level || ':%')
+  CHECK (id LIKE level || ':%')
 );
 
 -- Same shape as the reference assertions, for device-local evidence.
@@ -45,8 +46,7 @@ CREATE TABLE assertions (
   plugin TEXT NOT NULL,
   adapter_version TEXT NOT NULL,
   retrieved_at TEXT NOT NULL,
-  redistribution TEXT NOT NULL CHECK (redistribution IN ('open', 'local_only')),
-  CHECK (subject_id LIKE '%:' || level || ':%'),
+  CHECK (subject_id LIKE level || ':%'),
   CHECK ((scheme IN ('lei', 'cik') AND level = 'issuer')
       OR (scheme IN ('isin', 'cusip', 'share_class_figi') AND level = 'security')
       OR (scheme = 'composite_figi' AND level = 'composite')
@@ -62,7 +62,7 @@ CREATE INDEX assertions_subject ON assertions (subject_id);
 
 CREATE TABLE relations (
   evidence_id TEXT PRIMARY KEY CHECK (evidence_id LIKE 'ev:%'),
-  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'share_class_of', 'parent_of', 'wraps')),
+  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'share_class_of', 'parent_of', 'wraps', 'successor_of')),
   from_id TEXT NOT NULL,
   to_id TEXT NOT NULL,
   ratio TEXT,
@@ -100,7 +100,7 @@ CREATE TABLE bindings (
   revision INTEGER NOT NULL CHECK (revision >= 1),
   active_override TEXT,
   UNIQUE (provider, native_id, native_scope, qualifiers),
-  CHECK (subject_id LIKE '%:' || level || ':%'),
+  CHECK (subject_id LIKE level || ':%'),
   CHECK (status <> 'confirmed' OR authority IN ('source_asserted', 'snapshot', 'rule_confirmed', 'model_confirmed',
                                                  'user_attested', 'curated')),
   CHECK ((authority = 'rule_confirmed') = (rule_id IS NOT NULL))
@@ -195,11 +195,11 @@ CREATE TABLE overrides (
   CHECK ((effect = 'positive') = (subject_id IS NOT NULL))
 );
 
--- Aliases applied on this device: snapshot id_aliases plus local -> ref promotions.
+-- Aliases applied on this device: the reference id_aliases plus local re-keys.
 CREATE TABLE aliases (
   old_id TEXT PRIMARY KEY,
   new_id TEXT NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('merge', 'split', 'promotion', 'successor')),
+  reason TEXT NOT NULL CHECK (reason IN ('rekey', 'merge', 'split')),
   release TEXT,
   applied_at TEXT NOT NULL,
   CHECK (old_id <> new_id)

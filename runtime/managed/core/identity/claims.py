@@ -16,11 +16,11 @@ from typing import Mapping, Protocol
 from .manifest import CatalogueMode, Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require
 from .schemes import (
-    COUNTRY, CURRENCY, DECIMAL, LICENSED_SCHEMES, MIC, SCHEME_LEVEL, TICKER_CLASS, TICKER_ROOT, Level, Scheme,
+    COUNTRY, CURRENCY, DECIMAL, MIC, SCHEME_LEVEL, TICKER_CLASS, TICKER_ROOT, Level, Scheme,
     normalize_identifier,
 )
 from .vocabulary import (
-    RELATION_LEVELS, AssetClass, IdentifierRole, InstrumentKind, Redistribution, RelationType, SubjectStatus,
+    RELATION_LEVELS, AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
 )
 
 MAX_BATCH_CLAIMS = 5000
@@ -121,7 +121,8 @@ class RelationClaim:
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, from_key=IdentifierValue, to_key=IdentifierValue, provenance=Provenance,
                 validity=Validity)
-        _require((self.from_key.level, self.to_key.level) == RELATION_LEVELS[self.type],
+        levels, expected = (self.from_key.level, self.to_key.level), RELATION_LEVELS[self.type]
+        _require(levels == expected if expected else levels[0] is levels[1],
                  f"relation claim: {self.type} keys at the wrong levels")
         _require(self.from_key != self.to_key, "relation claim: endpoints must differ")
         _require(self.ratio is None or (self.type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(self.ratio))),
@@ -187,17 +188,11 @@ def check_batch(batch: ClaimBatch, manifest: Manifest) -> None:
             raise _fail(None, "no declared bulk catalogue scope")
     if batch.origin is BatchOrigin.RESOLVE and manifest.resolve is None:
         raise _fail(None, "no declared resolve")
-    may_open = catalogue is not None and catalogue.redistribution is Redistribution.OPEN
     seen: set[tuple[str, str]] = set()
     for index, claim in enumerate(batch.claims):
         provenance = claim.provenance
         if provenance.plugin != batch.plugin or provenance.adapter_version != batch.adapter_version:
             raise _fail(index, "provenance does not name this plugin and adapter version")
-        if provenance.redistribution is Redistribution.OPEN and not may_open:
-            raise _fail(index, "the manifest does not declare this source republishable")
-        keys = claim.identifiers if isinstance(claim, RecordClaim) else (claim.from_key, claim.to_key)
-        if provenance.redistribution is Redistribution.OPEN and any(item.scheme in LICENSED_SCHEMES for item in keys):
-            raise _fail(index, "licensed identifiers cannot be marked open")
         if isinstance(claim, RecordClaim) and claim.native_ref is not None:
             ref = claim.native_ref
             declared = manifest.native_scope(ref.native_scope)

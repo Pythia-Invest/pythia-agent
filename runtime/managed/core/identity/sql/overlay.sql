@@ -1,12 +1,12 @@
--- Overlay store, one file per bulk-catalogue plugin: overlay-<plugin>.sqlite3 (ADR 0037, 0038).
--- Holds that plugin's typed catalogue records exactly as claimed, and the core's
--- join outcome per record. Licensed rows live only here and in the derived
--- directory; neither file is ever uploaded, exported or put into a snapshot.
--- Hidden when the plugin is disabled; deleted when its credential is removed.
--- Overlay claims are subordinate to open reference evidence.
+-- Overlay store, one file per provider plugin: overlay-<plugin>.sqlite3 (ADR 0037, 0038).
+-- All provider data lives here (and in the derived directory), separate from the
+-- identity store and user state. A bulk plugin keeps its catalogue records; a
+-- resolve-only plugin keeps only the records the user picked. Hidden when the
+-- plugin is disabled; deleted when its credential is removed. Overlay claims are
+-- subordinate to open reference evidence.
 
 CREATE TABLE metadata (
-  key TEXT PRIMARY KEY,           -- schema_version, plugin, provider, redistribution
+  key TEXT PRIMARY KEY,           -- schema_version, plugin, provider
   value TEXT NOT NULL
 );
 
@@ -65,7 +65,7 @@ CREATE TABLE join_outcomes (
   native_id TEXT NOT NULL,
   subject_id TEXT NOT NULL,
   join_rule TEXT NOT NULL CHECK (join_rule IN ('isin_mic', 'isin', 'figi_cusip', 'ticker_mic', 'residual')),
-  outcome TEXT NOT NULL CHECK (outcome IN ('bound', 'local', 'residual', 'conflict')),
+  outcome TEXT NOT NULL CHECK (outcome IN ('bound', 'created', 'residual', 'conflict')),
   claim_digest TEXT NOT NULL,
   decided_at TEXT NOT NULL,
   PRIMARY KEY (native_scope, native_id),

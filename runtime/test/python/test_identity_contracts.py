@@ -17,8 +17,7 @@ SPEC.loader.exec_module(identity)
 from pythia_identity_fixture import directory, model  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures/identity"
-PROVENANCE = {"plugin": "eodhd", "source": "eodhd", "adapter_version": "1", "retrieved_at": "2026-09-25T10:00:00Z",
-              "redistribution": "local_only"}
+PROVENANCE = {"plugin": "eodhd", "source": "eodhd", "adapter_version": "1", "retrieved_at": "2026-09-25T10:00:00Z"}
 
 YAHOO = {
     "schema_version": 1, "plugin": "yahoo", "provider": "yahoo", "label": "Yahoo Finance",
@@ -40,8 +39,7 @@ EODHD = {
                    "venues": {"mic_table": {"XAMS": {"code": "AS"}}, "composites": ["US"]}},
     "content": {"quote": {"level": "listing", "via": "listing", "tool": "eodhd_quote"},
                 "fundamentals": {"level": "issuer", "via": "listing", "tool": "eodhd_fundamentals"}},
-    "catalogue": {"mode": "bulk", "tool": "eodhd_catalogue", "scopes": ["as", "us"], "max_age_seconds": 86400,
-                  "redistribution": "local_only"},
+    "catalogue": {"mode": "bulk", "tool": "eodhd_catalogue", "scopes": ["as", "us"], "max_age_seconds": 86400},
     "resolve": {"tool": "eodhd_resolve", "input_schemes": ["isin", "figi", "lei"], "echoes": ["isin", "figi"],
                 "cost": {"calls": 1, "credits": 1}},
 }
@@ -71,8 +69,7 @@ def assertion_row(item):
             "valid_to": item.validity.valid_to, "tier": item.tier.value, "authority": item.authority.value,
             "source": provenance.source, "source_record": provenance.source_record,
             "source_version": provenance.source_version, "plugin": provenance.plugin,
-            "adapter_version": provenance.adapter_version, "retrieved_at": provenance.retrieved_at,
-            "redistribution": provenance.redistribution.value}
+            "adapter_version": provenance.adapter_version, "retrieved_at": provenance.retrieved_at}
 
 
 def load_reference(db, fixture):
@@ -108,7 +105,7 @@ def load_reference(db, fixture):
             "type": relation.type.value, "from_id": relation.from_id, "to_id": relation.to_id, "ratio": relation.ratio,
             "tier": "T4", "authority": relation.authority.value, "source": relation.provenance.source,
             "plugin": relation.provenance.plugin, "adapter_version": relation.provenance.adapter_version,
-            "retrieved_at": relation.provenance.retrieved_at, "redistribution": relation.provenance.redistribution.value})
+            "retrieved_at": relation.provenance.retrieved_at})
     return evidence
 
 
@@ -136,14 +133,14 @@ class StoreSchemaTest(unittest.TestCase):
     def test_levels_are_enforced_by_types_and_by_sql(self):
         fixture = load("asml.json")
         wrong = copy.deepcopy(fixture["assertions"][2])  # the ordinary share's ISIN
-        wrong["subject_id"] = "ref:listing:asmlxams"
+        wrong["subject_id"] = "listing:isin:NL0010273215:XAMS:EUR"
         with self.assertRaisesRegex(ValueError, "isin cannot identify a listing"):
             model.IdentifierAssertion(**wrong)
         db = database("reference")
         load_reference(db, fixture)
         row = assertion_row(model.IdentifierAssertion(**fixture["assertions"][2]))
         with self.assertRaises(sqlite3.IntegrityError):
-            insert(db, "assertions", {**row, "evidence_id": "ev:wrong-level", "subject_id": "ref:listing:asmlxams", "level": "listing"})
+            insert(db, "assertions", {**row, "evidence_id": "ev:wrong-level", "subject_id": "listing:isin:NL0010273215:XAMS:EUR", "level": "listing"})
 
     def test_identifier_check_digits(self):
         for scheme, value in (("isin", "NL0010273216"), ("lei", "724500Y6DUVHQD6OXN28"), ("figi", "BBG000C1HT48")):
@@ -157,12 +154,40 @@ class FixtureTest(unittest.TestCase):
     def test_asml_lines_are_two_securities_of_one_issuer_joined_by_a_receipt_relation(self):
         fixture, db = load("asml.json"), database("reference")
         evidence = load_reference(db, fixture)
-        securities = db.execute("SELECT id, kind FROM securities WHERE issuer_id='ref:issuer:asml0001' ORDER BY id").fetchall()
-        self.assertEqual(securities, [("ref:security:asmlnyrs", "depositary_receipt"), ("ref:security:asmlord1", "ordinary")])
+        securities = db.execute("SELECT id, kind FROM securities WHERE issuer_id='issuer:lei:724500Y6DUVHQD6OXN27' ORDER BY id").fetchall()
+        self.assertEqual(securities, [("security:isin:NL0010273215", "ordinary"), ("security:isin:USN070592100", "depositary_receipt")])
         self.assertEqual(db.execute("SELECT type, ratio FROM relations").fetchall(), [("depositary_receipt_of", "1")])
         levels = {binding.provider_ref.native_id: binding.level for binding in bindings(fixture, evidence)}
         self.assertEqual(levels, {"ASML.AS": identity.Level.LISTING, "ASML": identity.Level.LISTING,
                                   "ASML.US": identity.Level.COMPOSITE})
+
+    def test_subject_ids_are_derived_from_open_identifiers(self):
+        fixture = load("asml.json")
+        keys = {}
+        for row in fixture["assertions"]:
+            keys.setdefault(row["subject_id"], {})[row["scheme"]] = row["value"]
+        derive = identity.subject_id
+        countries = {row["id"]: row["country"] for row in fixture["composites"]}
+        for listing in fixture["listings"]:
+            security = keys[listing["security_id"]]
+            self.assertEqual(derive("listing", security, operating_mic=listing["operating_mic"],
+                                    currency=listing["currency"]), listing["id"])
+            self.assertEqual(derive("security", security), listing["security_id"])
+            self.assertEqual(derive("composite", security, country=countries[listing["composite_id"]]),
+                             listing["composite_id"])
+        self.assertEqual(derive("issuer", keys["issuer:lei:724500Y6DUVHQD6OXN27"]), "issuer:lei:724500Y6DUVHQD6OXN27")
+        self.assertEqual(derive("issuer", {"cik": "937966"}), "issuer:cik:0000937966")
+        self.assertEqual(derive("listing", {"figi": "BBG000K6N6G7"}), "listing:figi:BBG000K6N6G7")
+        for row in load("crypto.json")["listings"]:
+            caip19 = next(item["value"] for item in load("crypto.json")["assertions"] if item["subject_id"] == row["id"])
+            self.assertEqual(derive("listing", {"caip19": caip19}), row["id"])
+            self.assertEqual(derive("security", {"caip19": caip19}), row["security_id"])
+        self.assertIsNone(derive("security", {}))
+        index = identity.provisional_id("security", "eodhd", "catalogue", "GSPC.INDX")
+        self.assertEqual(index, "security:provisional:eodhd:catalogue:GSPC.INDX")
+        spaced = identity.provisional_id("listing", "ibkr", "contract", "BRK B")
+        self.assertEqual(spaced, identity.provisional_id("listing", "ibkr", "contract", "BRK B"))
+        self.assertIs(identity.subject_level(spaced), identity.Level.LISTING)
 
     def test_fixture_bindings_rows_and_search_fit_the_stores(self):
         rows = []
@@ -186,9 +211,9 @@ class FixtureTest(unittest.TestCase):
             insert(found, "rows_text", {"row_id": row["row_id"], "name": row["name"], "issuer_name": row["issuer_name"],
                                         "aliases": " ".join(row["aliases"]), "tickers": row["ticker_display"]})
         hits = [hit for (hit,) in found.execute("SELECT row_id FROM rows_text WHERE rows_text MATCH 'asm*' ORDER BY row_id")]
-        self.assertEqual(hits, ["ref:listing:asmlxams", "ref:listing:asmlxngs"])
+        self.assertEqual(hits, ["listing:isin:NL0010273215:XAMS:EUR", "listing:isin:USN070592100:XNAS:USD"])
         hits = [hit for (hit,) in found.execute("SELECT row_id FROM rows_text WHERE rows_text MATCH 'ethereum'")]
-        self.assertEqual(hits, ["ref:security:eth00001"])
+        self.assertEqual(hits, ["security:caip19:eip155:1/slip44:60"])
         self.assertEqual(state.execute("SELECT count(*) FROM bindings WHERE status='confirmed'").fetchone()[0], 10)
 
 
@@ -230,14 +255,11 @@ class ClaimTest(unittest.TestCase):
     def test_catalogue_page_is_accepted(self):
         identity.check_batch(self.batch(self.record()), identity.validate_manifest(EODHD))
 
-    def test_plugins_cannot_reconcile_or_republish_licensed_rows(self):
+    def test_plugins_bind_only_their_own_references(self):
         manifest = identity.validate_manifest(EODHD)
         foreign = self.record(native_ref={"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol"})
         with self.assertRaisesRegex(identity.ClaimError, "binds only its own"):
             identity.check_batch(self.batch(foreign), manifest)
-        opened = self.record(provenance={**PROVENANCE, "redistribution": "open"})
-        with self.assertRaisesRegex(identity.ClaimError, "republishable"):
-            identity.check_batch(self.batch(opened), manifest)
         with self.assertRaisesRegex(ValueError, "cannot assert figi"):
             self.record(level="security", native_ref=None, identifiers=[{"scheme": "figi", "value": "BBG000C1HT47"}])
 
@@ -246,13 +268,13 @@ class ResolutionTest(unittest.TestCase):
     item = None
 
     def setUp(self):
-        self.item = identity.QueueItem(id="q1", kind="residual", reason="no_key", subject_ids=["local:listing:adyey001"],
-                                       candidate_ids=["ref:security:adyen001"], evidence_ids=[], state="open",
+        self.item = identity.QueueItem(id="q1", kind="residual", reason="no_key", subject_ids=["listing:provisional:eodhd:catalogue:ADYEY.US"],
+                                       candidate_ids=["security:isin:NL0012969182"], evidence_ids=[], state="open",
                                        opened_at="2026-09-25T10:00:00Z")
 
     def verdict(self, **overrides):
         value = {"item_id": "q1", "resolver": "plugin", "authority": "model_confirmed", "relation": "same_security",
-                 "chosen_id": "ref:security:adyen001", "confidence": 0.97, "model": "jev-1.13.0", "prompt_version": "p1",
+                 "chosen_id": "security:isin:NL0012969182", "confidence": 0.97, "model": "jev-1.13.0", "prompt_version": "p1",
                  "input_digest": "sha256:" + "0" * 64,
                  "provenance": {**PROVENANCE, "plugin": "jev", "source": "jev"}}
         return identity.Verdict(**{**value, **overrides})

@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 from .vocabulary import (
     AUTHORITY_TIER, CONFIRMING, RELATION_LEVELS, AssetClass, Authority, BindingStatus,
-    EvidenceTier, InstrumentKind, Redistribution, RelationType, SubjectStatus,
+    EvidenceTier, InstrumentKind, RelationType, SubjectStatus,
 )
 from .schemes import (
     CAIP2, COUNTRY, CURRENCY, DATE, DECIMAL, INSTANT, MIC, NAMESPACE, SCHEME_LEVEL, TICKER_CLASS,
@@ -65,18 +65,16 @@ class Validity:
 
 @dataclass(frozen=True, slots=True)
 class Provenance:
-    """Who said it, from which record, when, and whether it may be redistributed."""
+    """Who said it, from which record, and when."""
 
     plugin: str
     source: str
     adapter_version: str
     retrieved_at: str
-    redistribution: Redistribution
     source_record: str | None = None
     source_version: str | None = None
 
     def __post_init__(self) -> None:
-        _coerce(self, redistribution=Redistribution)
         _require(bool(NAMESPACE.match(self.plugin)), "provenance.plugin: native plugin name required")
         _require(bool(NAMESPACE.match(self.source.replace(".", "_"))), "provenance.source: namespace required")
         _text(self.adapter_version, "provenance.adapter_version", 64)
@@ -292,9 +290,10 @@ class Relation:
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, authority=Authority, provenance=Provenance, validity=Validity)
         _require(self.from_id != self.to_id, "relation: endpoints must be distinct subjects")
+        levels = (subject_level(self.from_id), subject_level(self.to_id))
         expected = RELATION_LEVELS[self.type]
-        _require((subject_level(self.from_id), subject_level(self.to_id)) == expected,
-                 f"relation: {self.type} links {expected[0]} to {expected[1]}")
+        _require(levels == expected if expected else levels[0] is levels[1],
+                 f"relation: {self.type} links subjects at the wrong levels")
         _require(self.ratio is None or (self.type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(self.ratio))),
                  "relation.ratio: decimal, receipts only")
         _require((self.parent_kind in ("direct", "ultimate")) == (self.type is RelationType.PARENT_OF),

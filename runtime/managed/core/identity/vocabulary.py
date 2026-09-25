@@ -43,11 +43,6 @@ CONFIRMING = frozenset({Authority.SOURCE_ASSERTED, Authority.SNAPSHOT, Authority
                         Authority.MODEL_CONFIRMED, Authority.USER_ATTESTED, Authority.CURATED})
 
 
-class Redistribution(StrEnum):
-    OPEN = "open"              # may enter the published reference snapshot
-    LOCAL_ONLY = "local_only"  # licensed or unconfirmed: never leaves the device
-
-
 class AssetClass(StrEnum):
     EQUITY = "equity"
     FUND = "fund"
@@ -90,13 +85,17 @@ class RelationType(StrEnum):
     SHARE_CLASS_OF = "share_class_of"                # sibling class -> sibling class (symmetric)
     PARENT_OF = "parent_of"                          # parent issuer -> child issuer
     WRAPS = "wraps"                                  # wrapped crypto asset -> underlying asset
+    SUCCESSOR_OF = "successor_of"                    # new subject -> old one after a natural key changed
+                                                     # (new ISIN after a corporate action, LEI merger)
 
 
-RELATION_LEVELS: dict[RelationType, tuple[Level, Level]] = {
+# None: both ends at the same level, any level.
+RELATION_LEVELS: dict[RelationType, tuple[Level, Level] | None] = {
     RelationType.DEPOSITARY_RECEIPT_OF: (Level.SECURITY, Level.SECURITY),
     RelationType.SHARE_CLASS_OF: (Level.SECURITY, Level.SECURITY),
     RelationType.PARENT_OF: (Level.ISSUER, Level.ISSUER),
     RelationType.WRAPS: (Level.SECURITY, Level.SECURITY),
+    RelationType.SUCCESSOR_OF: None,
 }
 
 

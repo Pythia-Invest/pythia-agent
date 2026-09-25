@@ -15,7 +15,7 @@ from enum import StrEnum
 from typing import Any, Mapping
 
 from .schemes import MIC, NAMESPACE, SCHEME_LEVEL, Level, Scheme
-from .vocabulary import AssetClass, Redistribution, VerdictRelation
+from .vocabulary import AssetClass, VerdictRelation
 
 MANIFEST_FILE = "contract.json"
 TOOL = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -101,7 +101,6 @@ class Catalogue:
     scopes: tuple[str, ...]
     max_age_seconds: int | None
     binding_ttl_seconds: int | None
-    redistribution: Redistribution
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,20 +249,18 @@ def _content(value: Any, addressable: set[Level]) -> dict[Section, ContentEntry]
 
 
 def _catalogue(value: Any) -> Catalogue:
-    body = _object(value, "catalogue", {"mode"}, {"tool", "scopes", "max_age_seconds", "binding_ttl_seconds", "redistribution"})
+    body = _object(value, "catalogue", {"mode"}, {"tool", "scopes", "max_age_seconds", "binding_ttl_seconds"})
     mode = _enum(CatalogueMode, body["mode"], "catalogue.mode")
     if mode is CatalogueMode.BULK:
-        _object(body, "catalogue", {"mode", "tool", "scopes", "max_age_seconds", "redistribution"})
+        _object(body, "catalogue", {"mode", "tool", "scopes", "max_age_seconds"})
         scopes = body["scopes"]
         if not isinstance(scopes, list) or not 1 <= len(scopes) <= 64 or len(set(scopes)) != len(scopes):
             raise ManifestError("catalogue.scopes", "1-64 distinct scopes required")
         return Catalogue(mode, _match(TOOL, body["tool"], "catalogue.tool"),
                          tuple(_match(NAMESPACE, scope, "catalogue.scopes") for scope in scopes),
-                         _count(body["max_age_seconds"], "catalogue.max_age_seconds", 60, 2592000), None,
-                         _enum(Redistribution, body["redistribution"], "catalogue.redistribution"))
+                         _count(body["max_age_seconds"], "catalogue.max_age_seconds", 60, 2592000), None)
     _object(body, "catalogue", {"mode", "binding_ttl_seconds"})
-    return Catalogue(mode, None, (), None, _count(body["binding_ttl_seconds"], "catalogue.binding_ttl_seconds", 3600, 7776000),
-                     Redistribution.LOCAL_ONLY)
+    return Catalogue(mode, None, (), None, _count(body["binding_ttl_seconds"], "catalogue.binding_ttl_seconds", 3600, 7776000))
 
 
 def _resolve(value: Any) -> Resolve:

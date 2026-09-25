@@ -5,8 +5,10 @@ the scheme defines one; a valid format is never proof of identity by itself.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from enum import StrEnum
+from typing import Mapping
 
 
 class Level(StrEnum):
@@ -48,10 +50,9 @@ SCHEME_LEVEL: dict[Scheme, Level] = {
     Scheme.CAIP19: Level.LISTING,
 }
 
-# Licensed numbering schemes default to device-local handling.
-LICENSED_SCHEMES = frozenset({Scheme.CUSIP, Scheme.SEDOL})
-
-SUBJECT_ID = re.compile(r"^(ref|local):(issuer|security|composite|listing):[A-Za-z0-9_-]{4,64}$")
+# <level>:<key scheme>:<key>, derived from open identifiers (see subject_id below).
+SUBJECT_ID = re.compile(
+    r"^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/-]{4,200}$")
 MIC = re.compile(r"^[A-Z0-9]{4}$")
 CURRENCY = re.compile(r"^[A-Z]{3}$")
 COUNTRY = re.compile(r"^[A-Z]{2}$")
@@ -62,6 +63,7 @@ NAMESPACE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 TICKER_ROOT = re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}$")
 TICKER_CLASS = re.compile(r"^[A-Z0-9]{1,4}$")
 CAIP2 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$")
+PROVISIONAL_NATIVE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$")
 
 _PATTERNS = {
     Scheme.LEI: re.compile(r"^[A-Z0-9]{18}[0-9]{2}$"),
@@ -145,7 +147,57 @@ def ticker_mic(root: str, mic: str, share_class: str | None = None) -> str:
 
 
 def subject_level(subject_id: str) -> Level:
-    """The level encoded in an opaque subject ID (`ref:listing:…`, `local:issuer:…`)."""
+    """The level a subject ID names (`listing:isin:NL0010273215:XAMS:EUR` is a listing)."""
     if not isinstance(subject_id, str) or not SUBJECT_ID.match(subject_id):
         raise IdentifierError("subject id: malformed")
-    return Level(subject_id.split(":", 2)[1])
+    return Level(subject_id.split(":", 1)[0])
+
+
+def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, operating_mic: str | None = None,
+               currency: str | None = None, country: str | None = None) -> str | None:
+    """Derive the deterministic subject ID from open identifiers, or None if none applies.
+
+    Every install and every rebuild derives the same ID from the same open
+    evidence. Precedence per level:
+      issuer     lei, else cik
+      security   isin, else share_class_figi, else caip19 (a crypto asset's home deployment)
+      composite  the security key + country
+      listing    isin + operating MIC + currency, else figi, else caip19 (a chain deployment)
+    Tickers are attributes, not keys, so a ticker change keeps the ID.
+    """
+    level = Level(level)
+    known = {Scheme(scheme): normalize_identifier(scheme, value) for scheme, value in identifiers.items() if value}
+
+    def security_key() -> str | None:
+        for scheme, tag in ((Scheme.ISIN, "isin"), (Scheme.SHARE_CLASS_FIGI, "figi"), (Scheme.CAIP19, "caip19")):
+            if scheme in known:
+                return f"{tag}:{known[scheme]}"
+        return None
+
+    if level is Level.ISSUER:
+        key = f"lei:{known[Scheme.LEI]}" if Scheme.LEI in known else (
+            f"cik:{known[Scheme.CIK]}" if Scheme.CIK in known else None)
+    elif level is Level.SECURITY:
+        key = security_key()
+    elif level is Level.COMPOSITE:
+        base = security_key()
+        key = f"{base}:{country}" if base and not base.startswith("caip19:") and country and COUNTRY.match(country) else None
+    elif Scheme.ISIN in known and operating_mic and currency and MIC.match(operating_mic) and CURRENCY.match(currency):
+        key = f"isin:{known[Scheme.ISIN]}:{operating_mic}:{currency}"
+    elif Scheme.FIGI in known:
+        key = f"figi:{known[Scheme.FIGI]}"
+    else:
+        key = f"caip19:{known[Scheme.CAIP19]}" if Scheme.CAIP19 in known else None
+    return f"{level}:{key}" if key else None
+
+
+def provisional_id(level: Level | str, provider: str, native_scope: str, native_id: str) -> str:
+    """Provider-namespaced ID for a subject no open identifier names (a provider-only index, an
+    unmapped coin, a private company). Valid and deterministic per provider reference, but not
+    portable across provider sets; it becomes an alias once an open identifier names the subject.
+    """
+    if not NAMESPACE.match(provider) or not NAMESPACE.match(native_scope):
+        raise IdentifierError("provisional id: provider and native_scope must be namespaces")
+    readable = PROVISIONAL_NATIVE.match(native_id)
+    key = native_id if readable else "sha256-" + hashlib.sha256(native_id.encode()).hexdigest()[:32]
+    return f"{Level(level)}:provisional:{provider}:{native_scope}:{key}"

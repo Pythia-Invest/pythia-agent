@@ -3,9 +3,11 @@
 -- rebuild and read-only in between. An optional downloaded open release uses
 -- this same schema as a starting base; device-only steps then go to
 -- reference-local.sqlite3, also with this schema.
--- Subject IDs are opaque, carried forward between builds, and never rewritten;
--- merges and splits are recorded in id_aliases. Scheme/level pairs are fixed here
--- so an ISIN can never identify a listing, nor an LEI a security.
+-- Subject IDs are deterministic, derived from open identifiers
+-- (identity.schemes.subject_id), so every install and rebuild agrees on them.
+-- A re-key (a better key became known), merge or split is recorded in id_aliases;
+-- a changed natural key (new ISIN, LEI merger) is a successor_of relation.
+-- Scheme/level pairs are fixed here so an ISIN can never identify a listing.
 
 CREATE TABLE release (
   key TEXT PRIMARY KEY,            -- schema_version, release (build id), built_at, built_by (device|release), notice, sources (JSON)
@@ -13,7 +15,7 @@ CREATE TABLE release (
 );
 
 CREATE TABLE issuers (
-  id TEXT PRIMARY KEY CHECK (id LIKE 'ref:issuer:%' OR id LIKE 'local:issuer:%'),
+  id TEXT PRIMARY KEY CHECK (id LIKE 'issuer:%'),
   name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 512),
   country TEXT CHECK (country IS NULL OR (length(country) = 2 AND country = upper(country))),
   legal_form TEXT,
@@ -21,7 +23,7 @@ CREATE TABLE issuers (
 );
 
 CREATE TABLE securities (
-  id TEXT PRIMARY KEY CHECK (id LIKE 'ref:security:%' OR id LIKE 'local:security:%'),
+  id TEXT PRIMARY KEY CHECK (id LIKE 'security:%'),
   issuer_id TEXT REFERENCES issuers(id),
   name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 512),
   asset_class TEXT NOT NULL CHECK (asset_class IN ('equity', 'fund', 'bond', 'index', 'fx', 'commodity', 'crypto')),
@@ -33,7 +35,7 @@ CREATE TABLE securities (
 );
 
 CREATE TABLE composites (
-  id TEXT PRIMARY KEY CHECK (id LIKE 'ref:composite:%' OR id LIKE 'local:composite:%'),
+  id TEXT PRIMARY KEY CHECK (id LIKE 'composite:%'),
   security_id TEXT NOT NULL REFERENCES securities(id),
   country TEXT NOT NULL CHECK (length(country) = 2 AND country = upper(country)),
   UNIQUE (security_id, country)
@@ -41,7 +43,7 @@ CREATE TABLE composites (
 
 -- A venue listing (ticker@MIC, currency) or a crypto deployment (CAIP-2 chain).
 CREATE TABLE listings (
-  id TEXT PRIMARY KEY CHECK (id LIKE 'ref:listing:%' OR id LIKE 'local:listing:%'),
+  id TEXT PRIMARY KEY CHECK (id LIKE 'listing:%'),
   security_id TEXT NOT NULL REFERENCES securities(id),
   composite_id TEXT REFERENCES composites(id),
   mic TEXT CHECK (mic IS NULL OR length(mic) = 4),
@@ -79,8 +81,7 @@ CREATE TABLE assertions (
   plugin TEXT NOT NULL,
   adapter_version TEXT NOT NULL,
   retrieved_at TEXT NOT NULL,
-  redistribution TEXT NOT NULL CHECK (redistribution IN ('open', 'local_only')),
-  CHECK (subject_id LIKE '%:' || level || ':%'),
+  CHECK (subject_id LIKE level || ':%'),
   CHECK ((scheme IN ('lei', 'cik') AND level = 'issuer')
       OR (scheme IN ('isin', 'cusip', 'share_class_figi') AND level = 'security')
       OR (scheme = 'composite_figi' AND level = 'composite')
@@ -89,8 +90,7 @@ CREATE TABLE assertions (
       OR (tier = 'T1' AND authority = 'rule_confirmed')
       OR (tier = 'T3' AND authority IN ('model_confirmed', 'model_suggested'))
       OR (tier = 'T4' AND authority IN ('user_attested', 'curated'))),
-  CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to),
-  CHECK (scheme NOT IN ('cusip', 'sedol') OR redistribution = 'local_only')
+  CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to)
 );
 CREATE INDEX assertions_key ON assertions (scheme, value);
 CREATE INDEX assertions_subject ON assertions (subject_id);
@@ -98,7 +98,7 @@ CREATE INDEX assertions_subject ON assertions (subject_id);
 -- Typed edges between distinct subjects. Relations never merge subjects.
 CREATE TABLE relations (
   evidence_id TEXT PRIMARY KEY CHECK (evidence_id LIKE 'ev:%'),
-  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'share_class_of', 'parent_of', 'wraps')),
+  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'share_class_of', 'parent_of', 'wraps', 'successor_of')),
   from_id TEXT NOT NULL,
   to_id TEXT NOT NULL,
   ratio TEXT,
@@ -113,11 +113,12 @@ CREATE TABLE relations (
   plugin TEXT NOT NULL,
   adapter_version TEXT NOT NULL,
   retrieved_at TEXT NOT NULL,
-  redistribution TEXT NOT NULL CHECK (redistribution IN ('open', 'local_only')),
   CHECK (from_id <> to_id),
-  CHECK ((type = 'parent_of' AND from_id LIKE '%:issuer:%' AND to_id LIKE '%:issuer:%'
+  CHECK ((type = 'parent_of' AND from_id LIKE 'issuer:%' AND to_id LIKE 'issuer:%'
           AND parent_kind IN ('direct', 'ultimate'))
-      OR (type <> 'parent_of' AND from_id LIKE '%:security:%' AND to_id LIKE '%:security:%' AND parent_kind IS NULL)),
+      OR (type = 'successor_of' AND parent_kind IS NULL)
+      OR (type IN ('depositary_receipt_of', 'share_class_of', 'wraps') AND from_id LIKE 'security:%'
+          AND to_id LIKE 'security:%' AND parent_kind IS NULL)),
   CHECK (ratio IS NULL OR type = 'depositary_receipt_of'),
   CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to)
 );
@@ -135,11 +136,11 @@ CREATE TABLE names (
   PRIMARY KEY (subject_id, name, kind)
 );
 
--- Carried-forward identity: saved references resolve through this chain.
+-- Saved subject IDs resolve through this chain; they are never rewritten.
 CREATE TABLE id_aliases (
   old_id TEXT PRIMARY KEY,
   new_id TEXT NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('merge', 'split', 'promotion', 'successor')),
+  reason TEXT NOT NULL CHECK (reason IN ('rekey', 'merge', 'split')),
   release TEXT NOT NULL,
   CHECK (old_id <> new_id)
 );

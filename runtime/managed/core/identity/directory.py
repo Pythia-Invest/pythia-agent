@@ -1,7 +1,6 @@
 """Directory row (derived, flat, searchable) and the local search wire shapes.
 
-The directory is rebuilt from the reference snapshot, reference-local, overlays
-and identity v2. Search is one local read of it: no provider call, no identity
+The directory is rebuilt from the reference store(s), overlays and identity v2. Search is one local read of it: no provider call, no identity
 write, no reconciliation. Rows carry no prices.
 """
 from __future__ import annotations
@@ -9,7 +8,7 @@ from __future__ import annotations
 from typing import Literal, NotRequired, TypedDict
 
 RowKind = Literal["listing", "crypto_asset"]
-RowTier = Literal["snapshot", "local", "overlay"]
+RowTier = Literal["reference", "local", "overlay"]
 MatchKind = Literal["identifier", "ticker", "provider_symbol", "name_prefix", "text"]
 SEARCH_MAX_LIMIT = 40
 GROUP_MAX_ROWS = 5
@@ -122,7 +121,7 @@ class LookupOffer(TypedDict):
 
 
 class DirectoryAsOf(TypedDict):
-    snapshot_release: str | None
+    reference_build: str | None
     overlays: dict[str, str]                 # plugin -> last complete sync instant
 
 

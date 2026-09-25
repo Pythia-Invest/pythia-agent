@@ -3,7 +3,7 @@
 -- read of this file. Columns mirror identity.directory.DirectoryRow.
 
 CREATE TABLE metadata (
-  key TEXT PRIMARY KEY,           -- schema_version, built_at, snapshot_release, overlays (JSON plugin -> as_of)
+  key TEXT PRIMARY KEY,           -- schema_version, built_at, reference_build, overlays (JSON plugin -> as_of)
   value TEXT NOT NULL
 );
 
@@ -37,7 +37,7 @@ CREATE TABLE rows (
   home_market INTEGER NOT NULL CHECK (home_market IN (0, 1)),
   depositary_of TEXT,
   status TEXT NOT NULL,
-  tier TEXT NOT NULL CHECK (tier IN ('snapshot', 'local', 'overlay')),
+  tier TEXT NOT NULL CHECK (tier IN ('reference', 'local', 'overlay')),
   provider_refs TEXT NOT NULL,
   sources TEXT NOT NULL,
   aliases TEXT NOT NULL,

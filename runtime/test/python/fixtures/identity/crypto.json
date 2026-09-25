@@ -1,63 +1,338 @@
 {
   "provenance_note": "Hand-written backbone fixture. CAIP-19 native-coin deployments follow the CAIP-19 specification examples (bip122:000000000019d6689c085ae165831e93/slip44:0, eip155:1/slip44:60), the ChainAgnostic Solana namespace (CAIP-2 reference = first 32 characters of the mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d) and SLIP-0044 coin types (BTC 0, ETH 60, SOL 501), all checked on 2026-09-25. CoinMarketCap ids (1, 1027, 5426) and CoinGecko ids (bitcoin, ethereum, solana) are the providers' public identifiers for these coins; they were not fetched here and the connector pieces confirm them from their own catalogues. No provider data beyond identifiers.",
   "chains": [
-    {"caip2": "bip122:000000000019d6689c085ae165831e93", "name": "Bitcoin", "native_caip19": "bip122:000000000019d6689c085ae165831e93/slip44:0"},
-    {"caip2": "eip155:1", "name": "Ethereum", "native_caip19": "eip155:1/slip44:60"},
-    {"caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "name": "Solana", "native_caip19": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501"}
+    {
+      "caip2": "bip122:000000000019d6689c085ae165831e93",
+      "name": "Bitcoin",
+      "native_caip19": "bip122:000000000019d6689c085ae165831e93/slip44:0"
+    },
+    {
+      "caip2": "eip155:1",
+      "name": "Ethereum",
+      "native_caip19": "eip155:1/slip44:60"
+    },
+    {
+      "caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "name": "Solana",
+      "native_caip19": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501"
+    }
   ],
   "securities": [
-    {"id": "ref:security:btc00001", "name": "Bitcoin", "asset_class": "crypto", "kind": "coin"},
-    {"id": "ref:security:eth00001", "name": "Ether", "asset_class": "crypto", "kind": "coin"},
-    {"id": "ref:security:sol00001", "name": "Solana", "asset_class": "crypto", "kind": "coin"}
+    {
+      "id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "name": "Bitcoin",
+      "asset_class": "crypto",
+      "kind": "coin"
+    },
+    {
+      "id": "security:caip19:eip155:1/slip44:60",
+      "name": "Ether",
+      "asset_class": "crypto",
+      "kind": "coin"
+    },
+    {
+      "id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "name": "Solana",
+      "asset_class": "crypto",
+      "kind": "coin"
+    }
   ],
   "listings": [
-    {"id": "ref:listing:btcmain1", "security_id": "ref:security:btc00001", "ticker_root": "BTC", "chain": "bip122:000000000019d6689c085ae165831e93"},
-    {"id": "ref:listing:ethmain1", "security_id": "ref:security:eth00001", "ticker_root": "ETH", "chain": "eip155:1"},
-    {"id": "ref:listing:solmain1", "security_id": "ref:security:sol00001", "ticker_root": "SOL", "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"}
+    {
+      "id": "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "security_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "ticker_root": "BTC",
+      "chain": "bip122:000000000019d6689c085ae165831e93"
+    },
+    {
+      "id": "listing:caip19:eip155:1/slip44:60",
+      "security_id": "security:caip19:eip155:1/slip44:60",
+      "ticker_root": "ETH",
+      "chain": "eip155:1"
+    },
+    {
+      "id": "listing:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "security_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "ticker_root": "SOL",
+      "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+    }
   ],
   "assertions": [
-    {"subject_id": "ref:listing:btcmain1", "scheme": "caip19", "value": "bip122:000000000019d6689c085ae165831e93/slip44:0", "authority": "curated",
-     "provenance": {"plugin": "pythia", "source": "pythia.chains", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "chains:bip122:000000000019d6689c085ae165831e93"}},
-    {"subject_id": "ref:listing:ethmain1", "scheme": "caip19", "value": "eip155:1/slip44:60", "authority": "curated",
-     "provenance": {"plugin": "pythia", "source": "pythia.chains", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "chains:eip155:1"}},
-    {"subject_id": "ref:listing:solmain1", "scheme": "caip19", "value": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501", "authority": "curated",
-     "provenance": {"plugin": "pythia", "source": "pythia.chains", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z", "redistribution": "open", "source_record": "chains:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"}}
+    {
+      "subject_id": "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "scheme": "caip19",
+      "value": "bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "authority": "curated",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "pythia.chains",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-25T00:00:00Z",
+        "source_record": "chains:bip122:000000000019d6689c085ae165831e93"
+      }
+    },
+    {
+      "subject_id": "listing:caip19:eip155:1/slip44:60",
+      "scheme": "caip19",
+      "value": "eip155:1/slip44:60",
+      "authority": "curated",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "pythia.chains",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-25T00:00:00Z",
+        "source_record": "chains:eip155:1"
+      }
+    },
+    {
+      "subject_id": "listing:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "scheme": "caip19",
+      "value": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "authority": "curated",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "pythia.chains",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-25T00:00:00Z",
+        "source_record": "chains:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+      }
+    }
   ],
   "bindings": [
-    {"provider_ref": {"provider": "coinmarketcap", "native_id": "1", "native_scope": "coin"}, "subject_id": "ref:security:btc00001",
-     "status": "confirmed", "authority": "curated", "evidence_refs": [["ref:listing:btcmain1", "caip19"]]},
-    {"provider_ref": {"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}, "subject_id": "ref:security:btc00001",
-     "status": "confirmed", "authority": "curated", "evidence_refs": [["ref:listing:btcmain1", "caip19"]]},
-    {"provider_ref": {"provider": "coinmarketcap", "native_id": "1027", "native_scope": "coin"}, "subject_id": "ref:security:eth00001",
-     "status": "confirmed", "authority": "curated", "evidence_refs": [["ref:listing:ethmain1", "caip19"]]},
-    {"provider_ref": {"provider": "coingecko", "native_id": "ethereum", "native_scope": "coin"}, "subject_id": "ref:security:eth00001",
-     "status": "confirmed", "authority": "curated", "evidence_refs": [["ref:listing:ethmain1", "caip19"]]},
-    {"provider_ref": {"provider": "coinmarketcap", "native_id": "5426", "native_scope": "coin"}, "subject_id": "ref:security:sol00001",
-     "status": "confirmed", "authority": "curated", "evidence_refs": [["ref:listing:solmain1", "caip19"]]},
-    {"provider_ref": {"provider": "coingecko", "native_id": "solana", "native_scope": "coin"}, "subject_id": "ref:security:sol00001",
-     "status": "confirmed", "authority": "curated", "evidence_refs": [["ref:listing:solmain1", "caip19"]]}
+    {
+      "provider_ref": {
+        "provider": "coinmarketcap",
+        "native_id": "1",
+        "native_scope": "coin"
+      },
+      "subject_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "status": "confirmed",
+      "authority": "curated",
+      "evidence_refs": [
+        [
+          "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+          "caip19"
+        ]
+      ]
+    },
+    {
+      "provider_ref": {
+        "provider": "coingecko",
+        "native_id": "bitcoin",
+        "native_scope": "coin"
+      },
+      "subject_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "status": "confirmed",
+      "authority": "curated",
+      "evidence_refs": [
+        [
+          "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+          "caip19"
+        ]
+      ]
+    },
+    {
+      "provider_ref": {
+        "provider": "coinmarketcap",
+        "native_id": "1027",
+        "native_scope": "coin"
+      },
+      "subject_id": "security:caip19:eip155:1/slip44:60",
+      "status": "confirmed",
+      "authority": "curated",
+      "evidence_refs": [["listing:caip19:eip155:1/slip44:60", "caip19"]]
+    },
+    {
+      "provider_ref": {
+        "provider": "coingecko",
+        "native_id": "ethereum",
+        "native_scope": "coin"
+      },
+      "subject_id": "security:caip19:eip155:1/slip44:60",
+      "status": "confirmed",
+      "authority": "curated",
+      "evidence_refs": [["listing:caip19:eip155:1/slip44:60", "caip19"]]
+    },
+    {
+      "provider_ref": {
+        "provider": "coinmarketcap",
+        "native_id": "5426",
+        "native_scope": "coin"
+      },
+      "subject_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "status": "confirmed",
+      "authority": "curated",
+      "evidence_refs": [
+        [
+          "listing:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+          "caip19"
+        ]
+      ]
+    },
+    {
+      "provider_ref": {
+        "provider": "coingecko",
+        "native_id": "solana",
+        "native_scope": "coin"
+      },
+      "subject_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "status": "confirmed",
+      "authority": "curated",
+      "evidence_refs": [
+        [
+          "listing:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+          "caip19"
+        ]
+      ]
+    }
   ],
   "directory_rows": [
-    {"row_id": "ref:security:btc00001", "row_kind": "crypto_asset", "security_id": "ref:security:btc00001", "issuer_id": null, "composite_id": null, "group_key": "ref:security:btc00001",
-     "mic": null, "operating_mic": null, "ticker_root": "BTC", "ticker_class": null, "ticker_display": "BTC", "currency": null, "price_scale": "1",
-     "name": "Bitcoin", "issuer_name": null, "kind": "coin", "asset_class": "crypto", "country": null, "venue_label": null,
-     "isin": null, "lei": null, "cik": null, "figi": null, "share_class_figi": null, "composite_figi": null,
-     "primary_listing": true, "home_market": false, "depositary_of": null, "status": "active", "tier": "snapshot",
-     "provider_refs": [{"provider": "coinmarketcap", "native_id": "1", "native_scope": "coin"}, {"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}],
-     "sources": ["pythia"], "aliases": [], "rank_size": null, "rank_signals": {}, "as_of": "2026-09-25"},
-    {"row_id": "ref:security:eth00001", "row_kind": "crypto_asset", "security_id": "ref:security:eth00001", "issuer_id": null, "composite_id": null, "group_key": "ref:security:eth00001",
-     "mic": null, "operating_mic": null, "ticker_root": "ETH", "ticker_class": null, "ticker_display": "ETH", "currency": null, "price_scale": "1",
-     "name": "Ether", "issuer_name": null, "kind": "coin", "asset_class": "crypto", "country": null, "venue_label": null,
-     "isin": null, "lei": null, "cik": null, "figi": null, "share_class_figi": null, "composite_figi": null,
-     "primary_listing": true, "home_market": false, "depositary_of": null, "status": "active", "tier": "snapshot",
-     "provider_refs": [{"provider": "coinmarketcap", "native_id": "1027", "native_scope": "coin"}, {"provider": "coingecko", "native_id": "ethereum", "native_scope": "coin"}],
-     "sources": ["pythia"], "aliases": ["Ethereum"], "rank_size": null, "rank_signals": {}, "as_of": "2026-09-25"},
-    {"row_id": "ref:security:sol00001", "row_kind": "crypto_asset", "security_id": "ref:security:sol00001", "issuer_id": null, "composite_id": null, "group_key": "ref:security:sol00001",
-     "mic": null, "operating_mic": null, "ticker_root": "SOL", "ticker_class": null, "ticker_display": "SOL", "currency": null, "price_scale": "1",
-     "name": "Solana", "issuer_name": null, "kind": "coin", "asset_class": "crypto", "country": null, "venue_label": null,
-     "isin": null, "lei": null, "cik": null, "figi": null, "share_class_figi": null, "composite_figi": null,
-     "primary_listing": true, "home_market": false, "depositary_of": null, "status": "active", "tier": "snapshot",
-     "provider_refs": [{"provider": "coinmarketcap", "native_id": "5426", "native_scope": "coin"}, {"provider": "coingecko", "native_id": "solana", "native_scope": "coin"}],
-     "sources": ["pythia"], "aliases": [], "rank_size": null, "rank_signals": {}, "as_of": "2026-09-25"}
+    {
+      "row_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "row_kind": "crypto_asset",
+      "security_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "issuer_id": null,
+      "composite_id": null,
+      "group_key": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "mic": null,
+      "operating_mic": null,
+      "ticker_root": "BTC",
+      "ticker_class": null,
+      "ticker_display": "BTC",
+      "currency": null,
+      "price_scale": "1",
+      "name": "Bitcoin",
+      "issuer_name": null,
+      "kind": "coin",
+      "asset_class": "crypto",
+      "country": null,
+      "venue_label": null,
+      "isin": null,
+      "lei": null,
+      "cik": null,
+      "figi": null,
+      "share_class_figi": null,
+      "composite_figi": null,
+      "primary_listing": true,
+      "home_market": false,
+      "depositary_of": null,
+      "status": "active",
+      "tier": "reference",
+      "provider_refs": [
+        {
+          "provider": "coinmarketcap",
+          "native_id": "1",
+          "native_scope": "coin"
+        },
+        {
+          "provider": "coingecko",
+          "native_id": "bitcoin",
+          "native_scope": "coin"
+        }
+      ],
+      "sources": ["pythia"],
+      "aliases": [],
+      "rank_size": null,
+      "rank_signals": {},
+      "as_of": "2026-09-25"
+    },
+    {
+      "row_id": "security:caip19:eip155:1/slip44:60",
+      "row_kind": "crypto_asset",
+      "security_id": "security:caip19:eip155:1/slip44:60",
+      "issuer_id": null,
+      "composite_id": null,
+      "group_key": "security:caip19:eip155:1/slip44:60",
+      "mic": null,
+      "operating_mic": null,
+      "ticker_root": "ETH",
+      "ticker_class": null,
+      "ticker_display": "ETH",
+      "currency": null,
+      "price_scale": "1",
+      "name": "Ether",
+      "issuer_name": null,
+      "kind": "coin",
+      "asset_class": "crypto",
+      "country": null,
+      "venue_label": null,
+      "isin": null,
+      "lei": null,
+      "cik": null,
+      "figi": null,
+      "share_class_figi": null,
+      "composite_figi": null,
+      "primary_listing": true,
+      "home_market": false,
+      "depositary_of": null,
+      "status": "active",
+      "tier": "reference",
+      "provider_refs": [
+        {
+          "provider": "coinmarketcap",
+          "native_id": "1027",
+          "native_scope": "coin"
+        },
+        {
+          "provider": "coingecko",
+          "native_id": "ethereum",
+          "native_scope": "coin"
+        }
+      ],
+      "sources": ["pythia"],
+      "aliases": ["Ethereum"],
+      "rank_size": null,
+      "rank_signals": {},
+      "as_of": "2026-09-25"
+    },
+    {
+      "row_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "row_kind": "crypto_asset",
+      "security_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "issuer_id": null,
+      "composite_id": null,
+      "group_key": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "mic": null,
+      "operating_mic": null,
+      "ticker_root": "SOL",
+      "ticker_class": null,
+      "ticker_display": "SOL",
+      "currency": null,
+      "price_scale": "1",
+      "name": "Solana",
+      "issuer_name": null,
+      "kind": "coin",
+      "asset_class": "crypto",
+      "country": null,
+      "venue_label": null,
+      "isin": null,
+      "lei": null,
+      "cik": null,
+      "figi": null,
+      "share_class_figi": null,
+      "composite_figi": null,
+      "primary_listing": true,
+      "home_market": false,
+      "depositary_of": null,
+      "status": "active",
+      "tier": "reference",
+      "provider_refs": [
+        {
+          "provider": "coinmarketcap",
+          "native_id": "5426",
+          "native_scope": "coin"
+        },
+        {
+          "provider": "coingecko",
+          "native_id": "solana",
+          "native_scope": "coin"
+        }
+      ],
+      "sources": ["pythia"],
+      "aliases": [],
+      "rank_size": null,
+      "rank_signals": {},
+      "as_of": "2026-09-25"
+    }
   ]
 }
