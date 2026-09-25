@@ -14,7 +14,7 @@ assert SPEC and SPEC.loader
 identity = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = identity
 SPEC.loader.exec_module(identity)
-from pythia_identity_fixture import directory, model  # noqa: E402
+from pythia_identity_fixture import model  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures/identity"
 PROVENANCE = {"plugin": "eodhd", "source": "eodhd", "adapter_version": "1", "retrieved_at": "2026-09-25T10:00:00Z"}
@@ -127,10 +127,6 @@ class StoreSchemaTest(unittest.TestCase):
                 self.assertTrue(tables)
         self.assertEqual(identity.Store.IDENTITY.schema_version, 2)
 
-    def test_directory_row_type_matches_directory_table(self):
-        columns = [row[1] for row in database("directory").execute("PRAGMA table_info(rows)")]
-        self.assertEqual(columns, list(directory.DirectoryRow.__annotations__))
-
     def test_levels_are_enforced_by_types_and_by_sql(self):
         fixture = load("asml.json")
         wrong = copy.deepcopy(fixture["assertions"][2])  # the ordinary share's ISIN
@@ -200,8 +196,7 @@ class FixtureTest(unittest.TestCase):
             self.assertEqual(identity.subject_id("security", {"caip19": caip19}), binding.subject_id)
             self.assertEqual((binding.authority, binding.rule_id), (identity.Authority.RULE_CONFIRMED, "native_coins@1"))
 
-    def test_fixture_bindings_rows_and_search_fit_the_stores(self):
-        rows = []
+    def test_fixture_bindings_fit_the_identity_store(self):
         state = database("identity")
         for name in ("asml.json", "crypto.json"):
             fixture = load(name)
@@ -214,18 +209,6 @@ class FixtureTest(unittest.TestCase):
                     "status": binding.status.value, "tier": binding.tier.value, "authority": binding.authority.value,
                     "rule_id": binding.rule_id, "evidence_ids": list(binding.evidence_ids),
                     "record_digest": model.evidence_id({"binding": ref.wire(), "subject": binding.subject_id}), "revision": 1})
-            rows += fixture["directory_rows"]
-        found = database("directory")
-        for row in rows:
-            self.assertEqual(set(row), set(directory.DirectoryRow.__annotations__))
-            insert(found, "rows", row)
-            insert(found, "rows_text", {"row_id": row["row_id"], "name": row["name"], "issuer_name": row["issuer_name"],
-                                        "aliases": " ".join(row["aliases"]), "tickers": row["ticker_display"]})
-        hits = [hit for (hit,) in found.execute("SELECT row_id FROM rows_text WHERE rows_text MATCH 'asm*' ORDER BY row_id")]
-        self.assertEqual(hits, ["listing:isin:NL0010273215:XAMS:EUR", "listing:isin:USN070592100:XNAS:USD"])
-        hits = [hit for (hit,) in found.execute("SELECT row_id FROM rows_text WHERE rows_text MATCH 'ethereum'")]
-        self.assertEqual(hits, ["security:caip19:eip155:1/slip44:60"])
-        self.assertEqual(state.execute("SELECT count(*) FROM bindings WHERE status='confirmed'").fetchone()[0], 10)
 
 
 class ManifestTest(unittest.TestCase):

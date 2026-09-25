@@ -2,7 +2,7 @@
 
 Core-owned meaning shared by every plugin: subject levels, identifier schemes,
 evidence tiers, typed claims, the resolution queue and its authority rule, the
-store schemas, the directory row and the plugin contract manifest. Plugins reach
+store schemas and the plugin contract manifest. Plugins reach
 it through the loaded core module's `identity` attribute and check
 `API_VERSION`. Pure standard library; no I/O at import.
 """
@@ -42,7 +42,6 @@ class Store(StrEnum):
     REFERENCE = "reference"  # reference/<release>.sqlite3 (read-only) and reference-local.sqlite3
     IDENTITY = "identity"    # identity.sqlite3, v2 of the private identity store
     OVERLAY = "overlay"      # overlay-<plugin>.sqlite3, one per bulk-catalogue plugin
-    DIRECTORY = "directory"  # directory.sqlite3, derived and rebuilt atomically
 
     @property
     def schema_version(self) -> int:
