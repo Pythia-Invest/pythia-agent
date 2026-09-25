@@ -65,10 +65,9 @@ def resolver(opener, key=('missing', None)):
 class OpenFigiJobs(unittest.TestCase):
     def test_identifiers_are_checked_before_provider_work(self):
         valid = [{'idType': 'ID_ISIN', 'idValue': ISIN}, {'idType': 'ID_ISIN', 'idValue': ISIN, 'micCode': 'XAMS'},
-                 {'idType': 'TICKER', 'idValue': 'SYN', 'micCode': 'XNAS'}, {'idType': 'ID_CUSIP', 'idValue': '037833100'},
-                 {'idType': 'ID_BB_GLOBAL', 'idValue': 'BBGZZ0000001'}]
+                 {'idType': 'TICKER', 'idValue': 'SYN', 'micCode': 'XNAS'}, {'idType': 'TICKER', 'idValue': 'SYN', 'exchCode': 'NA'}]
         self.assertEqual(mapping.validate(valid), valid)
-        for job in ({'idType': 'ID_ISIN', 'idValue': 'ZZ1234567894'}, {'idType': 'ID_CUSIP', 'idValue': '037833101'},
+        for job in ({'idType': 'ID_ISIN', 'idValue': 'ZZ1234567894'}, {'idType': 'ID_CUSIP', 'idValue': 'ZZ0000000'},
                     {'idType': 'TICKER', 'idValue': 'SYN'}, {'idType': 'ID_ISIN', 'idValue': ISIN, 'micCode': 'XAMS', 'exchCode': 'NA'},
                     {'idType': 'ID_ISIN', 'idValue': ISIN, 'micCode': 'xams'}, {'idType': 'NAME', 'idValue': 'Synthetic'}):
             with self.subTest(job=job), self.assertRaisesRegex(ValueError, 'invalid_request'):
@@ -93,8 +92,7 @@ class OpenFigiResolve(unittest.TestCase):
         governor._owners.clear()  # Connection budgets are process-wide; isolate each case.
 
     def jobs(self, count):
-        return [{'idType': 'ID_ISIN', 'idValue': ISIN, 'currency': f'Z{index // 26 % 26 + 65:c}{index % 26 + 65:c}'}
-                for index in range(count)]
+        return [{'idType': 'ID_ISIN', 'idValue': ISIN, 'exchCode': f'Z{index}'} for index in range(count)]
 
     def test_request_size_follows_key_mode_and_the_key_is_only_a_header(self):
         keyless = Opener([found] * 3)
@@ -102,7 +100,7 @@ class OpenFigiResolve(unittest.TestCase):
         self.assertEqual(result['outcome'], 'ok')
         self.assertEqual([request['jobs'] for request in keyless.requests], [10, 10, 5])
         self.assertTrue(all(request['key'] is None for request in keyless.requests))
-        self.assertEqual([row['job']['currency'] for row in result['data']['results']], [job['currency'] for job in self.jobs(25)])
+        self.assertEqual([row['job']['exchCode'] for row in result['data']['results']], [job['exchCode'] for job in self.jobs(25)])
         keyed = Opener([found])
         answer = resolver(keyed, ('configured', FAKE_KEY)).invoke({'jobs': self.jobs(25)})
         self.assertEqual(keyed.requests, [{'jobs': 25, 'key': FAKE_KEY}])

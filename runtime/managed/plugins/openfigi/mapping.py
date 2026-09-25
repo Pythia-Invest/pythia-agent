@@ -5,8 +5,8 @@ Source: https://www.openfigi.com/api/documentation (consulted 2026-09-25).
 import re
 
 URL = 'https://api.openfigi.com/v3/mapping'
-ID_TYPES = ('ID_ISIN', 'TICKER', 'ID_CUSIP', 'ID_BB_GLOBAL')
-FILTERS = {'micCode': 4, 'exchCode': 16, 'currency': 3, 'securityType': 64, 'securityType2': 64, 'marketSecDes': 32}
+ID_TYPES = ('ID_ISIN', 'TICKER')
+FILTERS = {'micCode': 4, 'exchCode': 16}
 # The rate-limit table allows 10 jobs per request and 25 requests per minute
 # without a key, and 100 jobs and 25 requests per 6 seconds with one. The
 # endpoint section still says 5 keyless jobs, but a 6-job keyless request was
@@ -33,18 +33,6 @@ def valid_isin(value):
     return _checksum(''.join(str(ord(char) - 55) if char.isalpha() else char for char in value))
 
 
-def valid_cusip(value):
-    """CUSIP shape and check digit (the ninth character)."""
-    if not re.fullmatch('[0-9A-Z*@#]{8}[0-9]', value):
-        return False
-    total = 0
-    for position, char in enumerate(value[:8]):
-        number = int(char) if char.isdigit() else ord(char) - 55 if char.isalpha() else {'*': 36, '@': 37, '#': 38}[char]
-        number *= 2 if position % 2 else 1
-        total += number // 10 + number % 10
-    return (10 - total % 10) % 10 == int(value[8])
-
-
 def validate(jobs):
     """Reject malformed jobs before any provider work; returns the jobs unchanged."""
     if type(jobs) is not list or not 1 <= len(jobs) <= MAX_JOBS:
@@ -61,10 +49,7 @@ def validate(jobs):
             raise ValueError('invalid_request')
         if 'micCode' in job and not re.fullmatch('[A-Z0-9]{4}', job['micCode']):
             raise ValueError('invalid_request')
-        if 'currency' in job and not re.fullmatch('[A-Z]{3}', job['currency']):
-            raise ValueError('invalid_request')
-        if ((kind == 'ID_ISIN' and not valid_isin(value)) or (kind == 'ID_CUSIP' and not valid_cusip(value))
-                or (kind == 'ID_BB_GLOBAL' and not FIGI.fullmatch(value))
+        if ((kind == 'ID_ISIN' and not valid_isin(value))
                 # A bare ticker spans every market; require its venue.
                 or (kind == 'TICKER' and not ({'micCode', 'exchCode'} & set(job)))):
             raise ValueError('invalid_request')

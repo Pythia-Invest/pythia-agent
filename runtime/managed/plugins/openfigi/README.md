@@ -9,17 +9,15 @@ offline reference build maps ISINs.
 
 Supported jobs (`idType` + `idValue`, optional filters):
 
-- `ID_ISIN`, alone or with `micCode` (for example ISIN + XAMS);
+- `ID_ISIN`, alone or with `micCode` or `exchCode` (for example ISIN + XAMS);
 - `TICKER` with a venue, `micCode` or `exchCode` (a bare ticker spans every
-  market and is rejected);
-- `ID_CUSIP` and `ID_BB_GLOBAL`;
-- optional `currency`, `securityType`, `securityType2` and `marketSecDes`.
+  market and is rejected).
 
 OpenFIGI matches `micCode` against the listing's segment MIC. A Nasdaq Global
 Select line answers to XNGS (or exchange code UW), not to the operating MIC XNAS
 that sources such as SEC report. The connector does not translate between them.
 
-ISINs and CUSIPs are checked for shape and check digit before any request, which
+ISINs are checked for shape and check digit before any request, which
 catches malformed input but does not prove issuance. Results keep job order.
 Each job is `found` with every candidate (`figi`, `compositeFIGI`,
 `shareClassFIGI`, `ticker`, `exchCode`, `name`, security types, market sector),
