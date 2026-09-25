@@ -8,6 +8,7 @@ import json
 import socket
 import time
 from threading import Lock
+import zlib
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -48,7 +49,7 @@ class Transport:
         retry_after = import_module(self.connector.__package__ + '.worker_budget').retry_after
         operation = request['operation']
         url = DIRECTORY_URL if operation == 'directory' else submissions_url(request['cik']) if operation == 'submissions' else facts_url(request['cik'])
-        req = Request(url, headers={'User-Agent': request['contact'], 'Accept': 'application/json', 'Accept-Encoding': 'identity'})
+        req = Request(url, headers={'User-Agent': request['contact'], 'Accept': 'application/json', 'Accept-Encoding': 'gzip'})
         started, status = time.monotonic(), None
         try:
             with budget.slot(cancelled):
@@ -57,6 +58,9 @@ class Transport:
                 self._pace(cancelled)
                 with self.opener.open(req, timeout=min(timeout, 8)) as response:
                     status = response.status
+                    # MAX_BYTES bounds the decoded size, so a small compressed body cannot expand past it.
+                    compressed = (response.headers.get('Content-Encoding') or '').strip().lower() == 'gzip'
+                    decoder = zlib.decompressobj(zlib.MAX_WBITS | 16) if compressed else None
                     content, size = [], 0
                     while True:
                         if cancelled():
@@ -66,10 +70,14 @@ class Transport:
                         chunk = response.read(65536)
                         if not chunk:
                             break
+                        if decoder is not None:
+                            chunk = decoder.decompress(chunk, MAX_BYTES + 1 - size)
                         size += len(chunk)
                         if size > MAX_BYTES:
                             raise RuntimeError('output_limit')
                         content.append(chunk)
+                    if decoder is not None and not decoder.eof:
+                        raise ValueError('invalid_response')
                     value = json.loads(b''.join(content))
                     if not isinstance(value, dict):
                         raise ValueError('invalid_response')
@@ -86,7 +94,7 @@ class Transport:
             raise self.connector.SourceFailure({'error': 'timeout'}) from None
         except URLError:
             raise self.connector.SourceFailure({'error': 'network_error'}) from None
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, zlib.error):
             raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
         finally:
             self.connector.emit('outbound_completed', provider='sec', operation=operation,

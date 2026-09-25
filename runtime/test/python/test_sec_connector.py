@@ -5,6 +5,7 @@ Shapes: https://www.sec.gov/search-filings/edgar-application-programming-interfa
 CIKs, names and tickers below are invented.
 """
 from copy import deepcopy
+import gzip
 import importlib
 import importlib.util
 import io
@@ -199,6 +200,20 @@ class SecExecution(unittest.TestCase):
         self.assertEqual((caught.exception.raw['error'], caught.exception.raw['retry_after']), ('access_denied', 45))
         self.assertEqual(requests[0].full_url, 'https://data.sec.gov/api/xbrl/companyfacts/CIK0000123456.json')
         self.assertEqual(requests[0].get_header('User-agent'), CONTACT)
+
+    def test_gzip_responses_are_inflated_within_the_size_limit(self):
+        def serve(_request, timeout):
+            response = io.BytesIO(gzip.compress(json.dumps(SUBMISSIONS).encode()))
+            response.status, response.headers = 200, {'Content-Encoding': 'gzip'}
+            return response
+        transport = client.Transport(connector, opener=SimpleNamespace(open=serve))
+
+        def read():
+            return transport.run_worker([], {'operation': 'submissions', 'cik': CIK, 'contact': CONTACT}, {},
+                cancelled=lambda: False, budget=connector.connection('sec-test-gzip', concurrency=1, per_minute=10))
+        self.assertEqual(read()['data'], SUBMISSIONS)
+        with patch.object(client, 'MAX_BYTES', 64), self.assertRaisesRegex(RuntimeError, 'output_limit'):
+            read()
 
     def test_successful_reads_are_retained_but_failures_and_refresh_are_not(self):
         class Flaky(Transport):

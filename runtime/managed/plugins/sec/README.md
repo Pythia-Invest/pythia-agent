@@ -45,7 +45,8 @@ outside printable ASCII, which cannot be sent as a header.
 
 Requests go only to fixed SEC URLs. They are paced below SEC's fair-access limit
 of ten per second (at most five per second, 120 per minute, two concurrent), and
-redirects are refused. Successful reads are retained in memory: the ticker file
+redirects are refused. Responses are requested gzip-compressed, which keeps large
+companyfacts files within the read timeout; a decoded body above 24 MB is refused. Successful reads are retained in memory: the ticker file
 for 24 hours, submissions for 5 minutes and companyfacts for 1 hour. Failures are
 not retained. `refresh: true` bypasses the retained copy.
 
