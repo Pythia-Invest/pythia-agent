@@ -8,6 +8,7 @@ import io
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
 from urllib.error import HTTPError
 
@@ -57,7 +58,8 @@ def found(jobs):
 
 def resolver(opener, key=('missing', None)):
     transport = client.Transport(connector, opener=opener)
-    return plugin.Resolver(wire, connector, lambda _key: key, transport=transport)
+    configuration = SimpleNamespace(value=lambda _ctx, _key: key)  # Stands in for core configuration.
+    return plugin.Resolver(wire, connector, lambda: configuration, None, transport=transport)
 
 
 class OpenFigiJobs(unittest.TestCase):

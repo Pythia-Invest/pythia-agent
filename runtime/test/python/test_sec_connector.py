@@ -9,10 +9,8 @@ import importlib
 import importlib.util
 import io
 import json
-import os
 from pathlib import Path
 import sys
-import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -29,7 +27,6 @@ identity = importlib.import_module('sec_fixture.identity')
 financials = importlib.import_module('sec_fixture.financials')
 catalogue = importlib.import_module('sec_fixture.catalogue')
 client = importlib.import_module('sec_fixture.client')
-shim = importlib.import_module('sec_fixture.configuration_shim')
 connector = importlib.import_module(wire.__package__ + '.connector')
 
 STAMP = '2026-09-24T10:00:00+00:00'
@@ -69,9 +66,17 @@ class Transport:
         return {'data': deepcopy(self.documents[request['operation']]), 'observed_at': STAMP, 'issues': []}
 
 
-def reader(documents=None, contact=('configured', CONTACT)):
-    transport = Transport(documents or {})
-    return plugin.Reader(wire, connector, lambda _key: contact, transport=transport), transport
+def settings(status='configured', value=CONTACT):
+    """Stands in for core configuration holding one sec_identity value."""
+    blocked = None if status == 'configured' else {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [
+        {'code': 'needs_configuration', 'severity': 'error', 'fields': [{'key': 'sec_identity', 'status': status}]}]}
+    return SimpleNamespace(needs_configuration=lambda _ctx: blocked,
+                           value=lambda _ctx, _key: (status, value if status == 'configured' else None))
+
+
+def reader(documents=None, configuration=None):
+    transport, configuration = Transport(documents or {}), configuration or settings()
+    return plugin.Reader(wire, connector, lambda: configuration, None, transport=transport), transport
 
 
 class SecIdentity(unittest.TestCase):
@@ -171,44 +176,25 @@ class SecFinancials(unittest.TestCase):
 
 
 class SecConfiguration(unittest.TestCase):
-    def test_unconfigured_contact_is_explicit_and_makes_no_request(self):
-        for setting, status in ((('missing', None), 'missing'), (('configured', 'no-email-contact'), 'invalid'),
-                                (('configured', 'research@example.invalid'), 'invalid')):
-            with self.subTest(setting=setting):
-                instance, transport = reader({}, contact=setting)
-                result = instance.invoke('filings', {'native_ref': REF})
-                self.assertEqual(result['issues'][0]['code'], 'not_configured')
-                self.assertEqual(result['issues'][0]['message'], plugin.UNCONFIGURED[status])
-                self.assertEqual(instance.check()['data']['status'], 'invalid')
+    def test_missing_or_unusable_contact_needs_configuration_and_makes_no_request(self):
+        for configuration in (settings('missing'), settings('invalid'), settings(value='no-email-contact'),
+                              settings(value='research@example.invalid')):
+            with self.subTest(configuration=configuration.value(None, 'sec_identity')):
+                instance, transport = reader({}, configuration)
+                issue = instance.invoke('filings', {'native_ref': REF})['issues'][0]
+                self.assertEqual((issue['code'], issue['fields'][0]['key']), ('needs_configuration', 'sec_identity'))
                 self.assertEqual(transport.calls, [])
-        self.assertEqual(reader({})[0].check(), {'schema_version': 1, 'data': {'status': 'valid'}})
 
-    def test_registration_hides_reads_until_configured_but_keeps_the_check(self):
-        setting = ['missing', None]
+    def test_reads_stay_visible_and_report_configuration_when_called(self):
         tools = {}
         ctx = SimpleNamespace(register_tool=lambda **tool: tools.update({tool['name']: tool}))
         selection = SimpleNamespace(native_access_scope=lambda: {'cacheable': True, 'scope': 'fixture'})
-        platform = SimpleNamespace(platform=lambda: SimpleNamespace(configuration=SimpleNamespace(value=lambda _ctx, _key: tuple(setting))))
+        platform = SimpleNamespace(platform=lambda: SimpleNamespace(configuration=settings('missing')))
         self.enterContext(patch.object(plugin, 'helpers', return_value=(wire, connector, selection, platform)))
         plugin.register(ctx)
-        self.assertFalse(tools['pythia_sec_filings']['check_fn']())
-        self.assertTrue(tools['pythia_sec_check_configuration']['check_fn']())
-        self.assertEqual(json.loads(tools['pythia_sec_check_configuration']['handler']({}))['data']['status'], 'invalid')
-        setting[:] = ['configured', CONTACT]
-        self.assertTrue(tools['pythia_sec_filings']['check_fn']())
-
-    def test_shim_reads_only_private_stores(self):
-        with tempfile.TemporaryDirectory() as root:
-            os.chmod(root, 0o700)
-            path = Path(root) / 'settings.json'
-            path.write_text(json.dumps({'schema_version': 1, 'sec_identity': CONTACT}))
-            with patch.dict(os.environ, {'PYTHIA_CONFIG_ROOT': root}):
-                os.chmod(path, 0o600)
-                self.assertEqual(shim.value(None, 'sec_identity'), ('configured', CONTACT))
-                self.assertEqual(shim.missing(None), [])
-                os.chmod(path, 0o644)
-                self.assertEqual(shim.value(None, 'sec_identity'), ('invalid', None))
-                self.assertEqual(shim.missing(None), ['sec_identity'])
+        self.assertTrue(all(tool['check_fn']() for tool in tools.values()))
+        result = json.loads(tools['pythia_sec_resolve']['handler']({'cik': CIK}))
+        self.assertEqual(result['issues'][0]['code'], 'needs_configuration')
 
 
 class SecExecution(unittest.TestCase):
@@ -236,7 +222,7 @@ class SecExecution(unittest.TestCase):
                     raise connector.SourceFailure({'error': 'rate_limit', 'retry_after': 30, 'limit_origin': 'provider'})
                 return super().run_worker(*args, **options)
         transport = Flaky({'companyfacts': companyfacts({'USD': [observation(100)]})})
-        instance = plugin.Reader(wire, connector, lambda _key: ('configured', CONTACT), transport=transport)
+        instance = plugin.Reader(wire, connector, settings, None, transport=transport)
         for _ in range(2):
             self.assertEqual(instance.invoke('fundamentals', {'native_ref': REF})['outcome'], 'ok')
         self.assertEqual(len(transport.calls), 1)

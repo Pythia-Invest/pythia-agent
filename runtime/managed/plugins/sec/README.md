@@ -12,7 +12,6 @@ directory, which this plugin's catalogue helps to fill.
 | `filings` | `pythia_sec_filings` | submissions | Recent filings with form, filing date, report period and document link, including 20-F, 40-F and 6-K. |
 | `fundamentals` | `pythia_sec_fundamentals` | `api/xbrl/companyfacts` | Latest annual US GAAP or IFRS (`ifrs-full`, used by foreign private issuers) facts with exact periods, units and filing provenance. |
 | `facts` | `pythia_sec_facts` | companyfacts | Native facts for explicit concepts of one taxonomy. |
-| `check_configuration` | `pythia_sec_check_configuration` | none | Whether the configured contact is usable. |
 
 A 20-F filer does not imply IFRS. Some foreign private issuers tag US GAAP in
 their own currency (for example EUR), others use `ifrs-full`. Both taxonomies are
@@ -32,16 +31,18 @@ build can reuse them on the same files.
 
 SEC requires every automated request to declare a contact in its User-Agent: a
 name followed by an email address. `configuration.json` declares it as the
-required `sec_identity` field (kind `identity`), stored in Pythia's `settings.json`.
-The plugin reads the value only through core's `platform.configuration` and never
-logs or returns it. `configuration_shim.py` stands in until that core reader
-ships and is then deleted.
+required `sec_identity` field (kind `identity`). Set it in `settings.json` in the
+Pythia config folder (`~/.config/pythia`, mode `0600`):
 
-Until the contact is set, the SEC reads are hidden from the agent and a direct
-call returns a `not_configured` issue saying what is missing. The declared
-`check_configuration` operation reports the same state to core's configuration
-check without contacting SEC. A value without an email address counts as not configured,
-because SEC rejects such requests with HTTP 403.
+```json
+{"schema_version": 1, "sec_identity": "Your Name you@example.org"}
+```
+
+The plugin reads the value only through core's `platform.configuration` and never
+logs or returns it. Until a usable contact is set, every SEC tool returns core's
+standard `needs_configuration` result naming the field and file, without
+contacting SEC. A value without an email address gets the same result, because
+SEC rejects such requests with HTTP 403.
 
 ## Limits and caching
 

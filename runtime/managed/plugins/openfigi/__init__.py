@@ -7,7 +7,7 @@ limits apply.
 import importlib
 import json
 
-from . import configuration_shim, mapping
+from . import mapping
 from .client import Transport
 from .definition import TOOL, schema
 
@@ -23,39 +23,26 @@ def helpers(ctx):
     return tuple(importlib.import_module(namespace + '.' + name) for name in ('wire', 'connector', 'selection', '_platform'))
 
 
-def setting(ctx, platform, key):
-    """``(status, value)`` from core ``platform.configuration`` custody.
-
-    configuration_shim stands in only while core lacks that reader.
-    """
-    try:
-        reader = getattr(platform.platform(), 'configuration', None) or configuration_shim
-        return reader.value(ctx, key)
-    except (RuntimeError, OSError, ValueError, KeyError, TypeError):
-        return 'invalid', None  # An unreadable declaration or store never yields a usable value.
-
-
 def failure(code, message):
     return {'schema_version': 1, 'outcome': 'error', 'data': None,
             'issues': [{'code': code, 'severity': 'error', 'message': message}]}
 
 
 class Resolver:
-    """``setting(key)`` returns ``(status, value)`` from core configuration custody."""
+    """``configuration()`` returns core's ``platform.configuration`` for ``ctx``."""
 
-    def __init__(self, wire, connector, setting, *, transport=None):
-        self.wire, self.connector, self.setting = wire, connector, setting
+    def __init__(self, wire, connector, configuration, ctx, *, transport=None):
+        self.wire, self.connector, self.configuration, self.ctx = wire, connector, configuration, ctx
         self.definition = schema()
         self.reads = connector.WorkerReads(transport or Transport(connector))
 
     def invoke(self, arguments, cancelled=None, scope=None):
+        readiness, key = self.configuration().value(self.ctx, 'openfigi_api_key')
+        notes = [] if readiness != 'invalid' else [{'code': 'invalid_configuration', 'severity': 'warning',
+            'message': "The OpenFIGI API key (openfigi_api_key in Pythia's secrets.json) is invalid; "
+                       'keyless limits were used.'}]
         try:
             jobs = mapping.validate(self.wire.validate_parameters(self.definition['parameters'], arguments)['jobs'])
-            readiness, key = self.setting('openfigi_api_key')
-            notes = [] if readiness != 'invalid' else [{'code': 'invalid_configuration', 'severity': 'warning',
-                'message': "The OpenFIGI API key (openfigi_api_key in Pythia's secrets.json) is invalid; "
-                           'keyless limits were used.'}]
-            key = key if readiness == 'configured' else None
             budget = self.connector.connection('openfigi', key, concurrency=2, per_minute=250 if key else 25)
             reuse = scope is None or scope.get('cacheable', False)
             raw = self.reads.read([__file__], {'operation': 'mapping', 'jobs': jobs, 'key': key}, {},
@@ -92,7 +79,7 @@ class Resolver:
 
 def register(ctx):
     wire, connector, _selection, platform = helpers(ctx)
-    resolver = Resolver(wire, connector, lambda key: setting(ctx, platform, key))
+    resolver = Resolver(wire, connector, lambda: platform.platform().configuration, ctx)
 
     def available():
         try:

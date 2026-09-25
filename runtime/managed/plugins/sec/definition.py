@@ -1,8 +1,7 @@
 """SEC's native tools and their deliberate protected operation exports."""
 import json
 
-CHECK = 'check_configuration'
-OPERATIONS = ('catalogue', 'resolve', 'filings', 'fundamentals', 'facts', CHECK)
+OPERATIONS = ('catalogue', 'resolve', 'filings', 'fundamentals', 'facts')
 TOOLS = {operation: 'pythia_sec_' + operation for operation in OPERATIONS}
 TAXONOMIES = ('us-gaap', 'ifrs-full', 'dei', 'srt')
 
@@ -27,7 +26,6 @@ def schemas(wire):
                          'items': {'type': 'string', 'pattern': '^[A-Za-z][A-Za-z0-9]{0,199}$'}},
             'limit': {'type': 'integer', 'minimum': 1, 'maximum': 500}, 'refresh': refresh},
             ['native_ref', 'taxonomy', 'concepts']),
-        CHECK: ({}, []),
     }
     descriptions = {
         'catalogue': 'Read a bounded page of SEC\'s public ticker file for local reference indexing: one row per '
@@ -44,8 +42,6 @@ def schemas(wire):
             'conversion is inferred.',
         'facts': 'Read bounded native XBRL facts for explicit concepts of one taxonomy (us-gaap, ifrs-full, dei or '
             'srt) for an SEC CIK reference, keeping periods, filing revisions and reported units.',
-        CHECK: 'Check whether the configured SEC contact (sec_identity) has the name and email address SEC requires. '
-            'Makes no SEC request and never returns the contact.',
     }
     result = {}
     for operation, (properties, required) in fields.items():

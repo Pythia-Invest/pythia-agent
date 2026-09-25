@@ -29,9 +29,11 @@ connector never picks one. FIGIs identify instruments, not legal issuers.
 
 ## Configuration and limits
 
-`configuration.json` declares the optional `openfigi_api_key` secret. The key is
-read only through core's `platform.configuration`; `configuration_shim.py` stands
-in until that core reader ships and is then deleted. The key is sent only in the
+`configuration.json` declares the optional `openfigi_api_key` secret. To use a
+key, set it in `secrets.json` in the Pythia config folder (`~/.config/pythia`,
+mode `0600`), next to the existing fields:
+`{"schema_version": 1, ..., "openfigi_api_key": "<your key>"}`. The key is read
+only through core's `platform.configuration` and is sent only in the
 `X-OPENFIGI-APIKEY` header of this process's requests and is never logged,
 returned or passed to a subprocess. An invalid key falls back to keyless use with
 a warning.
