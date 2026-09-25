@@ -44,7 +44,7 @@ def schemas(wire):
             'conversion is inferred.',
         'facts': 'Read bounded native XBRL facts for explicit concepts of one taxonomy (us-gaap, ifrs-full, dei or '
             'srt) for an SEC CIK reference, keeping periods, filing revisions and reported units.',
-        CHECK: 'Check whether the SEC contact in Settings has the name and email address SEC requires. '
+        CHECK: 'Check whether the configured SEC contact (sec_identity) has the name and email address SEC requires. '
             'Makes no SEC request and never returns the contact.',
     }
     result = {}

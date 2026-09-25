@@ -32,15 +32,15 @@ build can reuse them on the same files.
 
 SEC requires every automated request to declare a contact in its User-Agent: a
 name followed by an email address. `configuration.json` declares it as the
-required `sec_identity` field (kind `identity`), so Settings shows an SEC section.
+required `sec_identity` field (kind `identity`), stored in Pythia's `settings.json`.
 The plugin reads the value only through core's `platform.configuration` and never
 logs or returns it. `configuration_shim.py` stands in until that core reader
 ships and is then deleted.
 
 Until the contact is set, the SEC reads are hidden from the agent and a direct
 call returns a `not_configured` issue saying what is missing. The declared
-`check_configuration` operation reports the same state to Settings without
-contacting SEC. A value without an email address counts as not configured,
+`check_configuration` operation reports the same state to core's configuration
+check without contacting SEC. A value without an email address counts as not configured,
 because SEC rejects such requests with HTTP 403.
 
 ## Limits and caching

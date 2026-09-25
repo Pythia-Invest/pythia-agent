@@ -13,8 +13,8 @@ from .definition import CHECK, TOOLS, schemas
 # Retained-copy ages per SEC resource, in seconds.
 AGES = {'directory': 86400, 'submissions': 300, 'companyfacts': 3600}
 UNCONFIGURED = {
-    'missing': 'SEC needs a contact name and email in Settings before it can be used.',
-    'invalid': 'The SEC contact in Settings must be a name followed by an email address.',
+    'missing': "SEC needs a contact name and email before it can be used: set sec_identity in Pythia's settings.json.",
+    'invalid': "The SEC contact (sec_identity in Pythia's settings.json) must be a name followed by an email address.",
 }
 
 
@@ -136,8 +136,8 @@ def register(ctx):
     reader = Reader(wire, connector, lambda key: setting(ctx, platform, key))
 
     def available(configured=True):
-        # Unconfigured SEC tools are hidden from the agent; Settings shows the
-        # required contact from configuration.json and its check result.
+        # Unconfigured SEC tools are hidden from the agent; configuration.json
+        # declares the required contact and the check reports its state.
         try:
             helpers(ctx)
         except RuntimeError:

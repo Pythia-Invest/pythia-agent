@@ -53,7 +53,8 @@ class Resolver:
             jobs = mapping.validate(self.wire.validate_parameters(self.definition['parameters'], arguments)['jobs'])
             readiness, key = self.setting('openfigi_api_key')
             notes = [] if readiness != 'invalid' else [{'code': 'invalid_configuration', 'severity': 'warning',
-                'message': 'The OpenFIGI API key in Settings is invalid; keyless limits were used.'}]
+                'message': "The OpenFIGI API key (openfigi_api_key in Pythia's secrets.json) is invalid; "
+                           'keyless limits were used.'}]
             key = key if readiness == 'configured' else None
             budget = self.connector.connection('openfigi', key, concurrency=2, per_minute=250 if key else 25)
             reuse = scope is None or scope.get('cacheable', False)
