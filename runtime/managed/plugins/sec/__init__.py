@@ -17,7 +17,7 @@ INVALID_CONTACT = {'schema_version': 1, 'outcome': 'error', 'data': None, 'issue
     'code': 'needs_configuration', 'severity': 'error',
     'fields': [{'key': 'sec_identity', 'label': 'SEC contact', 'file': 'settings.json', 'status': 'invalid'}],
     'message': 'This plugin needs configuration in the Pythia config folder: SEC contact (sec_identity in '
-               'settings.json) must be a name followed by an email address.'}]}
+               'settings.json) must be a name followed by an email address, in plain ASCII.'}]}
 
 
 def helpers(ctx):

@@ -42,7 +42,8 @@ The plugin reads the value only through core's `platform.configuration` and neve
 logs or returns it. Until a usable contact is set, every SEC tool returns core's
 standard `needs_configuration` result naming the field and file, without
 contacting SEC. A value without an email address gets the same result, because
-SEC rejects such requests with HTTP 403.
+SEC rejects such requests with HTTP 403, and so does a value with characters
+outside printable ASCII, which cannot be sent as a header.
 
 ## Limits and caching
 

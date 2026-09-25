@@ -15,8 +15,12 @@ _EMAIL = re.compile(r'[^\s@]+@[^\s@]+\.[^\s@]+')
 
 
 def contact(value):
-    """SEC fair access requires a declared name and email in the User-Agent."""
-    if not isinstance(value, str) or len(value) > 320 or any(ord(c) < 32 or ord(c) == 127 for c in value):
+    """SEC fair access requires a declared name and email in the User-Agent.
+
+    HTTP headers here are encoded as ASCII-compatible bytes, so only printable
+    ASCII is usable; anything else would fail every request.
+    """
+    if not isinstance(value, str) or len(value) > 320 or any(not 32 <= ord(c) < 127 for c in value):
         return False
     parts = value.split()
     return len(parts) >= 2 and bool(_EMAIL.fullmatch(parts[-1]))

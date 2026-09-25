@@ -178,7 +178,8 @@ class SecFinancials(unittest.TestCase):
 class SecConfiguration(unittest.TestCase):
     def test_missing_or_unusable_contact_needs_configuration_and_makes_no_request(self):
         for configuration in (settings('missing'), settings('invalid'), settings(value='no-email-contact'),
-                              settings(value='research@example.invalid')):
+                              settings(value='research@example.invalid'),
+                              settings(value='\u00c9mile Research emile@example.invalid')):
             with self.subTest(configuration=configuration.value(None, 'sec_identity')):
                 instance, transport = reader({}, configuration)
                 issue = instance.invoke('filings', {'native_ref': REF})['issues'][0]
