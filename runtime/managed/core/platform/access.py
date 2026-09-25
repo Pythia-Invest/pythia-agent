@@ -30,9 +30,10 @@ def canonical_access_revision():
         directory = Path(root).lstat()
         files = [(Path(root) / 'secrets.json').lstat()]
         # Plugin identity configuration lives in settings.json; it may be absent.
-        settings = Path(root) / 'settings.json'
-        if settings.exists() or settings.is_symlink():
-            files.append(settings.lstat())
+        try:
+            files.append((Path(root) / 'settings.json').lstat())
+        except FileNotFoundError:
+            pass
         if (not stat.S_ISDIR(directory.st_mode) or not directory.st_mode & stat.S_IXUSR
                 or any(not stat.S_ISREG(item.st_mode) or not item.st_mode & stat.S_IRUSR for item in files)
                 or any(item.st_uid != os.getuid() or item.st_mode & 0o077 for item in (directory, *files))):

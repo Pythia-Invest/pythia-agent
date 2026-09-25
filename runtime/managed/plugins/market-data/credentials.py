@@ -7,4 +7,5 @@ from ._platform import platform
 
 
 def eodhd_token():
+    # TEMPORARY shim: removed once connectors read via configuration.value.
     return platform().configuration.read('secret', 'eodhd_api_token')
