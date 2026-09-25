@@ -22,14 +22,19 @@ def checked_date(value):
     return value
 
 
+def owned(item, identifier):
+    """Whether the repository links this filing to the requested entity."""
+    related = item.get('relationships', {}).get('entity', {}).get('links', {}).get('related')
+    return related == entity_url(identifier).removeprefix(ORIGIN)
+
+
 def records(raw, identifier):
     if not isinstance(raw, dict) or not isinstance(raw.get('data'), list):
         raise ValueError('invalid_response')
     result = []
     for item in raw['data']:
         attrs = item.get('attributes', {})
-        related = item.get('relationships', {}).get('entity', {}).get('links', {}).get('related')
-        if item.get('type') != 'filing' or related != entity_url(identifier).removeprefix(ORIGIN):
+        if item.get('type') != 'filing' or not owned(item, identifier):
             raise ValueError('invalid_response')
         report_id, digest = str(item.get('id', '')), attrs.get('sha256')
         if not re.fullmatch(r'[0-9]{1,16}', report_id) or not isinstance(digest, str) or not re.fullmatch(r'[a-f0-9]{64}', digest):

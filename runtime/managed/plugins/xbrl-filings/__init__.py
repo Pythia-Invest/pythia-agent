@@ -51,8 +51,9 @@ class Reader:
                 def prepare(raw):
                     try:
                         return {**raw, 'data': validate(raw['data'], raw['observed_at'])}
-                    except (ValueError, KeyError, TypeError, AttributeError):
-                        raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
+                    except (ValueError, KeyError, TypeError, AttributeError) as error:
+                        code = 'missing_observation' if str(error) == 'missing_observation' else 'invalid_response'
+                        raise self.connector.SourceFailure({'error': code}) from None
                 return self.reads.read([__file__], {'operation': label, 'url': url}, {},
                     cancelled=cancelled, budget=budget, age=0 if refresh else age, timeout=20,
                     prepare_result=prepare, cache_scope=['xbrl-validated:2', cache_scope, scope])
@@ -78,6 +79,9 @@ class Reader:
                 return envelope(reports.filings(raw['data'], identifier, raw['observed_at'], limit))
             if clean.get('report_id'):
                 def validate_report(raw, stamp):
+                    if not reports.owned(raw['data'], identifier):
+                        # Another issuer's report is no report of this issuer.
+                        raise ValueError('missing_observation')
                     validate_reports({'data': [raw['data']], 'meta': {'count': 1}}, stamp)
                     return raw
                 raw = fetch(identity.ORIGIN + '/api/filings/' + clean['report_id'], 'report', validate_report,

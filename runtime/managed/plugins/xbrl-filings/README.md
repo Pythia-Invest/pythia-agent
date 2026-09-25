@@ -67,7 +67,8 @@ establish amendment order, so the connector never picks one silently:
 Filings and fundamentals share a cached 50-report metadata request; pagination is
 constructed under the requested LEI because upstream pagination links can lose
 that scope. Every returned filing is checked against the requested entity, and
-explicit report reads validate its entity relationship. Reports are capped at
+explicit report reads validate its entity relationship: another issuer's
+`report_id` is `missing_observation` for this issuer. Reports are capped at
 16 MB and 100,000 facts, with at most eight selected concepts and 200 returned
 observations. URLs stay on the fixed HTTPS origin and under the expected LEI path;
 redirects are rejected.

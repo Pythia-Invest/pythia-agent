@@ -210,7 +210,8 @@ class XbrlSemantics(unittest.TestCase):
         transport = FakeTransport([{'data': filing(identifier=OTHER)}])
         reader = plugin.Reader(wire, connector, transport=transport)
         result = reader.invoke('fundamentals', {'native_ref': REF, 'report_id': '1'})
-        self.assertEqual(result['issues'][0]['code'], 'invalid_response')
+        # Another issuer's report ID is missing for this issuer, not a response to retry.
+        self.assertEqual((result['outcome'], result['issues'][0]['code']), ('error', 'missing_observation'))
         self.assertEqual(len(transport.requests), 1)
         failure = connector.SourceFailure({'error': 'rate_limit', 'retry_after': 12, 'limit_origin': 'provider'})
         reader = plugin.Reader(wire, connector, transport=FakeTransport([failure]))
