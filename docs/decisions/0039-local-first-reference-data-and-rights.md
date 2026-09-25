@@ -21,11 +21,11 @@ source's own wording governs.
 **The reference builder runs on the device.** By default, the device fetches
 directly from the sources for the investor's own use and builds its reference
 data locally. It stores the result in the device's embedded SQLite stores.
-Pythia publishes no snapshot and operates no service. Subject IDs are opaque and
-device-local. Rebuilds carry them forward and map them by identifiers, so saved
-references stay stable. Refreshes run in the background.
-Search and pages use the last completed build and never wait on a refresh or
-contact a source while the investor types.
+Pythia publishes no snapshot and operates no service. Subject IDs are derived
+from open identifiers (ADR 0037), so rebuilds and separate installations agree
+on them. Refreshes run in the background. Search and pages use the last
+completed build and never wait on a refresh or contact a source while the
+investor types.
 
 **Fetching respects each source's terms and load.** Every request to the SEC
 declares a User-Agent with a contact. That contact is the investor's configured
@@ -106,8 +106,8 @@ own ADR and rights review covering these questions:
 - **ESMA.** Bulk reuse in redistributed datasets and the exact attribution
   wording need confirmation.
 - **Trust.** Delivery must be authenticated, for example by a manifest hash
-  pinned in source. Device-local IDs need a lineage. Model verdicts stay out of
-  any release until a separate decision.
+  pinned in source. Model verdicts stay out of any release until a separate
+  decision.
 
 ## Rejected alternatives
 
