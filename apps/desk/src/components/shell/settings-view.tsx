@@ -16,6 +16,7 @@ import {
   useThemePreference,
 } from "@pythia/ui";
 import { useState } from "react";
+import { PluginConfigurationSettings } from "./plugin-configuration";
 import {
   CapabilitySettings,
   ModelSettings,
@@ -33,6 +34,11 @@ const sections = [
     id: "models",
     label: "Models",
     description: "Native model authentication on this device.",
+  },
+  {
+    id: "plugins",
+    label: "Plugins",
+    description: "Configuration that enabled plugins need on this host.",
   },
   {
     id: "capabilities",
@@ -157,6 +163,7 @@ export function SettingsView() {
                   />
                 ) : null}
                 {item.id === "models" ? <ModelSettings /> : null}
+                {item.id === "plugins" ? <PluginConfigurationSettings /> : null}
                 {item.id === "capabilities" ? <CapabilitySettings /> : null}
                 {item.id === "updates" ? <UpdateSettings /> : null}
               </div>

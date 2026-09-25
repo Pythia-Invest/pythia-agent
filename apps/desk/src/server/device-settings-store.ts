@@ -44,7 +44,7 @@ function privateFile(path: string) {
   return process.platform === "win32" || (info.mode & 0o077) === 0;
 }
 
-function readStore(path: string): JsonStore | null {
+export function readStore(path: string): JsonStore | null {
   if (!existsSync(path)) return { schema_version: 1 };
   if (!privateFile(path)) return null;
   try {

@@ -37,6 +37,11 @@ import {
   type ReleaseStatusService,
 } from "./release-status";
 import { createSettingsRoutes } from "./settings-routes";
+import {
+  pluginConfigurationService,
+  type PluginConfigurationService,
+} from "./plugin-configuration";
+import { createPluginConfigurationRoutes } from "./plugin-configuration-routes";
 import type { ApprovalChoice, DeskRunEvent, HermesClient } from "./types";
 
 type RouteContext = { params: Promise<Record<string, string>> };
@@ -102,6 +107,7 @@ export function createDeskRoutes(
   workspace: WorkspaceStore = workspaceStore,
   views: DeskViewStore = deskViewStore,
   sessionContext = createNativeSessionContextReader(),
+  configuration: PluginConfigurationService = pluginConfigurationService,
 ) {
   return {
     ...createWidgetRoutes(),
@@ -372,6 +378,7 @@ export function createDeskRoutes(
       }
     },
     ...createSettingsRoutes(settings),
+    ...createPluginConfigurationRoutes(configuration),
   };
 }
 

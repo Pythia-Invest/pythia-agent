@@ -26,6 +26,33 @@ export function useReleaseStatus() {
   });
 }
 
+export function usePluginConfiguration() {
+  const api = useDeskApi();
+  return useQuery({
+    queryKey: deskKeys.pluginConfiguration,
+    queryFn: () => api.pluginConfiguration.list(),
+  });
+}
+
+type ConfigurationChange =
+  | { action: "save"; plugin: string; key: string; value: string | null }
+  | { action: "check"; plugin: string };
+
+/** Saves a field or runs a plugin's check; responses carry no secret values. */
+export function useChangePluginConfiguration() {
+  const api = useDeskApi();
+  const cache = useQueryClient();
+  return useMutation({
+    gcTime: 0,
+    mutationFn: (change: ConfigurationChange) =>
+      change.action === "save"
+        ? api.pluginConfiguration.set(change.plugin, change.key, change.value)
+        : api.pluginConfiguration.check(change.plugin),
+    onSettled: () =>
+      cache.invalidateQueries({ queryKey: deskKeys.pluginConfiguration }),
+  });
+}
+
 /** The server owns native mutation, restart and readback. */
 export function useChangeDeviceSetting() {
   const api = useDeskApi();
