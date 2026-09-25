@@ -146,54 +146,83 @@ handler-bound coordination hooks; neither mechanism creates another inventory.
 
 ## Plugin configuration
 
-A plugin that needs credentials or a provider contact ships a static
-`configuration.json` beside `plugin.yaml`. Core reads it for loaded, natively
-enabled plugins without running plugin code, and Desk shows one section per such
-plugin under Settings, Plugins:
+A plugin that needs a credential or a provider contact ships a static
+`configuration.json` beside `plugin.yaml`. Core reads it without running plugin
+code:
 
 ```json
 {
   "schema_version": 1,
-  "check": "check_configuration",
   "fields": [
     {"key": "sec_identity", "kind": "identity", "label": "SEC contact",
-     "help": "Name email@example.org, sent as the SEC User-Agent.", "required": true},
+     "help": "Your name and email address, sent as the SEC User-Agent.", "required": true},
     {"key": "openfigi_api_key", "kind": "secret", "label": "OpenFIGI API key"}
   ]
 }
 ```
 
-- `key` (`^[a-z][a-z0-9_]{2,63}$`) is the field in custody; reuse an existing
-  name so saved values keep working. `schema_version`, `hermes_api_key` and
-  `configuration_checks` are reserved.
-- `kind` is `secret` (stored in `secrets.json`, at most 512 characters, no
-  whitespace, never shown again) or `identity` (one line of at most 320
-  characters in `settings.json`, shown back). The plugin cannot choose a file.
-- `label` (at most 80 characters) is required; `help` (at most 400) and
-  `required` (default `false`) are optional. At most 16 fields.
-- `check` optionally names one of the plugin's exported read-only operations.
-  Desk calls it with `{}` after the user asks; it returns
-  `{"schema_version": 1, "data": {"status": "valid" | "invalid", "message"?: "…"}}`.
+- `key` matches `^[a-z][a-z0-9_]{2,63}$` and names the field in the store.
+  Reuse an existing name, such as `eodhd_api_token`, so saved values keep
+  working. `schema_version` and `hermes_api_key` are reserved; core's
+  `configuration.RESERVED` is the only list.
+- `kind` is `secret`, stored in `secrets.json`, or `identity`, one line of text
+  stored in `settings.json`. The plugin cannot choose another file.
+- `label` (at most 80 characters) is required. `help` (at most 400) and
+  `required` (default `false`) are optional.
+- A bundled plugin lists `configuration.json` among its copied files in
+  `scripts/dev/managed-plugins.mjs`.
 
-A bundled plugin lists `configuration.json` among its copied files in
-`scripts/dev/managed-plugins.mjs`. A plugin is "needs configuration" until every
-required field is set. Several plugins may declare the same key with the same
-kind and then share one value; a kind disagreement hides that field. An invalid
-file is logged and offers no section. Disabling a plugin hides its section and
-keeps its values.
+### Configuring a plugin
 
-Plugin code reads only its own declared fields through the loaded core:
-`platform.configuration.value(ctx, key)` returns `(status, value)` with status
-`configured`, `missing` or `invalid`, and `platform.configuration.missing(ctx)`
-lists required keys that are not set, so tools can return a visible
-needs-configuration error. Never log, return or forward a value.
+The investor sets values by editing files in the Pythia config folder,
+`${XDG_CONFIG_HOME:-~/.config}/pythia` (mode `0700`). Secrets go in
+`secrets.json` and identity text in `settings.json`, as top-level fields next to
+the existing ones:
 
-The Desk settings service is the sole writer. A static package file lets an
-edited or cloned plugin change its fields without a Desk release. A Desk-owned
-allowlist (a Desk change per provider) and an extra block in Hermes's native
-`plugin.yaml` (a schema Hermes owns) were rejected, as was Hermes's
-`requires_env`, which keeps provider secrets in the Hermes environment rather
-than in Pythia custody.
+```json
+{"schema_version": 1, "hermes_api_key": "<keep unchanged>", "openfigi_api_key": "<your key>"}
+```
+
+Keep `schema_version: 1` and every existing field. `hermes_api_key` connects
+Desk to Hermes. If `settings.json` does not exist, create it with
+`{"schema_version": 1, "sec_identity": "Your Name you@example.org"}`. Both files
+must stay private: `chmod 600 ~/.config/pythia/secrets.json ~/.config/pythia/settings.json`.
+A file readable by others is refused and reported as invalid, never read.
+Values are read on each use; no restart is needed. A secret has no whitespace;
+neither kind may contain control characters or surrounding spaces.
+
+### Reading values and needing configuration
+
+Plugin code reads through the loaded core. `platform.configuration.value(ctx, key)`
+returns `(status, value)` for a key the plugin declares, with status
+`configured`, `missing` or `invalid`. The value is present only when configured.
+Never log, return or forward it.
+
+Every tool that depends on required fields checks them first. It returns the
+standard result as its JSON output:
+
+```python
+blocked = platform.configuration.needs_configuration(ctx)
+if blocked is not None:
+    return json.dumps(blocked)
+```
+
+The result is `{"schema_version": 1, "outcome": "error", "data": null, "issues":
+[{"code": "needs_configuration", "severity": "error", "fields": [...], "message":
+"..."}]}`. Each entry in `fields` is `{key, label, file, status}`. The message names
+the label, key and file, never a value, so the agent can tell the investor what to
+set. `platform.configuration.missing(ctx)` returns the same field list for other
+uses.
+
+Declared keys name store fields; they are not a security boundary. Plugins run
+in-process, and any plugin may declare any non-reserved key. Sharing a key such
+as `eodhd_api_token` is how plugins share one value. Enable only plugins you trust.
+
+A settings interface for these values is separate work; until it exists, the
+files are the interface. A Desk-owned allowlist, which needs a Desk change per
+provider, was rejected. So were an extra block in Hermes's native `plugin.yaml`,
+whose schema Hermes owns, and Hermes's `requires_env`, which keeps provider
+secrets in the Hermes environment rather than in Pythia custody.
 
 ## Skills and contracts
 
