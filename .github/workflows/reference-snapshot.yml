@@ -1,0 +1,60 @@
+name: Reference snapshot
+
+# Optional central build of the open reference snapshot. The same builder runs
+# locally; see tooling/reference-builder/README.md.
+on:
+  workflow_dispatch:
+    inputs:
+      mics:
+        description: Comma-separated operating MICs
+        required: true
+        default: XAMS
+      sec:
+        description: Include SEC ticker lines
+        type: boolean
+        default: true
+
+concurrency:
+  group: reference-snapshot-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    name: Build and publish prerelease
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .local/reference-builder/downloads
+          key: reference-downloads-${{ github.run_id }}
+          restore-keys: reference-downloads-
+      - run: python3 -m unittest discover -s tooling/reference-builder/test -t tooling/reference-builder
+      - name: Build
+        env:
+          OPENFIGI_API_KEY: ${{ secrets.OPENFIGI_API_KEY }}
+          PYTHIA_REFERENCE_CONTACT: ${{ secrets.REFERENCE_SEC_CONTACT }}
+          MICS: ${{ inputs.mics }}
+          WITH_SEC: ${{ inputs.sec }}
+        run: |
+          args=(--mics "$MICS" --deltas)
+          if [ "$WITH_SEC" != "true" ]; then args+=(--no-sec); fi
+          python3 tooling/reference-builder/run.py "${args[@]}"
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          out=.local/reference-builder/out
+          build_id="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["build_id"])' "$out/manifest.json")"
+          tag="${build_id}-r${RUN_NUMBER}"
+          gh release create "$tag" --prerelease --target "$GITHUB_SHA" \
+            --title "Reference snapshot ${tag}" \
+            --notes "Open reference snapshot. See manifest.json for sources and checksums and NOTICE for attribution." \
+            "$out/${build_id}.sqlite3.gz" "$out/manifest.json" "$out/NOTICE"
