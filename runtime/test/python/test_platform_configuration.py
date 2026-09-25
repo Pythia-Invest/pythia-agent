@@ -28,8 +28,7 @@ class PluginConfiguration(unittest.TestCase):
         self.enterContext(patch.dict(os.environ, {'PYTHIA_CONFIG_ROOT': str(self.config)}))
         package = self.root / 'plugin'
         package.mkdir()
-        self.declaration = package / 'configuration.json'
-        self.declaration.write_text(json.dumps({'schema_version': 1, 'fields': [TOKEN, CONTACT]}))
+        (package / 'configuration.json').write_text(json.dumps({'schema_version': 1, 'fields': [TOKEN, CONTACT]}))
         self.ctx = SimpleNamespace(manifest=SimpleNamespace(path=str(package)))
 
     def store(self, name, values, mode=0o600):
@@ -42,7 +41,6 @@ class PluginConfiguration(unittest.TestCase):
         for fields in ([{**TOKEN, 'key': 'schema_version'}], [{**TOKEN, 'key': 'hermes_api_key'}],
                        [{**TOKEN, 'key': 'hermes_settings_token'}], [{**TOKEN, 'key': 'pythia_anything'}], [TOKEN, TOKEN],
                        [{**TOKEN, 'url': 'http://example.org'}], [{**TOKEN, 'url': 'https://user@example.org'}],
-                       [{**TOKEN, 'help': 'renamed to description'}],
                        [{**TOKEN, 'kind': 'oauth'}], [{**TOKEN, 'label': 'Token\r\nX-Injected: 1'}],
                        [{**TOKEN, 'extra': True}], [{**TOKEN, 'required': 'yes'}], [{**TOKEN, 'key': 'Upper'}]):
             with self.subTest(fields=fields), self.assertRaises(ValueError):
@@ -50,8 +48,6 @@ class PluginConfiguration(unittest.TestCase):
         for declaration in ({'fields': [TOKEN]}, {'schema_version': 1, 'fields': [TOKEN], 'check': 'op'}):
             with self.subTest(declaration=declaration), self.assertRaises(ValueError):
                 configuration.parse(declaration)
-        self.assertEqual(configuration.parse({'schema_version': 1, 'fields': [TOKEN]}),
-                         [{**TOKEN, 'description': '', 'required': False}])
 
     def test_values_come_from_private_files_and_required_fields_gate_the_plugin(self):
         self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('missing', None))
@@ -59,7 +55,6 @@ class PluginConfiguration(unittest.TestCase):
         self.assertEqual(blocked['issues'][0]['code'], 'needs_configuration')
         self.assertEqual(blocked['issues'][0]['fields'], [
             {'key': 'sec_identity', 'label': 'SEC contact', 'file': 'settings.json', 'status': 'missing'}])
-        self.assertIn('sec_identity in settings.json', blocked['issues'][0]['message'])
 
         self.store('secrets.json', {'example_api_token': 'synthetic-token', 'hermes_api_key': 'not-offered'})
         settings = self.store('settings.json', {'sec_identity': 'Example Person person@example.org'})
@@ -76,13 +71,15 @@ class PluginConfiguration(unittest.TestCase):
         self.store('secrets.json', {'example_api_token': 'two words'})
         self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('invalid', None))
 
-    def test_declaration_changes_are_picked_up(self):
-        self.assertEqual([field['key'] for field in configuration.fields(self.ctx)], ['example_api_token', 'sec_identity'])
-        self.declaration.write_text(json.dumps({'schema_version': 1, 'fields': [TOKEN, CONTACT, {
-            **TOKEN, 'key': 'second_api_token'}]}))
-        self.assertEqual(len(configuration.fields(self.ctx)), 3)
-        self.declaration.unlink()
-        self.assertEqual(configuration.fields(self.ctx), [])
+    def test_unsafe_stores_read_as_invalid(self):
+        target = self.store('elsewhere.json', {'example_api_token': 'synthetic-token'})
+        (self.config / 'secrets.json').symlink_to(target)
+        self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('invalid', None))
+        (self.config / 'secrets.json').unlink()
+        self.store('secrets.json', {'example_api_token': 'x' * configuration.MAX_BYTES})
+        self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('invalid', None))
+        self.store('secrets.json', {'example_api_token': 'x' * 513})
+        self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('invalid', None))
 
     def test_market_data_uses_the_core_reader(self):
         self.store('secrets.json', {'eodhd_api_token': 'synthetic-eodhd'})

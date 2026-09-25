@@ -21,7 +21,7 @@ RESERVED = frozenset({'schema_version'})
 RESERVED_PREFIXES = ('hermes_', 'pythia_')
 FIELD_KEYS = frozenset({'key', 'kind', 'label', 'description', 'url', 'required'})
 MAX_BYTES = 65536
-_declarations = {}
+MAX_SECRET = 512
 
 
 def _control(value):
@@ -47,8 +47,12 @@ def _https(value):
 
 
 def _plugin_dir(ctx):
-    """The plugin package directory: the only host-specific input to this module."""
-    return Path(ctx.manifest.path)
+    """The plugin package directory: the only host-specific input to this module.
+
+    None for an entry-point plugin, whose manifest path is ``module:attr``.
+    """
+    path = Path(ctx.manifest.path)
+    return path if path.is_absolute() else None
 
 
 def parse(raw):
@@ -69,8 +73,7 @@ def parse(raw):
             raise ValueError('invalid configuration field')
         keys.add(item['key'])
         parsed.append({'key': item['key'], 'kind': item['kind'], 'label': item['label'].strip(),
-                       'description': item.get('description', '').strip(), 'required': item.get('required', False),
-                       **({'url': item['url']} if 'url' in item else {})})
+                       'required': item.get('required', False)})
     return parsed
 
 
@@ -83,28 +86,30 @@ def _read_json(path):
         content = stream.read(MAX_BYTES + 1)
     if len(content) > MAX_BYTES:
         raise ValueError('file too large')
-    return info, json.loads(content)
+    try:
+        return info, json.loads(content)
+    except RecursionError:
+        raise ValueError('JSON nested too deeply') from None
 
 
 def fields(ctx):
-    """The calling plugin's declared fields; an absent file declares none."""
-    path = _plugin_dir(ctx) / FILENAME
+    """The calling plugin's declared fields, read on each call; an absent file declares none."""
+    directory = _plugin_dir(ctx)
+    if directory is None:
+        return []
     try:
-        info = path.lstat()
+        return parse(_read_json(directory / FILENAME)[1])
     except FileNotFoundError:
         return []
-    revision = (info.st_ino, info.st_size, info.st_mtime_ns)
-    cached = _declarations.get(str(path))
-    if cached is None or cached[0] != revision:
-        cached = _declarations[str(path)] = (revision, parse(_read_json(path)[1]))
-    return cached[1]
 
 
 def read(kind, key):
     """Return ``(status, value)`` for a custody field: configured, missing or invalid.
 
-    The value is returned only when configured: a string without control
-    characters or surrounding whitespace; a secret also has no inner whitespace.
+    Internal and transitional: plugins call ``value``, which admits only declared
+    keys. The value is returned only when configured: a string without control
+    characters or surrounding whitespace; a secret also has no inner whitespace
+    and at most 512 characters, matching Desk's token check.
     """
     if kind not in STORES or not isinstance(key, str) or not KEY.fullmatch(key) or _reserved(key):
         raise ValueError('invalid configuration key')
@@ -118,7 +123,7 @@ def read(kind, key):
         info, store = _read_json(root / STORES[kind])
     except FileNotFoundError:
         return 'missing', None
-    except (OSError, ValueError, RecursionError):
+    except (OSError, ValueError):
         return 'invalid', None
     if info.st_mode & 0o077 or not isinstance(store, dict) or type(store.get('schema_version')) is not int \
             or store['schema_version'] != 1:
@@ -127,13 +132,17 @@ def read(kind, key):
     if value is None or value == '':
         return 'missing', None
     if (not isinstance(value, str) or value != value.strip() or _control(value)
-            or (kind == 'secret' and any(character.isspace() for character in value))):
+            or (kind == 'secret' and (len(value) > MAX_SECRET
+                                      or any(character.isspace() for character in value)))):
         return 'invalid', None
     return 'configured', value
 
 
 def value(ctx, key):
-    """Read a field the calling plugin declares; never log or return the value."""
+    """Read a field the calling plugin declares; raise ValueError for an undeclared key.
+
+    Callers never log or return the value.
+    """
     field = next((item for item in fields(ctx) if item['key'] == key), None)
     if field is None:
         raise ValueError('configuration field %s is not declared by this plugin' % key)
