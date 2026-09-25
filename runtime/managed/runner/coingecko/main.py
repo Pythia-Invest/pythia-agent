@@ -55,10 +55,6 @@ def request_spec(value):
             raise ValueError()
         path, query = '/coins/markets', {'vs_currency': 'usd', 'order': 'market_cap_desc',
                                         'per_page': 250, 'page': 1, 'sparkline': 'false'}
-    elif operation == 'catalogue_platforms':
-        if args:
-            raise ValueError()
-        path, query = '/asset_platforms', {}
     elif operation == 'latest_batch':
         ids = args.get('ids')
         if (set(args) != {'ids', 'currency'} or type(ids) is not list or not 1 <= len(ids) <= 32
@@ -207,28 +203,8 @@ def catalogue_ranks(data):
     return ranks
 
 
-def catalogue_chains(data):
-    """Platform id -> source chain identifier (Chainlist ID, null for non-EVM)."""
-    if not isinstance(data, list) or len(data) > 5000:
-        raise ValueError()
-    chains = {}
-    for row in data:
-        if not isinstance(row, dict):
-            raise ValueError()
-        identifier, chain = row.get('id'), row.get('chain_identifier')
-        if identifier == '':
-            continue  # The live list includes an unnamed placeholder platform.
-        if not native_id(identifier) or identifier in chains:
-            raise ValueError()
-        if chain is not None and (type(chain) is not int or not 0 < chain < 2 ** 63):
-            raise ValueError()
-        chains[identifier] = chain
-    return chains
-
-
 def enrich_catalogue(snapshot, value, opener):
-    """Two optional, budgeted bulk reads; failures never discard the base list."""
-    now = lambda: datetime.now(timezone.utc).isoformat()
+    """One optional, budgeted rank read; a failure never discards the base list."""
     identifiers = {row[0] for row in snapshot['rows']}
     request = {**value, 'operation': 'catalogue_rank', 'arguments': {}}
     snapshot.update(ranks={}, rank_coverage='unavailable', rank_source_url=request_spec(request).full_url)
@@ -238,24 +214,13 @@ def enrich_catalogue(snapshot, value, opener):
             # List and market snapshots may differ: join only exact retained IDs.
             ranks = catalogue_ranks(rank_read['data'])
             snapshot.update(ranks={key: rank for key, rank in ranks.items() if key in identifiers},
-                            rank_coverage='top_250', rank_observed_at=now())
+                            rank_coverage='top_250', rank_observed_at=datetime.now(timezone.utc).isoformat())
         except (KeyError, ValueError, TypeError):
             pass
-    request = {**value, 'operation': 'catalogue_platforms', 'arguments': {}}
-    snapshot.update(chains={}, chain_coverage='unavailable', chain_source_url=request_spec(request).full_url)
-    chain_read = execute(request, opener)
-    if not chain_read.get('error'):
-        try:
-            used = {network for row in snapshot['rows'] for network, _address in row[3]}
-            chains = catalogue_chains(chain_read['data'])
-            snapshot.update(chains={key: chain for key, chain in chains.items() if key in used},
-                            chain_coverage='available', chain_observed_at=now())
-        except (KeyError, ValueError, TypeError):
-            pass
-    # Changing enrichment facts changes this page chain's source version. A
-    # failure produces a valid list-only snapshot with explicit unknown facts.
+    # Changing rank facts changes this page chain's source version. A failure
+    # produces a valid list-only snapshot with explicit unknown ranks.
     snapshot['version'] = hashlib.sha256(json.dumps(
-        [snapshot['rows'], snapshot['ranks'], snapshot['rank_coverage'], snapshot['chains'], snapshot['chain_coverage']],
+        [snapshot['rows'], snapshot['ranks'], snapshot['rank_coverage']],
         ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return snapshot
 

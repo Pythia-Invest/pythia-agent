@@ -43,7 +43,7 @@ defaults to 10 requests per minute keyless and 30 with a key (`requests_per_minu
 
 ## Catalogue
 
-One sync makes three bulk requests, each counted by the shared connection budget:
+One sync makes two bulk requests, each counted by the shared connection budget:
 
 1. `/coins/list?include_platform=true`: every active coin with its source
    platform contracts. Measured 2026-09-25: 21,587 coins, 20,781 with at least
@@ -52,22 +52,17 @@ One sync makes three bulk requests, each counted by the shared connection budget
 2. `/coins/markets` (top 250 by market cap, USD): `market_cap_rank` and
    `market_cap` as rank signals. A zero market cap means unknown supply and is
    kept unknown. Prices and volumes are not retained.
-3. `/asset_platforms`: each platform's source `chain_identifier` (a Chainlist
-   ID, null for non-EVM chains), attached to the contracts on that platform.
 
-Enrichment failures leave rank or chain facts unknown and never discard the
-list. Pages of at most 1,000 rows share one 30-minute in-memory snapshot with a
-content-derived version. Each row carries `provider_ref`, `name`, `symbol` and
-source-asserted identifiers: `coingecko.id`, `symbol` and `contract_address`
-with its `network` (and `chain_identifier` when known). Symbols, contracts and
-ranks never prove equivalence between coins or providers; the identity owner
-decides joins and derives CAIP-19.
+A rank failure leaves rank facts unknown and never discards the list. Pages of
+at most 1,000 rows share one 30-minute in-memory snapshot with a content-derived
+version. Each row carries `provider_ref`, `name`, `symbol` and source-asserted
+identifiers: `coingecko.id`, `symbol` and `contract_address` with its CoinGecko
+platform `network`. Symbols, contracts and ranks never prove equivalence between
+coins or providers; the identity owner decides joins and derives CAIP-19.
 
-Native coins such as Bitcoin, Ether and Solana carry no contract. The platform
-list's `native_coin_id` names a gas token that many chains share (Ether is the
-gas token of Ethereum and of dozens of layer-2 networks), so it is not an
-identifier and the connector does not emit it. Joining native coins across
-providers needs a core-owned native-asset table (CAIP-19 `slip44` IDs).
+Native coins such as Bitcoin, Ether and Solana carry no contract. Joining
+native coins across providers, and mapping platform names to CAIP-2 chains,
+needs a core-owned table (CAIP-19 `slip44` IDs); the connector emits neither.
 
 ## CoinGecko plans and terms
 
@@ -80,8 +75,8 @@ Checked 2026-09-25; the account's own terms govern use.
   host, about 10 to 30 calls per minute shared per IP, and documented as not
   suitable for production workloads, scheduled polling or high-frequency
   updates. Automatic dashboard refresh therefore requires a key.
-- Source caches: `/coins/list` refreshes every 30 minutes, `/coins/markets`
-  every 60 seconds and `/asset_platforms` every 5 minutes on Demo and keyless.
+- Source caches: `/coins/list` refreshes every 30 minutes and `/coins/markets`
+  every 60 seconds on Demo and keyless.
 - [API Terms](https://www.coingecko.com/en/api_terms) (updated 5 September
   2025): no selling, sub-licensing, redistribution or syndication of API access
   (4.1.6); visible "Powered by CoinGecko" attribution (4.4); caching is

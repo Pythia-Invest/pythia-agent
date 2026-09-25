@@ -93,7 +93,7 @@ def register(ctx):
                         argument='ids', row_id='id' if endpoint == 'dashboard_quotes' else None, fresh=fresh, cancelled=cancelled, timeout=12,
                         budget=budget)
                     return batching.worker_item(raw, args['id']) if endpoint == 'latest' else raw
-                # The catalogue is three sequential bulk reads whose packed list
+                # The catalogue is two sequential bulk reads whose packed list
                 # exceeds the default worker output bound (3.9 MB JSON measured).
                 bulk = {'timeout': 45, 'output_limit': 8_000_000} if endpoint == 'catalogue' else {'timeout': 12}
                 return reads.read([python, '-I', worker], {'mode': access, 'token': token, 'operation': endpoint, 'arguments': args}, env,

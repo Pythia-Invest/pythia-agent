@@ -1,9 +1,9 @@
 """Synthetic values shaped by CoinGecko's public docs; no network, keys or responses.
 
 Shapes: docs.coingecko.com/reference/coins-list (include_platform=true),
-/coins/markets, /asset_platforms, /simple/price, /coins/{id}, /coins/{id}/ohlc
-and /coins/{id}/market_chart, checked 2026-09-25. Coin IDs, symbols, addresses
-and chain numbers below are invented.
+/coins/markets, /simple/price, /coins/{id}, /coins/{id}/ohlc
+and /coins/{id}/market_chart, checked 2026-09-25. Coin IDs, symbols and
+addresses below are invented.
 """
 from contextlib import contextmanager
 import copy
@@ -52,10 +52,6 @@ MARKETS = [{'id': 'alpha-native', 'market_cap_rank': 1, 'market_cap': 1234567890
             'current_price': 1.5, 'total_volume': 9},
            {'id': 'zeta-token', 'market_cap_rank': None, 'market_cap': 0},
            {'id': 'not-listed', 'market_cap_rank': 2, 'market_cap': 5}]
-PLATFORMS = [{'id': 'chain-a', 'chain_identifier': 7, 'name': 'Chain A', 'native_coin_id': 'alpha-native'},
-             {'id': 'chain-b', 'chain_identifier': None, 'name': 'Chain B', 'native_coin_id': 'beta-native'},
-             {'id': 'chain-unused', 'chain_identifier': 9, 'name': 'Unused', 'native_coin_id': None},
-             {'id': '', 'chain_identifier': None, 'name': 'Unnamed placeholder', 'native_coin_id': None}]
 
 
 def request(definition, latest=False):
@@ -66,7 +62,7 @@ def request(definition, latest=False):
 class Source:
     """Fixed synthetic bodies per endpoint; records every outbound URL."""
     def __init__(self, **overrides):
-        self.bodies = {'/coins/list': LIST, '/coins/markets': MARKETS, '/asset_platforms': PLATFORMS, **overrides}
+        self.bodies = {'/coins/list': LIST, '/coins/markets': MARKETS, **overrides}
         self.calls = []
 
     def open(self, http_request, **_kwargs):
@@ -81,12 +77,10 @@ class Catalogue(unittest.TestCase):
     def test_catalogue_requests_platforms_keyless_or_keyed_and_never_search(self):
         for mode, token, header in (('keyless', None, None), ('demo', 'SYNTHETIC', 'X-cg-demo-api-key'),
                                     ('paid', 'SYNTHETIC', 'X-cg-pro-api-key')):
-            for operation, path in (('catalogue', '/coins/list?include_platform=true'),
-                                    ('catalogue_platforms', '/asset_platforms')):
-                spec = worker.request_spec({**DEMO, 'mode': mode, 'token': token, 'operation': operation})
-                self.assertEqual(spec.full_url, worker.HOSTS[mode] + path)
-                self.assertEqual([k for k in spec.headers if 'api-key' in k.lower()], [header] if header else [])
-                self.assertNotIn('SYNTHETIC', spec.full_url)
+            spec = worker.request_spec({**DEMO, 'mode': mode, 'token': token})
+            self.assertEqual(spec.full_url, worker.HOSTS[mode] + '/coins/list?include_platform=true')
+            self.assertEqual([k for k in spec.headers if 'api-key' in k.lower()], [header] if header else [])
+            self.assertNotIn('SYNTHETIC', spec.full_url)
         for bad in ({**DEMO, 'arguments': {'include_platform': 'false'}}, {**DEMO, 'operation': 'search', 'arguments': {'query': 'x'}},
                     {**DEMO, 'mode': 'keyless', 'token': None, 'operation': 'dashboard_quotes', 'arguments': {'ids': ['a'], 'currency': 'usd'}}):
             with self.assertRaises(ValueError):
@@ -110,7 +104,7 @@ class Catalogue(unittest.TestCase):
             worker.catalogue_snapshot([{'id': f'coin-{i}', 'symbol': 's', 'name': 'n' * 400,
                                         'platforms': {'chain-a': 'a' * 400}} for i in range(9000)])
 
-    def test_three_sequential_bulk_reads_yield_identifiers_and_rank_signals_without_prices(self):
+    def test_two_sequential_bulk_reads_yield_identifiers_and_rank_signals_without_prices(self):
         source, calls, active, peak = Source(), [], 0, 0
         @contextmanager
         def permit(opener, http_request, **kwargs):
@@ -127,17 +121,16 @@ class Catalogue(unittest.TestCase):
                 patch.object(worker, 'budget_opener', return_value=permit):
             result = worker.execute({**DEMO, 'mode': 'keyless', 'token': None}, source)
         self.assertIsNone(result['error'])
-        self.assertEqual([urlsplit(url).path for url in calls], ['/api/v3/coins/list', '/api/v3/coins/markets', '/api/v3/asset_platforms'])
+        self.assertEqual([urlsplit(url).path for url in calls], ['/api/v3/coins/list', '/api/v3/coins/markets'])
         self.assertEqual(peak, 1, 'each budgeted request is released before the next one')
         data = json.loads(json.dumps(result['data']))  # the worker's transport form
         self.assertEqual(data['ranks'], {'alpha-native': {'rank': 1, 'market_cap': '123456789012'}})
-        self.assertEqual(data['chains'], {'chain-a': 7, 'chain-b': None})
         for price in ('current_price', 'total_volume', '1.5'):
             self.assertNotIn(price, json.dumps(data))
         first = catalogue.page(data, {'scope': 'coins', 'limit': 2})
         last = catalogue.page(data, {'scope': 'coins', 'cursor': first['next_cursor']})
         alpha, beta, zeta = first['rows'] + last['rows']
-        self.assertEqual((first['total'], first['rank_coverage'], first['chain_coverage']), (3, 'top_250', 'available'))
+        self.assertEqual((first['total'], first['rank_coverage']), (3, 'top_250'))
         self.assertEqual(first['retention'], {'mode': 'persistent', 'max_age_seconds': 86400})
         self.assertIsNone(last['next_cursor'])
         self.assertEqual(alpha['identifiers'], [
@@ -148,26 +141,24 @@ class Catalogue(unittest.TestCase):
         self.assertIsNone(beta['symbol'], 'an unknown symbol is not invented')
         self.assertNotIn('rank', zeta, 'zero market cap means unknown size, not rank')
         self.assertEqual([i for i in zeta['identifiers'] if i['scheme'] == 'contract_address'], [
-            {'scheme': 'contract_address', 'value': '0xA0', 'network': 'chain-a', 'authority': 'source_asserted', 'chain_identifier': 7},
+            {'scheme': 'contract_address', 'value': '0xA0', 'network': 'chain-a', 'authority': 'source_asserted'},
             {'scheme': 'contract_address', 'value': '0xB0', 'network': 'chain-b', 'authority': 'source_asserted'}])
         for row in (alpha, beta, zeta):
             wire.validate('provider_ref', row['provider_ref'])
             self.assertEqual(row['level'], 'crypto')
-        self.assertEqual(len(calls), 3, 'reading pages performs no further HTTP calls')
+        self.assertEqual(len(calls), 2, 'reading pages performs no further HTTP calls')
 
     def test_optional_enrichment_failures_keep_the_complete_list_without_retries(self):
         throttled = HTTPError('https://redacted.invalid', 429, 'Throttled', {'Retry-After': '60'}, io.BytesIO(b'{}'))
-        for overrides in ({'/coins/markets': throttled, '/asset_platforms': b'{"status":{"error_code":10005}}'},
-                          {'/coins/markets': [{'id': 'alpha-native', 'market_cap_rank': True}],
-                           '/asset_platforms': [{'id': 'chain-a', 'chain_identifier': 'seven'}]}):
-            source = Source(**overrides)
+        for body in (throttled, b'{"status":{"error_code":10005}}', [{'id': 'alpha-native', 'market_cap_rank': True}]):
+            source = Source(**{'/coins/markets': body})
             result = worker.execute(DEMO, source)
             self.assertIsNone(result['error'])
             page = catalogue.page(result['data'], {'scope': 'coins'})
-            self.assertEqual((page['rank_coverage'], page['chain_coverage']), ('unavailable', 'unavailable'))
+            self.assertEqual(page['rank_coverage'], 'unavailable')
             self.assertEqual(len(page['rows']), 3)
-            self.assertTrue(all('rank' not in row and all('chain_identifier' not in i for i in row['identifiers']) for row in page['rows']))
-            self.assertEqual(len(source.calls), 3, 'optional failures are not retried')
+            self.assertTrue(all('rank' not in row for row in page['rows']))
+            self.assertEqual(len(source.calls), 2, 'optional failures are not retried')
         self.assertEqual(worker.execute(DEMO, Source(**{'/coins/list': throttled}))['error'], 'rate_limit')
 
     def test_page_bounds_and_opaque_identifiers(self):
