@@ -120,7 +120,6 @@ CREATE TABLE binding_revisions (
 -- The resolution queue: one core-owned list of residuals (records the join could
 -- not place) and conflicts (contradicting evidence). Any resolver the user chose
 -- drains it: built-in rules, the Hermes agent, a resolver plugin, or the user.
--- claimed_by/lease_until let a later background worker share it safely.
 CREATE TABLE queue (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL CHECK (kind IN ('residual', 'conflict')),
@@ -132,16 +131,13 @@ CREATE TABLE queue (
   provider_ref TEXT,
   scheme TEXT,                     -- conflict: the contested scheme
   contested_values TEXT NOT NULL DEFAULT '[]',
-  state TEXT NOT NULL CHECK (state IN ('open', 'claimed', 'resolved', 'superseded', 'dismissed')),
-  claimed_by TEXT CHECK (claimed_by IS NULL OR claimed_by IN ('rules', 'agent', 'plugin', 'user')),
-  lease_until TEXT,
+  state TEXT NOT NULL CHECK (state IN ('open', 'resolved', 'superseded', 'dismissed')),
   attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
   opened_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   resolved_by TEXT,                -- the verdict that settled it
   CHECK ((kind = 'residual' AND reason IN ('no_key', 'underlying_identifier', 'ambiguous'))
-      OR (kind = 'conflict' AND reason IN ('identifier', 'binding', 'relation', 'guard'))),
-  CHECK ((state = 'claimed') = (claimed_by IS NOT NULL AND lease_until IS NOT NULL))
+      OR (kind = 'conflict' AND reason IN ('identifier', 'binding', 'relation', 'guard')))
 );
 CREATE INDEX queue_open ON queue (state, opened_at);
 
@@ -168,8 +164,7 @@ CREATE TABLE verdicts (
   outcome TEXT NOT NULL CHECK (outcome IN ('confirmed', 'suggested', 'blocked', 'no_match')),
   created_at TEXT NOT NULL,
   CHECK ((resolver = 'rules' AND authority = 'rule_confirmed' AND rule_id IS NOT NULL)
-      OR (resolver = 'agent' AND authority IN ('model_confirmed', 'model_suggested', 'user_attested'))
-      OR (resolver = 'plugin' AND authority IN ('model_confirmed', 'model_suggested'))
+      OR (resolver IN ('agent', 'plugin') AND authority IN ('model_confirmed', 'model_suggested'))
       OR (resolver = 'user' AND authority = 'user_attested')),
   CHECK (authority NOT IN ('model_confirmed', 'model_suggested')
       OR (confidence IS NOT NULL AND model IS NOT NULL AND prompt_version IS NOT NULL AND input_digest IS NOT NULL)),

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol, Sequence
 
 from .claims import DIGEST
 from .model import Provenance, ProviderRef, _coerce, _require
@@ -42,7 +41,6 @@ REASONS = {
 
 class QueueState(StrEnum):
     OPEN = "open"
-    CLAIMED = "claimed"        # leased by one resolver; the lease lets a later background drain share the queue
     RESOLVED = "resolved"
     SUPERSEDED = "superseded"  # newer evidence settled or replaced it
     DISMISSED = "dismissed"
@@ -55,13 +53,6 @@ class ResolverKind(StrEnum):
     USER = "user"      # the user resolving by hand, if they choose to
 
 
-# The authorities each resolver may claim. The agent records a user's statement as user_attested.
-RESOLVER_AUTHORITIES: dict[ResolverKind, frozenset[Authority]] = {
-    ResolverKind.RULES: frozenset({Authority.RULE_CONFIRMED}),
-    ResolverKind.AGENT: frozenset({Authority.MODEL_CONFIRMED, Authority.MODEL_SUGGESTED, Authority.USER_ATTESTED}),
-    ResolverKind.PLUGIN: frozenset({Authority.MODEL_CONFIRMED, Authority.MODEL_SUGGESTED}),
-    ResolverKind.USER: frozenset({Authority.USER_ATTESTED}),
-}
 MODEL_AUTHORITIES = frozenset({Authority.MODEL_CONFIRMED, Authority.MODEL_SUGGESTED})
 NO_MATCH = frozenset({VerdictRelation.NONE, VerdictRelation.AMBIGUOUS, VerdictRelation.UNRELATED})
 
@@ -123,7 +114,9 @@ class Verdict:
     def __post_init__(self) -> None:
         _coerce(self, resolver=ResolverKind, authority=Authority, relation=VerdictRelation, provenance=Provenance)
         object.__setattr__(self, "rejected_evidence_ids", tuple(self.rejected_evidence_ids))
-        _require(self.authority in RESOLVER_AUTHORITIES[self.resolver],
+        # Only the user attests and only rules rule-confirm; the agent and resolver plugins give model verdicts.
+        own = {ResolverKind.RULES: Authority.RULE_CONFIRMED, ResolverKind.USER: Authority.USER_ATTESTED}
+        _require(self.authority is own[self.resolver] if self.resolver in own else self.authority in MODEL_AUTHORITIES,
                  f"verdict: a {self.resolver} resolver cannot claim {self.authority}")
         _require((self.chosen_id is None) == (self.relation in (VerdictRelation.NONE, VerdictRelation.AMBIGUOUS)),
                  "verdict: chosen_id is required exactly for a definite answer")
@@ -166,10 +159,3 @@ def decide(verdict: Verdict, item: QueueItem, *, contradicted: bool, guarded: bo
         return VerdictOutcome.CONFIRMED if calibrated else VerdictOutcome.SUGGESTED
     return VerdictOutcome.CONFIRMED
 
-
-class ResolutionQueue(Protocol):
-    """The core's side of the resolver interface (implemented by the identity engine)."""
-
-    def open_items(self, *, limit: int = 50) -> Sequence[QueueItem]: ...
-
-    def submit(self, verdict: Verdict) -> VerdictOutcome: ...
