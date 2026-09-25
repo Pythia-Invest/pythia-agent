@@ -216,6 +216,8 @@ def catalogue_chains(data):
         if not isinstance(row, dict):
             raise ValueError()
         identifier, chain = row.get('id'), row.get('chain_identifier')
+        if identifier == '':
+            continue  # The live list includes an unnamed placeholder platform.
         if not native_id(identifier) or identifier in chains:
             raise ValueError()
         if chain is not None and (type(chain) is not int or not 0 < chain < 2 ** 63):

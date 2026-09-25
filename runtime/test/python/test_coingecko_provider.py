@@ -54,7 +54,8 @@ MARKETS = [{'id': 'alpha-native', 'market_cap_rank': 1, 'market_cap': 1234567890
            {'id': 'not-listed', 'market_cap_rank': 2, 'market_cap': 5}]
 PLATFORMS = [{'id': 'chain-a', 'chain_identifier': 7, 'name': 'Chain A', 'native_coin_id': 'alpha-native'},
              {'id': 'chain-b', 'chain_identifier': None, 'name': 'Chain B', 'native_coin_id': 'beta-native'},
-             {'id': 'chain-unused', 'chain_identifier': 9, 'name': 'Unused', 'native_coin_id': None}]
+             {'id': 'chain-unused', 'chain_identifier': 9, 'name': 'Unused', 'native_coin_id': None},
+             {'id': '', 'chain_identifier': None, 'name': 'Unnamed placeholder', 'native_coin_id': None}]
 
 
 def request(definition, latest=False):
