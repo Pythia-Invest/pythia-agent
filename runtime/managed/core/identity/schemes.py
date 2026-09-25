@@ -52,30 +52,30 @@ SINGLE_VALUED = frozenset(Scheme) - {Scheme.TICKER_MIC}
 
 # <level>:<key scheme>:<key>, derived from open identifiers (see subject_id below).
 SUBJECT_ID = re.compile(
-    r"^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/-]{4,200}$")
-MIC = re.compile(r"^[A-Z0-9]{4}$")
-CURRENCY = re.compile(r"^[A-Z]{3}$")
-COUNTRY = re.compile(r"^[A-Z]{2}$")
-DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
-INSTANT = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$")
-DECIMAL = re.compile(r"^(0|[1-9][0-9]*)(\.[0-9]+)?$")
-NAMESPACE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
-TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}$")
-CAIP2 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$")
-PROVISIONAL_NATIVE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$")
+    r"^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/%-]{4,300}\Z")
+MIC = re.compile(r"^[A-Z0-9]{4}\Z")
+CURRENCY = re.compile(r"^[A-Z]{3}\Z")
+COUNTRY = re.compile(r"^[A-Z]{2}\Z")
+DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
+INSTANT = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})\Z")
+DECIMAL = re.compile(r"^(0|[1-9][0-9]*)(\.[0-9]+)?\Z")
+NAMESPACE = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")
+TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}\Z")
+CAIP2 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}\Z")
+PROVISIONAL_NATIVE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}\Z")
 
 _PATTERNS = {
-    Scheme.LEI: re.compile(r"^[A-Z0-9]{18}[0-9]{2}$"),
-    Scheme.CIK: re.compile(r"^[0-9]{10}$"),
-    Scheme.ISIN: re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$"),
-    Scheme.SHARE_CLASS_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
-    Scheme.COMPOSITE_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
-    Scheme.FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
+    Scheme.LEI: re.compile(r"^[A-Z0-9]{18}[0-9]{2}\Z"),
+    Scheme.CIK: re.compile(r"^[0-9]{10}\Z"),
+    Scheme.ISIN: re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]\Z"),
+    Scheme.SHARE_CLASS_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
+    Scheme.COMPOSITE_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
+    Scheme.FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
     # TICKER@MIC, e.g. ASML@XAMS.
-    Scheme.TICKER_MIC: re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}@[A-Z0-9]{4}$"),
+    Scheme.TICKER_MIC: re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}@[A-Z0-9]{4}\Z"),
     # CAIP-19: chain_id "/" asset_namespace ":" asset_reference [ "/" token_id ]
     Scheme.CAIP19: re.compile(
-        r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}/[-a-z0-9]{3,8}:[-.%a-zA-Z0-9]{1,128}(/[-.%a-zA-Z0-9]{1,78})?$"),
+        r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}/[-a-z0-9]{3,8}:[-.%a-zA-Z0-9]{1,128}(/[-.%a-zA-Z0-9]{1,78})?\Z"),
 }
 
 
@@ -117,13 +117,17 @@ def _checksum(scheme: Scheme, value: str) -> bool:
 def normalize_identifier(scheme: Scheme | str, value: str) -> str:
     """Return the canonical form of `value` or raise IdentifierError.
 
-    CIKs are zero-padded to ten digits (SEC form); everything else is exact.
+    CIKs are zero-padded to ten digits (SEC form). EVM (eip155) asset references
+    are hex addresses and are lower-cased, so a checksummed and a plain address
+    name one token; other chains' references are case-sensitive and kept exact.
     """
     scheme = Scheme(scheme)
     if not isinstance(value, str) or not value or len(value) > 256:
         raise IdentifierError(f"{scheme}: value must be a non-empty string")
     if scheme is Scheme.CIK and value.isdigit() and len(value) <= 10:
         value = value.zfill(10)
+    if scheme is Scheme.CAIP19 and value.startswith("eip155:"):
+        value = value.lower()
     if not _PATTERNS[scheme].match(value):
         raise IdentifierError(f"{scheme}: malformed value")
     if scheme is Scheme.CIK and int(value) == 0:

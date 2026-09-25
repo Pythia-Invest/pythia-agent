@@ -23,7 +23,7 @@ from .vocabulary import (
 )
 
 MAX_BATCH_CLAIMS = 5000
-DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+DIGEST = re.compile(r"^sha256:[0-9a-f]{64}\Z")
 _DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 
 

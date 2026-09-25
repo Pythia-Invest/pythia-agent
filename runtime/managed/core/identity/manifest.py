@@ -16,7 +16,7 @@ from .schemes import MIC, NAMESPACE, SCHEME_LEVEL, Level, Scheme
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
-TOOL = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+TOOL = re.compile(r"^[a-z][a-z0-9_]{0,63}\Z")
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 
 
