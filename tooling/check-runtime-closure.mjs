@@ -9,7 +9,10 @@ import {
   UNIT_NAMES,
 } from "../scripts/install/systemd.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
-import { MANAGED_PLUGINS } from "../scripts/dev/managed-plugins.mjs";
+import {
+  MANAGED_PLUGINS,
+  MANAGED_PROVIDER_WORKERS,
+} from "../scripts/dev/managed-plugins.mjs";
 import { MANAGED_WIDGET_BUILDS } from "../scripts/dev/managed-widget-builds.mjs";
 import { assertManagedPluginSource } from "../scripts/dev/files.mjs";
 
@@ -254,9 +257,7 @@ const installedRuntimeFiles = new Set([
   ...MANAGED_PLUGINS.flatMap((plugin) =>
     plugin.files.map((path) => `runtime/managed/${plugin.source}/${path}`),
   ),
-  ...["provider-budget.ts", "provider-errors.ts", "provider-worker.ts"].map(
-    (path) => `runtime/managed/runner/${path}`,
-  ),
+  ...MANAGED_PROVIDER_WORKERS.map((path) => `runtime/managed/runner/${path}`),
   ...["NOTICE.md", "hermes-source.json"].map(
     (path) => `runtime/hermes/${path}`,
   ),

@@ -36,9 +36,9 @@ identity, compatible source selection and resident request coordination. Provide
 plugins contribute native capabilities and evidence. The existing gateway hosts
 one shared HTTP/tool backend per profile; standalone CLI shares durable state and
 implementation, not memory. Protected transport, authentication and limits belong
-to Pythia, not to individual connectors. No concrete shared connector is bundled
-in the foundation increment. Legacy core SEC/EOD tools are retired; later
-connector packages own their replacements.
+to Pythia, not to individual connectors. Connector packages such as the bundled
+Yahoo Finance plugin live under `runtime/managed/plugins/`. Legacy core SEC/EOD
+tools are retired; later connector packages own their replacements.
 
 Browser widget modules use the local `@pythia/widget-sdk` and explicit prebuilt
 artifacts, sharing Desk's React and public UI implementation. Features own their

@@ -17,6 +17,7 @@ import { buildManagedWidgets } from "../../scripts/dev/build-managed-widgets.mjs
 import { MANAGED_WIDGET_BUILDS } from "../../scripts/dev/managed-widget-builds.mjs";
 import {
   MANAGED_PLUGINS,
+  MANAGED_PROVIDER_WORKERS,
   refreshManagedPlugins,
 } from "../../scripts/dev/managed-plugins.mjs";
 import { PLUGIN_COPY_RECEIPT } from "../../scripts/dev/files.mjs";
@@ -46,6 +47,11 @@ function fixture(profile = "fixture") {
         join(managedRoot, source, file),
       );
     }
+  }
+  for (const file of MANAGED_PROVIDER_WORKERS) {
+    const destination = join(managedRoot, "runner", file);
+    mkdirSync(dirname(destination), { recursive: true });
+    copyFileSync(join(repository, "runtime/managed/runner", file), destination);
   }
   return {
     root,
@@ -131,18 +137,17 @@ platform_toolsets:
         commands.push(args);
       },
     });
+    const defaults = MANAGED_PLUGINS.filter(
+      (plugin) => plugin.install && plugin.enabledByDefault,
+    ).map((plugin) => plugin.name);
     expect(commands.map((args) => args[3])).toEqual([
       "doctor",
-      "enable",
-      "enable",
+      ...defaults.map(() => "enable"),
     ]);
     expect(
       commands.filter((args) => args[3] === "doctor").map((args) => args[4]),
     ).toEqual([join(paths.profileRoot, "plugins", "pythia")]);
-    expect(commands.slice(1).map((args) => args[4])).toEqual([
-      "pythia",
-      "pythia-market-data",
-    ]);
+    expect(commands.slice(1).map((args) => args[4])).toEqual(defaults);
     const failed: string[][] = [];
     expect(() =>
       refreshManagedPlugins(paths, "synthetic", {
@@ -256,7 +261,11 @@ platform_toolsets:
     );
     expect(
       commands.filter((args) => args[3] === "enable").map((args) => args[4]),
-    ).toEqual(["pythia", "pythia-market-data"]);
+    ).toEqual(
+      payloads
+        .filter((plugin) => plugin.install && plugin.enabledByDefault)
+        .map((plugin) => plugin.name),
+    );
     expect(readFileSync(join(community, "plugin.yaml"), "utf8")).toBe(
       "name: community\n",
     );

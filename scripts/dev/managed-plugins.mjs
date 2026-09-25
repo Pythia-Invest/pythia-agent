@@ -71,6 +71,35 @@ export const MANAGED_PLUGINS = Object.freeze([
       "dist/widgets/instruments.mjs",
     ]),
   }),
+  Object.freeze({
+    name: "pythia-yahoo-discovery",
+    install: true,
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/yahoo-discovery",
+    files: Object.freeze([
+      "__init__.py",
+      "plugin.yaml",
+      "README.md",
+      "trending.py",
+      "definition.py",
+      "identity.py",
+      "resolve.py",
+      "series.py",
+      "results.py",
+    ]),
+  }),
+]);
+
+// Connector worker sources run in place from the managed root after
+// `build:runtime`; they are release inputs, not copied plugin files.
+export const MANAGED_PROVIDER_WORKERS = Object.freeze([
+  "provider-budget.ts",
+  "provider-errors.ts",
+  "provider-worker.ts",
+  "yahoo.ts",
+  "yahoo-prices.ts",
+  "yahoo-options.ts",
 ]);
 
 export function refreshManagedPlugins(
@@ -94,6 +123,10 @@ export function refreshManagedPlugins(
       destination: join(paths.profileRoot, "plugins", plugin.name),
     }));
   // Validate the entire input set before replacing any copied native package.
+  assertManagedPluginSource(
+    join(paths.managedRoot, "runner"),
+    MANAGED_PROVIDER_WORKERS,
+  );
   for (const plugin of copies)
     assertManagedPluginSource(plugin.source, plugin.files);
   const results = [];
