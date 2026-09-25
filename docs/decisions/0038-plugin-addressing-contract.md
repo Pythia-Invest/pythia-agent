@@ -106,6 +106,13 @@ holds `RecordClaim`s and `RelationClaim`s:
   a binding;
 - a relation claim names both ends by global identifiers.
 
+A crypto plugin emits each asset as a security-level record. The record
+carries the provider's coin ID as its native reference and symbol and name as
+labels. It lists token deployments as (provider chain ID, contract), adding
+CAIP-2 only when the plugin knows it. It sets `native_of` only when the
+provider states the asset is a chain's native asset; a fee or gas coin field
+does not count. Core maps chains and native coins through its curated table.
+
 `identity.check_batch` enforces the contract mechanically:
 
 - a plugin binds only its own declared native references, at their declared level;

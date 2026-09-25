@@ -12,7 +12,8 @@ from enum import StrEnum
 from pathlib import Path
 
 from .claims import (
-    BatchOrigin, Claim, ClaimBatch, ClaimEmitter, ClaimError, EmitReceipt, IdentifierValue, RecordAttributes,
+    BatchOrigin, Claim, ClaimBatch, ClaimEmitter, ClaimError, Deployment, EmitReceipt, IdentifierValue,
+    RecordAttributes,
     RecordClaim, RelationClaim, check_batch,
 )
 from .manifest import MANIFEST_FILE, PAGE_BUDGET, CatalogueMode, Manifest, ManifestError, Section, validate_manifest

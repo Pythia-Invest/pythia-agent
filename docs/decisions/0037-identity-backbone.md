@@ -103,21 +103,28 @@ validity window, provenance (plugin, source, record, version, retrieval time),
 authority and tier. Its evidence ID is a content hash, so an unchanged
 assertion keeps its ID across builds.
 
-**Crypto.** A crypto asset is a security-level subject (asset class `crypto`,
-kind `coin` or `token`), usually without an issuer. Its provider IDs
-(`coinmarketcap`/`coin` `1`, `coingecko`/`coin` `bitcoin`) are bindings. Each
-chain deployment is a listing-level subject identified by CAIP-19 (for example
-`eip155:1/slip44:60`), with a CAIP-2 chain instead of a MIC. Tokens join across
-providers when their CAIP-19 deployments agree. Native coins join through a
-small curated chain table (CAIP-2, native CAIP-19, provider coin IDs). Symbols
-and names never join. Wrapped and bridged assets are separate subjects linked by
-`wraps`. The reason is that provider coin IDs identify assets, not deployments:
-one CMC id covers USDC on every chain. The deployment is the only open,
-verifiable key. A native coin's asset ID is its SLIP-44 deployment (Bitcoin is
+**Crypto.** A crypto asset is a security-level subject (asset class `crypto`),
+usually without an issuer. Provider coin IDs (`coinmarketcap`/`coin` `1`,
+`coingecko`/`coin` `bitcoin`) are bindings, and symbols and names are labels
+that never join. A chain deployment is a listing-level subject identified by
+CAIP-19. Core owns a small curated table, which is data and not code. It maps
+provider chain IDs to CAIP-2 and canonical native coins (CAIP-19 `slip44` on
+their home chain) to each provider's coin ID. Joins work as follows:
+
+- tokens join on CAIP-2 + contract (T0);
+- native coins have no contract, and providers share no identifier for them, so
+  they join only through the curated table (T1, rule `native_coins@1`) or a
+  resolver verdict from the queue;
+- a provider's fee or gas coin for a chain (Ether on many L2s, BNB on two
+  chains) is not identity;
+- wrapped and bridged tokens are separate assets linked by `wraps`, never
+  merged, even when a provider lists a wrapped address under the native coin.
+
+A native coin's ID is its `slip44` deployment (Bitcoin is
 `security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0`). A token's
-asset ID is its home deployment from the curated table, and the token stays
+ID is its home deployment from the curated table, and the token stays
 provisional until the table names one. Exchange pairs and aggregated prices are
-content read through the asset's binding; they are not subjects.
+content read through the asset's binding.
 
 **Evidence tiers and authorities.**
 
@@ -216,8 +223,8 @@ The first match wins, and a contradiction stops the chain:
    re-verified on page open.
 5. Otherwise, a provisional subject and a residual in the queue.
 
-Contradictions become conflicts, never merges. Overlays are subordinate to open
-evidence.
+Crypto records follow the rules under **Crypto** above. Contradictions become
+conflicts, never merges. Overlays are subordinate to open evidence.
 
 **Search is a local read.** `search` reads only `directory.sqlite3`. It makes no
 provider call and no identity write, and it does no reconciliation. Rows are

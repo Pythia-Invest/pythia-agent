@@ -16,7 +16,7 @@ from typing import Mapping, Protocol
 from .manifest import CatalogueMode, Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require
 from .schemes import (
-    COUNTRY, CURRENCY, DECIMAL, MIC, SCHEME_LEVEL, TICKER_CLASS, TICKER_ROOT, Level, Scheme,
+    CAIP2, COUNTRY, CURRENCY, DECIMAL, MIC, SCHEME_LEVEL, TICKER_CLASS, TICKER_ROOT, Level, Scheme,
     normalize_identifier,
 )
 from .vocabulary import (
@@ -82,8 +82,27 @@ class RecordAttributes:
 
 
 @dataclass(frozen=True, slots=True)
+class Deployment:
+    """A token deployment as the provider names it. Core maps the chain to CAIP-2 and derives CAIP-19."""
+
+    chain: str               # the provider's own chain id, e.g. CoinGecko "ethereum", CoinMarketCap platform "1"
+    contract: str            # contract address or mint, exactly as the provider gives it
+    caip2: str | None = None # only when the plugin knows it, e.g. an EVM chain id -> eip155:<id>
+
+    def __post_init__(self) -> None:
+        _require(all(isinstance(text, str) and 0 < len(text) <= 128 for text in (self.chain, self.contract)),
+                 "deployment: provider chain id and contract required")
+        _require(self.caip2 is None or bool(CAIP2.match(self.caip2)), "deployment: malformed CAIP-2 chain id")
+
+
+@dataclass(frozen=True, slots=True)
 class RecordClaim:
-    """One source record at its native level, with the identifiers it co-asserts."""
+    """One source record at its native level, with the identifiers it co-asserts.
+
+    A crypto asset record (level security) may add its token deployments, and
+    `native_of` (the provider chain id it is the native asset of) only where the
+    provider states that as identity; a chain's fee or gas coin is not identity.
+    """
 
     level: Level
     identifiers: tuple[IdentifierValue, ...]
@@ -91,13 +110,21 @@ class RecordClaim:
     attributes: RecordAttributes = field(default_factory=RecordAttributes)
     native_ref: ProviderRef | None = None
     validity: Validity = field(default_factory=Validity)
+    deployments: tuple[Deployment, ...] = ()
+    native_of: str | None = None
 
     def __post_init__(self) -> None:
         _coerce(self, level=Level, provenance=Provenance, attributes=RecordAttributes, native_ref=ProviderRef,
                 validity=Validity)
         object.__setattr__(self, "identifiers", tuple(
             item if isinstance(item, IdentifierValue) else IdentifierValue(**item) for item in self.identifiers))
+        object.__setattr__(self, "deployments", tuple(
+            item if isinstance(item, Deployment) else Deployment(**item) for item in self.deployments))
         _require(bool(self.identifiers) or self.native_ref is not None, "record: identifiers or a native ref required")
+        _require(self.level is Level.SECURITY or not (self.deployments or self.native_of),
+                 "record: only a crypto asset record carries deployments or native_of")
+        _require(self.native_of is None or (isinstance(self.native_of, str) and 0 < len(self.native_of) <= 128),
+                 "record: native_of is a provider chain id")
         for item in self.identifiers:
             # A record speaks for itself and its parents, never for narrower subjects,
             # except that a crypto asset record may list its CAIP-19 deployments.

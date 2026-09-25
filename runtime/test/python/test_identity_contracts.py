@@ -74,8 +74,9 @@ def assertion_row(item):
 
 def load_reference(db, fixture):
     """Construct every fixture record through the types, then store it under the DDL's checks."""
-    for row in fixture.get("chains", []):
-        insert(db, "chains", row)
+    for table in ("chains", "provider_chains", "native_coins"):
+        for row in fixture.get(table, []):
+            insert(db, table, row)
     for row in fixture.get("issuers", []):
         issuer = model.Issuer(**row)
         insert(db, "issuers", {"id": issuer.id, "name": issuer.name, "country": issuer.country,
@@ -189,6 +190,16 @@ class FixtureTest(unittest.TestCase):
         self.assertEqual(spaced, identity.provisional_id("listing", "ibkr", "contract", "BRK B"))
         self.assertIs(identity.subject_level(spaced), identity.Level.LISTING)
 
+    def test_native_coins_bind_only_through_the_curated_table(self):
+        fixture, db = load("crypto.json"), database("reference")
+        evidence = load_reference(db, fixture)
+        for binding in bindings(fixture, evidence):
+            ref = binding.provider_ref
+            (caip19,) = db.execute("SELECT caip19 FROM native_coins WHERE provider=? AND native_scope=? AND native_id=?",
+                                   (ref.provider, ref.native_scope, ref.native_id)).fetchone()
+            self.assertEqual(identity.subject_id("security", {"caip19": caip19}), binding.subject_id)
+            self.assertEqual((binding.authority, binding.rule_id), (identity.Authority.RULE_CONFIRMED, "native_coins@1"))
+
     def test_fixture_bindings_rows_and_search_fit_the_stores(self):
         rows = []
         state = database("identity")
@@ -262,6 +273,14 @@ class ClaimTest(unittest.TestCase):
             identity.check_batch(self.batch(foreign), manifest)
         with self.assertRaisesRegex(ValueError, "cannot assert figi"):
             self.record(level="security", native_ref=None, identifiers=[{"scheme": "figi", "value": "BBG000C1HT47"}])
+
+    def test_crypto_records_carry_provider_deployments_not_identity_guesses(self):
+        coin = {"provider": "coingecko", "native_id": "usd-coin", "native_scope": "coin"}
+        token = self.record(level="security", identifiers=[], native_ref=coin,
+                            deployments=[{"chain": "ethereum", "contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"}])
+        self.assertIsNone(token.deployments[0].caip2)
+        with self.assertRaisesRegex(ValueError, "only a crypto asset record"):
+            self.record(native_of="ethereum")
 
 
 class ResolutionTest(unittest.TestCase):

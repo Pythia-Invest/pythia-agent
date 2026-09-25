@@ -1,20 +1,72 @@
 {
-  "provenance_note": "Hand-written backbone fixture. CAIP-19 native-coin deployments follow the CAIP-19 specification examples (bip122:000000000019d6689c085ae165831e93/slip44:0, eip155:1/slip44:60), the ChainAgnostic Solana namespace (CAIP-2 reference = first 32 characters of the mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d) and SLIP-0044 coin types (BTC 0, ETH 60, SOL 501), all checked on 2026-09-25. CoinMarketCap ids (1, 1027, 5426) and CoinGecko ids (bitcoin, ethereum, solana) are the providers' public identifiers for these coins; they were not fetched here and the connector pieces confirm them from their own catalogues. No provider data beyond identifiers.",
+  "provenance_note": "Hand-written backbone fixture. CAIP-19 native-coin deployments follow the CAIP-19 specification examples (bip122:000000000019d6689c085ae165831e93/slip44:0, eip155:1/slip44:60), the ChainAgnostic Solana namespace (CAIP-2 reference = first 32 characters of the mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d) and SLIP-0044 coin types (BTC 0, ETH 60, SOL 501), all checked on 2026-09-25. CoinMarketCap ids (1, 1027, 5426) and CoinGecko ids (bitcoin, ethereum, solana) are the providers' public identifiers for these coins; they were not fetched here and the connector pieces confirm them from their own catalogues. Provider chain ids (CoinGecko asset platforms 'ethereum' and 'solana', CoinMarketCap platform 1 = Ethereum) follow the connector ports (PR #25, #26) and were not fetched here. Native coins carry no contract, so their provider coin ids bind through the curated native_coins table (rule native_coins@1). No provider data beyond identifiers.",
   "chains": [
     {
       "caip2": "bip122:000000000019d6689c085ae165831e93",
-      "name": "Bitcoin",
-      "native_caip19": "bip122:000000000019d6689c085ae165831e93/slip44:0"
+      "name": "Bitcoin"
     },
     {
       "caip2": "eip155:1",
-      "name": "Ethereum",
-      "native_caip19": "eip155:1/slip44:60"
+      "name": "Ethereum"
     },
     {
       "caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-      "name": "Solana",
-      "native_caip19": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501"
+      "name": "Solana"
+    }
+  ],
+  "provider_chains": [
+    {
+      "provider": "coingecko",
+      "chain": "ethereum",
+      "caip2": "eip155:1"
+    },
+    {
+      "provider": "coingecko",
+      "chain": "solana",
+      "caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+    },
+    {
+      "provider": "coinmarketcap",
+      "chain": "1",
+      "caip2": "eip155:1"
+    }
+  ],
+  "native_coins": [
+    {
+      "caip19": "bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "provider": "coinmarketcap",
+      "native_scope": "coin",
+      "native_id": "1"
+    },
+    {
+      "caip19": "bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "provider": "coingecko",
+      "native_scope": "coin",
+      "native_id": "bitcoin"
+    },
+    {
+      "caip19": "eip155:1/slip44:60",
+      "provider": "coinmarketcap",
+      "native_scope": "coin",
+      "native_id": "1027"
+    },
+    {
+      "caip19": "eip155:1/slip44:60",
+      "provider": "coingecko",
+      "native_scope": "coin",
+      "native_id": "ethereum"
+    },
+    {
+      "caip19": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "provider": "coinmarketcap",
+      "native_scope": "coin",
+      "native_id": "5426"
+    },
+    {
+      "caip19": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "provider": "coingecko",
+      "native_scope": "coin",
+      "native_id": "solana"
     }
   ],
   "securities": [
@@ -107,13 +159,14 @@
       },
       "subject_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
       "status": "confirmed",
-      "authority": "curated",
+      "authority": "rule_confirmed",
       "evidence_refs": [
         [
           "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
           "caip19"
         ]
-      ]
+      ],
+      "rule_id": "native_coins@1"
     },
     {
       "provider_ref": {
@@ -123,13 +176,14 @@
       },
       "subject_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
       "status": "confirmed",
-      "authority": "curated",
+      "authority": "rule_confirmed",
       "evidence_refs": [
         [
           "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
           "caip19"
         ]
-      ]
+      ],
+      "rule_id": "native_coins@1"
     },
     {
       "provider_ref": {
@@ -139,8 +193,9 @@
       },
       "subject_id": "security:caip19:eip155:1/slip44:60",
       "status": "confirmed",
-      "authority": "curated",
-      "evidence_refs": [["listing:caip19:eip155:1/slip44:60", "caip19"]]
+      "authority": "rule_confirmed",
+      "evidence_refs": [["listing:caip19:eip155:1/slip44:60", "caip19"]],
+      "rule_id": "native_coins@1"
     },
     {
       "provider_ref": {
@@ -150,8 +205,9 @@
       },
       "subject_id": "security:caip19:eip155:1/slip44:60",
       "status": "confirmed",
-      "authority": "curated",
-      "evidence_refs": [["listing:caip19:eip155:1/slip44:60", "caip19"]]
+      "authority": "rule_confirmed",
+      "evidence_refs": [["listing:caip19:eip155:1/slip44:60", "caip19"]],
+      "rule_id": "native_coins@1"
     },
     {
       "provider_ref": {
@@ -161,13 +217,14 @@
       },
       "subject_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
       "status": "confirmed",
-      "authority": "curated",
+      "authority": "rule_confirmed",
       "evidence_refs": [
         [
           "listing:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
           "caip19"
         ]
-      ]
+      ],
+      "rule_id": "native_coins@1"
     },
     {
       "provider_ref": {
@@ -177,13 +234,14 @@
       },
       "subject_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
       "status": "confirmed",
-      "authority": "curated",
+      "authority": "rule_confirmed",
       "evidence_refs": [
         [
           "listing:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
           "caip19"
         ]
-      ]
+      ],
+      "rule_id": "native_coins@1"
     }
   ],
   "directory_rows": [

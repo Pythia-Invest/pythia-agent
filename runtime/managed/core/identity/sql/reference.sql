@@ -156,8 +156,26 @@ CREATE TABLE venues (
 
 CREATE TABLE chains (
   caip2 TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  native_caip19 TEXT                -- the chain's native coin deployment, e.g. eip155:1/slip44:60
+  name TEXT NOT NULL
+);
+
+-- Curated crypto tables (Pythia-authored data, versioned like a rule).
+-- Provider chain ids -> CAIP-2, so token deployments join on CAIP-2 + contract.
+CREATE TABLE provider_chains (
+  provider TEXT NOT NULL,
+  chain TEXT NOT NULL,              -- the provider's own chain or platform id
+  caip2 TEXT NOT NULL REFERENCES chains(caip2),
+  PRIMARY KEY (provider, chain)
+);
+
+-- Canonical native coins (CAIP-19 slip44 on their home chain) and each provider's
+-- coin id for them. Native coins carry no contract, so this is how they join.
+CREATE TABLE native_coins (
+  caip19 TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  native_scope TEXT NOT NULL,
+  native_id TEXT NOT NULL,
+  PRIMARY KEY (provider, native_scope, native_id)
 );
 
 -- Plugin-contributed ranking signals. A missing signal is unknown, not small.
