@@ -34,8 +34,7 @@ class Reader:
         self.wire, self.connector = wire, connector
         self.definitions = schemas(wire)
         if transport is None:
-            public_http = importlib.import_module(connector.__package__ + '.public_http')
-            transport = public_http.Transport(provider=records.PROVIDER, origins=('https://api.gleif.org',), max_bytes=2_000_000)
+            transport = connector.Transport(provider=records.PROVIDER, origins=('https://api.gleif.org',), max_bytes=2_000_000)
         self.reads = connector.WorkerReads(transport)
 
     def failure(self, error):

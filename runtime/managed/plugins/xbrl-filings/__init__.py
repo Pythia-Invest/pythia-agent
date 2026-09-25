@@ -37,8 +37,7 @@ class Reader:
         self.wire, self.connector = wire, connector
         self.definitions = schemas(wire)
         if transport is None:
-            http = importlib.import_module(connector.__package__ + '.public_http')
-            transport = http.Transport(provider=identity.PROVIDER, origins=(identity.ORIGIN,),
+            transport = connector.Transport(provider=identity.PROVIDER, origins=(identity.ORIGIN,),
                 headers={'User-Agent': 'Pythia investment research'}, max_bytes=16_000_000)
         self.reads = connector.WorkerReads(transport)
 

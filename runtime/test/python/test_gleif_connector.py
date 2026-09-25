@@ -96,9 +96,9 @@ def register_with_market_data(test, module, ctx, transport, scopes):
     manager.get_plugin_manager = lambda: SimpleNamespace(_plugins={
         'pythia-market-data': SimpleNamespace(enabled=True, module=sys.modules[PACKAGE])})
     selection = importlib.import_module(PACKAGE + '.selection')
-    public_http = importlib.import_module(PACKAGE + '.public_http')
+    connector_module = importlib.import_module(PACKAGE + '.connector')
     for patcher in (patch.dict(sys.modules, {'hermes_cli.plugins': manager}),
-                    patch.object(public_http, 'Transport', return_value=transport),
+                    patch.object(connector_module, 'Transport', return_value=transport),
                     patch.object(selection, 'native_access_scope', side_effect=lambda: next(scopes))):
         patcher.start()
         test.addCleanup(patcher.stop)

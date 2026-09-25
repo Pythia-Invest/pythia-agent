@@ -11,7 +11,7 @@ no additional registration or authentication mechanism.
 | --- | --- |
 | `connection` | Connection-scoped concurrency, quota accounting and provider cooldown |
 | `WorkerReads` | Bounded successful-response cache and shared in-flight reads with consumer cancellation; an optional `prepare_result` validates or projects a success before it is cached, under a policy `cache_scope` |
-| `public_http.Transport` | In-process bounded HTTPS JSON GET for keyless public APIs: fixed origins, no redirects, size/deadline bounds, budget permits and the same failure vocabulary as workers |
+| `Transport` | In-process bounded HTTPS JSON GET for keyless public APIs: fixed origins, no redirects, size/deadline bounds, budget permits and the same failure vocabulary as workers |
 | `NativeBatch`, `worker_batch`, `worker_item` | Collect compatible IDs, deduplicate overlapping requests, retain each ID's result or failure |
 | `process.run_worker` | Bounded disposable process, actual outbound permits, safe execution diagnostics |
 | `ResidentTransport` | Optional bounded RPC worker, connection-state reuse, deadlines, idle expiry and cleanup |
