@@ -56,8 +56,7 @@ DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 INSTANT = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$")
 DECIMAL = re.compile(r"^(0|[1-9][0-9]*)(\.[0-9]+)?$")
 NAMESPACE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
-TICKER_ROOT = re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}$")
-TICKER_CLASS = re.compile(r"^[A-Z0-9]{1,4}$")
+TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}$")
 CAIP2 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$")
 PROVISIONAL_NATIVE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$")
 
@@ -68,8 +67,8 @@ _PATTERNS = {
     Scheme.SHARE_CLASS_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
     Scheme.COMPOSITE_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
     Scheme.FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]$"),
-    # ROOT[/CLASS]@MIC, e.g. ASML@XAMS or BRK/B@XNYS. Punctuation is the plugin's concern.
-    Scheme.TICKER_MIC: re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}(/[A-Z0-9]{1,4})?@[A-Z0-9]{4}$"),
+    # TICKER@MIC, e.g. ASML@XAMS.
+    Scheme.TICKER_MIC: re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}@[A-Z0-9]{4}$"),
     # CAIP-19: chain_id "/" asset_namespace ":" asset_reference [ "/" token_id ]
     Scheme.CAIP19: re.compile(
         r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}/[-a-z0-9]{3,8}:[-.%a-zA-Z0-9]{1,128}(/[-.%a-zA-Z0-9]{1,78})?$"),
@@ -130,10 +129,9 @@ def normalize_identifier(scheme: Scheme | str, value: str) -> str:
     return value
 
 
-def ticker_mic(root: str, mic: str, share_class: str | None = None) -> str:
+def ticker_mic(ticker: str, mic: str) -> str:
     """Canonical `ticker_mic` value from its parts."""
-    value = f"{root}/{share_class}@{mic}" if share_class else f"{root}@{mic}"
-    return normalize_identifier(Scheme.TICKER_MIC, value)
+    return normalize_identifier(Scheme.TICKER_MIC, f"{ticker}@{mic}")
 
 
 def subject_level(subject_id: str) -> Level:

@@ -4,8 +4,7 @@
     {
       "id": "issuer:lei:724500Y6DUVHQD6OXN27",
       "name": "ASML Holding N.V.",
-      "country": "NL",
-      "legal_form": "B5PM"
+      "country": "NL"
     }
   ],
   "securities": [
@@ -41,7 +40,7 @@
       "id": "listing:isin:NL0010273215:XAMS:EUR",
       "security_id": "security:isin:NL0010273215",
       "composite_id": "composite:isin:NL0010273215:NL",
-      "ticker_root": "ASML",
+      "ticker": "ASML",
       "mic": "XAMS",
       "operating_mic": "XAMS",
       "currency": "EUR",
@@ -51,7 +50,7 @@
       "id": "listing:isin:USN070592100:XNAS:USD",
       "security_id": "security:isin:USN070592100",
       "composite_id": "composite:isin:USN070592100:US",
-      "ticker_root": "ASML",
+      "ticker": "ASML",
       "mic": "XNGS",
       "operating_mic": "XNAS",
       "currency": "USD",

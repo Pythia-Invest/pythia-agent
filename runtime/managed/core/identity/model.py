@@ -17,8 +17,8 @@ from .vocabulary import (
     EvidenceTier, InstrumentKind, RelationType, SubjectStatus,
 )
 from .schemes import (
-    CAIP2, COUNTRY, CURRENCY, DATE, DECIMAL, INSTANT, MIC, NAMESPACE, SCHEME_LEVEL, TICKER_CLASS,
-    TICKER_ROOT, Level, Scheme, normalize_identifier, subject_level,
+    CAIP2, COUNTRY, CURRENCY, DATE, DECIMAL, INSTANT, MIC, NAMESPACE, SCHEME_LEVEL, TICKER, Level, Scheme,
+    normalize_identifier, subject_level,
 )
 
 
@@ -146,7 +146,6 @@ class Issuer:
     id: str
     name: str
     country: str | None = None
-    legal_form: str | None = None
     status: SubjectStatus = SubjectStatus.ACTIVE
 
     def __post_init__(self) -> None:
@@ -165,7 +164,6 @@ class Security:
     asset_class: AssetClass
     kind: InstrumentKind
     issuer_id: str | None = None
-    cfi: str | None = None
     status: SubjectStatus = SubjectStatus.ACTIVE
 
     def __post_init__(self) -> None:
@@ -174,8 +172,6 @@ class Security:
         _require(self.issuer_id is None or subject_level(self.issuer_id) is Level.ISSUER,
                  "security.issuer_id: issuer id required")
         _text(self.name, "security.name")
-        _require(self.cfi is None or (len(self.cfi) == 6 and self.cfi.isalpha() and self.cfi.isupper()),
-                 "security.cfi: six upper-case letters")
         _require((self.asset_class is AssetClass.CRYPTO) == (self.kind in (InstrumentKind.COIN, InstrumentKind.TOKEN)),
                  "security: coin/token kinds belong to the crypto asset class and only there")
 
@@ -200,13 +196,11 @@ class Listing:
 
     id: str
     security_id: str
-    ticker_root: str | None = None
-    ticker_class: str | None = None
+    ticker: str | None = None
     mic: str | None = None
     operating_mic: str | None = None
     chain: str | None = None
     currency: str | None = None
-    price_scale: str = "1"
     composite_id: str | None = None
     primary: bool = False
     status: SubjectStatus = SubjectStatus.ACTIVE
@@ -221,20 +215,15 @@ class Listing:
         if self.mic is not None:
             _require(bool(MIC.match(self.mic)) and (self.operating_mic is None or bool(MIC.match(self.operating_mic))),
                      "listing: MICs are four upper-case characters")
-            _require(bool(self.ticker_root and TICKER_ROOT.match(self.ticker_root)), "listing.ticker_root: required at a venue")
-            _require(self.ticker_class is None or bool(TICKER_CLASS.match(self.ticker_class)), "listing.ticker_class: malformed")
+            _require(bool(self.ticker and TICKER.match(self.ticker)), "listing.ticker: required at a venue")
             _require(bool(self.currency and CURRENCY.match(self.currency)), "listing.currency: ISO 4217 required at a venue")
         else:
             _require(bool(CAIP2.match(self.chain or "")), "listing.chain: CAIP-2 chain id required")
-            _require(self.composite_id is None and self.ticker_class is None, "listing: deployments have no composite or class")
-        _require(bool(DECIMAL.match(self.price_scale)) and float(self.price_scale) > 0, "listing.price_scale: positive decimal")
+            _require(self.composite_id is None, "listing: deployments have no composite")
 
     @property
     def ticker_mic(self) -> str | None:
-        if self.mic is None:
-            return None
-        root = f"{self.ticker_root}/{self.ticker_class}" if self.ticker_class else self.ticker_root
-        return f"{root}@{self.mic}"
+        return f"{self.ticker}@{self.mic}" if self.mic and self.ticker else None
 
 
 Subject = Issuer | Security | Composite | Listing
@@ -288,9 +277,13 @@ class Relation:
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, authority=Authority, provenance=Provenance, validity=Validity)
         _require(self.from_id != self.to_id, "relation: endpoints must be distinct subjects")
-        levels = (subject_level(self.from_id), subject_level(self.to_id))
-        expected = RELATION_LEVELS[self.type]
-        _require(levels == expected if expected else levels[0] is levels[1],
-                 f"relation: {self.type} links subjects at the wrong levels")
-        _require(self.ratio is None or (self.type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(self.ratio))),
-                 "relation.ratio: decimal, receipts only")
+        check_relation(self.type, subject_level(self.from_id), subject_level(self.to_id), self.ratio)
+
+
+def check_relation(type: RelationType, from_level: Level, to_level: Level, ratio: str | None) -> None:
+    """Level and ratio rules shared by stored relations and relation claims."""
+    expected = RELATION_LEVELS[type]
+    _require((from_level, to_level) == expected if expected else from_level is to_level,
+             f"relation: {type} links subjects at the wrong levels")
+    _require(ratio is None or (type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(ratio))),
+             "relation.ratio: decimal, receipts only")

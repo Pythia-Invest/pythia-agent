@@ -28,13 +28,11 @@ CREATE TABLE records (
   scope TEXT NOT NULL REFERENCES scopes(scope),
   level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
   name TEXT,
-  ticker_root TEXT,
-  ticker_class TEXT,
+  ticker TEXT,
   mic TEXT,
   operating_mic TEXT,
   provider_venue TEXT,
   currency TEXT,
-  price_scale TEXT,
   asset_class TEXT,
   kind TEXT,
   status TEXT,
@@ -44,7 +42,7 @@ CREATE TABLE records (
   last_seen TEXT NOT NULL,         -- not seen in a complete scope != delisted; never unbinds by itself
   PRIMARY KEY (native_scope, native_id)
 );
-CREATE INDEX records_ticker ON records (mic, ticker_root);
+CREATE INDEX records_ticker ON records (mic, ticker);
 
 -- The identifiers each record co-asserts, typed for the ingest join.
 CREATE TABLE record_identifiers (

@@ -14,13 +14,12 @@ from enum import StrEnum
 from typing import Mapping, Protocol
 
 from .manifest import CatalogueMode, Manifest
-from .model import Provenance, ProviderRef, Validity, _coerce, _require
+from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
 from .schemes import (
-    CAIP2, COUNTRY, CURRENCY, DECIMAL, MIC, SCHEME_LEVEL, TICKER_CLASS, TICKER_ROOT, Level, Scheme,
-    normalize_identifier,
+    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, TICKER, Level, Scheme, normalize_identifier,
 )
 from .vocabulary import (
-    RELATION_LEVELS, AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
+    AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
 )
 
 MAX_BATCH_CLAIMS = 5000
@@ -55,17 +54,14 @@ class RecordAttributes:
 
     name: str | None = None
     issuer_name: str | None = None
-    ticker_root: str | None = None
-    ticker_class: str | None = None
+    ticker: str | None = None
     mic: str | None = None
     operating_mic: str | None = None
     provider_venue: str | None = None  # the provider's own exchange code, kept for its MIC crosswalk
     currency: str | None = None
-    price_scale: str | None = None
     country: str | None = None
     asset_class: AssetClass | None = None
     kind: InstrumentKind | None = None
-    cfi: str | None = None
     status: SubjectStatus | None = None
     aliases: tuple[str, ...] = ()
     rank: Mapping[str, float] = field(default_factory=dict)  # rank signals, e.g. {"market_cap_usd": 2.6e11}
@@ -73,10 +69,10 @@ class RecordAttributes:
     def __post_init__(self) -> None:
         _coerce(self, asset_class=AssetClass, kind=InstrumentKind, status=SubjectStatus)
         object.__setattr__(self, "aliases", tuple(self.aliases))
-        checks = ((self.ticker_root, TICKER_ROOT), (self.ticker_class, TICKER_CLASS), (self.mic, MIC),
-                  (self.operating_mic, MIC), (self.currency, CURRENCY), (self.price_scale, DECIMAL), (self.country, COUNTRY))
+        checks = ((self.ticker, TICKER), (self.mic, MIC), (self.operating_mic, MIC), (self.currency, CURRENCY),
+                  (self.country, COUNTRY))
         _require(all(value is None or bool(pattern.match(value)) for value, pattern in checks),
-                 "record attributes: malformed ticker, MIC, currency, scale or country")
+                 "record attributes: malformed ticker, MIC, currency or country")
         _require(all(isinstance(key, str) and isinstance(value, (int, float)) for key, value in self.rank.items()),
                  "record attributes: rank signals are numeric")
 
@@ -147,12 +143,8 @@ class RelationClaim:
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, from_key=IdentifierValue, to_key=IdentifierValue, provenance=Provenance,
                 validity=Validity)
-        levels, expected = (self.from_key.level, self.to_key.level), RELATION_LEVELS[self.type]
-        _require(levels == expected if expected else levels[0] is levels[1],
-                 f"relation claim: {self.type} keys at the wrong levels")
         _require(self.from_key != self.to_key, "relation claim: endpoints must differ")
-        _require(self.ratio is None or (self.type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(self.ratio))),
-                 "relation claim: ratio is a decimal on receipts only")
+        check_relation(self.type, self.from_key.level, self.to_key.level, self.ratio)
 
 
 Claim = RecordClaim | RelationClaim

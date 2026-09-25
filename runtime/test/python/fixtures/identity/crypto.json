@@ -93,19 +93,19 @@
     {
       "id": "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
       "security_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
-      "ticker_root": "BTC",
+      "ticker": "BTC",
       "chain": "bip122:000000000019d6689c085ae165831e93"
     },
     {
       "id": "listing:caip19:eip155:1/slip44:60",
       "security_id": "security:caip19:eip155:1/slip44:60",
-      "ticker_root": "ETH",
+      "ticker": "ETH",
       "chain": "eip155:1"
     },
     {
       "id": "listing:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
       "security_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
-      "ticker_root": "SOL",
+      "ticker": "SOL",
       "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
     }
   ],

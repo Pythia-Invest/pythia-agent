@@ -18,7 +18,6 @@ CREATE TABLE issuers (
   id TEXT PRIMARY KEY CHECK (id LIKE 'issuer:%'),
   name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 512),
   country TEXT CHECK (country IS NULL OR (length(country) = 2 AND country = upper(country))),
-  legal_form TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'unknown'))
 );
 
@@ -28,7 +27,6 @@ CREATE TABLE securities (
   name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 512),
   asset_class TEXT NOT NULL CHECK (asset_class IN ('equity', 'crypto')),
   kind TEXT NOT NULL CHECK (kind IN ('ordinary', 'depositary_receipt', 'coin', 'token')),
-  cfi TEXT CHECK (cfi IS NULL OR length(cfi) = 6),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'unknown')),
   CHECK ((asset_class = 'crypto') = (kind IN ('coin', 'token')))
 );
@@ -47,18 +45,16 @@ CREATE TABLE listings (
   composite_id TEXT REFERENCES composites(id),
   mic TEXT CHECK (mic IS NULL OR length(mic) = 4),
   operating_mic TEXT CHECK (operating_mic IS NULL OR length(operating_mic) = 4),
-  ticker_root TEXT,
-  ticker_class TEXT,
+  ticker TEXT,
   currency TEXT CHECK (currency IS NULL OR length(currency) = 3),
-  price_scale TEXT NOT NULL DEFAULT '1',
   chain TEXT,
   is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'unknown')),
   CHECK ((mic IS NULL) <> (chain IS NULL)),
-  CHECK (mic IS NULL OR (ticker_root IS NOT NULL AND currency IS NOT NULL)),
-  CHECK (chain IS NULL OR (composite_id IS NULL AND ticker_class IS NULL))
+  CHECK (mic IS NULL OR (ticker IS NOT NULL AND currency IS NOT NULL)),
+  CHECK (chain IS NULL OR composite_id IS NULL)
 );
-CREATE UNIQUE INDEX listings_active_line ON listings (mic, ticker_root, coalesce(ticker_class, ''), currency)
+CREATE UNIQUE INDEX listings_active_line ON listings (mic, ticker, currency)
   WHERE status = 'active' AND mic IS NOT NULL;
 CREATE INDEX listings_security ON listings (security_id);
 

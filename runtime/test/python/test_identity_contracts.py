@@ -80,7 +80,7 @@ def load_reference(db, fixture):
     for row in fixture.get("issuers", []):
         issuer = model.Issuer(**row)
         insert(db, "issuers", {"id": issuer.id, "name": issuer.name, "country": issuer.country,
-                               "legal_form": issuer.legal_form, "status": issuer.status.value})
+                               "status": issuer.status.value})
     for row in fixture["securities"]:
         security = model.Security(**row)
         insert(db, "securities", {"id": security.id, "issuer_id": security.issuer_id, "name": security.name,
@@ -91,7 +91,7 @@ def load_reference(db, fixture):
     for row in fixture["listings"]:
         listing = model.Listing(**row)
         insert(db, "listings", {"id": listing.id, "security_id": listing.security_id, "composite_id": listing.composite_id,
-                                "mic": listing.mic, "operating_mic": listing.operating_mic, "ticker_root": listing.ticker_root,
+                                "mic": listing.mic, "operating_mic": listing.operating_mic, "ticker": listing.ticker,
                                 "currency": listing.currency, "chain": listing.chain, "is_primary": int(listing.primary)})
     evidence = {}
     for row in fixture["assertions"]:
@@ -144,7 +144,7 @@ class StoreSchemaTest(unittest.TestCase):
             with self.subTest(scheme=scheme), self.assertRaises(identity.IdentifierError):
                 identity.normalize_identifier(scheme, value)
         self.assertEqual(identity.normalize_identifier("cik", "937966"), "0000937966")
-        self.assertEqual(identity.ticker_mic("BRK", "XNYS", "B"), "BRK/B@XNYS")
+        self.assertEqual(identity.ticker_mic("ASML", "XAMS"), "ASML@XAMS")
 
 
 class FixtureTest(unittest.TestCase):
@@ -239,7 +239,7 @@ class ClaimTest(unittest.TestCase):
         value = {"level": "listing", "provenance": PROVENANCE,
                  "native_ref": {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"},
                  "identifiers": [{"scheme": "isin", "value": "NL0010273215"}],
-                 "attributes": {"ticker_root": "ASML", "provider_venue": "AS", "currency": "EUR"}}
+                 "attributes": {"ticker": "ASML", "provider_venue": "AS", "currency": "EUR"}}
         return identity.RecordClaim(**{**value, **overrides})
 
     def batch(self, *claims):
