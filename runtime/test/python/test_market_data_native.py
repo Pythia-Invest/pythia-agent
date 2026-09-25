@@ -27,6 +27,11 @@ class WorkerTest(unittest.TestCase):
                 cancelled=lambda: False)
         with self.assertRaisesRegex(WORKER.WorkerError, "output_limit"):
             self.run_worker("import sys; sys.stdout.write('x'*2100000)", cancelled=lambda: False)
+        # A connector may raise the bound for a documented bulk read, within a cap.
+        self.assertEqual(len(self.run_worker("import json; print(json.dumps('x'*2100000))",
+            cancelled=lambda: False, output_limit=3_000_000)), 2100000)
+        with self.assertRaisesRegex(WORKER.WorkerError, "invalid_request"):
+            self.run_worker("print(1)", cancelled=lambda: False, output_limit=16_000_001)
 
     def test_deadline_reaps_owned_process(self):
         with tempfile.TemporaryDirectory() as raw:
