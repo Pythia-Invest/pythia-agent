@@ -211,6 +211,8 @@ class Access(unittest.TestCase):
         provider = importlib.import_module('test_cg.__init__')
         feature = sys.modules[PACKAGE]
         ctx = Context('pythia-coingecko')
+        # Core configuration reads the declaring package from the native manifest.
+        ctx.manifest = types.SimpleNamespace(path=str(ROOT / 'plugins/coingecko'))
         plugins = types.ModuleType('hermes_cli.plugins')
         plugins.get_plugin_manager = lambda: types.SimpleNamespace(_plugins={
             'pythia-market-data': types.SimpleNamespace(enabled=True, module=feature)})
