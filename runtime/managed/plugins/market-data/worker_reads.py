@@ -61,7 +61,12 @@ class WorkerReads:
         self.transport = transport
         self.cache = ReadCache(max_entries=128, max_bytes=8_000_000)
 
-    def read(self, command, request, environment, *, age=0, cancelled=None, cache_scope=None, **options):
+    def read(self, command, request, environment, *, age=0, cancelled=None, cache_scope=None, prepare_result=None, **options):
+        # A connector may validate/project a successful native response before
+        # publication. Its stable policy version belongs in cache_scope; it must
+        # not depend on a particular consumer of this shared request.
+        if prepare_result is not None and (not callable(prepare_result) or cache_scope is None):
+            raise ValueError('prepared_read_requires_policy_scope')
         # Include worker revision and all transport/credential inputs. Secrets
         # are hashed into an opaque in-memory key, never logged or persisted.
         worker = Path(command[-1])
@@ -69,13 +74,18 @@ class WorkerReads:
             revision = [worker.stat().st_mtime_ns, worker.stat().st_size]
         except OSError:
             revision = None
-        key = fingerprint({'command': command, 'revision': revision, 'request': request, 'environment': environment, 'fresh': age == 0, 'scope': cache_scope})
+        key = fingerprint({'command': command, 'revision': revision, 'request': request, 'environment': environment,
+                           'fresh': age == 0, 'scope': cache_scope, 'prepared': prepare_result is not None})
         def fetch():
             cached = self.cache.get(key) if age else None
             if cached is not None:
                 diagnostics.emit('cache_hit', level='debug', provider=getattr(options.get('budget'), 'provider', None), operation=request.get('operation'))
                 return cached
             value = self.transport.run_worker(command, request, environment, cancelled=is_cancelled, **options)
+            if prepare_result is not None and not value.get('error'):
+                value = prepare_result(value)
+                if not isinstance(value, dict):
+                    raise SourceFailure({'error': 'invalid_response'})
             if age and not is_cancelled() and (value.get('data') is not None or value.get('observations')) and cacheable(value):
                 self.cache.put(key, value, ttl_seconds=age)
             return value
