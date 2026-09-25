@@ -15,8 +15,10 @@ or per-request Hermes startup.
 The release installs the shared owner, contracts, execution helpers and agent
 skill, plus the credential-free [Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md)
 (personal use; its data never leaves the device). `describe` reports only
-installed, enabled native contributions. The original core SEC/EODHD tools are
-retired; other connector packages must supply those capabilities explicitly.
+installed, enabled native contributions. The bundled [EODHD connector](eodhd.md)
+adds prices, catalogue, identifier and research reads once its API token is
+configured. The original core SEC/EODHD tools are retired; other connector
+packages must supply those capabilities explicitly.
 Enabling the owner does not install a provider or prove an account's access.
 
 - [Wire contracts](../../packages/market-data/README.md): subject, series,
