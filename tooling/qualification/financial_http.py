@@ -23,7 +23,6 @@ from gateway.session_context import set_session_vars, clear_session_vars
 from hermes_cli.plugins import get_plugin_manager, PluginContext
 from tools.registry import registry
 from native_hermes_source import validate_source_binding
-from plugin_configuration import qualify_configuration
 from widget_presentations import qualify_widget_presentations
 
 FINANCIAL_PATH = '/v1/pythia/plugins/pythia-market-data/query'
@@ -35,8 +34,6 @@ def synthetic_plugin(root):
     target = root / 'plugins/research/synthetic'
     target.mkdir(parents=True, mode=0o700)
     (target / 'plugin.yaml').write_text('name: synthetic\nversion: 1.0.0\nrequires_plugins: [pythia]\n')
-    (target / 'configuration.json').write_text(json.dumps({'schema_version': 1, 'fields': [
-        {'key': 'synthetic_api_token', 'kind': 'secret', 'label': 'Synthetic token', 'required': True}]}))
     (target / '__init__.py').write_text(textwrap.dedent('''\
         import importlib
         import json
@@ -197,7 +194,6 @@ async def main():
                     return await client.post(base + path, headers=auth, json=body, **kwargs)
                 with patch('subprocess.Popen', side_effect=AssertionError('No command or model subprocess is allowed')):
                     await qualify_widget_presentations(post, disable, root)
-                    await qualify_configuration(client, base, headers, disable)
                     for auth in ({}, {'Authorization': 'Bearer wrong'}):
                         assert (await post({'action': 'get_preferences'}, auth=auth)).status == 401
                     adapter._api_key = ''

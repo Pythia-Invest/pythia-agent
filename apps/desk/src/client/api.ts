@@ -33,7 +33,6 @@ import type {
 } from "@/server/device-settings";
 import type { HermesToolset } from "@/server/types";
 import type { DeskReleaseStatus } from "@/server/release-status";
-import { PluginConfigurationClient } from "./plugin-configuration-api";
 import type { ModelCatalog, ModelSelection } from "@/server/model-catalog";
 
 function parseFrame(frame: string) {
@@ -205,10 +204,6 @@ export class DeskApi extends BrowserRequest {
   updateStatus() {
     return this.json<DeskReleaseStatus>("/api/update-status");
   }
-
-  readonly pluginConfiguration = new PluginConfigurationClient(
-    <T>(path: string, init?: RequestInit) => this.json<T>(path, init),
-  );
 
   async setSkillEnabled(name: string, enabled: boolean) {
     return (
