@@ -108,12 +108,10 @@ class Verdict:
     prompt_version: str | None = None
     input_digest: str | None = None   # sha256:<hex> of exactly what the model saw
     rule_id: str | None = None        # required for rule_confirmed
-    rejected_evidence_ids: tuple[str, ...] = ()  # conflict: evidence judged stale or wrong (a negative override)
     rationale: str | None = None
 
     def __post_init__(self) -> None:
         _coerce(self, resolver=ResolverKind, authority=Authority, relation=VerdictRelation, provenance=Provenance)
-        object.__setattr__(self, "rejected_evidence_ids", tuple(self.rejected_evidence_ids))
         # Only the user attests and only rules rule-confirm; the agent and resolver plugins give model verdicts.
         own = {ResolverKind.RULES: Authority.RULE_CONFIRMED, ResolverKind.USER: Authority.USER_ATTESTED}
         _require(self.authority is own[self.resolver] if self.resolver in own else self.authority in MODEL_AUTHORITIES,
@@ -129,7 +127,6 @@ class Verdict:
         _require(self.input_digest is None or bool(DIGEST.match(self.input_digest)), "verdict: input_digest is sha256:<hex>")
         _require((self.authority is Authority.RULE_CONFIRMED) == (self.rule_id is not None),
                  "verdict: rule_id is required exactly for rule confirmations")
-        _require(all(item.startswith("ev:") for item in self.rejected_evidence_ids), "verdict: evidence ids required")
         _require(self.rationale is None or len(self.rationale) <= 400, "verdict: rationale at most 400 characters")
 
 
@@ -139,7 +136,7 @@ def decide(verdict: Verdict, item: QueueItem, *, contradicted: bool, guarded: bo
 
     A verdict may confirm in the absence of identifier proof, never against it.
     `contradicted`: current identifier evidence at the same level contradicts the
-    answer (after excluding the verdict's rejected evidence). `guarded`: a
+    answer. `guarded`: a
     mechanical depositary-receipt or share-class guard forbids it. Both always
     win. A model verdict confirms only at or above the relation's gold-calibrated
     `threshold`; with no calibrated threshold it can only suggest.

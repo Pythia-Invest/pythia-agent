@@ -101,7 +101,6 @@ CREATE TABLE verdicts (
   relation TEXT NOT NULL CHECK (relation IN ('same_listing', 'same_security', 'same_issuer', 'depositary_receipt_of',
                                              'unrelated', 'none', 'ambiguous')),
   chosen_id TEXT,
-  rejected_evidence_ids TEXT NOT NULL DEFAULT '[]',
   confidence REAL CHECK (confidence IS NULL OR confidence BETWEEN 0 AND 1),
   model TEXT,
   prompt_version TEXT,
