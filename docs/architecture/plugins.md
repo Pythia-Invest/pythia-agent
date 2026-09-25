@@ -211,6 +211,11 @@ in-process and any plugin may declare any non-reserved key; sharing a key such
 as `eodhd_api_token` is how plugins share one value. Enable only plugins you
 trust.
 
+Rejected: a Desk-owned field allowlist (a Desk change per provider), a settings
+UI or writer in the POC, and a block in Hermes's `plugin.yaml` (Hermes owns that
+schema). Hermes `requires_env` and `.env` custody were rejected because they
+keep provider secrets in the Hermes environment instead of Pythia custody.
+
 ## Skills and contracts
 
 Put feature guidance and supporting files inside the plugin. Register it with
