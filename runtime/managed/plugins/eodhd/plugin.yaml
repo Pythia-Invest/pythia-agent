@@ -1,0 +1,20 @@
+name: pythia-eodhd
+version: 0.1.0
+description: Bounded EODHD prices, reference metadata, news and statement facts
+license: Apache-2.0
+requires_plugins:
+  - pythia-market-data
+provides_tools:
+  - pythia_eodhd_details
+  - pythia_eodhd_series
+  - pythia_eodhd_latest
+  - pythia_eodhd_history
+  - pythia_eodhd_reverse_isin
+  - pythia_eodhd_identifiers
+  - pythia_eodhd_dashboard
+  - pythia_eodhd_volume_ranking
+  - pythia_eodhd_market_movers
+  - pythia_eodhd_read_batch
+  - pythia_eodhd_news
+  - pythia_eodhd_fundamentals
+  - pythia_eodhd_catalogue
