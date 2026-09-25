@@ -3,22 +3,27 @@
 A content connector for Yahoo Finance's public data. It needs no account or
 credential. Exact-symbol details, source-pinned price series, bounded
 specialist research (quote, chart, historical, quoteSummary, fundamentals,
-options, insights, recommendations, screener, trending) and Desk dashboards run
-through `yahoo-finance2` 4.0.2 in the owned resident worker
+options, insights, recommendations, screener, trending, news) and Desk
+dashboards run through `yahoo-finance2` 4.0.2 in the owned resident worker
 (`runtime/managed/runner/yahoo*.ts`). SDK setup and requests share the connection
 budget; the native unload hook releases the worker. The connector does not use
 browser cookies or private account access.
 
-## Personal use only
+## Provider terms
+
+Pythia is personal software: each installation serves one investor. Provider
+data is used under that investor's own agreement with the provider. Each plugin
+carries its provider's terms and enforces what they require. Pythia itself never
+publishes, pools or redistributes provider data.
 
 Yahoo's terms limit use to personal, non-commercial purposes and prohibit
-redistribution and building a competing database or feed. Yahoo data therefore
-stays on the device of the person who requested it:
+redistribution and building a competing database or feed. This plugin enforces
+that as follows:
 
 - reads are cached only in memory, within the market-data owner's cache policy
-  (seconds to minutes), and nothing is written to disk;
-- Yahoo rows never enter a catalogue, overlay, reference snapshot, export or
-  other shared artefact, and must not be committed as fixtures;
+  (seconds to minutes);
+- Yahoo rows never enter a catalogue, overlay, reference snapshot or other
+  shared artefact, and must not be committed as fixtures;
 - tests use synthetic Yahoo-shaped values.
 
 ## Identity
@@ -33,9 +38,14 @@ ticker similarity never creates a canonical relationship.
 ## No provider search
 
 Investment search is a local read of Pythia's directory; this connector offers
-no free-text search. The worker's only lookup is `resolve_isin`, which accepts a
-checksum-valid ISIN and returns listing rows (symbol, exchange, quote type).
-`resolve.py` turns that into a query-only hint verified by one exact metadata
-read. Yahoo keys an ISIN to its primary listing only, so the hint never proves
-the other listings of a security. The helper is not registered as a tool yet;
-the plugin addressing contract adopts it as this connector's `resolve`.
+no free-text search. The agent forms a Yahoo reference from a symbol it already
+has and confirms it with `details`. The worker reaches Yahoo's search endpoint
+in two narrow ways only:
+
+- `resolve_isin` accepts a checksum-valid ISIN and returns listing rows
+  (symbol, exchange, quote type). Yahoo keys an ISIN to its primary listing
+  only, so a row never proves the other listings of a security. No tool exposes
+  it yet; the plugin addressing contract adopts it as this connector's
+  `resolve`.
+- research `news` accepts a validated Yahoo symbol and returns only the items
+  Yahoo tags with that exact symbol.
