@@ -92,7 +92,9 @@ class DisplayNameTest(unittest.TestCase):
         cases = {("ASML HOLDING N.V.", "ASML"): "ASML Holding N.V.", ("ING GROEP N.V.", ""): "ING Groep N.V.",
                  ("KONINKLIJKE KPN N.V.", ""): "Koninklijke KPN N.V.", ("BANK OF AMERICA CORP /DE/", ""): "Bank of America Corp",
                  ("COMPAGNIE DE SAINT-GOBAIN", ""): "Compagnie de Saint-Gobain", ("THE MAGNUM ICE CREAM COMPANY N.V.", ""):
-                 "The Magnum Ice Cream Company N.V.", ("O'REILLY AUTOMOTIVE INC", ""): "O'Reilly Automotive Inc"}
+                 "The Magnum Ice Cream Company N.V.", ("O'REILLY AUTOMOTIVE INC", ""): "O'Reilly Automotive Inc",
+                 ("SHELL PLC", "SHELL"): "Shell PLC", ("US BANCORP DE", "USB"): "US Bancorp",
+                 ("JPMORGAN CHASE & CO", "JPM"): "JPMorgan Chase & Co"}
         for (name, ticker), shown in cases.items():
             self.assertEqual(rules.display_case(name, frozenset({ticker})), shown)
 

@@ -36,8 +36,6 @@ export const searchRowSchema = z.object({
   /** Subject id of the representative listing (crypto: of the asset).
    * Instrument pages address it; it is never a provider symbol. */
   id: text(256),
-  /** Subject id of the instrument's security (crypto: the asset). */
-  security: text(256),
   ticker: text(64),
   name: text(512),
   kind: z.enum(INSTRUMENT_KINDS),

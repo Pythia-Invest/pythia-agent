@@ -212,7 +212,6 @@ function demoRow(instrument: Instrument, query: string): SearchRow {
     country: null,
     bindings: [],
     ...listing,
-    security: instrument.security,
     name: instrument.name,
     kind: instrument.kind,
     listings: instrument.listings.length - 1,
@@ -288,7 +287,6 @@ export function demoLookup(delay = 0) {
 export function demoLookupRow(symbol: string): SearchRow {
   return {
     id: `listing:demo:${symbol}`,
-    security: `security:demo:${symbol}`,
     ticker: symbol,
     name: `${symbol} (synthetic lookup result)`,
     kind: "ordinary",

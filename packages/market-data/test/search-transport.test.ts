@@ -25,7 +25,6 @@ const response: SearchResponse = {
   rows: [
     {
       id: "listing:isin:NL0010273215:XAMS:EUR",
-      security: "security:isin:NL0010273215",
       ticker: "ASML",
       name: "ASML Holding N.V.",
       kind: "ordinary",

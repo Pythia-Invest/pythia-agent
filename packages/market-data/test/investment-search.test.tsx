@@ -12,7 +12,6 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 function row(ticker: string): SearchRow {
   return {
     id: `listing:${ticker}`,
-    security: `security:${ticker}`,
     ticker,
     name: `${ticker} Holding`,
     kind: "ordinary",

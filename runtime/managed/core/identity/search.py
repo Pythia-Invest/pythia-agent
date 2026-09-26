@@ -193,10 +193,10 @@ class Directory:
         return best[1] if best else None
 
     def lines(self, query: str, prefer: str = "primary",
-              suffixes: Callable[[], dict[str, str]] = dict) -> list[tuple[float, dict, tuple]]:
+              suffixes: Callable[[], dict[str, set[str]]] = dict) -> list[tuple[float, dict, tuple]]:
         """Scored directory lines for a query: (score, line, representative key).
 
-        `suffixes` maps a provider symbol suffix (".AS") to its operating MIC."""
+        `suffixes` maps a provider symbol suffix (".AS") to the operating MICs it names."""
         kind, value = classify(query)
         by_id = {"isin": "d.isin = ?", "lei": "d.lei = ?", "cik": "d.cik = ?",
                  "figi": "(' ' || d.figis || ' ') LIKE ?", "pair": "d.crypto = 1 AND d.tnorm = ?"}
@@ -208,7 +208,7 @@ class Directory:
             if len(tokens) > 1:
                 for token in list(tokens):
                     if token in VENUE_WORDS:
-                        hint = VENUE_WORDS[token]
+                        hint = {VENUE_WORDS[token]}
                         tokens.remove(token)
             if not tokens:
                 return []
@@ -217,7 +217,7 @@ class Directory:
             if exact and not found and "." in query:  # a provider symbol such as ASML.AS: its root on that venue
                 root, suffix = query.strip().rsplit(".", 1)
                 exact, tokens = tnorm(root), norm(root).split() or tokens
-                hint = suffixes().get(f".{suffix.upper()}", hint)
+                hint = suffixes().get(f".{suffix.upper()}", hint)  # EODHD ".US" names several venues
                 found = {row["id"]: row for row in self._fetch("d.tnorm = ?", (exact,))}
             fuzzy = False
             try:
@@ -236,8 +236,19 @@ class Directory:
                 found.setdefault(hit["id"], hit)
             return _score(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy)
 
+    def instrument_listings(self, security: str) -> list[dict]:
+        """The listings of the instrument a security belongs to, receipts folded in as in search: the ones
+        a row's "+N" counts, the company's primary listing first. Empty for a security not in the directory."""
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT listing, ticker, mic, venue, currency, prim AND security = inst, kind FROM doc"
+                " WHERE inst = (SELECT inst FROM doc WHERE security = ? LIMIT 1) AND crypto = 0"
+                " ORDER BY security <> inst, prim DESC, mic, listing", (security,)).fetchall()
+        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "primary", "kind"), row), primary=bool(row[5]))
+                for row in rows]
+
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
-               suffixes: Callable[[], dict[str, str]] = dict,
+               suffixes: Callable[[], dict[str, set[str]]] = dict,
                bindings: Callable[[list[str]], dict[str, list[dict]]] = lambda ids: {}) -> dict[str, Any]:
         """The SearchResponse (packages/market-data/src/search.ts) for one query: one row per instrument."""
         allowed = set(kinds) if kinds else None
@@ -245,7 +256,8 @@ class Directory:
         # PER_ISSUER of them, each shown through its representative listing (the best key among its lines).
         issuers: dict[str, list] = {}
         for score, line, key in self.lines(query, prefer, suffixes):
-            if allowed is not None and line["ikind"] not in allowed:
+            # A type filter matches the instrument or the line (a folded receipt for "depositary_receipt").
+            if allowed is not None and line["ikind"] not in allowed and line["kind"] not in allowed:
                 continue
             issuer = issuers.setdefault(line["grp"], [score, {}])
             issuer[0] = max(issuer[0], score)
@@ -258,7 +270,7 @@ class Directory:
                 break
         shown = shown[:limit]
         bound = bindings([line["listing"] for line in shown])
-        return {"rows": [{"id": line["listing"], "security": line["inst"], "ticker": line["ticker"], "name": line["name"],
+        return {"rows": [{"id": line["listing"], "ticker": line["ticker"], "name": line["name"],
                           "kind": line["ikind"], "mic": line["mic"], "venue": line["venue"], "country": line["country"],
                           "listings": self.listings.get(line["inst"], 0),
                           "bindings": bound.get(line["listing"], [])[:16]} for line in shown],
@@ -275,7 +287,7 @@ def _instrument_order(members: list) -> tuple:
             max(score for score, _key, _line in members))
 
 
-def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None = None, hint: str | None = None,
+def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None = None, hint: set[str] | None = None,
            id_rows: bool = False, fuzzy: bool = False) -> list[tuple[float, dict, tuple]]:
     wanted_core, wanted = core_name(query), norm(query)
     out = []
@@ -288,24 +300,22 @@ def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None 
         variants = [item.strip() for item in (primary + "|" + aliases).split("|") if item.strip()]
         cores, plains = [core_name(item) for item in variants], [norm(item) for item in variants]
         primary_cores = [core_name(item) for item in primary.split("|") if item.strip()]
-        named = True
-        if wanted_core and wanted_core in primary_cores:
+        named = bool(wanted_core and wanted_core in primary_cores)  # the query is the name, not only its start
+        if named:
             score += W["name_exact"]
         elif any(item.startswith(wanted) for item in plains) or (wanted_core and any(item.startswith(wanted_core) for item in cores)):
             score += W["name_prefix"]
-        else:
-            named = False
         score += W["bm25"] * min(-line.get("bm25", 0.0), 20)
         score += W["size"] * (line["g"] if line["g"] is not None else W["size_missing"]) + (line["size"] or 0)
         score += (W["prim"] * line["prim"] + W["home"] * line["home"] + W["otc"] * line["otc"] + W["deriv"] * line["deriv"]
                   + W["fund"] * line["fund"] + W["dr"] * line["dr"])
-        venue_hit = bool(hint and line["mic"] == hint)
+        venue_hit = bool(hint and line["mic"] in hint)
         if venue_hit:
             score += W["venue"]
         if fuzzy:
             score += W["fuzzy"]
         # The representative listing of an instrument: lexicographic, not additive. A listing the query names
-        # first (its venue, or its exact ticker unless the query also reads as the name: "relx", "ing"), then
+        # first (its venue, or its exact ticker unless the query is also the name: "relx", "ing"), then
         # the preferred region, then the primary market.
         preferred = (prefer == "EU" and line["country"] in EEA) or (prefer == "US" and line["country"] == "US"
                                                                      and not line["otc"])

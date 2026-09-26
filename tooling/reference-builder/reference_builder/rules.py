@@ -79,22 +79,30 @@ _FORMS = {"INC": "Inc", "CORP": "Corp", "CO": "Co", "LTD": "Ltd", "LLC": "LLC", 
           "SPA": "SpA", "KGAA": "KGaA", "GMBH": "GmbH", "OYJ": "Oyj", "PTE": "Pte", "BHD": "Bhd", "TR": "Tr"}
 _PARTICLES = frozenset("OF AND THE FOR DE DU DES DER DEN DI DA DEL LA LE VAN VON ET EN AT ON IN".split())
 _WORDS = frozenset("AIR ART BAY BIG BIO CAR GAS ICE INN NET NEW OIL ONE PAY RED SEA SKY SUN TOP TWO WAY".split())
-# SEC company titles end in a state or filer marker (" /DE/", " /FI", "INC/", "/NEW/") or "/ADR"; "SA/NV" stays.
-_SEC_SUFFIX = re.compile(r"(?:\s+/\s*[A-Z]{2,3}/?|/\s*(?:[A-Z]{2,3}/)?|\s*/\s*AD[RS]S?)\s*$", re.IGNORECASE)
+# Brands whose casing no rule derives.
+_BRANDS = {"JPMORGAN": "JPMorgan", "EBAY": "eBay", "ISHARES": "iShares", "PAYPAL": "PayPal", "BLACKROCK": "BlackRock",
+           "RELX": "RELX"}
+_WORDLIKE = re.compile(r"[^AEIOUY]{0,2}(?:[AEIOUY]+[^AEIOUY]{0,2})+")  # SHELL, META; not ASML or IMCD
+# SEC company titles end in a state or filer marker (" /DE/", " /FI", "INC/", "/NEW/", " DE") or "/ADR";
+# "SA/NV" stays.
+_SEC_SUFFIX = re.compile(r"(?:\s+/\s*[A-Z]{2,3}/?|/\s*(?:[A-Z]{2,3}/)?|\s*/\s*AD[RS]S?|\s+DE)\s*$")
 
 
 def display_case(name: str, tickers: frozenset[str] = frozenset()) -> str:
     """A readable display name: SEC state and ADR suffixes dropped ("/DE/"), and an all-capitals name
     re-cased ("ASML HOLDING N.V." with ticker ASML -> "ASML Holding N.V."). Mixed-case names keep their
-    case. Kept upper: dotted forms (N.V., S.A.), the issuer's tickers, words without a vowel and short
-    words that are not common words (BP, KPN, ING, NN)."""
+    case. Kept upper: dotted forms (N.V., S.A.), the issuer's tickers that are not words (ASML, not
+    SHELL), words without a vowel and short words that are not common words (BP, KPN, ING, NN)."""
     name = _SEC_SUFFIX.sub("", name).strip() or name
     if name != name.upper():
         return name
 
     def word(token: str, first: bool) -> str:
         plain = re.sub(r"[^A-Z0-9]", "", token)
-        if not plain.isalpha() or re.fullmatch(r"(?:[A-Z]\.)+[A-Z]?\.?", token) or plain in tickers:
+        if plain in _BRANDS:
+            return token.replace(plain, _BRANDS[plain])
+        if (not plain.isalpha() or re.fullmatch(r"(?:[A-Z]\.)+[A-Z]?\.?", token)
+                or (plain in tickers and not _WORDLIKE.fullmatch(plain))):
             return token
         if plain in _FORMS:
             return token.replace(plain, _FORMS[plain])
