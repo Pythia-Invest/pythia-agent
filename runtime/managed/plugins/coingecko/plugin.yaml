@@ -1,0 +1,14 @@
+name: pythia-coingecko
+version: 0.1.0
+description: CoinGecko coin catalogue, aggregate prices and native coin metadata
+license: Apache-2.0
+requires_plugins:
+  - pythia-market-data
+provides_tools:
+  - pythia_coingecko_catalogue
+  - pythia_coingecko_read_batch
+  - pythia_coingecko_details
+  - pythia_coingecko_series
+  - pythia_coingecko_latest
+  - pythia_coingecko_history
+  - pythia_coingecko_dashboard

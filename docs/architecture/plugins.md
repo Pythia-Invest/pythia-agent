@@ -8,7 +8,10 @@ package and controls whether it is enabled in the profile.
 Pythia's host support lives separately in `runtime/managed/core/`. It still uses
 the native Hermes extension hook under the `pythia` identity; `plugins/` contains
 the pluggable features and connectors. Core supplies operating guidance, Desk
-context and shared transport, not provider-specific research tools. See
+context, shared transport and the investment identity backbone, not
+provider-specific research tools. A plugin that serves investment data declares
+what it can address in a static `contract.json`
+([ADR 0038](../decisions/0038-plugin-addressing-contract.md)). See
 [ADR 0034](../decisions/0034-core-and-optional-features.md).
 
 The package owns its tools, domain implementation, bundled skills and explicitly

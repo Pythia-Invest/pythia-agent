@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import identity  # noqa: F401  (contracts plugins reach as the loaded core's `identity`)
 from .desk_view import SCHEMA as DESK_VIEW_SCHEMA, desk_view
 from .operating import OPERATING_CONTEXT
 

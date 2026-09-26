@@ -1,0 +1,14 @@
+name: pythia-coinmarketcap
+version: 0.1.0
+description: CoinMarketCap crypto catalogue, aggregate quotes and coin profiles
+license: Apache-2.0
+requires_plugins:
+  - pythia-market-data
+provides_tools:
+  - pythia_coinmarketcap_catalogue
+  - pythia_coinmarketcap_profile
+  - pythia_coinmarketcap_details
+  - pythia_coinmarketcap_series
+  - pythia_coinmarketcap_latest
+  - pythia_coinmarketcap_history
+  - pythia_coinmarketcap_read_batch

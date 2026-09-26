@@ -1,0 +1,223 @@
+"""Typed claims plugins emit into the backbone, and the emission API connectors call.
+
+Plugins describe their own records; they never reconcile. A record or relation
+claim names subjects only by global identifiers, and a record may bind only the
+emitting provider's own native references. Pythia subject IDs appear only in
+resolver verdicts on the core's queue (see resolution.py), never in claims.
+Plugins never choose an evidence tier: the core assigns it at ingest.
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Mapping, Protocol
+
+from .manifest import Manifest
+from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
+from .schemes import (
+    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Level, Scheme, normalize_identifier,
+)
+from .vocabulary import (
+    AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
+)
+
+MAX_BATCH_CLAIMS = 5000
+DIGEST = re.compile(r"^sha256:[0-9a-f]{64}\Z")
+_DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
+
+
+class BatchOrigin(StrEnum):
+    CATALOGUE = "catalogue"  # a page of a bulk catalogue scope
+    RESOLVE = "resolve"      # the answer to one resolve request
+    # Open reference sources never emit: the reference builder writes the reference store itself.
+
+
+@dataclass(frozen=True, slots=True)
+class IdentifierValue:
+    scheme: Scheme
+    value: str
+    role: IdentifierRole = IdentifierRole.SELF
+
+    def __post_init__(self) -> None:
+        _coerce(self, scheme=Scheme, role=IdentifierRole)
+        object.__setattr__(self, "value", normalize_identifier(self.scheme, self.value))
+
+    @property
+    def level(self) -> Level:
+        return SCHEME_LEVEL[self.scheme]
+
+
+@dataclass(frozen=True, slots=True)
+class RecordAttributes:
+    """Descriptive fields of a source record. None means the source did not say."""
+
+    name: str | None = None
+    issuer_name: str | None = None
+    ticker: str | None = None
+    mic: str | None = None
+    operating_mic: str | None = None
+    provider_venue: str | None = None  # the provider's own exchange code, kept for its MIC crosswalk
+    currency: str | None = None
+    country: str | None = None
+    asset_class: AssetClass | None = None
+    kind: InstrumentKind | None = None
+    status: SubjectStatus | None = None
+    aliases: tuple[str, ...] = ()
+    rank: Mapping[str, float] = field(default_factory=dict)  # rank signals, e.g. {"market_cap_usd": 2.6e11}
+
+    def __post_init__(self) -> None:
+        _coerce(self, asset_class=AssetClass, kind=InstrumentKind, status=SubjectStatus)
+        object.__setattr__(self, "aliases", tuple(self.aliases))
+        checks = ((self.ticker, TICKER), (self.mic, MIC), (self.operating_mic, MIC), (self.currency, CURRENCY),
+                  (self.country, COUNTRY))
+        _require(all(value is None or bool(pattern.match(value)) for value, pattern in checks),
+                 "record attributes: malformed ticker, MIC, currency or country")
+        _require(all(isinstance(key, str) and isinstance(value, (int, float)) for key, value in self.rank.items()),
+                 "record attributes: rank signals are numeric")
+
+
+@dataclass(frozen=True, slots=True)
+class Deployment:
+    """A token deployment as the provider names it. Core maps the chain to CAIP-2 and derives CAIP-19."""
+
+    chain: str               # the provider's own chain id, e.g. CoinGecko "ethereum", CoinMarketCap platform "1"
+    contract: str            # contract address or mint, exactly as the provider gives it
+    caip2: str | None = None # only when the plugin knows it, e.g. an EVM chain id -> eip155:<id>
+
+    def __post_init__(self) -> None:
+        _require(all(isinstance(text, str) and 0 < len(text) <= 128 for text in (self.chain, self.contract)),
+                 "deployment: provider chain id and contract required")
+        _require(self.caip2 is None or bool(CAIP2.match(self.caip2)), "deployment: malformed CAIP-2 chain id")
+
+
+@dataclass(frozen=True, slots=True)
+class RecordClaim:
+    """One source record at its native level, with the identifiers it co-asserts.
+
+    A crypto asset record (level security) may add its token deployments, and
+    `native_of` (the provider chain id it is the native asset of) only where the
+    provider states that as identity; a chain's fee or gas coin is not identity.
+    """
+
+    level: Level
+    identifiers: tuple[IdentifierValue, ...]
+    provenance: Provenance
+    attributes: RecordAttributes = field(default_factory=RecordAttributes)
+    native_ref: ProviderRef | None = None
+    validity: Validity = field(default_factory=Validity)
+    deployments: tuple[Deployment, ...] = ()
+    native_of: str | None = None
+
+    def __post_init__(self) -> None:
+        _coerce(self, level=Level, provenance=Provenance, attributes=RecordAttributes, native_ref=ProviderRef,
+                validity=Validity)
+        object.__setattr__(self, "identifiers", tuple(
+            item if isinstance(item, IdentifierValue) else IdentifierValue(**item) for item in self.identifiers))
+        object.__setattr__(self, "deployments", tuple(
+            item if isinstance(item, Deployment) else Deployment(**item) for item in self.deployments))
+        _require(bool(self.identifiers) or self.native_ref is not None, "record: identifiers or a native ref required")
+        _require(self.level is Level.SECURITY or not (self.deployments or self.native_of),
+                 "record: only a crypto asset record carries deployments or native_of")
+        _require(self.native_of is None or (isinstance(self.native_of, str) and 0 < len(self.native_of) <= 128),
+                 "record: native_of is a provider chain id")
+        for item in self.identifiers:
+            # A record speaks for itself and its parents, never for narrower subjects,
+            # except that a crypto asset record may list its CAIP-19 deployments.
+            deployment = item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY
+            _require(_DEPTH[item.level] <= _DEPTH[self.level] or deployment,
+                     f"record: a {self.level} record cannot assert {item.scheme}")
+        own = [item.scheme for item in self.identifiers if item.role is IdentifierRole.SELF
+               and item.scheme in SINGLE_VALUED and not (item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY)]
+        _require(len(own) == len(set(own)), "record: one self value per single-valued scheme")
+
+
+@dataclass(frozen=True, slots=True)
+class RelationClaim:
+    """A typed edge between subjects named by global identifiers."""
+
+    type: RelationType
+    from_key: IdentifierValue
+    to_key: IdentifierValue
+    provenance: Provenance
+    validity: Validity = field(default_factory=Validity)
+    ratio: str | None = None
+
+    def __post_init__(self) -> None:
+        _coerce(self, type=RelationType, from_key=IdentifierValue, to_key=IdentifierValue, provenance=Provenance,
+                validity=Validity)
+        _require(self.from_key != self.to_key, "relation claim: endpoints must differ")
+        check_relation(self.type, self.from_key.level, self.to_key.level, self.ratio)
+
+
+Claim = RecordClaim | RelationClaim
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimBatch:
+    plugin: str
+    provider: str
+    adapter_version: str
+    origin: BatchOrigin
+    claims: tuple[Claim, ...]
+    scope: str | None = None  # catalogue scope
+    complete: bool = False    # last page of the scope: rows not seen become "not seen", never unbound
+
+    def __post_init__(self) -> None:
+        _coerce(self, origin=BatchOrigin)
+        object.__setattr__(self, "claims", tuple(self.claims))
+        _require(0 < len(self.claims) <= MAX_BATCH_CLAIMS or (self.complete and not self.claims),
+                 f"batch: 1-{MAX_BATCH_CLAIMS} claims")
+        _require((self.origin is BatchOrigin.CATALOGUE) == (self.scope is not None), "batch: scope exactly for catalogue pages")
+
+
+@dataclass(frozen=True, slots=True)
+class EmitReceipt:
+    accepted: int
+    residuals: int
+    conflicts: int
+    rejected: tuple[tuple[int, str], ...] = ()  # (claim index, reason) for claims the core refused
+
+
+class ClaimEmitter(Protocol):
+    """Connector entry point, exposed by the loaded core as `identity.emitter()`.
+
+    `emit` validates with `check_batch`, joins at ingest and returns promptly; it
+    never calls a provider. A rejected batch raises ClaimError and stores nothing.
+    """
+
+    def emit(self, batch: ClaimBatch) -> EmitReceipt: ...
+
+
+class ClaimError(ValueError):
+    pass
+
+
+def _fail(index: int | None, reason: str) -> ClaimError:
+    return ClaimError(f"claims[{index}]: {reason}" if index is not None else f"batch: {reason}")
+
+
+def check_batch(batch: ClaimBatch, manifest: Manifest) -> None:
+    """Mechanical contract checks for a batch against its plugin's validated manifest."""
+    if (batch.plugin, batch.provider) != (manifest.plugin, manifest.provider):
+        raise _fail(None, "plugin or provider differs from the manifest")
+    if batch.origin is BatchOrigin.CATALOGUE and batch.scope not in manifest.catalogue_scopes:
+        raise _fail(None, "no declared bulk catalogue scope")
+    if batch.origin is BatchOrigin.RESOLVE and manifest.resolve is None:
+        raise _fail(None, "no declared resolve")
+    seen: set[tuple[str, str]] = set()
+    for index, claim in enumerate(batch.claims):
+        provenance = claim.provenance
+        if provenance.plugin != batch.plugin or provenance.adapter_version != batch.adapter_version:
+            raise _fail(index, "provenance does not name this plugin and adapter version")
+        if isinstance(claim, RecordClaim) and claim.native_ref is not None:
+            ref = claim.native_ref
+            declared = manifest.native_scope(ref.native_scope)
+            if ref.provider != manifest.provider or declared is None:
+                raise _fail(index, "a plugin binds only its own declared native references")
+            if declared.level is not claim.level:
+                raise _fail(index, f"{ref.native_scope} refs address a {declared.level}, not a {claim.level}")
+            key = (ref.native_scope, ref.native_id)
+            if key in seen:
+                raise _fail(index, "duplicate native reference in batch")
+            seen.add(key)
