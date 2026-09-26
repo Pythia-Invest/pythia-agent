@@ -160,6 +160,11 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
       composite  the security key + country
       listing    isin + operating MIC + currency, else figi, else caip19 (a chain deployment)
     Tickers are attributes, not keys, so a ticker change keeps the ID.
+    Collisions: venue lines with the same ISIN, operating MIC and currency are
+    one listing; their segment MICs and tickers are attributes (ticker_mic is
+    multi-valued). The builder derives from all open evidence for a record, so
+    the ID never depends on build order; when a higher-precedence identifier
+    appears later, the old ID is re-keyed through reference id_aliases.
     """
     level = Level(level)
     known = {Scheme(scheme): normalize_identifier(scheme, value) for scheme, value in identifiers.items() if value}
