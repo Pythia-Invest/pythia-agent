@@ -1,219 +1,94 @@
-import type { RowKind, SearchResponse, SearchRow } from "../search";
+import type { InstrumentKind, SearchGroup, SearchRow } from "../search";
 
-export type TypeFilter = "all" | RowKind;
-export type RowSource = "directory" | "lookup";
+export type TypeFilter =
+  | "all"
+  | "stocks"
+  | "etfs"
+  | "crypto"
+  | "funds"
+  | "indices"
+  | "currencies"
+  | "bonds";
 
-/** Type pills in display order. Filtering never re-ranks the returned rows. */
-export const TYPE_FILTERS: readonly { value: TypeFilter; label: string }[] = [
+/** Type pills in display order, with the instrument kinds each one asks the
+ * directory for. */
+export const TYPE_FILTERS: readonly {
+  value: TypeFilter;
+  label: string;
+  kinds?: InstrumentKind[];
+}[] = [
   { value: "all", label: "All" },
-  { value: "equity", label: "Stocks" },
-  { value: "etf", label: "ETFs" },
-  { value: "crypto", label: "Crypto" },
-  { value: "fund", label: "Funds" },
-  { value: "index", label: "Indices" },
-  { value: "fx", label: "Currencies" },
-  { value: "bond", label: "Bonds" },
+  {
+    value: "stocks",
+    label: "Stocks",
+    kinds: ["ordinary", "preferred", "depositary_receipt"],
+  },
+  { value: "etfs", label: "ETFs", kinds: ["etf"] },
+  { value: "crypto", label: "Crypto", kinds: ["coin", "token"] },
+  { value: "funds", label: "Funds", kinds: ["fund"] },
+  { value: "indices", label: "Indices", kinds: ["index"] },
+  { value: "currencies", label: "Currencies", kinds: ["fx"] },
+  { value: "bonds", label: "Bonds", kinds: ["bond"] },
 ];
 
-export const KIND_LABELS: Record<RowKind, string> = {
-  equity: "Stock",
+export const KIND_LABELS: Record<InstrumentKind, string> = {
+  ordinary: "Stock",
+  preferred: "Preferred stock",
+  depositary_receipt: "Depositary receipt",
   etf: "ETF",
   fund: "Fund",
   bond: "Bond",
   index: "Index",
   fx: "Currency",
-  crypto: "Crypto",
+  coin: "Crypto",
+  token: "Token",
+  other: "Other",
 };
 
-/** Listings of one security: the primary listing is shown, others expand. */
-export type SearchGroup = {
+export type RowSource = "directory" | "lookup";
+
+/** One selectable row in panel order. A group's first row leads it with the
+ * security's name and type; its other listings follow as compact rows. */
+export type SearchOption = {
   key: string;
-  primary: SearchRow;
-  others: SearchRow[];
+  row: SearchRow;
+  group: SearchGroup;
+  lead: boolean;
+  source: RowSource;
 };
 
-/** Groups ranked rows without inferring identity from names or tickers. A server
- * grouping wins; otherwise rows sharing `security_id` form one group. Groups keep
- * the rank of their best row. */
-export function groupResults(
-  response: Pick<SearchResponse, "results" | "groups">,
-  filter: TypeFilter,
-): SearchGroup[] {
-  const hinted = new Map<string, { key: string; position: number }>();
-  for (const group of response.groups ?? [])
-    group.row_ids.forEach((id, position) => {
-      if (!hinted.has(id))
-        hinted.set(id, { key: `group:${group.key}`, position });
-    });
-  const seen = new Set<string>();
-  const members = new Map<string, SearchRow[]>();
-  for (const row of response.results) {
-    if (seen.has(row.row_id) || (filter !== "all" && row.kind !== filter))
-      continue;
-    seen.add(row.row_id);
-    const key =
-      hinted.get(row.row_id)?.key ??
-      (row.security_id ? `security:${row.security_id}` : `row:${row.row_id}`);
-    const list = members.get(key);
-    if (list) list.push(row);
-    else members.set(key, [row]);
-  }
-  return [...members].flatMap(([key, rows]) => {
-    const server = key.startsWith("group:");
-    const ordered = server
-      ? rows.toSorted(
-          (a, b) =>
-            (hinted.get(a.row_id)?.position ?? 0) -
-            (hinted.get(b.row_id)?.position ?? 0),
-        )
-      : rows;
-    const primary = server
-      ? ordered[0]
-      : (ordered.find((row) => row.is_primary) ?? ordered[0]);
-    return primary
-      ? [{ key, primary, others: ordered.filter((row) => row !== primary) }]
-      : [];
-  });
-}
-
-export type SearchItem =
-  | {
-      type: "row";
-      key: string;
-      row: SearchRow;
-      group: string;
-      nested: boolean;
-      source: RowSource;
-    }
-  | {
-      type: "toggle";
-      key: string;
-      group: string;
-      expanded: boolean;
-      others: SearchRow[];
-    };
-
-/** The flat, keyboard-navigable order of everything the panel lists. */
-export function searchItems(
+export function searchOptions(
   groups: readonly SearchGroup[],
-  expanded: ReadonlySet<string>,
-  lookupRows: readonly SearchRow[] = [],
-): SearchItem[] {
-  const items: SearchItem[] = [];
-  for (const group of groups) {
-    items.push(rowItem(group.primary, group.key, false, "directory"));
-    if (!group.others.length) continue;
-    const open = expanded.has(group.key);
-    items.push({
-      type: "toggle",
-      key: `toggle:${group.key}`,
-      group: group.key,
-      expanded: open,
-      others: group.others,
-    });
-    if (open)
-      for (const row of group.others)
-        items.push(rowItem(row, group.key, true, "directory"));
-  }
-  for (const row of lookupRows)
-    items.push(rowItem(row, `lookup:${row.row_id}`, false, "lookup"));
-  return items;
-}
-
-function rowItem(
-  row: SearchRow,
-  group: string,
-  nested: boolean,
   source: RowSource,
-): SearchItem {
-  return {
-    type: "row",
-    key: `${source}:${row.row_id}`,
-    row,
-    group,
-    nested,
-    source,
-  };
-}
-
-/** The active option is remembered by key; a missing key falls back to the
- * first item, so Enter always acts on what is highlighted. */
-export function activeItem(
-  items: readonly SearchItem[],
-  activeKey: string | null,
-): SearchItem | undefined {
-  return items.find((item) => item.key === activeKey) ?? items[0];
-}
-
-export type NavigationKey =
-  | "ArrowDown"
-  | "ArrowUp"
-  | "ArrowRight"
-  | "ArrowLeft"
-  | "Enter";
-
-export type NavigationIntent =
-  | { type: "activate"; key: string }
-  | { type: "select"; row: SearchRow; source: RowSource }
-  | { type: "expand"; group: string; expanded: boolean; activate: string }
-  | { type: "none" };
-
-/** Combobox keyboard model: focus stays in the input while the highlighted
- * option moves. Right expands a security's other listings, Left collapses. */
-export function navigate(
-  items: readonly SearchItem[],
-  activeKey: string | null,
-  key: NavigationKey,
-): NavigationIntent {
-  const current = activeItem(items, activeKey);
-  if (!current) return { type: "none" };
-  const index = items.indexOf(current);
-  const toggle = items.find(
-    (item) => item.type === "toggle" && item.group === current.group,
+): SearchOption[] {
+  return groups.flatMap((group) =>
+    group.rows.map((row, index) => ({
+      key: `${source}:${row.id}`,
+      row,
+      group,
+      lead: index === 0,
+      source,
+    })),
   );
-  const step = (offset: number): NavigationIntent => {
-    const next = items[(index + offset + items.length) % items.length];
-    return next ? { type: "activate", key: next.key } : { type: "none" };
-  };
-  switch (key) {
-    case "ArrowDown":
-      return step(1);
-    case "ArrowUp":
-      return step(-1);
-    case "Enter":
-      return current.type === "row"
-        ? { type: "select", row: current.row, source: current.source }
-        : {
-            type: "expand",
-            group: current.group,
-            expanded: !current.expanded,
-            activate: current.key,
-          };
-    case "ArrowRight":
-      return toggle?.type === "toggle" && !toggle.expanded
-        ? {
-            type: "expand",
-            group: current.group,
-            expanded: true,
-            activate: current.key,
-          }
-        : { type: "none" };
-    case "ArrowLeft": {
-      if (toggle?.type !== "toggle" || !toggle.expanded)
-        return { type: "none" };
-      // A collapsed listing disappears; keep the highlight on its security.
-      const primary = items.find(
-        (item) => item.type === "row" && item.group === current.group,
-      );
-      return {
-        type: "expand",
-        group: current.group,
-        expanded: false,
-        activate:
-          current.type === "row" && current.nested && primary
-            ? primary.key
-            : current.key,
-      };
-    }
-  }
+}
+
+/** The highlighted option is remembered by key; an unknown key falls back to
+ * the first option, so Enter always acts on what is highlighted. */
+export function activeOption(
+  options: readonly SearchOption[],
+  key: string | null,
+): SearchOption | undefined {
+  return options.find((option) => option.key === key) ?? options[0];
+}
+
+/** Arrow keys move the highlight through every row and wrap at the ends. */
+export function moveActive(
+  options: readonly SearchOption[],
+  key: string | null,
+  offset: 1 | -1,
+): string | undefined {
+  const current = activeOption(options, key);
+  if (!current) return undefined;
+  const index = options.indexOf(current) + offset;
+  return options[(index + options.length) % options.length]?.key;
 }
