@@ -16,7 +16,7 @@ from typing import Mapping, Protocol
 from .manifest import Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
 from .schemes import (
-    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, TICKER, Level, Scheme, normalize_identifier,
+    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Level, Scheme, normalize_identifier,
 )
 from .vocabulary import (
     AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
@@ -127,6 +127,9 @@ class RecordClaim:
             deployment = item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY
             _require(_DEPTH[item.level] <= _DEPTH[self.level] or deployment,
                      f"record: a {self.level} record cannot assert {item.scheme}")
+        own = [item.scheme for item in self.identifiers if item.role is IdentifierRole.SELF
+               and item.scheme in SINGLE_VALUED and not (item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY)]
+        _require(len(own) == len(set(own)), "record: one self value per single-valued scheme")
 
 
 @dataclass(frozen=True, slots=True)

@@ -81,12 +81,16 @@ RELATION_LEVELS: dict[RelationType, tuple[Level, Level] | None] = {
 class IdentifierRole(StrEnum):
     """Whether a claimed identifier names the record itself or its underlying security.
 
-    A depositary line that carries its underlying's ISIN (e.g. a CEDEAR) must say
-    `underlying`; such a record never joins the underlying's security by ISIN.
+    A depositary line that carries its underlying's ISIN (e.g. a CEDEAR) says
+    `underlying`; a source that cannot tell (EODHD's ISIN field) says
+    `unqualified`. Only `self` values join by ISIN; the others become an
+    `underlying_identifier` residual. The plugin marks the role; core cannot
+    verify it mechanically.
     """
 
     SELF = "self"
     UNDERLYING = "underlying"
+    UNQUALIFIED = "unqualified"
 
 
 class VerdictRelation(StrEnum):

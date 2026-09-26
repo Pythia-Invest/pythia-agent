@@ -52,7 +52,7 @@ CREATE TABLE record_identifiers (
   scheme TEXT NOT NULL CHECK (scheme IN ('lei', 'cik', 'isin', 'share_class_figi', 'composite_figi', 'figi',
                                          'ticker_mic', 'caip19')),
   value TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'self' CHECK (role IN ('self', 'underlying')),
+  role TEXT NOT NULL DEFAULT 'self' CHECK (role IN ('self', 'underlying', 'unqualified')),
   PRIMARY KEY (native_scope, native_id, scheme, value, role),
   FOREIGN KEY (native_scope, native_id) REFERENCES records(native_scope, native_id) ON DELETE CASCADE
 );

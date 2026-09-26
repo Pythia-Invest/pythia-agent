@@ -245,6 +245,13 @@ class ClaimTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.record(level="security", native_ref=None, identifiers=[{"scheme": "figi", "value": "BBG000C1HT47"}])
 
+    def test_a_record_has_one_own_value_per_single_valued_scheme(self):
+        underlying = {"scheme": "isin", "value": "US0378331005", "role": "underlying"}
+        self.record(identifiers=[{"scheme": "isin", "value": "NL0010273215"}, underlying])
+        self.record(identifiers=[{"scheme": "isin", "value": "NL0010273215", "role": "unqualified"}])
+        with self.assertRaises(ValueError):
+            self.record(identifiers=[{"scheme": "isin", "value": "NL0010273215"}, {**underlying, "role": "self"}])
+
     def test_crypto_records_carry_provider_deployments_not_identity_guesses(self):
         coin = {"provider": "coingecko", "native_id": "usd-coin", "native_scope": "coin"}
         self.record(level="security", identifiers=[], native_ref=coin,
