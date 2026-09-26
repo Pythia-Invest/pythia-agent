@@ -27,9 +27,6 @@
       "cik",
       "ticker_mic"
     ],
-    "echoes": [
-      "cik",
-      "ticker_mic"
-    ]
+    "echoes": []
   }
 }

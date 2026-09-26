@@ -7,9 +7,9 @@ is no provider search operation.
 import json
 
 TOOLSET = 'pythia-coingecko-market-data'
-OPERATIONS = ('catalogue', 'resolve', 'details', 'series', 'latest', 'history', 'dashboard', 'read_batch')
+OPERATIONS = ('catalogue', 'details', 'series', 'latest', 'history', 'dashboard', 'read_batch')
 TOOLS = {operation: 'pythia_coingecko_' + operation for operation in OPERATIONS}
-UNMARKED = ('catalogue', 'resolve', 'dashboard')
+UNMARKED = ('catalogue', 'dashboard')
 
 
 def closed(properties, required):
@@ -23,7 +23,6 @@ def schemas(wire):
         'catalogue': ({'scope': {'type': 'string', 'enum': ['coins']},
                        'cursor': {'type': 'string', 'pattern': '^(0|[1-9][0-9]{0,5})$'},
                        'limit': {'type': 'integer', 'minimum': 1, 'maximum': 1000}}, ['scope']),
-        'resolve': ({'native_id': text(128)}, ['native_id']),
         'details': ({'native_ref': wire.parameter_schema('provider_ref')}, ['native_ref']),
         'series': ({'native_ref': wire.parameter_schema('provider_ref')}, ['native_ref']),
         'latest': ({'request': wire.parameter_schema('read_request'), 'source_selector': text(4096)}, ['request', 'source_selector']),
@@ -37,7 +36,6 @@ def schemas(wire):
     descriptions = {
         'read_batch': 'Read bounded pinned series together. Compatible aggregate quotes share one native price response; history retains separate source windows and semantics.',
         'catalogue': 'Read a bounded page of active CoinGecko coins: coin ID, symbol, name and source-asserted platform contracts with source chain identifiers, plus USD market-cap rank and size for the top 250 when available. Pages share one 30-minute source snapshot; derived local metadata may be kept for one day. Works with or without a key. Symbols, contracts and ranks do not prove cross-provider identity.',
-        'resolve': 'State what CoinGecko records for one exact coin ID (name, symbol) as an identity claim batch for Pythia\'s core; never a match with another provider.',
         'details': 'Read exact CoinGecko coin metadata and network-scoped contract facts.',
         'series': 'Describe CoinGecko source series using exact coin metadata; configuration does not prove entitlements.',
         'latest': 'Read a pinned CoinGecko aggregate scalar quote, preserving source time and unknown completion.',

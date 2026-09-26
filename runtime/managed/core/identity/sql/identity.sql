@@ -143,3 +143,13 @@ CREATE TABLE claims (
   last_seen TEXT NOT NULL,         -- not seen in a complete scope != delisted; never unbinds by itself
   PRIMARY KEY (plugin, native_scope, native_id)
 );
+
+-- Negative resolve results: a plugin's resolve found nothing (or failed) for a subject.
+-- The page shows the section unresolved until the entry expires, instead of calling again.
+CREATE TABLE resolve_misses (
+  subject_id TEXT NOT NULL,
+  plugin TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  PRIMARY KEY (subject_id, plugin)
+);

@@ -118,7 +118,6 @@ export const MANAGED_PLUGINS = Object.freeze([
     source: "plugins/openfigi",
     files: Object.freeze([
       "__init__.py",
-      "contract.json",
       "plugin.yaml",
       "configuration.json",
       "README.md",

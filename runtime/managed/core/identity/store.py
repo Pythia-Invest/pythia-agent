@@ -12,7 +12,7 @@ import json
 import os
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -21,7 +21,8 @@ from .model import Binding, ProviderRef
 from .resolution import QueueItem
 
 REFERENCE_DIR_ENV = "PYTHIA_REFERENCE_DIR"
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"            # identity.sqlite3 metadata.schema_version
+REFERENCE_SCHEMA_VERSION = "2"  # reference-*.sqlite3 release.schema_version, written by the builder
 
 
 def now() -> str:
@@ -29,11 +30,26 @@ def now() -> str:
 
 
 def reference_path(data_dir: Path) -> Path | None:
-    """The newest reference build, or None when the device has none yet."""
+    """The newest reference build this core can read, or None when the device has none yet.
+
+    A build with another schema, or one that does not open, is skipped for the previous one.
+    """
     configured = os.environ.get(REFERENCE_DIR_ENV)
     directory = Path(configured) if configured and Path(configured).is_absolute() else Path(data_dir) / "reference"
-    builds = sorted(directory.glob("reference-*.sqlite3")) if directory.is_dir() else []
-    return builds[-1] if builds else None
+    builds = sorted(directory.glob("reference-*.sqlite3"), reverse=True) if directory.is_dir() else []
+    return next((path for path in builds if _compatible(path)), None)
+
+
+def _compatible(path: Path) -> bool:
+    try:
+        connection = open_reference(path)
+        try:
+            row = connection.execute("SELECT value FROM release WHERE key = 'schema_version'").fetchone()
+        finally:
+            connection.close()
+    except sqlite3.Error:
+        return False
+    return row is not None and row[0] == REFERENCE_SCHEMA_VERSION
 
 
 def open_reference(path: Path) -> sqlite3.Connection:
@@ -49,6 +65,9 @@ class IdentityStore:
         directory = Path(data_dir)
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = directory / "identity.sqlite3"
+        if self.path.exists() and not self._readable():
+            # Never delete device state: keep the unreadable file aside and start a fresh store.
+            self.path.replace(self.path.with_name(f"identity.unreadable-{uuid.uuid4().hex[:8]}.sqlite3"))
         if not self.path.exists():
             staging = self.path.with_name(f"identity.{uuid.uuid4().hex}.part")
             setup = sqlite3.connect(staging)
@@ -63,6 +82,17 @@ class IdentityStore:
         self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
 
+    def _readable(self) -> bool:
+        try:
+            connection = sqlite3.connect(f"{self.path.resolve().as_uri()}?mode=ro", uri=True)
+            try:
+                row = connection.execute("SELECT value FROM metadata WHERE key = 'schema_version'").fetchone()
+            finally:
+                connection.close()
+        except sqlite3.Error:
+            return False
+        return row is not None and row[0] == SCHEMA_VERSION
+
     def bindings(self, subject_ids: Iterable[str], statuses: Iterable[str] = ("confirmed",)) -> list[sqlite3.Row]:
         subjects, states = list(subject_ids), list(statuses)
         if not subjects:
@@ -72,8 +102,9 @@ class IdentityStore:
             f" AND status IN ({','.join('?' * len(states))}) ORDER BY plugin, provider",
             (*subjects, *states)).fetchall()
 
-    def put_binding(self, binding: Binding) -> None:
-        """One current binding per provider reference; a newer decision replaces it."""
+    def put_binding(self, binding: Binding) -> bool:
+        """One current binding per provider reference. A newer decision for the same subject replaces it;
+        a reference bound to another subject is never re-pointed (returns False: that is a conflict)."""
         ref = binding.provider_ref
         self.db.execute(
             "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, level, status, authority,"
@@ -81,10 +112,11 @@ class IdentityStore:
             " ON CONFLICT (provider, native_scope, native_id) DO UPDATE SET plugin=excluded.plugin,"
             " subject_id=excluded.subject_id, level=excluded.level, status=excluded.status,"
             " authority=excluded.authority, rule_id=excluded.rule_id, evidence_ids=excluded.evidence_ids,"
-            " verified_at=excluded.verified_at",
+            " verified_at=excluded.verified_at WHERE bindings.subject_id = excluded.subject_id",
             (uuid.uuid4().hex, binding.plugin, ref.provider, ref.native_id, ref.native_scope, binding.subject_id,
              binding.level, binding.status, binding.authority, binding.rule_id, json.dumps(list(binding.evidence_ids)),
              binding.validity.valid_from, binding.validity.valid_to, now()))
+        return self.db.execute("SELECT changes()").fetchone()[0] == 1
 
     def binding_for(self, ref: ProviderRef) -> sqlite3.Row | None:
         return self.db.execute("SELECT * FROM bindings WHERE provider=? AND native_scope=? AND native_id=?",
@@ -103,11 +135,23 @@ class IdentityStore:
 
     def open_queue(self, subject_ids: Iterable[str]) -> list[dict]:
         wanted = set(subject_ids)
-        rows = self.db.execute("SELECT id, reason, plugins, subject_ids FROM queue WHERE state='open'").fetchall()
-        return [{"id": row["id"], "plugin": json.loads(row["plugins"])[0], "reason": row["reason"]}
-                for row in rows if wanted & set(json.loads(row["subject_ids"]))]
+        rows = self.db.execute("SELECT id, kind, reason, plugins, subject_ids, candidate_ids FROM queue WHERE state='open'").fetchall()
+        return [{"id": row["id"], "plugin": json.loads(row["plugins"])[0], "kind": row["kind"], "reason": row["reason"]}
+                for row in rows if wanted & set(json.loads(row["subject_ids"]) + json.loads(row["candidate_ids"]))]
 
-    def put_claim(self, plugin: str, provider: str, claim_json: dict, *, scope: str | None = None) -> None:
+    def put_miss(self, subject_id: str, plugin: str, reason: str, seconds: int) -> None:
+        expires = (datetime.now(timezone.utc) + timedelta(seconds=seconds)).replace(microsecond=0)
+        self.db.execute("INSERT INTO resolve_misses (subject_id, plugin, reason, expires_at) VALUES (?,?,?,?)"
+                        " ON CONFLICT (subject_id, plugin) DO UPDATE SET reason=excluded.reason, expires_at=excluded.expires_at",
+                        (subject_id, plugin, reason, expires.isoformat().replace("+00:00", "Z")))
+
+    def misses(self, subject_id: str) -> dict[str, str]:
+        """plugin -> reason for unexpired negative resolve results."""
+        rows = self.db.execute("SELECT plugin, reason FROM resolve_misses WHERE subject_id = ? AND expires_at > ?",
+                               (subject_id, now())).fetchall()
+        return {row["plugin"]: row["reason"] for row in rows}
+
+    def put_claim(self, plugin: str, provider: str, claim_json: dict) -> None:
         ref = claim_json.get("native_ref") or {}
         if not ref:
             return
@@ -118,5 +162,5 @@ class IdentityStore:
             " first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (plugin, native_scope, native_id)"
             " DO UPDATE SET claim=excluded.claim, claim_digest=excluded.claim_digest, name=excluded.name,"
             " last_seen=excluded.last_seen",
-            (plugin, provider, ref["native_scope"], ref["native_id"], scope, claim_json["level"],
+            (plugin, provider, ref["native_scope"], ref["native_id"], None, claim_json["level"],
              (claim_json.get("attributes") or {}).get("name"), text, "sha256:" + hashlib.sha256(text.encode()).hexdigest(), stamp, stamp))

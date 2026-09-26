@@ -125,8 +125,8 @@ store module: `reference.sqlite3` (open reference data, built on the device and
 replaced atomically, read-only in between) and `identity.sqlite3` (local
 subjects, bindings, queue, verdicts, and one `claims` table of provider records
 tagged by plugin; a resolve-only plugin keeps only the records the user opened).
-Provider data never leaves the device; removing a plugin's credential deletes
-its claim rows. The search directory and its FTS5 index are derived from the
+Provider data never leaves the device; removing a plugin's credential is to
+delete its claim rows (a rule for the settings piece; not implemented yet). The search directory and its FTS5 index are derived from the
 reference file and rebuilt when it changes.
 
 A separate overlay file per plugin was rejected: one plugin column gives the

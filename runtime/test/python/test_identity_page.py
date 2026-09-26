@@ -2,6 +2,7 @@
 import sqlite3
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
@@ -128,3 +129,76 @@ class PageTest(Fixture):
         self.identity.put_queue_item(item)
         self.identity.put_queue_item(item)  # re-asking the same question keeps one open item
         self.assertEqual(len(self.identity.open_queue([ASML])), 1)
+
+
+class ReviewFixesTest(Fixture):
+    HEINEKEN = "listing:isin:NL0000009165:XAMS:EUR"
+
+    def answer(self, isin, native_id="ASML.AS"):
+        record = {"level": "listing", "provenance": PROVENANCE, "identifiers": [{"scheme": "isin", "value": isin}],
+                  "native_ref": {"provider": "eodhd", "native_id": native_id, "native_scope": "catalogue"}}
+        return identity.batch_from_json({"plugin": "eodhd", "provider": "eodhd", "adapter_version": "1",
+                                         "origin": "resolve", "claims": [record]})
+
+    def resolve(self, subject, batch):
+        eodhd = plugin("eodhd")
+
+        def bound_to(ref):
+            row = self.identity.binding_for(ref)
+            return row["subject_id"] if row is not None and row["status"] == "confirmed" else None
+
+        return page.apply_resolve(batch, eodhd, identity.Level.LISTING, subject, page.resolve_input(eodhd, subject),
+                                  now="2026-09-26T10:00:00Z", as_of="2026-09-26", bound_to=bound_to)
+
+    def test_a_confirmed_reference_is_never_repointed_to_another_subject(self):
+        asml, _ = self.compose(ASML, [])
+        binding, _item, _ = self.resolve(asml, self.answer("NL0010273215"))
+        self.assertTrue(self.identity.put_binding(binding))
+        heineken = {**asml, "ids": {**asml["ids"], identity.Level.LISTING: self.HEINEKEN}}  # same evidence, other subject
+        binding, item, _ = self.resolve(heineken, self.answer("NL0010273215"))
+        self.assertEqual((binding, item.kind, set(item.subject_ids)), (None, "conflict", {ASML, self.HEINEKEN}))
+        stolen = identity.Binding(provider_ref={"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"},
+                                  subject_id=self.HEINEKEN, status="confirmed", authority="user_attested",
+                                  evidence_ids=["ev:x"], plugin="eodhd")
+        self.assertFalse(self.identity.put_binding(stolen))
+        self.assertEqual(self.identity.binding_for(stolen.provider_ref)["subject_id"], ASML)
+
+    def test_a_conflict_yields_to_a_ready_fallback_and_clears_after_a_valid_resolve(self):
+        asml, _ = self.compose(ASML, [])
+        _binding, item, _ = self.resolve(asml, self.answer("USN070592100"))
+        self.identity.put_queue_item(item)
+        queue = self.identity.open_queue([ASML])
+        subject = page.load_subject(self.ref, ASML)
+        sections = {s["section"]: s for s in page.compose(subject, [plugin("eodhd"), plugin("yahoo")], queue=queue,
+                                                        stored=lambda *_: None, coins=lambda *_: None)}
+        self.assertEqual(sections["quote"]["plugin"], "pythia-yahoo")
+        self.assertEqual(sections["quote"]["alternatives"][0]["status"], "conflict")
+        binding, _item, _ = self.resolve(asml, self.answer("NL0010273215"))
+        self.identity.put_binding(binding)
+        _subject, sections = self.compose(ASML, [plugin("eodhd")])
+        self.assertEqual(sections["quote"]["status"], "ready")
+
+    def test_a_miss_is_reported_until_it_expires(self):
+        self.identity.put_miss(ASML, "pythia-eodhd", "EODHD found no match", 60)
+        self.identity.put_miss(ASML, "pythia-gleif", "old", -1)
+        self.assertEqual(self.identity.misses(ASML), {"pythia-eodhd": "EODHD found no match"})
+        subject = page.load_subject(self.ref, ASML)
+        [quote] = page.compose(subject, [plugin("eodhd")], queue=[], stored=lambda *_: None, coins=lambda *_: None,
+                               misses=self.identity.misses(ASML))
+        self.assertEqual((quote["status"], quote["reason"]), ("unresolved", "EODHD found no match"))
+
+    def test_unreadable_stores_degrade(self):
+        directory = Path(self.tmp.name) / "broken"
+        directory.mkdir()
+        (directory / "identity.sqlite3").write_bytes(b"not a database")
+        self.assertEqual(store.IdentityStore(directory).bindings([ASML]), [])
+        self.assertEqual(len(list(directory.glob("identity.unreadable-*.sqlite3"))), 1)
+        builds = Path(self.tmp.name) / "builds"
+        builds.mkdir()
+        good = builds / "reference-20260925.sqlite3"
+        good.write_bytes(self.path.read_bytes())
+        with sqlite3.connect(good) as db:
+            db.execute("INSERT INTO release (key, value) VALUES ('schema_version', ?)", (store.REFERENCE_SCHEMA_VERSION,))
+        (builds / "reference-20260926.sqlite3").write_bytes(b"")
+        with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}):
+            self.assertEqual(store.reference_path(Path(self.tmp.name)), good)

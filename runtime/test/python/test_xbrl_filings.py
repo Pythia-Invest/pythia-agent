@@ -97,8 +97,6 @@ class XbrlSemantics(unittest.TestCase):
             self.assertEqual(set(declared), {'pythia_http_operation'}, name)
             self.assertEqual((declared['pythia_http_operation']['plugin'], declared['pythia_http_operation']['read_only']),
                              ('pythia-xbrl-filings', True))
-        filings = json.loads(ctx.registrations['pythia_xbrl_filings_filings']['schema']['parameters']['$comment'])
-        self.assertEqual(filings['pythia_http_operation']['operation'], 'xbrl-filings-filings')
         batch = checked_batch('xbrl-filings', ctx.tools['pythia_xbrl_filings_resolve']({'identifiers': {'lei': LEI}}))
         self.assertEqual(batch.claims[0].native_ref.native_id, LEI)
         changed = json.loads(ctx.tools['pythia_xbrl_filings_resolve']({'identifiers': {'lei': LEI}, 'refresh': True}))

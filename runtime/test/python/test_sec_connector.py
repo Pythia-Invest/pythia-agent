@@ -101,6 +101,7 @@ class SecIdentity(unittest.TestCase):
         claim, = checked_batch('sec', nasdaq).claims
         self.assertEqual((claim.native_ref.native_id, claim.attributes.name), (CIK, 'Example Holdings'))
         self.assertEqual(instance.invoke('resolve', {'identifiers': {'ticker_mic': 'EX@XNAS'}})['outcome'], 'empty')
+        self.assertEqual(instance.invoke('resolve', {'identifiers': {'ticker_mic': 'EXA@XAMS'}})['outcome'], 'empty')
         self.assertEqual(len(transport.calls), 1)  # The retained ticker file serves later resolves.
         for arguments in ({}, {'identifiers': {}}, {'identifiers': {'ticker_mic': 'EXA'}}, {'identifiers': {'cik': '0'}}):
             with self.subTest(arguments=arguments):
@@ -178,17 +179,12 @@ class SecConfiguration(unittest.TestCase):
 
     def test_reads_stay_visible_and_report_configuration_when_called(self):
         tools = {}
-        ctx = SimpleNamespace(plugin_id='pythia-sec', register_tool=lambda **tool: tools.update({tool['name']: tool}),
-                              register_cli_command=lambda *_args: None)
-        registry = SimpleNamespace(registry=SimpleNamespace(get_entry=lambda name: SimpleNamespace(**tools[name])))
-        self.enterContext(patch.dict(sys.modules, {'tools.registry': registry}))
+        ctx = SimpleNamespace(register_tool=lambda **tool: tools.update({tool['name']: tool}))
         selection = SimpleNamespace(native_access_scope=lambda: {'cacheable': True, 'scope': 'fixture'})
         platform = SimpleNamespace(platform=lambda: SimpleNamespace(configuration=settings('missing')))
         self.enterContext(patch.object(plugin, 'helpers', return_value=(wire, connector, selection, platform)))
         plugin.register(ctx)
         self.assertTrue(all(tool['check_fn']() for tool in tools.values()))
-        comment = json.loads(tools['pythia_sec_filings']['schema']['parameters']['$comment'])
-        self.assertEqual(comment['pythia_http_operation']['operation'], 'sec-filings')
         result = json.loads(tools['pythia_sec_resolve']['handler']({'identifiers': {'cik': CIK}}))
         self.assertEqual(result['issues'][0]['code'], 'needs_configuration')
 

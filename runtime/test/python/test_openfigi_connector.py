@@ -13,7 +13,6 @@ import unittest
 from urllib.error import HTTPError
 
 from test_market_data_identity import wire
-from test_plugin_contracts import checked_batch, identity
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/openfigi'
 spec = importlib.util.spec_from_file_location('openfigi_fixture', ROOT / '__init__.py', submodule_search_locations=[str(ROOT)])
@@ -142,26 +141,6 @@ class OpenFigiResolve(unittest.TestCase):
         self.assertEqual(result['outcome'], 'error')
         self.assertEqual(result['issues'][0]['code'], 'rate_limit')
         self.assertEqual(result['issues'][0]['limit_origin'], 'provider')
-
-    def test_tool_answers_one_isin_with_a_listing_claim_per_candidate(self):
-        def figi(stem):
-            for digit in '0123456789':
-                try:
-                    return identity.normalize_identifier('figi', stem + digit)
-                except ValueError:
-                    pass
-        first, second = ({**candidate(1, exch), 'figi': figi(stem), 'compositeFIGI': figi(stem[:-1] + 'C'),
-                          'shareClassFIGI': figi('BBG00SHR001')} for exch, stem in (('NA', 'BBG00LNB001'), ('US', 'BBG00LNC001')))
-        opener = Opener([[{'data': [first, second]}]])
-        instance = resolver(opener)
-        batch = checked_batch('openfigi', instance.resolve({'identifiers': {'isin': ISIN}}))
-        self.assertEqual([(claim.level, claim.attributes.provider_venue, claim.attributes.ticker) for claim in batch.claims],
-                         [('listing', 'NA', 'SYN'), ('listing', 'US', 'SYN')])
-        self.assertEqual([item.scheme for item in batch.claims[0].identifiers], ['isin', 'share_class_figi', 'composite_figi', 'figi'])
-        self.assertEqual({claim.native_ref for claim in batch.claims}, {None})
-        invalid = instance.resolve({'identifiers': {'isin': ISIN}, 'refresh': True})
-        self.assertEqual(invalid['issues'][0]['code'], 'invalid_request')
-        self.assertEqual(len(opener.requests), 1)
 
     def test_pacing_defers_instead_of_exceeding_the_documented_window(self):
         now = [100.0]

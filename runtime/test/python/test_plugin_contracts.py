@@ -33,8 +33,8 @@ def checked_batch(plugin, result):
 class ShippedContracts(unittest.TestCase):
     def test_every_contract_validates_and_names_its_own_native_tools(self):
         shipped = sorted(path.parent.name for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE))
-        self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'eodhd', 'gleif', 'openfigi', 'sec',
-                                   'xbrl-filings', 'yahoo-discovery'])
+        self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'eodhd', 'gleif', 'sec', 'xbrl-filings',
+                                   'yahoo-discovery'])
         for plugin in shipped:
             with self.subTest(plugin=plugin):
                 contract = manifest(plugin)
@@ -43,14 +43,8 @@ class ShippedContracts(unittest.TestCase):
                 tools = set(re.findall(r'^  - (pythia_\w+)$', declaration, re.M))
                 named = {entry.tool for entry in contract.content.values()}
                 named |= {contract.resolve.tool} if contract.resolve else set()
+                named |= {contract.catalogue_tool} if contract.catalogue_tool else set()
                 self.assertLessEqual(named, tools)
-
-    def test_listing_venues_derive_native_symbols(self):
-        for plugin, expected in (('yahoo-discovery', {'XAMS': '.AS', 'XNAS': ''}),
-                                 ('eodhd', {'XAMS': '.AS', 'XNYS': '.US'})):
-            table = manifest(plugin).mic_table
-            self.assertLessEqual(expected.items(), table.items())
-            self.assertLessEqual({'XAMS', 'XNAS', 'XNYS', 'XPAR', 'XBRU', 'XLIS', 'XMSM', 'XOSL', 'XMIL'}, set(table))
 
 
 if __name__ == '__main__':

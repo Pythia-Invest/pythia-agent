@@ -34,10 +34,19 @@ def _core():
 
 identity = _core()
 DDL = identity.schema_sql(identity.Store.REFERENCE)
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = int(importlib.import_module("pythia_core_identity.store").REFERENCE_SCHEMA_VERSION)
 KIND = {"share": "ordinary", "dr": "depositary_receipt", "preferred": "preferred", "fund": "fund"}
 STATUS = {"active": "active", "suspect": "unknown", "inactive": "inactive"}
+# Curated short venue labels (Pythia-authored); other venues keep their ISO 10383 name.
+VENUE_NAMES = {
+    "XAMS": "Euronext Amsterdam", "XPAR": "Euronext Paris", "XBRU": "Euronext Brussels", "XLIS": "Euronext Lisbon",
+    "XMIL": "Euronext Milan", "XDUB": "Euronext Dublin", "XOSL": "Euronext Oslo", "XLON": "London Stock Exchange",
+    "XETR": "Xetra", "XFRA": "Frankfurt", "XSWX": "SIX Swiss Exchange", "XPRA": "Prague Stock Exchange",
+    "XNAS": "Nasdaq", "XNGS": "Nasdaq", "XNMS": "Nasdaq", "XNCM": "Nasdaq", "XNYS": "NYSE", "XASE": "NYSE American",
+    "ARCX": "NYSE Arca", "BATS": "Cboe BZX", "XCBO": "Cboe", "OTCM": "OTC Markets",
+}
 FIRST_WINS = {"names", "listings", "composites", "assertions"}  # collapsed lines share an ID; the first row wins
+# (the writer audits every ignored row, so a constraint violation is counted, not hidden)
 
 
 def derive(level: str, identifiers: dict[str, str | None], **context) -> str | None:
@@ -104,7 +113,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             tables["names"].append({"subject_id": subject, "name": text[:512], "source": source})
 
     for venue in snap.venues.values():
-        tables["venues"].append({"mic": venue.mic, "operating_mic": venue.operating_mic, "name": venue.name or venue.mic,
+        tables["venues"].append({"mic": venue.mic, "operating_mic": venue.operating_mic, "name": VENUE_NAMES.get(venue.mic) or venue.name or venue.mic,
                                  "country": venue.country or None})
     for key, issuer in sorted(snap.issuers.items()):
         subject = ids.issuers[key]
@@ -134,8 +143,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             assert_(subject, "share_class_figi", security.share_class_figi, "openfigi")
     for listing in sorted(snap.listings.values(), key=lambda l: (not l.is_primary, l.status != "active", l.listing_id)):
         subject = ids.listing(listing)
-        if subject is None:
-            audit["listings_without_venue_or_currency"] += 1
+        if subject is None:  # core needs a venue and a trading currency for a venue line
+            audit["lines_without_venue" if not listing.mic else "lines_without_currency"] += 1
             continue
         security_id = ids.securities[listing.security_id]
         composite = None

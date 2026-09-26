@@ -5,7 +5,7 @@ import json
 from .catalogue import RANK_DEPTH
 
 TOOLSET = 'pythia-coinmarketcap'
-OPERATIONS = ('catalogue', 'resolve', 'profile', 'details', 'series', 'latest', 'history', 'read_batch')
+OPERATIONS = ('catalogue', 'profile', 'details', 'series', 'latest', 'history', 'read_batch')
 TOOLS = {operation: 'pythia_coinmarketcap_' + operation for operation in OPERATIONS}
 # Common market-data reads; the market-data owner discovers these by marker.
 COMMON = ('details', 'series', 'latest', 'history', 'read_batch')
@@ -23,7 +23,6 @@ def schemas(wire):
         'catalogue': ({'scope': {'type': 'string', 'enum': ['coins']},
                        'cursor': {'type': 'string', 'pattern': '^(0|[1-9][0-9]{0,5})$'},
                        'limit': {'type': 'integer', 'minimum': 1, 'maximum': CATALOGUE_PAGE}}, ['scope']),
-        'resolve': ({'native_id': {'type': 'string', 'pattern': '^[1-9][0-9]{0,9}$'}}, ['native_id']),
         'profile': ({'native_ref': ref}, ['native_ref']),
         'details': ({'native_ref': ref}, ['native_ref']),
         'series': ({'native_ref': ref}, ['native_ref']),
@@ -40,8 +39,6 @@ def schemas(wire):
                       'Rows carry source-asserted identifiers (CoinMarketCap ID, slug, symbol, main platform contract), '
                       'CoinMarketCap rank and, for the top %d coins, market cap. Continue with next_cursor until it is null. '
                       'Symbols and contracts do not prove identity with another provider.' % RANK_DEPTH),
-        'resolve': ('State what CoinMarketCap records for one exact coin ID (name, symbol, coin or token) as an '
-                    'identity claim batch for Pythia\'s core; never a match with another provider.'),
         'profile': ('Read the CoinMarketCap profile of one exact coin ID: description, logo, links, tags, launch date and '
                     'every listed contract deployment. Source text, labelled with CoinMarketCap and retrieval time.'),
         'details': 'Read identity evidence for an exact CoinMarketCap coin ID: the native ID and network-scoped contract addresses.',

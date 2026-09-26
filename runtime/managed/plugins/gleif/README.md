@@ -17,14 +17,15 @@ supplies content for an issuer the core has already addressed.
 | `resolve` | `identifiers` with exactly one of `lei` or `isin`; optional `refresh` | a `ClaimBatch` in core's wire form (ADR 0038): for an LEI, one issuer claim with the native reference (`gleif`/`lei`); for an ISIN, one security claim per mapped issuer; outcome `empty` when GLEIF has no record |
 | `profile` | `native_ref` (`gleif`/`lei`) | legal profile: identifiers, typed names, registration fields, successors and accounting parents or head office, plus the page profile fields (`name`, `legal_name`, `jurisdiction`, `legal_address`, `headquarters`, `status`, `category`, `parent`, `source`) |
 
-`profile` is also the Desk's profile section, exported read-only over HTTP as
-`pythia-gleif`/`gleif-profile`. `contract.json` declares the plugin's addressing
+`profile` is also the Desk's profile section, read over HTTP through its declared
+read-only operation `pythia-gleif`/`profile`. `contract.json` declares the plugin's addressing
 (issuers by LEI), its profile content and `resolve` for Pythia's core.
 
 An ISIN uses GLEIF's top-level `filter[isin]` issuer mapping and keeps that
 filtered request as provenance. The nested `/{lei}/isins` resource does not apply
 that filter and is not used. Several issuer records for one ISIN become several
-claims and are never picked; the core queues the contradiction. GLEIF's ISIN
+claims and are never picked. Core addresses GLEIF by LEI and does not send it
+ISINs; the ISIN path serves explicit agent lookups. GLEIF's ISIN
 coverage is incomplete, and the mapping is issuer evidence, not proof that
 instruments or price series are equivalent. A depositary receipt's ISIN can map
 to the depositary bank rather than the underlying issuer.

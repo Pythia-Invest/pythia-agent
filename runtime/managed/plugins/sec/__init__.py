@@ -103,6 +103,8 @@ class Reader:
             raw = fetch('submissions', number)
             return envelope(identity.claims([identity.submission_record(raw['data'], number, raw['observed_at'])]))
         ticker, mic = identifiers['ticker_mic'].split('@')
+        if mic not in identity.OPERATING_MICS.values():
+            return envelope(None)  # SEC lists no other venue; no request is made.
         raw = fetch('directory')
         matches = identity.directory_matches(raw['data'], raw['observed_at'], ticker, mic)
         issues = [{'code': 'ambiguous', 'severity': 'warning',
@@ -137,7 +139,3 @@ def register(ctx):
     for operation, schema in reader.definitions.items():
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-sec', schema=schema, handler=handler(operation),
                           check_fn=available)
-    # The page's filings section reads this exact tool over HTTP (read-only).
-    importlib.import_module(wire.__package__ + '.specialist').register_read_command(
-        ctx, 'sec-filings', TOOLS['filings'], 'Read recent SEC filings by CIK reference',
-        cache_seconds=300, schema=reader.definitions['filings'], plugin='pythia-sec')

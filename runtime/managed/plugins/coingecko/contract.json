@@ -24,9 +24,11 @@
       "tool": "pythia_coingecko_history"
     }
   },
-  "resolve": {
-    "tool": "pythia_coingecko_resolve",
-    "input_schemes": [],
-    "echoes": []
+  "catalogue": {
+    "mode": "bulk",
+    "tool": "pythia_coingecko_catalogue",
+    "scopes": [
+      "coins"
+    ]
   }
 }

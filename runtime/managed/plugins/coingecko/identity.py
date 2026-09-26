@@ -1,5 +1,4 @@
 """Native coin and source network/address facts; no wrapped-asset equivalence."""
-import re
 import uuid
 from datetime import datetime, timezone
 
@@ -43,21 +42,3 @@ def candidate(row, details=False):
             result['evidence'].append(evidence('contract_address', address, {'network': network}))
         result['platform_contracts'] = pairs
     return result
-
-
-def claims(row, requested):
-    """A resolve answer in core's ClaimBatch wire form: only what CoinGecko states about the coin."""
-    native = {'provider': 'coingecko', 'native_scope': 'coin', 'native_id': row.get('id')}
-    if row.get('id') != requested:
-        raise ValueError('invalid_response')
-    reference(native)
-    symbol = row.get('symbol').upper() if isinstance(row.get('symbol'), str) else None
-    attributes = {'name': row['name'] if isinstance(row.get('name'), str) and row['name'].strip() else None,
-                  'asset_class': 'crypto'}
-    if symbol and re.fullmatch(r'[A-Z0-9][A-Z0-9.&-]{0,15}', symbol):
-        attributes['ticker'] = symbol
-    provenance = {'plugin': 'pythia-coingecko', 'source': 'coingecko', 'adapter_version': '1',
-                  'retrieved_at': datetime.now(timezone.utc).isoformat(), 'source_record': 'coin:' + requested}
-    return {'plugin': 'pythia-coingecko', 'provider': 'coingecko', 'adapter_version': '1', 'origin': 'resolve',
-            'claims': [{'level': 'security', 'identifiers': [], 'native_ref': native, 'attributes': attributes,
-                        'provenance': provenance}]}

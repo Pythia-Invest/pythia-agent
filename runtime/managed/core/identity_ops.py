@@ -11,17 +11,21 @@ import concurrent.futures
 import contextvars
 import json
 import logging
+import sqlite3
 import threading
 from pathlib import Path
 from typing import Any
 
 from .identity import MANIFEST_FILE, ClaimError, Level, ManifestError, check_batch, validate_manifest
-from .identity import batch_from_json, page, search, store
+from .identity import batch_from_json, batch_to_json, page, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
 TOOLSET = "pythia-desk"
 PLUGIN = "pythia"  # the core plugin (plugin.yaml)
+NO_REFERENCE = "No reference data on this device yet."
+NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
+MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes
 SUBJECT_ID = {"type": "string", "minLength": 4, "maxLength": 320, "pattern": "^(issuer|security|composite|listing):"}
 
 SEARCH_SCHEMA = {
@@ -78,61 +82,79 @@ class Identity:
     # ---- operations ----------------------------------------------------------------------------------------------
 
     def search(self, arguments: dict, **_context: Any) -> str:
-        path = store.reference_path(self.data_dir)
-        if path is None:
-            return _envelope("empty", {"groups": [], "lookup": []}, issue="No reference data on this device yet.")
-        directory = search.directory(path, store.open_reference)
-
-        def bindings(listing_ids: list[str]) -> dict[str, list[dict]]:
-            out: dict[str, list[dict]] = {}
-            for row in self.store.bindings(listing_ids):
-                out.setdefault(row["subject_id"], []).append({"plugin": row["plugin"], "ref": row["native_id"]})
-            return out
-
+        empty = {"groups": [], "lookup": []}
         query = str(arguments.get("query") or "").strip()[:128]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
-        data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), bindings=bindings) if query else {
-            "groups": [], "lookup": []}
+        try:
+            path = store.reference_path(self.data_dir)
+            if path is None:
+                return _envelope("empty", empty, issue=NO_REFERENCE)
+            directory = search.directory(path, store.open_reference)
+            data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), bindings=self._bindings) if query else empty
+        except (sqlite3.Error, OSError):  # search degrades, never errors out
+            logger.warning("identity search unavailable", exc_info=True)
+            return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
         return _envelope("ok" if data["groups"] else "empty", data)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
-            view = self._compose(str(arguments.get("subject_id") or ""))
+            view, issue = self._compose(str(arguments.get("subject_id") or ""))
         except ValueError:  # a malformed subject id
-            view = None
-        return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown subject.")
+            view, issue = None, "Unknown subject."
+        except (sqlite3.Error, OSError):
+            logger.warning("identity subject unavailable", exc_info=True)
+            view, issue = None, "The reference data could not be read."
+        return _envelope("ok", view) if view else _envelope("empty", None, issue=issue)
 
     def resolve(self, arguments: dict, **_context: Any) -> str:
         subject_id, wanted = str(arguments.get("subject_id") or ""), arguments.get("plugin")
-        path, ref = self.reference()
-        if ref is None:
-            return _envelope("empty", None, issue="No reference data on this device yet.")
         try:
-            subject = page.load_subject(ref, subject_id)
-        except ValueError:
+            path, ref = self.reference()
+            if ref is None:
+                return _envelope("empty", None, issue=NO_REFERENCE)
+            try:
+                subject = page.load_subject(ref, subject_id)
+            finally:
+                ref.close()
+        except (ValueError, sqlite3.Error, OSError):
             subject = None
-        finally:
-            ref.close()
         info = next((item for item in installed() if wanted in (item.key, item.manifest.plugin)), None)
         if subject is None or info is None or info.manifest.resolve is None:
             return _envelope("empty", None, issue="Unknown subject or no resolving plugin.")
-        reason = self._resolve(info, subject)
-        sections = [section for section in self._compose(subject_id)["sections"] if section["plugin"] == info.key]
+        # A disabled or unconfigured plugin is never called; its sections already say why.
+        reason = self._resolve(info, subject) if info.enabled and not info.missing else None
+        if reason:  # remember the miss so reopening the page does not call the provider again
+            retry = MISS_RETRY if reason.endswith(("in time", "failed")) else NO_MATCH_TTL
+            self.store.put_miss(subject_id, info.key, reason, retry)
+        view, issue = self._compose(subject_id)
+        sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
         for section in sections:
             if section["status"] == "resolving":
-                section.update(status="unresolved", reason=reason or f"{info.label} found no match")
+                section.update(status="unresolved", reason=reason or f"{info.label} is not available")
         return _envelope("ok", {"sections": sections})
+
+    def _bindings(self, listing_ids: list[str]) -> dict[str, list[dict]]:
+        """Confirmed bindings for search rows; optional, so a store problem only drops them."""
+        out: dict[str, list[dict]] = {}
+        try:
+            rows = self.store.bindings(listing_ids)
+        except sqlite3.Error:
+            logger.warning("identity store unreadable; search rows carry no bindings", exc_info=True)
+            return out
+        for row in rows:
+            out.setdefault(row["subject_id"], []).append({"plugin": row["plugin"], "ref": row["native_id"]})
+        return out
 
     # ---- internals -----------------------------------------------------------------------------------------------
 
-    def _compose(self, subject_id: str) -> dict | None:
+    def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
         path, ref = self.reference()
         if ref is None:
-            return None
+            return None, NO_REFERENCE
         try:
             subject = page.load_subject(ref, subject_id)
             if subject is None:
-                return None
+                return None, "Unknown subject."
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
         finally:
             ref.close()
@@ -142,8 +164,9 @@ class Identity:
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
         queue = identity_store.open_queue(subject_ids)
         sections = page.compose(subject, installed(), stored=lambda target, provider: stored.get((target, provider)),
-                                coins=lambda provider, caip19: coins.get((provider, caip19)), queue=queue)
-        return {**subject["view"], "sections": sections, "queue": queue}
+                                coins=lambda provider, caip19: coins.get((provider, caip19)), queue=queue,
+                                misses=identity_store.misses(subject_id))
+        return {**subject["view"], "sections": sections, "queue": queue}, None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> str | None:
         """Run the plugin's resolve once; store what the authority rule decides. Returns a reason when unresolved."""
@@ -151,7 +174,7 @@ class Identity:
         sent = page.resolve_input(info, subject)
         levels = {entry.via for entry in info.manifest.content.values()} & {level for level in Level if subject["ids"].get(level)}
         if not sent or not levels:
-            return None
+            return f"{info.label} cannot look up this subject"
         call = contextvars.copy_context().run
         future = self._pool.submit(call, registry.dispatch, info.manifest.resolve.tool, {"identifiers": sent})
         try:
@@ -171,22 +194,23 @@ class Identity:
             logger.warning("resolve answer rejected for %s: %s", info.key, error)
             return f"{info.label} gave an unusable answer"
         now = store.now()
+        for claim in batch_to_json(batch)["claims"]:
+            self.store.put_claim(batch.plugin, batch.provider, claim)
+
+        def bound_to(ref):
+            row = self.store.binding_for(ref)
+            return row["subject_id"] if row is not None and row["status"] == "confirmed" else None
+
         for level in sorted(levels, key=lambda item: item != Level.LISTING):
-            binding, item, records = page.apply_resolve(batch, info, level, subject, sent, now=now)
-            for record in records:
-                self.store.put_claim(batch.plugin, batch.provider, _claim_json(record))
+            binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now, bound_to=bound_to)
             if binding is not None:
-                self.store.put_binding(binding)
-                return None
+                if self.store.put_binding(binding):
+                    return None
+                return f"{info.label}'s reference is already bound to another subject"
             if item is not None:
                 self.store.put_queue_item(item)
                 return f"{info.label}'s answer is queued for review ({item.reason})"
-        return None
-
-
-def _claim_json(record) -> dict:
-    from dataclasses import asdict
-    return json.loads(json.dumps(asdict(record)))
+        return f"{info.label} found no match"
 
 
 def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:

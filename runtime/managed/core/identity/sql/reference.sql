@@ -131,7 +131,7 @@ CREATE TABLE id_aliases (
 CREATE TABLE venues (
   mic TEXT PRIMARY KEY CHECK (length(mic) = 4),
   operating_mic TEXT NOT NULL CHECK (length(operating_mic) = 4),
-  name TEXT NOT NULL,
+  name TEXT NOT NULL,              -- short display label (curated for common venues), else the ISO 10383 name
   country TEXT CHECK (country IS NULL OR length(country) = 2)
 );
 
