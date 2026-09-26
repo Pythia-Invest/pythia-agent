@@ -19,15 +19,6 @@ import { type LookupState, optionId, type PanelStatus } from "./search-panel";
 const NO_GROUPS: SearchGroup[] = [];
 const NO_OFFERS: LookupOffer[] = [];
 
-function useSettled(value: string, delay: number) {
-  const [settled, setSettled] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(value), value ? delay : 0);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return settled;
-}
-
 /** Busy cues appear only when work is noticeably slow, so fast local reads
  * never flash a spinner. */
 function useDelayedFlag(flag: boolean, delay: number) {
@@ -43,7 +34,7 @@ function useDelayedFlag(flag: boolean, delay: number) {
 
 export type SessionKey = "ArrowDown" | "ArrowUp" | "Enter";
 
-/** State of one open search: settled query, type filter, highlighted row and
+/** State of one open search: query, type filter, highlighted row and
  * the explicit lookup. The field and popup wiring stay in `InvestmentSearch`. */
 export function useSearchSession({
   baseId,
@@ -64,15 +55,14 @@ export function useSearchSession({
   const scrollActive = useRef(false);
   const [filter, setFilter] = useState<TypeFilter>("all");
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [pendingEnter, setPendingEnter] = useState(false);
   const [lookupState, setLookupState] = useState<LookupState>();
 
   const trimmed = query.trim();
-  const settled = useSettled(trimmed, 100);
-  const result = useDirectorySearch(search, settled, filter, open);
+  // Every keystroke is its own local read; React Query cancels the superseded
+  // one and keeps the previous rows on screen until the new ones arrive.
+  const result = useDirectorySearch(search, trimmed, filter, open);
   const response = trimmed ? result.data : undefined;
-  const fresh =
-    Boolean(response) && settled === trimmed && !result.isPlaceholderData;
+  const fresh = Boolean(response) && !result.isPlaceholderData;
   const shownLookup = lookupState?.query === trimmed ? lookupState : undefined;
   const found = shownLookup?.status === "done" ? shownLookup.groups : NO_GROUPS;
   const options = useMemo(
@@ -92,7 +82,7 @@ export function useSearchSession({
         ? "ready"
         : "loading";
   const busy = useDelayedFlag(
-    open && Boolean(trimmed) && (trimmed !== settled || result.isFetching),
+    open && Boolean(trimmed) && result.isFetching,
     250,
   );
 
@@ -114,14 +104,6 @@ export function useSearchSession({
     else if (target.bottom > shown.bottom)
       body.scrollTop += target.bottom - shown.bottom;
   }, [activeIndex, baseId]);
-
-  // Enter pressed before the typed query settled acts on its own results.
-  useEffect(() => {
-    if (!pendingEnter || !fresh) return;
-    setPendingEnter(false);
-    const option = activeOption(options, activeKey);
-    if (option) select(option.row.id);
-  }, [pendingEnter, fresh, options, activeKey, select]);
 
   async function runLookup(offer: LookupOffer) {
     if (!lookup || !trimmed || lookupState?.status === "running") return;
@@ -167,7 +149,6 @@ export function useSearchSession({
       lookupAbort.current?.abort();
       setLookupState(undefined);
       setActiveKey(null);
-      setPendingEnter(false);
     },
     changeFilter(value: TypeFilter) {
       setFilter(value);
@@ -178,10 +159,9 @@ export function useSearchSession({
     /** Returns whether the key was consumed. */
     key(name: SessionKey): boolean {
       if (name === "Enter") {
-        if (!fresh) {
-          if (trimmed) setPendingEnter(true);
-          return Boolean(trimmed);
-        }
+        // Enter opens a row of the typed query only; previous rows still on
+        // screen while it loads are not a choice.
+        if (!fresh) return Boolean(trimmed);
         if (active) select(active.row.id);
         return Boolean(active);
       }

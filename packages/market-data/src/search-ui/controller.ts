@@ -28,7 +28,7 @@ export type LookupRunner = (
   signal: AbortSignal,
 ) => Promise<SearchGroup[]>;
 
-/** Directory groups for a settled query. The previous answer stays on screen
+/** Directory groups for the typed query. The previous answer stays on screen
  * while the next one loads, and a reopened panel answers from the cache. */
 export function useDirectorySearch(
   search: SearchBackend,
