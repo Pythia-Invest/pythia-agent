@@ -4,3 +4,6 @@ description: Pythia host transport, Desk context and operating guidance
 license: Apache-2.0
 provides_tools:
   - pythia_desk_view
+  - pythia_identity_search
+  - pythia_identity_subject
+  - pythia_identity_resolve

@@ -24,8 +24,11 @@ CREATE TABLE securities (
   issuer_id TEXT REFERENCES issuers(id),
   name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 512),
   asset_class TEXT NOT NULL CHECK (asset_class IN ('equity', 'crypto')),
-  kind TEXT NOT NULL CHECK (kind IN ('ordinary', 'depositary_receipt', 'coin', 'token')),
+  kind TEXT NOT NULL CHECK (kind IN ('ordinary', 'preferred', 'depositary_receipt', 'etf', 'fund', 'other', 'coin',
+                                     'token')),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'unknown')),
+  rank INTEGER CHECK (rank IS NULL OR rank >= 1),  -- notability order within its source, 1 = most notable:
+                                                   -- FITRS turnover, SEC file order, curated coin order
   CHECK ((asset_class = 'crypto') = (kind IN ('coin', 'token')))
 );
 
@@ -128,7 +131,7 @@ CREATE TABLE id_aliases (
 CREATE TABLE venues (
   mic TEXT PRIMARY KEY CHECK (length(mic) = 4),
   operating_mic TEXT NOT NULL CHECK (length(operating_mic) = 4),
-  name TEXT NOT NULL,
+  name TEXT NOT NULL,              -- short display label (curated for common venues), else the ISO 10383 name
   country TEXT CHECK (country IS NULL OR length(country) = 2)
 );
 

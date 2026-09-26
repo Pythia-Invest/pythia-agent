@@ -125,8 +125,8 @@ store module: `reference.sqlite3` (open reference data, built on the device and
 replaced atomically, read-only in between) and `identity.sqlite3` (local
 subjects, bindings, queue, verdicts, and one `claims` table of provider records
 tagged by plugin; a resolve-only plugin keeps only the records the user opened).
-Provider data never leaves the device; removing a plugin's credential deletes
-its claim rows. The search directory and its FTS5 index are derived from the
+Provider data never leaves the device; removing a plugin's credential is to
+delete its claim rows (a rule for the settings piece; not implemented yet). The search directory and its FTS5 index are derived from the
 reference file and rebuilt when it changes.
 
 A separate overlay file per plugin was rejected: one plugin column gives the
@@ -139,7 +139,12 @@ alone (`self` only); share-class or composite FIGI; exact `ticker_mic` as a weak
 binding re-verified on page open; otherwise a provisional subject and a residual.
 
 **Search is a local read** of the directory: no provider call, no identity
-write, no reconciliation. "Look up in X" explicitly calls one provider's
+write, no reconciliation. Core's `identity-search` builds the directory in
+memory (FTS5) from the newest reference file and ranks with one versioned,
+gold-calibrated additive score (exact ticker or identifier, name match,
+notability from each security's source `rank`, primary and home line,
+penalties for OTC lines and derivatives); issuers compete by their best line
+and results group by security, the home line before a foreign receipt. "Look up in X" explicitly calls one provider's
 `resolve`, and the result joins like any other claim.
 
 ## Rationale

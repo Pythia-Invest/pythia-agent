@@ -63,7 +63,7 @@ class Manifest:
     provider: str
     native: tuple[NativeScope, ...]
     schemes: Mapping[Level, tuple[Scheme, ...]]
-    mic_table: Mapping[str, str]  # MIC -> the provider's venue code or symbol suffix
+    mic_table: Mapping[str, str]  # operating MIC -> the literal suffix core appends to the ticker (".AS", "")
     content: Mapping[Section, ContentEntry]
     catalogue: CatalogueMode
     catalogue_tool: str | None
