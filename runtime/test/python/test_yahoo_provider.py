@@ -147,6 +147,20 @@ class Yahoo(unittest.TestCase):
         quote['previous_close'] = 0
         context = wire.validate_read_result(results.read(request, latest, 'latest', {'data': quote, 'issues': []}))['price_context']
         self.assertNotIn('reference_close', context)
+        # After-hours trades stay with the regular close they follow; a stale
+        # trade, the regular session and a cash index carry none.
+        quote.update(metadata={**meta, 'market_state': 'POSTPOST'},
+                     extended={'session': 'post', 'price': 2.5, 'change': 0.5, 'percent': 25, 'time': '2026-01-05T23:00:00+00:00'})
+        context = wire.validate_read_result(results.read(request, latest, 'latest', {'data': quote, 'issues': []}))['price_context']
+        self.assertEqual((context['session']['state'], context['extended']['value'], context['extended']['percent']), ('closed', '2.5', '25'))
+        quote['metadata']['market_state'] = 'POST'
+        context = wire.validate_read_result(results.read(request, latest, 'latest', {'data': quote, 'issues': []}))['price_context']
+        self.assertEqual(context['session']['state'], 'post')
+        for change in ({'extended': {**quote['extended'], 'time': '2026-01-05T20:00:00+00:00'}},
+                       {'metadata': {**meta, 'market_state': 'REGULAR'}},
+                       {'metadata': {**meta, 'type': 'INDEX', 'market_state': 'POST'}}):
+            context = wire.validate_read_result(results.read(request, latest, 'latest', {'data': {**quote, **change}, 'issues': []}))['price_context']
+            self.assertNotIn('extended', context)
 
     def test_native_options_remain_bounded_data_not_schema_or_fetch_controls(self):
         schemas = definition.schemas(wire)

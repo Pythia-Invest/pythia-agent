@@ -50,7 +50,13 @@ function schedules(meta: Record<string, unknown>, now: number) {
 /** The current or last started session as contract session evidence: the
  * newest schedule whose pre-market or regular hours have begun. */
 function lastSession(meta: Record<string, unknown>, now: number) {
-  const current = schedules(meta, now)[0];
+  const all = schedules(meta, now);
+  const current = all[0];
+  // Before today's open, the last regular session precedes today's pre-market.
+  const previous =
+    current && now < current.regular.start
+      ? all.find((p) => p.regular.end < current.start)?.regular
+      : undefined;
   const zone = meta.exchangeTimezoneName;
   if (!current || typeof zone !== "string" || !zone) return null;
   const iso = (t: number) => new Date(t).toISOString();
@@ -64,6 +70,29 @@ function lastSession(meta: Record<string, unknown>, now: number) {
       end: iso(current.regular.end),
     },
     extended: { start: iso(current.start), end: iso(current.end) },
+    ...(previous
+      ? {
+          previous_regular: {
+            start: iso(previous.start),
+            end: iso(previous.end),
+          },
+        }
+      : {}),
+  };
+}
+/** Yahoo's latest pre/post trade with its own time; the connector decides
+ * whether it belongs to the displayed regular close. */
+function extendedQuote(q: Record<string, unknown>) {
+  const pre = q.marketState === "PRE";
+  const price = number(pre ? q.preMarketPrice : q.postMarketPrice);
+  const time = stamp(pre ? q.preMarketTime : q.postMarketTime);
+  if (price === null || time === null) return null;
+  return {
+    session: pre ? "pre" : "post",
+    price,
+    change: number(pre ? q.preMarketChange : q.postMarketChange),
+    percent: number(pre ? q.preMarketChangePercent : q.postMarketChangePercent),
+    time: new Date(time).toISOString(),
   };
 }
 function equitySession(meta: Record<string, unknown>, now: number) {
@@ -209,6 +238,7 @@ export async function yahooPrices(
     },
     // The close the regular change is measured against.
     previous_close: number(q.regularMarketPreviousClose),
+    extended: extendedQuote(q),
   });
   // Every quote read (metadata, latest, batches, quote dashboards) shares one
   // coalesced native quote call through quote_bundle.

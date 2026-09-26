@@ -129,8 +129,27 @@ def read(request, series, mode, raw):
         # The shared latest series measures the regular quote. Extended trading
         # is not implied for cash indices, nor is it this series' observation.
         state = metadata.get('market_state')
+        # Only stocks and funds trade outside regular hours; a cash index
+        # labelled PRE publishes no extended value.
+        extended_hours = metadata.get('type') in ('EQUITY', 'ETF')
         if state in ('REGULAR', 'CLOSED', 'PRE', 'PREPRE', 'POST', 'POSTPOST'):
-            context['session'] = {'state': 'regular' if state == 'REGULAR' else 'closed', 'basis': 'source'}
+            context['session'] = {'state': 'regular' if state == 'REGULAR' else state.lower() if extended_hours and state in ('PRE', 'POST') else 'closed',
+                                  'basis': 'source'}
+        extended = data.get('extended')
+        if extended_hours and isinstance(extended, dict) and state != 'REGULAR':
+            try:
+                stamp, regular = instant(extended['time']), instant(observations[-1]['time']['value'])
+                # A pre trade belongs to today's pre-market; a post trade is kept
+                # after the close until a newer regular session supersedes it.
+                if (extended['session'] == 'pre') == (state == 'PRE') and stamp > regular:
+                    value = Decimal(str(extended['price']))
+                    if value.is_finite() and value > 0:
+                        context['extended'] = {'session': extended['session'], 'value': format(value, 'f'),
+                            'time': {'kind': 'instant', 'value': extended['time']},
+                            **{key: format(Decimal(str(extended[name])), 'f') for key, name in (('absolute', 'change'), ('percent', 'percent'))
+                               if type(extended.get(name)) in (int, float) and Decimal(str(extended[name])).is_finite()}}
+            except (KeyError, ValueError, TypeError, InvalidOperation):
+                pass
         result['price_context'] = context
     # Intraday history carries the schedule of the current or last session.
     session = (raw.get('data') or {}).get('session')
