@@ -11,14 +11,16 @@ import hashlib
 import json
 import os
 import sqlite3
+import threading
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
 from . import Store, schema_sql
 from .model import Binding, ProviderRef
-from .resolution import QueueItem
+from .resolution import QueueItem, Verdict, VerdictOutcome
 
 REFERENCE_DIR_ENV = "PYTHIA_REFERENCE_DIR"
 SCHEMA_VERSION = "2"            # identity.sqlite3 metadata.schema_version
@@ -81,6 +83,7 @@ class IdentityStore:
             staging.replace(self.path)
         self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
+        self._writing = threading.RLock()  # one connection serves every thread: one transaction at a time
 
     def _readable(self) -> bool:
         try:
@@ -102,20 +105,40 @@ class IdentityStore:
             f" AND status IN ({','.join('?' * len(states))}) ORDER BY plugin, provider",
             (*subjects, *states)).fetchall()
 
-    def put_binding(self, binding: Binding) -> bool:
+    @contextmanager
+    def transaction(self):
+        """One atomic write: a verdict, its effect and the item it settles land together or not at all."""
+        with self._writing:
+            self.db.execute("BEGIN IMMEDIATE")
+            try:
+                yield
+            except BaseException:
+                self.db.execute("ROLLBACK")
+                raise
+            self.db.execute("COMMIT")
+
+    def metadata(self, key: str) -> str | None:
+        row = self.db.execute("SELECT value FROM metadata WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else None
+
+    def set_metadata(self, key: str, value: str) -> None:
+        self.db.execute("INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value=excluded.value",
+                        (key, value))
+
+    def put_binding(self, binding: Binding, verdict_id: str | None = None) -> bool:
         """One current binding per provider reference. A newer decision for the same subject replaces it;
         a reference bound to another subject is never re-pointed (returns False: that is a conflict)."""
         ref = binding.provider_ref
         self.db.execute(
             "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, level, status, authority,"
-            " rule_id, evidence_ids, valid_from, valid_to, verified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " rule_id, evidence_ids, valid_from, valid_to, verified_at, verdict_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT (provider, native_scope, native_id) DO UPDATE SET plugin=excluded.plugin,"
             " subject_id=excluded.subject_id, level=excluded.level, status=excluded.status,"
             " authority=excluded.authority, rule_id=excluded.rule_id, evidence_ids=excluded.evidence_ids,"
-            " verified_at=excluded.verified_at WHERE bindings.subject_id = excluded.subject_id",
+            " verified_at=excluded.verified_at, verdict_id=excluded.verdict_id WHERE bindings.subject_id = excluded.subject_id",
             (uuid.uuid4().hex, binding.plugin, ref.provider, ref.native_id, ref.native_scope, binding.subject_id,
              binding.level, binding.status, binding.authority, binding.rule_id, json.dumps(list(binding.evidence_ids)),
-             binding.validity.valid_from, binding.validity.valid_to, now()))
+             binding.validity.valid_from, binding.validity.valid_to, now(), verdict_id))
         return self.db.execute("SELECT changes()").fetchone()[0] == 1
 
     def binding_for(self, ref: ProviderRef) -> sqlite3.Row | None:
@@ -134,10 +157,58 @@ class IdentityStore:
              json.dumps(item.values), item.state, item.opened_at, now()))
 
     def open_queue(self, subject_ids: Iterable[str]) -> list[dict]:
-        wanted = set(subject_ids)
-        rows = self.db.execute("SELECT id, kind, reason, plugins, subject_ids, candidate_ids FROM queue WHERE state='open'").fetchall()
-        return [{"id": row["id"], "plugin": json.loads(row["plugins"])[0], "kind": row["kind"], "reason": row["reason"]}
-                for row in rows if wanted & set(json.loads(row["subject_ids"]) + json.loads(row["candidate_ids"]))]
+        """The page's short form of a subject's open items."""
+        return [{"id": item["id"], "plugin": item["plugins"][0], "kind": item["kind"], "reason": item["reason"]}
+                for item in self.queue_items(subject_ids=subject_ids)]
+
+    def queue_items(self, *, subject_ids: Iterable[str] | None = None, plugins: Iterable[str] | None = None,
+                    kind: str | None = None, state: str = "open") -> list[dict]:
+        """Queue items in one state, newest first; subjects match an item's subjects or candidates."""
+        subjects, names = (set(subject_ids) if subject_ids is not None else None), (set(plugins) if plugins is not None else None)
+        rows = self.db.execute("SELECT * FROM queue WHERE state = ? ORDER BY opened_at DESC, id", (state,)).fetchall()
+        items = [_item(row) for row in rows]
+        return [item for item in items if (kind is None or item["kind"] == kind)
+                and (names is None or names & set(item["plugins"]))
+                and (subjects is None or subjects & set(item["subject_ids"] + item["candidate_ids"]))]
+
+    def queue_item(self, item_id: str) -> dict | None:
+        row = self.db.execute("SELECT * FROM queue WHERE id = ?", (item_id,)).fetchone()
+        return _item(row) if row else None
+
+    def settle(self, item_id: str, state: str, verdict_id: str | None) -> bool:
+        """Close an open item; False when it was no longer open."""
+        self.db.execute("UPDATE queue SET state = ?, resolved_by = ?, updated_at = ? WHERE id = ? AND state = 'open'",
+                        (state, verdict_id, now(), item_id))
+        return self.db.execute("SELECT changes()").fetchone()[0] == 1
+
+    def dismissed(self, key: str) -> bool:
+        """A resolver already answered this question with "not a match": re-asking it does not reopen it."""
+        return self.db.execute("SELECT 1 FROM queue WHERE key = ? AND state = 'dismissed' LIMIT 1", (key,)).fetchone() is not None
+
+    def put_verdict(self, verdict: Verdict, outcome: VerdictOutcome, plugin: str = "pythia") -> str:
+        """Record a verdict with the outcome the authority rule gave it; every submission is kept."""
+        verdict_id = uuid.uuid4().hex
+        self.db.execute(
+            "INSERT INTO verdicts (id, item_id, resolver, plugin, authority, relation, chosen_id, confidence, model,"
+            " prompt_version, input_digest, rule_id, rationale, user_turn, outcome, created_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (verdict_id, verdict.item_id, verdict.resolver, plugin, verdict.authority, verdict.relation, verdict.chosen_id,
+             verdict.confidence, verdict.model, verdict.prompt_version, verdict.input_digest, verdict.rule_id,
+             verdict.rationale, verdict.user_turn, outcome, now()))
+        return verdict_id
+
+    def history(self, item: dict) -> list[dict]:
+        """Every verdict on this question, including on earlier items that asked it, oldest first."""
+        rows = self.db.execute(
+            "SELECT v.*, q.state AS item_state FROM verdicts v JOIN queue q ON q.id = v.item_id WHERE q.key = ?"
+            " ORDER BY v.created_at, v.rowid", (item["key"],)).fetchall()
+        return [{key: row[key] for key in row.keys()} for row in rows]
+
+    def claim(self, plugin: str, ref: ProviderRef) -> dict | None:
+        """The provider record a plugin claimed for a reference, as emitted."""
+        row = self.db.execute("SELECT claim FROM claims WHERE plugin = ? AND native_scope = ? AND native_id = ?",
+                              (plugin, ref.native_scope, ref.native_id)).fetchone()
+        return json.loads(row[0]) if row else None
 
     def put_miss(self, subject_id: str, plugin: str, reason: str, seconds: int) -> None:
         expires = (datetime.now(timezone.utc) + timedelta(seconds=seconds)).replace(microsecond=0)
@@ -164,3 +235,11 @@ class IdentityStore:
             " last_seen=excluded.last_seen",
             (plugin, provider, ref["native_scope"], ref["native_id"], None, claim_json["level"],
              (claim_json.get("attributes") or {}).get("name"), text, "sha256:" + hashlib.sha256(text.encode()).hexdigest(), stamp, stamp))
+
+
+def _item(row: sqlite3.Row) -> dict:
+    decoded = {name: json.loads(row[name]) for name in ("subject_ids", "candidate_ids", "evidence_ids", "plugins")}
+    return {"id": row["id"], "key": row["key"], "kind": row["kind"], "reason": row["reason"], **decoded,
+            "provider_ref": json.loads(row["provider_ref"]) if row["provider_ref"] else None, "scheme": row["scheme"],
+            "values": json.loads(row["contested_values"]), "state": row["state"], "opened_at": row["opened_at"],
+            "updated_at": row["updated_at"], "resolved_by": row["resolved_by"]}

@@ -120,6 +120,27 @@ involved and has a dedupe key, so re-ingest never duplicates an open question.
 Manual resolution is allowed and never required; resolution never runs on the
 search or page path.
 
+**Working the queue.** Core exposes two operations, which are also native agent
+tools: `identity-queue` reads open items (filtered by subject, plugin or kind)
+or one item in full, with the provider record, candidates, cited evidence and
+every verdict so far; `identity-verdict` answers one item. The transport decides
+the resolver, never an argument: a Desk HTTP call is the user
+(`user_attested`, citing that Desk action), a model tool call is the Hermes
+agent (`model_confirmed` at or above a provisional confidence of 0.9 until the
+truth set calibrates a threshold, else `model_suggested`, recording the digest
+of the item view it answered). Every verdict goes through `decide` and is
+recorded with its outcome; a confirmed one writes its binding, citing the
+verdict, in the same transaction, and never re-points a binding. `unrelated`
+dismisses the question, and re-asking a dismissed question does not reopen it.
+The rules resolver re-asks the join (`resolve_answer@1`) for open items with the
+evidence the device has now: after each `identity-resolve` for that subject's
+items, and for every open item on the first write after the reference build
+changed. It runs inside write operations only, with no scheduler. While a
+plugin has an open conflict for a subject, its section shows the conflict and a
+ready plugin serves the section instead. Rejected: attesting through an argument
+(the agent could supply it), a separate agent-only path (two write paths to
+audit), and a background drain (events and jobs are undecided).
+
 **Stores.** Two embedded SQLite files in portable SQL, reached through a thin
 store module: `reference.sqlite3` (open reference data, built on the device and
 replaced atomically, read-only in between) and `identity.sqlite3` (local
