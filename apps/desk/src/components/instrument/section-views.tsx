@@ -79,6 +79,9 @@ export function FilingsView({ filings }: { filings: Filings }) {
         entity.
       </p>
     );
+  const shown = filings.filings.slice(0, MAX_FILINGS);
+  // Some sources report no filing date (repository dates are not filing dates).
+  const filed = shown.some((filing) => filing.filed_at);
   return (
     <div data-slot="instrument-filings" className="flex flex-col gap-3">
       <div className="overflow-x-auto">
@@ -91,16 +94,18 @@ export function FilingsView({ filings }: { filings: Filings }) {
               <th scope="col" className="py-1.5 pr-3 font-normal">
                 Period end
               </th>
-              <th scope="col" className="py-1.5 pr-3 font-normal">
-                Filed
-              </th>
+              {filed ? (
+                <th scope="col" className="py-1.5 pr-3 font-normal">
+                  Filed
+                </th>
+              ) : null}
               <th scope="col" className="py-1.5 font-normal">
                 <span className="sr-only">Link</span>
               </th>
             </tr>
           </thead>
           <tbody>
-            {filings.filings.slice(0, MAX_FILINGS).map((filing, index) => (
+            {shown.map((filing, index) => (
               <tr
                 key={index}
                 className="border-border/40 border-b last:border-b-0"
@@ -124,9 +129,11 @@ export function FilingsView({ filings }: { filings: Filings }) {
                 <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
                   {filing.period_end ?? "—"}
                 </td>
-                <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
-                  {filing.filed_at?.slice(0, 10) ?? "—"}
-                </td>
+                {filed ? (
+                  <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
+                    {filing.filed_at?.slice(0, 10) ?? "—"}
+                  </td>
+                ) : null}
                 <td className="py-1.5 text-right">
                   {filing.url ? (
                     <a

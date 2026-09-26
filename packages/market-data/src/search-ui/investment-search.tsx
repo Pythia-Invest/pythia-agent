@@ -38,8 +38,8 @@ export type InvestmentSearchProps = {
   lookup?: LookupRunner | undefined;
   /** The chosen row's subject id, which an instrument page addresses. */
   onSelect(subjectId: string): void;
-  /** The highlighted row's subject id (pointer or keyboard), so a host can
-   * prepare that page before the choice lands. */
+  /** The subject id of a row the user highlights with pointer or keyboard
+   * (not the automatic first row), so a host can prepare that page. */
   onHighlight?: ((subjectId: string) => void) | undefined;
   /** Register the Cmd/Ctrl+K shortcut. Disable when several instances mount. */
   shortcut?: boolean | undefined;
@@ -176,8 +176,10 @@ export function InvestmentSearch({
       open={open}
       onOpenChange={setOpen}
       openOnInputClick
-      onItemHighlighted={(option) => {
-        if (option) onHighlight?.(option.row.id);
+      // Only a highlight the user moved (keyboard or pointer); the automatic
+      // first-row highlight follows every keystroke and is not a signal.
+      onItemHighlighted={(option, details) => {
+        if (option && details.reason !== "none") onHighlight?.(option.row.id);
       }}
       itemToStringValue={(option) => option.row.ticker}
       filter={null}

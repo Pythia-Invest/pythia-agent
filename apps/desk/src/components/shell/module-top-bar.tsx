@@ -42,7 +42,7 @@ function SelectedTopBar({
     <>
       <TopBar {...context} />
       <p role="status" className="px-4 text-error text-xs">
-        Custom top bar could not be displayed. Using the default header.
+        The selected top bar could not be displayed. Using the core header.
       </p>
       {retry ? (
         <Button
@@ -100,7 +100,7 @@ export function ModuleTopBar(context: Context) {
       {selection?.issue || query.isError ? (
         <p role="status" className="px-4 text-error text-xs">
           {selection?.issue ??
-            "Custom top bar is unavailable. Using the default header."}
+            "The selected top bar is unavailable. Using the core header."}
         </p>
       ) : null}
     </>

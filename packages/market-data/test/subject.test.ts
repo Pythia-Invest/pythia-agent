@@ -20,6 +20,9 @@ describe("subject page client", () => {
                 name: "Synthetic",
                 kind: "future_kind",
               },
+              // Empty text means "not known", never a failed page.
+              identifiers: { ticker: "", isin: "XS0000000001" },
+              listings: [{ id: "listing:synthetic", ticker: "", currency: "" }],
               sections: [
                 {
                   section: "news",
@@ -35,7 +38,8 @@ describe("subject page client", () => {
       "security:isin:XS0000000001",
     );
     expect(page.subject.kind).toBeNull();
-    expect(page.listings).toEqual([]);
+    expect(page.identifiers).toEqual({ ticker: null, isin: "XS0000000001" });
+    expect(page.listings[0]).toMatchObject({ ticker: null, currency: null });
     expect(page.sections[0]).toMatchObject({
       section: "news",
       status: "throttled",

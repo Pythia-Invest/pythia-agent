@@ -96,3 +96,12 @@ default needed no new mechanism: the same native declaration check, fallback
 and withdrawal apply. Rejected: seeding `desk/top-bar.json` into workspaces
 (it would turn a product default into user configuration that later defaults
 could not update) and a special-case header in Desk (a second top-bar owner).
+
+Instrument page resolution (same amendment): opening `/instrument/[subject]`
+may invoke core's `pythia`/`identity-resolve` once per plugin whose section core
+could not address. This is the one exception to "automatic requests stay
+read-only": it is a core-owned identity write (a binding or a review-queue
+item decided by core's authority rule) that Desk triggers on the investor's
+navigation, not a plugin action and not a feature mutation. It goes through the
+explicit invoke route, runs once per page open and never again on focus,
+reconnect or remount; everything else the page loads stays a read.

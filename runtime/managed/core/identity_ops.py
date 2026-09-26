@@ -122,10 +122,9 @@ class Identity:
         if subject is None or info is None or info.manifest.resolve is None:
             return _envelope("empty", None, issue="Unknown subject or no resolving plugin.")
         # A disabled or unconfigured plugin is never called; its sections already say why.
-        reason = self._resolve(info, subject) if info.enabled and not info.missing else None
+        reason, transient = self._resolve(info, subject) if info.enabled and not info.missing else (None, False)
         if reason:  # remember the miss so reopening the page does not call the provider again
-            retry = MISS_RETRY if reason.endswith(("in time", "failed")) else NO_MATCH_TTL
-            self.store.put_miss(subject_id, info.key, reason, retry)
+            self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
         view, issue = self._compose(subject_id)
         sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
         for section in sections:
@@ -168,31 +167,33 @@ class Identity:
                                 misses=identity_store.misses(subject_id))
         return {**subject["view"], "sections": sections, "queue": queue}, None
 
-    def _resolve(self, info: page.PluginInfo, subject: dict) -> str | None:
-        """Run the plugin's resolve once; store what the authority rule decides. Returns a reason when unresolved."""
+    def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
+        """Run the plugin's resolve once; store what the authority rule decides.
+
+        Returns (reason when unresolved, whether the failure is transient)."""
         from tools.registry import registry
         sent = page.resolve_input(info, subject)
         levels = {entry.via for entry in info.manifest.content.values()} & {level for level in Level if subject["ids"].get(level)}
         if not sent or not levels:
-            return f"{info.label} cannot look up this subject"
+            return f"{info.label} cannot look up this subject", False
         call = contextvars.copy_context().run
         future = self._pool.submit(call, registry.dispatch, info.manifest.resolve.tool, {"identifiers": sent})
         try:
             raw = future.result(timeout=RESOLVE_TIMEOUT)
         except concurrent.futures.TimeoutError:
-            return f"{info.label} did not answer in time"
+            return f"{info.label} did not answer in time", True
         except Exception:  # a failing plugin never breaks the page
             logger.warning("resolve failed for %s", info.key, exc_info=True)
-            return f"{info.label} lookup failed"
+            return f"{info.label} lookup failed", True
         try:
             result = json.loads(raw)
             if not isinstance(result, dict) or "error" in result or not result.get("data"):
-                return f"{info.label} found no match"
+                return f"{info.label} found no match", False
             batch = batch_from_json(result["data"])
             check_batch(batch, info.manifest)
         except (ValueError, ClaimError) as error:
             logger.warning("resolve answer rejected for %s: %s", info.key, error)
-            return f"{info.label} gave an unusable answer"
+            return f"{info.label} gave an unusable answer", False
         now = store.now()
         for claim in batch_to_json(batch)["claims"]:
             self.store.put_claim(batch.plugin, batch.provider, claim)
@@ -205,12 +206,12 @@ class Identity:
             binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now, bound_to=bound_to)
             if binding is not None:
                 if self.store.put_binding(binding):
-                    return None
-                return f"{info.label}'s reference is already bound to another subject"
+                    return None, False
+                return f"{info.label}'s reference is already bound to another subject", False
             if item is not None:
                 self.store.put_queue_item(item)
-                return f"{info.label}'s answer is queued for review ({item.reason})"
-        return f"{info.label} found no match"
+                return f"{info.label}'s answer is queued for review ({item.reason})", False
+        return f"{info.label} found no match", False
 
 
 def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:

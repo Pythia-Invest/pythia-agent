@@ -133,8 +133,11 @@ describe("investment search", () => {
           ?.getAttribute("aria-label"),
       ).toMatch(/^ASML,/),
     );
-    // The host can prepare the highlighted row's page before the choice.
-    expect(highlighted.at(-1)).toBe("listing:ASML");
+    // The automatic first-row highlight is not reported; moving it is.
+    expect(highlighted).toEqual([]);
+    await press("ArrowDown");
+    await until(() => expect(highlighted.at(-1)).toBe("listing:ASME"));
+    await press("ArrowUp");
 
     await press("Enter");
     expect(selected).toEqual(["listing:ASML"]);

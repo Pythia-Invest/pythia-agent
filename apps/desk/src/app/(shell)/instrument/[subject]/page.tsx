@@ -1,16 +1,16 @@
 import { InstrumentSurface } from "@/components/instrument/instrument-surface";
 
-/** Route segments may arrive still percent-encoded; subject ids never
- * contain "%" themselves, so decoding once is unambiguous. */
+/** Next passes this segment still percent-encoded, so it is decoded exactly
+ * once; ids may contain "/" and "%" (e2e/instrument.spec.ts proves both). */
 function subjectFrom(segment: string) {
   try {
-    return segment.includes("%") ? decodeURIComponent(segment) : segment;
+    return decodeURIComponent(segment);
   } catch {
     return segment;
   }
 }
 
-/** One subject's instrument page, addressed by its (URL-encoded) subject id. */
+/** One subject's instrument page, addressed by its URL-encoded subject id. */
 export default async function InstrumentRoute({
   params,
 }: {
