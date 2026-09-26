@@ -50,7 +50,7 @@ Boundaries:
    Remove resolved known defects and record new ones. Search for the old
    commit, release tag and package version to find remaining text and pinned
    links (for example `docs/product.md`, `THIRD_PARTY_NOTICES.md`,
-   `runtime/managed/python/NOTICE.md` and the contract).
+   `runtime/hermes/NOTICE.md` and the contract).
 7. **Verify.** Run `just check`, `just test` and `just qualify`, plus the manual
    `tooling/qualification/workspace-*.py` scripts named in the index. With the
    user's approval for a live run, smoke-test Desk: a chat with a tool call,

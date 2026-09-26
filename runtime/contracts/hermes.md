@@ -644,8 +644,8 @@ Every place Pythia depends on Hermes behavior has one row here. An upgrade
 walks this table against the new release; a change that adds or alters a
 dependency updates its row and coverage in the same change
 ([rule](../../.agents/rules/hermes-touchpoints.md)). Locations name files, not
-lines. Anchors name the file and symbol at the pin. Desk paths are relative to
-`apps/desk/src/`.
+lines. Anchors name the file and symbol at the pin. Desk source paths are
+relative to `apps/desk/src/` and Desk test paths to `apps/desk/`.
 
 Coverage terms: **probe** is `tooling/qualification/native_hermes_probe.py`
 against the real pin; **assembled** is the assembled run of `just qualify`;
@@ -669,29 +669,34 @@ test data, which guards Pythia behavior but cannot detect Hermes drift.
 | `scripts/dev/runtime-config.mjs`, `server/device-settings.ts`, `server/model-initialization.ts`, `scripts/update/workspace-transition-state.mjs` | `config get <key> --json`, `config set` (`hermes_cli/config.py:get_config_value`, `set_config_value`) | Mostly loud through readback | probe (`terminal.cwd`, `skills.external_dirs`); fixture for other keys |
 | `scripts/dev/runtime-config.mjs`, `scripts/update/workspace-transition-state.mjs` | stderr `Config key not set: <key>` (`get_config_value`) | Loud: wrong error raised | fixture `test/unit/dev-provider-defaults.test.ts`; wire capture golden (not yet asserted) |
 | `server/device-settings.ts` | first line `<provider>: logged in` or `: logged out` (`hermes_cli/auth_commands.py:auth_status_command`) | Silent: status shows unavailable | probe (logged-out shape); wire capture |
-| `scripts/dev/runtime-auth.mjs` | copied OAuth provider set (`auth_commands.py:_OAUTH_CAPABLE_PROVIDERS`) | Silent: stale provider list | none |
+| `scripts/dev/runtime-auth.mjs`, `scripts/install/cli.mjs` | copied OAuth provider set (`auth_commands.py:_OAUTH_CAPABLE_PROVIDERS`) | Silent: stale provider list | none |
 | `scripts/dev/runtime-auth.mjs`, `scripts/install/cli.mjs` | `-p default auth add --type`, `auth logout`, `-p default model` (`auth_commands.py`, `hermes_cli/subcommands/auth.py`) | Loud | none (interactive) |
 | `server/device-settings.ts` | `tools enable` / `disable <toolset> --platform api_server` (`hermes_cli/subcommands/tools.py`) | Loud through `/v1/toolsets` readback | assembled |
 | `scripts/dev/managed-plugins.mjs`, `scripts/update/workspace-transition.mjs` | `plugins doctor <dir> --ci`, `plugins enable <name> --no-allow-tool-override` (`hermes_cli/plugin_dev.py`, `hermes_cli/subcommands/plugins.py`) | Loud | `test/integration/dev-managed-assets.test.ts`; assembled |
 | **Profile seed** (`runtime/seeds/profile/config.yaml`) | | | |
 | `skills.external_dirs` with `${PYTHIA_MANAGED_SKILLS_DIR}` | `hermes_cli/config_defaults.py`; `agent/skill_utils.py` | Silent: no managed skills | probe |
-| `plugins.enabled`, `platform_toolsets.{cli,cron,api_server}` | `hermes_cli/plugins.py`; `toolsets.py` | Silent: tools or prompt section absent | assembled (`/v1/toolsets`) |
+| `plugins.enabled`, `platform_toolsets.{cli,cron,api_server}` | `hermes_cli/plugins.py`; `hermes_cli/tools_config.py` | Silent: tools or prompt section absent | assembled (`/v1/toolsets`) |
+| `profile/SOUL.md` (also `scripts/update/workspace-transition-state.mjs`) | `agent/prompt_builder.py:load_soul_md` | Silent: identity guidance absent | manual `workspace-instructions.py` |
+| `workspace/AGENTS.md` in the native working folder | context-file discovery from `terminal.cwd` (`agent/prompt_builder.py`) | Silent: investor context absent | manual `workspace-instructions.py` |
 | `auxiliary.free_only` | `agent/auxiliary_client.py` | Silent: paid fallback | none |
 | **Plugin API and private Python seams** | | | |
 | `runtime/managed/core/__init__.py`, `plugin.yaml` | `hermes_cli/plugins.py:PluginContext.register_tool`, `register_system_prompt_section`, `MAX_SYSTEM_PROMPT_SECTIONS_TOTAL_CHARS` | Loud through `plugins doctor` | probe (`native_hermes_plugin.py` dispatch); fixture `test_core.py` |
 | `runtime/managed/core/desk_view.py` | native `session_id` keyword from `model_tools.py:handle_function_call` | Silent: view unavailable | manual `workspace-view.py`; fixture `test_desk_view.py` |
 | `runtime/managed/runner/native_session_context.py` | private `agent/system_prompt.py:_restore_plugin_prompt_sections` | Loud import error; Desk shows unavailable | manual `workspace-session-context.py` |
-| `runtime/managed/runner/native_session_context.py` | `hermes_state.py:SessionDB(read_only=True)`, `get_session`, `get_messages`, `get_compression_lineage`, `search_messages`, `get_messages_around`, `get_meta`, `fts_rebuild_status`, private `_fts_enabled` | Signatures loud; fields and semantics silent (wrong scope or unavailable) | manual; env-gated `test/native-session-context.test.ts` |
+| `runtime/managed/runner/native_session_context.py` (also `scripts/update/workspace-transition.mjs`) | `hermes_state.py:SessionDB(read_only=True)`, `get_session`, `get_messages`, `get_compression_lineage`, `get_messages_around`, `get_meta`, private `_fts_enabled`; `hermes_state_search.py:SessionSearchMixin.search_messages`, `fts_rebuild_status` | Signatures loud; fields and semantics silent (wrong scope or unavailable) | manual; env-gated `test/native-session-context.test.ts` |
 | **Native feature plugins** (`runtime/managed/core/platform/`, `runtime/managed/plugins/`; [seams](#qualified-market-data-extension-seams)) | | | |
 | protected routes in `core/platform/http.py` | `ctx.register_platform_handler("api_server", factory)`; `BasePlatformAdapter._wire_plugin_handlers`, `APIServerAdapter.connect`; `_expected_api_key`, `_check_auth` | Loud: routes absent or unauthenticated | probe (`native_hermes_plugin.py`); assembled (`financial_http.mjs`) |
 | operation ownership in `core/platform/access.py` | plugin manager `_registration_order`; `plugins.disabled` over `plugins.enabled`; registry tool schemas with `$comment` annotations | Silent: operations denied, or allowed after disable | fixture `test_financial_native_access.py`; assembled |
+| tool availability in `core/platform/access.py` | private `hermes_cli/tools_config.py:_get_platform_tools`; `model_tools.py:get_tool_definitions`, private `_clear_tool_defs_cache`; `tools/registry.py:registry`, `invalidate_check_fn_cache`; `hermes_cli/config.py:load_config_readonly`; `agent/skill_utils.py:parse_config_string_list`; `hermes_cli/plugins.py:get_plugin_manager` | Loud if removed; silent if their meaning changes (wrong tools eligible) | fixture `test_financial_native_access.py`; assembled |
+| session scope in `core/platform/http.py`, `core/platform/access.py`, `core/platform/specialist.py`, `plugins/market-data/execution.py` | `gateway/session_context.py:get_session_env`, `set_session_vars`, `clear_session_vars` | Silent: operations run with the wrong profile or session scope | assembled (`financial_http.mjs`) |
+| cancellation in `plugins/market-data/execution.py`, `worker_reads.py`, `__init__.py` | `tools/interrupt.py:is_interrupted`, `is_thread_interrupted` | Silent: stopped work keeps running | fixture `test_connector_execution.py` |
 | bundled skill in `plugins/market-data/__init__.py` | `ctx.register_skill(name, path, description=...)`; qualified names in `skills_list`, `skill_view` | Silent: skill not discoverable | assembled (`plugin-skills.mjs`) |
 | **HTTP API** (`server/hermes.ts`, `server/hermes-records.ts`, `server/hermes-inventory.ts`) | | | |
 | bearer auth and error body | `api_server.py:_check_auth`, `_openai_error` | Loud | wire capture; fixture `test/hermes.test.ts` |
 | `GET /v1/capabilities` `features.run_steer`, `model_options` | `api_server.py:_handle_capabilities` | Silent: steering hidden | wire capture |
-| `GET /api/sessions` | `_handle_list_sessions`, `_session_response` | Silent: optional fields missing | wire capture; fixture `hermes.test.ts` |
+| `GET /api/sessions` | `_handle_list_sessions`, `_session_response` | Silent: optional fields missing | wire capture golden (not yet asserted); fixture `hermes.test.ts` |
 | `POST`/`GET`/`PATCH /api/sessions[/{id}]`, `invalid_title` retry (also `server/routes.ts`) | `_handle_create_session`, `_handle_get_session`, `_handle_patch_session` | Mostly loud | wire capture (create, `invalid_title`); fixture `routes.test.ts` (PATCH) |
-| `GET /api/sessions/{id}/messages?order=` and `pagination` | `_handle_session_messages`, `_message_response` | Silent | wire capture; fixture `hermes.test.ts` |
+| `GET /api/sessions/{id}/messages?order=` and `pagination` | `_handle_session_messages`, `_message_response` | Silent | wire capture golden (not yet asserted); fixture `hermes.test.ts` |
 | `GET /api/model/options[?refresh=true]` (also `server/model-catalog.ts`) | `_handle_model_options`; `hermes_cli/inventory.py` | Silent: empty or wrong picker | fixture `model-catalog.test.ts` (not capturable offline: Hermes fetches remote catalogs) |
 | `POST /v1/runs` body and 202 reply (also `server/attachments.ts`) | `api_server_runs.py:_handle_runs`; `api_server.py:_request_agent_overrides`, `_request_reasoning_config`, `MAX_REQUEST_BYTES` | Missing `run_id` loud; other fields silent | wire capture; fixture `hermes.test.ts` |
 | `GET /v1/runs/{id}` fields and status values (also `client/run-terminal-event.ts`, `client/hermes-transport.ts`) | `api_server_runs.py:_handle_get_run`, `_set_run_status`, `_durable_run_status` | Silent: an unknown terminal value keeps Desk following the run | wire capture; fixture `run-lifecycle.test.ts` |
@@ -701,11 +706,11 @@ test data, which guards Pythia behavior but cannot detect Hermes drift.
 | `server/hermes-events.ts` frame parsing and the qualified event names | `api_server.py:_sse_frame`; `api_server_runs.py:_handle_run_events` | Silent: renamed or new events dropped | wire capture; fixture `hermes.test.ts` |
 | event fields in `server/hermes-events.ts`, `client/hermes-run-mapper.ts` | `api_server_runs.py:_make_run_event_callback`, `_text_cb` in `_handle_runs` | Silent | wire capture; fixture `hermes-transport.test.ts` |
 | copied reasoning-tag strip in `client/hermes-run-mapper.ts` | `agent/conversation_loop.py` interim content callback (tags, 500 characters) | Silent: duplicated text | fixture `hermes-transport.test.ts` |
-| `subagent.complete.status` in `client/run-delegations.ts` | `tools/delegate_tool.py` result statuses | Silent: shown as ended | wire capture (completed, failed) |
+| `subagent.complete.status` in `client/run-delegations.ts` | `tools/delegate_tool.py` result statuses | Silent: shown as ended | wire capture golden (completed, failed; not yet asserted) |
 | **History rows and parsed strings** | | | |
-| `display_kind: "hidden"` in `client/chat-message.ts` | `api_server.py:_project_client_message` | Silent: placeholder rows shown | wire capture |
+| `display_kind: "hidden"` in `client/chat-message.ts` | `api_server.py:_project_client_message` | Silent: placeholder rows shown | wire capture golden (not yet asserted) |
 | note `display_kind` values in `client/chat-message.ts` | `gateway/run.py`; `hermes_cli/cli_agent_setup_mixin.py`; `gateway/slash_commands.py` | Silent: notes shown as user bubbles | wire capture (`hidden`, delegation notices); `e2e/chat-layout.spec.ts` (`model_switch`); none for `auto_continue`, `personality_switch`, `skill_invocation` |
-| `tool_calls` and the `tool_call` bridge in `client/chat-message.ts`, `components/chat/tool-copy.ts` | `tools/tool_search.py:TOOL_CALL_NAME` | Silent: generic tool label | wire capture |
-| tool names in `components/chat/tool-copy.ts` | `tools/web_tools.py`, `file_tools.py`, `terminal_tool.py`, `process_registry.py`, `skills_tool.py` | Silent: generic copy | wire capture; fixture `turn-model.test.ts` |
+| `tool_calls` and the `tool_call` bridge in `client/chat-message.ts`, `components/chat/tool-copy.ts` | `tools/tool_search.py:TOOL_CALL_NAME` | Silent: generic tool label | wire capture golden (not yet asserted) |
+| tool names in `components/chat/tool-copy.ts` | `tools/web_tools.py`, `file_tools.py`, `terminal_tool.py`, `process_registry.py`, `skills_tool.py` | Silent: generic copy | wire capture golden (not yet asserted); fixture `turn-model.test.ts` |
 | provider error wrappers in `components/chat/backend-error.ts` | error text from `api_server_runs.py:_handle_runs` | Cosmetic | fixture `backend-error.test.ts` |
 | Pythia markers in `attachments.ts`, `workspace/references.ts`, `workspace/session-context.ts` | verbatim user content in `hermes_state.py`; search in `hermes_state_search.py` | Silent: context or scope lost | manual |

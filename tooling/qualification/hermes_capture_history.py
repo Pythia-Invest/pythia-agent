@@ -159,7 +159,6 @@ def tool_results() -> dict[str, str]:
         set_interrupt(False)
     return {
         "terminal_failed": terminal_tool(command="echo partial; exit 3"),
-        "terminal_ok": terminal_tool(command="echo fetched"),
         "web_search_interrupted": interrupted_search,
         "todo": plan,
         "todo_invalid": invalid_plan,

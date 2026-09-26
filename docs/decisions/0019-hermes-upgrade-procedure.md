@@ -9,8 +9,8 @@ Moving that pin had no written procedure. The pin was copied into two records,
 two pieces of lifecycle code and a test, with nothing checking they agreed.
 Desk parses many Hermes fields, event names and saved strings that the contract
 did not list, and its tests use hand-written fixtures that stay green when
-Hermes changes. One drift already exists: Desk reads a saved steer row that
-only a newer Hermes writes. Reviewing a candidate release meant rereading the
+Hermes changes. One gap already exists: the pinned Hermes does not save a
+mid-run steer, which a newer release fixes. Reviewing a candidate release meant rereading the
 whole integration from memory.
 
 ## Decision
