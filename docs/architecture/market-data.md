@@ -41,6 +41,13 @@ provider search, and both return evidence rather than identity decisions.
   cancellation, budgets, structured failures and Hermes logs.
 - [Data delivery](data-delivery.md): resident HTTP/SSE and demand lifetime.
 
+Two keyless issuer-level connectors also ship by default and use the same
+connector support: [GLEIF](../../runtime/managed/plugins/gleif/README.md) resolves an
+LEI or ISIN to legal-entity references and reads the legal profile, and
+[filings.xbrl.org](../../runtime/managed/plugins/xbrl-filings/README.md) reads ESEF
+report links and reported facts. Both are addressed by LEI and contribute no
+market-data series or search.
+
 The identity direction has changed. ADR 0037 replaces the provider-bound rules in
 the identity document with a core-owned backbone of issuer, security, listing
 and crypto subjects. Provider symbols become bindings, joined at ingest by

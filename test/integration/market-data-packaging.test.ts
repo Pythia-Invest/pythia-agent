@@ -167,6 +167,8 @@ platform_toolsets:
       "enable",
       "enable",
       "enable",
+      "enable",
+      "enable",
     ]);
     expect(
       commands.filter((args) => args[3] === "doctor").map((args) => args[4]),
@@ -177,6 +179,8 @@ platform_toolsets:
       "pythia-yahoo-discovery",
       "pythia-sec",
       "pythia-openfigi",
+      "pythia-gleif",
+      "pythia-xbrl-filings",
     ]);
     const failed: string[][] = [];
     expect(() =>
@@ -300,6 +304,8 @@ platform_toolsets:
       "pythia-yahoo-discovery",
       "pythia-sec",
       "pythia-openfigi",
+      "pythia-gleif",
+      "pythia-xbrl-filings",
     ]);
     expect(readFileSync(join(community, "plugin.yaml"), "utf8")).toBe(
       "name: community\n",
