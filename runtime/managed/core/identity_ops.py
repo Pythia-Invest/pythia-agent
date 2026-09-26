@@ -1,9 +1,12 @@
-"""Core identity operations on the native tool registry: search, subject and resolve.
+"""Core identity operations on the native tool registry: search, subject, resolve and the resolution queue.
 
-`identity-search` and `identity-subject` are local reads of the reference file,
-identity.sqlite3 and the installed plugins' contracts; neither calls a provider.
-`identity-resolve` runs one plugin's declared resolve tool, bounded by a short
-timeout, and stores the decided binding or queue item.
+`identity-search`, `identity-subject` and `identity-queue` are local reads of the
+reference file, identity.sqlite3 and the installed plugins' contracts; none calls
+a provider. `identity-resolve` runs one plugin's declared resolve tool, bounded by
+a short timeout, and stores the decided binding or queue item. `identity-verdict`
+records one answer to a queue item: from the Desk it is the user's attestation,
+from a model tool call the agent's verdict; the transport decides which, never an
+argument.
 """
 from __future__ import annotations
 
@@ -13,11 +16,12 @@ import json
 import logging
 import sqlite3
 import threading
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 from .identity import MANIFEST_FILE, ClaimError, Level, ManifestError, check_batch, validate_manifest
-from .identity import batch_from_json, batch_to_json, page, search, store
+from .identity import batch_from_json, batch_to_json, page, queue, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -27,6 +31,7 @@ NO_REFERENCE = "No reference data on this device yet."
 NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
 MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes
 PREFERENCE = "search_listing_preference"  # declared in configuration.json
+RELEASE = "reference_release"  # identity.sqlite3 metadata: the reference build the rules last settled against
 SUBJECT_ID = {"type": "string", "minLength": 4, "maxLength": 320, "pattern": "^(issuer|security|composite|listing):"}
 
 SEARCH_SCHEMA = {
@@ -53,6 +58,37 @@ RESOLVE_SCHEMA = {
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT_ID, "plugin": {"type": "string", "minLength": 1, "maxLength": 128}},
         "required": ["subject_id", "plugin"], "additionalProperties": False},
+}
+
+QUEUE_SCHEMA = {
+    "name": "pythia_identity_queue",
+    "description": "List open identity questions: provider records the device could not place on a subject "
+                   "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
+                   "subject, plugin or kind. With item_id, returns one question in full: the provider record, the "
+                   "candidate subjects, the cited reference evidence and earlier verdicts. Local only.",
+    "parameters": {"type": "object", "properties": {
+        "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "subject_id": SUBJECT_ID,
+        "plugin": {"type": "string", "minLength": 1, "maxLength": 128},
+        "kind": {"type": "string", "enum": ["residual", "conflict"]},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+        "additionalProperties": False},
+}
+VERDICT_SCHEMA = {
+    "name": "pythia_identity_verdict",
+    "description": "Answer one open identity question after reading it in full. A match names the relation and one of "
+                   "the question's candidates; 'unrelated' says the record is a different instrument; 'ambiguous' "
+                   "leaves it open. Core applies the identity authority rule: an answer that contradicts identifier "
+                   "evidence is refused, and a match below the confidence threshold is kept only as a suggestion. "
+                   "A confirmed match binds the provider record to the subject; every answer is recorded.",
+    "parameters": {"type": "object", "properties": {
+        "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "relation": {"type": "string", "enum": ["same_listing", "same_composite", "same_security", "same_issuer",
+                                                "depositary_receipt_of", "unrelated", "none", "ambiguous"]},
+        "chosen_id": SUBJECT_ID,
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "rationale": {"type": "string", "maxLength": 400}},
+        "required": ["item_id", "relation"], "additionalProperties": False},
 }
 
 
@@ -127,12 +163,79 @@ class Identity:
         reason, transient = self._resolve(info, subject) if info.enabled and not info.missing else (None, False)
         if reason:  # remember the miss so reopening the page does not call the provider again
             self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
+        self._settle([value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
         sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
         for section in sections:
             if section["status"] == "resolving":
                 section.update(status="unresolved", reason=reason or f"{info.label} is not available")
         return _envelope("ok", {"sections": sections})
+
+    def queue(self, arguments: dict, **_context: Any) -> str:
+        limit = arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20
+        try:
+            _path, ref = self.reference()
+            if ref is None:
+                return _envelope("empty", None, issue=NO_REFERENCE)
+            try:
+                if arguments.get("item_id"):
+                    view = queue.inspect(self.store, ref, str(arguments["item_id"]))
+                    return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown queue item.")
+                subject, plugin = arguments.get("subject_id"), arguments.get("plugin")
+                items = self.store.queue_items(
+                    subject_ids=_family(ref, str(subject)) if subject else None, kind=arguments.get("kind"),
+                    plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)} if plugin else None)
+            finally:
+                ref.close()
+        except (sqlite3.Error, OSError):
+            logger.warning("identity queue unavailable", exc_info=True)
+            return _envelope("empty", None, issue="The identity store could not be read.")
+        data = {"items": [queue.summary(item) for item in items[:max(1, min(50, limit))]], "total": len(items)}
+        return _envelope("ok" if items else "empty", data)
+
+    def verdict(self, arguments: dict, **_context: Any) -> str:
+        from .platform.request_context import usage
+        desk = usage.get() == "dashboard"  # trusted transport scope: the Desk's own HTTP call, never a model tool call
+        now = store.now()
+        self._settle([])
+        path, ref = self.reference()
+        if ref is None:
+            return _envelope("empty", None, issue=NO_REFERENCE)
+        try:
+            result = queue.submit(
+                self.store, ref, item_id=str(arguments.get("item_id") or ""), relation=arguments.get("relation"),
+                chosen_id=arguments.get("chosen_id"), now=now, as_of=date.today().isoformat(),
+                resolver=queue.ResolverKind.USER if desk else queue.ResolverKind.AGENT,
+                confidence=None if desk else arguments.get("confidence"), rationale=arguments.get("rationale"),
+                user_turn=f"desk:identity-verdict:{now}" if desk else None)
+        except queue.Refused as refused:
+            result = {"outcome": "refused", "message": str(refused)}
+        except (sqlite3.Error, OSError):
+            logger.warning("identity verdict not recorded", exc_info=True)
+            return _envelope("empty", None, issue="The identity store could not be written.")
+        finally:
+            ref.close()
+        return _envelope("ok", result)
+
+    def _settle(self, subject_ids: list[str]) -> None:
+        """Rules settle what current evidence decides: after a resolve, the subject's open items; once after the
+        reference build changed, every open item. Runs only inside write operations, never on search or page reads."""
+        path, ref = self.reference()
+        if ref is None:
+            return
+        try:
+            identity_store = self.store
+            fresh = identity_store.metadata(RELEASE) != path.name
+            items = identity_store.queue_items(subject_ids=None if fresh else subject_ids)
+            if items:
+                queue.settle_by_rules(identity_store, ref, installed(), items, now=store.now(),
+                                      as_of=date.today().isoformat())
+            if fresh:
+                identity_store.set_metadata(RELEASE, path.name)
+        except (sqlite3.Error, OSError, ValueError):
+            logger.warning("rules could not settle the identity queue", exc_info=True)
+        finally:
+            ref.close()
 
     def _preference(self) -> str:
         """The investor's `search_listing_preference` (settings.json); anything else means primary."""
@@ -223,6 +326,8 @@ class Identity:
                 if self.store.put_binding(binding):
                     return None, False
                 return f"{info.label}'s reference is already bound to another subject", False
+            if item is not None and self.store.dismissed(item.key):
+                return f"{info.label}'s record was reviewed: it is not this instrument", False
             if item is not None:
                 self.store.put_queue_item(item)
                 return f"{info.label}'s answer is queued for review ({item.reason})", False
@@ -234,6 +339,15 @@ def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
     if issue:
         body["issues"] = [{"code": "unavailable" if data is None else "empty", "message": issue}]
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
+
+
+def _family(ref, subject_id: str) -> list[str]:
+    """The subject and its listing, security, issuer and composite, as the page groups them."""
+    try:
+        subject = page.load_subject(ref, subject_id)
+    except ValueError:  # a malformed subject id
+        return []
+    return [subject_id, *(value for value in subject["ids"].values() if value)] if subject else [subject_id]
 
 
 def _suffixes() -> dict[str, set[str]]:
@@ -280,7 +394,9 @@ def register(ctx: Any) -> None:
     identity = Identity(ctx)
     for schema, handler, operation, read_only in ((SEARCH_SCHEMA, identity.search, "identity-search", True),
                                                   (SUBJECT_SCHEMA, identity.subject, "identity-subject", True),
-                                                  (RESOLVE_SCHEMA, identity.resolve, "identity-resolve", False)):
+                                                  (RESOLVE_SCHEMA, identity.resolve, "identity-resolve", False),
+                                                  (QUEUE_SCHEMA, identity.queue, "identity-queue", True),
+                                                  (VERDICT_SCHEMA, identity.verdict, "identity-verdict", False)):
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])
