@@ -27,7 +27,7 @@ const renderer = {
   plugin: "community/example",
   presentation: "topbar",
 };
-async function fixture() {
+async function fixture(productDefault: typeof renderer | null = null) {
   const root = await mkdtemp(join(tmpdir(), "topbar-"));
   directories.push(root);
   await mkdir(join(root, "desk"));
@@ -54,6 +54,7 @@ async function fixture() {
   const routes = createTopBarRoutes(
     createWorkspaceStore(() => root),
     native,
+    productDefault,
   );
   const config = (value: unknown) =>
     writeFile(join(root, TOP_BAR_CONFIG_PATH), JSON.stringify(value));
@@ -110,6 +111,26 @@ test("missing selection preserves core; configured native top bar is revalidated
   expect((await (await routes.topBar(request())).json()).moduleUrl).toContain(
     "/replacement?revision=",
   );
+});
+test("missing selection uses the product default; an unavailable default is the core bar without a warning", async () => {
+  const { routes, native, config } = await fixture(renderer);
+  expect((await (await routes.topBar(request())).json()).renderer).toEqual(
+    renderer,
+  );
+  native.mockRejectedValueOnce(Error("disabled"));
+  expect(await (await routes.topBar(request())).json()).toEqual({
+    renderer: null,
+    settings: {},
+  });
+  // An explicit selection that fails still says so.
+  await config({ version: 1, renderer });
+  native.mockRejectedValueOnce(Error("disabled"));
+  expect(await (await routes.topBar(request())).json()).toMatchObject({
+    renderer: null,
+    issue: expect.any(String),
+  });
+  await config({ version: 1, renderer: null });
+  expect((await (await routes.topBar(request())).json()).renderer).toBeNull();
 });
 test("invalid configuration, wrong input contract, missing module, and links fail visibly to core", async () => {
   const { root, routes, native, config } = await fixture();

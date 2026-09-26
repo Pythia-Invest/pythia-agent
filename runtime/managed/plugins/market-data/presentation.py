@@ -3,8 +3,8 @@
 Each module supplies the feature-owned @pythia/market-data/widgets binding for
 canonical requests and display adaptation. Hosts may also supply an already
 qualified InstrumentRead directly; neither route gives the renderer provider access.
-The optional top bar composes @pythia/market-data/search-ui (ADR 0036); it is
-selected in the workspace's desk/top-bar.json, not by default.
+The top bar composes @pythia/market-data/search-ui (ADR 0036); it is Desk's
+product default unless the workspace's desk/top-bar.json selects another.
 """
 import logging
 
@@ -14,6 +14,7 @@ WIDGETS = (
     {'id': 'instrument-tile', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
     {'id': 'instrument-compact-tile', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
     {'id': 'instrument-table', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
+    {'id': 'instrument-panel', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
     {'id': 'top-bar', 'asset': 'top-bar', 'input_contract': 'pythia.desk-topbar.v1'},
 )
 ASSETS = {'instruments': 'dist/widgets/instruments.mjs', 'top-bar': 'dist/widgets/top-bar.mjs'}

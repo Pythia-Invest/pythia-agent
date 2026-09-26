@@ -13,15 +13,18 @@ import {
 export function createTopBarRoutes(
   workspace: WorkspaceStore = workspaceStore,
   presentation = readWidgetPresentation,
+  productDefault = DEFAULT_TOP_BAR,
 ) {
   return {
     async topBar(request: Request) {
       const denied = admitBrowserRequest(request, "read");
       if (denied) return denied;
+      // Only a confirmed missing file selects the product default.
+      let defaulted = false;
       try {
         let config = {
           version: 1 as const,
-          renderer: DEFAULT_TOP_BAR,
+          renderer: productDefault,
           settings: {},
         };
         let entry: Awaited<ReturnType<WorkspaceStore["entry"]>> | undefined;
@@ -36,6 +39,7 @@ export function createTopBarRoutes(
             )
           )
             throw error;
+          defaulted = true;
         }
         if (entry) {
           if (entry.size > 65_536) throw Error("configuration too large");
@@ -70,6 +74,10 @@ export function createTopBarRoutes(
           moduleUrl: asset.moduleUrl,
         } satisfies TopBarSelection);
       } catch {
+        // The investor chose nothing: an unavailable product default (a
+        // disabled feature) is not a configuration problem, so the core bar
+        // appears without a warning.
+        if (defaulted) return result({ renderer: null, settings: {} });
         // Never replace or repair user configuration on a failed read.
         return result({
           renderer: null,

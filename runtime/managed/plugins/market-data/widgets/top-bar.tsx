@@ -2,7 +2,12 @@ import {
   InvestmentSearch,
   transportSearch,
 } from "@pythia/market-data/search-ui";
-import type { TopBarProps } from "@pythia/widget-sdk";
+import {
+  readSubject,
+  SUBJECT_STALE_MS,
+  subjectQueryKey,
+} from "@pythia/market-data/subject";
+import { type TopBarProps, useQueryClient } from "@pythia/widget-sdk";
 import { useState } from "react";
 
 /** Feature-owned top bar: the shell's title and actions around the local
@@ -12,6 +17,7 @@ export default function InvestmentTopBar({ data }: TopBarProps) {
   // The investment query is this module's own state: the shell's `data.query`
   // filters Desk's chat lists and must not follow what is typed here.
   const [query, setQuery] = useState("");
+  const queryClient = useQueryClient();
   return (
     <search
       data-slot="market-data-top-bar"
@@ -26,8 +32,17 @@ export default function InvestmentTopBar({ data }: TopBarProps) {
         query={query}
         onQueryChange={setQuery}
         search={transportSearch(data.transport)}
-        // Instrument pages address subjects. Until page composition owns a
-        // route, the choice is announced for whichever surface opens it.
+        // The page composition is a fast local read: warm it for the row under
+        // the pointer or keyboard highlight so the click opens on cached data.
+        onHighlight={(subjectId) =>
+          void queryClient.prefetchQuery({
+            queryKey: subjectQueryKey(subjectId),
+            queryFn: ({ signal }) =>
+              readSubject(data.transport, subjectId, signal),
+            staleTime: SUBJECT_STALE_MS,
+          })
+        }
+        // Instrument pages address subjects; the host shell routes the choice.
         onSelect={(subjectId) =>
           window.dispatchEvent(
             new CustomEvent("pythia:open-subject", {

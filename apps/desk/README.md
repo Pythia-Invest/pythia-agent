@@ -181,11 +181,23 @@ dismissing the phone drawer retains its open tabs for the next file opening.
 The Name/Type/Size listing shares file icons with search results. Sidebar pins
 and width preferences from the earlier layout are retained but unused by this
 variant.
-The default shared shell header retains its window title, chat search field and
-Cmd/Ctrl+K shortcut. Workspace does not replace that header. Users may select a
-complete native plugin top bar through workspace `desk/top-bar.json`; see
+The product default header is the market-data investment-search top bar; when
+that feature is unavailable the core header (window title, chat search field and
+Cmd/Ctrl+K shortcut) appears without a warning. Workspace does not replace that
+header. Users may select another complete native plugin top bar, or
+`renderer: null` for the core one, through workspace `desk/top-bar.json`; see
 [the SDK guide](../../packages/widget-sdk/README.md#replace-the-desk-top-bar).
-Invalid or unavailable contributions retain the core header and navigation actions.
+Invalid or unavailable selections retain the core header and navigation actions
+and say so.
+
+`/instrument/[subject]` is one subject's page (URL-encoded subject id). The
+shell routes `pythia:open-subject` window events there. The page renders core's
+local `pythia`/`identity-subject` composition at once, then loads each section
+on its own: `resolving` sections through `identity-resolve` (an explicit invoke,
+because core stores the resulting binding), quote and chart through the
+market-data `instrument-panel` widget bound to the section's provider reference,
+and profile and filings through the section's own read. Sections that cannot be
+served show why and which configuration key would change that.
 A separate toolbar inside the Workspace page, beneath the shell header, owns
 Back/Forward, Up, Workspace home, the current folder path and a folder-scoped
 search field.

@@ -31,7 +31,7 @@ import type {
   DeviceSettingsSnapshot,
   DeviceSkill,
 } from "@/server/device-settings";
-import type { HermesToolset } from "@/server/types";
+import type { HermesToolset, WidgetPresentation } from "@/server/types";
 import type { DeskReleaseStatus } from "@/server/release-status";
 import type { ModelCatalog, ModelSelection } from "@/server/model-catalog";
 
@@ -82,6 +82,11 @@ export class DeskApi extends BrowserRequest {
       body: JSON.stringify({ reads }),
       ...(signal ? { signal } : {}),
     });
+  }
+
+  widgetPresentation(plugin: string, signal?: AbortSignal) {
+    const path = `/api/plugins/${encodeURIComponent(plugin)}/widgets`;
+    return this.json<WidgetPresentation>(path, signal ? { signal } : {});
   }
 
   topBar(signal?: AbortSignal) {

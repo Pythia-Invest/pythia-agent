@@ -1,7 +1,7 @@
 import type { ObservationTime, ReadResult, Series } from "../index";
 import type { InstrumentDisplay, InstrumentPath } from "@pythia/widget-sdk";
 import type { TimestampFormatter } from "./types";
-import type { FinancialRow } from "./contract";
+import { bindingKey, type FinancialRow } from "./contract";
 
 function number(value: string | undefined, scale = "1") {
   if (value === undefined) return null;
@@ -186,7 +186,7 @@ export function financialInstrument(
     .filter(Boolean)
     .join(" · ");
   return {
-    id: row.subject.id,
+    id: bindingKey(row.subject),
     ticker: row.symbol || context?.symbol || "",
     name: row.name,
     price,

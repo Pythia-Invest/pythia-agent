@@ -36,7 +36,9 @@ export const destinations: readonly Destination[] = [
     label: "Markets",
     icon: ChartCandlestick,
     href: "/markets",
-    matches: (pathname) => pathname.startsWith("/markets"),
+    // Instrument pages belong to Markets until it has its own overview.
+    matches: (pathname) =>
+      pathname.startsWith("/markets") || pathname.startsWith("/instrument/"),
   },
   {
     id: "watchlist",

@@ -9,6 +9,7 @@
     "./schema.json": "./schema.json",
     "./search": "./src/search.ts",
     "./search-ui": "./src/search-ui/index.ts",
+    "./subject": "./src/subject.ts",
     "./widgets": "./src/widgets/index.ts",
     "./widgets/contract": "./src/widgets/contract.ts"
   },
