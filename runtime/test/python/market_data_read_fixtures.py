@@ -1,20 +1,20 @@
-"""Synthetic source definitions and pre-proven mappings for shared-read tests.
+"""Synthetic source definitions and core routing for shared-read tests.
 
 Values are shaped by shared wire v1 and the native contribution seam, not real
-provider responses. Cross-source mapping here is a test fixture, not a new rule.
+provider responses. The subject's references stand in for core's bindings.
 """
 import copy
 from importlib import import_module
 import json
 from pathlib import Path
 
-from test_market_data_identity import PACKAGE, evidence, isin, native, identity
+from market_data_fixture import PACKAGE, isin, native
 
 Backend = import_module(f"{PACKAGE}.backend").Backend
 read_module = import_module(f"{PACKAGE}.reads")
 wire = import_module(f"{PACKAGE}.wire")
 EXAMPLE = next(f["value"] for f in json.loads((Path(__file__).resolve().parents[3] / "packages/market-data/examples/valid.json").read_text()) if f["name"] == "equity_daily")
-SUBJECT = {"kind": "instrument", "id": "instrument:synthetic-shared"}
+SUBJECT = {"kind": "security", "id": "security:isin:" + isin(31)}
 CRITERIA = {"measurement": "ohlc", "interval": {"kind": "day", "count": 1}, "session": "regular", "price_adjustment": "split", "market_data_type": "unknown", "currency": "USD"}
 
 
@@ -30,6 +30,7 @@ class Sources:
         self.policies = {}
         self.after_read = None
         self.read_transform = None
+        self.extra = []  # further references core routes the subject through
 
     def definition(self, provider, suffix="daily"):
         result = copy.deepcopy(EXAMPLE["series"])
@@ -39,9 +40,9 @@ class Sources:
 
     def project(self):
         return [{"contribution": {"schema_version": 1, "provider": provider, "adapter_version": "1", "subject_kinds": ["instrument", "listing"], **self.policies.get(provider, {}),
-                 "operations": [{"operation": op, "tool": f"{provider}_{op}", "effect": "read"} for op in ("search", "details", "series", "latest", "history")]},
+                 "operations": [{"operation": op, "tool": f"{provider}_{op}", "effect": "read"} for op in ("details", "series", "latest", "history")]},
                  "operations": [{"operation": op, "tool": f"{provider}_{op}", "effect": "read", "available": self.ready[provider], "parameters": {}}
-                                for op in ("search", "details", "series", "latest", "history")]}
+                                for op in ("details", "series", "latest", "history")]}
                 for provider in self.providers], False
 
     def call(self, provider, operation, arguments):
@@ -49,10 +50,8 @@ class Sources:
         if (provider, operation) in self.fail:
             return {"schema_version": 1, "outcome": "error", "data": None,
                     "issues": [{"code": "synthetic_failure", "message": "Synthetic source failure.", "severity": "error"}]}
-        if operation in ("search", "details"):
-            ref = self.refs[provider]
-            records = evidence(ref, standard=isin(31), listing=True, version="1")
-            return {"schema_version": 1, "outcome": "ok", "data": [{"provider_ref": ref, "evidence": records, "issues": []}], "issues": []}
+        if operation == "details":
+            return {"schema_version": 1, "outcome": "ok", "data": [{"provider_ref": self.refs[provider], "issues": []}], "issues": []}
         if operation == "series":
             return {"schema_version": 1, "outcome": "ok", "data": copy.deepcopy(self.definitions[provider]), "issues": []}
         selected = next(value for value in self.definitions[provider] if value["source_detail"]["values"]["read_selector"] == arguments["source_selector"])
@@ -67,26 +66,14 @@ class Sources:
             self.after_read()
         return result
 
+    def subjects(self, subject_id):
+        if subject_id != SUBJECT["id"]:
+            return None
+        return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra]}
+
     def backend(self, directory, canonical=True, **kwargs):
-        store = ProvenIdentity(directory, self) if canonical else identity.IdentityStore(directory)
-        return Backend(directory, identity=store, source_call=self.call, source_projection=self.project,
-                       access_scope=lambda: self.access, **kwargs)
-
-
-class ProvenIdentity(identity.IdentityStore):
-    def __init__(self, directory, sources):
-        super().__init__(directory)
-        self.sources = sources
-        self.extra = []
-
-    def bindings(self, subject):
-        if subject != SUBJECT:
-            return super().bindings(subject)
-        mappings = [{"schema_version": 1, "id": "mapping:" + provider, "provider_ref": ref,
-                     "target": SUBJECT, "status": "confirmed", "evidence_ids": ["evidence:synthetic-proof"],
-                     "rule_version": "synthetic:1", "revision": 1, "active_override": None}
-                    for provider, ref in self.sources.refs.items()]
-        return {"generation": self.cache_token(), "mappings": mappings + self.extra}
+        return Backend(directory, subjects=self.subjects if canonical else lambda subject_id: None,
+                       source_call=self.call, source_projection=self.project, access_scope=lambda: self.access, **kwargs)
 
 
 def request(view=None, requirements=None):

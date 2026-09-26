@@ -107,12 +107,6 @@ def _semantics(kind, value, path):
         allowed = {"isin": {"instrument"}, "cusip": {"instrument"}, "lei": {"company"}, "cik": {"company"}, "contract_address": {"crypto"}}
         require(value["scope"] in allowed.get(value["scheme"], {value["scope"]}), path, "identifier scheme scope differs")
         require(value["scheme"] != "contract_address" or "network" in value["qualifiers"], path, "contract address needs network")
-    elif kind == "mapping":
-        require(value["status"] != "confirmed" or bool(value["evidence_ids"]), path, "confirmation needs evidence references")
-        override = value["active_override"]
-        if override:
-            require(set(override["evidence_ids"]) <= set(value["evidence_ids"]), path, "override evidence absent from mapping")
-            require(not (override["effect"] == "negative" and value["status"] == "confirmed"), path, "negative override cannot confirm")
     elif kind == "series":
         _series(value, path)
     elif kind == "completion":
@@ -185,7 +179,7 @@ def _series(value, path):
     if value["shape"] == "ohlc":
         require(all(fields[name] == fields["close"] for name in ("open", "high", "low")), path, "OHLC fields have incompatible semantics")
     binding = value["subject"]
-    require(not price or binding.get("kind") != "company", path, "company is not a price instrument")
+    require(not price or binding.get("kind") != "issuer", path, "an issuer is not a price instrument")
     require("provider" not in binding or binding == value["provider_ref"], path, "native subject binding differs")
     _source_detail(value, value["provider_ref"]["provider"], path)
 

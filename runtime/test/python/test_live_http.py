@@ -6,7 +6,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from test_market_data_identity import PLATFORM
+from market_data_fixture import PLATFORM
 
 live_http = importlib.import_module(PLATFORM + '.live_http')
 

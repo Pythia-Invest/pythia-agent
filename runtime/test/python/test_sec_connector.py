@@ -17,7 +17,7 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from test_market_data_identity import wire
+from market_data_fixture import wire
 from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/sec'

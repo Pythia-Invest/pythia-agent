@@ -19,7 +19,7 @@ def deliver(request, backend_factory, reuse_scope=None):
         def current_scope():
             native = backend.context()[1]
             return fingerprint({'access': native, 'preferences': backend.preferences.get()['revision'] if preferred else None,
-                                'identity': backend.identity.cache_token() if preferred else None}) if native['cacheable'] else None
+                                'subjects': backend.subject_scope(reads)}) if native['cacheable'] else None
         scope = current_scope()
     if scope and reuse_scope == scope:
         return {'schema_version': 1, 'reuse': scope}

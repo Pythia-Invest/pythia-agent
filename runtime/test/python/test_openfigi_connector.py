@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import unittest
 from urllib.error import HTTPError
 
-from test_market_data_identity import wire
+from market_data_fixture import wire
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/openfigi'
 spec = importlib.util.spec_from_file_location('openfigi_fixture', ROOT / '__init__.py', submodule_search_locations=[str(ROOT)])
