@@ -40,18 +40,21 @@ def _stop(process):
     process.wait(timeout=2)
 
 
-def run_worker(command, request, environment, *, timeout=30, cancelled=None, budget=None):
+def run_worker(command, request, environment, *, timeout=30, cancelled=None, budget=None, output_limit=2_000_000):
     """One bounded JSON request/result; terminate/reap on deadline or interrupt.
 
     Native tools use their thread-scoped Hermes interrupt. Headless Python
     callers supply an Event.is_set-compatible callable instead.
     stdout/stderr are bounded while reading; stderr is never returned or logged.
+    A connector may raise the stdout bound for a documented bulk read.
     """
     if cancelled is None:
         from tools.interrupt import is_interrupted
         cancelled = is_interrupted
     if type(timeout) not in (int, float) or not 0 < timeout <= 120:
         raise WorkerError("invalid_deadline")
+    if type(output_limit) is not int or output_limit <= 0:
+        raise WorkerError("invalid_request")
     try:
         request_bytes = json.dumps(request, allow_nan=False).encode() + b"\n"
         if len(request_bytes) > 65536:
@@ -125,7 +128,7 @@ def run_worker(command, request, environment, *, timeout=30, cancelled=None, bud
                             stdout.extend(chunk)
                         else:
                             stderr_count += len(chunk)
-                        if len(stdout) > 2_000_000 or stderr_count > 65536:
+                        if len(stdout) > output_limit or stderr_count > 65536:
                             raise WorkerError("output_limit")
         while process.poll() is None:
             if cancelled():

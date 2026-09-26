@@ -13,11 +13,12 @@ Ordinary dashboard consumers must use the resident endpoint, without model calls
 or per-request Hermes startup.
 
 The release installs the shared owner, contracts, execution helpers and agent
-skill, plus the credential-free [Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md).
-`describe` reports only installed, enabled native contributions. The original
-core SEC/EODHD tools are retired; other connector packages must supply those
-capabilities explicitly. Enabling the owner does not install a provider or prove
-an account's access.
+skill, plus the credential-free [Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md)
+and the [CoinGecko connector](../../runtime/managed/plugins/coingecko/README.md)
+(keyless, or with the investor's own optional key). `describe` reports only
+installed, enabled native contributions. The original core SEC/EODHD tools are
+retired; other connector packages must supply those capabilities explicitly.
+Enabling the owner does not install a provider or prove an account's access.
 
 Pythia is personal software: each installation serves one investor. Provider
 data is used under that investor's own agreement with the provider. Each plugin

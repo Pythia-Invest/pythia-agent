@@ -155,6 +155,27 @@ export const MANAGED_PLUGINS = Object.freeze([
       "skills/xbrl-filings/SKILL.md",
     ]),
   }),
+  Object.freeze({
+    name: "pythia-coingecko",
+    install: true,
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/coingecko",
+    files: Object.freeze([
+      "__init__.py",
+      "plugin.yaml",
+      "configuration.json",
+      "README.md",
+      "config.py",
+      "definition.py",
+      "identity.py",
+      "catalogue.py",
+      "series.py",
+      "results.py",
+      "dashboard.py",
+    ]),
+    workers: Object.freeze(["coingecko/main.py"]),
+  }),
 ]);
 
 // Core runner helpers that connector workers import. Listed once, ahead of the
