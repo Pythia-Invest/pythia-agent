@@ -1,6 +1,5 @@
-import { cn } from "@pythia/widget-sdk";
+import { ComboboxItem, cn } from "@pythia/widget-sdk";
 import { Plug } from "lucide-react";
-import type { MouseEvent } from "react";
 import type { SearchBinding } from "../search";
 import { connectors } from "./connector-icons";
 import { KIND_LABELS, type SearchOption } from "./search-model";
@@ -25,7 +24,7 @@ export function ConnectorMark({
       title={title ?? known.name}
       width={12}
       height={12}
-      className="size-3 flex-none rounded-xs object-contain"
+      className="size-3 flex-none object-contain"
     />
   ) : (
     <span title={title ?? plugin} className="flex-none">
@@ -62,25 +61,11 @@ function optionLabel(option: SearchOption, bindings: readonly SearchBinding[]) {
     .join(", ");
 }
 
-const keepInputFocus = (event: MouseEvent) => event.preventDefault();
-
 /** One minimal row. A group's lead row shows ticker and name on the left,
  * venue and type on the right; the security's other listings follow as
  * compact rows with ticker and venue. Logos appear only for connectors bound
  * to that row. No prices. */
-export function SearchRowOption({
-  option,
-  id,
-  active,
-  onPoint,
-  onChoose,
-}: {
-  option: SearchOption;
-  id: string;
-  active: boolean;
-  onPoint(): void;
-  onChoose(): void;
-}) {
+export function SearchRowOption({ option }: { option: SearchOption }) {
   const { row, group, lead } = option;
   const bindings = onePerPlugin(row.bindings);
   const venue = row.venue ?? row.mic;
@@ -88,21 +73,14 @@ export function SearchRowOption({
     .filter(Boolean)
     .join(" · ");
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: the combobox field owns keyboard selection through aria-activedescendant.
-    <div
-      role="option"
-      id={id}
-      tabIndex={-1}
-      aria-selected={active}
+    <ComboboxItem
+      value={option}
       aria-label={optionLabel(option, bindings)}
       data-slot="investment-search-row"
       data-kind={group.kind}
       data-lead={lead || undefined}
-      onMouseDown={keepInputFocus}
-      onMouseMove={active ? undefined : onPoint}
-      onClick={onChoose}
       className={cn(
-        "motion-fast flex cursor-pointer items-center gap-3 rounded-control px-2.5 transition-colors aria-selected:bg-interaction-hover motion-reduce:transition-none",
+        "gap-3 px-2.5",
         lead ? "min-h-12 py-1.5" : "min-h-8 py-1 pl-6",
       )}
     >
@@ -163,6 +141,6 @@ export function SearchRowOption({
           </div>
         ) : null}
       </div>
-    </div>
+    </ComboboxItem>
   );
 }

@@ -14,6 +14,7 @@ import {
   searchOptions,
   TYPE_FILTERS,
 } from "@pythia/market-data/search-ui";
+import { Combobox } from "@pythia/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
@@ -66,23 +67,22 @@ function Specimen({
         <span className="text-foreground-secondary text-xs">{note}</span>
       </figcaption>
       <div className="h-112 w-full min-w-0 max-w-136 overflow-hidden rounded-container border border-border bg-overlay text-foreground shadow-overlay">
-        <SearchPanel
-          baseId={`specimen-${title}`}
-          query=""
-          status="ready"
-          fresh
-          directory={demoDirectory}
-          filter="all"
-          offers={props.query ? demoLookupOffers : []}
-          onFilter={ignore}
-          onPoint={ignore}
-          onChoose={ignore}
-          onRetry={ignore}
-          onLookup={ignore}
-          activeKey={list[0]?.key}
-          {...props}
-          options={list}
-        />
+        {/* An inline combobox supplies the list context without a field. */}
+        <Combobox inline value={null} filter={null}>
+          <SearchPanel
+            query=""
+            status="ready"
+            fresh
+            directory={demoDirectory}
+            filter="all"
+            offers={props.query ? demoLookupOffers : []}
+            onFilter={ignore}
+            onRetry={ignore}
+            onLookup={ignore}
+            {...props}
+            options={list}
+          />
+        </Combobox>
       </div>
     </figure>
   );
@@ -127,7 +127,8 @@ export function InvestmentSearchDemo() {
         </QueryClientProvider>
         <p className="text-foreground-secondary text-xs">
           Try asml, asm, bitcoin, sol, IE00B4L5Y983 or zzzz. Arrow keys move,
-          Enter opens, Tab reaches the type pills and the lookup action.
+          Enter opens, Esc closes, Tab reaches the type pills and the lookup
+          action.
         </p>
         <output className="text-body text-foreground">
           {chosen

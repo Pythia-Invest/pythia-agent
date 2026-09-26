@@ -243,11 +243,15 @@ user action. Native ownership and permission checks are authoritative for each
 operation. Transport requests are cancelled when the contribution is withdrawn.
 
 The SDK exports Desk's actual `useQuery`, `useMutation`, `useQueryClient`, `Button`,
-`EmptyState`, `Popover`, and `Skeleton`. Feature data keys start with
+`EmptyState`, `Popover`, `Skeleton`, `Toggle`, `ToggleGroup`, and the `Combobox`
+parts (`Combobox`, `ComboboxInputGroup`, `ComboboxInput`, `ComboboxPortal`,
+`ComboboxPositioner`, `ComboboxPopup`, `ComboboxList`, `ComboboxGroup`,
+`ComboboxItem`, `ComboboxEmpty`). Feature data keys start with
 `['plugin', nativePluginId, ...]` to participate in settings-change withdrawal.
 Consume cancellation in queries, revalidate native access before presenting
-retained data, and show native denial as unavailable. The SDK Popover portal
-preserves scoped author styles while using the shared popup implementation.
+retained data, and show native denial as unavailable. The SDK Popover and
+Combobox portals preserve scoped author styles while using the shared popup
+implementation.
 
 A feature may publish reusable source components that another plugin bundles into
 its artifact through ordinary imports. This is a build dependency, not runtime

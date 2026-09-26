@@ -71,24 +71,3 @@ export function searchOptions(
     })),
   );
 }
-
-/** The highlighted option is remembered by key; an unknown key falls back to
- * the first option, so Enter always acts on what is highlighted. */
-export function activeOption(
-  options: readonly SearchOption[],
-  key: string | null,
-): SearchOption | undefined {
-  return options.find((option) => option.key === key) ?? options[0];
-}
-
-/** Arrow keys move the highlight through every row and wrap at the ends. */
-export function moveActive(
-  options: readonly SearchOption[],
-  key: string | null,
-  offset: 1 | -1,
-): string | undefined {
-  const current = activeOption(options, key);
-  if (!current) return undefined;
-  const index = options.indexOf(current) + offset;
-  return options[(index + options.length) % options.length]?.key;
-}

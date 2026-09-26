@@ -1,4 +1,10 @@
-import { Button, EmptyState, Skeleton } from "@pythia/widget-sdk";
+import {
+  Button,
+  ComboboxGroup,
+  ComboboxList,
+  EmptyState,
+  Skeleton,
+} from "@pythia/widget-sdk";
 import { LoaderCircle } from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
 import type { LookupOffer, SearchGroup, SearchResponse } from "../search";
@@ -20,16 +26,7 @@ export type LookupState = {
   groups: SearchGroup[];
 };
 
-export function optionId(baseId: string, index: number) {
-  return `${baseId}-option-${index}`;
-}
-
-export function listboxId(baseId: string) {
-  return `${baseId}-listbox`;
-}
-
 export type SearchPanelProps = {
-  baseId: string;
   /** Trimmed query the panel describes. */
   query: string;
   status: PanelStatus;
@@ -38,63 +35,51 @@ export type SearchPanelProps = {
   directory?: SearchResponse["directory"] | undefined;
   filter: TypeFilter;
   options: readonly SearchOption[];
-  activeKey?: string | undefined;
   /** Plugins the user may explicitly look the query up in. */
   offers: readonly LookupOffer[];
   lookup?: LookupState | undefined;
   onFilter(value: TypeFilter): void;
-  onPoint(key: string): void;
-  onChoose(option: SearchOption): void;
   onRetry(): void;
   onLookup(offer: LookupOffer): void;
 };
 
-type Indexed = { option: SearchOption; index: number };
-
 /** Consecutive rows of one security form one ARIA group. */
 function byGroup(options: readonly SearchOption[]) {
-  const groups: Indexed[][] = [];
-  options.forEach((option, index) => {
+  const groups: SearchOption[][] = [];
+  for (const option of options) {
     if (option.lead || !groups.length) groups.push([]);
-    groups.at(-1)?.push({ option, index });
-  });
+    groups.at(-1)?.push(option);
+  }
   return groups;
 }
 
 const keepInputFocus = (event: MouseEvent) => event.preventDefault();
 
-/** Presentational body of the anchored search panel: type pills, one listbox,
- * explicit states and a footer with the directory date and the lookup
- * actions. `InvestmentSearch` is the stateful composition. */
+/** Body of the anchored search panel: type pills, one listbox, explicit
+ * states and a footer with the directory date and the lookup actions. It
+ * renders inside a `Combobox`, which owns highlighting and selection;
+ * `InvestmentSearch` is the stateful composition. */
 export function SearchPanel(props: SearchPanelProps) {
-  const { baseId, query, status, fresh, filter, lookup } = props;
-  const groups = byGroup(props.options);
-  const directory = groups.filter(
-    (rows) => rows[0]?.option.source === "directory",
-  );
-  const found = groups.filter((rows) => rows[0]?.option.source === "lookup");
-  const renderGroup = (rows: Indexed[]): ReactNode => {
-    const first = rows[0]?.option;
+  const { query, status, fresh, filter, lookup } = props;
+  // Rows exist only while they are shown, so the combobox never highlights or
+  // selects a hidden one.
+  const groups = byGroup(status === "ready" ? props.options : []);
+  const directory = groups.filter((rows) => rows[0]?.source === "directory");
+  const found = groups.filter((rows) => rows[0]?.source === "lookup");
+  const renderGroup = (rows: SearchOption[]): ReactNode => {
+    const first = rows[0];
     if (!first) return null;
     return (
-      // biome-ignore lint/a11y/useSemanticElements: an ARIA group of listbox options, not a form fieldset.
-      <div
+      <ComboboxGroup
         key={first.key}
-        role="group"
         aria-label={first.group.name}
         data-slot="investment-search-group"
+        className="py-0"
       >
-        {rows.map(({ option, index }) => (
-          <SearchRowOption
-            key={option.key}
-            option={option}
-            id={optionId(baseId, index)}
-            active={option.key === props.activeKey}
-            onPoint={() => props.onPoint(option.key)}
-            onChoose={() => props.onChoose(option)}
-          />
+        {rows.map((option) => (
+          <SearchRowOption key={option.key} option={option} />
         ))}
-      </div>
+      </ComboboxGroup>
     );
   };
   const filterLabel = TYPE_FILTERS.find((type) => type.value === filter)?.label;
@@ -174,13 +159,11 @@ export function SearchPanel(props: SearchPanelProps) {
             ) : null}
           </div>
         ) : null}
-        <div
-          role="listbox"
-          id={listboxId(baseId)}
+        <ComboboxList
           aria-label="Investments"
           aria-busy={status === "ready" && !fresh}
-          hidden={!props.options.length || status !== "ready"}
-          className="grid gap-1"
+          hidden={!groups.length}
+          className="grid max-h-none gap-1 overflow-visible"
         >
           {directory.map(renderGroup)}
           {found.length && lookup ? (
@@ -193,7 +176,7 @@ export function SearchPanel(props: SearchPanelProps) {
             </div>
           ) : null}
           {found.map(renderGroup)}
-        </div>
+        </ComboboxList>
         {lookup?.status === "running" ? (
           <p className="flex items-center gap-2 px-2.5 py-3 text-foreground-secondary text-xs">
             <LoaderCircle

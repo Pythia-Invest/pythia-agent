@@ -1,18 +1,32 @@
 "use client";
 
-import { cn, Popover } from "@pythia/widget-sdk";
-import { LoaderCircle, Search } from "lucide-react";
 import {
-  type FocusEvent,
-  type KeyboardEvent,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
-import type { LookupRunner, SearchBackend } from "./controller";
-import { listboxId, optionId, SearchPanel } from "./search-panel";
-import { type SessionKey, useSearchSession } from "./search-session";
+  Combobox,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxPopup,
+  ComboboxPortal,
+  ComboboxPositioner,
+  cn,
+} from "@pythia/widget-sdk";
+import { LoaderCircle, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { LookupOffer, SearchGroup } from "../search";
+import {
+  type LookupRunner,
+  type SearchBackend,
+  useDirectorySearch,
+} from "./controller";
+import {
+  type SearchOption,
+  searchOptions,
+  type TypeFilter,
+} from "./search-model";
+import {
+  type LookupState,
+  type PanelStatus,
+  SearchPanel,
+} from "./search-panel";
 
 export type InvestmentSearchProps = {
   query: string;
@@ -29,13 +43,26 @@ export type InvestmentSearchProps = {
   className?: string | undefined;
 };
 
-const SESSION_KEYS = new Set<string>(["ArrowDown", "ArrowUp", "Enter"]);
-const TABBABLE = 'button:not(:disabled):not([tabindex="-1"])';
+const NO_GROUPS: SearchGroup[] = [];
+const NO_OFFERS: LookupOffer[] = [];
+
+/** Busy cues appear only when work is noticeably slow, so fast local reads
+ * never flash a spinner. */
+function useDelayedFlag(flag: boolean, delay: number) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    setShown(false);
+    if (!flag) return;
+    const timer = setTimeout(() => setShown(true), delay);
+    return () => clearTimeout(timer);
+  }, [flag, delay]);
+  return flag && shown;
+}
 
 /** One field for names, tickers and identifiers with a panel anchored to it.
- * Results come from the local directory; focus stays in the field while the
- * arrow keys move the highlighted row. Nothing here calls a connector unless
- * the user presses an explicit lookup action. */
+ * Base UI's combobox owns focus, highlighting, selection and dismissal; this
+ * component owns the directory read, the type filter and the explicit lookup.
+ * Nothing here calls a connector unless the user presses a lookup action. */
 export function InvestmentSearch({
   query,
   onQueryChange,
@@ -45,26 +72,45 @@ export function InvestmentSearch({
   shortcut = true,
   className,
 }: InvestmentSearchProps) {
-  const baseId = useId();
-  const panelId = `${baseId}-panel`;
   const input = useRef<HTMLInputElement>(null);
-  const anchor = useRef<HTMLDivElement>(null);
+  const highlighted = useRef<SearchOption | undefined>(undefined);
+  const lookupAbort = useRef<AbortController | null>(null);
   const [open, setOpen] = useState(false);
-  const session = useSearchSession({
-    baseId,
-    query,
-    open,
-    search,
-    lookup,
-    select(subjectId) {
-      onSelect(subjectId);
-      setOpen(false);
-    },
-  });
+  const [filter, setFilter] = useState<TypeFilter>("all");
+  const [lookupState, setLookupState] = useState<LookupState>();
+
+  const trimmed = query.trim();
+  // Every keystroke is its own local read; React Query cancels the superseded
+  // one and keeps the previous rows on screen until the new ones arrive.
+  const result = useDirectorySearch(search, trimmed, filter, open);
+  const response = trimmed ? result.data : undefined;
+  const fresh = Boolean(response) && !result.isPlaceholderData;
+  const shownLookup = lookupState?.query === trimmed ? lookupState : undefined;
+  const found = shownLookup?.status === "done" ? shownLookup.groups : NO_GROUPS;
+  const options = useMemo(
+    () => [
+      ...searchOptions(response?.groups ?? NO_GROUPS, "directory"),
+      ...searchOptions(found, "lookup"),
+    ],
+    [response, found],
+  );
+  const status: PanelStatus = !trimmed
+    ? "prompt"
+    : result.isError && !result.isFetching
+      ? "error"
+      : response
+        ? "ready"
+        : "loading";
+  const busy = useDelayedFlag(
+    open && Boolean(trimmed) && result.isFetching,
+    250,
+  );
+
+  useEffect(() => () => lookupAbort.current?.abort(), []);
 
   useEffect(() => {
     if (!shortcut) return;
-    const onShortcut = (event: globalThis.KeyboardEvent) => {
+    const onShortcut = (event: KeyboardEvent) => {
       if (
         !(event.metaKey || event.ctrlKey) ||
         event.altKey ||
@@ -80,89 +126,65 @@ export function InvestmentSearch({
     return () => window.removeEventListener("keydown", onShortcut);
   }, [shortcut]);
 
-  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.nativeEvent.isComposing) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (open) setOpen(false);
-      else if (query) onQueryChange("");
-      return;
+  async function runLookup(offer: LookupOffer) {
+    if (!lookup || !trimmed || lookupState?.status === "running") return;
+    const controller = new AbortController();
+    lookupAbort.current = controller;
+    const base = { plugin: offer.plugin, label: offer.label, query: trimmed };
+    setLookupState({ ...base, status: "running", groups: [] });
+    try {
+      const groups = await lookup(
+        { plugin: offer.plugin, query: trimmed },
+        controller.signal,
+      );
+      if (!controller.signal.aborted)
+        setLookupState({ ...base, status: "done", groups });
+    } catch {
+      if (!controller.signal.aborted)
+        setLookupState({ ...base, status: "error", groups: [] });
     }
-    if (event.key === "Tab" && !event.shiftKey && open) {
-      const first = document
-        .getElementById(panelId)
-        ?.querySelector<HTMLElement>(TABBABLE);
-      if (first) {
-        event.preventDefault();
-        first.focus();
-      }
-      return;
-    }
-    if (!SESSION_KEYS.has(event.key)) return;
-    if (!open) {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setOpen(true);
-      }
-      return;
-    }
-    if (session.key(event.key as SessionKey)) event.preventDefault();
-  }
-
-  function onBlur(event: FocusEvent<HTMLInputElement>) {
-    const next = event.relatedTarget;
-    if (
-      next instanceof Node &&
-      document.getElementById(panelId)?.contains(next)
-    )
-      return;
-    setOpen(false);
-  }
-
-  // Tab cycles between the field and the panel's controls instead of
-  // escaping into the page behind the portal.
-  function onPanelKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Tab") return;
-    const tabbable = [
-      ...event.currentTarget.querySelectorAll<HTMLElement>(TABBABLE),
-    ];
-    const edge = event.shiftKey ? tabbable[0] : tabbable.at(-1);
-    if (event.target !== edge) return;
-    event.preventDefault();
-    input.current?.focus();
   }
 
   return (
-    <Popover.Root
-      open={open}
-      onOpenChange={(next, details) => {
-        const target =
-          details.event instanceof FocusEvent
-            ? details.event.relatedTarget
-            : details.event?.target;
-        // The editable anchor is not a toggle: pressing or refocusing it must
-        // not dismiss the panel.
-        if (
-          !next &&
-          target instanceof Node &&
-          anchor.current?.contains(target)
-        ) {
-          details.cancel();
-          return;
-        }
-        if (!next && details.reason === "escape-key") input.current?.focus();
-        setOpen(next);
+    <Combobox<SearchOption>
+      // Rows are destinations, not a remembered value: a choice reports its
+      // subject id and leaves the typed query as it was.
+      value={null}
+      onValueChange={(option) => {
+        if (option) onSelect(option.row.id);
       }}
+      inputValue={query}
+      onInputValueChange={(value, details) => {
+        // Base UI also writes the chosen row's label, and clears the field when
+        // the panel closes; only typing and Escape change the query.
+        if (
+          details.reason !== "input-change" &&
+          details.reason !== "escape-key"
+        )
+          return;
+        if (value.trim() !== trimmed) {
+          lookupAbort.current?.abort();
+          setLookupState(undefined);
+        }
+        onQueryChange(value);
+      }}
+      open={open}
+      onOpenChange={setOpen}
+      onItemHighlighted={(option) => {
+        highlighted.current = option;
+      }}
+      itemToStringLabel={(option) => option.row.ticker}
+      filter={null}
+      autoHighlight
     >
-      <div
-        ref={anchor}
+      <ComboboxInputGroup
         data-slot="investment-search"
         className={cn(
-          "motion-fast flex h-8 w-104 min-w-0 max-w-full cursor-text items-center gap-2 rounded-control border border-border bg-raised px-2.5 text-foreground-secondary transition-colors focus-within:border-border-strong focus-within:outline-2 focus-within:outline-ring focus-within:outline-offset-2 hover:border-border-strong motion-reduce:transition-none",
+          "h-8 min-h-8 w-104 min-w-0 max-w-full cursor-text gap-2 px-2.5 text-foreground-secondary hover:bg-raised",
           className,
         )}
       >
-        {session.busy ? (
+        {busy ? (
           <LoaderCircle
             aria-hidden="true"
             className="size-3.5 flex-none animate-spin motion-reduce:animate-none"
@@ -170,50 +192,43 @@ export function InvestmentSearch({
         ) : (
           <Search aria-hidden="true" className="size-3.5 flex-none" />
         )}
-        <input
+        <ComboboxInput
           ref={input}
-          role="combobox"
           aria-label="Search investments"
-          aria-expanded={open}
-          aria-controls={listboxId(baseId)}
-          aria-haspopup="listbox"
-          aria-autocomplete="list"
-          aria-activedescendant={
-            open && session.status === "ready" && session.activeIndex >= 0
-              ? optionId(baseId, session.activeIndex)
-              : undefined
-          }
           autoComplete="off"
           spellCheck={false}
           placeholder="Search by name, ticker or ISIN"
           type="search"
           maxLength={512}
-          value={query}
           onFocus={() => setOpen(true)}
-          onClick={() => setOpen(true)}
-          onBlur={onBlur}
-          onChange={(event) => {
-            session.edit(event.target.value);
-            onQueryChange(event.target.value);
-            setOpen(true);
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || !open || !trimmed) return;
+            // Enter opens a row of the typed query only: rows of the previous
+            // query, still shown while it loads, are not a choice.
+            const first = options[0];
+            if (!fresh || !highlighted.current) {
+              event.preventDefault();
+              event.preventBaseUIHandler();
+              if (fresh && first) {
+                onSelect(first.row.id);
+                setOpen(false);
+              }
+            }
           }}
-          onKeyDown={onKeyDown}
-          className="min-w-0 flex-1 border-0 bg-transparent text-body text-foreground outline-none placeholder:text-foreground-secondary"
+          className="min-h-0 px-0 text-body"
         />
         {shortcut ? (
           <kbd className="hidden flex-none font-sans text-foreground-secondary text-xs min-[600px]:block">
             ⌘K
           </kbd>
         ) : null}
-      </div>
-      <Popover.Portal>
+      </ComboboxInputGroup>
+      <ComboboxPortal>
         {/* Always below the bar: the panel shifts sideways and shortens to
             fit rather than jumping to another side. */}
-        <Popover.Positioner
-          anchor={anchor}
+        <ComboboxPositioner
           side="bottom"
           align="start"
-          sideOffset={6}
           collisionPadding={8}
           collisionAvoidance={{
             side: "none",
@@ -221,34 +236,28 @@ export function InvestmentSearch({
             fallbackAxisSide: "none",
           }}
         >
-          <Popover.Popup
-            id={panelId}
+          <ComboboxPopup
             aria-label="Investment search"
-            initialFocus={false}
-            finalFocus={false}
-            onKeyDown={onPanelKeyDown}
-            className="h-[min(28rem,var(--available-height))] w-136 min-w-(--anchor-width) max-w-[calc(100vw-1rem)] overflow-hidden p-0"
+            className="motion-fast h-[min(28rem,var(--available-height))] w-136 max-w-[calc(100vw-1rem)] origin-(--transform-origin) p-0 shadow-overlay transition-[opacity,transform] data-ending-style:scale-[0.97] data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none"
           >
             <SearchPanel
-              baseId={baseId}
-              query={session.trimmed}
-              status={session.status}
-              fresh={session.fresh}
-              directory={session.response?.directory}
-              filter={session.filter}
-              options={session.options}
-              activeKey={session.active?.key}
-              offers={session.offers}
-              lookup={session.lookup}
-              onFilter={session.changeFilter}
-              onPoint={session.point}
-              onChoose={session.choose}
-              onRetry={session.retry}
-              onLookup={session.runLookup}
+              query={trimmed}
+              status={status}
+              fresh={fresh}
+              directory={response?.directory}
+              filter={filter}
+              options={options}
+              offers={
+                lookup && trimmed ? (response?.lookup ?? NO_OFFERS) : NO_OFFERS
+              }
+              lookup={shownLookup}
+              onFilter={setFilter}
+              onRetry={() => void result.refetch()}
+              onLookup={(offer) => void runLookup(offer)}
             />
-          </Popover.Popup>
-        </Popover.Positioner>
-      </Popover.Portal>
-    </Popover.Root>
+          </ComboboxPopup>
+        </ComboboxPositioner>
+      </ComboboxPortal>
+    </Combobox>
   );
 }

@@ -18,7 +18,22 @@ export {
   type InstrumentRead,
   type InstrumentWidgetOptions,
 } from "@pythia/ui/market-widgets";
-export { Button, EmptyState, Skeleton } from "@pythia/ui";
+export {
+  Button,
+  Combobox,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxPopup,
+  ComboboxPositioner,
+  EmptyState,
+  Skeleton,
+  Toggle,
+  ToggleGroup,
+} from "@pythia/ui";
 export { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 export type {
   TopBarProps,
@@ -30,7 +45,7 @@ export type {
   DataResource,
   DataUpdate,
 } from "./transport";
-export { Popover } from "./scope";
+export { ComboboxPortal, Popover } from "./scope";
 export { cn } from "@pythia/ui/class-name";
 export type {
   WidgetBinding,
