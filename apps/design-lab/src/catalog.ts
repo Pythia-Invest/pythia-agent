@@ -28,6 +28,13 @@ export const componentCatalog = [
     route: "/components/instrument-widgets",
     search: ["instrument", "tile", "compact", "table", "watchlist"],
   },
+  {
+    category: "semantics",
+    name: "Instrument price chart",
+    profiles: ["product"],
+    route: "/components/instrument-price-chart",
+    search: ["instrument", "chart", "intraday", "period", "session", "stats"],
+  },
 ] as const satisfies readonly CatalogEntry[];
 
 export const catalogEntryByRoute = new Map(

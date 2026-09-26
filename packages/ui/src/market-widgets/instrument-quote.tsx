@@ -40,9 +40,9 @@ export function InstrumentQuoteHeader({
   className?: string;
 }) {
   const activity = instrumentActivity(item);
-  const status = [
-    ...new Set([sessionWords[activity.session], activityDetail(activity)]),
-  ].join(" · ");
+  const detail = activityDetail(activity);
+  const words = sessionWords[activity.session];
+  const status = detail.includes(words) ? detail : `${words} · ${detail}`;
   return (
     <div
       data-slot="instrument-quote-header"
