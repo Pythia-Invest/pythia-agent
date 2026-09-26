@@ -6,8 +6,7 @@ from ._platform import platform
 
 class FinancialDelivery:
     push = True
-    READ_ACTIONS = {'describe', 'call', 'search', 'details', 'series', 'read', 'read_many',
-                    'get_preferences', 'inspect_identity', 'inspect_subject', 'inspect_repair'}
+    READ_ACTIONS = {'describe', 'call', 'details', 'series', 'read', 'read_many', 'get_preferences'}
 
     def __init__(self, backend_factory):
         self.backend_factory = backend_factory
@@ -24,7 +23,7 @@ class FinancialDelivery:
         scope = None
         if preferred:
             owner = self.backend_factory()
-            scope = [owner.preferences.get()['revision'], owner.identity.cache_token()]
+            scope = [owner.preferences.get()['revision'], owner.subject_scope(reads)]
         history = bool(reads) and all(item.get('request', {}).get('operation') == 'history' for item in reads)
         return {'scope': scope, 'lane': 'history' if history else 'ordinary',
                 'read_only': arguments.get('action') in self.READ_ACTIONS}

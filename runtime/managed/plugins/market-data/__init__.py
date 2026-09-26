@@ -9,7 +9,7 @@ from .definition import SCHEMA, TOOL_NAME, TOOLSET
 def register(ctx):
     ctx.register_skill(
         'market-data', Path(__file__).parent / 'skills/market-data/SKILL.md',
-        description='Find investments, inspect identity evidence, choose series and read bounded market data.',
+        description='Choose price series and read bounded latest and historical market data for a subject or source.',
         frontmatter={'platforms': ['linux', 'macos']},
     )
     # Discovery describes schemas only; one lazy backend belongs to this native

@@ -230,8 +230,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "crypto",
-            "id": "crypto:fictional"
+            "kind": "security",
+            "id": "security:provisional:fictional:coin:fictional-coin"
           }
         },
         "window": {
@@ -255,8 +255,8 @@
         "schema_version": 1,
         "id": "series:synthetic-crypto-sample",
         "subject": {
-          "kind": "crypto",
-          "id": "crypto:fictional"
+          "kind": "security",
+          "id": "security:provisional:fictional:coin:fictional-coin"
         },
         "provider_ref": {
           "provider": "synthetic_crypto",
@@ -312,8 +312,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "crypto",
-            "id": "crypto:fictional"
+            "kind": "security",
+            "id": "security:provisional:fictional:coin:fictional-coin"
           }
         },
         "reason": "preference",
@@ -374,8 +374,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "company",
-            "id": "company:fictional"
+            "kind": "issuer",
+            "id": "issuer:provisional:fictional:company:fictional-co"
           }
         },
         "window": {
@@ -399,8 +399,8 @@
         "schema_version": 1,
         "id": "series:synthetic-research-count",
         "subject": {
-          "kind": "company",
-          "id": "company:fictional"
+          "kind": "issuer",
+          "id": "issuer:provisional:fictional:company:fictional-co"
         },
         "provider_ref": {
           "provider": "synthetic_research",
@@ -458,8 +458,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "company",
-            "id": "company:fictional"
+            "kind": "issuer",
+            "id": "issuer:provisional:fictional:company:fictional-co"
           }
         },
         "reason": "preference",
@@ -746,8 +746,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "crypto",
-            "id": "crypto:fictional"
+            "kind": "security",
+            "id": "security:provisional:fictional:coin:fictional-coin"
           }
         },
         "window": {
@@ -765,8 +765,8 @@
         "schema_version": 1,
         "id": "series:synthetic-crypto-sample",
         "subject": {
-          "kind": "crypto",
-          "id": "crypto:fictional"
+          "kind": "security",
+          "id": "security:provisional:fictional:coin:fictional-coin"
         },
         "provider_ref": {
           "provider": "synthetic_crypto",
@@ -821,8 +821,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "crypto",
-            "id": "crypto:fictional"
+            "kind": "security",
+            "id": "security:provisional:fictional:coin:fictional-coin"
           }
         },
         "reason": "preference",
@@ -1165,33 +1165,6 @@
     "description": "Invented identifier, not a claim about a real security; identity store must validate evidence before matching."
   },
   {
-    "name": "candidate_mapping",
-    "kind": "mapping",
-    "value": {
-      "schema_version": 1,
-      "id": "mapping:synthetic-1",
-      "provider_ref": {
-        "provider": "synthetic_equity",
-        "native_id": "contract-17",
-        "native_scope": "contract",
-        "qualifiers": {
-          "currency": "USD",
-          "route": "SMART"
-        }
-      },
-      "target": {
-        "kind": "instrument",
-        "id": "instrument:fictional"
-      },
-      "status": "candidate",
-      "evidence_ids": ["evidence:synthetic-1"],
-      "rule_version": "synthetic-1",
-      "revision": 1,
-      "active_override": null
-    },
-    "description": "Schema example only; no matching algorithm or confirmation implied."
-  },
-  {
     "name": "canonical_projection",
     "kind": "read_result",
     "value": {
@@ -1203,8 +1176,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "instrument",
-            "id": "instrument:synthetic-canonical"
+            "kind": "security",
+            "id": "security:provisional:fictional:instrument:synthetic-canonical"
           }
         },
         "window": {
@@ -1228,8 +1201,8 @@
         "schema_version": 1,
         "id": "series:synthetic-equity-daily",
         "subject": {
-          "kind": "instrument",
-          "id": "instrument:synthetic-canonical"
+          "kind": "security",
+          "id": "security:provisional:fictional:instrument:synthetic-canonical"
         },
         "provider_ref": {
           "provider": "synthetic_equity",
@@ -1357,8 +1330,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "instrument",
-            "id": "instrument:synthetic-canonical"
+            "kind": "security",
+            "id": "security:provisional:fictional:instrument:synthetic-canonical"
           }
         },
         "reason": "preference",

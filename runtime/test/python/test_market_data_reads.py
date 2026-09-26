@@ -12,8 +12,8 @@ import tempfile
 import threading
 import unittest
 
-from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, request, run_read, wire
-from test_market_data_identity import native
+from market_data_read_fixtures import CRITERIA, Sources, SUBJECT, request, run_read, wire
+from market_data_fixture import native
 
 
 class SharedReadsTests(unittest.TestCase):
@@ -29,7 +29,7 @@ class SharedReadsTests(unittest.TestCase):
 
     def test_scoped_orders_preserve_existing_defaults_and_pinned_intent(self):
         first = run_read(self.backend)
-        scope = {"subject_kind": "instrument", "interval": {"kind": "day", "count": 1}}
+        scope = {"asset_class": "equity", "interval": {"kind": "day", "count": 1}}
         changed = self.backend.handle({"action": "set_preferences", "operation": "history", "providers": ["synthetic_other"], "preference_scope": scope})
         self.assertEqual(changed["data"]["orders"]["history"], ["ibkr", "synthetic_other"])
         self.assertEqual(run_read(self.backend)["provenance"]["provider"], "synthetic_other")
@@ -198,7 +198,6 @@ class SharedReadsTests(unittest.TestCase):
             first = run_read(backend)
             self.assertEqual(first["outcome"], "ok")
             self.assertEqual(first["series"]["subject"], SUBJECT)
-            self.assertEqual(first["provenance"]["mapping_revision"], 1)
             self.assertIsNone(first["selection"]["preference_revision"])
             wire.validate_read_result(first)
             self.assertEqual(run_read(backend), first)
@@ -213,7 +212,6 @@ class SharedReadsTests(unittest.TestCase):
         retained = copy.deepcopy(first)
         self.assertEqual(first["series"]["provider_ref"]["provider"], "ibkr")
         self.assertEqual(first["series"]["subject"], SUBJECT)
-        self.assertEqual(first["provenance"]["mapping_revision"], 1)
         self.backend.handle({"action": "set_preferences", "operation": "history", "providers": ["synthetic_other", "ibkr"]})
         second = run_read(self.backend)
         self.assertEqual(second["series"]["provider_ref"]["provider"], "synthetic_other")
@@ -254,8 +252,7 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(self.sources.calls, [])
 
     def test_too_many_bindings_fail_before_any_subset_is_queried(self):
-        base = self.backend.identity.bindings(SUBJECT)["mappings"][0]
-        self.backend.identity.extra = [{**copy.deepcopy(base), "id": f"mapping:extra-{index}", "provider_ref": native(400 + index)} for index in range(8)]
+        self.sources.extra = [native(400 + index) for index in range(8)]
         result = run_read(self.backend)
         self.assertEqual(result["issues"][0]["code"], "ambiguous_series")
         self.assertEqual(self.sources.calls, [])
@@ -382,7 +379,7 @@ class SharedReadsTests(unittest.TestCase):
                     self.assertIsNone(selection.canonical_access_revision())
 
     def test_changes_during_read_reject_stale_cache_publication(self):
-        for change in ("preferences", "identity", "access"):
+        for change in ("preferences", "access"):
             sources = Sources()
             with tempfile.TemporaryDirectory() as directory:
                 backend = sources.backend(directory)
@@ -390,9 +387,6 @@ class SharedReadsTests(unittest.TestCase):
                 def mutate():
                     if change == "preferences":
                         backend.preferences.set("history", ["synthetic_other", "ibkr"])
-                    elif change == "identity":
-                        with backend.identity.database.transaction() as db:
-                            db.execute("UPDATE metadata SET value=value+1 WHERE key='generation'")
                     else:
                         sources.access["connection"] = "new-endpoint"
                 sources.after_read = mutate
@@ -438,48 +432,47 @@ class SharedReadsTests(unittest.TestCase):
 
 
 class BackendMutationTests(unittest.TestCase):
-    def test_backend_mutations_use_source_evidence_and_expose_repair_overrides(self):
-        from test_market_data_identity import CautiousOldRule, identity
+    def test_a_subject_core_does_not_route_is_unresolved_without_source_calls(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = Sources()
-            sources.providers = ("ibkr",)
-            store = identity.IdentityStore(directory, rules=CautiousOldRule())
-            backend = Backend(directory, identity=store, source_call=sources.call,
-                              source_projection=sources.project, access_scope=lambda: sources.access)
-            backend.handle({"action": "search", "provider": "ibkr", "query": "synthetic"})
-            backend.handle({"action": "details", "native_ref": sources.refs["ibkr"]})
-            with store.database.connection() as db:
-                self.assertEqual(db.execute("SELECT COUNT(*) FROM subjects").fetchone()[0], 0)
-            original = backend.handle({"action": "resolve_save", "native_ref": sources.refs["ibkr"], "scope": "instrument"})["data"]
-            self.assertEqual(original["mapping"]["status"], "confirmed")
-            direct = {**copy.deepcopy(sources.refs["ibkr"]), "native_id": "399"}
-            direct["qualifiers"]["route"] = "DIRECT"
-            sources.refs["ibkr"] = direct
-            pending = backend.handle({"action": "resolve_save", "native_ref": direct, "scope": "instrument"})["data"]
-            self.assertEqual(pending["mapping"]["status"], "candidate")
-            fixed = backend.handle({"action": "apply_override", "mapping_id": pending["mapping"]["id"], "effect": "positive",
-                                    "evidence_ids": pending["mapping"]["evidence_ids"], "target": original["mapping"]["target"]})
-            self.assertEqual(fixed["effect"], "local_write")
-            override_id = fixed["data"]["mapping"]["active_override"]["id"]
-            inspected = backend.handle({"action": "inspect_identity", "mapping_id": pending["mapping"]["id"]})["data"]
-            self.assertEqual(inspected["overrides"][0]["id"], override_id)
-            self.assertEqual(len(inspected["history"]), 2)
-            revoked = backend.handle({"action": "revoke_override", "override_id": override_id})
-            self.assertEqual(revoked["data"]["mapping"]["status"], "candidate")
-            refreshed = backend.handle({"action": "refresh_identity", "mapping_id": pending["mapping"]["id"]})
-            self.assertEqual(refreshed["effect"], "local_write")
-            current = sources.backend(directory, canonical=False)
-            repaired = current.handle({"action": "inspect_repair"})
-            self.assertEqual(repaired["data"]["pending"], [])
-            with self.assertRaises(wire.WireError):
-                backend.handle({"action": "apply_override", "mapping_id": pending["mapping"]["id"], "effect": "positive",
-                                "evidence_ids": [{"authority": "source_asserted"}], "target": original["mapping"]["target"]})
-            with self.assertRaises(wire.WireError):
-                backend.handle({"action": "resolve_save", "native_ref": direct, "scope": "instrument", "evidence": []})
+            result = run_read(sources.backend(directory, canonical=False))
+            self.assertEqual(result["issues"][0]["code"], "unresolved_identity")
+            self.assertEqual(sources.calls, [])
+            with self.assertRaises(wire.WireError):  # retired subject kinds are not subjects
+                run_read(sources.backend(directory), read_request=request({"kind": "pythia", "subject": {"kind": "instrument", "id": "instrument:x"}}))
+
+    def test_the_retired_identity_file_keeps_its_source_choices_and_is_set_aside(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as directory:
+            os.chmod(directory, 0o700)
+            legacy = Path(directory) / "identity.sqlite3"
+            with sqlite3.connect(legacy) as db:
+                db.executescript("""CREATE TABLE metadata (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
+                    INSERT INTO metadata VALUES ('preference_revision', 4);
+                    CREATE TABLE mappings (id TEXT PRIMARY KEY); INSERT INTO mappings VALUES ('mapping:kept');
+                    CREATE TABLE source_preferences (operation TEXT PRIMARY KEY, providers TEXT NOT NULL);
+                    CREATE TABLE scoped_source_preferences (operation TEXT NOT NULL, scope TEXT NOT NULL,
+                      providers TEXT NOT NULL, PRIMARY KEY(operation, scope));""")
+                db.execute("INSERT INTO source_preferences VALUES ('history', '[\"synthetic_other\"]')")
+                db.executemany("INSERT INTO scoped_source_preferences VALUES ('latest', ?, ?)", [
+                    ('{"subject_kind":"crypto"}', '["coingecko"]'), ('{"subject_kind":"instrument"}', '["eodhd"]'),
+                    ('{"subject_kind":"listing"}', '["yahoo"]')])
+            legacy.chmod(0o600)
+            with self.assertLogs(level="WARNING") as logged:
+                migrated = Sources().backend(directory).preferences.get()
+            self.assertIn("1 provider mappings not migrated", logged.output[0])
+            self.assertEqual(migrated["orders"]["history"], ["synthetic_other"])
+            self.assertEqual(migrated["scopes"], [
+                {"operation": "latest", "scope": {"asset_class": "crypto"}, "providers": ["coingecko"]},
+                {"operation": "latest", "scope": {"asset_class": "equity"}, "providers": ["yahoo"]}])
+            self.assertFalse(legacy.exists())
+            with sqlite3.connect(Path(directory) / "identity-retired.sqlite3") as db:  # kept, not deleted
+                self.assertEqual(db.execute("SELECT id FROM mappings").fetchall(), [("mapping:kept",)])
+            self.assertEqual(Sources().backend(directory).preferences.get(), migrated)
 
     def test_cache_bounds_expiry_detached_values_and_strict_fresh_bypass(self):
         from importlib import import_module
-        from test_market_data_identity import PACKAGE
+        from market_data_fixture import PACKAGE
         cache_type = import_module(f"{PACKAGE}.cache").ReadCache
         clock = [0]
         cache = cache_type(max_entries=1, max_bytes=1000, ttl_seconds=2, clock=lambda: clock[0])

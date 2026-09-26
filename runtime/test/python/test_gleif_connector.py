@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import patch
 
 from native_plugin_fixtures import Context
-from test_market_data_identity import PACKAGE, wire, isin
+from market_data_fixture import PACKAGE, wire, isin
 from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/gleif'

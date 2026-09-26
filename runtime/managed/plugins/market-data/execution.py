@@ -1,6 +1,6 @@
 """Shared native source reads. Identity and selection can extend dispatch directly.
 
-search/details/series return JSON objects with schema_version=1, outcome, data
+details/series return JSON objects with schema_version=1, outcome, data
 and wire issues; series data is a list of validated series definitions.
 latest/history use read_result and a native argument named request containing
 the full read_request. Provider handlers accept the trusted cancelled callback
@@ -14,7 +14,7 @@ from .contributions import ContextUnavailable, eligible_tools, project
 from .wire import WireError, validate, validate_read_result
 
 MAX_JSON_BYTES = 2_000_000
-OPERATIONS = {"search", "details", "series", "latest", "history", "read_batch"}
+OPERATIONS = {"details", "series", "latest", "history", "read_batch"}
 
 
 def issue(code):

@@ -15,7 +15,7 @@ from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from test_market_data_identity import PACKAGE, PLATFORM
+from market_data_fixture import PACKAGE, PLATFORM
 
 contributions = importlib.import_module(PACKAGE + '.contributions')
 execution = importlib.import_module(PACKAGE + '.execution')
@@ -40,7 +40,7 @@ class NativeAccessTests(unittest.TestCase):
         self.add_plugin(self.feature_key, 'pythia-market-data', definition.TOOL_NAME)
         self.add_plugin(self.provider_key, 'synthetic', 'synthetic_search')
         marker = {'schema_version': 1, 'provider': 'synthetic', 'adapter_version': 'test-1',
-                  'operations': [{'operation': 'search', 'tool': 'synthetic_search', 'effect': 'read'}],
+                  'operations': [{'operation': 'details', 'tool': 'synthetic_search', 'effect': 'read'}],
                   'subject_kinds': ['instrument']}
         self.schemas['synthetic_search'] = {'name': 'synthetic_search', 'parameters': {
             'type': 'object', 'properties': {}, 'additionalProperties': False,
@@ -92,7 +92,7 @@ class NativeAccessTests(unittest.TestCase):
         for enabled in ([self.feature_key, self.provider_key], ['pythia-market-data', 'synthetic']):
             with self.subTest(enabled=enabled):
                 self.config['plugins']['enabled'] = enabled
-                self.assertEqual(execution.call_source('synthetic', 'search', {})['data'], {'value': 7})
+                self.assertEqual(execution.call_source('synthetic', 'details', {})['data'], {'value': 7})
                 self.assertEqual(operations.resolve(self.feature_key, 'query', {'action': 'describe'})[0], definition.TOOL_NAME)
                 self.assertEqual(operations.resolve('synthetic', 'synthetic-read', {})[0], 'synthetic_search')
 
@@ -100,7 +100,7 @@ class NativeAccessTests(unittest.TestCase):
         for disabled in (self.provider_key, 'synthetic'):
             with self.subTest(disabled=disabled):
                 self.config['plugins']['disabled'] = [disabled]
-                self.assertEqual(execution.call_source('synthetic', 'search', {})['issues'][0]['code'], 'unavailable')
+                self.assertEqual(execution.call_source('synthetic', 'details', {})['issues'][0]['code'], 'unavailable')
                 with self.assertRaises(transport.Rejected) as caught:
                     operations.resolve('synthetic', 'synthetic-read', {})
                 self.assertEqual(caught.exception.status, 403)
@@ -177,7 +177,7 @@ class NativeAccessTests(unittest.TestCase):
 
     def test_unowned_marker_cannot_bypass_native_plugin_access(self):
         self.manager._registration_order.pop()
-        result = execution.call_source('synthetic', 'search', {})
+        result = execution.call_source('synthetic', 'details', {})
         self.assertEqual(result['issues'][0]['code'], 'unavailable')
         self.assertEqual(self.dispatches, [])
         with self.assertRaises(transport.Rejected) as caught:
@@ -190,7 +190,7 @@ class NativeAccessTests(unittest.TestCase):
 
     def test_direct_source_read_rejects_raw_success_after_access_revocation(self):
         self.handler = self.revoke_during_read
-        result = execution.dispatch({'action': 'call', 'provider': 'synthetic', 'operation': 'search', 'arguments': {}})
+        result = execution.dispatch({'action': 'call', 'provider': 'synthetic', 'operation': 'details', 'arguments': {}})
         self.assertEqual(result['issues'][0]['code'], 'unavailable')
         self.assertNotIn('data', result)
         self.assertEqual(self.dispatches, ['synthetic_search'])
@@ -274,7 +274,7 @@ class NativeAccessTests(unittest.TestCase):
     def test_mixed_financial_operation_keeps_explicit_mutations_but_rejects_automatic_ones(self):
         FinancialDelivery = importlib.import_module(PACKAGE + '.transport').FinancialDelivery
         backend = SimpleNamespace(preferences=SimpleNamespace(get=lambda: {'revision': 1}),
-                                  identity=SimpleNamespace(cache_token=lambda: 1))
+                                  subject_scope=lambda reads: [])
         entry = self.registry.get_entry(definition.TOOL_NAME)
         entry.handler.pythia_operation_support = FinancialDelivery(lambda: backend)
         mutation = {'action': 'set_preferences'}

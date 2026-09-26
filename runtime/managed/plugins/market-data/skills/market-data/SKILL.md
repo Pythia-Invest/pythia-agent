@@ -1,22 +1,21 @@
 ---
 name: market-data
-title: Investment identity and market data
-description: Find a source-native investment, inspect its identity evidence, choose a price series, or read bounded latest and historical market data.
-version: 0.3.0
+title: Market data
+description: Choose a price series or read bounded latest and historical market data for a Pythia subject or an explicit source reference.
+version: 0.4.0
 license: Apache-2.0
 platforms: [linux, macos]
 metadata:
   hermes:
-    tags: [Investing, Market Data, Identity]
+    tags: [Investing, Market Data]
     category: finance
     requires_toolsets: [pythia-market-data]
 ---
 
-# Investment identity and market data
+# Market data
 
-Use `pythia_market_data` for investment discovery, identity evidence, series
-selection and bounded price reads. Market data informs research; it does not
-determine an investment strategy.
+Use `pythia_market_data` for series selection and bounded price reads. Market
+data informs research; it does not determine an investment strategy.
 
 `{"action":"describe"}` reports native sources, contributed operation schemas and local
 availability without contacting a provider. Missing configuration or disabled
@@ -28,16 +27,20 @@ they are not an expanded `call` namespace. Local readiness does not establish lo
 Configured access mode is explicit user intent, not something to change after
 a denied request or infer from which credential happens to exist.
 
-Search with `action: "search"`, `provider` and `query`. Use the selected
-`provider_ref` as `native_ref` for `details` only when that source contributes it;
-otherwise use the reference directly for series and reads. Search/details do not
-save identities. Preserve native IDs and qualifiers; a symbol/name is a discovery
-clue, instrument identifiers do not establish listing identity, and trading
-routes do not establish primary venues. Crypto coin IDs, platform contracts and
-wrapped assets likewise remain distinct unless supported scoped evidence proves
-an association. `resolve_save` explicitly saves the chosen
-reference at the requested scope. Unknown evidence stays unresolved; a native
-read can still be useful without a canonical match.
+Investments are Pythia subjects. Find one with `pythia_identity_search` and
+pass it as `{"kind": <level>, "id": <subject id>}`, the level being the id's
+prefix (`listing`, `security`, `issuer` or `composite`). A subject's reads use
+the sources core binds or derives for it. When none serves it yet, the read
+reports `unresolved_identity`: `pythia_identity_subject` shows each source's
+state and `pythia_identity_resolve` asks one that needs a lookup. A symbol or
+name alone never identifies a subject. Associations belong to core; this tool
+cannot save, override or repair them.
+
+An explicit `provider_ref` (provider, native scope and native id, with any
+qualifiers) reads exactly that source. Use it as `native_ref` for `details` when
+that source contributes it, or directly as the binding for series and reads.
+Preserve native IDs and qualifiers; trading routes do not establish primary
+venues, and crypto coin IDs, platform contracts and wrapped assets stay distinct.
 
 `series` takes `binding` and optional common `criteria`. Narrow measurement,
 interval, session, adjustment, currency, venue or market-data mode until one
@@ -59,11 +62,6 @@ limitations. Partial results can
 remain useful, but must retain their gaps and `requirements_satisfied` status.
 
 `get_preferences` inspects source order; `set_preferences` changes local
-latest/history preferences. `inspect_identity`, `inspect_subject` and
-`inspect_repair` expose evidence and supported repairs. `refresh_identity`
-reads updated details for retained native intent. Positive/negative overrides
-use `apply_override` with existing evidence IDs; `revoke_override` withdraws one.
-These local changes cannot fabricate source assertions, hide contradictions or
-force a match. Relevant fixes re-evaluate affected state; required source refresh
-may remain pending offline. Inspection can apply supported local repairs.
-Retained research is not rewritten when mappings or preferences change.
+latest/history preferences, optionally scoped by asset class or series facets.
+Without a saved preference a subject follows core's source order. Retained
+research is not rewritten when bindings or preferences change.

@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 
-from test_market_data_identity import PACKAGE
+from market_data_fixture import PACKAGE
 WORKER = __import__('importlib').import_module(PACKAGE + '.process')
 
 

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from test_market_data_identity import PACKAGE, PLATFORM, platform_module  # noqa: F401 - loads the core fixture
+from market_data_fixture import PACKAGE, PLATFORM, platform_module  # noqa: F401 - loads the core fixture
 
 configuration = importlib.import_module(PLATFORM + '.configuration')
 access = importlib.import_module(PLATFORM + '.access')
