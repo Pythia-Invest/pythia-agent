@@ -79,6 +79,18 @@ class SearchTest(Fixture):
         self.assertEqual(result["groups"][0]["rows"][0], {"id": BTC, "ticker": "BTC", "mic": None, "venue": None,
                                                           "currency": None, "bindings": bound[BTC]})
 
+    def test_an_issuers_best_scoring_securities_are_kept_ordinary_first_on_ties(self):
+        directory = search.Directory(self.ref)
+        def line(security, kind, score, key):
+            return (score, {"grp": "issuer:lei:X", "security": security, "kind": kind, "prim": 1, "listing": f"l-{security}",
+                            "ticker": security.upper(), "mic": "XNYS", "venue": "NYSE", "currency": "USD",
+                            "name": "Bank", "depositary_of": None}, key)
+        lines = [line("note1", "other", 5.0, (9,)), line("note2", "other", 5.0, (9,)),
+                 line("fund", "fund", 7.0, (1,)), line("common", "ordinary", 7.0, (0,))]
+        with unittest.mock.patch.object(directory, "lines", return_value=lines):
+            groups = directory.search("bank", limit=5)["groups"]
+        self.assertEqual([group["id"] for group in groups], ["common", "fund"])
+
     def test_identifier_queries_are_exact(self):
         self.assertEqual([g["id"] for g in search.Directory(self.ref).search("USN070592100", limit=5)["groups"]],
                          ["security:isin:USN070592100"])

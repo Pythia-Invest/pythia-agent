@@ -214,21 +214,22 @@ class Directory:
         """The SearchResponse (packages/market-data/src/search.ts) for one query."""
         allowed = set(kinds) if kinds else None
         # Rank issuers by their best line (an issuer's lines compete once); inside an issuer, its best
-        # securities by representative key (home line before a foreign ADR), at most PER_ISSUER of them.
+        # securities by their best line's score, at most PER_ISSUER of them.
         issuers: dict[str, list] = {}
         for score, line, key in self.lines(query):
             if allowed is not None and line["kind"] not in allowed:
                 continue
             issuer = issuers.setdefault(line["grp"], [score, {}])
             issuer[0] = max(issuer[0], score)
-            issuer[1].setdefault(line["security"], []).append((key, line))
+            issuer[1].setdefault(line["security"], []).append((score, key, line))
         rows: dict[str, list[dict]] = {}
         for _score, securities in sorted(issuers.values(), key=lambda item: -item[0]):
-            best = sorted(securities.items(), key=lambda item: max(key for key, _ in item[1]), reverse=True)
+            best = sorted(securities.items(), reverse=True,  # by best line score; ordinary shares win ties
+                          key=lambda item: (max(score for score, _k, _l in item[1]), item[1][0][2]["kind"] == "ordinary"))
             for security, members in best[:PER_ISSUER]:  # an issuer's preferreds never crowd out other issuers
                 # The primary listing first (the contract), then the best line for the query.
-                ordered = sorted(members, key=lambda pair: (pair[1]["prim"], pair[0]), reverse=True)
-                rows[security] = [line for _key, line in ordered][:MAX_ROWS]
+                ordered = sorted(members, key=lambda entry: (entry[2]["prim"], entry[1]), reverse=True)
+                rows[security] = [line for _score, _key, line in ordered][:MAX_ROWS]
             if len(rows) >= limit:
                 break
         rows = dict(list(rows.items())[:limit])
