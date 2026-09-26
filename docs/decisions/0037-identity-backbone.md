@@ -2,279 +2,163 @@
 
 ## Context
 
-Investors search for companies, securities, listings and crypto assets, then
-open pages that combine data from several sources. Each provider names things
-its own way: `ASML.AS`, `ASML.US`, a conId, a coin id. The previous design
-searched every connected provider in parallel while the user typed, then
-reconciled the results pairwise. Qualifying ASML took 11.3 s, and discovery was
-mixed up with proof. Open reference data (ESMA FIRDS, GLEIF, SEC, OpenFIGI)
-already identifies most EU and US listed equities. A prototype joined it into a
-local index that answers searches in about 0.03 ms.
-
-[ADR 0012](0012-investment-identity-and-repair.md) set evidence-backed identity
-and repair inside the market-data feature, keyed by provider reference. This
-decision keeps its principles and replaces its scope.
+Each provider names investments its own way: `ASML.AS`, `ASML.US`, a conId, a
+coin id. The previous design searched every connected provider while the user
+typed and reconciled results pairwise; qualifying ASML took 11.3 s. Open
+reference data (ESMA FIRDS, GLEIF, SEC, OpenFIGI) already identifies most EU
+and US listed equities, and a prototype local index answered searches in about
+0.03 ms. [ADR 0012](0012-investment-identity-and-repair.md) set evidence-backed
+identity inside the market-data feature; this decision keeps its principles and
+moves the scope to core.
 
 ## Ruling
 
-**Core owns identity.** The backbone is part of Pythia core
-(`runtime/managed/core/identity/`) and is always on. It owns the schema, join
-rules, evidence tiers, resolution queue, stores, directory and local search.
-Every data source is a plugin that contributes typed claims. This amends
-[ADR 0034](0034-core-and-optional-features.md): canonical identity moves from
-the market-data feature into core. The contracts live in
-`runtime/managed/core/identity/`, and plugins reach them through the loaded
-core's `identity` module (`API_VERSION` 1).
+**Core owns identity.** The backbone lives in `runtime/managed/core/identity/`,
+is always on, and amends [ADR 0034](0034-core-and-optional-features.md):
+canonical identity moves from the market-data feature into core. Core owns the
+levels, schemes, claims, bindings, relations, authority rule, resolution queue
+and stores. Every data source is a plugin that contributes typed claims:
+reference sources (FIRDS, GLEIF, SEC, OpenFIGI, ISO MIC), provider connectors
+(Yahoo, EODHD, CoinMarketCap, CoinGecko, IBKR) and optional resolvers. Disabling
+a plugin removes its coverage and nothing else. No provider is required; a
+Yahoo-only install works.
 
-| Core (always on) | Plugins (bundled, clonable, disableable) |
-| --- | --- |
-| Levels, schemes, tiers, authorities, claims, bindings, relations | Reference sources: FIRDS, GLEIF, SEC, OpenFIGI, ISO MIC |
-| Reference, identity, overlay and directory stores; the join | Provider connectors: Yahoo, EODHD, CoinMarketCap, CoinGecko, IBKR |
-| The resolution queue and the authority rule | Resolvers beyond the built-in rules, such as a Jev judge |
-| Directory, local `search`, ranking policy | Ranking signals, the search bar module, page layouts, widgets |
-| Evaluating the plugin contract ([ADR 0038](0038-plugin-addressing-contract.md)), page budgets | The reference data itself, fetched by the reference plugins |
+**Four levels.** An *issuer* is identified by LEI or CIK. A *security* by ISIN
+or share-class FIGI; a crypto asset is a security identified by CAIP-19. A
+*composite* is a country line such as the US consolidated tape, identified by
+composite FIGI or by security and country. A *listing* is one trading line at
+an operating MIC with a currency, a FIGI and, where known, a ticker (FIRDS lines
+carry none), or a crypto chain deployment. Each scheme identifies exactly one
+level, enforced by the types and the SQL: an ISIN never identifies a listing.
 
-Disabling a plugin removes its coverage and nothing else. No provider is
-required: a Yahoo-only install works.
-
-**Four levels.** An *issuer* is identified by LEI and/or CIK, which are peers.
-A *security* is identified by ISIN, share-class FIGI or CUSIP. A *composite
-listing* is identified by composite FIGI, or by (security, country); it is a
-country line such as the US consolidated tape, not a venue. A *venue listing*
-is one trading line at a MIC, with a currency, a price scale, a FIGI and a
-ticker (root and class) as an attribute.
-
-**Subject IDs are derived from open identifiers** (`identity.subject_id`), never
-random or sequential:
+**Subject IDs are derived from open identifiers** (`subject_id`), never random:
 
 | Level | ID, first available key wins |
 | --- | --- |
 | Issuer | `issuer:lei:<LEI>`, else `issuer:cik:<CIK>` |
-| Security | `security:isin:<ISIN>`, else `security:figi:<share-class FIGI>`, else `security:caip19:<home deployment>` for a crypto asset |
+| Security | `security:isin:<ISIN>`, else `security:figi:<share-class FIGI>`, else `security:caip19:<home deployment>` |
 | Composite | the security key plus country, e.g. `composite:isin:USN070592100:US` |
 | Listing | `listing:isin:<ISIN>:<operating MIC>:<currency>`, else `listing:figi:<FIGI>`, else `listing:caip19:<deployment>` |
 
-Every install that builds its own reference data, every rebuild and any future
-sync between installs then mean the same thing by the same ID. The listing key
-always includes the currency. Adding it only when needed would change an
-existing ID the day a second currency line appears. Operating MICs are used
-because sources disagree on segment MICs. If two current lines still share
-ISIN, operating MIC and currency, both use their FIGI. Only open identifiers
-derive IDs; a provider overlay never re-keys a subject.
-
-Deterministic IDs hold only where a stable open identifier exists. Some subjects
-have none: provider-only indices, coins without a CAIP-19 mapping, private
-companies. These get a provider-namespaced provisional ID, for example
-`security:provisional:eodhd:catalogue:GSPC.INDX`. Such an ID is valid and
-deterministic for anyone with that provider, but it is marked non-portable. When
-an open identifier later names the subject, the provisional ID becomes an alias
-of the open-identifier subject.
-
-When a better key becomes known, the subject is re-keyed and the old ID becomes
-an alias. When a natural key changes (a new ISIN after a corporate action, an
-LEI merger), the new subject is linked to the old one by `successor_of`, and the
-old ID stays resolvable. User state (watchlists, notes, resolutions) stores
-subject IDs only, never provider references. Readers follow aliases and
-successors; saved IDs are never rewritten.
-
-Each global scheme identifies exactly one level, and both the types and the SQL
-enforce this. An ISIN alone identifies a security, never a listing, and an LEI
-never identifies a security. The existing wire kinds map as follows: `company`
-is an issuer, `instrument` is a security, `listing` is a venue listing and
-`crypto` is a crypto asset. `composite` is new.
+Installs and rebuilds agree on every ID. Venue lines with
+the same ISIN, operating MIC and currency are one listing; segment MICs and
+tickers are attributes, and `ticker_mic` always uses the operating MIC (SEC's
+"Nasdaq" is XNAS, never the XNGS segment). The builder derives from all open
+evidence for a record, so IDs never depend on build order. A subject no open
+identifier names gets a provider-namespaced provisional ID
+(`security:provisional:eodhd:catalogue:GSPC.INDX`). When a better key appears,
+the old ID becomes an alias; when a natural key changes, the new subject is
+linked by `successor_of`. User state stores subject IDs only. The listing
+currency is the quote currency as the venue states it; minor units (GBX) are a
+read-pipeline concern, not identity.
 
 **Provider symbols are bindings, never subjects.** A binding is the existing
-market-data `provider_ref` (`provider`, `native_id`, `native_scope`), bound to
-one subject at the reference's native level. It carries a status, an authority,
-evidence and a validity window. The market-data read pipeline keeps addressing
-by `provider_ref` and stays unchanged; the backbone tells it which subject a
-reference is. EODHD `ASML.AS` binds the XAMS listing. EODHD `ASML.US` binds the
-US composite, because `.US` is not a venue.
+market-data `provider_ref`, bound to one subject at the reference's native
+level, with the plugin that claimed it, a status, an authority, evidence and a
+validity window. A reference's identity is provider, native scope and native
+id; wire qualifiers (currency, venue, route) only select reads. EODHD `ASML.AS`
+binds the XAMS listing; `ASML.US` binds the US composite, because `.US` is not a
+venue. The read pipeline keeps addressing by `provider_ref`.
 
-**Typed relations never merge subjects.** The relations are
-`depositary_receipt_of` (with an optional ratio), `share_class_of`, `parent_of`
-(direct or ultimate), `wraps` (crypto) and `successor_of`. ASML's NASDAQ line
-is a separate security: New York Registry Shares, ISIN USN070592100. It is
-linked to the ordinary share NL0010273215 by `depositary_receipt_of`, under the
-same issuer.
+**Typed relations never merge subjects:** `depositary_receipt_of`, `wraps`
+(crypto) and `successor_of`. ASML's NASDAQ line is its New York Registry
+Shares (ISIN USN070592100), a separate security linked to NL0010273215 by
+`depositary_receipt_of`.
 
-**Identifier assertions.** Each assertion records the subject, scheme, value,
-validity window, provenance (plugin, source, record, version, retrieval time),
-authority and tier. Its evidence ID is a content hash, so an unchanged
-assertion keeps its ID across builds.
+**Assertions and roles.** An identifier assertion records subject, scheme,
+value, validity, provenance and authority; its evidence ID is a content hash.
+A record marks each ISIN it carries as `self`, `underlying` (a depositary line
+quoting its underlying's ISIN) or `unqualified` (a source such as EODHD that
+cannot tell). Only `self` values join by ISIN; the others become a residual.
+The plugin marks the role and core cannot verify it, so a wrong mark surfaces
+as a conflict. A record has at most one `self` value per single-valued scheme
+(every scheme but `ticker_mic`).
 
-**Crypto.** A crypto asset is a security-level subject (asset class `crypto`),
-usually without an issuer. Provider coin IDs (`coinmarketcap`/`coin` `1`,
-`coingecko`/`coin` `bitcoin`) are bindings, and symbols and names are labels
-that never join. A chain deployment is a listing-level subject identified by
-CAIP-19. Core owns a small curated table, which is data and not code. It maps
-provider chain IDs to CAIP-2 and canonical native coins (CAIP-19 `slip44` on
-their home chain) to each provider's coin ID. Joins work as follows:
+**Crypto.** Provider coin ids are bindings; symbols and names never join.
+Tokens join on CAIP-2 chain plus contract. Native coins share no identifier
+across providers, so they join only through core's curated native-coin table
+(rule `native_coins@1`) or a queue verdict. A chain's fee coin is not identity,
+and wrapped tokens are separate assets linked by `wraps`.
 
-- tokens join on CAIP-2 + contract (T0);
-- native coins have no contract, and providers share no identifier for them, so
-  they join only through the curated table (T1, rule `native_coins@1`) or a
-  resolver verdict from the queue;
-- a provider's fee or gas coin for a chain (Ether on many L2s, BNB on two
-  chains) is not identity;
-- wrapped and bridged tokens are separate assets linked by `wraps`, never
-  merged, even when a provider lists a wrapped address under the native coin.
-
-A native coin's ID is its `slip44` deployment (Bitcoin is
-`security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0`). A token's
-ID is its home deployment from the curated table, and the token stays
-provisional until the table names one. Exchange pairs and aggregated prices are
-content read through the asset's binding.
-
-**Evidence tiers and authorities.**
+**Authorities.** Plugins never choose a tier; core derives it from the
+authority.
 
 | Tier | Authorities | Confirms? |
 | --- | --- | --- |
 | T0 identifier | `source_asserted`, `snapshot` | Yes |
-| T1 versioned rule (≥99.5% measured precision) | `rule_confirmed` (+ `rule_id`) | Yes |
-| T2 probabilistic score | none: it ranks and rejects candidates | Never |
-| T3 model verdict | `model_confirmed` at or above the relation's gold-calibrated threshold; `model_suggested` below | Only `model_confirmed` |
+| T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`) | Yes |
+| T3 model verdict | `model_confirmed` at or above the threshold; `model_suggested` below | Only `model_confirmed` |
 | T4 attestation | `user_attested`, `curated` | Yes |
 
-`query_only` and `unknown` are not evidence. Plugins never choose a tier; the
-core assigns it at ingest. This table is the authority vocabulary. The
-ADR 0012 amendment points here.
+A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
 
-**The authority rule.** It is the same for every resolver and is implemented
-once, in `identity.resolution.decide`.
+**The authority rule** is one pure function, `decide`, for every resolver:
 
-1. Any confirming authority may confirm an association when no identifier proves
-   it. None may confirm against contradicting identifier evidence. The mechanical
-   depositary-receipt and share-class guards override every verdict: a receipt
-   and its underlying, or two share classes, are never the same security.
-2. *Contradicting identifier evidence* means a T0 assertion for a single-valued
-   scheme, valid at the time in question, at that scheme's own level on the
-   association's subject or one of its ancestors, whose value differs.
-   Identifiers are compared only at their own level: a record's ISIN is checked
-   against the security's ISIN, never against the listing's ticker or FIGI. A
-   provider overlay's identifier that disagrees with open reference evidence
-   does not veto. The reference evidence prevails, and the disagreement becomes
-   a conflict for inspection. In the prototype, all 66 US ISIN conflicts were
-   stale EODHD ISINs. A provider's identifier vetoes only where no open
-   evidence exists for that scheme.
-3. If several candidates reach the threshold, or resolvers disagree, nothing is
-   confirmed and the item stays in the queue as ambiguous.
-4. An identifier-proven (T0) association is revoked only by new contradicting
-   identifier evidence, or by the source's positive statement that it ended.
-   Rule, model and user confirmations are also revocable, and a later
-   contradiction reopens them as conflicts.
-5. When a resolver's model, prompt version or threshold changes, the `model_*`
-   associations it produced are re-evaluated. A threshold change is re-applied
-   from stored confidences without calling the model again. Until the new
-   verdict arrives, existing associations stay as they are.
+1. No authority confirms against contradicting identifier evidence
+   (`contradicts`): a valid T0 assertion for a single-valued scheme, at that
+   scheme's own level on the subject or an ancestor, with a different value.
+   Open reference evidence outranks a provider's identifier; a provider's value
+   vetoes only where no open evidence exists for that scheme.
+2. The depositary-receipt guard overrides every verdict: a receipt and its
+   share are never the same instrument.
+3. A verdict's relation must fit the chosen subject's level.
+4. If resolvers disagree or several candidates qualify, the outcome is
+   ambiguous and nothing is confirmed.
+5. Missing evidence never erases a confirmed association; only positive
+   evidence of an end sets `valid_to`.
 
-Two rules carry over from the earlier lab. Missing evidence never erases a
-confirmed association: only positive evidence of an end sets `valid_to`. A
-revision is written only when the normalized record changes.
+Rules give `rule_confirmed`, the user gives `user_attested` and must cite the
+Desk action behind it, and the Hermes agent or a resolver plugin (such as Jev,
+off by default) give `model_*` verdicts. The agent cannot cite a user action, so
+it cannot attest.
 
-**Resolution queue.** Core owns one durable queue. It holds *residuals*, which
-are records the join could not place, and *conflicts*, which are contradicting
-evidence. A resolver reads an item and its evidence and submits a `Verdict`
-with an authority. Resolvers are interchangeable and chosen by the user:
+**Resolution queue.** Core owns one queue of residuals (records the join could
+not place) and conflicts (contradicting evidence). Each item names the plugins
+involved and has a dedupe key, so re-ingest never duplicates an open question.
+Manual resolution is allowed and never required; resolution never runs on the
+search or page path.
 
-- built-in rules (`rule_confirmed`);
-- the Hermes agent (`model_*`, or `user_attested` when it records what the user
-  said);
-- an optional resolver plugin such as Jev (`model_*`), off by default;
-- the user resolving by hand (`user_attested`).
+**Stores.** Embedded SQLite in portable SQL, each reached through a thin store
+module: `reference.sqlite3` (open reference data, built on the device and
+replaced atomically), `overlay-<plugin>.sqlite3` (one provider's records and
+core's join outcome; a resolve-only plugin keeps only the records the user
+picked, with their identifiers and name) and `identity.sqlite3` (local
+subjects, bindings, queue and verdicts). Provider data stays in the overlays and
+never leaves the device. The directory and its FTS5 index come with the local
+search piece.
 
-Manual resolution is allowed and never required. Hermes is the only hard
-prerequisite. Resolution never runs on the search or page path.
+**Ingest join.** Each record is joined once, at ingest; the first match wins and
+a contradiction stops the chain: ISIN plus operating MIC and currency; ISIN
+alone (`self` only); share-class or composite FIGI; exact `ticker_mic` as a weak
+binding re-verified on page open; otherwise a provisional subject and a residual.
 
-**Stores.** All four stores are embedded SQLite written in portable SQL: standard
-types, ISO-8601 text times, JSON as validated text. FTS5 is used only in the
-directory. Each store is reached through a thin per-domain store module, so raw
-SQL stays in one place per store and the engine could be swapped later.
-
-| Store | Contents | Written by |
-| --- | --- | --- |
-| `reference.sqlite3` | Reference subjects, assertions, relations, names, aliases, venues, chains, rank signals | The reference builder on the device, replaced atomically |
-| `reference-local.sqlite3` | The same schema, for device-only steps when an optional downloaded open release is the base | The builder |
-| `overlay-<plugin>.sqlite3` | One bulk-catalogue plugin's typed records and the core's join outcome per record; hidden when the plugin is disabled, deleted with its credential | Catalogue sync plus the core |
-| `identity.sqlite3` (v2) | Subjects the reference lacks (IDs and levels only), bindings and revisions, the queue, verdicts, overrides, applied aliases | Core |
-| `directory.sqlite3` | Flat searchable rows, derived from the stores above | Core, rebuilt atomically |
-
-Provider data lives only in the per-plugin overlays and the derived directory.
-The identity store and user state hold subject IDs, bindings and decisions, so
-the shareable layer stays separable from personal licensed data. Provider terms
-travel with the rows. Every claim, overlay row and queue item carries its
-originating plugin. Any consumer, such as an external resolver reading a queue
-item, looks up that plugin's local-cache mode before storing or sending the row.
-Everything stays on the device. The reference builder runs locally by default;
-a downloadable open snapshot is an optional later accelerator with its own
-decision. Each plugin carries its provider's terms and enforces them; core uses
-open data and never publishes, pools or redistributes provider data. The one
-mechanical term core honours is whether a provider allows a local catalogue
-([ADR 0038](0038-plugin-addressing-contract.md)).
-
-**Ingest join.** Each claimed record is joined once, at ingest, in this order.
-The first match wins, and a contradiction stops the chain:
-
-1. ISIN + operating MIC (+ currency where several lines exist).
-2. ISIN alone, creating the venue listing under the security. A record that
-   carries its underlying's ISIN is queued as a residual instead.
-3. Share-class FIGI, composite FIGI or CUSIP.
-4. Exact ticker@MIC with no contradicting identifier. This is a weak binding,
-   re-verified on page open.
-5. Otherwise, a provisional subject and a residual in the queue.
-
-Crypto records follow the rules under **Crypto** above. Contradictions become
-conflicts, never merges. Overlays are subordinate to open evidence.
-
-**Search is a local read.** `search` reads only `directory.sqlite3`. It makes no
-provider call and no identity write, and it does no reconciliation. Rows are
-flat. Listing rows are unique by MIC + ticker + currency, and crypto rows are
-one per asset. Rows carry ISIN, LEI, CIK and FIGI, confirmed provider
-references, kind, names, aliases and rank signals, and never prices. They are grouped by issuer.
-To find something the index lacks, the user explicitly chooses "Look up in X",
-which calls one provider's `resolve`, never several at once and never while
-typing. The result joins like any other claim.
+**Search is a local read** of the directory: no provider call, no identity
+write, no reconciliation. "Look up in X" explicitly calls one provider's
+`resolve`, and the result joins like any other claim.
 
 ## Rationale
 
-Identity work moves off the typing path, so search runs in milliseconds and
-behaves the same with any set of plugins. Each record is joined once, at ingest,
-by identifier agreement. Open data carries the backbone, and paid sources add
-exactly the coverage they claim. One queue and one authority rule make
-resolution auditable. Swapping a resolver changes who answers, not what an
-answer may do.
+Identity work leaves the typing path, so search is fast and behaves the same
+with any set of plugins. Open data carries the backbone; paid sources add
+exactly the coverage they claim. One queue and one rule make resolution
+auditable: swapping a resolver changes who answers, not what an answer may do.
 
 ## Consequences
 
-- `runtime/managed/plugins/market-data/identity.py`, `identity_db.py`,
-  `identity_matching.py`, `identity_overrides.py`, `identity_repair.py` and
-  `packages/market-data/IDENTITY.md` stay unchanged here. A later piece replaces
-  them with the backbone and migrates their mappings to bindings. Saved
-  references move to subject IDs; an explicit source pin remains a source
-  preference, not identity.
-- The core payload gains the `identity` package and its DDL. It is standard
-  library only and does no I/O at import.
-- The queue's state, lease and attempt fields let a background job drain it
-  later. The founder expects event-based processing and bulk background jobs
-  (ranking incoming news, reacting to a new filing, bulk re-matching), with
-  Hermes or Jev as workers. This decision prepares the queue for that without
-  committing to a scheduler, event bus or job framework.
-- Global coverage is not promised on day one. Uncovered sections name the plugin
-  that would fill them.
+- The market-data identity modules and `packages/market-data/IDENTITY.md` stay
+  until a later piece migrates their mappings to bindings.
+- The core payload gains the standard-library-only `identity` package and DDL.
+- The reference builder and search bar adopt these contracts (table names,
+  `ev:` evidence IDs, authority names, subject ID forms).
 
 ## Rejected alternatives
 
-- **Parallel provider search at typing time, with pairwise reconciliation.** It
-  is slow, it depends on providers, and it mixes discovery with proof.
-- **Qualifying a relationship graph at search time.** It repeats the same work
-  on every query, and nothing it learns is kept.
-- **Per-provider identities, one catalogue per provider.** Results would appear
-  once per provider, and no provider-independent subject would exist for pages,
-  watchlists or research.
-- **Merging on names or tickers, or keying a listing by ISIN alone.** Both
-  collapse different investments.
-- **Random or sequential subject IDs.** Two installs, or two rebuilds, would
-  mean different things by the same ID.
-- **A mandatory cloud master.** It adds a service dependency.
-- **A server database now.** Embedded SQLite behind store modules is enough; a
-  team edition may revisit it.
+- **Parallel provider search while typing:** slow, provider-dependent, mixes
+  discovery with proof.
+- **One catalogue per provider:** duplicate results and no provider-independent
+  subject.
+- **Merging on names or tickers, or keying a listing by ISIN alone:** collapses
+  different investments.
+- **Random or sequential IDs:** installs and rebuilds would disagree.
+- **A cloud master or server database:** a service dependency the product does
+  not need.

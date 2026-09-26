@@ -1,8 +1,6 @@
 -- Reference store (ADR 0037). Local-first: the reference plugins run on the
 -- device and the builder writes reference.sqlite3, replaced atomically on each
--- rebuild and read-only in between. An optional downloaded open release uses
--- this same schema as a starting base; device-only steps then go to
--- reference-local.sqlite3, also with this schema.
+-- rebuild and read-only in between.
 -- Subject IDs are deterministic, derived from open identifiers
 -- (identity.schemes.subject_id), so every install and rebuild agrees on them.
 -- A re-key (a better key became known) is recorded in id_aliases; a changed

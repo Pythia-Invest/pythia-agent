@@ -37,7 +37,7 @@ from .vocabulary import (
 class Store(StrEnum):
     """Backbone stores, each with its own SQLite schema."""
 
-    REFERENCE = "reference"  # reference/<release>.sqlite3 (read-only) and reference-local.sqlite3
+    REFERENCE = "reference"  # reference.sqlite3, built on the device, read-only between builds
     IDENTITY = "identity"    # identity.sqlite3, the private identity store
     OVERLAY = "overlay"      # overlay-<plugin>.sqlite3, one per bulk-catalogue plugin
 
