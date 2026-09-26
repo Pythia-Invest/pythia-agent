@@ -43,6 +43,7 @@ export type InvestmentSearchProps = {
   className?: string | undefined;
 };
 
+const TABBABLE = 'button:not(:disabled):not([tabindex="-1"])';
 const NO_GROUPS: SearchGroup[] = [];
 const NO_OFFERS: LookupOffer[] = [];
 
@@ -73,6 +74,7 @@ export function InvestmentSearch({
   className,
 }: InvestmentSearchProps) {
   const input = useRef<HTMLInputElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
   const highlighted = useRef<SearchOption | undefined>(undefined);
   const lookupAbort = useRef<AbortController | null>(null);
   const [open, setOpen] = useState(false);
@@ -132,6 +134,9 @@ export function InvestmentSearch({
     lookupAbort.current = controller;
     const base = { plugin: offer.plugin, label: offer.label, query: trimmed };
     setLookupState({ ...base, status: "running", groups: [] });
+    // The pressed action is disabled while it runs; the field keeps focus so
+    // the arrow keys reach the rows it returns.
+    input.current?.focus();
     try {
       const groups = await lookup(
         { plugin: offer.plugin, query: trimmed },
@@ -202,6 +207,14 @@ export function InvestmentSearch({
           maxLength={512}
           onFocus={() => setOpen(true)}
           onKeyDown={(event) => {
+            // The combobox leaves the panel's pills and lookup actions out of
+            // the tab order; Tab reaches them instead of leaving the panel.
+            const next = popup.current?.querySelector<HTMLElement>(TABBABLE);
+            if (event.key === "Tab" && !event.shiftKey && open && next) {
+              event.preventDefault();
+              next.focus();
+              return;
+            }
             if (event.key !== "Enter" || !open || !trimmed) return;
             // Enter opens a row of the typed query only: rows of the previous
             // query, still shown while it loads, are not a choice.
@@ -237,7 +250,19 @@ export function InvestmentSearch({
           }}
         >
           <ComboboxPopup
+            ref={popup}
             aria-label="Investment search"
+            onKeyDown={(event) => {
+              // Tab past either end of the panel's controls returns to the field.
+              if (event.key !== "Tab") return;
+              const controls = [
+                ...event.currentTarget.querySelectorAll<HTMLElement>(TABBABLE),
+              ];
+              const edge = event.shiftKey ? controls[0] : controls.at(-1);
+              if (event.target !== edge) return;
+              event.preventDefault();
+              input.current?.focus();
+            }}
             className="motion-fast h-[min(28rem,var(--available-height))] w-136 max-w-[calc(100vw-1rem)] origin-(--transform-origin) p-0 shadow-overlay transition-[opacity,transform] data-ending-style:scale-[0.97] data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none"
           >
             <SearchPanel
