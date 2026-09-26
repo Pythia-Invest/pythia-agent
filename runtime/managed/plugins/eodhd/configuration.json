@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "fields": [
+    {
+      "key": "eodhd_api_token",
+      "kind": "secret",
+      "label": "EODHD API token",
+      "description": "The API token from your EODHD account. It stays on this device and is used only for EODHD requests.",
+      "required": true
+    }
+  ]
+}

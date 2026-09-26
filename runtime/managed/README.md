@@ -17,6 +17,7 @@ This directory is Pythia-owned source updated with each release:
   Its financial skill is bundled inside the plugin.
 - `plugins/yahoo-discovery/` is the bundled credential-free Yahoo Finance
   connector.
+- `plugins/eodhd/` is the bundled EODHD connector; it needs an API token.
 - `runner/` contains shared provider execution helpers, the connector workers
   that payloads declare, and the narrow native read-only session-context
   helper. The latter runs with the pinned Hermes environment.
@@ -49,5 +50,6 @@ Memory notes and user-edited seeds require the explicit preserved
 [transition](../../docs/update-and-customization.md#workspace-transition).
 
 Legacy core SEC/EODHD tools and their dedicated workers, skills and dependencies
-are retired. Their future connector packages own any replacement capability.
+are retired. Connector packages own replacement capabilities through their own
+native toolsets.
 See [ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).

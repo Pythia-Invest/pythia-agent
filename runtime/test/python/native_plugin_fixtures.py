@@ -24,6 +24,8 @@ class Context:
         self.registry_module = ModuleType('tools.registry')
         self.registry_module.registry = SimpleNamespace(get_entry=self.entries.get)
 
+    def register_skill(self, *_args, **_kwargs): pass
+    def on_unload(self, *_args, **_kwargs): pass
     def has_plugin(self, _name): return True
     def get_config(self, _name, default=None): return default
     def register_cli_command(self, *_args, **_kwargs): pass
