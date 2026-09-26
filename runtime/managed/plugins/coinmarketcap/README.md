@@ -14,14 +14,13 @@ never follow redirects, and address coins by numeric CoinMarketCap ID.
 ## Configuration
 
 `configuration.json` declares one required field, `coinmarketcap_api_key`
-(kind `secret`). Desk Settings shows it for the enabled plugin; core device
-custody stores it in `secrets.json` and never returns it to the browser. The
-plugin reads it through `platform.configuration.value`. Until that core module
-lands, `config.py` holds a transitional shim over the same market-data custody
-reader, marked for removal.
+(kind `secret`). Put it in `secrets.json` in the Pythia config folder
+(`${XDG_CONFIG_HOME:-~/.config}/pythia`, mode 0600). The plugin
+reads it through `platform.configuration.value`. Until that core module lands,
+`config.py` holds a transitional one-line shim over the same custody reader.
 
-Without a usable key every tool returns the issue `not_configured`
-("CoinMarketCap needs an API key. Add it in Settings.") and makes no request.
+Without a usable key every tool returns core's standard `needs_configuration`
+result and makes no request.
 The `check_configuration` operation calls `/v1/key/info`, which costs no credits,
 and reports whether the key is accepted plus its monthly credits, per-minute
 limit and credits left. The quote currency defaults to USD:

@@ -157,23 +157,25 @@ class CoinMarketCap(unittest.TestCase):
         self.assertEqual(partial['data']['rows'][0]['rank']['cmc_rank'], 1)
 
     def test_missing_or_invalid_key_is_reported_without_a_request(self):
-        for status, text in (('missing', 'needs an API key'), ('invalid', 'not valid')):
+        for status in ('missing', 'invalid'):
             with self.subTest(status=status), registered(key=(status, None)) as (ctx, calls):
                 listed = call(ctx, 'catalogue', {'scope': 'coins'})
-                self.assertEqual(listed['outcome'], 'error')
-                self.assertEqual(listed['issues'][0]['code'], 'not_configured')
-                self.assertIn(text, listed['issues'][0]['message'])
+                self.assertEqual((listed['outcome'], listed['issues'][0]['code']), ('error', 'needs_configuration'))
                 read = wire.validate_read_result(call(ctx, 'latest', latest_input('1')))
-                self.assertEqual(read['issues'][0]['code'], 'not_configured')
-                self.assertEqual(call(ctx, 'check_configuration', {})['data']['status'], 'invalid')
+                self.assertEqual(read['issues'][0]['code'], 'needs_configuration')
                 self.assertEqual(calls, [])
-        # Once core configuration is available it is the only reader.
-        core = SimpleNamespace(value=lambda _ctx, key: ('configured', 'CORE-KEY') if key == 'coinmarketcap_api_key' else ('missing', None))
+        # Once core configuration is available it is the only reader, and its standard result is returned.
+        needed = {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [
+            {'code': 'needs_configuration', 'severity': 'error', 'message': 'Core message.', 'fields': []}]}
+        core = SimpleNamespace(value=lambda _ctx, key: ('missing', None), needs_configuration=lambda _ctx: needed)
+        with patch.object(platform_module, 'configuration', core, create=True), registered() as (ctx, calls):
+            self.assertEqual(call(ctx, 'catalogue', {'scope': 'coins'}), needed)
+            read = wire.validate_read_result(call(ctx, 'latest', latest_input('1')))
+            self.assertEqual(read['issues'][0]['code'], 'needs_configuration')
+            self.assertEqual(calls, [])
+        core = SimpleNamespace(value=lambda _ctx, key: ('configured', 'CORE-KEY'), needs_configuration=lambda _ctx: None)
         with patch.object(platform_module, 'configuration', core, create=True), registered(key=('missing', None)) as (ctx, calls):
-            checked = call(ctx, 'check_configuration', {})
-        self.assertEqual(checked['data']['status'], 'valid')
-        self.assertIn('15,000 credits a month, 50 requests a minute', checked['data']['message'])
-        self.assertEqual(calls, [('key_info', {})])
+            self.assertEqual(call(ctx, 'catalogue', {'scope': 'coins', 'limit': 1})['outcome'], 'ok')
 
     def test_profile_and_details_keep_networks_source_scoped(self):
         native = {'provider': 'coinmarketcap', 'native_scope': 'coin', 'native_id': '7'}

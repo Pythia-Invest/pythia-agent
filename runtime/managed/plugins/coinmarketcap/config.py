@@ -1,36 +1,28 @@
 """Plugin configuration: the declared API key and the nonsecret quote currency.
 
-`configuration.json` declares `coinmarketcap_api_key` (secret, required). Core
-owns the value; this plugin reads it through `platform.configuration`. A missing
-or invalid key becomes an explicit `not_configured` issue before any network call.
+`configuration.json` declares `coinmarketcap_api_key` (secret, required), kept
+in `secrets.json` in the Pythia config folder. Core owns the value; this plugin
+reads it through `platform.configuration`. Without a usable key every tool
+returns core's standard `needs_configuration` result before any network call.
 """
 import json
 
 CURRENCIES = ('USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD')
 KEY_FIELD = 'coinmarketcap_api_key'
-UNCONFIGURED = {
-    'missing': 'CoinMarketCap needs an API key. Add it in Settings.',
-    'invalid': 'The saved CoinMarketCap API key is not valid. Replace it in Settings.',
-}
+NEEDED = 'CoinMarketCap needs coinmarketcap_api_key in secrets.json in the Pythia config folder.'
 
 
 def api_key(ctx, platform, credentials):
-    """Return (status, value); status is configured, missing or invalid."""
+    """Return (key, None) when configured, else (None, the needs-configuration result)."""
     configuration = getattr(platform, 'configuration', None)
-    if configuration is not None:
-        return configuration.value(ctx, KEY_FIELD)
     # Transitional shim, remove once platform.configuration lands on the
-    # umbrella branch (identity-backbone-desk-connections-settings): the same
-    # device custody reader and store, for the one key configuration.json declares.
-    return credentials._token(KEY_FIELD)
-
-
-def unconfigured(status):
-    """Visible needs-configuration issue; None when the key is configured."""
+    # umbrella branch (identity-backbone-desk-connections-settings).
+    status, key = configuration.value(ctx, KEY_FIELD) if configuration else credentials._token(KEY_FIELD)
     if status == 'configured':
-        return None
-    return {'code': 'not_configured', 'severity': 'error',
-            'message': UNCONFIGURED['invalid' if status == 'invalid' else 'missing']}
+        return key, None
+    return None, (configuration and configuration.needs_configuration(ctx)) or {
+        'schema_version': 1, 'outcome': 'error', 'data': None,
+        'issues': [{'code': 'needs_configuration', 'severity': 'error', 'message': NEEDED}]}
 
 
 def currency(ctx):
@@ -51,4 +43,4 @@ def register_cli(ctx):
         except (ValueError, PermissionError):
             value = {'status': 'invalid'}
         print(json.dumps(value))
-    ctx.register_cli_command('coinmarketcap-config', 'Choose the CoinMarketCap quote currency (keys belong in Settings)', setup, command)
+    ctx.register_cli_command('coinmarketcap-config', 'Choose the CoinMarketCap quote currency', setup, command)

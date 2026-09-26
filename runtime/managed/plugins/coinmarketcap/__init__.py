@@ -76,13 +76,15 @@ def register(ctx):
             if not ready():
                 raise ValueError('unavailable')
             currency = config.currency(ctx)
-            status, token = config.api_key(ctx, platform, credentials)
-            needed = config.unconfigured(status)
+            token, needed = config.api_key(ctx, platform, credentials)
             if needed:
                 # Visible needs-configuration result; no provider request is made.
                 if operation == 'check_configuration':
-                    return envelope({'status': 'invalid', 'message': needed['message']})
-                return read_result(request, issues=[needed]) if request else envelope(None, [needed])
+                    return envelope({'status': 'invalid', 'message': needed['issues'][0]['message']})
+                if request:
+                    return read_result(request, issues=[{k: item[k] for k in ('code', 'severity', 'message')}
+                                                        for item in needed['issues']])
+                return needed
             command = [sys.executable, '-I', str(WORKER)]
             env = {k: os.environ[k] for k in ('PATH', 'LANG', 'LC_ALL') if k in os.environ}
             budget = connector.connection('coinmarketcap', token, per_minute=PER_MINUTE)
