@@ -53,7 +53,7 @@ def run_worker(command, request, environment, *, timeout=30, cancelled=None, bud
         cancelled = is_interrupted
     if type(timeout) not in (int, float) or not 0 < timeout <= 120:
         raise WorkerError("invalid_deadline")
-    if type(output_limit) is not int or not 0 < output_limit <= 16_000_000:
+    if type(output_limit) is not int or output_limit <= 0:
         raise WorkerError("invalid_request")
     try:
         request_bytes = json.dumps(request, allow_nan=False).encode() + b"\n"
