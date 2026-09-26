@@ -35,3 +35,9 @@ catalog:
   ai: 7.0.93
   streamdown: 2.6.0
   zod: 4.5.4
+
+overrides:
+  # yahoo-finance2 also ships an MCP server (express, hono) behind its `./mcp`
+  # export and CLI bin. Pythia imports only the library entry, which never
+  # loads it, so the unused server stack and its advisories stay out.
+  "yahoo-finance2>@modelcontextprotocol/sdk": "-"

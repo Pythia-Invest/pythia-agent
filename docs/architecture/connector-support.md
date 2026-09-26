@@ -10,7 +10,8 @@ no additional registration or authentication mechanism.
 | Primitive | Responsibility |
 | --- | --- |
 | `connection` | Connection-scoped concurrency, quota accounting and provider cooldown |
-| `WorkerReads` | Bounded successful-response cache and shared in-flight reads with consumer cancellation |
+| `WorkerReads` | Bounded successful-response cache and shared in-flight reads with consumer cancellation; an optional `prepare_result` validates or projects a success before it is cached, under a policy `cache_scope` |
+| `Transport` | In-process bounded HTTPS JSON GET for keyless public APIs: fixed origins, no redirects, size/deadline bounds, budget permits and the same failure vocabulary as workers |
 | `NativeBatch`, `worker_batch`, `worker_item` | Collect compatible IDs, deduplicate overlapping requests, retain each ID's result or failure |
 | `process.run_worker` | Bounded disposable process, actual outbound permits, safe execution diagnostics |
 | `ResidentTransport` | Optional bounded RPC worker, connection-state reuse, deadlines, idle expiry and cleanup |
@@ -111,9 +112,10 @@ per-item partial failures, cache exclusion, safe logging and resident process
 reuse/cleanup. The copied native HTTP qualification checks auth/profile/access,
 shared tool/HTTP lifetime and responsiveness without model or CLI subprocesses.
 
-This increment includes no concrete shared connector. Consequently it makes no
-live-provider, browser, broker, paid-stream or production-service claim. Provider
-PRs must exercise registered tools, real worker admission sizes and actual response
+Connector packages carry their own evidence; the bundled Yahoo connector is
+tested with synthetic Yahoo-shaped values. This document makes no live-provider,
+browser, broker, paid-stream or production-service claim. Provider PRs must
+exercise registered tools, real worker admission sizes and actual response
 layouts with synthetic fixtures, then qualify live behavior separately when
 explicitly authorized. A passing helper test cannot establish a connector's units,
 coverage, entitlements or API billing. Local counters cannot enforce account-wide

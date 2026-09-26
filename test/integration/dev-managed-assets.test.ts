@@ -125,6 +125,17 @@ printf '%s\\n' "$*" >> '${commandLog}'
     // A fresh source snapshot contains no generated widgets. Explicit
     // preparation must finish before copied-source validation or refresh.
     await buildManagedWidgets(paths.repositoryRoot);
+    // Connector workers come from the same explicit preparation step. The
+    // snapshot has no dependencies to compile against, so this checkout's
+    // compiler builds the identical runner sources straight into the snapshot
+    // (never the shared checkout output). It takes seconds, hence the timeout.
+    execFileSync(process.execPath, [
+      join(repositoryRoot, "node_modules/typescript/bin/tsc"),
+      "--project",
+      join(repositoryRoot, "runtime/managed/runner/tsconfig.json"),
+      "--outDir",
+      join(paths.repositoryRoot, "runtime/managed/runner/dist"),
+    ]);
     await refreshRuntimeAssets(
       { ...paths, managedCore },
       "safe-local-key-value",
@@ -147,7 +158,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
         )
         .join("\n"),
     );
-  });
+  }, 60_000);
 
   it("recreates a tampered Hermes source cache from the verified archive", async () => {
     const root = temporaryRoot();
