@@ -19,6 +19,9 @@ and the [CoinGecko connector](../../runtime/managed/plugins/coingecko/README.md)
 installed, enabled native contributions. The original core SEC/EODHD tools are
 retired; other connector packages must supply those capabilities explicitly.
 Enabling the owner does not install a provider or prove an account's access.
+The bundled [CoinMarketCap connector](../../runtime/managed/plugins/coinmarketcap/README.md)
+needs the user's API key in `secrets.json` and reports `needs_configuration`
+until it is there.
 
 Pythia is personal software: each installation serves one investor. Provider
 data is used under that investor's own agreement with the provider. Each plugin

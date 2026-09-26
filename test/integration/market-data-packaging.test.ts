@@ -170,6 +170,7 @@ platform_toolsets:
       "enable",
       "enable",
       "enable",
+      "enable",
     ]);
     expect(
       commands.filter((args) => args[3] === "doctor").map((args) => args[4]),
@@ -183,6 +184,7 @@ platform_toolsets:
       "pythia-gleif",
       "pythia-xbrl-filings",
       "pythia-coingecko",
+      "pythia-coinmarketcap",
     ]);
     const failed: string[][] = [];
     expect(() =>
@@ -309,6 +311,7 @@ platform_toolsets:
       "pythia-gleif",
       "pythia-xbrl-filings",
       "pythia-coingecko",
+      "pythia-coinmarketcap",
     ]);
     expect(readFileSync(join(community, "plugin.yaml"), "utf8")).toBe(
       "name: community\n",
