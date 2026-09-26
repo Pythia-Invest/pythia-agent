@@ -1,9 +1,8 @@
 # Reference snapshot builder
 
 Builds the open reference snapshot: issuers, securities and venue listings with
-their identifiers, from public sources only. The primary path is a local build on
-the user's device; the manual CI workflow can publish the same output as an
-optional download.
+their identifiers, from public sources only. It runs locally on the user's device;
+Pythia publishes no snapshot (ADR 0039).
 
 Python 3.11+ standard library only. The snapshot is one SQLite file.
 
@@ -81,11 +80,3 @@ Only MIC codes that listings reference are included, never the full ISO list.
 Redistributing OpenFIGI tickers and names, and ISIN-to-FIGI pairs, is still
 unconfirmed. Publishing a snapshot, as opposed to building one locally, waits
 for those confirmations.
-
-## CI
-
-`.github/workflows/reference-snapshot.yml` runs only on manual dispatch. It runs
-the tests, builds with `--deltas`, and attaches the gzip snapshot, manifest and
-NOTICE to a GitHub prerelease. It reads two repository secrets:
-`OPENFIGI_API_KEY` (optional) and `REFERENCE_SEC_CONTACT` (required when SEC is
-included).
