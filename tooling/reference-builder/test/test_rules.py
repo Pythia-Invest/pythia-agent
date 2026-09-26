@@ -90,14 +90,17 @@ if __name__ == "__main__":
 class DisplayNameTest(unittest.TestCase):
     def test_all_capitals_names_are_recased_keeping_acronyms_and_legal_forms(self):
         cases = {("ASML HOLDING N.V.", "ASML"): "ASML Holding N.V.", ("ING GROEP N.V.", ""): "ING Groep N.V.",
-                 ("KONINKLIJKE KPN N.V.", ""): "Koninklijke KPN N.V.", ("BANK OF AMERICA CORP /DE/", ""): "Bank of America Corp",
+                 ("KONINKLIJKE KPN N.V.", ""): "Koninklijke KPN N.V.", ("BANK OF AMERICA CORP", ""): "Bank of America Corp",
                  ("COMPAGNIE DE SAINT-GOBAIN", ""): "Compagnie de Saint-Gobain", ("THE MAGNUM ICE CREAM COMPANY N.V.", ""):
                  "The Magnum Ice Cream Company N.V.", ("O'REILLY AUTOMOTIVE INC", ""): "O'Reilly Automotive Inc",
-                 ("SHELL PLC", "SHELL"): "Shell PLC", ("US BANCORP DE", "USB"): "US Bancorp",
+                 ("SHELL PLC", "SHELL"): "Shell PLC",
                  ("JPMORGAN CHASE & CO", "JPM"): "JPMorgan Chase & Co"}
         for (name, ticker), shown in cases.items():
             self.assertEqual(rules.display_case(name, frozenset({ticker})), shown)
 
-    def test_mixed_case_names_keep_their_case_without_sec_markers(self):
-        self.assertEqual(rules.display_case("CVC Capital Partners plc/ADR"), "CVC Capital Partners plc")
-        self.assertEqual(rules.display_case("Anheuser-Busch InBev SA/NV"), "Anheuser-Busch InBev SA/NV")
+    def test_sec_titles_drop_state_and_adr_markers_other_names_keep_them(self):
+        self.assertEqual(rules.display_case("BANK OF AMERICA CORP /DE/", sec=True), "Bank of America Corp")
+        self.assertEqual(rules.display_case("US BANCORP DE", frozenset({"USB"}), sec=True), "US Bancorp")
+        self.assertEqual(rules.display_case("CVC Capital Partners plc/ADR", sec=True), "CVC Capital Partners plc")
+        self.assertEqual(rules.display_case("Anheuser-Busch InBev SA/NV", sec=True), "Anheuser-Busch InBev SA/NV")
+        self.assertEqual(rules.display_case("BANCO DE"), "Banco de")  # not an SEC title: "DE" is a word

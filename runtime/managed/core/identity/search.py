@@ -238,15 +238,16 @@ class Directory:
 
     def instrument_listings(self, security: str) -> list[dict]:
         """The listings of the instrument a security belongs to, receipts folded in as in search: the ones
-        a row's "+N" counts, the company's primary listing first. Empty for a security not in the directory."""
+        a row's "+N" counts. The company's primary (else home, exchange) listing comes first and is marked
+        primary, even when a receipt carries its own primary flag. Empty for a security not in the directory."""
         with self.lock:
             rows = self.db.execute(
-                "SELECT listing, ticker, mic, venue, currency, prim AND security = inst, kind, country, otc, home FROM doc"
+                "SELECT listing, ticker, mic, venue, currency, kind, country, otc, home FROM doc"
                 " WHERE inst = (SELECT inst FROM doc WHERE security = ? LIMIT 1) AND crypto = 0"
-                " ORDER BY security <> inst, prim DESC, mic, listing", (security,)).fetchall()
+                " ORDER BY security <> inst, prim DESC, fus, otc, home DESC, mic, listing", (security,)).fetchall()
         # country, otc and home let the page group lines: home market, other exchanges, OTC and receipts.
-        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "primary", "kind", "country"), row),
-                     primary=bool(row[5]), otc=bool(row[8]), home=bool(row[9])) for row in rows]
+        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind", "country"), row),
+                     otc=bool(row[7]), home=bool(row[8]), primary=index == 0) for index, row in enumerate(rows)]
 
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
                suffixes: Callable[[], dict[str, set[str]]] = dict,

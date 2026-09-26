@@ -67,6 +67,7 @@ class Fixture(unittest.TestCase):
 
 
 SHELL, SHEL = "listing:isin:GB00BP6MXD84:XAMS:EUR", "listing:figi:BBG0147BN6G2"
+SHELL_OTC = "listing:isin:GB00BP6MXD84:OTCM:USD"
 BANK = [("common", "ordinary", "BNK"), ("preferred", "preferred", "BNK-PA"), ("note1", "other", "BNKN"),
         ("note2", "other", "BNKO")]
 
@@ -88,6 +89,7 @@ class SearchTest(Fixture):
             db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'x', 'equity', ?)",
                            securities)
             listings = [(SHELL, "security:isin:GB00BP6MXD84", "XAMS", "SHELL", "EUR", 0),
+                        (SHELL_OTC, "security:isin:GB00BP6MXD84", "OTCM", "RYDAF", "USD", 0),
                         (SHEL, "security:figi:BBG0147BN6H1", "XNYS", "SHEL", "USD", 1),
                         *((f"listing:bank:{key}", f"security:bank:{key}", "XNYS", ticker, "USD", 1)
                           for key, _, ticker in BANK)]
@@ -119,11 +121,12 @@ class SearchTest(Fixture):
     def test_the_page_lists_what_the_row_counts(self):
         row = self.directory.search("shell", limit=1)["rows"][0]
         listings = self.directory.instrument_listings("security:figi:BBG0147BN6H1")
-        self.assertEqual([(item["id"], item["kind"]) for item in listings],
-                         [(SHELL, "ordinary"), (SHEL, "depositary_receipt")])
-        # The page groups lines by these: the venue's country, OTC, and the issuer's home country (GB).
-        self.assertEqual([(item["country"], item["otc"], item["home"]) for item in listings],
-                         [("NL", False, False), ("US", False, False)])
+        # The receipt carries the only primary flag; the company's home line still leads, marked primary.
+        self.assertEqual([(item["id"], item["kind"], item["primary"]) for item in listings],
+                         [(SHELL, "ordinary", True), (SHELL_OTC, "ordinary", False),
+                          (SHEL, "depositary_receipt", False)])
+        # The page groups lines by these: the venue's country, OTC and the issuer's home country.
+        self.assertEqual([(item["country"], item["otc"], item["home"]) for item in listings], [("NL", False, False), (None, True, False), ("US", False, False)])
         self.assertEqual(row["listings"], len(listings) - 1)
 
     def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):

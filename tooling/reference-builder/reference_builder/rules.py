@@ -88,12 +88,13 @@ _WORDLIKE = re.compile(r"[^AEIOUY]{0,2}(?:[AEIOUY]+[^AEIOUY]{0,2})+")  # SHELL, 
 _SEC_SUFFIX = re.compile(r"(?:\s+/\s*[A-Z]{2,3}/?|/\s*(?:[A-Z]{2,3}/)?|\s*/\s*AD[RS]S?|\s+DE)\s*$")
 
 
-def display_case(name: str, tickers: frozenset[str] = frozenset()) -> str:
-    """A readable display name: SEC state and ADR suffixes dropped ("/DE/"), and an all-capitals name
+def display_case(name: str, tickers: frozenset[str] = frozenset(), *, sec: bool = False) -> str:
+    """A readable display name: an SEC title's state and ADR markers dropped ("/DE/"), and an all-capitals name
     re-cased ("ASML HOLDING N.V." with ticker ASML -> "ASML Holding N.V."). Mixed-case names keep their
     case. Kept upper: dotted forms (N.V., S.A.), the issuer's tickers that are not words (ASML, not
     SHELL), words without a vowel and short words that are not common words (BP, KPN, ING, NN)."""
-    name = _SEC_SUFFIX.sub("", name).strip() or name
+    if sec:
+        name = _SEC_SUFFIX.sub("", name).strip() or name
     if name != name.upper():
         return name
 

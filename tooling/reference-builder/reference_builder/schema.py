@@ -127,7 +127,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         subject = ids.issuers[key]
         country = issuer.country if issuer.country and len(issuer.country) == 2 else None
         status = "inactive" if issuer.entity_status == "INACTIVE" else "active"
-        shown = rules.display_case(issuer.name, tickers.get(key, frozenset()))
+        shown = rules.display_case(issuer.name, tickers.get(key, frozenset()), sec=issuer.source == "sec")
         tables["issuers"].append({"id": subject, "name": shown[:512], "country": country, "status": status})
         if issuer.lei:
             assert_(subject, "lei", issuer.lei, "gleif" if issuer.source == "gleif" else "esma_firds")
@@ -144,7 +144,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         tables["securities"].append({
             "id": subject, "issuer_id": ids.issuers.get(security.issuer_id or ""),
             "name": rules.display_case(title or (issuer.name if issuer else None) or subject,
-                                       tickers.get(security.issuer_id or "", frozenset()))[:512], "asset_class": "equity",
+                                       tickers.get(security.issuer_id or "", frozenset()),
+                                       sec=bool(issuer and issuer.source == "sec"))[:512], "asset_class": "equity",
             "kind": KIND.get(security.kind, "other"), "status": STATUS.get(security.activity, "unknown"),
             "rank": security.rank})
         if security.isin:
