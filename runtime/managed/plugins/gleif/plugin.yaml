@@ -1,0 +1,9 @@
+name: pythia-gleif
+version: 0.1.0
+description: Public legal-entity (issuer) resolve, profiles and accounting parents by LEI
+license: Apache-2.0
+requires_plugins:
+  - pythia-market-data
+provides_tools:
+  - pythia_gleif_resolve
+  - pythia_gleif_profile
