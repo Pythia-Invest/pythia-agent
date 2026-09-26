@@ -12,8 +12,6 @@ provides_tools:
   - pythia_eodhd_reverse_isin
   - pythia_eodhd_identifiers
   - pythia_eodhd_dashboard
-  - pythia_eodhd_volume_ranking
-  - pythia_eodhd_market_movers
   - pythia_eodhd_read_batch
   - pythia_eodhd_news
   - pythia_eodhd_fundamentals

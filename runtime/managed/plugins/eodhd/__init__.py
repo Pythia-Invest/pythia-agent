@@ -42,7 +42,7 @@ def register(ctx):
     streams = Streams(ctx, wire, configuration)
 
     ctx.register_skill('eodhd', Path(__file__).parent / 'skills/eodhd/SKILL.md',
-        description='Use EODHD source series, identifier mappings, catalogue, news, fundamentals, specialist rankings and explicitly enabled EDGX streams.')
+        description='Use EODHD source series, identifier mappings, catalogue, news, fundamentals, specialist quotes and explicitly enabled EDGX streams.')
     ctx.on_unload(streams.close)
 
     def stream_setup(parser):
@@ -100,8 +100,8 @@ def register(ctx):
                 def fetch():
                     return reads.read([node, '--max-old-space-size=128', worker],
                         {'token': token, 'operation': endpoint, 'arguments': args}, env,
-                        timeout=45 if endpoint in ('reverse', 'identifiers', 'catalogue_snapshot') else 25 if endpoint in ('volume_ranking', 'fundamentals') else 12, cancelled=cancelled,
-                        age=0 if fresh and endpoint != 'details' else 86400 if endpoint == 'catalogue_snapshot' else 3600 if endpoint in ('fundamentals', 'volume_ranking', 'market_movers') else 300 if endpoint in ('details', 'identifiers', 'news') else 60,
+                        timeout=45 if endpoint in ('reverse', 'identifiers', 'catalogue_snapshot') else 25 if endpoint == 'fundamentals' else 12, cancelled=cancelled,
+                        age=0 if fresh and endpoint != 'details' else 86400 if endpoint == 'catalogue_snapshot' else 3600 if endpoint == 'fundamentals' else 300 if endpoint in ('details', 'identifiers', 'news') else 60,
                         budget=budgets.connection('eodhd', token, per_minute=ctx.get_config('requests_per_minute', 60)))
                 if endpoint != 'details': return fetch()
                 key = hashlib.sha256(json.dumps([node, worker, token, args], sort_keys=True).encode()).hexdigest()
@@ -118,8 +118,7 @@ def register(ctx):
                     result['retry_after_seconds'] = raw['retry_after']
                 return failures.qualify_failure(result, raw)
             def errors(raw):
-                return [issue(code, severity='warning' if code == 'ranking_coverage_limited' else 'error',
-                              source_code=raw.get('http_status')) for code in raw.get('issues', [])]
+                return [issue(code, source_code=raw.get('http_status')) for code in raw.get('issues', [])]
             def nonread_result(raw):
                 return nonread(raw['data'], raw)
             if operation == 'catalogue':
@@ -151,14 +150,8 @@ def register(ctx):
                     replies = raw
                 parallel = importlib.import_module(wire.__package__ + '.coordinated').parallel
                 return envelope(parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies), clean['reads']))
-            if operation in ('dashboard', 'market_movers'):
+            if operation == 'dashboard':
                 return failures.qualify_items(nonread_result(call(operation, clean)))
-            if operation == 'volume_ranking':
-                raw = call('volume_ranking', clean)
-                result = nonread(raw['data'], raw)
-                if raw['data'] and not raw['data']['rows']:
-                    result['outcome'] = 'error' if raw['issues'] else 'empty'
-                return result
             if operation in ('reverse', 'identifiers'):
                 if operation == 'reverse' and not isin(clean['isin']):
                     raise ValueError('invalid_request')
@@ -228,9 +221,6 @@ def register(ctx):
 
     specialist = importlib.import_module(wire.__package__ + '.specialist')
     specialist.register_read_command(ctx, 'eodhd-dashboard', TOOLS['dashboard'], 'Read EODHD dashboard quotes or recent minute bars', cache_seconds=60, schema=definitions['dashboard'], plugin='pythia-eodhd')
-    specialist.register_read_command(ctx, 'eodhd-volume-ranking', TOOLS['volume_ranking'], 'Read an EODHD completed-session stock ranking', cache_seconds=3600, schema=definitions['volume_ranking'], plugin='pythia-eodhd')
-
-    specialist.register_read_command(ctx, 'eodhd-market-movers', TOOLS['market_movers'], 'Read an EODHD completed-session screener ranking', cache_seconds=3600, schema=definitions['market_movers'], plugin='pythia-eodhd')
     for operation in ('news', 'fundamentals', 'catalogue'):
         specialist.register_read_command(ctx, 'eodhd-' + operation, TOOLS[operation],
             definitions[operation]['description'], cache_seconds=300,

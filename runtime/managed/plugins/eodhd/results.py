@@ -26,7 +26,6 @@ MESSAGES = {
     'not_entitled': 'The connected EODHD plan does not include this dataset. Other EODHD data is unaffected; this is not missing data.',
     'identity_unresolved': 'Exact common-stock catalogue metadata could not be resolved uniquely.',
     'price_unit_unknown': 'The source does not establish a qualified price currency scale for this catalogue item.',
-    'ranking_coverage_limited': 'Some catalogue stocks are absent or lack usable volume on the selected session date. The ranking covers the eligible subset.',
 }
 
 

@@ -3,8 +3,6 @@
 import type { EODHDClient } from "eodhd";
 import { failure } from "./eodhd-market-data-errors.js";
 import { createHash } from "node:crypto";
-import { marketMovers } from "./eodhd-market-data-movers.js";
-import { volumeRanking } from "./eodhd-market-data-ranking.js";
 import { research } from "./eodhd-market-data-research.js";
 import {
   record,
@@ -23,9 +21,7 @@ export type Client = Pick<
   | "eod"
   | "realTime"
   | "intraday"
-  | "bulkEod"
   | "exchanges"
-  | "screener"
   | "news"
   | "fundamentals"
 >;
@@ -132,8 +128,6 @@ export async function execute(
 ): Promise<Result> {
   if (["catalogue_snapshot", "news", "fundamentals"].includes(operation))
     return research(sdk, operation, args);
-  if (operation === "market_movers") return marketMovers(sdk, args);
-  if (operation === "volume_ranking") return volumeRanking(sdk, args);
   if (operation === "reverse") {
     if (
       typeof args.isin !== "string" ||

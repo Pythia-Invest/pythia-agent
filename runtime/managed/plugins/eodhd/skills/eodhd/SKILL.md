@@ -1,7 +1,7 @@
 ---
 name: eodhd
 title: EODHD market data
-description: Inspect EODHD source series, identifier mappings, exchange catalogues, news, fundamentals, specialist rankings and explicitly enabled EDGX streams. Use for EODHD-specific reads and limitations; use market-data for canonical subjects and source preferences.
+description: Inspect EODHD source series, identifier mappings, exchange catalogues, news, fundamentals, specialist quotes and explicitly enabled EDGX streams. Use for EODHD-specific reads and limitations; use market-data for canonical subjects and source preferences.
 version: 0.1.0
 license: Apache-2.0
 platforms: [linux, macos]
@@ -39,12 +39,7 @@ Specialist native tools expose explicit EODHD quotes and recent charts: US stock
 closed EDGX one-minute bars, or five-minute intraday bars with unknown completion
 for STOXX50E.INDX, GDAXI.INDX and FCHI.INDX. Preserve each chart feed, interval,
 completion and latest-returned calendar-date qualifiers; do not describe these
-feeds as interchangeable or session-complete. Other operations expose a
-completed-session volume ranking from bulk EOD plus catalogue, and US Screener
-movers. Their source membership and dates remain inspectable; neither ranking is
-a live market-wide ranking or canonical identity result. The bulk ranking costs
-100 API credits plus its catalogue request. Request it deliberately, without
-polling or substituting another feed after an error.
+feeds as interchangeable or session-complete.
 
 The EODHD API token is the `eodhd_api_token` field of `secrets.json` in the
 Pythia config folder. A `needs_configuration` result means it is not set yet:

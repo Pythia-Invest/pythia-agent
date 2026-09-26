@@ -140,14 +140,6 @@ tools; the shared platform routes them under
   unknown. Each chart carries source, feed, interval and completion qualifiers.
   Its `session` is the latest returned calendar date in New York (US) or Paris
   (these indices), not evidence of complete exchange-session coverage.
-- `eodhd-volume-ranking`: a Pythia volume ranking of Common Stock listings from
-  bulk EOD plus the current exchange catalogue. It preserves dates and limited
-  coverage, excludes stale/missing volume rows and costs 100 bulk credits plus the
-  catalogue request.
-- `eodhd-market-movers`: US NYSE/Nasdaq [Screener](https://eodhd.com/financial-apis/stock-market-screener-api)
-  gainers, losers or active stocks, with reported market cap above USD 1 billion
-  and last-day volume above 100,000 shares. These are latest known
-  completed-session results, not live rankings.
 - `eodhd-news`, `eodhd-fundamentals` and `eodhd-catalogue` as described above.
 
 Streaming stays disabled until an explicit native `eodhd-streaming --mode demo`
