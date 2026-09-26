@@ -121,6 +121,9 @@ class SearchTest(Fixture):
         listings = self.directory.instrument_listings("security:figi:BBG0147BN6H1")
         self.assertEqual([(item["id"], item["kind"]) for item in listings],
                          [(SHELL, "ordinary"), (SHEL, "depositary_receipt")])
+        # The page groups lines by these: the venue's country, OTC, and the issuer's home country (GB).
+        self.assertEqual([(item["country"], item["otc"], item["home"]) for item in listings],
+                         [("NL", False, False), ("US", False, False)])
         self.assertEqual(row["listings"], len(listings) - 1)
 
     def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):

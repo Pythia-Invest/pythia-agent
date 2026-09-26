@@ -67,6 +67,8 @@ export const subjectListingSchema = z.object({
   country: optionalText,
   /** Traded over the counter rather than on an exchange. */
   otc: z.boolean().nullish(),
+  /** On a venue in the issuer's home country. */
+  home: z.boolean().nullish(),
 });
 export type SubjectListing = z.infer<typeof subjectListingSchema>;
 

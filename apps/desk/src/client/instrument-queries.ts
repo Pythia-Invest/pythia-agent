@@ -29,6 +29,13 @@ export function useSubjectPage(subjectId: string) {
     queryFn: () =>
       readSubject({ read: (request) => api.pluginRead(request) }, subjectId),
     staleTime: SUBJECT_STALE_MS,
+    // Switching to another listing of the same instrument keeps the page on
+    // screen while that listing's composition loads; another instrument
+    // starts from its own skeleton.
+    placeholderData: (previous) =>
+      previous?.listings.some((listing) => listing.id === subjectId)
+        ? previous
+        : undefined,
     ...busyRetry,
   });
 }

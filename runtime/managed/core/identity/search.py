@@ -241,11 +241,12 @@ class Directory:
         a row's "+N" counts, the company's primary listing first. Empty for a security not in the directory."""
         with self.lock:
             rows = self.db.execute(
-                "SELECT listing, ticker, mic, venue, currency, prim AND security = inst, kind FROM doc"
+                "SELECT listing, ticker, mic, venue, currency, prim AND security = inst, kind, country, otc, home FROM doc"
                 " WHERE inst = (SELECT inst FROM doc WHERE security = ? LIMIT 1) AND crypto = 0"
                 " ORDER BY security <> inst, prim DESC, mic, listing", (security,)).fetchall()
-        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "primary", "kind"), row), primary=bool(row[5]))
-                for row in rows]
+        # country, otc and home let the page group lines: home market, other exchanges, OTC and receipts.
+        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "primary", "kind", "country"), row),
+                     primary=bool(row[5]), otc=bool(row[8]), home=bool(row[9])) for row in rows]
 
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
                suffixes: Callable[[], dict[str, set[str]]] = dict,

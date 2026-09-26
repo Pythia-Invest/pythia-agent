@@ -4,7 +4,6 @@ import { KIND_LABELS } from "@pythia/market-data/search-ui";
 import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
 import { Menu, Skeleton } from "@pythia/ui";
 import { Check, ChevronDown } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { instrumentHref } from "./instrument-href";
 import { listingGroups, listingLabel } from "./listing-groups";
 
@@ -102,7 +101,6 @@ function ListingSelector({
   page: SubjectPage;
   subjectId: string;
 }) {
-  const router = useRouter();
   const current = currentListing(page);
   const ids = page.identifiers;
   const label = current
@@ -133,8 +131,14 @@ function ListingSelector({
           <Menu.Popup className="max-h-[min(24rem,var(--available-height))] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto">
             <Menu.RadioGroup
               value={current?.id}
+              // Native history updates keep Next's search params in sync
+              // without a server round trip or remounting the page.
               onValueChange={(id: string) =>
-                router.replace(instrumentHref(subjectId, id), { scroll: false })
+                window.history.replaceState(
+                  null,
+                  "",
+                  instrumentHref(subjectId, id),
+                )
               }
             >
               {listingGroups(page.listings).map((group) => (
