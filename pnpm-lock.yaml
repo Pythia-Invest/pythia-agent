@@ -128,9 +128,15 @@ importers:
 
   apps/design-lab:
     dependencies:
+      '@pythia/market-data':
+        specifier: workspace:*
+        version: link:../../packages/market-data
       '@pythia/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: 'catalog:'
+        version: 5.102.8(react@19.2.7)
       lucide-react:
         specifier: 'catalog:'
         version: 0.562.0(react@19.2.7)
@@ -256,16 +262,28 @@ importers:
 
   packages/market-data:
     dependencies:
+      '@pythia/widget-sdk':
+        specifier: workspace:*
+        version: link:../widget-sdk
+      lucide-react:
+        specifier: 'catalog:'
+        version: 0.562.0(react@19.2.7)
       zod:
         specifier: 'catalog:'
         version: 4.5.4
     devDependencies:
-      '@pythia/widget-sdk':
-        specifier: workspace:*
-        version: link:../widget-sdk
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.7
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.7)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
 
   packages/ui:
     dependencies:

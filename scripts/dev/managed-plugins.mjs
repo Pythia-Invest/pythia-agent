@@ -68,7 +68,9 @@ export const MANAGED_PLUGINS = Object.freeze([
       "widgets/instrument-compact-tile.tsx",
       "widgets/instrument-table.tsx",
       "widgets/instruments.tsx",
+      "widgets/top-bar.tsx",
       "dist/widgets/instruments.mjs",
+      "dist/widgets/top-bar.mjs",
     ]),
   }),
 ]);
