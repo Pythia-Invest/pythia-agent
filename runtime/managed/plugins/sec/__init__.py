@@ -95,17 +95,19 @@ class Reader:
 
     @staticmethod
     def resolve(clean, fetch):
-        if ('cik' in clean) == ('ticker' in clean) or ('mic' in clean and 'ticker' not in clean):
+        identifiers = clean['identifiers']
+        if not identifiers:
             raise ValueError('invalid_request')
-        if 'cik' in clean:
-            number = identity.cik(clean['cik'])
+        if 'cik' in identifiers:
+            number = identity.cik(identifiers['cik'])
             raw = fetch('submissions', number)
-            return envelope([identity.submission_record(raw['data'], number, raw['observed_at'])])
+            return envelope(identity.claims([identity.submission_record(raw['data'], number, raw['observed_at'])]))
+        ticker, mic = identifiers['ticker_mic'].split('@')
         raw = fetch('directory')
-        matches = identity.directory_matches(raw['data'], raw['observed_at'], clean['ticker'], clean.get('mic'))
+        matches = identity.directory_matches(raw['data'], raw['observed_at'], ticker, mic)
         issues = [{'code': 'ambiguous', 'severity': 'warning',
                    'message': 'Several SEC filers list this ticker; none is selected.'}] if len(matches) > 1 else []
-        return envelope(matches, issues)
+        return envelope(identity.claims(matches) if matches else None, issues)
 
 
 def register(ctx):
@@ -135,3 +137,7 @@ def register(ctx):
     for operation, schema in reader.definitions.items():
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-sec', schema=schema, handler=handler(operation),
                           check_fn=available)
+    # The page's filings section reads this exact tool over HTTP (read-only).
+    importlib.import_module(wire.__package__ + '.specialist').register_read_command(
+        ctx, 'sec-filings', TOOLS['filings'], 'Read recent SEC filings by CIK reference',
+        cache_seconds=300, schema=reader.definitions['filings'], plugin='pythia-sec')

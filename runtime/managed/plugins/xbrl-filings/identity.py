@@ -60,6 +60,9 @@ def entity(raw, observed_at, expected):
         raise ValueError('invalid_response')
     if not re.fullmatch(r'[0-9]{1,16}', str(item.get('id', ''))):
         raise ValueError('invalid_response')
-    return {'native_ref': reference(identifier), 'native_level': 'issuer', 'echoed': {'lei': identifier},
-            'name': name, 'record_id': str(item['id']), 'observed_at': observed_at,
-            'source_url': entity_url(identifier)}
+    # A resolve answer in core's ClaimBatch wire form (ADR 0038).
+    provenance = {'plugin': 'pythia-xbrl-filings', 'source': PROVIDER, 'adapter_version': '1',
+                  'retrieved_at': observed_at, 'source_record': entity_url(identifier)}
+    return {'plugin': 'pythia-xbrl-filings', 'provider': PROVIDER, 'adapter_version': '1', 'origin': 'resolve',
+            'claims': [{'level': 'issuer', 'identifiers': [{'scheme': 'lei', 'value': identifier}],
+                        'native_ref': reference(identifier), 'attributes': {'name': name}, 'provenance': provenance}]}

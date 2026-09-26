@@ -13,6 +13,7 @@ only contributes catalogue rows and content.
 | --- | --- | --- |
 | `pythia_coingecko_catalogue` | Active coins with IDs, symbols, names and platform contracts | Optional |
 | `pythia_coingecko_details` | Exact `/coins/{id}` metadata and network-scoped contract evidence | Optional |
+| `pythia_coingecko_resolve` | Exact `/coins/{id}` as a `ClaimBatch` in core's wire form (ADR 0038): name, symbol and the coin reference | Optional |
 | `pythia_coingecko_series`, `_latest`, `_history`, `_read_batch` | Standard market-data series over `/simple/price`, `/coins/{id}/market_chart` and `/ohlc` | Optional |
 | `pythia_coingecko_dashboard` | Up to three coins as quotes or rolling charts for widgets | Required |
 

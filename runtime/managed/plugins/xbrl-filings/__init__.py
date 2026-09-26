@@ -70,14 +70,13 @@ class Reader:
                 return raw
 
             if operation == 'resolve':
-                identifier = identity.lei(clean['lei'])
+                identifier = identity.lei(clean['identifiers']['lei'])
 
                 def validate_entity(raw, stamp):
                     identity.entity(raw, stamp, identifier)
                     return raw
                 raw = fetch(identity.entity_url(identifier), 'entity', validate_entity, age=86400)
-                return envelope({'status': 'resolved', 'request': {'scheme': 'lei', 'value': identifier},
-                                 **identity.entity(raw['data'], raw['observed_at'], identifier)})
+                return envelope(identity.entity(raw['data'], raw['observed_at'], identifier))
             identifier = identity.from_reference(clean['native_ref'])
             limit = clean.get('limit', 20)
             if operation == 'filings':
@@ -119,8 +118,7 @@ class Reader:
                 'The repository response could not be interpreted safely. Retry the read.')}])
         except (RuntimeError, OSError) as error:
             if operation == 'resolve' and getattr(error, 'raw', {}).get('error') == 'missing_observation':
-                return envelope({'status': 'not_found', 'request': {'scheme': 'lei', 'value': clean['lei']}},
-                                outcome='empty')
+                return envelope(None, outcome='empty')
             failure = self.connector.detail(error)
             return self.connector.qualify_failure(envelope(None, [{'code': failure['code'],
                 'severity': 'error', 'message': failure['message']}]), getattr(error, 'raw', {}))
@@ -143,3 +141,7 @@ def register(ctx):
                     'message': 'Native access changed during the XBRL repository read.'}]))
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-xbrl-filings', schema=schema, handler=handler)
+    # The page's filings section reads this exact tool over HTTP (read-only).
+    importlib.import_module(wire.__package__ + '.specialist').register_read_command(
+        ctx, 'xbrl-filings-filings', TOOLS['filings'], 'Read indexed XBRL report metadata by LEI reference',
+        cache_seconds=3600, schema=reader.definitions['filings'], plugin='pythia-xbrl-filings')

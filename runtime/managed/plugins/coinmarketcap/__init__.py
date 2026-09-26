@@ -15,7 +15,7 @@ from pathlib import Path
 from . import config
 from .catalogue import RANK_DEPTH, market_caps, page as catalogue_page
 from .definition import TOOLS, TOOLSET, schemas
-from .identity import candidate, reference
+from .identity import candidate, claims, coin_id, reference
 from .profile import profile as coin_profile
 from .series import (INTERVALS, MODES, coins, currency_quote, definition, envelope, issue, now, read_result,
                      samples, selector, timestamp)
@@ -113,14 +113,16 @@ def register(ctx):
                 else:
                     caps = market_caps(listing['data'], currency)
                 return envelope(catalogue_page(raw['data'], offset, limit, caps, retrieved(raw), currency), warnings)
-            if operation in ('profile', 'details'):
-                identifier = reference(clean['native_ref'])
+            if operation in ('resolve', 'profile', 'details'):
+                identifier = coin_id(clean['native_id']) if operation == 'resolve' else reference(clean['native_ref'])
                 raw = checked(call('info', {'id': identifier}))
                 row = coins(raw['data'], [identifier]).get(identifier)
                 if row is None:
                     return envelope(None)
                 if operation == 'profile':
                     return envelope(coin_profile(row, retrieved(raw)))
+                if operation == 'resolve':
+                    return {'schema_version': 1, 'outcome': 'ok', 'data': claims(row, retrieved(raw)), 'issues': []}
                 item = candidate(row)
                 if item['provider_ref'] != clean['native_ref']:
                     raise ValueError('invalid_response')

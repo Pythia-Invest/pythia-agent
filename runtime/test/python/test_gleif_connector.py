@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 from native_plugin_fixtures import Context
 from test_market_data_identity import PACKAGE, wire, isin
+from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/gleif'
 spec = importlib.util.spec_from_file_location('gleif_fixture', ROOT / '__init__.py', submodule_search_locations=[str(ROOT)])
@@ -97,7 +98,7 @@ def register_with_market_data(test, module, ctx, transport, scopes):
         'pythia-market-data': SimpleNamespace(enabled=True, module=sys.modules[PACKAGE])})
     selection = importlib.import_module(PACKAGE + '.selection')
     connector_module = importlib.import_module(PACKAGE + '.connector')
-    for patcher in (patch.dict(sys.modules, {'hermes_cli.plugins': manager}),
+    for patcher in (patch.dict(sys.modules, {'hermes_cli.plugins': manager, 'tools.registry': ctx.registry_module}),
                     patch.object(connector_module, 'Transport', return_value=transport),
                     patch.object(selection, 'native_access_scope', side_effect=lambda: next(scopes))):
         patcher.start()
@@ -118,57 +119,58 @@ class GleifSemantics(unittest.TestCase):
             self.assertEqual(set(declared), {'pythia_http_operation'}, name)
             self.assertEqual((declared['pythia_http_operation']['plugin'], declared['pythia_http_operation']['read_only']),
                              ('pythia-gleif', True))
-        self.assertEqual(json.loads(ctx.tools['pythia_gleif_resolve']({'lei': FIRST}))['data']['status'], 'resolved')
+        profile = json.loads(ctx.registrations['pythia_gleif_profile']['schema']['parameters']['$comment'])
+        self.assertEqual(profile['pythia_http_operation']['operation'], 'gleif-profile')
+        batch = checked_batch('gleif', ctx.tools['pythia_gleif_resolve']({'identifiers': {'lei': FIRST}}))
+        self.assertEqual(batch.claims[0].native_ref.native_id, FIRST)
         # A result completed under a different native access scope is not published.
-        changed = json.loads(ctx.tools['pythia_gleif_resolve']({'lei': FIRST}))
+        changed = json.loads(ctx.tools['pythia_gleif_resolve']({'identifiers': {'lei': FIRST}}))
         self.assertEqual((changed['data'], changed['issues'][0]['code']), (None, 'unavailable'))
 
     def test_isin_resolves_to_one_issuer_with_echoed_identifiers(self):
         identifier = isin(8)
         transport = Transport({isin_url(identifier): payload([record(authority='RA000665')])})
-        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'isin': identifier})
+        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'identifiers': {'isin': identifier}})
         self.assertEqual(result['outcome'], 'ok', result)
-        data = result['data']
-        self.assertEqual(data['status'], 'resolved')
-        self.assertEqual(data['native_ref'], records.reference(FIRST))
-        self.assertEqual(data['native_level'], 'issuer')
-        self.assertEqual(data['echoed'], {'lei': FIRST, 'isin': identifier, 'cik': '0000123456'})
-        self.assertEqual(data['source_url'], isin_url(identifier))
-        self.assertEqual(data['request'], {'scheme': 'isin', 'value': identifier})
+        # A security claim: the ISIN with its mapped issuer's identifiers; no issuer ref at security level.
+        claim, = checked_batch('gleif', result).claims
+        self.assertEqual((claim.level, claim.native_ref, claim.provenance.source_record), ('security', None, isin_url(identifier)))
+        self.assertEqual([(item.scheme, item.value) for item in claim.identifiers],
+                         [('isin', identifier), ('lei', FIRST), ('cik', '0000123456')])
 
     def test_isin_resolve_does_not_require_profile_only_fields(self):
         identifier, row = isin(8), record()
         row['attributes']['registration']['lastUpdateDate'] = '2025-02-29'
         transport = Transport({isin_url(identifier): payload([row])})
-        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'isin': identifier})
-        self.assertEqual((result['outcome'], result['data']['status']), ('ok', 'resolved'), result)
+        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'identifiers': {'isin': identifier}})
+        self.assertEqual((result['outcome'], len(result['data']['claims'])), ('ok', 1), result)
 
     def test_several_issuers_for_one_isin_are_ambiguous_never_picked(self):
         identifier = isin(8)
         transport = Transport({isin_url(identifier): payload([record(), record(SECOND)])})
-        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'isin': identifier})
-        self.assertEqual(result['data']['status'], 'ambiguous')
-        self.assertNotIn('native_ref', result['data'])
-        self.assertEqual([item['native_ref']['native_id'] for item in result['data']['candidates']], [FIRST, SECOND])
-        self.assertEqual({item['echoed']['isin'] for item in result['data']['candidates']}, {identifier})
+        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'identifiers': {'isin': identifier}})
+        claims = checked_batch('gleif', result).claims
+        self.assertEqual([[item.value for item in claim.identifiers] for claim in claims],
+                         [[identifier, FIRST], [identifier, SECOND]])
 
     def test_unmapped_isin_and_unknown_lei_are_not_found_not_failures(self):
         identifier = isin(9)
         transport = Transport({isin_url(identifier): payload([]),
                                records.endpoint(SECOND): connector.SourceFailure({'error': 'missing_observation'})})
         reader = plugin.Reader(wire, connector, transport=transport)
-        for arguments in ({'isin': identifier}, {'lei': SECOND}):
+        for arguments in ({'identifiers': {'isin': identifier}}, {'identifiers': {'lei': SECOND}}):
             result = reader.invoke('resolve', arguments)
-            self.assertEqual((result['outcome'], result['data']['status']), ('empty', 'not_found'), result)
+            self.assertEqual((result['outcome'], result['data']), ('empty', None), result)
             self.assertEqual(result['issues'], [])
 
     def test_lei_resolve_verifies_the_returned_record(self):
         transport = Transport({records.endpoint(FIRST): {'data': record()}})
-        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'lei': FIRST})
-        self.assertEqual(result['data']['status'], 'resolved')
-        self.assertEqual(result['data']['echoed'], {'lei': FIRST})
+        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'identifiers': {'lei': FIRST}})
+        claim, = checked_batch('gleif', result).claims
+        self.assertEqual((claim.level, [(item.scheme, item.value) for item in claim.identifiers]), ('issuer', [('lei', FIRST)]))
+        self.assertEqual((claim.attributes.name, claim.attributes.status), ('Example Holdings', 'active'))
         transport.responses[records.endpoint(FIRST)] = {'data': record(SECOND)}
-        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'lei': FIRST, 'refresh': True})
+        result = plugin.Reader(wire, connector, transport=transport).invoke('resolve', {'identifiers': {'lei': FIRST}, 'refresh': True})
         self.assertEqual(result['issues'][0]['code'], 'invalid_response')
 
     def test_identifiers_validate_checksums_and_do_not_accept_arbitrary_refs(self):
@@ -222,6 +224,20 @@ class GleifSemantics(unittest.TestCase):
         row['attributes']['entity']['otherNames'] = [{'type': 'PREVIOUS_LEGAL_NAME'}]
         with self.assertRaisesRegex(ValueError, 'invalid_response'):
             profiles.profile(row, STAMP)
+
+    def test_profile_carries_the_page_profile_fields_and_accounting_parent(self):
+        url, parent_url = records.endpoint(FIRST), records.endpoint(FIRST, 'direct-parent-relationship')
+        row = record(authority='RA000665')
+        row['relationships']['direct-parent'] = {'links': {'relationship-record': parent_url}}
+        reader = plugin.Reader(wire, connector, transport=Transport({url: {'data': row}, parent_url: parent()}))
+        data = reader.invoke('profile', {'native_ref': records.reference(FIRST)})['data']
+        page = {key: data[key] for key in ('name', 'legal_name', 'identifiers', 'jurisdiction', 'legal_address',
+                                           'headquarters', 'status', 'category', 'parent', 'source')}
+        self.assertEqual(page, {'name': 'Example Holdings', 'legal_name': 'Example Holdings',
+            'identifiers': {'lei': FIRST, 'cik': '0000123456'}, 'jurisdiction': 'ZZ',
+            'legal_address': '1 Example Lane, Example City, ZZ', 'headquarters': None, 'status': 'ACTIVE',
+            'category': None, 'parent': {'name': None, 'lei': SECOND},
+            'source': {'label': 'GLEIF', 'url': 'https://search.gleif.org/#/record/' + FIRST}})
 
     def test_declared_successor_is_a_distinct_entity(self):
         row = record()
@@ -296,12 +312,12 @@ class GleifSemantics(unittest.TestCase):
         transport = Transport({url: {'data': record()}})
         reader = plugin.Reader(wire, connector, transport=transport)
         for _ in range(2):
-            self.assertEqual(reader.invoke('resolve', {'lei': FIRST}, cache_scope='a')['outcome'], 'ok')
+            self.assertEqual(reader.invoke('resolve', {'identifiers': {'lei': FIRST}}, cache_scope='a')['outcome'], 'ok')
         self.assertEqual(len(transport.calls), 1)
         self.assertEqual(reader.invoke('profile', {'native_ref': records.reference(FIRST)}, cache_scope='a')['outcome'], 'ok')
         self.assertEqual(len(transport.calls), 1)
-        reader.invoke('resolve', {'lei': FIRST, 'refresh': True}, cache_scope='a')
-        reader.invoke('resolve', {'lei': FIRST}, cache_scope='b')
+        reader.invoke('resolve', {'identifiers': {'lei': FIRST}, 'refresh': True}, cache_scope='a')
+        reader.invoke('resolve', {'identifiers': {'lei': FIRST}}, cache_scope='b')
         self.assertEqual(len(transport.calls), 3)
 
     def test_parent_failure_preserves_profile_and_retry_qualification(self):
@@ -320,9 +336,10 @@ class GleifSemantics(unittest.TestCase):
     def test_invalid_arguments_never_reach_provider(self):
         transport = Transport({})
         reader = plugin.Reader(wire, connector, transport=transport)
-        for arguments in ({}, {'lei': 'bad'}, {'lei': FIRST, 'isin': isin(8)},
-                          {'lei': FIRST[:-1] + str((int(FIRST[-1]) + 1) % 10)},
-                          {'isin': isin(8)[:-1] + str((int(isin(8)[-1]) + 1) % 10)}, {'query': 'Example'}):
+        for identifiers in ({}, {'lei': 'bad'}, {'lei': FIRST, 'isin': isin(8)},
+                            {'lei': FIRST[:-1] + str((int(FIRST[-1]) + 1) % 10)},
+                            {'isin': isin(8)[:-1] + str((int(isin(8)[-1]) + 1) % 10)}, {'query': 'Example'}):
+            arguments = {'identifiers': identifiers}
             result = reader.invoke('resolve', arguments)
             self.assertEqual(result['issues'][0]['code'], 'invalid_request', arguments)
         result = reader.invoke('profile', {'native_ref': {**records.reference(FIRST), 'provider': 'other'}})
@@ -342,7 +359,7 @@ class GleifSemantics(unittest.TestCase):
         malformed = record()
         malformed['attributes']['entity']['legalAddress']['addressLines'] = 7
         transport.responses[url] = {'data': malformed}
-        self.assertEqual(reader.invoke('resolve', {'lei': FIRST, 'refresh': True})['issues'][0]['code'], 'invalid_response')
+        self.assertEqual(reader.invoke('resolve', {'identifiers': {'lei': FIRST}, 'refresh': True})['issues'][0]['code'], 'invalid_response')
 
     def test_parent_retry_recovers_without_refetching_successful_legal_record(self):
         url = records.endpoint(FIRST)

@@ -18,6 +18,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 
 from test_market_data_identity import wire
+from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/sec'
 spec = importlib.util.spec_from_file_location('sec_fixture', ROOT / '__init__.py', submodule_search_locations=[str(ROOT)])
@@ -94,23 +95,23 @@ class SecIdentity(unittest.TestCase):
 
     def test_resolve_by_ticker_is_exact_filters_by_operating_mic_and_keeps_ambiguity(self):
         instance, transport = reader({'directory': DIRECTORY})
-        both = instance.invoke('resolve', {'ticker': 'exa'})
-        self.assertEqual(both['outcome'], 'ok')
-        self.assertEqual([row['native_ref']['native_id'] for row in both['data']], [CIK, '0000345678'])
-        self.assertEqual(both['issues'][0]['code'], 'ambiguous')
-        nasdaq = instance.invoke('resolve', {'ticker': 'EXA', 'mic': 'XNAS'})
-        self.assertEqual(len(nasdaq['data']), 1)
-        self.assertEqual([line['ticker']['symbol'] for line in nasdaq['data'][0]['listings']], ['EXA', 'EXA-B'])
-        self.assertEqual(instance.invoke('resolve', {'ticker': 'EX'})['outcome'], 'empty')
+        both = identity.directory_matches(DIRECTORY, STAMP, 'exa')
+        self.assertEqual([row['native_ref']['native_id'] for row in both], [CIK, '0000345678'])
+        nasdaq = instance.invoke('resolve', {'identifiers': {'ticker_mic': 'EXA@XNAS'}})
+        claim, = checked_batch('sec', nasdaq).claims
+        self.assertEqual((claim.native_ref.native_id, claim.attributes.name), (CIK, 'Example Holdings'))
+        self.assertEqual(instance.invoke('resolve', {'identifiers': {'ticker_mic': 'EX@XNAS'}})['outcome'], 'empty')
         self.assertEqual(len(transport.calls), 1)  # The retained ticker file serves later resolves.
-        for arguments in ({}, {'cik': CIK, 'ticker': 'EXA'}, {'mic': 'XNAS'}, {'cik': '0'}):
+        for arguments in ({}, {'identifiers': {}}, {'identifiers': {'ticker_mic': 'EXA'}}, {'identifiers': {'cik': '0'}}):
             with self.subTest(arguments=arguments):
                 self.assertEqual(instance.invoke('resolve', arguments)['issues'][0]['code'], 'invalid_request')
 
     def test_resolve_by_cik_echoes_names_listings_and_foreign_incorporation(self):
         instance, transport = reader({'submissions': SUBMISSIONS})
-        record = instance.invoke('resolve', {'cik': '123456'})['data'][0]
+        claim, = checked_batch('sec', instance.invoke('resolve', {'identifiers': {'cik': '123456'}})).claims
+        self.assertEqual((claim.level, [item.value for item in claim.identifiers]), ('issuer', [CIK]))
         self.assertEqual(transport.calls[0]['cik'], CIK)
+        record = identity.submission_record(SUBMISSIONS, CIK, STAMP)
         self.assertEqual(record['former_names'], [{'name': 'Example Lithography Holding N.V.', 'from': '1995-03-01', 'to': '2012-07-11'}])
         self.assertEqual(record['listings'][0], {'ticker': {'symbol': 'EXA'}, 'venue': {'provider_code': 'Nasdaq', 'operating_mic': 'XNAS'}})
         self.assertEqual(record['incorporation'], {'edgar_code': 'P7', 'description': 'Netherlands'})
@@ -158,6 +159,7 @@ class SecFinancials(unittest.TestCase):
         self.assertFalse(result['coverage']['complete'])
         self.assertEqual((result['filings'][0]['filed_at'], result['filings'][0]['period_end']), ('2025-08-01', '2025-06-30'))
         self.assertEqual(result['filings'][0]['title'], 'Foreign issuer report')
+        self.assertEqual(result['source'], {'label': 'SEC EDGAR', 'url': 'https://www.sec.gov/edgar/browse/?CIK=' + CIK})
         for unsafe in ('../outside.htm', '/outside.htm', 'https://example.invalid/doc'):
             with self.subTest(unsafe=unsafe), self.assertRaises(ValueError):
                 financials.filing_url(CIK, '0000123456-25-000001', unsafe)
@@ -176,13 +178,18 @@ class SecConfiguration(unittest.TestCase):
 
     def test_reads_stay_visible_and_report_configuration_when_called(self):
         tools = {}
-        ctx = SimpleNamespace(register_tool=lambda **tool: tools.update({tool['name']: tool}))
+        ctx = SimpleNamespace(plugin_id='pythia-sec', register_tool=lambda **tool: tools.update({tool['name']: tool}),
+                              register_cli_command=lambda *_args: None)
+        registry = SimpleNamespace(registry=SimpleNamespace(get_entry=lambda name: SimpleNamespace(**tools[name])))
+        self.enterContext(patch.dict(sys.modules, {'tools.registry': registry}))
         selection = SimpleNamespace(native_access_scope=lambda: {'cacheable': True, 'scope': 'fixture'})
         platform = SimpleNamespace(platform=lambda: SimpleNamespace(configuration=settings('missing')))
         self.enterContext(patch.object(plugin, 'helpers', return_value=(wire, connector, selection, platform)))
         plugin.register(ctx)
         self.assertTrue(all(tool['check_fn']() for tool in tools.values()))
-        result = json.loads(tools['pythia_sec_resolve']['handler']({'cik': CIK}))
+        comment = json.loads(tools['pythia_sec_filings']['schema']['parameters']['$comment'])
+        self.assertEqual(comment['pythia_http_operation']['operation'], 'sec-filings')
+        result = json.loads(tools['pythia_sec_resolve']['handler']({'identifiers': {'cik': CIK}}))
         self.assertEqual(result['issues'][0]['code'], 'needs_configuration')
 
 

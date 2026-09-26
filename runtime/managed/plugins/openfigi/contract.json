@@ -1,0 +1,20 @@
+{
+  "plugin": "pythia-openfigi",
+  "provider": "openfigi",
+  "addressing": {
+    "schemes": {
+      "security": [
+        "isin"
+      ]
+    }
+  },
+  "resolve": {
+    "tool": "pythia_openfigi_resolve",
+    "input_schemes": [
+      "isin"
+    ],
+    "echoes": [
+      "isin"
+    ]
+  }
+}

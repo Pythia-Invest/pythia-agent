@@ -27,8 +27,12 @@ result and makes no request. The quote currency defaults to USD:
 | Tool | Endpoint | Caching |
 | --- | --- | --- |
 | `catalogue` | `/v1/cryptocurrency/map` (active coins, ordered by ID) plus one `/v3/cryptocurrency/listings/latest` read of the top 500 by market cap | Map pages are not cached; the listings read is shared for one hour |
-| `profile`, `details` | `/v2/cryptocurrency/info` | Six hours in memory, shared by both |
+| `resolve`, `profile`, `details` | `/v2/cryptocurrency/info` | Six hours in memory, shared by all three |
 | `series`, `latest`, `history`, `read_batch` | `/v3/cryptocurrency/quotes/latest`, `/v3/cryptocurrency/quotes/historical` | Quotes coalesce into native requests of up to 100 IDs (one credit each) and are reused for ten minutes; history for fifteen |
+
+`resolve` answers one exact coin ID with a `ClaimBatch` in core's wire form
+(ADR 0038): name, symbol, coin or token, and the coin reference. `contract.json`
+declares the plugin's addressing, quote and chart content and this `resolve`.
 
 The common reads are marked for the market-data owner (`details`, `series`,
 `latest`, `history`, `read_batch`); `search` is deliberately absent.

@@ -1,0 +1,45 @@
+{
+  "plugin": "pythia-eodhd",
+  "provider": "eodhd",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "catalogue",
+        "level": "listing",
+        "asset_classes": [
+          "equity"
+        ]
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "ticker_mic"
+      ]
+    },
+    "mic_table": {
+      "XAMS": ".AS",
+      "XBRU": ".BR",
+      "XLIS": ".LS",
+      "XMIL": ".MI",
+      "XMSM": ".IR",
+      "XOSL": ".OL",
+      "XPAR": ".PA",
+      "XNAS": ".US",
+      "XNYS": ".US",
+      "XCBO": ".US",
+      "OTCM": ".US"
+    }
+  },
+  "content": {
+    "quote": {
+      "level": "listing",
+      "via": "listing",
+      "tool": "pythia_eodhd_latest"
+    },
+    "chart": {
+      "level": "listing",
+      "via": "listing",
+      "tool": "pythia_eodhd_history"
+    }
+  }
+}

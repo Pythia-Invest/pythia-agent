@@ -1,0 +1,32 @@
+{
+  "plugin": "pythia-coingecko",
+  "provider": "coingecko",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "coin",
+        "level": "security",
+        "asset_classes": [
+          "crypto"
+        ]
+      }
+    ]
+  },
+  "content": {
+    "quote": {
+      "level": "security",
+      "via": "security",
+      "tool": "pythia_coingecko_latest"
+    },
+    "chart": {
+      "level": "security",
+      "via": "security",
+      "tool": "pythia_coingecko_history"
+    }
+  },
+  "resolve": {
+    "tool": "pythia_coingecko_resolve",
+    "input_schemes": [],
+    "echoes": []
+  }
+}

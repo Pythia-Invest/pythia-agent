@@ -7,7 +7,13 @@ identity. It supplies no prices, catalogue or search, and it is not called while
 a user types: resolution is explicit, for example when a page needs a FIGI or an
 offline reference build maps ISINs.
 
-Supported jobs (`idType` + `idValue`, optional filters):
+The tool takes one ISIN (`{"identifiers": {"isin": ...}}`, the `resolve` input
+declared in `contract.json`) and answers with a `ClaimBatch` in core's wire form
+(ADR 0038): one listing claim per OpenFIGI candidate with its FIGI, composite
+FIGI, share-class FIGI, ticker and Bloomberg exchange code (`provider_venue`).
+An unmatched ISIN is outcome `empty`. Internally the connector maps jobs
+(`idType` + `idValue`, optional filters), which the offline reference build
+reuses:
 
 - `ID_ISIN`, alone or with `micCode` or `exchCode` (for example ISIN + XAMS);
 - `TICKER` with a venue, `micCode` or `exchCode` (a bare ticker spans every
