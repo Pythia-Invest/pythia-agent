@@ -20,10 +20,7 @@ reads it through `platform.configuration.value`. Until that core module lands,
 `config.py` holds a transitional one-line shim over the same custody reader.
 
 Without a usable key every tool returns core's standard `needs_configuration`
-result and makes no request.
-The `check_configuration` operation calls `/v1/key/info`, which costs no credits,
-and reports whether the key is accepted plus its monthly credits, per-minute
-limit and credits left. The quote currency defaults to USD:
+result and makes no request. The quote currency defaults to USD:
 `hermes -p <profile> coinmarketcap-config --currency EUR`.
 
 ## Operations
@@ -33,12 +30,9 @@ limit and credits left. The quote currency defaults to USD:
 | `catalogue` | `/v1/cryptocurrency/map` (active coins, ordered by ID) plus one `/v3/cryptocurrency/listings/latest` read of the top 500 by market cap | Map pages are not cached; the listings read is shared for one hour |
 | `profile`, `details` | `/v2/cryptocurrency/info` | Six hours in memory, shared by both |
 | `series`, `latest`, `history`, `read_batch` | `/v3/cryptocurrency/quotes/latest`, `/v3/cryptocurrency/quotes/historical` | Quotes coalesce into native requests of up to ten IDs and are reused for ten minutes; history for fifteen |
-| `check_configuration` | `/v1/key/info` | Not cached |
 
-`profile` and `check_configuration` are read-only HTTP operations
-(`/v1/pythia/plugins/pythia-coinmarketcap/<operation>`). The common reads are
-marked for the market-data owner (`details`, `series`, `latest`, `history`,
-`read_batch`); `search` is deliberately absent.
+The common reads are marked for the market-data owner (`details`, `series`,
+`latest`, `history`, `read_batch`); `search` is deliberately absent.
 
 ## Catalogue rows
 

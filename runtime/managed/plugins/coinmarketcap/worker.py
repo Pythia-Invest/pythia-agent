@@ -28,8 +28,6 @@ ENDPOINTS = {
     'info': ('/v2/cryptocurrency/info', {'id'}, {}),
     'quotes': ('/v3/cryptocurrency/quotes/latest', {'id', 'convert'}, {'skip_invalid': 'false'}),
     'history': ('/v3/cryptocurrency/quotes/historical', {'id', 'convert', 'time_start', 'time_end', 'interval'}, {}),
-    # Plan and usage of the key itself; CoinMarketCap charges no credits for it.
-    'key_info': ('/v1/key/info', set(), {}),
 }
 PAGE_LIMITS = {'map': 2000, 'listings': 500}
 HTTP_CODES = {400: 'invalid_request', 401: 'authentication_failed', 402: 'access_denied',

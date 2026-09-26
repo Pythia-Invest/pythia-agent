@@ -5,7 +5,7 @@ import json
 from .catalogue import RANK_DEPTH
 
 TOOLSET = 'pythia-coinmarketcap'
-OPERATIONS = ('catalogue', 'profile', 'details', 'series', 'latest', 'history', 'read_batch', 'check_configuration')
+OPERATIONS = ('catalogue', 'profile', 'details', 'series', 'latest', 'history', 'read_batch')
 TOOLS = {operation: 'pythia_coinmarketcap_' + operation for operation in OPERATIONS}
 # Common market-data reads; the market-data owner discovers these by marker.
 COMMON = ('details', 'series', 'latest', 'history', 'read_batch')
@@ -29,7 +29,6 @@ def schemas(wire):
         'latest': ({'request': wire.parameter_schema('read_request'), 'source_selector': text(4096)}, ['request', 'source_selector']),
         'history': ({'request': wire.parameter_schema('read_request'), 'source_selector': text(4096)}, ['request', 'source_selector']),
         'read_batch': ({'reads': {'type': 'array', 'minItems': 1, 'maxItems': 32, 'items': wire.parameter_schema('source_read')}}, ['reads']),
-        'check_configuration': ({}, []),
     }
     contribution = wire.validate('contribution', {
         'schema_version': 1, 'provider': 'coinmarketcap', 'adapter_version': '1', 'subject_kinds': ['crypto'],
@@ -48,7 +47,6 @@ def schemas(wire):
         'history': ('Read pinned CoinMarketCap aggregate price samples, not OHLC bars. Use aware start/end instants: at most '
                     'seven days intraday or ninety days daily; the account plan may allow less.'),
         'read_batch': 'Read several pinned CoinMarketCap series together. Compatible quotes share one native request.',
-        'check_configuration': 'Check that the saved CoinMarketCap API key is accepted and report its plan limits. Uses no credits.',
     }
     result = {}
     for operation, (fields, required) in properties.items():

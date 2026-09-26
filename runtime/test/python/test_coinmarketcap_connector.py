@@ -42,7 +42,6 @@ INFO = {'id': 7, 'name': 'Synthetic Token', 'symbol': 'SYN', 'slug': 'synthetic-
         'urls': {'website': ['https://example.invalid'], 'twitter': [], 'explorer': ['https://explorer.example.invalid/0xabc']},
         'tag-names': ['Example tag'], 'date_added': '2020-01-01T00:00:00.000Z', 'date_launched': None,
         'contract_address': [{'contract_address': '0xabc', 'platform': {'name': 'Example Chain', 'coin': {'id': '1027', 'name': 'Example', 'symbol': 'EXC', 'slug': 'example-chain'}}}]}
-KEY_INFO = {'plan': {'credit_limit_monthly': 15000, 'rate_limit_minute': 50}, 'usage': {'current_month': {'credits_used': 12, 'credits_left': 14988}}}
 
 
 def quote_rows(ids):
@@ -54,7 +53,7 @@ def quote_rows(ids):
 def responses(operation, arguments):
     status = {'timestamp': '2026-01-02T00:00:05.000Z', 'credit_count': 1}
     data = {'map': lambda: MAP[:arguments.get('limit', 0)], 'listings': lambda: LISTINGS, 'info': lambda: {'7': INFO},
-            'quotes': lambda: quote_rows(arguments['id']), 'key_info': lambda: KEY_INFO}[operation]()
+            'quotes': lambda: quote_rows(arguments['id'])}[operation]()
     return {'data': data, 'error': None, 'source_status': status}
 
 
@@ -182,9 +181,7 @@ class CoinMarketCap(unittest.TestCase):
         with registered() as (ctx, calls):
             profile = call(ctx, 'profile', {'native_ref': native})['data']
             details = call(ctx, 'details', {'native_ref': native})['data'][0]
-            declared = comment(ctx, 'profile')['pythia_http_operation']
         self.assertEqual(calls, [('info', {'id': '7'})])  # details reuses the cached info read
-        self.assertTrue(declared['read_only'])
         self.assertEqual(profile['links'], {'website': ['https://example.invalid'], 'explorer': ['https://explorer.example.invalid/0xabc']})
         self.assertEqual(profile['source']['retrieved_at'], '2026-01-02T00:00:05.000Z')
         self.assertEqual(profile['deployments'][0]['network']['namespace'], 'coinmarketcap:coin')

@@ -23,8 +23,7 @@ from .series import (INTERVALS, MODES, coins, currency_quote, definition, envelo
 WORKER = Path(__file__).with_name('worker.py')
 # Local request budget per account connection; the free Basic plan allows 50.
 PER_MINUTE = 30
-CACHE = {'map': 0, 'listings': 3600, 'info': 21600, 'history': 900, 'key_info': 0}
-HTTP_OPERATIONS = {'profile': 3600, 'check_configuration': 0}
+CACHE = {'map': 0, 'listings': 3600, 'info': 21600, 'history': 900}
 
 
 def dependencies(ctx):
@@ -35,19 +34,6 @@ def dependencies(ctx):
         raise RuntimeError('unavailable')
     package = loaded[0].module.__name__
     return [importlib.import_module(package + '.' + name) for name in ('wire', 'process', 'credentials', 'connector', '_platform')]
-
-
-def plan_message(data):
-    plan = data.get('plan') if isinstance(data, dict) else None
-    usage = data.get('usage') if isinstance(data, dict) else None
-    month = usage.get('current_month') if isinstance(usage, dict) else None
-    values = [plan.get('credit_limit_monthly') if isinstance(plan, dict) else None,
-              plan.get('rate_limit_minute') if isinstance(plan, dict) else None,
-              month.get('credits_left') if isinstance(month, dict) else None]
-    if not all(type(value) is int and value >= 0 for value in values):
-        return 'CoinMarketCap accepted the API key.'
-    return ('CoinMarketCap accepted the API key: {:,} credits a month, {} requests a minute; '
-            '{:,} credits left this month.').format(*values)
 
 
 def register(ctx):
@@ -79,8 +65,6 @@ def register(ctx):
             token, needed = config.api_key(ctx, platform, credentials)
             if needed:
                 # Visible needs-configuration result; no provider request is made.
-                if operation == 'check_configuration':
-                    return envelope({'status': 'invalid', 'message': needed['issues'][0]['message']})
                 if request:
                     return read_result(request, issues=[{k: item[k] for k in ('code', 'severity', 'message')}
                                                         for item in needed['issues']])
@@ -118,11 +102,6 @@ def register(ctx):
                 stamp = (raw.get('source_status') or {}).get('timestamp')
                 return stamp if timestamp(stamp) is not None else now()
 
-            if operation == 'check_configuration':
-                raw = call('key_info', {})
-                if raw.get('error') in ('authentication_failed', 'access_denied'):
-                    return envelope({'status': 'invalid', 'message': 'CoinMarketCap rejected the saved API key.'})
-                return envelope({'status': 'valid', 'message': plan_message(checked(raw)['data'])})
             if operation == 'catalogue':
                 offset, limit = int(clean.get('cursor', '0')), clean.get('limit', 1000)
                 raw = checked(call('map', {'start': offset + 1, 'limit': limit}))
@@ -221,10 +200,6 @@ def register(ctx):
         return read_result(request, issues=[issue(code)]) if request else envelope(None, [issue(code)])
 
     for operation, schema in definitions.items():
-        if operation in HTTP_OPERATIONS:
-            # Deliberate read-only exports for Desk pages and Settings.
-            platform.declare_operation(schema, plugin=ctx.plugin_id, operation=operation,
-                                       cache_seconds=HTTP_OPERATIONS[operation], read_only=True)
         def handler(arguments, _operation=operation, **context):
             return json.dumps(invoke(_operation, arguments, context.get('cancelled')), allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset=TOOLSET, schema=schema, handler=handler, check_fn=ready)
