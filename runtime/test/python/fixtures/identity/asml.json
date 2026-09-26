@@ -258,12 +258,13 @@
       "plugin": "eodhd",
       "subject_id": "listing:isin:NL0010273215:XAMS:EUR",
       "status": "confirmed",
-      "authority": "source_asserted",
+      "authority": "rule_confirmed",
+      "rule_id": "isin_mic@1",
       "evidence_refs": [
         ["security:isin:NL0010273215", "isin"],
         ["listing:isin:NL0010273215:XAMS:EUR", "ticker_mic"]
       ],
-      "note": "Join rule isin_mic: the catalogue row's ISIN and the AS -> XAMS crosswalk agree with the reference listing."
+      "note": "Join rule isin_mic@1: the catalogue row's ISIN (role unqualified) and the manifest's AS -> XAMS crosswalk agree with the open reference listing. A crosswalk derivation is rule_confirmed (T1), not source_asserted."
     },
     {
       "provider_ref": {
@@ -288,12 +289,13 @@
       "plugin": "eodhd",
       "subject_id": "composite:isin:USN070592100:US",
       "status": "confirmed",
-      "authority": "source_asserted",
+      "authority": "rule_confirmed",
+      "rule_id": "isin_mic@1",
       "evidence_refs": [
         ["security:isin:USN070592100", "isin"],
         ["composite:isin:USN070592100:US", "composite_figi"]
       ],
-      "note": "EODHD's .US suffix is the US composite, not a venue, so the binding is at composite level."
+      "note": "EODHD's .US suffix is the US composite, not a venue, so the binding is at composite level; rule isin_mic@1 places it through the open composite FIGI."
     }
   ]
 }
