@@ -3,7 +3,6 @@ import importlib
 import json
 import os
 from pathlib import Path
-from .trending import read as trending
 from .definition import TOOLS, TOOLSET, schemas
 from .identity import candidate, reference
 from .series import definition, selector, MODES
@@ -23,7 +22,6 @@ def register(ctx):
     budgets = failures = connector
     reads = connector.WorkerReads(process)
     quote_batches = connector.NativeBatch(size=20, age=60)
-    trending_cache = importlib.import_module(loaded.module.__name__ + '.cache').ReadCache(ttl_seconds=600)
     definitions = schemas(wire)
 
     def paths():
@@ -152,29 +150,3 @@ def register(ctx):
         ctx.register_tool(name=TOOLS[operation], toolset=TOOLSET, schema=schema, handler=handler, check_fn=ready)
     specialist.register_read_command(ctx, 'yahoo-finance', TOOLS['research'], 'Read public Yahoo Finance research', schema=definitions['research'], plugin='pythia-yahoo-discovery')
     specialist.register_read_command(ctx, 'yahoo-dashboard', TOOLS['dashboard'], 'Read Yahoo quotes or intraday charts', cache_seconds=60, schema=definitions['dashboard'], plugin='pythia-yahoo-discovery')
-    name = 'pythia_yahoo_trending'
-    schema = {'name': name, 'description': 'Read five US-region trending Yahoo Finance symbols from an undocumented public endpoint. Provider-defined popularity, not most traded stocks or investment recommendations. No prices or canonical identity matching; availability may change.',
-              'parameters': {'type': 'object', 'properties': {}, 'additionalProperties': False}}
-
-    def handler(arguments, **context):
-        try:
-            wire.validate_parameters(schema['parameters'], arguments)
-            def fetch():
-                cached = trending_cache.get('trending')
-                if cached is not None: return cached
-                budget = budgets.connection('yahoo', per_minute=ctx.get_config('requests_per_minute', 60))
-                with budget.slot(context.get('cancelled') or (lambda: False)):
-                    data = trending()
-                trending_cache.put('trending', data)
-                return data
-            data = trending_cache.coalesce('trending', fetch)
-            result = {'schema_version': 1, 'outcome': 'ok', 'data': data, 'issues': []}
-        except Exception as error:
-            failure = connector.detail(error)
-            result = {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [
-                {'code': failure['code'], 'message': failure['message'], 'severity': 'error'}]}
-            connector.qualify_failure(result, getattr(error, 'raw', {}))
-        return json.dumps(result, allow_nan=False)
-
-    ctx.register_tool(name=name, toolset='pythia-yahoo-discovery', schema=schema, handler=handler, check_fn=lambda: True)
-    specialist.register_read_command(ctx, 'yahoo-trending', name, 'Read Yahoo US trending discovery', cache_seconds=600, schema=schema, plugin='pythia-yahoo-discovery')

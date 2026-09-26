@@ -1,5 +1,6 @@
 /** Owned, bounded public Yahoo SDK execution. No browser/account cookies or MCP.
- * There is no free-text search: the only Yahoo lookup is `resolve_isin`. */
+ * There is no free-text search: Yahoo's search endpoint is reached only by
+ * `resolve_isin` (a checksummed ISIN) and `news` (a validated symbol). */
 import YahooFinance from "yahoo-finance2";
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
@@ -20,6 +21,7 @@ export const methods = [
   "recommendationsBySymbol",
   "screener",
   "trendingSymbols",
+  "news",
 ] as const;
 const noop = () => {};
 export function client(): Client {
@@ -77,11 +79,9 @@ export function record(value: unknown): Record<string, unknown> {
     throw Error("invalid_request");
   return value as Record<string, unknown>;
 }
+const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=-]{0,63}$/u;
 export function symbol(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    !/^[A-Za-z0-9^][A-Za-z0-9.^=-]{0,63}$/u.test(value)
-  )
+  if (typeof value !== "string" || !SYMBOL.test(value))
     throw Error("invalid_request");
   return value;
 }
@@ -154,15 +154,64 @@ async function resolveIsin(sdk: Client, code: string) {
     enableCb: false,
     enableNavLinks: false,
   });
+  const seen = new Set<string>();
   return {
     isin: code,
-    quotes: found.quotes.flatMap((q) =>
-      q.isYahooFinance && typeof q.symbol === "string"
+    // Rows with an unusable or repeated symbol are skipped, not fatal.
+    quotes: found.quotes.flatMap((q) => {
+      if (
+        !q.isYahooFinance ||
+        typeof q.symbol !== "string" ||
+        !SYMBOL.test(q.symbol) ||
+        seen.has(q.symbol)
+      )
+        return [];
+      seen.add(q.symbol);
+      return [
+        {
+          symbol: q.symbol,
+          exchange: typeof q.exchange === "string" ? q.exchange : null,
+          quoteType: typeof q.quoteType === "string" ? q.quoteType : null,
+        },
+      ];
+    }),
+  };
+}
+/** News Yahoo tags with this exact symbol. The query is a validated symbol and
+ * untagged items are dropped, so free text cannot turn this into a search. */
+async function symbolNews(
+  sdk: Client,
+  code: string,
+  options: Record<string, unknown>,
+) {
+  const count = options.count ?? 10;
+  if (
+    Object.keys(options).some((key) => key !== "count") ||
+    !Number.isInteger(count) ||
+    Number(count) < 1 ||
+    Number(count) > 20
+  )
+    throw Error("invalid_request");
+  const found = await sdk.search(code, {
+    quotesCount: 0,
+    newsCount: Number(count),
+    enableFuzzyQuery: false,
+    enableCb: false,
+    enableNavLinks: false,
+  });
+  return {
+    symbol: code,
+    news: found.news.flatMap((item) =>
+      item.relatedTickers?.includes(code)
         ? [
             {
-              symbol: symbol(q.symbol),
-              exchange: typeof q.exchange === "string" ? q.exchange : null,
-              quoteType: typeof q.quoteType === "string" ? q.quoteType : null,
+              uuid: item.uuid,
+              title: item.title,
+              publisher: item.publisher,
+              link: item.link,
+              published_at: item.providerPublishTime,
+              type: item.type,
+              related_tickers: item.relatedTickers,
             },
           ]
         : [],
@@ -175,15 +224,7 @@ export async function execute(input: unknown, sdk: Client = client()) {
     const request = record(input),
       args = record(request.arguments);
     const operation = String(request.operation);
-    if (
-      [
-        "dashboard",
-        "metadata",
-        "price_read",
-        "price_batch",
-        "quote_bundle",
-      ].includes(operation)
-    )
+    if (["dashboard", "price_read", "quote_bundle"].includes(operation))
       return { data: await yahooPrices(sdk, operation, args), issues: [] };
     if (operation === "resolve_isin")
       return {
@@ -237,6 +278,9 @@ export async function execute(input: unknown, sdk: Client = client()) {
         break;
       case "insights":
         data = await sdk.insights(symbol(args.symbol), options);
+        break;
+      case "news":
+        data = await symbolNews(sdk, symbol(args.symbol), options);
         break;
     }
     const result = {

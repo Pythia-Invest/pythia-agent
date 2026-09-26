@@ -23,7 +23,7 @@ def candidate(row):
     if qualifiers:
         native['qualifiers'] = qualifiers
     reference(native)
-    provider_type = row.get('type') or row.get('quoteType')
+    provider_type = row.get('type')
     # Scope describes this quoted product, not proof of cross-provider identity.
     types = {'EQUITY': ('listing', 'Equity', 'equity'), 'ETF': ('listing', 'ETF', 'etf'),
              'MUTUALFUND': ('instrument', 'Fund', 'fund'), 'INDEX': ('instrument', 'Index', 'index'),
@@ -33,11 +33,11 @@ def candidate(row):
     kind, product, category = types.get(provider_type, (None, None, None))
     # Yahoo returns no ISIN, FIGI, LEI or CIK, so it asserts no identity evidence
     # (ADR 0012): a saved Yahoo reference stays an unresolved candidate.
-    return {'provider_ref': native, 'name': row.get('name') or row.get('longname') or row.get('shortname') or symbol,
+    return {'provider_ref': native, 'name': row.get('name') or symbol,
             'symbol': symbol, 'kind': kind, 'category': category,
-            'venue': row.get('full_exchange_name') or row.get('fullExchangeName') or row.get('exchDisp') or venue,
-            'metadata': {'product_type': product, 'short_name': row.get('short_name') or row.get('shortname'),
-                         'full_exchange_name': row.get('full_exchange_name') or row.get('fullExchangeName') or row.get('exchDisp'),
+            'venue': row.get('full_exchange_name') or venue,
+            'metadata': {'product_type': product, 'short_name': row.get('short_name'),
+                         'full_exchange_name': row.get('full_exchange_name'),
                          'native_currency': currency},
             'provider_type': provider_type, 'evidence': [], 'identifier_conflict': False}
 

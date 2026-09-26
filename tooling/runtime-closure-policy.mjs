@@ -1,10 +1,5 @@
 import { readdirSync, existsSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import {
-  MANAGED_PLUGINS,
-  managedRunnerFiles,
-} from "../scripts/dev/managed-plugins.mjs";
-import { MANAGED_WIDGET_BUILDS } from "../scripts/dev/managed-widget-builds.mjs";
 
 export const root = resolve(import.meta.dirname, "..");
 export const violations = [];
@@ -26,32 +21,6 @@ export const forbiddenPayloadText = [
   ".agents/",
   "runtime/test/fixtures",
 ];
-
-/**
- * Managed release inputs: copied plugin files and connector runner files, plus
- * each compiled output (widget bundles, `build:runtime` workers) mapped to the
- * public source it is built from.
- */
-export function releaseInputs() {
-  const runner = (path) => `runtime/managed/runner/${path}`;
-  const workers = managedRunnerFiles(MANAGED_PLUGINS);
-  return {
-    files: [
-      ...MANAGED_PLUGINS.flatMap((plugin) =>
-        plugin.files.map((path) => `runtime/managed/${plugin.source}/${path}`),
-      ),
-      ...workers
-        .flatMap((files) => [...files.sources, ...files.compiled])
-        .map(runner),
-    ],
-    builds: new Map([
-      ...MANAGED_WIDGET_BUILDS.map((build) => [build.output, build.entry]),
-      ...workers.flatMap(({ sources, compiled }) =>
-        compiled.map((path, index) => [runner(path), runner(sources[index])]),
-      ),
-    ]),
-  };
-}
 
 export function walk(path) {
   if (!existsSync(path)) return [];

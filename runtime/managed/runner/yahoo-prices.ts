@@ -180,7 +180,9 @@ export async function yahooPrices(
       percent: number(q.regularMarketChangePercent),
     },
   });
-  if (operation === "price_batch" || operation === "quote_bundle") {
+  // Every quote read (metadata, latest, batches, quote dashboards) shares one
+  // coalesced native quote call through quote_bundle.
+  if (operation === "quote_bundle") {
     const list = symbols(args.symbols);
     const quotes = await sdk.quote(list);
     const result: Record<string, unknown> = {};
@@ -190,30 +192,14 @@ export async function yahooPrices(
       result[s] = latest(record(q), s);
     }
     // Missing quotes stay missing; the connector returns a per-item failure.
-    return operation === "quote_bundle"
-      ? {
-          common: result,
-          display: quoteView(quotes.map(record), list, retrieved_at),
-        }
-      : result;
-  }
-  if (operation === "metadata") {
-    const s = symbol(args.symbol);
-    const data = await sdk.quote(s);
-    return { ...metadata(data, s), retrieved_at };
+    return {
+      common: result,
+      display: quoteView(quotes.map(record), list, retrieved_at),
+    };
   }
   if (operation === "dashboard") {
-    const list = symbols(args.symbols);
-    if (args.kind === "quotes") {
-      const data = await sdk.quote(list);
-      if (
-        data.some((q) => !list.includes(q.symbol)) ||
-        new Set(data.map((q) => q.symbol)).size !== data.length
-      )
-        throw Error("binding_mismatch");
-      return quoteView(data.map(record), list, retrieved_at);
-    }
     if (args.kind !== "charts") throw Error("invalid_request");
+    const list = symbols(args.symbols);
     const charts = await Promise.all(
       list.map(async (s) => {
         try {
@@ -327,10 +313,6 @@ export async function yahooPrices(
   if (operation !== "price_read") throw Error("invalid_request");
   const s = symbol(args.symbol),
     mode = String(args.mode);
-  if (mode === "latest") {
-    const q = await sdk.quote(s);
-    return latest(record(q), s);
-  }
   const intervals = {
     daily: "1d",
     adjusted: "1d",
