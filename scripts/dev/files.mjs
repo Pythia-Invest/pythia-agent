@@ -35,6 +35,7 @@ function fsyncDirectory(path) {
 export const MANAGED_CORE_FILES = Object.freeze([
   "__init__.py",
   "plugin.yaml",
+  "configuration.json",
   "desk_view.py",
   "identity_ops.py",
   "operating.py",

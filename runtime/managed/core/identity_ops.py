@@ -26,6 +26,7 @@ PLUGIN = "pythia"  # the core plugin (plugin.yaml)
 NO_REFERENCE = "No reference data on this device yet."
 NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
 MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes
+PREFERENCE = "search_listing_preference"  # declared in configuration.json
 SUBJECT_ID = {"type": "string", "minLength": 4, "maxLength": 320, "pattern": "^(issuer|security|composite|listing):"}
 
 SEARCH_SCHEMA = {
@@ -82,7 +83,7 @@ class Identity:
     # ---- operations ----------------------------------------------------------------------------------------------
 
     def search(self, arguments: dict, **_context: Any) -> str:
-        empty = {"groups": [], "lookup": []}
+        empty = {"rows": [], "lookup": []}
         query = str(arguments.get("query") or "").strip()[:128]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
@@ -90,11 +91,12 @@ class Identity:
             if path is None:
                 return _envelope("empty", empty, issue=NO_REFERENCE)
             directory = search.directory(path, store.open_reference)
-            data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), bindings=self._bindings) if query else empty
+            data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), prefer=self._preference(),
+                                    suffixes=_suffixes, bindings=self._bindings) if query else empty
         except (sqlite3.Error, OSError):  # search degrades, never errors out
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
-        return _envelope("ok" if data["groups"] else "empty", data)
+        return _envelope("ok" if data["rows"] else "empty", data)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -131,6 +133,15 @@ class Identity:
             if section["status"] == "resolving":
                 section.update(status="unresolved", reason=reason or f"{info.label} is not available")
         return _envelope("ok", {"sections": sections})
+
+    def _preference(self) -> str:
+        """The investor's `search_listing_preference` (settings.json); anything else means primary."""
+        from .platform import configuration
+        try:
+            _status, value = configuration.value(self.ctx, PREFERENCE)
+        except (AttributeError, TypeError, ValueError):  # no declaration beside this copy of core
+            return "primary"
+        return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
 
     def _bindings(self, listing_ids: list[str]) -> dict[str, list[dict]]:
         """Confirmed bindings for search rows; optional, so a store problem only drops them."""
@@ -219,6 +230,16 @@ def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
     if issue:
         body["issues"] = [{"code": "unavailable" if data is None else "empty", "message": issue}]
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
+
+
+def _suffixes() -> dict[str, str]:
+    """Provider symbol suffixes (".AS") that name one operating MIC, from the installed plugins' contracts."""
+    venues: dict[str, set[str]] = {}
+    for info in installed():
+        for mic, code in info.manifest.mic_table.items():
+            if code.startswith("."):
+                venues.setdefault(code.upper(), set()).add(mic)
+    return {code: mics.pop() for code, mics in venues.items() if len(mics) == 1}
 
 
 def installed() -> list[page.PluginInfo]:

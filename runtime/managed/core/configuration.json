@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "fields": [
+    {
+      "key": "search_listing_preference",
+      "kind": "identity",
+      "label": "Search listing preference",
+      "description": "Which listing a search result shows when a company trades on several venues: primary (its primary market, the default), EU (an EU/EEA venue when it has one) or US (a US exchange when it has one). A typed ticker, symbol or venue still wins."
+    }
+  ]
+}

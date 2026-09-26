@@ -67,33 +67,47 @@ class Fixture(unittest.TestCase):
 
 
 class SearchTest(Fixture):
-    def test_ticker_finds_the_home_line_before_the_foreign_receipt(self):
-        result = search.Directory(self.ref).search("asml", limit=5)
-        self.assertEqual([group["id"] for group in result["groups"]],
-                         ["security:isin:NL0010273215", "security:isin:USN070592100"])
-        self.assertEqual(result["groups"][0]["rows"][0]["id"], ASML)
+    def setUp(self):
+        super().setUp()
+        with sqlite3.connect(self.path) as db:
+            db.executemany("INSERT INTO venues VALUES (?, ?, ?, ?)", [("XAMS", "XAMS", "Euronext Amsterdam", "NL"),
+                                                                     ("XNGS", "XNAS", "Nasdaq", "US")])
+        self.directory = search.Directory(self.ref)
+
+    def rows(self, query, **options):
+        return [(row["id"], row["security"]) for row in self.directory.search(query, limit=5, **options)["rows"]]
+
+    def test_a_receipt_folds_into_the_company_row_shown_through_its_primary_listing(self):
+        row, = self.directory.search("asml", limit=5)["rows"]
+        self.assertEqual(row, {"id": ASML, "security": "security:isin:NL0010273215", "ticker": "ASML",
+                               "name": "ASML Holding N.V.", "kind": "ordinary", "mic": "XAMS",
+                               "venue": "Euronext Amsterdam", "country": "NL", "listings": 1, "bindings": []})
+
+    def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
+        us = "listing:isin:USN070592100:XNAS:USD"
+        self.assertEqual(self.rows("asml", prefer="US"), [(us, "security:isin:NL0010273215")])
+        self.assertEqual(self.rows("asml", prefer="EU"), [(ASML, "security:isin:NL0010273215")])
+        self.assertEqual(self.rows("ASML.AS", prefer="US", suffixes=lambda: {".AS": "XAMS"}),
+                         [(ASML, "security:isin:NL0010273215")])
+        self.assertEqual(self.rows("USN070592100"), [(us, "security:isin:NL0010273215")])
 
     def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):
         bound = {BTC: [{"plugin": "coinmarketcap", "ref": "1"}]}
-        result = search.Directory(self.ref).search("BTC", limit=5, bindings=lambda ids: bound)
-        self.assertEqual(result["groups"][0]["rows"][0], {"id": BTC, "ticker": "BTC", "mic": None, "venue": None,
-                                                          "currency": None, "bindings": bound[BTC]})
+        row = self.directory.search("BTC", limit=5, bindings=lambda ids: bound)["rows"][0]
+        self.assertEqual({key: row[key] for key in ("id", "security", "mic", "country", "listings", "bindings")},
+                         {"id": BTC, "security": BTC, "mic": None, "country": None, "listings": 0,
+                          "bindings": bound[BTC]})
 
     def test_an_issuers_main_share_is_kept_before_its_notes(self):
-        directory = search.Directory(self.ref)
         def line(security, kind, score, key):
-            return (score, {"grp": "issuer:lei:X", "security": security, "kind": kind, "prim": 1, "listing": f"l-{security}",
-                            "ticker": security.upper(), "mic": "XNYS", "venue": "NYSE", "currency": "USD",
-                            "name": "Bank", "depositary_of": None}, key)
-        lines = [line("note1", "other", 5.0, (0, 0, 0, 9)), line("note2", "other", 6.0, (0, 0, 0, 9)),
-                 line("fund", "fund", 7.0, (0, 0, 0, 1)), line("common", "ordinary", 4.0, (0, 0, 0, 0))]
-        with unittest.mock.patch.object(directory, "lines", return_value=lines):
-            groups = directory.search("bank", limit=5)["groups"]
-        self.assertEqual([group["id"] for group in groups], ["common", "fund"])  # not the two notes
-
-    def test_identifier_queries_are_exact(self):
-        self.assertEqual([g["id"] for g in search.Directory(self.ref).search("USN070592100", limit=5)["groups"]],
-                         ["security:isin:USN070592100"])
+            return (score, {"grp": "issuer:lei:X", "inst": security, "ikind": kind, "listing": f"l-{security}",
+                            "ticker": security.upper(), "mic": "XNYS", "venue": "NYSE", "country": "US",
+                            "name": "Bank"}, key)
+        lines = [line("note1", "other", 5.0, (0, 0)), line("note2", "other", 6.0, (0, 0)),
+                 line("fund", "fund", 7.0, (0, 0)), line("common", "ordinary", 4.0, (0, 0))]
+        with unittest.mock.patch.object(self.directory, "lines", return_value=lines):
+            rows = self.directory.search("bank", limit=5)["rows"]
+        self.assertEqual([row["security"] for row in rows], ["common", "fund"])  # not the two notes
 
 
 class PageTest(Fixture):
