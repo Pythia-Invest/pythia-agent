@@ -6,7 +6,7 @@ import {
   Skeleton,
 } from "@pythia/widget-sdk";
 import { LoaderCircle } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useRef } from "react";
 import type { LookupOffer, SearchGroup } from "../search";
 import {
   type SearchOption,
@@ -60,6 +60,11 @@ const keepInputFocus = (event: MouseEvent) => event.preventDefault();
  * `InvestmentSearch` is the stateful composition. */
 export function SearchPanel(props: SearchPanelProps) {
   const { query, status, fresh, filter, lookup } = props;
+  const body = useRef<HTMLDivElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new query or type starts at the top of its rows.
+  useEffect(() => {
+    if (body.current) body.current.scrollTop = 0;
+  }, [query, filter]);
   // Rows exist only while they are shown, so the combobox never highlights or
   // selects a hidden one.
   const groups = byGroup(status === "ready" ? props.options : []);
@@ -99,6 +104,7 @@ export function SearchPanel(props: SearchPanelProps) {
         <TypePills value={filter} onChange={props.onFilter} />
       </div>
       <div
+        ref={body}
         data-slot="investment-search-body"
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1.5 pb-1.5 [scrollbar-gutter:stable]"
       >
