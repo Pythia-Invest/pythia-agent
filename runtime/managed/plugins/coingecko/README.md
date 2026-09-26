@@ -21,10 +21,11 @@ Hourly and daily OHLC ranges need paid access.
 
 ## Access and configuration
 
-`configuration.json` declares one optional secret, `coingecko_api_key`. Settings
-stores it in Pythia's device credential store; the connector reads it in process
-through core configuration and sends it only as the `x-cg-demo-api-key` or
-`x-cg-pro-api-key` header, never in a URL, argument, log or result.
+`configuration.json` declares one optional secret, `coingecko_api_key`. To use a
+key, the investor adds that field to `secrets.json` in the Pythia config folder
+(file mode 0600). The connector reads it in process through core configuration
+and sends it only as the `x-cg-demo-api-key` or `x-cg-pro-api-key` header, never
+in a URL, argument, log or result.
 
 The native plugin setting `mode` (CLI: `coingecko-config --mode`) defaults to
 `auto`:
