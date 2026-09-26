@@ -30,8 +30,10 @@ that as follows:
 
 Yahoo returns no ISIN, FIGI, LEI or CIK. A Yahoo symbol is a mutable listing
 reference, not an identifier. `details` preserves Yahoo's venue and currency
-qualifiers and asserts no identity evidence, so a saved Yahoo reference stays an
-unresolved candidate under [ADR 0012](../../../../docs/decisions/0012-investment-identity-and-repair.md).
+qualifiers and asserts no identity evidence. Core addresses a Yahoo listing from
+open identifiers through this plugin's MIC suffix table
+([ADR 0038](../../../../docs/decisions/0038-plugin-addressing-contract.md)); that
+derived symbol is an address, never evidence.
 Yahoo `EQUITY` is not promoted to Common Stock or proof of an issuer. Name or
 ticker similarity never creates a canonical relationship.
 
