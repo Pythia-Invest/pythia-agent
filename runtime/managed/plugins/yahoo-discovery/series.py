@@ -17,6 +17,10 @@ def definition(native, mode, metadata):
     unit = {'kind': 'currency', 'code': currency, 'scale': '1'} if known else {'kind': 'unknown', 'scale': '1'}
     field = {'unit': unit, 'adjustment': {'kind': 'split_dividend' if mode == 'adjusted' else 'unknown', 'anchor': None}}
     fields = {'value': field} if scalar else {key: field for key in ('open', 'high', 'low', 'close')}
+    if not scalar:
+        # Bars report traded volume: shares for equities and funds, otherwise unqualified.
+        shares = metadata.get('type') in ('EQUITY', 'ETF')
+        fields['volume'] = {'unit': {'kind': 'shares' if shares else 'unknown', 'scale': '1'}, 'adjustment': {'kind': 'unknown', 'anchor': None}}
     value = {'schema_version': 1, 'subject': native, 'provider_ref': native,
         'measurement': 'aggregate_price' if mode == 'latest' else 'close' if scalar else 'ohlc', 'shape': 'scalar' if scalar else 'ohlc',
         'fields': fields, 'interval': {'kind': 'tick' if mode == 'latest' else 'day' if daily else 'hour' if mode == 'hour' else 'minute', 'count': 5 if mode.startswith('five_minute') else 1},

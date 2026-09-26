@@ -38,24 +38,33 @@ export function instrumentPathGeometry(series: InstrumentPath) {
   if (baseline !== undefined) values.push(baseline);
   const low = Math.min(...values),
     high = Math.max(...values);
-  const closedGap = series.sessionGap;
+  const gaps = [
+    ...(series.sessionGap ? [series.sessionGap] : []),
+    ...(series.sessionGaps ?? []),
+  ].sort((a, b) => a.start - b.start);
   if (
-    closedGap &&
+    gaps.length &&
     (!domain ||
-      !Number.isFinite(closedGap.start) ||
-      !Number.isFinite(closedGap.end) ||
-      closedGap.start <= start ||
-      closedGap.end >= end ||
-      closedGap.end <= closedGap.start ||
-      points.some((p) => p.time > closedGap.start && p.time < closedGap.end))
+      gaps.some(
+        (gap, i) =>
+          !Number.isFinite(gap.start) ||
+          !Number.isFinite(gap.end) ||
+          gap.start <= start ||
+          gap.end >= end ||
+          gap.end <= gap.start ||
+          gap.start < (gaps[i - 1]?.end ?? start) ||
+          points.some((p) => p.time > gap.start && p.time < gap.end),
+      ))
   )
     return null;
-  const skipped = closedGap ? closedGap.end - closedGap.start : 0;
+  const skipped = (time: number) =>
+    gaps.reduce(
+      (sum, gap) => sum + (time >= gap.end ? gap.end - gap.start : 0),
+      0,
+    );
+  const total = skipped(end);
   const x = (time: number) =>
-    2 +
-    (116 *
-      (time - start - (closedGap && time >= closedGap.end ? skipped : 0))) /
-      (end - start - skipped);
+    2 + (116 * (time - start - skipped(time))) / (end - start - total);
   const regular = series.regularSession;
   if (
     regular &&
@@ -106,7 +115,7 @@ export function instrumentPathGeometry(series: InstrumentPath) {
         ? undefined
         : Math.max(0, Math.min(120, x(series.extendedFrom))),
     /** Drawing scale for axes and pointer readouts, in the same 120×34 box. */
-    scale: { start, end, low, high, x, y, gap: closedGap },
+    scale: { start, end, low, high, x, y, gaps },
     regularX: regular
       ? {
           start: regular.start === start ? 0 : x(regular.start),

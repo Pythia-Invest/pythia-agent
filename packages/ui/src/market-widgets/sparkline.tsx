@@ -166,6 +166,32 @@ export function PathGraphic({
                 <title>{b.label}</title>
               </line>
             ))}
+        {page &&
+          g.scale.gaps
+            .map((gap) => g.scale.x(gap.end))
+            .filter(
+              (x) =>
+                !g.regularX ||
+                (Math.abs(x - g.regularX.start) > 0.5 &&
+                  Math.abs(x - g.regularX.end) > 0.5),
+            )
+            .map((x) => (
+              <line
+                key={x}
+                data-slot="instrument-session-gap"
+                x1={x}
+                x2={x}
+                y1="0"
+                y2="34"
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeDasharray="1 3"
+                vectorEffect="non-scaling-stroke"
+                className="text-foreground-secondary"
+              >
+                <title>Closed hours omitted</title>
+              </line>
+            ))}
         {!g.regularX && g.extendedX !== undefined && (
           <line
             x1={g.extendedX}

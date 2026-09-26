@@ -15,7 +15,9 @@ class FinancialDelivery:
     def inspect(self, resource, *, updates=False):
         from .live_batch import validate_window
         arguments = resource['arguments']
-        if updates and arguments.get('action') not in ('read', 'read_many', 'get_preferences'):
+        # A page chart follows the series its source declares, so their list
+        # is subscribable like the reads it plans.
+        if updates and arguments.get('action') not in ('read', 'read_many', 'series', 'get_preferences'):
             raise platform().admission.AdmissionError('unsupported_operation', 404)
         validate_window(resource)
         reads = arguments.get('reads', [arguments])

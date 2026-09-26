@@ -446,3 +446,89 @@ test("Yahoo news is keyed by a validated symbol and keeps only items tagged with
   expect(JSON.stringify(result)).not.toContain("Untagged");
   expect(result.data).not.toHaveProperty("result.quotes");
 });
+test("intraday equity reads carry the current or last started session; crypto keeps elapsed time", async () => {
+  const at = (time: string) => new Date(`2026-01-05T${time}:00Z`);
+  const chart = vi.fn(async (_s: string, _o: unknown) => ({
+    meta: {
+      symbol: "SYN",
+      instrumentType: "EQUITY",
+      exchangeTimezoneName: "America/New_York",
+      currentTradingPeriod: {
+        pre: { start: at("09:00"), end: at("14:30") },
+        regular: { start: at("14:30"), end: at("21:00") },
+        post: { start: at("21:00"), end: new Date("2026-01-06T01:00:00Z") },
+      },
+      tradingPeriods: {
+        pre: [
+          [
+            {
+              start: Date.parse("2026-01-02T09:00:00Z") / 1000,
+              end: Date.parse("2026-01-02T14:30:00Z") / 1000,
+            },
+          ],
+        ],
+        regular: [
+          [
+            {
+              start: Date.parse("2026-01-02T14:30:00Z") / 1000,
+              end: Date.parse("2026-01-02T21:00:00Z") / 1000,
+            },
+          ],
+        ],
+        post: [
+          [
+            {
+              start: Date.parse("2026-01-02T21:00:00Z") / 1000,
+              end: Date.parse("2026-01-03T01:00:00Z") / 1000,
+            },
+          ],
+        ],
+      },
+    },
+    quotes: [],
+  }));
+  const read = () =>
+    execute(
+      {
+        operation: "price_read",
+        arguments: {
+          symbol: "SYN",
+          mode: "five_minute_extended",
+          start: "2026-01-01T00:00:00Z",
+          end: "2026-01-05T23:00:00Z",
+        },
+      },
+      { chart } as unknown as Client,
+    );
+  vi.useFakeTimers();
+  try {
+    // Before Monday's pre-market, Friday is the last started session.
+    vi.setSystemTime(at("08:00"));
+    expect((await read()).data).toMatchObject({
+      session: {
+        date: "2026-01-02",
+        regular: { start: "2026-01-02T14:30:00.000Z" },
+        extended: { end: "2026-01-03T01:00:00.000Z" },
+      },
+    });
+    expect(chart.mock.calls[0]?.[1]).toMatchObject({ includePrePost: true });
+    vi.setSystemTime(at("10:00"));
+    expect((await read()).data).toMatchObject({
+      session: {
+        date: "2026-01-05",
+        timezone: "America/New_York",
+        extended: { start: "2026-01-05T09:00:00.000Z" },
+      },
+    });
+    chart.mockImplementationOnce(
+      async () =>
+        ({
+          meta: { symbol: "SYN", instrumentType: "CRYPTOCURRENCY" },
+          quotes: [],
+        }) as never,
+    );
+    expect((await read()).data).toMatchObject({ session: null });
+  } finally {
+    vi.useRealTimers();
+  }
+});

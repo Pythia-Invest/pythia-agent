@@ -52,6 +52,9 @@ export type InstrumentPath = {
   /** Omitted closed interval between a regular session and its continuation.
    * Observation timestamps remain unchanged; the axis skips this interval. */
   sessionGap?: { start: number; end: number } | undefined;
+  /** Several omitted closed intervals, such as nights in a multi-day view.
+   * The same rules as sessionGap apply to each. */
+  sessionGaps?: readonly { start: number; end: number }[] | undefined;
   period?: string | undefined;
   /** IANA zone for axis labels of instant coordinates, normally the listing's
    * exchange zone. Absent means the viewer's zone. */

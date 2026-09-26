@@ -36,10 +36,11 @@ function valueTicks(low: number, high: number) {
 /** Calendar-aligned labels in the supplied zone. Omitted closed intervals
  * carry no labels; the domain itself is never widened to reach a label. */
 function timeTicks(g: PathGeometry, timeZone: string | undefined) {
-  const { start, end, gap } = g.scale;
-  const span = end - start - (gap ? gap.end - gap.start : 0);
+  const { start, end, gaps } = g.scale;
+  const span =
+    end - start - gaps.reduce((sum, gap) => sum + gap.end - gap.start, 0);
   const visible = (t: number) =>
-    t >= start && t <= end && !(gap && t > gap.start && t < gap.end);
+    t >= start && t <= end && !gaps.some((gap) => t > gap.start && t < gap.end);
   const ticks: { time: number; label: string }[] = [];
   if (span > 20 * DAY) {
     const first = new Date(start);
@@ -73,6 +74,12 @@ function timeTicks(g: PathGeometry, timeZone: string | undefined) {
   const label = daily
     ? formatter(timeZone, { weekday: "short", day: "numeric" })
     : formatter(timeZone, { hour: "2-digit", minute: "2-digit" });
+  // A compressed axis labels each session where it resumes.
+  if (daily && gaps.length)
+    return [start, ...gaps.map((gap) => gap.end)].map((time) => ({
+      time,
+      label: label.format(time),
+    }));
   let dayIndex = 0;
   for (let t = Math.ceil(start / HOUR) * HOUR; t <= end; t += HOUR) {
     const hour = Number(hourOf.format(t));
@@ -130,8 +137,11 @@ export function InstrumentChart({
       dates
         ? formatter("UTC", { dateStyle: "medium" })
         : formatter(zone, {
-            dateStyle: "medium",
-            timeStyle: "short",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
             timeZoneName: "short",
           }),
     [zone, dates],

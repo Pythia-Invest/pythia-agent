@@ -102,11 +102,12 @@ class Yahoo(unittest.TestCase):
         request = {'schema_version': 1, 'operation': 'history', 'view': {'kind': 'source', 'series_id': value['id']},
                    'window': {'start': {'kind': 'session_date', 'value': '2026-01-02'}, 'end': {'kind': 'session_date', 'value': '2026-01-03'}},
                    'limit': 10, 'requirements': {'freshness': 'any', 'completion': 'any', 'coverage': 'any'}}
-        row = {'time': '2026-01-02', 'open': 0.0000001, 'high': 2, 'low': 0, 'close': 1}
+        row = {'time': '2026-01-02', 'open': 0.0000001, 'high': 2, 'low': 0, 'close': 1, 'volume': 1200}
         raw = {'data': {'rows': [row]}, 'issues': []}
         read = wire.validate_read_result(results.read(request, value, 'daily', raw))
         self.assertEqual(read['observations'][0]['time'], request['window']['start'])
         self.assertEqual(read['observations'][0]['open'], '0.0000001')
+        self.assertEqual(read['observations'][0]['volume'], '1200')
         raw['data']['rows'].append(row)
         self.assertEqual(wire.validate_read_result(results.read(request, value, 'daily', raw))['outcome'], 'error')
         raw['data']['rows'] = [row]
@@ -114,6 +115,38 @@ class Yahoo(unittest.TestCase):
         read = wire.validate_read_result(results.read(request, value, 'daily', raw))
         self.assertEqual(read['observations'], [])
         self.assertFalse(read['requirements_satisfied'])
+
+    def test_intraday_reads_carry_session_evidence_and_quotes_their_previous_close(self):
+        meta = {'symbol': 'SYNTH', 'type': 'EQUITY', 'currency': 'USD'}
+        native = identity.candidate(meta)['provider_ref']
+        extended = series.definition(native, 'five_minute_extended', meta)
+        self.assertEqual((extended['session'], extended['interval']), ('extended', {'kind': 'minute', 'count': 5}))
+        self.assertNotEqual(extended['id'], series.definition(native, 'five_minute', meta)['id'])
+        request = {'schema_version': 1, 'operation': 'history', 'view': {'kind': 'source', 'series_id': extended['id']},
+                   'window': {'start': {'kind': 'instant', 'value': '2026-01-05T00:00:00Z'}, 'end': {'kind': 'instant', 'value': '2026-01-06T00:00:00Z'}},
+                   'limit': 10, 'requirements': {'freshness': 'any', 'completion': 'any', 'coverage': 'any'}}
+        session = {'date': '2026-01-05', 'timezone': 'America/New_York',
+                   'regular': {'start': '2026-01-05T14:30:00.000Z', 'end': '2026-01-05T21:00:00.000Z'},
+                   'extended': {'start': '2026-01-05T09:00:00.000Z', 'end': '2026-01-06T01:00:00.000Z'}}
+        row = {'time': '2026-01-05T09:05:00+00:00', 'open': 1, 'high': 2, 'low': 1, 'close': 2}
+        read = wire.validate_read_result(results.read(request, extended, 'five_minute_extended',
+                                                      {'data': {'rows': [row], 'session': session}, 'issues': []}))
+        self.assertEqual(read['price_context'], {'session_window': session})
+        # Schedules that contradict themselves fail validation instead of drawing.
+        broken = {**session, 'regular': {'start': session['regular']['end'], 'end': session['regular']['start']}}
+        with self.assertRaises(wire.WireError):
+            wire.validate_read_result(results.read(request, extended, 'five_minute_extended',
+                                                   {'data': {'rows': [row], 'session': broken}, 'issues': []}))
+        latest = series.definition(native, 'latest', meta)
+        request = {**request, 'operation': 'latest', 'view': {'kind': 'source', 'series_id': latest['id']},
+                   'window': {'start': None, 'end': None}, 'limit': 1}
+        quote = {'metadata': meta, 'retrieved_at': '2026-01-05T21:05:00Z', 'previous_close': 1.5,
+                 'rows': [{'time': '2026-01-05T21:00:00Z', 'value': 2}], 'change': {'absolute': 0.5, 'percent': 33.3}}
+        context = wire.validate_read_result(results.read(request, latest, 'latest', {'data': quote, 'issues': []}))['price_context']
+        self.assertEqual((context['reference_close']['value'], context['reference_close']['time']), ('1.5', {'kind': 'unknown'}))
+        quote['previous_close'] = 0
+        context = wire.validate_read_result(results.read(request, latest, 'latest', {'data': quote, 'issues': []}))['price_context']
+        self.assertNotIn('reference_close', context)
 
     def test_native_options_remain_bounded_data_not_schema_or_fetch_controls(self):
         schemas = definition.schemas(wire)

@@ -157,7 +157,7 @@ export function chartPlan(list: readonly Series[], now: number) {
     )[0];
   const longest = daily ? spanDays(daily) : 0;
   const year: PlannedRead | undefined = daily
-    ? { series: daily, days: Math.min(366, longest), role: "daily" }
+    ? { series: daily, days: Math.min(370, longest), role: "daily" }
     : undefined;
   const reads = new Map<ChartPeriod, PlannedRead>();
   const unavailable = new Map<ChartPeriod, string>();
@@ -271,6 +271,11 @@ function seriesQuery(input: ChartWidgetInput): WidgetQuery<ChartResult> {
       arguments: { action: "series", binding: input.subject },
     },
     enabled: true,
+    readResource: () => ({
+      plugin: PLUGIN,
+      operation: "query",
+      arguments: { action: "series", binding: input.subject },
+    }),
     decode(value) {
       const raw = value as { outcome?: string; data?: unknown[] };
       if (!["ok", "partial"].includes(raw.outcome ?? "") || !raw.data)

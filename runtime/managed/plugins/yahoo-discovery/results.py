@@ -86,6 +86,10 @@ def read(request, series, mode, raw):
                 if type(v) not in (int, float) or not Decimal(str(v)).is_finite() or v < 0:
                     raise ValueError()
                 values[field] = format(Decimal(str(v)), 'f')
+            volume = row.get('volume')
+            # Volume is optional evidence; an absent or invalid count stays absent.
+            if len(fields) > 1 and type(volume) in (int, float) and Decimal(str(volume)).is_finite() and volume >= 0:
+                values['volume'] = format(Decimal(str(volume)), 'f')
             if len(fields) > 1 and (float(values['low']) > min(float(values['open']), float(values['close'])) or float(values['high']) < max(float(values['open']), float(values['close']))):
                 raise ValueError()
             interval = None if daily or mode == 'latest' else {'start': time, 'end': {'kind': 'instant', 'value': (point + timedelta(seconds={'minute': 60, 'five_minute': 300, 'five_minute_extended': 300, 'hour': 3600}[mode])).isoformat()}}
