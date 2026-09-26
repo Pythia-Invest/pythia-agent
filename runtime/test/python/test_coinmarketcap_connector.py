@@ -10,8 +10,10 @@ import importlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -30,7 +32,6 @@ worker = importlib.import_module(NAME + '.worker')
 series = importlib.import_module(NAME + '.series')
 wire = importlib.import_module(PACKAGE + '.wire')
 process = importlib.import_module(PACKAGE + '.process')
-credentials = importlib.import_module(PACKAGE + '.credentials')
 matching = importlib.import_module(PACKAGE + '.identity_matching')
 
 TOKEN_PLATFORM = {'id': 1, 'name': 'Example Chain', 'symbol': 'EXC', 'slug': 'example-chain', 'token_address': '0xabc'}
@@ -67,7 +68,8 @@ def comment(ctx, operation):
 
 
 @contextmanager
-def registered(answer=responses, key=('configured', 'SYNTHETIC-KEY')):
+def registered(answer=responses, key='SYNTHETIC-KEY'):
+    """Register against core configuration; `key` is the secrets.json value (None leaves it out)."""
     feature = SimpleNamespace(enabled=True, module=sys.modules[PACKAGE], manifest=SimpleNamespace(name='pythia-market-data'))
     manager = SimpleNamespace(_plugins={'features/pythia-market-data': feature})
     calls = []
@@ -76,9 +78,15 @@ def registered(answer=responses, key=('configured', 'SYNTHETIC-KEY')):
         calls.append((message['operation'], copy.deepcopy(message['arguments'])))
         return answer(message['operation'], message['arguments'])
     modules = {'hermes_cli': ModuleType('hermes_cli'), 'hermes_cli.plugins': SimpleNamespace(get_plugin_manager=lambda: manager)}
-    with patch.dict(sys.modules, modules), patch.object(credentials, '_token', return_value=key), \
-            patch.object(process, 'run_worker', side_effect=run_worker):
+    with tempfile.TemporaryDirectory() as root, patch.dict(sys.modules, modules), \
+            patch.dict(os.environ, {'PYTHIA_CONFIG_ROOT': root}), patch.object(process, 'run_worker', side_effect=run_worker):
+        if key is not None:
+            secrets = Path(root) / 'secrets.json'
+            secrets.write_text(json.dumps({'schema_version': 1, 'coinmarketcap_api_key': key}))
+            secrets.chmod(0o600)
         ctx = Context('pythia-coinmarketcap')
+        # Core configuration reads the declaring package from the native manifest.
+        ctx.manifest = SimpleNamespace(path=str(ROOT))
         plugin.register(ctx)
         yield ctx, calls
 
@@ -156,34 +164,19 @@ class CoinMarketCap(unittest.TestCase):
         self.assertEqual(partial['data']['rows'][0]['rank']['cmc_rank'], 1)
 
     def test_configuration_declaration_parses_with_core(self):
-        try:
-            configuration = importlib.import_module(PLATFORM + '.configuration')
-        except ModuleNotFoundError:
-            self.skipTest('core platform.configuration is not on this branch yet')
+        configuration = importlib.import_module(PLATFORM + '.configuration')
         fields = configuration.parse(json.loads((ROOT / 'configuration.json').read_text()))
         self.assertEqual([(item['key'], item['kind'], item['required']) for item in fields],
                          [('coinmarketcap_api_key', 'secret', True)])
 
     def test_missing_or_invalid_key_is_reported_without_a_request(self):
-        for status in ('missing', 'invalid'):
-            with self.subTest(status=status), registered(key=(status, None)) as (ctx, calls):
+        for key in (None, 'two words'):
+            with self.subTest(key=key), registered(key=key) as (ctx, calls):
                 listed = call(ctx, 'catalogue', {'scope': 'coins'})
                 self.assertEqual((listed['outcome'], listed['issues'][0]['code']), ('error', 'needs_configuration'))
                 read = wire.validate_read_result(call(ctx, 'latest', latest_input('1')))
                 self.assertEqual(read['issues'][0]['code'], 'needs_configuration')
                 self.assertEqual(calls, [])
-        # Once core configuration is available it is the only reader, and its standard result is returned.
-        needed = {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [
-            {'code': 'needs_configuration', 'severity': 'error', 'message': 'Core message.', 'fields': []}]}
-        core = SimpleNamespace(value=lambda _ctx, key: ('missing', None), needs_configuration=lambda _ctx: needed)
-        with patch.object(platform_module, 'configuration', core, create=True), registered() as (ctx, calls):
-            self.assertEqual(call(ctx, 'catalogue', {'scope': 'coins'}), needed)
-            read = wire.validate_read_result(call(ctx, 'latest', latest_input('1')))
-            self.assertEqual(read['issues'][0]['code'], 'needs_configuration')
-            self.assertEqual(calls, [])
-        core = SimpleNamespace(value=lambda _ctx, key: ('configured', 'CORE-KEY'), needs_configuration=lambda _ctx: None)
-        with patch.object(platform_module, 'configuration', core, create=True), registered(key=('missing', None)) as (ctx, calls):
-            self.assertEqual(call(ctx, 'catalogue', {'scope': 'coins', 'limit': 1})['outcome'], 'ok')
 
     def test_profile_and_details_keep_networks_source_scoped(self):
         native = {'provider': 'coinmarketcap', 'native_scope': 'coin', 'native_id': '7'}

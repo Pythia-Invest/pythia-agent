@@ -9,20 +9,14 @@ import json
 
 CURRENCIES = ('USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD')
 KEY_FIELD = 'coinmarketcap_api_key'
-NEEDED = 'CoinMarketCap needs coinmarketcap_api_key in secrets.json in the Pythia config folder.'
 
 
-def api_key(ctx, platform, credentials):
-    """Return (key, None) when configured, else (None, the needs-configuration result)."""
-    configuration = getattr(platform, 'configuration', None)
-    # Transitional shim, remove once platform.configuration lands on the
-    # umbrella branch (identity-backbone-desk-connections-settings).
-    status, key = configuration.value(ctx, KEY_FIELD) if configuration else credentials._token(KEY_FIELD)
+def api_key(ctx, platform):
+    """Return (key, None) when configured, else (None, core's needs-configuration result)."""
+    status, key = platform.configuration.value(ctx, KEY_FIELD)
     if status == 'configured':
         return key, None
-    return None, (configuration and configuration.needs_configuration(ctx)) or {
-        'schema_version': 1, 'outcome': 'error', 'data': None,
-        'issues': [{'code': 'needs_configuration', 'severity': 'error', 'message': NEEDED}]}
+    return None, platform.configuration.needs_configuration(ctx)
 
 
 def currency(ctx):

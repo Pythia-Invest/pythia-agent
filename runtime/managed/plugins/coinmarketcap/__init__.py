@@ -33,11 +33,11 @@ def dependencies(ctx):
     if not ctx.has_plugin('pythia-market-data') or len(loaded) != 1:
         raise RuntimeError('unavailable')
     package = loaded[0].module.__name__
-    return [importlib.import_module(package + '.' + name) for name in ('wire', 'process', 'credentials', 'connector', '_platform')]
+    return [importlib.import_module(package + '.' + name) for name in ('wire', 'process', 'connector', '_platform')]
 
 
 def register(ctx):
-    wire, process, credentials, connector, platform_module = dependencies(ctx)
+    wire, process, connector, platform_module = dependencies(ctx)
     platform = platform_module.platform()
     definitions = schemas(wire)
     reads = connector.WorkerReads(process)
@@ -62,7 +62,7 @@ def register(ctx):
             if not ready():
                 raise ValueError('unavailable')
             currency = config.currency(ctx)
-            token, needed = config.api_key(ctx, platform, credentials)
+            token, needed = config.api_key(ctx, platform)
             if needed:
                 # Visible needs-configuration result; no provider request is made.
                 if request:
