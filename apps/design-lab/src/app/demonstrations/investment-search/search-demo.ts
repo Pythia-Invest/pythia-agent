@@ -1,6 +1,6 @@
 /**
- * Synthetic in-memory directory for tests and the Design Lab until the core
- * directory search exists. The product never imports it.
+ * Synthetic in-memory directory for the investment search demonstration until
+ * the core directory search exists.
  *
  * Names, tickers, venues and ISINs mirror public reference data so the cases
  * are recognisable; subject ids follow the identity fixtures. Bindings, dates,
@@ -14,7 +14,7 @@ import type {
   SearchRequest,
   SearchResponse,
   SearchRow,
-} from "./search";
+} from "@pythia/market-data/search";
 
 const asml = "security:isin:NL0010273215";
 
@@ -25,7 +25,6 @@ function row(
     mic: null,
     venue: null,
     currency: null,
-    primary: false,
     bindings: [],
     ...values,
   };
@@ -46,7 +45,6 @@ function coin(
       row({
         id,
         ticker,
-        primary: true,
         bindings: [
           { plugin: "coinmarketcap", ref: refs[0] },
           { plugin: "coingecko", ref: refs[1] },
@@ -70,7 +68,6 @@ export const demoGroups: readonly SearchGroup[] = [
         mic: "XAMS",
         venue: "Euronext Amsterdam",
         currency: "EUR",
-        primary: true,
         bindings: [
           { plugin: "yahoo", ref: "ASML.AS" },
           { plugin: "eodhd", ref: "ASML.AS" },
@@ -105,7 +102,6 @@ export const demoGroups: readonly SearchGroup[] = [
         mic: "XNGS",
         venue: "Nasdaq Global Select",
         currency: "USD",
-        primary: true,
         bindings: [
           { plugin: "yahoo", ref: "ASML" },
           { plugin: "eodhd", ref: "ASML.US" },
@@ -125,7 +121,6 @@ export const demoGroups: readonly SearchGroup[] = [
         mic: "XAMS",
         venue: "Euronext Amsterdam",
         currency: "EUR",
-        primary: true,
         bindings: [{ plugin: "yahoo", ref: "ASM.AS" }],
       }),
     ],
@@ -142,7 +137,6 @@ export const demoGroups: readonly SearchGroup[] = [
         mic: "XAMS",
         venue: "Euronext Amsterdam",
         currency: "EUR",
-        primary: true,
       }),
     ],
   },
@@ -173,7 +167,6 @@ export const demoGroups: readonly SearchGroup[] = [
         ticker: "AEX",
         venue: "Euronext Amsterdam",
         currency: "EUR",
-        primary: true,
       }),
     ],
   },
@@ -182,14 +175,9 @@ export const demoGroups: readonly SearchGroup[] = [
     name: "Euro / US Dollar",
     kind: "fx",
     depositary_of: null,
-    rows: [row({ id: "fx:demo:EURUSD", ticker: "EUR/USD", primary: true })],
+    rows: [row({ id: "fx:demo:EURUSD", ticker: "EUR/USD" })],
   },
 ];
-
-export const demoDirectory: SearchResponse["directory"] = {
-  snapshot: "demo-reference-2026-09-24",
-  as_of: "2026-09-24T06:00:00Z",
-};
 
 export const demoLookupOffers: SearchResponse["lookup"] = [
   { plugin: "yahoo", label: "Yahoo Finance" },
@@ -226,7 +214,7 @@ export function searchDemoDirectory(
     .sort((a, b) => a.score - b.score || a.order - b.order)
     .slice(0, limit)
     .map((entry) => entry.group);
-  return { query, groups, directory: demoDirectory, lookup: demoLookupOffers };
+  return { groups, lookup: demoLookupOffers };
 }
 
 function wait(ms: number, signal: AbortSignal) {
@@ -264,7 +252,6 @@ export function demoLookup(delay = 0) {
           row({
             id: `listing:demo:${symbol}`,
             ticker: symbol,
-            primary: true,
             bindings: [{ plugin: "yahoo", ref: symbol }],
           }),
         ],

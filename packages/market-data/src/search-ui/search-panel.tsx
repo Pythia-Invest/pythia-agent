@@ -7,7 +7,7 @@ import {
 } from "@pythia/widget-sdk";
 import { LoaderCircle } from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
-import type { LookupOffer, SearchGroup, SearchResponse } from "../search";
+import type { LookupOffer, SearchGroup } from "../search";
 import {
   type SearchOption,
   TYPE_FILTERS,
@@ -32,7 +32,6 @@ export type SearchPanelProps = {
   status: PanelStatus;
   /** The listed rows answer the current query and filter. */
   fresh: boolean;
-  directory?: SearchResponse["directory"] | undefined;
   filter: TypeFilter;
   options: readonly SearchOption[];
   /** Plugins the user may explicitly look the query up in. */
@@ -56,7 +55,7 @@ function byGroup(options: readonly SearchOption[]) {
 const keepInputFocus = (event: MouseEvent) => event.preventDefault();
 
 /** Body of the anchored search panel: type pills, one listbox, explicit
- * states and a footer with the directory date and the lookup actions. It
+ * states and a footer with the key hints and the lookup actions. It
  * renders inside a `Combobox`, which owns highlighting and selection;
  * `InvestmentSearch` is the stateful composition. */
 export function SearchPanel(props: SearchPanelProps) {
@@ -204,20 +203,9 @@ export function SearchPanel(props: SearchPanelProps) {
         data-slot="investment-search-footer"
         className="@container flex min-h-10 flex-none items-center justify-end gap-2 border-border border-t px-3 py-1.5 text-foreground-secondary text-xs"
       >
-        {/* Context text yields to the lookup actions in a narrow panel. */}
-        <span
-          className="@md:block hidden min-w-0 flex-1 truncate"
-          title={
-            query && props.directory
-              ? `Local directory${props.directory.snapshot ? `, reference snapshot ${props.directory.snapshot}` : ""}, as of ${props.directory.as_of}`
-              : undefined
-          }
-        >
-          {!query
-            ? "↑↓ to move · Enter to open · Esc to close"
-            : props.directory
-              ? `Directory ${props.directory.as_of.slice(0, 10)}`
-              : null}
+        {/* Key hints yield to the lookup actions in a narrow panel. */}
+        <span className="@md:block hidden min-w-0 flex-1 truncate">
+          ↑↓ to move · Enter to open · Esc to close
         </span>
         {props.offers.map((offer) => {
           const running =

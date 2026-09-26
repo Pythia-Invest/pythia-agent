@@ -167,13 +167,14 @@ holds ranked groups, one per security: its name, instrument kind, the underlying
 security of a depositary receipt, and its listings in order, primary listing
 first. A listing row carries its subject `id`, ticker, MIC and venue label,
 currency and confirmed provider bindings; a crypto asset is one row without a
-venue. The response also names the directory it was read from (reference
-snapshot and as-of instant) and the plugins offering an explicit lookup. The
+venue. The response also names the plugins offering an explicit lookup. The
 directory-search backend implements this shape; the core ranks and the client
 keeps the order.
 
-`@pythia/market-data/search-ui` is the search bar. Typing reads only the local
-directory; no connector is called on that path. Each security is one group: its
+`@pythia/market-data/search-ui` is the search bar, composed from the SDK's
+shared Combobox and ToggleGroup. Typing reads only the local directory; no
+connector is called on that path, and Enter never opens a row of a previous
+query while the typed one loads. Each security is one group: its
 lead row shows ticker, name, venue and type, and its other listings follow as
 compact rows. A depositary receipt is its own security, labelled as a receipt of
 its underlying. Type pills ask the directory for their instrument kinds and never
@@ -191,5 +192,6 @@ actions under ADR 0036. Select it in the workspace's `desk/top-bar.json` with
 product default while the directory operation is being built: its transport
 binding is provisional, it offers no lookup yet, and until an instrument route
 exists a selection is announced as a `pythia:open-subject` window event with
-`{subject_id}`. `@pythia/market-data/search-demo` is a synthetic in-memory
-directory for tests and the Design Lab's investment search demonstration.
+`{subject_id}`. The module keeps its own query, so typing never filters Desk's
+chat lists. The Design Lab's investment search demonstration renders the bar
+over a Lab-local synthetic directory.

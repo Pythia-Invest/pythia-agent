@@ -22,7 +22,6 @@ function group(ticker: string): SearchGroup {
         mic: "XAMS",
         venue: "Euronext Amsterdam",
         currency: "EUR",
-        primary: true,
         bindings: [],
       },
     ],
@@ -36,14 +35,7 @@ function directory() {
   const search: SearchBackend = (request) => {
     requests.push(request);
     return new Promise<SearchResponse>((resolve) =>
-      pending.set(request.query, (groups) =>
-        resolve({
-          query: request.query,
-          groups,
-          directory: { snapshot: null, as_of: "2026-09-24T00:00:00Z" },
-          lookup: [],
-        }),
-      ),
+      pending.set(request.query, (groups) => resolve({ groups, lookup: [] })),
     );
   };
   async function answer(query: string, groups: SearchGroup[]) {

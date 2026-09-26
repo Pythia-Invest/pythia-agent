@@ -13,7 +13,9 @@ pnpm --filter @pythia/design-lab dev
 The Lab is intentionally development-only. Its examples are labelled
 synthetic, its package has no production start command, and every route returns
 `404` when `NODE_ENV=production`. Pythia applications may depend on
-`@pythia/ui`; they must not import this app or its fixtures.
+`@pythia/ui`; they must not import this app or its fixtures. The investment
+search demonstration also renders `@pythia/market-data/search-ui` over a
+Lab-local synthetic directory.
 
 Focused checks:
 

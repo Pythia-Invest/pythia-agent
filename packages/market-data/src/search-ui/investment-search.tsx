@@ -244,7 +244,6 @@ export function InvestmentSearch({
               query={trimmed}
               status={status}
               fresh={fresh}
-              directory={response?.directory}
               filter={filter}
               options={options}
               offers={

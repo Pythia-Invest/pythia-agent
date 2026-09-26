@@ -1,13 +1,6 @@
 "use client";
 
 import {
-  demoDirectory,
-  demoLookup,
-  demoLookupOffers,
-  demoSearch,
-  searchDemoDirectory,
-} from "@pythia/market-data/search-demo";
-import {
   InvestmentSearch,
   SearchPanel,
   type SearchPanelProps,
@@ -17,6 +10,12 @@ import {
 import { Combobox } from "@pythia/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
+import {
+  demoLookup,
+  demoLookupOffers,
+  demoSearch,
+  searchDemoDirectory,
+} from "./search-demo";
 
 const ignore = () => {};
 const search = demoSearch(180);
@@ -45,7 +44,6 @@ const found = searchOptions(
           mic: null,
           venue: null,
           currency: null,
-          primary: true,
           bindings: [{ plugin: "yahoo", ref: "ASML.MI" }],
         },
       ],
@@ -73,7 +71,6 @@ function Specimen({
             query=""
             status="ready"
             fresh
-            directory={demoDirectory}
             filter="all"
             offers={props.query ? demoLookupOffers : []}
             onFilter={ignore}
@@ -105,7 +102,7 @@ export function InvestmentSearchDemo() {
     <div className="grid gap-10">
       <p className="max-w-measure text-body text-foreground-secondary">
         Names, tickers, venues and ISINs mirror public reference data so the
-        cases are recognisable. Bindings, dates, ranking and lookup results are
+        cases are recognisable. Bindings, ranking and lookup results are
         synthetic, nothing is provider data, and rows carry no prices.
       </p>
       <Section title="Anchored search">
@@ -149,7 +146,6 @@ export function InvestmentSearchDemo() {
             note="Reserved row geometry while the directory answers."
             query="asml"
             status="loading"
-            directory={undefined}
           />
           <Specimen
             title="Listings of one security"
@@ -199,7 +195,6 @@ export function InvestmentSearchDemo() {
             note="A failed directory read is an error, not an empty result."
             query="asml"
             status="error"
-            directory={undefined}
           />
         </div>
       </Section>

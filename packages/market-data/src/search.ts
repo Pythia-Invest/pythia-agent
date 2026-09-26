@@ -5,7 +5,7 @@
  * Search is one read of the device's directory index: no connector is called
  * while typing, nothing is reconciled and rows carry no prices. The core ranks
  * securities and orders each one's listings, primary listing first; clients
- * keep both orders. The directory-search backend implements this shape; change
+ * keep both orders, so a group's first row is its primary listing. The directory-search backend implements this shape; change
  * it here first.
  */
 import { z } from "zod";
@@ -38,8 +38,6 @@ export const searchRowSchema = z.object({
   /** Venue label, such as "Euronext Amsterdam". */
   venue: text(128).nullable(),
   currency: text(16).nullable(),
-  /** The security's primary listing. */
-  primary: z.boolean(),
   /** Confirmed provider bindings only; candidates are never shown. */
   bindings: z.array(z.object({ plugin: text(64), ref: text(256) })).max(16),
 });
@@ -59,11 +57,7 @@ export const searchGroupSchema = z.object({
 export type SearchGroup = z.infer<typeof searchGroupSchema>;
 
 export const searchResponseSchema = z.object({
-  query: z.string().max(512),
   groups: z.array(searchGroupSchema).max(50),
-  /** What the rows were read from: the reference snapshot build, if any, and
-   * the instant of the newest directory change. */
-  directory: z.object({ snapshot: text(128).nullable(), as_of: text(64) }),
   /** Enabled plugins offering an explicit single-provider lookup. */
   lookup: z.array(z.object({ plugin: text(64), label: text(128) })).max(8),
 });

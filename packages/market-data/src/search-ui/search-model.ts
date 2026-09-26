@@ -63,7 +63,7 @@ export function searchOptions(
 ): SearchOption[] {
   return groups.flatMap((group) =>
     group.rows.map((row, index) => ({
-      key: `${source}:${row.id}`,
+      key: `${source}:${group.id}:${row.id}`,
       row,
       group,
       lead: index === 0,

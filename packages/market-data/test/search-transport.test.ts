@@ -1,6 +1,6 @@
 import type { PluginRequest, PluginTransport } from "@pythia/widget-sdk";
 import { describe, expect, it } from "vitest";
-import { searchDemoDirectory } from "../src/search-demo";
+import type { SearchResponse } from "../src/search";
 import { transportSearch } from "../src/search-ui/controller";
 
 function transport(reply: unknown) {
@@ -21,7 +21,27 @@ function transport(reply: unknown) {
 }
 
 const signal = new AbortController().signal;
-const response = searchDemoDirectory("asml");
+const response: SearchResponse = {
+  groups: [
+    {
+      id: "security:isin:NL0010273215",
+      name: "ASML Holding N.V.",
+      kind: "ordinary",
+      depositary_of: null,
+      rows: [
+        {
+          id: "listing:isin:NL0010273215:XAMS:EUR",
+          ticker: "ASML",
+          mic: "XAMS",
+          venue: "Euronext Amsterdam",
+          currency: "EUR",
+          bindings: [],
+        },
+      ],
+    },
+  ],
+  lookup: [],
+};
 
 describe("search transport", () => {
   it("reads the local directory without reaching a provider search", async () => {
