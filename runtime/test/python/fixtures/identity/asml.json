@@ -207,7 +207,7 @@
     {
       "subject_id": "listing:isin:USN070592100:XNAS:USD",
       "scheme": "ticker_mic",
-      "value": "ASML@XNGS",
+      "value": "ASML@XNAS",
       "authority": "snapshot",
       "provenance": {
         "plugin": "sec",

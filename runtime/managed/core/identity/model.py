@@ -223,7 +223,9 @@ class Listing:
 
     @property
     def ticker_mic(self) -> str | None:
-        return f"{self.ticker}@{self.mic}" if self.mic and self.ticker else None
+        """Join key: ticker at the operating MIC (segment MICs differ by source)."""
+        mic = self.operating_mic or self.mic
+        return f"{self.ticker}@{mic}" if mic and self.ticker else None
 
 
 Subject = Issuer | Security | Composite | Listing

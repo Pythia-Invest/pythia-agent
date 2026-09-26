@@ -71,7 +71,7 @@ _PATTERNS = {
     Scheme.SHARE_CLASS_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
     Scheme.COMPOSITE_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
     Scheme.FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
-    # TICKER@MIC, e.g. ASML@XAMS.
+    # TICKER@operating MIC, e.g. ASML@XAMS, ASML@XNAS (never a segment MIC such as XNGS).
     Scheme.TICKER_MIC: re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}@[A-Z0-9]{4}\Z"),
     # CAIP-19: chain_id "/" asset_namespace ":" asset_reference [ "/" token_id ]
     Scheme.CAIP19: re.compile(
@@ -138,7 +138,7 @@ def normalize_identifier(scheme: Scheme | str, value: str) -> str:
 
 
 def ticker_mic(ticker: str, mic: str) -> str:
-    """Canonical `ticker_mic` value from its parts."""
+    """Canonical `ticker_mic` value; `mic` is the operating MIC."""
     return normalize_identifier(Scheme.TICKER_MIC, f"{ticker}@{mic}")
 
 
