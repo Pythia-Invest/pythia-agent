@@ -57,13 +57,16 @@ class Fixture(unittest.TestCase):
         self.ref.close()
         self.tmp.cleanup()
 
-    def compose(self, subject_id, plugins):
-        subject = page.load_subject(self.ref, subject_id)
+    def lookups(self, subject_id):
         coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
         stored = {(r["subject_id"], r["provider"]): r for r in self.identity.bindings([subject_id], ("confirmed",))}
+        return {"stored": lambda target, provider: stored.get((target, provider)),
+                "coins": lambda provider, caip19: coins.get((provider, caip19)), "queue": []}
+
+    def compose(self, subject_id, plugins):
+        subject = page.load_subject(self.ref, subject_id)
         return subject, {section["section"]: section for section in page.compose(
-            subject, plugins, stored=lambda target, provider: stored.get((target, provider)),
-            coins=lambda provider, caip19: coins.get((provider, caip19)), queue=[])}
+            subject, plugins, **self.lookups(subject_id))}
 
 
 SHELL, SHEL = "listing:isin:GB00BP6MXD84:XAMS:EUR", "listing:figi:BBG0147BN6G2"
@@ -157,6 +160,16 @@ class PageTest(Fixture):
                          ("pythia-coingecko", "bitcoin", "confirmed"))
         self.assertEqual(quote["alternatives"], [{"plugin": "pythia-coinmarketcap", "label": "CoinMarketCap",
                                                   "status": "needs_configuration"}])
+
+    def test_market_data_reads_a_subject_through_its_ready_references_in_core_order(self):
+        missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)
+        btc = page.load_subject(self.ref, BTC)
+        self.assertEqual(page.price_sources(btc, [plugin("coinmarketcap", missing=missing), plugin("coingecko")],
+                                            **self.lookups(BTC)),
+                         [{"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}])
+        asml = page.load_subject(self.ref, ASML)  # EODHD still needs a resolve, so it serves nothing yet
+        self.assertEqual(page.price_sources(asml, [plugin("eodhd"), plugin("yahoo")], **self.lookups(ASML)),
+                         [{"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol"}])
 
     def test_resolve_binds_unless_identifier_evidence_contradicts(self):
         subject, _ = self.compose(ASML, [])
