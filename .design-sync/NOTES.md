@@ -54,10 +54,10 @@ full-surface compositions, useful for realistic content.
 
 ## Component scope
 
-144 PascalCase exports, of which 67 are real components. `cfg.componentSrcMap`
-nulls the 77 compound parts (`SelectItem`, `BreadcrumbLink`, `SidebarSection`,
+145 PascalCase exports, of which 67 are real components. `cfg.componentSrcMap`
+nulls the 78 compound parts (`SelectItem`, `BreadcrumbLink`, `SidebarSection`,
 `TabsList`, …) so they don't get lonely cards — they are composed inside their
-parent's preview instead. All 144 still ship in `_ds_bundle.js` and stay
+parent's preview instead. All 145 still ship in `_ds_bundle.js` and stay
 importable; the exclusion only removes the card.
 
 29 entries in the same map pin a src path for components that share a file with

@@ -10,7 +10,9 @@
     "test:unit": "tsc --noEmit --project tsconfig.test.json && vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@pythia/market-data": "workspace:*",
     "@pythia/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
     "lucide-react": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
