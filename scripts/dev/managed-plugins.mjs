@@ -92,7 +92,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     name: "pythia-eodhd",
     install: true,
     // Makes no provider request until its declared configuration
-    // (configuration.json) is complete; Settings shows what it needs.
+    // (configuration.json) is complete: eodhd_api_token in secrets.json.
     enabledByDefault: true,
     doctor: false,
     source: "plugins/eodhd",

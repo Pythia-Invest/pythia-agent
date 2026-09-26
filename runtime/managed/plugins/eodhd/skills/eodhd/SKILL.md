@@ -46,10 +46,10 @@ a live market-wide ranking or canonical identity result. The bulk ranking costs
 100 API credits plus its catalogue request. Request it deliberately, without
 polling or substituting another feed after an error.
 
-The EODHD API token is set in Settings. A `needs_configuration` result means
-it is not configured yet: tell the user EODHD needs an API token rather than
-reporting a data failure. Native plugin and toolset enablement are separate
-choices; a saved token does not enable the connector. Configuration never
+The EODHD API token is the `eodhd_api_token` field of `secrets.json` in the
+Pythia config folder. A `needs_configuration` result means it is not set yet:
+tell the user that rather than reporting a data failure. Native plugin and toolset enablement are separate
+choices; a configured token does not enable the connector. Configuration never
 proves provider-plan entitlement.
 Preserve authentication, access, rate-limit and partial-result diagnostics.
 

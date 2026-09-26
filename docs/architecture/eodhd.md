@@ -18,12 +18,12 @@ identifier claims and content, never search-time results.
 ## Configuration and native access
 
 `configuration.json` at the package root declares one required field,
-`eodhd_api_token` of kind `secret`. Settings shows an EODHD section while the
-plugin is enabled and says it needs configuration until the token is saved;
-there is no EODHD-specific settings route. The connector reads the value only
+`eodhd_api_token` of kind `secret`: the investor adds it by hand to
+`secrets.json` (mode `0600`) in the Pythia config folder. There is no settings
+UI or EODHD-specific settings route. The connector reads the value only
 through core's `platform.configuration` (until that lands, a marked interim
 shim reads the same `secrets.json` field through the market-data helper).
-Saving does not enable the plugin, change toolsets, restart Hermes or probe
+Adding the token does not enable the plugin, change toolsets, restart Hermes or probe
 provider access. Until the token is configured, every EODHD tool answers with a
 `needs_configuration` issue ("EODHD needs an API token") and makes no provider
 request.

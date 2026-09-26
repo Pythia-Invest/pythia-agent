@@ -13,7 +13,7 @@ MESSAGES = {
     'rate_limit': 'EODHD rate limit reached; no automatic retry was made.', 'timeout': 'The EODHD operation reached its deadline.',
     'network_error': 'The EODHD connection failed.', 'provider_error': 'The EODHD endpoint failed.',
     'unavailable': 'The EODHD connector or its managed worker is unavailable.',
-    'needs_configuration': 'EODHD needs an API token. Add it in Settings to use EODHD data.', 'cancelled': 'The EODHD request was cancelled.',
+    'needs_configuration': 'EODHD needs an API token: add eodhd_api_token to secrets.json in the Pythia config folder.', 'cancelled': 'The EODHD request was cancelled.',
     'output_limit': 'The EODHD response exceeds the supported size; select a smaller catalogue scope.',
     'requirements_unmet': 'The source cannot establish the requested freshness, complete coverage or completed bars.',
     'truncated': 'The bounded result omits observations beyond the requested limit.', 'invalid_value': 'A missing or invalid source observation was omitted.',
