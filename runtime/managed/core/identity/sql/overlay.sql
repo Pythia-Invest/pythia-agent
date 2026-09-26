@@ -1,7 +1,8 @@
 -- Overlay store, one file per provider plugin: overlay-<plugin>.sqlite3 (ADR 0037, 0038).
 -- All provider data lives here (and in the derived directory), separate from the
--- identity store and user state. A bulk plugin keeps its catalogue records; a
--- resolve-only plugin keeps only the records the user picked. Hidden when the
+-- identity store and user state. A bulk plugin keeps its catalogue records under
+-- a scope. A resolve-only plugin keeps only the records the user picked: their
+-- identifiers and name (so they stay searchable), with no scope. Hidden when the
 -- plugin is disabled; deleted when its credential is removed. Overlay claims are
 -- subordinate to open reference evidence.
 
@@ -25,7 +26,7 @@ CREATE TABLE scopes (
 CREATE TABLE records (
   native_id TEXT NOT NULL,
   native_scope TEXT NOT NULL,
-  scope TEXT NOT NULL REFERENCES scopes(scope),
+  scope TEXT REFERENCES scopes(scope),  -- NULL for a resolve-only pick
   level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
   name TEXT,
   ticker TEXT,
@@ -42,7 +43,7 @@ CREATE TABLE records (
   last_seen TEXT NOT NULL,         -- not seen in a complete scope != delisted; never unbinds by itself
   PRIMARY KEY (native_scope, native_id)
 );
-CREATE INDEX records_ticker ON records (mic, ticker);
+CREATE INDEX records_ticker ON records (operating_mic, ticker);
 
 -- The identifiers each record co-asserts, typed for the ingest join.
 CREATE TABLE record_identifiers (
