@@ -34,29 +34,37 @@ def _day(value: str) -> str:
     return value[:10]
 
 
-def firds_files(user_agent: str, as_of: date, deltas: bool) -> tuple[list[dict], list[dict]]:
-    """Latest FULINS equity files on or before `as_of`, plus later daily deltas."""
+def file_types(cfi_prefixes: Iterable[str]) -> list[str]:
+    """FIRDS and FITRS split files by the CFI category letter (E equities, C collective investment)."""
+    return sorted({p[0] for p in cfi_prefixes})
+
+
+def firds_files(user_agent: str, as_of: date, deltas: bool, cfi_prefixes: Iterable[str]) -> tuple[list[dict], list[dict]]:
+    """Latest FULINS files for the wanted CFI categories on or before `as_of`, plus later daily deltas."""
     until = f"{as_of.isoformat()}T23:59:59Z"
-    full = _index(FIRDS_INDEX, user_agent, [f"publication_date:[* TO {until}]", "file_type:FULINS", "file_name:FULINS_E_*"], "publication_date desc", 20)
-    if not full:
-        raise SystemExit("ESMA FIRDS index returned no FULINS_E file")
-    latest = _day(full[0]["publication_date"])
-    full = sorted((d for d in full if _day(d["publication_date"]) == latest), key=lambda d: d["file_name"])
+    full: list[dict] = []
+    for letter in file_types(cfi_prefixes):
+        docs = _index(FIRDS_INDEX, user_agent, [f"publication_date:[* TO {until}]", "file_type:FULINS", f"file_name:FULINS_{letter}_*"], "publication_date desc", 20)
+        if not docs:
+            raise SystemExit(f"ESMA FIRDS index returned no FULINS_{letter} file")
+        latest = _day(docs[0]["publication_date"])
+        full += sorted((d for d in docs if _day(d["publication_date"]) == latest), key=lambda d: d["file_name"])
     if not deltas:
         return full, []
-    since = f"{latest}T23:59:59Z"
+    since = f"{min(_day(d['publication_date']) for d in full)}T23:59:59Z"
     delta = _index(FIRDS_INDEX, user_agent, [f"publication_date:{{{since} TO {until}]", "file_type:DLTINS"], "publication_date asc", 200)
     return full, sorted(delta, key=lambda d: d["file_name"])
 
 
-def fitrs_files(user_agent: str, as_of: date) -> list[dict]:
-    """Latest full equity transparency files (shares `E`, depositary receipts `R`)."""
+def fitrs_files(user_agent: str, as_of: date, cfi_prefixes: Iterable[str]) -> list[dict]:
+    """Latest full equity transparency files: shares `E`, depositary receipts `R`, ETFs `C`."""
     until = f"{as_of.isoformat()}T23:59:59Z"
     docs = _index(FITRS_INDEX, user_agent, [f"creation_date:[* TO {until}]", "file_name:FULECR_*"], "creation_date desc", 20)
     if not docs:
         return []
     latest = _day(docs[0]["creation_date"])
-    return [d for d in docs if _day(d["creation_date"]) == latest and re.search(r"_[ER]_", d["file_name"])]
+    wanted = "ER" + ("C" if "C" in file_types(cfi_prefixes) else "")
+    return [d for d in docs if _day(d["creation_date"]) == latest and re.search(rf"_[{wanted}]_", d["file_name"])]
 
 
 def download(downloader: Downloader, source: str, doc: dict) -> str:

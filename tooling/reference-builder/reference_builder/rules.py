@@ -79,6 +79,11 @@ def normalized_name(text: str) -> str:
     return " ".join(_LEGAL_FORM.sub(" ", folded).split())
 
 
+def firds_kind(cfi: str) -> str:
+    """Security kind from the CFI code: depositary receipt (ED), exchange-traded fund (CE) or share."""
+    return {"ED": "dr", "CE": "etf"}.get(cfi[:2], "share")
+
+
 def lit_segment(mic: str) -> str:
     return LIT_SEGMENT.get(mic, mic)
 

@@ -16,7 +16,8 @@ SEC_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 # NYSE Arca listings in this file, so XNYS is recorded with that caveat. "CBOE"
 # does not name the Cboe exchange, so it maps to Cboe's operating MIC, not a segment.
 EXCHANGE_MIC = {"Nasdaq": "XNAS", "NYSE": "XNYS", "CBOE": "XCBO", "OTC": "OTCM"}
-LISTED_MICS = frozenset({"XNAS", "XNYS", "XCBO"})
+# Operating MICs of US exchanges (a listing there, unlike OTC, can be a primary line).
+LISTED_MICS = frozenset({"XNAS", "XNYS", "XCBO", "IEXG", "TXSE"})
 
 
 def fetch(downloader: Downloader, contact: str | None, local: Path | None, max_age: timedelta) -> bytes:

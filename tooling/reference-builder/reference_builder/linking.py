@@ -1,4 +1,4 @@
-"""SEC ticker lines, their OpenFIGI identifiers, and CIK-to-LEI issuer links.
+"""US lines: SEC ticker lines, listed US ETFs, their OpenFIGI identifiers, and CIK-to-LEI issuer links.
 
 Links are made by identifier agreement first (FIRDS US ISIN, shared share-class
 FIGI, GLEIF's EDGAR registration), then by a unique normalised name. Any
@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 from . import rules
-from .assemble import FigiMap, Inputs
+from .assemble import FigiMap, Inputs, operating
 from .model import GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot
 from .sec import EXCHANGE_MIC, LISTED_MICS
 
@@ -35,10 +35,49 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
     links = _decide(snap, tickers, evidence, audit)
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
     for ticker in tickers:
-        listing = _listing(snap, ticker, rows.get(ticker.ticker), links.get(ticker.cik), audit)
+        listing = _listing(snap, inputs, ticker, rows.get(ticker.ticker), links.get(ticker.cik), audit)
         if not listing.security_id:
             listing.security_id = _security_for(snap, listing, isins.get(ticker.ticker), share_classes)
+    build_us_etfs(snap, inputs, figi_map)
     _mark_us_primaries(snap)
+
+
+def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
+    """Listed US ETFs the SEC company file leaves out, as issuer-less ETF securities.
+
+    A fund trust's CIK covers every series it runs, so it is no issuer for search;
+    an ETF that FIRDS also lists (same share-class FIGI) joins that security.
+    """
+    audit = snap.audit.setdefault("us_etfs", Counter())
+    have = {t.ticker for t in inputs.sec_tickers}
+    etfs = [row for row in inputs.us_listed.values() if row.etf and row.ticker not in have]
+    audit["listed_etfs"] = sum(1 for row in inputs.us_listed.values() if row.etf)
+    audit["added"] = len(etfs)
+    answers = figi_map([{"idType": "TICKER", "idValue": row.ticker.replace("-", "/"), "exchCode": "US"} for row in etfs])
+    share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
+    for row, answer in zip(etfs, answers):
+        figi = _pick(answer.get("data") or [])
+        root, klass = rules.split_ticker(row.ticker)
+        listing = Listing(
+            listing_id=f"{row.mic}:{row.ticker}", source="nasdaqtrader", row_class="etf", mic=row.mic,
+            operating_mic=operating(inputs.venues, row.mic), country="US", ticker=row.ticker, ticker_root=root,
+            ticker_class=klass, ticker_source="nasdaqtrader", currency="USD", name=row.name,
+        )
+        if figi:
+            listing.figi, listing.composite_figi = figi.get("figi"), figi.get("compositeFIGI")
+            listing.share_class_figi = figi.get("shareClassFIGI")
+            listing.security_type = figi.get("securityType2") or figi.get("securityType")
+        audit["openfigi_found" if figi else "openfigi_missing"] += 1
+        security = share_classes.get(listing.share_class_figi or "")
+        if security:
+            audit["joined_firds_security"] += 1
+            listing.security_id = security.security_id
+        else:
+            listing.security_id = f"figi:{listing.share_class_figi}" if listing.share_class_figi else f"etf:{row.ticker}"
+            snap.securities.setdefault(listing.security_id, Security(
+                security_id=listing.security_id, kind="etf", source="nasdaqtrader", share_class_figi=listing.share_class_figi,
+                name=row.name))
+        snap.listings[listing.listing_id] = listing
 
 
 def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, list[tuple[str, str]]], dict[str, str]]:
@@ -127,15 +166,17 @@ def _issuer_for(snap: Snapshot, ticker: SecTicker, link: tuple[str, str] | None)
     return issuer
 
 
-def _listing(snap: Snapshot, ticker: SecTicker, row: dict | None, link, audit: Counter) -> Listing:
+def _listing(snap: Snapshot, inputs: Inputs, ticker: SecTicker, row: dict | None, link, audit: Counter) -> Listing:
+    """A SEC ticker line, on the exchange the symbol directory names when it lists the ticker."""
     issuer = _issuer_for(snap, ticker, link)
-    mic = EXCHANGE_MIC.get(ticker.exchange or "")
-    row_class = rules.sec_row_class((row or {}).get("securityType2"), ticker.ticker)
+    listed = inputs.us_listed.get(ticker.ticker)
+    mic = listed.mic if listed and ticker.exchange != "OTC" else EXCHANGE_MIC.get(ticker.exchange or "")
+    row_class = "etf" if listed and listed.etf else rules.sec_row_class((row or {}).get("securityType2"), ticker.ticker)
     audit[f"row_class_{row_class}"] += 1
     listing_id = f"{mic or 'US'}:{ticker.ticker}"
     listing = snap.listings.get(listing_id) or Listing(listing_id=listing_id, source="sec", row_class=row_class)
     root, klass = rules.split_ticker(ticker.ticker)
-    listing.issuer_id, listing.mic, listing.operating_mic, listing.country = issuer.issuer_id, mic, mic, "US"
+    listing.issuer_id, listing.mic, listing.operating_mic, listing.country = issuer.issuer_id, mic, operating(inputs.venues, mic), "US"
     listing.ticker, listing.ticker_root, listing.ticker_class, listing.ticker_source = ticker.ticker, root, klass, "sec"
     listing.currency = listing.currency or "USD"
     listing.position = ticker.position if listing.position is None else min(listing.position, ticker.position)
@@ -146,7 +187,7 @@ def _listing(snap: Snapshot, ticker: SecTicker, row: dict | None, link, audit: C
         listing.security_type = row.get("securityType2") or row.get("securityType")
     else:
         listing.status_reasons.append("no_openfigi_line")
-    if ticker.exchange == "NYSE":
+    if ticker.exchange == "NYSE" and not listed:
         listing.status_reasons.append("sec_nyse_may_be_american_or_arca")
     snap.listings[listing_id] = listing
     return listing
@@ -156,11 +197,11 @@ def _security_for(snap: Snapshot, listing: Listing, isin: str | None, share_clas
     """Same share class or FIRDS ISIN: the EU security. Otherwise a SEC-only security."""
     security = snap.securities.get(f"isin:{isin}") if isin else share_classes.get(listing.share_class_figi or "")
     if security:
-        if listing.mic in LISTED_MICS:
+        if listing.operating_mic in LISTED_MICS and not (security.isin or "").startswith("US"):
             snap.flag(listing.listing_id, "co_primary_same_security", security.security_id)
         return security.security_id
     security_id = f"figi:{listing.share_class_figi}" if listing.share_class_figi else f"sec:{listing.ticker}"
-    kind = listing.row_class if listing.row_class in ("share", "dr", "preferred", "fund") else "other"
+    kind = listing.row_class if listing.row_class in ("share", "dr", "etf", "preferred", "fund") else "other"
     snap.securities.setdefault(
         security_id,
         Security(security_id=security_id, kind=kind, source="sec", issuer_id=listing.issuer_id, share_class_figi=listing.share_class_figi),
@@ -169,16 +210,22 @@ def _security_for(snap: Snapshot, listing: Listing, isin: str | None, share_clas
 
 
 def _mark_us_primaries(snap: Snapshot) -> None:
-    """A SEC-only security's first exchange-listed line is its primary listing."""
+    """A US security's first exchange-listed line is its primary listing.
+
+    US securities are the SEC and directory ones, and FIRDS securities with a US
+    ISIN: OpenFIGI shows US lines on every exchange, so it cannot name the home one.
+    """
     by_security: dict[str, list[Listing]] = defaultdict(list)
     for listing in snap.listings.values():
-        if listing.source == "sec" and listing.security_id:
+        if listing.security_id:
             by_security[listing.security_id].append(listing)
     for security_id, lines in by_security.items():
         security = snap.securities[security_id]
-        if security.source != "sec":
+        if security.source not in ("sec", "nasdaqtrader") and not (security.isin or "").startswith("US"):
             continue
-        listed = [l for l in lines if l.mic in LISTED_MICS]
+        listed = sorted((l for l in lines if l.country == "US" and l.operating_mic in LISTED_MICS and l.currency),
+                        key=lambda l: (l.position is None, l.position or 0, l.listing_id))
         if listed:
-            listed[0].is_primary = True
-            security.primary_mic, security.primary_rule = listed[0].mic, "sec_exchange_listing"
+            for line in lines:
+                line.is_primary = line is listed[0]
+            security.primary_mic, security.primary_rule = listed[0].operating_mic, "us_exchange_listing"

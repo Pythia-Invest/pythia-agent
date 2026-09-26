@@ -79,6 +79,16 @@ class SecTicker:
     position: int  # order in the SEC file
 
 
+@dataclass(frozen=True)
+class UsListing:
+    """One line of the Nasdaq Trader symbol directory."""
+
+    ticker: str  # SEC style: share classes as `BRK-B`
+    name: str
+    mic: str
+    etf: bool
+
+
 # ---- assembled snapshot ------------------------------------------------------
 
 
@@ -102,7 +112,7 @@ class Issuer:
 @dataclass
 class Security:
     security_id: str
-    kind: str  # share | dr | preferred | fund | other
+    kind: str  # share | dr | etf | preferred | fund | other
     source: str
     issuer_id: str | None = None
     isin: str | None = None

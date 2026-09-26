@@ -7,6 +7,7 @@ can state its URL, retrieval time, version and checksum.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import sys
 import time
@@ -69,7 +70,7 @@ def request(
             if exc.code not in RETRY_STATUS:
                 raise last from None
             wait = _retry_after(exc.headers, default=5 * (attempt + 1))
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+        except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError) as exc:
             last = HttpError(url, None, type(exc).__name__)
             wait = 5 * (attempt + 1)
         if attempt + 1 < attempts:
