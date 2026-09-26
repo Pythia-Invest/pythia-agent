@@ -57,11 +57,12 @@ CoinMarketCap uses two network namespaces. The map names a token's platform by
 a platform ID (Ethereum is platform 1); info names each deployment's chain by
 that chain's own coin ID (Ethereum is coin 1027). The connector keeps them
 distinct (`coinmarketcap:platform:<id>` and `coinmarketcap:coin:<id>`) with the
-chain's name, slug and symbol. That is enough for a core CAIP-2 table to derive
-CAIP-19 later. Two chains can share a native coin (BNB Beacon Chain and BNB Smart
-Chain), and CoinMarketCap lists wrapped representations for some native coins
-(SOL shows the wrapped-SOL mint), so the chain mapping must use the name as well
-and must not treat those addresses as the native asset.
+chain's name, slug and symbol. Two chains can share a native coin (BNB Beacon
+Chain and BNB Smart Chain), so `details` evidence keys a deployment's network by
+coin ID plus the platform name as a slug (`coinmarketcap:coin:1839:bnb-smart-chain-bep20`).
+That is enough for a core CAIP-2 table to derive CAIP-19 later. CoinMarketCap
+lists wrapped representations for some native coins (SOL shows the wrapped-SOL
+mint); the mapping must not treat those addresses as the native asset.
 
 ## Plan limits and terms
 

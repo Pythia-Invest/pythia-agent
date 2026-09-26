@@ -41,7 +41,8 @@ INFO = {'id': 7, 'name': 'Synthetic Token', 'symbol': 'SYN', 'slug': 'synthetic-
         'description': 'Synthetic description.', 'logo': 'https://example.invalid/7.png', 'notice': '',
         'urls': {'website': ['https://example.invalid'], 'twitter': [], 'explorer': ['https://explorer.example.invalid/0xabc']},
         'tag-names': ['Example tag'], 'date_added': '2020-01-01T00:00:00.000Z', 'date_launched': None,
-        'contract_address': [{'contract_address': '0xabc', 'platform': {'name': 'Example Chain', 'coin': {'id': '1027', 'name': 'Example', 'symbol': 'EXC', 'slug': 'example-chain'}}}]}
+        'contract_address': [{'contract_address': '0xabc', 'platform': {'name': 'Example Chain', 'coin': {'id': '1027', 'name': 'Example', 'symbol': 'EXC', 'slug': 'example-chain'}}},
+                             {'contract_address': '0xabc', 'platform': {'name': 'Example Chain (Side)', 'coin': {'id': '1027', 'name': 'Example', 'symbol': 'EXC', 'slug': 'example-chain'}}}]}
 
 
 def quote_rows(ids):
@@ -186,7 +187,9 @@ class CoinMarketCap(unittest.TestCase):
         self.assertEqual(profile['source']['retrieved_at'], '2026-01-02T00:00:05.000Z')
         self.assertEqual(profile['deployments'][0]['network']['namespace'], 'coinmarketcap:coin')
         contract = [e for e in details['evidence'] if e['scheme'] == 'contract_address']
-        self.assertEqual([e['qualifiers']['network'] for e in contract], ['coinmarketcap:coin:1027'])
+        # Two chains sharing one native coin stay distinct networks.
+        self.assertEqual([e['qualifiers']['network'] for e in contract],
+                         ['coinmarketcap:coin:1027:example-chain', 'coinmarketcap:coin:1027:example-chain-side'])
         for evidence in details['evidence']:
             wire.validate('evidence', evidence)
         # A shared contract with another provider's coin is a candidate, never a merge.

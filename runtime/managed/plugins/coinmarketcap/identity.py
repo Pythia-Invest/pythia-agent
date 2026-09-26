@@ -81,8 +81,13 @@ def info_contracts(row):
 
 
 def network_key(network):
-    """Compact wire qualifier: namespace plus source ID, e.g. coinmarketcap:coin:1027."""
-    return network['namespace'] + ':' + network['id']
+    """Compact wire qualifier: namespace, source ID and the platform name as a slug.
+
+    Two chains can share a coin ID (BNB Beacon Chain and BNB Smart Chain are both
+    coin 1839), so the name keeps them apart, e.g. coinmarketcap:coin:1027:ethereum.
+    """
+    name = re.sub(r'[^a-z0-9]+', '-', (network['name'] or '').lower()).strip('-')
+    return network['namespace'] + ':' + network['id'] + (':' + name if name else '')
 
 
 def candidate(row):
