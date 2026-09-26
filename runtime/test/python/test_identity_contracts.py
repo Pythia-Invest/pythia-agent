@@ -258,6 +258,23 @@ class ClaimTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.record(native_of="ethereum")
 
+    def test_batches_round_trip_through_the_wire_form(self):
+        relation = identity.RelationClaim(
+            "depositary_receipt_of", {"scheme": "isin", "value": "USN070592100"},
+            {"scheme": "isin", "value": "NL0010273215"}, PROVENANCE, ratio="1")
+        batch = self.batch(self.record(attributes={"ticker": "ASML", "rank": {"volume": 2.5}}), relation)
+        wire = json.loads(json.dumps(identity.batch_to_json(batch)))
+        self.assertEqual(identity.batch_from_json(wire), batch)
+        self.assertEqual(wire["claims"][0]["identifiers"][0], {"scheme": "isin", "value": "NL0010273215", "role": "self"})
+
+    def test_a_malformed_wire_batch_names_the_bad_claim(self):
+        wire = identity.batch_to_json(self.batch(self.record()))
+        wire["claims"][0]["identifiers"][0]["value"] = "NL0010273216"
+        with self.assertRaisesRegex(identity.ClaimError, r"^claims\[0\]"):
+            identity.batch_from_json(wire)
+        with self.assertRaisesRegex(identity.ClaimError, r"^batch"):
+            identity.batch_from_json({**wire, "claims": [], "surprise": 1})
+
 
 class ResolutionTest(unittest.TestCase):
     LISTING = "listing:isin:NL0010273215:XAMS:EUR"
@@ -305,7 +322,7 @@ class ResolutionTest(unittest.TestCase):
         self.assertIs(self.decide(self.verdict(), evidence=[self.figi("BBG000C1HT47"), stale]), outcome.CONFIRMED)
         self.assertIs(self.decide(self.verdict(), evidence=[stale]), outcome.BLOCKED)
 
-    def test_an_open_isin_outranks_a_stale_overlay_isin(self):
+    def test_an_open_isin_outranks_a_stale_provider_isin(self):
         outcome = identity.VerdictOutcome
         security = "security:isin:NL0010273215"
         reference = identity.IdentifierAssertion(subject_id=security, scheme="isin", value="NL0010273215",
