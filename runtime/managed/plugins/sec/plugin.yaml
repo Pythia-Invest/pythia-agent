@@ -1,0 +1,11 @@
+name: pythia-sec
+version: 0.1.0
+description: SEC filer identity, filings and reported financial facts
+license: Apache-2.0
+requires_plugins:
+  - pythia-market-data
+provides_tools:
+  - pythia_sec_resolve
+  - pythia_sec_filings
+  - pythia_sec_fundamentals
+  - pythia_sec_facts

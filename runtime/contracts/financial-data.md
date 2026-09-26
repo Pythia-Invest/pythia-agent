@@ -3,8 +3,10 @@
 The shared [market-data contracts](../../packages/market-data/README.md) and
 [native backend](../../packages/market-data/BACKEND.md) now provide canonical
 identity, preferred/pinned price/history reads and coordinated protected delivery.
-This foundation ships no concrete shared connector. The two original core tools
-documented below are retired by [ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).
+Concrete connectors are separate plugin packages; the first bundled one is the
+[Yahoo Finance connector](../managed/plugins/yahoo-discovery/README.md). The two
+original core tools documented below are retired by
+[ADR 0034](../../docs/decisions/0034-core-and-optional-features.md).
 The following contracts record historical integration evidence for future
 connector work; they do not describe installed tools or current qualification.
 

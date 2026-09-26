@@ -1,0 +1,11 @@
+name: pythia-xbrl-filings
+version: 0.1.0
+description: Public XBRL (ESEF) annual report links and reported financial facts by issuer LEI
+license: Apache-2.0
+requires_plugins:
+  - pythia-market-data
+provides_tools:
+  - pythia_xbrl_filings_resolve
+  - pythia_xbrl_filings_filings
+  - pythia_xbrl_filings_fundamentals
+  - pythia_xbrl_filings_facts

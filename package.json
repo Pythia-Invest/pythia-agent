@@ -19,12 +19,16 @@
     "dev": "node tooling/run-turbo.mjs dev --parallel",
     "lint": "node tooling/run-biome.mjs",
     "test": "pnpm run test:fast && pnpm run test:system",
-    "test:fast": "pnpm run test:unit && pnpm run test:integration && pnpm run test:runtime",
+    "test:fast": "pnpm run test:unit && pnpm run test:integration && pnpm run test:runtime && pnpm run test:tooling",
     "test:integration": "vitest run --config vitest.root.config.mts test/integration --passWithNoTests && node tooling/run-turbo.mjs test:integration",
     "test:qualification": "pnpm run build && vitest run --config vitest.root.config.mts test/qualification --passWithNoTests && node tooling/qualification/run-assembled.mjs",
     "test:runtime": "vitest run --config vitest.root.config.mts runtime/test && python3 -m unittest discover -s runtime/test/python -p 'test_*.py'",
+    "test:tooling": "python3 -m unittest discover -s tooling/reference-builder/test -t tooling/reference-builder -p 'test_*.py'",
     "test:system": "vitest run --config vitest.root.config.mts test/system --passWithNoTests",
     "test:unit": "vitest run --config vitest.root.config.mts test/unit && node tooling/run-turbo.mjs test:unit"
+  },
+  "dependencies": {
+    "yahoo-finance2": "4.0.2"
   },
   "devDependencies": {
     "@types/json-schema": "7.0.15",
