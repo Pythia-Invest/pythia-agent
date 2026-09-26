@@ -74,3 +74,25 @@ Direct component imports into Desk require rebuilding it for every custom header
 Runtime cross-plugin component resolution duplicates ordinary source bundling.
 Bundling TanStack Query would create a second cache context. Calling arbitrary
 native tools or weakening automatic read-only requests would widen authority.
+
+## Amendment: investment search is the product default (2026-09)
+
+Context: the identity backbone gives the market-data search bar a real local
+directory (`pythia`/`identity-search`) and a destination (`/instrument/[subject]`),
+so investors should meet it without editing a file first.
+
+Ruling: the product default renderer (used only when the workspace has no
+`desk/top-bar.json`) is `{"plugin": "pythia-market-data", "presentation":
+"top-bar"}`. When that default is unavailable, for example because the feature
+is disabled, Desk shows the core header without a warning: the investor chose
+nothing, so nothing is misconfigured. An explicit selection that fails still
+shows the core header with a visible issue, and explicit `renderer: null` still
+selects the core header. The shell, not the module, routes the module's
+`pythia:open-subject` event, so the context gains no navigation or domain helper.
+
+Consequences: the default header no longer filters the chat list (the chat
+panel's own search does), and Cmd/Ctrl+K focuses investment search. Changing the
+default needed no new mechanism: the same native declaration check, fallback
+and withdrawal apply. Rejected: seeding `desk/top-bar.json` into workspaces
+(it would turn a product default into user configuration that later defaults
+could not update) and a special-case header in Desk (a second top-bar owner).
