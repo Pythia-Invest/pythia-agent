@@ -85,3 +85,17 @@ class NamesAndClassesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DisplayNameTest(unittest.TestCase):
+    def test_all_capitals_names_are_recased_keeping_acronyms_and_legal_forms(self):
+        cases = {("ASML HOLDING N.V.", "ASML"): "ASML Holding N.V.", ("ING GROEP N.V.", ""): "ING Groep N.V.",
+                 ("KONINKLIJKE KPN N.V.", ""): "Koninklijke KPN N.V.", ("BANK OF AMERICA CORP /DE/", ""): "Bank of America Corp",
+                 ("COMPAGNIE DE SAINT-GOBAIN", ""): "Compagnie de Saint-Gobain", ("THE MAGNUM ICE CREAM COMPANY N.V.", ""):
+                 "The Magnum Ice Cream Company N.V.", ("O'REILLY AUTOMOTIVE INC", ""): "O'Reilly Automotive Inc"}
+        for (name, ticker), shown in cases.items():
+            self.assertEqual(rules.display_case(name, frozenset({ticker})), shown)
+
+    def test_mixed_case_names_keep_their_case_without_sec_markers(self):
+        self.assertEqual(rules.display_case("CVC Capital Partners plc/ADR"), "CVC Capital Partners plc")
+        self.assertEqual(rules.display_case("Anheuser-Busch InBev SA/NV"), "Anheuser-Busch InBev SA/NV")

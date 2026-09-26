@@ -73,6 +73,42 @@ def display_name(legal_name: str, names: tuple[tuple[str, str, str | None], ...]
     return legal_name, "legal_name_non_latin"
 
 
+# Re-casing an all-capitals name: legal forms in their usual spelling, particles lower case after the
+# first word, and short common words that are not acronyms.
+_FORMS = {"INC": "Inc", "CORP": "Corp", "CO": "Co", "LTD": "Ltd", "LLC": "LLC", "PLC": "PLC", "HLDGS": "Hldgs",
+          "SPA": "SpA", "KGAA": "KGaA", "GMBH": "GmbH", "OYJ": "Oyj", "PTE": "Pte", "BHD": "Bhd", "TR": "Tr"}
+_PARTICLES = frozenset("OF AND THE FOR DE DU DES DER DEN DI DA DEL LA LE VAN VON ET EN AT ON IN".split())
+_WORDS = frozenset("AIR ART BAY BIG BIO CAR GAS ICE INN NET NEW OIL ONE PAY RED SEA SKY SUN TOP TWO WAY".split())
+# SEC company titles end in a state or filer marker (" /DE/", " /FI", "INC/", "/NEW/") or "/ADR"; "SA/NV" stays.
+_SEC_SUFFIX = re.compile(r"(?:\s+/\s*[A-Z]{2,3}/?|/\s*(?:[A-Z]{2,3}/)?|\s*/\s*AD[RS]S?)\s*$", re.IGNORECASE)
+
+
+def display_case(name: str, tickers: frozenset[str] = frozenset()) -> str:
+    """A readable display name: SEC state and ADR suffixes dropped ("/DE/"), and an all-capitals name
+    re-cased ("ASML HOLDING N.V." with ticker ASML -> "ASML Holding N.V."). Mixed-case names keep their
+    case. Kept upper: dotted forms (N.V., S.A.), the issuer's tickers, words without a vowel and short
+    words that are not common words (BP, KPN, ING, NN)."""
+    name = _SEC_SUFFIX.sub("", name).strip() or name
+    if name != name.upper():
+        return name
+
+    def word(token: str, first: bool) -> str:
+        plain = re.sub(r"[^A-Z0-9]", "", token)
+        if not plain.isalpha() or re.fullmatch(r"(?:[A-Z]\.)+[A-Z]?\.?", token) or plain in tickers:
+            return token
+        if plain in _FORMS:
+            return token.replace(plain, _FORMS[plain])
+        if plain in _PARTICLES:
+            return token.capitalize() if first else token.lower()
+        if not re.search(r"[AEIOUY]", plain) or (len(plain) <= 3 and plain not in _WORDS):
+            return token
+        cased = re.sub(r"[A-Z]+(?:'[A-Z]+)?", lambda part: part[0].capitalize(), token)
+        return re.sub(r"^(Mc|[OD]')([a-z])", lambda part: part[1] + part[2].upper(), cased)
+
+    parts = re.split(r"([\s/-]+)", name)
+    return "".join(part if index % 2 else word(part, index == 0) for index, part in enumerate(parts))
+
+
 def normalized_name(text: str) -> str:
     folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().upper()
     folded = re.sub(r"[^A-Z0-9 ]", " ", folded.replace("&", " AND "))
