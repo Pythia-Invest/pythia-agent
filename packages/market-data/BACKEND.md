@@ -117,9 +117,11 @@ unproven bars and report partial/error status.
 
 The implementation retains narrowly qualified, Pythia-owned rules for equity
 instrument evidence and native crypto-catalogue identity; see [identity](IDENTITY.md).
-Synthetic tests prove rule behavior, not installed connector availability. This
-increment ships no concrete shared connector. Existing SEC and legacy EOD tools
-remain independent and do not implicitly become shared sources.
+Synthetic tests prove rule behavior, not installed connector availability.
+Concrete connectors are separate plugin packages, such as the bundled
+[Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md).
+Existing SEC and legacy EOD tools remain independent and do not implicitly
+become shared sources.
 
 ## Coordination and delivery
 
