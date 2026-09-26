@@ -1,0 +1,33 @@
+{
+  "plugin": "pythia-sec",
+  "provider": "sec",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "cik",
+        "level": "issuer"
+      }
+    ],
+    "schemes": {
+      "issuer": [
+        "cik"
+      ]
+    }
+  },
+  "content": {
+    "filings": {
+      "level": "issuer",
+      "via": "issuer",
+      "tool": "pythia_sec_filings"
+    }
+  },
+  "resolve": {
+    "tool": "pythia_sec_resolve",
+    "input_schemes": [
+      "cik"
+    ],
+    "echoes": [
+      "cik"
+    ]
+  }
+}

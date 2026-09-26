@@ -1,0 +1,33 @@
+{
+  "plugin": "pythia-gleif",
+  "provider": "gleif",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "lei",
+        "level": "issuer"
+      }
+    ],
+    "schemes": {
+      "issuer": [
+        "lei"
+      ]
+    }
+  },
+  "content": {
+    "profile": {
+      "level": "issuer",
+      "via": "issuer",
+      "tool": "pythia_gleif_profile"
+    }
+  },
+  "resolve": {
+    "tool": "pythia_gleif_resolve",
+    "input_schemes": [
+      "lei"
+    ],
+    "echoes": [
+      "lei"
+    ]
+  }
+}

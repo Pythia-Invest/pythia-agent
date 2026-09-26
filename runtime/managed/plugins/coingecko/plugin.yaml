@@ -6,6 +6,7 @@ requires_plugins:
   - pythia-market-data
 provides_tools:
   - pythia_coingecko_catalogue
+  - pythia_coingecko_resolve
   - pythia_coingecko_read_batch
   - pythia_coingecko_details
   - pythia_coingecko_series

@@ -1,0 +1,33 @@
+{
+  "plugin": "pythia-xbrl-filings",
+  "provider": "xbrl-filings",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "lei",
+        "level": "issuer"
+      }
+    ],
+    "schemes": {
+      "issuer": [
+        "lei"
+      ]
+    }
+  },
+  "content": {
+    "filings": {
+      "level": "issuer",
+      "via": "issuer",
+      "tool": "pythia_xbrl_filings_filings"
+    }
+  },
+  "resolve": {
+    "tool": "pythia_xbrl_filings_resolve",
+    "input_schemes": [
+      "lei"
+    ],
+    "echoes": [
+      "lei"
+    ]
+  }
+}

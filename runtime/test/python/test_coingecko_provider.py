@@ -23,6 +23,7 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
 from native_plugin_fixtures import Context
+from test_plugin_contracts import checked_batch
 from test_market_data_identity import PACKAGE
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed'
@@ -247,6 +248,13 @@ class Access(unittest.TestCase):
             self.assertEqual((calls[0][0]['mode'], calls[0][0]['token']), ('keyless', None))
             # The packed live list (~4 MB) exceeds the default 2 MB worker bound.
             self.assertGreater(calls[0][1]['output_limit'], 4_000_000)
+            coin = {'id': 'synthetic-coin', 'symbol': 'syn', 'name': 'Synthetic Coin', 'platforms': {}}
+            with patch.object(importlib.import_module(PACKAGE + '.process'), 'run_worker',
+                              lambda _command, request, _environment, **_options: {'data': coin, 'error': None}):
+                batch = checked_batch('coingecko', ctx.tools[provider.TOOLS['resolve']]({'native_id': 'synthetic-coin'}))
+            claim, = batch.claims
+            self.assertEqual((claim.native_ref.native_id, claim.identifiers, claim.attributes.ticker),
+                             ('synthetic-coin', (), 'SYN'))
         manifest = (ROOT / 'plugins/coingecko/plugin.yaml').read_text()
         self.assertEqual({line.strip()[2:] for line in manifest.splitlines() if line.strip().startswith('- pythia_coingecko_')},
                          set(provider.TOOLS.values()))
