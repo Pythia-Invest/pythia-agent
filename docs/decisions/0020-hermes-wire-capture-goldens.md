@@ -23,8 +23,9 @@ itself may be committed.
   functions that produce them, such as the notice formatters, tool handlers,
   tool-result builder and steer delivery. CLI text comes from the pinned
   `hermes` entry point.
-- No model, provider, credential or network is involved. The capture refuses
-  every connection that is not loopback, and it fails if Hermes attempts one.
+- No model, provider, credential or network is involved. The capture blocks
+  socket connections and name lookups other than loopback, and it fails if
+  Hermes attempts one.
   Approvals run in `manual` mode, because the default `smart` mode first asks
   an auxiliary model.
 - The capture replaces run ids, generated ids, temporary paths and wall-clock
@@ -38,9 +39,10 @@ itself may be committed.
   is synthetic and must be obviously fictional.
 - Desk unit tests run the goldens through Desk's real parsers and assert what
   the user would see. Rerun the capture on every Hermes bump and review the
-  diff as part of the upgrade. `just check-hermes-capture`, which is the first
-  step of `just qualify`, fails when a fresh capture differs from the
-  committed goldens.
+  diff as part of the upgrade. `just qualify` fails when a fresh capture from
+  the Hermes its assembled run hydrates differs from the committed goldens;
+  `just check-hermes-capture` runs the same comparison against a worktree
+  already prepared with `just dev-init`.
 
 ## Rationale and consequences
 

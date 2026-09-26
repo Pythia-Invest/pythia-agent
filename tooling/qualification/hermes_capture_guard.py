@@ -19,7 +19,7 @@ LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
 
 def block_network() -> None:
-    """Refuse every non-loopback connection so nothing can reach a provider."""
+    """Refuse non-loopback socket connections and lookups so no provider is reachable."""
     real_connect = socket.socket.connect
     real_connect_ex = socket.socket.connect_ex
     real_getaddrinfo = socket.getaddrinfo
