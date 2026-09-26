@@ -41,9 +41,10 @@ The separate CoinGecko/CoinMarketCap crypto rules require their matching provide
 coin ID. It confirms only the same native reference, retaining distinct coin
 IDs as candidates. Conflicting native assertions block confirmation. Platform
 contracts, symbols and wrapped-asset relationships are not cross-coin or
-cross-provider proof. Synthetic evidence checks exercise these narrow rules;
-no concrete shared crypto connector or live qualification is included in this
-foundation. An absent connector cannot be used merely because its rule exists.
+cross-provider proof. Synthetic evidence checks exercise these narrow rules.
+The bundled CoinGecko connector supplies native coin evidence through `details`;
+its catalogue rows are source-asserted identifiers, not adopted identity. An
+absent connector cannot be used merely because its rule exists.
 
 The internal connector boundary is `ingest(native_ref, evidence)`. It validates
 and stores immutable normalized evidence, returning evidence IDs. Only a trusted
