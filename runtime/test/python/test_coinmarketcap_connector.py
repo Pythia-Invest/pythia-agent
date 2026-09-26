@@ -200,7 +200,7 @@ class CoinMarketCap(unittest.TestCase):
         with registered() as (ctx, calls):
             result = call(ctx, 'read_batch', {'reads': [latest_input(str(index)) for index in range(1, 13)]})
         self.assertEqual(result['outcome'], 'ok', result)
-        self.assertEqual([operation for operation, _ in calls], ['quotes', 'quotes'])  # native batches of ten
+        self.assertEqual([operation for operation, _ in calls], ['quotes'])  # one shared native request
         for row in result['data']:
             wire.validate_read_result(row)
             self.assertEqual(row['observations'][0]['value'], '0.123456789012345678901')

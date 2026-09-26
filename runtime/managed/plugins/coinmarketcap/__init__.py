@@ -41,7 +41,7 @@ def register(ctx):
     platform = platform_module.platform()
     definitions = schemas(wire)
     reads = connector.WorkerReads(process)
-    quote_batch = connector.NativeBatch(size=10, age=600)
+    quote_batch = connector.NativeBatch(size=100, age=600)
     config.register_cli(ctx)
 
     def ready():
@@ -81,7 +81,7 @@ def register(ctx):
                     return reads.read(command, message, env, age=0 if fresh else CACHE[endpoint], cancelled=cancelled,
                                       timeout=15, budget=budget)
                 ids = args['id'].split(',')
-                # Quotes coalesce into shared native requests of at most ten IDs;
+                # Quotes coalesce into shared native requests of at most 100 IDs (one credit);
                 # a single read keeps only its own row and its own failure.
                 raw = quotes[args['convert']] if quotes is not None else connector.worker_batch(
                     quote_batch, process, command, message, env, ids, argument='id', separator=',', row_id='id',

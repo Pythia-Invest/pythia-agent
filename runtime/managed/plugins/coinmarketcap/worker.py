@@ -17,7 +17,8 @@ from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Requ
 ORIGIN = 'https://pro-api.coinmarketcap.com'
 LIMIT = 1_500_000
 CURRENCIES = ('USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD')
-MAX_IDS = 10
+# CoinMarketCap bills quotes one credit per 100 IDs.
+MAX_IDS = 100
 # (path, caller fields, fixed query). Fixed fields keep catalogue pages stable
 # (active coins ordered by permanent ID) and bound the listing payload.
 ENDPOINTS = {

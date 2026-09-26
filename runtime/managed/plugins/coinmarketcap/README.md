@@ -29,7 +29,7 @@ result and makes no request. The quote currency defaults to USD:
 | --- | --- | --- |
 | `catalogue` | `/v1/cryptocurrency/map` (active coins, ordered by ID) plus one `/v3/cryptocurrency/listings/latest` read of the top 500 by market cap | Map pages are not cached; the listings read is shared for one hour |
 | `profile`, `details` | `/v2/cryptocurrency/info` | Six hours in memory, shared by both |
-| `series`, `latest`, `history`, `read_batch` | `/v3/cryptocurrency/quotes/latest`, `/v3/cryptocurrency/quotes/historical` | Quotes coalesce into native requests of up to ten IDs and are reused for ten minutes; history for fifteen |
+| `series`, `latest`, `history`, `read_batch` | `/v3/cryptocurrency/quotes/latest`, `/v3/cryptocurrency/quotes/historical` | Quotes coalesce into native requests of up to 100 IDs (one credit each) and are reused for ten minutes; history for fifteen |
 
 The common reads are marked for the market-data owner (`details`, `series`,
 `latest`, `history`, `read_batch`); `search` is deliberately absent.
