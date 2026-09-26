@@ -241,6 +241,7 @@
         "native_id": "ASML.AS",
         "native_scope": "symbol"
       },
+      "plugin": "yahoo",
       "subject_id": "listing:isin:NL0010273215:XAMS:EUR",
       "status": "confirmed",
       "authority": "rule_confirmed",
@@ -254,6 +255,7 @@
         "native_id": "ASML.AS",
         "native_scope": "catalogue"
       },
+      "plugin": "eodhd",
       "subject_id": "listing:isin:NL0010273215:XAMS:EUR",
       "status": "confirmed",
       "authority": "source_asserted",
@@ -269,6 +271,7 @@
         "native_id": "ASML",
         "native_scope": "symbol"
       },
+      "plugin": "yahoo",
       "subject_id": "listing:isin:USN070592100:XNAS:USD",
       "status": "confirmed",
       "authority": "rule_confirmed",
@@ -282,6 +285,7 @@
         "native_id": "ASML.US",
         "native_scope": "catalogue"
       },
+      "plugin": "eodhd",
       "subject_id": "composite:isin:USN070592100:US",
       "status": "confirmed",
       "authority": "source_asserted",

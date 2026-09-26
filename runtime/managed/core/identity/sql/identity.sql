@@ -44,6 +44,7 @@ CREATE TABLE relations (
 -- keeps addressing by provider_ref; the backbone supplies which subject it is.
 CREATE TABLE bindings (
   id TEXT PRIMARY KEY,
+  plugin TEXT NOT NULL,            -- whose claim made it
   provider TEXT NOT NULL,
   native_id TEXT NOT NULL,
   native_scope TEXT NOT NULL,
@@ -77,7 +78,7 @@ CREATE TABLE queue (
   subject_ids TEXT NOT NULL,
   candidate_ids TEXT NOT NULL DEFAULT '[]',
   evidence_ids TEXT NOT NULL DEFAULT '[]',
-  plugin TEXT,                     -- whose claim opened the item
+  plugins TEXT NOT NULL,           -- JSON: the plugins whose claims are involved (two for a cross-plugin conflict)
   provider_ref TEXT,
   scheme TEXT,                     -- conflict: the contested scheme
   contested_values TEXT NOT NULL DEFAULT '[]',

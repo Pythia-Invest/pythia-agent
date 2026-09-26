@@ -157,6 +157,7 @@
         "native_id": "1",
         "native_scope": "coin"
       },
+      "plugin": "coinmarketcap",
       "subject_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
       "status": "confirmed",
       "authority": "rule_confirmed",
@@ -174,6 +175,7 @@
         "native_id": "bitcoin",
         "native_scope": "coin"
       },
+      "plugin": "coingecko",
       "subject_id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
       "status": "confirmed",
       "authority": "rule_confirmed",
@@ -191,6 +193,7 @@
         "native_id": "1027",
         "native_scope": "coin"
       },
+      "plugin": "coinmarketcap",
       "subject_id": "security:caip19:eip155:1/slip44:60",
       "status": "confirmed",
       "authority": "rule_confirmed",
@@ -203,6 +206,7 @@
         "native_id": "ethereum",
         "native_scope": "coin"
       },
+      "plugin": "coingecko",
       "subject_id": "security:caip19:eip155:1/slip44:60",
       "status": "confirmed",
       "authority": "rule_confirmed",
@@ -215,6 +219,7 @@
         "native_id": "5426",
         "native_scope": "coin"
       },
+      "plugin": "coinmarketcap",
       "subject_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
       "status": "confirmed",
       "authority": "rule_confirmed",
@@ -232,6 +237,7 @@
         "native_id": "solana",
         "native_scope": "coin"
       },
+      "plugin": "coingecko",
       "subject_id": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
       "status": "confirmed",
       "authority": "rule_confirmed",

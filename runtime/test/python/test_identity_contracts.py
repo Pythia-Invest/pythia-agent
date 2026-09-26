@@ -191,7 +191,7 @@ class FixtureTest(unittest.TestCase):
             for index, binding in enumerate(bindings(fixture, evidence)):
                 ref = binding.provider_ref
                 insert(state, "bindings", {
-                    "id": f"{name}:{index}", "provider": ref.provider, "native_id": ref.native_id,
+                    "id": f"{name}:{index}", "plugin": binding.plugin, "provider": ref.provider, "native_id": ref.native_id,
                     "native_scope": ref.native_scope, "subject_id": binding.subject_id, "level": binding.level.value,
                     "status": binding.status.value, "tier": binding.tier.value, "authority": binding.authority.value,
                     "rule_id": binding.rule_id, "evidence_ids": list(binding.evidence_ids)})
@@ -260,7 +260,7 @@ class ResolutionTest(unittest.TestCase):
     def item(self, subject, candidate):
         return identity.QueueItem(id="q1", kind="residual", reason="no_key", subject_ids=[subject],
                                   candidate_ids=[candidate], evidence_ids=[], state="open",
-                                  opened_at="2026-09-25T10:00:00Z")
+                                  opened_at="2026-09-25T10:00:00Z", plugins=["eodhd"])
 
     def verdict(self, **overrides):
         value = {"item_id": "q1", "resolver": "plugin", "authority": "model_confirmed", "relation": "same_listing",

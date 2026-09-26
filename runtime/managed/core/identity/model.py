@@ -240,12 +240,14 @@ class Binding:
     status: BindingStatus
     authority: Authority
     evidence_ids: tuple[str, ...]
+    plugin: str                      # the plugin whose claim made it (a clone may serve the same provider)
     validity: Validity = field(default_factory=Validity)
     rule_id: str | None = None
 
     def __post_init__(self) -> None:
         _coerce(self, provider_ref=ProviderRef, status=BindingStatus, authority=Authority, validity=Validity)
         object.__setattr__(self, "evidence_ids", tuple(self.evidence_ids))
+        _require(bool(NAMESPACE.match(self.plugin)), "binding.plugin: native plugin name required")
         subject_level(self.subject_id)
         _require(all(isinstance(item, str) and item.startswith("ev:") for item in self.evidence_ids),
                  "binding.evidence_ids: evidence ids required")

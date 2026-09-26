@@ -15,7 +15,7 @@ from typing import Iterable, Sequence
 
 from .claims import DIGEST, IdentifierValue
 from .model import IdentifierAssertion, Provenance, ProviderRef, _coerce, _require
-from .schemes import INSTANT, SINGLE_VALUED, Level, Scheme, subject_level
+from .schemes import INSTANT, NAMESPACE, SINGLE_VALUED, Level, Scheme, subject_level
 from .vocabulary import Authority, EvidenceTier, IdentifierRole, InstrumentKind, VerdictRelation
 
 
@@ -84,7 +84,7 @@ class QueueItem:
     evidence_ids: tuple[str, ...]
     state: QueueState
     opened_at: str
-    plugin: str | None = None       # whose claim opened it
+    plugins: tuple[str, ...]        # whose claims are involved; two plugins for a cross-plugin conflict
     provider_ref: ProviderRef | None = None
     scheme: Scheme | None = None    # conflict: the contested scheme
     values: tuple[str, ...] = ()    # conflict: the contested values
@@ -92,7 +92,7 @@ class QueueItem:
 
     def __post_init__(self) -> None:
         _coerce(self, kind=QueueItemKind, reason=QueueReason, state=QueueState, provider_ref=ProviderRef, scheme=Scheme)
-        for name in ("subject_ids", "candidate_ids", "evidence_ids", "values"):
+        for name in ("subject_ids", "candidate_ids", "evidence_ids", "plugins", "values"):
             object.__setattr__(self, name, tuple(getattr(self, name)))
         _require(self.reason in REASONS[self.kind], f"queue item: {self.reason} is not a {self.kind} reason")
         for subject in (*self.subject_ids, *self.candidate_ids):
@@ -101,6 +101,8 @@ class QueueItem:
                  "queue item: a residual concerns one subject; a conflict at least one")
         _require(self.kind is QueueItemKind.RESIDUAL or bool(self.evidence_ids), "queue item: conflicts cite evidence")
         _require(bool(INSTANT.match(self.opened_at)), "queue item: opened_at is an ISO instant")
+        _require(bool(self.plugins) and all(NAMESPACE.match(plugin) for plugin in self.plugins),
+                 "queue item: plugins names the claiming plugins")
 
 
 @dataclass(frozen=True, slots=True)
