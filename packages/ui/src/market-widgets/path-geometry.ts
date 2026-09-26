@@ -105,6 +105,8 @@ export function instrumentPathGeometry(series: InstrumentPath) {
       series.extendedFrom === undefined
         ? undefined
         : Math.max(0, Math.min(120, x(series.extendedFrom))),
+    /** Drawing scale for axes and pointer readouts, in the same 120×34 box. */
+    scale: { start, end, low, high, x, y, gap: closedGap },
     regularX: regular
       ? {
           start: regular.start === start ? 0 : x(regular.start),

@@ -19,8 +19,7 @@ export function InstrumentSparkline({
   dot?: boolean;
   className?: string;
 }) {
-  const id = useId().replaceAll(":", ""),
-    g = instrumentPathGeometry(series);
+  const g = instrumentPathGeometry(series);
   if (!g)
     return (
       <span
@@ -30,14 +29,42 @@ export function InstrumentSparkline({
         No path
       </span>
     );
-  const baseline = g.baselineY;
-  const label = `${series.label}${series.baseline ? ` · baseline: ${series.baseline.label}` : " · no comparable baseline"}`;
   return (
     <span
       data-slot="instrument-path"
       style={{ height: Math.max(16, Math.min(64, height)) }}
       className={cn("relative block w-full", muted && "opacity-70", className)}
     >
+      <PathGraphic series={series} g={g} muted={muted} dot={dot} />
+    </span>
+  );
+}
+
+export type PathGeometry = NonNullable<
+  ReturnType<typeof instrumentPathGeometry>
+>;
+
+/** The one path drawing shared by sparklines and page-scale charts. It fills a
+ * positioned parent; `page` keeps hairlines at screen width on tall charts. */
+export function PathGraphic({
+  series,
+  g,
+  muted = false,
+  dot = true,
+  page = false,
+}: {
+  series: InstrumentPath;
+  g: PathGeometry;
+  muted?: boolean;
+  dot?: boolean;
+  page?: boolean;
+}) {
+  const id = useId().replaceAll(":", "");
+  const baseline = g.baselineY;
+  const label = `${series.label}${series.baseline ? ` · baseline: ${series.baseline.label}` : " · no comparable baseline"}`;
+  const stroke = page ? "1.6" : "1.35";
+  return (
+    <>
       <svg
         data-slot="instrument-sparkline"
         role="img"
@@ -110,8 +137,9 @@ export function InstrumentSparkline({
             y1={baseline}
             y2={baseline}
             stroke="currentColor"
-            strokeWidth="0.7"
-            strokeDasharray="2 2"
+            strokeWidth={page ? "1" : "0.7"}
+            strokeDasharray={page ? "3 3" : "2 2"}
+            vectorEffect={page ? "non-scaling-stroke" : undefined}
             className="text-foreground-secondary"
           />
         )}
@@ -130,8 +158,8 @@ export function InstrumentSparkline({
                 y1="0"
                 y2="34"
                 stroke="currentColor"
-                strokeWidth="0.6"
-                strokeDasharray="2 2"
+                strokeWidth={page ? "1" : "0.6"}
+                strokeDasharray={page ? "3 3" : "2 2"}
                 vectorEffect="non-scaling-stroke"
                 className="text-foreground-secondary"
               >
@@ -147,6 +175,7 @@ export function InstrumentSparkline({
             stroke="currentColor"
             strokeWidth="0.6"
             strokeDasharray="2 2"
+            vectorEffect={page ? "non-scaling-stroke" : undefined}
             className="text-foreground-secondary"
           />
         )}
@@ -158,7 +187,7 @@ export function InstrumentSparkline({
                 d={path}
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.35"
+                strokeWidth={stroke}
                 vectorEffect="non-scaling-stroke"
                 className="text-foreground-secondary"
               />
@@ -181,7 +210,7 @@ export function InstrumentSparkline({
                   clipPath={`url(#${id}-up)`}
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.35"
+                  strokeWidth={stroke}
                   vectorEffect="non-scaling-stroke"
                   className="text-market-up"
                 />
@@ -190,7 +219,7 @@ export function InstrumentSparkline({
                   clipPath={`url(#${id}-down)`}
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.35"
+                  strokeWidth={stroke}
                   vectorEffect="non-scaling-stroke"
                   className="text-market-down"
                 />
@@ -208,7 +237,8 @@ export function InstrumentSparkline({
             top: `${(g.last.y / 34) * 100}%`,
           }}
           className={cn(
-            "pointer-events-none absolute size-1 -translate-x-1/2 -translate-y-1/2",
+            "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2",
+            page ? "size-2" : "size-1",
             baseline === undefined
               ? "text-foreground-secondary"
               : g.last.y < baseline
@@ -222,6 +252,6 @@ export function InstrumentSparkline({
           <span className="absolute inset-0 rounded-full bg-current" />
         </span>
       )}
-    </span>
+    </>
   );
 }

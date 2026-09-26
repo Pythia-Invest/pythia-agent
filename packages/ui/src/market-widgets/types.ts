@@ -53,6 +53,11 @@ export type InstrumentPath = {
    * Observation timestamps remain unchanged; the axis skips this interval. */
   sessionGap?: { start: number; end: number } | undefined;
   period?: string | undefined;
+  /** IANA zone for axis labels of instant coordinates, normally the listing's
+   * exchange zone. Absent means the viewer's zone. */
+  timeZone?: string | undefined;
+  /** Coordinates are session dates drawn at UTC midnight, not instants. */
+  dates?: boolean | undefined;
 };
 export type InstrumentDisplay = {
   id: string;
