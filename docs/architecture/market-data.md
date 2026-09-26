@@ -29,7 +29,20 @@ does not install a provider or prove an account's access.
   cancellation, budgets, structured failures and Hermes logs.
 - [Data delivery](data-delivery.md): resident HTTP/SSE and demand lifetime.
 
-Provider preferences are deterministic application logic. Only proven identities,
+The identity direction has changed. ADR 0037 replaces the provider-bound rules in
+the identity document with a core-owned backbone of issuer, security, listing
+and crypto subjects. Provider symbols become bindings, joined at ingest by
+identifier agreement. The [ADR 0012 amendment](../decisions/0012-investment-identity-and-repair.md#amendment-2026-09)
+records which parts of the provider-bound model are superseded. Reference data
+will be built on the device directly from open sources
+([ADR 0039](../decisions/0039-local-first-reference-data-and-rights.md)).
+Investment search will read a local directory and will call no provider while
+the user types. Provider data is used under the investor's own agreement with
+each provider; each plugin carries and enforces its provider's terms, and Pythia
+itself never publishes, pools or redistributes provider data. The identity
+document describes the implemented rules until identity v2 replaces them.
+
+Provider preferences are deterministic application logic. Only confirmed identities,
 compatible series and eligible operations participate. Failure after selecting a
 source never authorizes fallback or history stitching. A preference change does
 not rewrite retained research or source pins. Unknown units, times, completion,
