@@ -51,11 +51,11 @@ CREATE TABLE listings (
   is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'unknown')),
   CHECK ((mic IS NULL) <> (chain IS NULL)),
-  CHECK (mic IS NULL OR (ticker IS NOT NULL AND currency IS NOT NULL)),
+  CHECK (mic IS NULL OR currency IS NOT NULL),  -- ticker may be unknown (FIRDS lines carry none)
   CHECK (chain IS NULL OR composite_id IS NULL)
 );
 CREATE UNIQUE INDEX listings_active_line ON listings (mic, ticker, currency)
-  WHERE status = 'active' AND mic IS NOT NULL;
+  WHERE status = 'active' AND mic IS NOT NULL AND ticker IS NOT NULL;
 CREATE INDEX listings_security ON listings (security_id);
 
 -- Identifier assertions: one row per (subject, scheme, value, source record, validity start).

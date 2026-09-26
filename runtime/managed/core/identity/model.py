@@ -215,7 +215,7 @@ class Listing:
         if self.mic is not None:
             _require(bool(MIC.match(self.mic)) and (self.operating_mic is None or bool(MIC.match(self.operating_mic))),
                      "listing: MICs are four upper-case characters")
-            _require(bool(self.ticker and TICKER.match(self.ticker)), "listing.ticker: required at a venue")
+            _require(self.ticker is None or bool(TICKER.match(self.ticker)), "listing.ticker: invalid ticker")
             _require(bool(self.currency and CURRENCY.match(self.currency)), "listing.currency: ISO 4217 required at a venue")
         else:
             _require(bool(CAIP2.match(self.chain or "")), "listing.chain: CAIP-2 chain id required")
