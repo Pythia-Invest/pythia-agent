@@ -84,6 +84,17 @@ export class DeskApi extends BrowserRequest {
     });
   }
 
+  /** A plugin's current native widget declarations and module URLs. */
+  widgetPresentation(plugin: string, signal?: AbortSignal) {
+    return this.json<{
+      widgets: { id: string; asset: string; input_contract: string }[];
+      assets: { id: string; moduleUrl: string }[];
+    }>(
+      `/api/plugins/${encodeURIComponent(plugin)}/widgets`,
+      signal ? { signal } : {},
+    );
+  }
+
   topBar(signal?: AbortSignal) {
     return this.json<import("@/top-bar/config").TopBarSelection>(
       "/api/desk/top-bar",

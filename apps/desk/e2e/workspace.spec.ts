@@ -314,7 +314,7 @@ test("standalone research supports filename search and does not fetch remote doc
   await returnToBrowser(page);
   await page.keyboard.press("ControlOrMeta+k");
   await expect(
-    page.getByRole("searchbox", { name: "Search", exact: true }),
+    page.getByRole("searchbox", { name: /^Search( investments)?$/ }),
   ).toBeFocused();
   await page
     .getByRole("searchbox", { name: "Search files and folders" })

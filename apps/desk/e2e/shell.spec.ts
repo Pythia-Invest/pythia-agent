@@ -26,7 +26,10 @@ async function chatLinks(page: Page) {
 test("separates the navigation rail from the chat list", async ({ page }) => {
   await openDesk(page);
   await expect(
-    page.getByRole("search").getByRole("searchbox", { name: "Search" }),
+    // The core bar's "Search", or the default investment-search top bar.
+    page
+      .getByRole("search")
+      .getByRole("searchbox", { name: /^Search( investments)?$/ }),
   ).toBeVisible();
   await openNavigation(page);
   const rail = page.getByRole("complementary", { name: "Desk navigation" });

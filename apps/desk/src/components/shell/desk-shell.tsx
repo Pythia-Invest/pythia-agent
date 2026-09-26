@@ -32,6 +32,7 @@ import { shellLayout } from "./shell-layout";
 import { useLocalLayout } from "@/layout/use-local-layout";
 import { useDockTabs } from "./use-dock-tabs";
 import { NavRail } from "./nav-rail";
+import { instrumentHref } from "@/components/instrument/instrument-href";
 import { ModuleTopBar } from "./module-top-bar";
 import {
   chatTitle,
@@ -102,6 +103,19 @@ export function DeskShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     setPinnedIds(readPins());
   }, []);
+
+  // Top-bar modules announce a chosen investment; the shell owns routing.
+  useEffect(() => {
+    const onOpenSubject = (event: Event) => {
+      const id = (event as CustomEvent<{ subject_id?: unknown }>).detail
+        ?.subject_id;
+      if (typeof id === "string" && id && id.length <= 512)
+        router.push(instrumentHref(id));
+    };
+    window.addEventListener("pythia:open-subject", onOpenSubject);
+    return () =>
+      window.removeEventListener("pythia:open-subject", onOpenSubject);
+  }, [router]);
 
   // Navigating closes the drawer on narrow screens.
   useEffect(() => {
