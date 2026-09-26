@@ -42,14 +42,16 @@ export default function InvestmentTopBar({ data }: TopBarProps) {
             staleTime: SUBJECT_STALE_MS,
           })
         }
-        // Instrument pages address subjects; the host shell routes the choice.
-        onSelect={(subjectId) =>
+        // The host shell routes the chosen subject to its instrument page; the
+        // next search starts empty instead of appending to this query.
+        onSelect={(subjectId) => {
+          setQuery("");
           window.dispatchEvent(
             new CustomEvent("pythia:open-subject", {
               detail: { subject_id: subjectId },
             }),
-          )
-        }
+          );
+        }}
         className="max-w-[30%] flex-none min-[600px]:max-w-[45%]"
       />
       <div className="flex min-w-max flex-1 items-center justify-end gap-1">

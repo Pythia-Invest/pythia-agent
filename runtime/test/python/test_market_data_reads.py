@@ -274,6 +274,21 @@ class SharedReadsTests(unittest.TestCase):
         changed = run_read(backend, descriptor, read_request=request({"kind": "source", "series_id": descriptor["id"]}))
         self.assertEqual(changed["issues"][0]["code"], "invalid_response")
 
+    def test_explicit_reference_may_omit_qualifiers_the_source_adds(self):
+        # A page binding derived from open identifiers (ticker + MIC) carries no
+        # venue or currency; the source's own series still answers it.
+        backend = self.sources.backend(self.directory.name, canonical=False)
+        self.sources.ready["synthetic_other"] = False
+        qualified = self.sources.refs["ibkr"]
+        bare = {key: value for key, value in qualified.items() if key != "qualifiers"}
+        result = run_read(backend, read_request=request({"kind": "pythia", "subject": bare}))
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["series"]["provider_ref"], qualified)
+        # Every qualifier the reference does carry must still match.
+        other = {**bare, "qualifiers": {**qualified["qualifiers"], "venue": "VENUE_B"}}
+        result = run_read(backend, read_request=request({"kind": "pythia", "subject": other}))
+        self.assertEqual(result["issues"][0]["code"], "invalid_response")
+
     def test_cache_hit_rechecks_availability_config_and_caller_scope(self):
         descriptor = self.sources.definitions["ibkr"][0]
         pinned_request = request({"kind": "source", "series_id": descriptor["id"]})
