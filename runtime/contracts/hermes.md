@@ -152,6 +152,10 @@ and [credential persistence](https://github.com/NousResearch/hermes-agent/blob/2
 `auth status` is a provider-specific, root-owned observation. A successful
 command can report that one named provider is logged out; it does not prove
 that another provider is unusable or that Hermes lacks a usable model route.
+The pinned `hermes_cli/auth.py:get_auth_status` dispatcher has no configured
+custom-provider branch: it returns logged out even when that provider's native
+credential pool resolves. This native diagnostic limitation must not be
+interpreted as evidence that a custom endpoint has no usable credential.
 Pythia may label the named result, but does not aggregate provider readiness or
 turn a Codex result into general model-account readiness. Status must never
 bootstrap a profile, hydrate dependencies, build source, change configuration,
@@ -164,8 +168,14 @@ get model` / `config set model.<field>` for empty-profile inheritance. The bare
 `config set model '<JSON>'` form stores a string in this release, not a mapping;
 use dotted setters and verify the resulting object. Only `provider`, `default`,
 `base_url`, and `api_mode` strings are eligible; existing partial configuration
-is user-owned. Native custom-provider definitions outside those fields remain
-profile-local. See [development](../../docs/development.md) for apply semantics.
+is user-owned. Before selecting a custom provider, preparation copies its one
+matching non-secret definition through native `config set providers.<key>`
+and verifies readback. Native escaped dots preserve literal provider keys.
+Legacy `custom_providers` entries use the compatible keyed form: this pin's
+indexed setters replace list entries but cannot append them. Existing local
+definitions win; ambiguous matches and unsupported or secret-bearing fields
+fail without copying credentials or other provider rows. No `.env` inheritance
+is implied. See [development](../../docs/development.md) for apply semantics.
 
 Run and request failures retain the error message Hermes supplies. Desk does
 not classify provider failures or substitute onboarding guidance. The local
@@ -657,7 +667,7 @@ test data, which guards Pythia behavior but cannot detect Hermes drift.
 | **CLI and configuration** | | | |
 | `scripts/dev/runtime-config.mjs`, `scripts/dev/runtime-prepare.mjs` | `profile create --no-alias --no-skills`; `.no-bundled-skills` marker (`hermes_cli/skills_hub.py`) | Loud | probe |
 | `scripts/dev/runtime-config.mjs`, `server/device-settings.ts`, `server/model-initialization.ts`, `scripts/update/workspace-transition-state.mjs` | `config get <key> --json`, `config set` (`hermes_cli/config.py:get_config_value`, `set_config_value`) | Mostly loud through readback | probe (`terminal.cwd`, `skills.external_dirs`); fixture for other keys |
-| `scripts/dev/runtime-config.mjs`, `scripts/update/workspace-transition-state.mjs` | stderr `Config key not set: <key>` (`get_config_value`) | Loud: wrong error raised | wire capture golden (not yet asserted) |
+| `scripts/dev/runtime-config.mjs`, `scripts/update/workspace-transition-state.mjs` | stderr `Config key not set: <key>` (`get_config_value`) | Loud: wrong error raised | fixture `test/unit/dev-provider-defaults.test.ts`; wire capture golden (not yet asserted) |
 | `server/device-settings.ts` | first line `<provider>: logged in` or `: logged out` (`hermes_cli/auth_commands.py:auth_status_command`) | Silent: status shows unavailable | probe (logged-out shape); wire capture |
 | `scripts/dev/runtime-auth.mjs` | copied OAuth provider set (`auth_commands.py:_OAUTH_CAPABLE_PROVIDERS`) | Silent: stale provider list | none |
 | `scripts/dev/runtime-auth.mjs`, `scripts/install/cli.mjs` | `-p default auth add --type`, `auth logout`, `-p default model` (`auth_commands.py`, `hermes_cli/subcommands/auth.py`) | Loud | none (interactive) |

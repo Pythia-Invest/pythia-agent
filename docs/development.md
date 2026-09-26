@@ -180,6 +180,29 @@ and model must be selected; Pythia does not guess from available accounts or
 switch to a paid provider. Endpoints containing embedded credentials, query
 parameters, or fragments are rejected.
 
+If that selection names a custom provider, preparation first inherits its
+matching native `providers` or `custom_providers` definition. It copies only
+the selected definition's supported non-secret fields (endpoint, transport,
+model metadata and environment-variable names), through native config setters
+with readback. Legacy list entries use Hermes's compatible keyed form; an
+existing profile definition takes precedence. Inline keys, headers, credential
+commands and arbitrary request bodies are rejected with guidance to configure
+the profile through Hermes. Unrelated providers and general configuration are
+never merged.
+
+An environment-variable name is not a credential: Hermes does not inherit the
+root `.env` into named profiles. Shared authentication belongs in Hermes's
+native root credential pool, configured explicitly with `just auth <provider>
+api-key`. Defining a custom endpoint does not prove its credentials work. In
+this pin, custom model discovery reads the profile's configured key/environment;
+a shared credential pool usable for inference does not by itself guarantee
+authenticated live model discovery. Saved model metadata remains available.
+The pinned `auth status` dispatcher also lacks a custom-provider branch and
+reports those providers as logged out even when their native pool resolves.
+Do not use that message, or a configured picker row alone, as proof of custom
+inference readiness. Native credential resolution and an explicitly authorized
+inference check answer different questions.
+
 For ordinary chat, use Desk's provider/model/reasoning picker instead. On the
 first send from an empty profile, Desk saves the explicitly selected,
 authenticated provider and model through native profile config commands and
@@ -195,9 +218,8 @@ defaults affects only unconfigured profiles, not stacks already using them.
 After choosing defaults for an already-running unconfigured stack, run
 `just stop` and `just dev`, then start a new conversation. Set a different
 stack choice through native `hermes -p <profile> model` with the executable and
-`HERMES_HOME` printed by `just dev-paths`. Advanced custom-provider definitions
-and other root configuration are not copied; configure those in the target
-profile through Hermes.
+`HERMES_HOME` printed by `just dev-paths`. More advanced custom-provider settings
+outside the supported inheritance fields remain native profile configuration.
 
 The native dotted setters write each eligible field and verify the resulting
 selection. If a write is interrupted, startup fails rather than guessing how

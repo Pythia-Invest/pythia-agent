@@ -193,7 +193,8 @@ describe("worktree identity and native command construction", () => {
     };
     const execute = (_paths: unknown, args: string[]) => {
       commands.push(args);
-      if (args[1] === "default") return JSON.stringify(shared);
+      if (args[1] === "default")
+        return JSON.stringify(args[4] === "model" ? shared : null);
       if (args[3] === "set") {
         current = {
           ...(typeof current === "object" ? current : {}),
@@ -273,9 +274,11 @@ describe("worktree identity and native command construction", () => {
     });
     const execute = vi.fn((_paths: unknown, args: string[]) =>
       JSON.stringify(
-        args[1] === "default"
+        args[1] === "default" && args[4] === "model"
           ? { provider: "openrouter", default: "fixture-model" }
-          : "",
+          : args[4] === "model"
+            ? ""
+            : null,
       ),
     );
     expect(() =>
