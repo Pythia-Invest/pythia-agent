@@ -2,7 +2,8 @@
 import copy
 from datetime import datetime, timezone
 
-from .selection import available, caches_observations, fingerprint, matches, permits_implicit, selector, supports_read
+from .selection import (available, caches_observations, compatible_ref, fingerprint, matches, permits_implicit,
+                        selector, supports_read)
 from .wire import require, validate, validate_read_result, WireError
 
 
@@ -90,7 +91,9 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
                 return None, None, "source_error", candidate_provider, response.get("issues", [])
             for value in response.get("data", []):
                 series = validate("series", value)
-                if series["provider_ref"] != entry["native_ref"]:
+                # A reference may omit qualifiers the source adds (Yahoo's venue and
+                # currency); every qualifier it does carry must still match.
+                if not compatible_ref(entry["native_ref"], series["provider_ref"]):
                     return None, None, "invalid_response", candidate_provider, []
                 if not matches(series, criteria) or not supports_read(series, request):
                     continue
@@ -102,7 +105,7 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
             return None, None, "ambiguous_series", candidate_provider, []
         if unique:
             selected, mapping = next(iter(unique.values()))
-            if explicit and binding != selected["provider_ref"]:
+            if explicit and not compatible_ref(binding, selected["provider_ref"]):
                 return None, None, "incompatible_series", candidate_provider, []
             return selected, mapping, None, candidate_provider, []
     return None, None, "incompatible_series", chosen, []

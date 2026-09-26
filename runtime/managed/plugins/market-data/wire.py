@@ -220,7 +220,13 @@ def _read(value, path):
         if request["view"]["kind"] == "source":
             require(request["view"]["series_id"] == series["id"], path, "pinned series changed")
         else:
-            require(request["view"]["subject"] == series["subject"], path, "selected subject differs from requested intent")
+            requested, actual = request["view"]["subject"], series["subject"]
+            if "provider" in requested and "provider" in actual:
+                # An explicit reference may omit qualifiers the source adds; every
+                # qualifier it carries must match (selection.compatible_ref).
+                requested = {**requested, "qualifiers": {**actual.get("qualifiers", {}), **requested.get("qualifiers", {})}}
+                actual = {**actual, "qualifiers": actual.get("qualifiers", {})}
+            require(requested == actual, path, "selected subject differs from requested intent")
         for observation in observations:
             validate_observation(observation, series)
             time = observation["time"]

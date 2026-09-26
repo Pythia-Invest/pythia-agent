@@ -182,17 +182,24 @@ its underlying. Type pills ask the directory for their instrument kinds and neve
 take focus from the field. Tiny connector logos appear only for bindings on that
 row; rows carry no prices. The panel is anchored below the field with fixed
 geometry, keeps the previous answer while the next loads, and reopens instantly
-from the feature's `['plugin', 'pythia-market-data', 'search', …]` query cache. A
+from `['plugin', 'pythia', 'search', …]`, the query cache of core's serving
+`pythia`/`identity-search` operation. A
 query the directory does not hold can be looked up explicitly, in one plugin per
 action and never concurrently, when the host supplies a lookup runner. Selecting a
 row reports its subject id, which an instrument page addresses.
 
 The feature's `top-bar` presentation composes the bar with the Desk title and
-actions under ADR 0036. Select it in the workspace's `desk/top-bar.json` with
-`{"plugin": "pythia-market-data", "presentation": "top-bar"}`. It is not the
-product default while the directory operation is being built: its transport
-binding is provisional, it offers no lookup yet, and until an instrument route
-exists a selection is announced as a `pythia:open-subject` window event with
-`{subject_id}`. The module keeps its own query, so typing never filters Desk's
-chat lists. The Design Lab's investment search demonstration renders the bar
-over a Lab-local synthetic directory.
+actions under ADR 0036 and is Desk's product default top bar; a workspace
+`desk/top-bar.json` selects another bar or `renderer: null` for the core one. It
+offers no lookup yet. While a row is highlighted it prefetches that subject's
+page composition (`pythia`/`identity-subject`) under the key Desk's instrument
+route reads (`@pythia/market-data/subject`), and a choice is announced as a
+`pythia:open-subject` window event with `{subject_id}`, which Desk routes to
+`/instrument/[subject]`. The module keeps its own query, so typing never filters
+Desk's chat lists. The Design Lab's investment search demonstration renders the
+bar over a Lab-local synthetic directory.
+
+The instrument page mounts the `instrument-panel` presentation: the standard
+tile filling its section card, bound to the section's explicit provider
+reference (a widget row's `subject` may be a Pythia subject or a `ProviderRef`;
+the latter reads that source only).
