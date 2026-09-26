@@ -46,6 +46,9 @@ export function runtimeEnvironment(paths, apiKey, source = process.env) {
     PYTHIA_HERMES_API_URL: `http://127.0.0.1:${paths.ports.hermes}`,
     PYTHIA_MANAGED_SKILLS_DIR: paths.managedSkills,
     PYTHIA_WORKSPACE: paths.workspace,
+    PYTHIA_REFERENCE_DIR:
+      source.PYTHIA_REFERENCE_DIR ||
+      join(paths.repositoryRoot, ".local", "reference-builder", "out"),
     PYTHIA_DESK_VIEW_STATE: paths.deskViewState,
     XDG_CACHE_HOME: paths.cacheRoot,
     NEXT_TELEMETRY_DISABLED: "1",

@@ -12,6 +12,9 @@ def register(ctx: Any) -> None:
     from . import platform
 
     platform.register(ctx)
+    from . import identity_ops
+
+    identity_ops.register(ctx)
     ctx.register_tool(
         name="pythia_desk_view",
         toolset="pythia-desk",
