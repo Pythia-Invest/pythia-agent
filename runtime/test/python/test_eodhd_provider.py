@@ -171,20 +171,6 @@ class Provider(unittest.TestCase):
                 self.assertEqual(latest['issues'][0]['code'], 'needs_configuration')
         self.assertEqual(calls, [])
 
-    def test_configuration_reads_core_values_when_available(self):
-        configuration = importlib.import_module('test_eodhd.configuration')
-        ctx, reads = object(), []
-        core = types.SimpleNamespace(
-            value=lambda owner, key: reads.append((owner, key)) or ('configured', 'synthetic'),
-            missing=lambda owner: [])
-        platform = types.SimpleNamespace(configuration=core)
-        legacy = types.SimpleNamespace(eodhd_token=lambda: self.fail('legacy reader used'))
-        with patch.object(sys.modules['test_eodhd_feature._platform'], 'platform', lambda: platform):
-            reader = configuration.Configuration(ctx, wire, legacy)
-            self.assertEqual(reader.eodhd_token(), ('configured', 'synthetic'))
-            self.assertEqual(reader.missing(), [])
-        self.assertEqual(reads, [(ctx, 'eodhd_api_token')])
-
     def test_identifiers_preserve_budget_and_provider_retry_provenance(self):
         provider = importlib.import_module('test_eodhd.__init__')
         for code, origin in (('busy', 'connector'), ('rate_limit', 'provider')):

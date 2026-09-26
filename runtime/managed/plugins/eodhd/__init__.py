@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from .configuration import Configuration
-from .definition import TOOLS, TOOLSET, schemas
+from .definition import SHARED, TOOLS, TOOLSET, schemas
 from .identity import candidates, reference, isin, mapping_records
 from .series import MODES, STREAM_MODES, definition, selector
 from .results import envelope, base, issue, read, window
@@ -69,10 +69,12 @@ def register(ctx):
                 valid_request = wire.validate('read_request', clean['request'])
                 if valid_request['operation'] != operation:
                     raise ValueError('invalid_request')
-            if configuration.missing():
-                # Visible needs-configuration state instead of a failed call;
-                # no provider request is attempted.
-                raise RuntimeError('needs_configuration')
+            blocked = configuration.needs_configuration()
+            if blocked:
+                # No provider request is attempted. Shared reads keep the
+                # market-data wire issue shape, which has no `fields`.
+                if operation in SHARED: raise RuntimeError('needs_configuration')
+                return blocked
             if not installed():
                 raise RuntimeError('unavailable')
             state, token = configuration.eodhd_token()

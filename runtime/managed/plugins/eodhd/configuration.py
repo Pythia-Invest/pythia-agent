@@ -5,6 +5,8 @@ chooses a custody file. Readiness is local configuration, never entitlement.
 """
 import importlib
 
+from .results import envelope, issue
+
 TOKEN = 'eodhd_api_token'
 
 
@@ -19,17 +21,13 @@ class Configuration:
     def eodhd_token(self):
         """(status, value) with status configured|missing|invalid."""
         core = self._core()
-        if core is not None:
-            return core.value(self.ctx, TOKEN)
-        # INTERIM SHIM, remove when platform.configuration lands (piece
-        # desk-connections-settings): the market-data reader of the same
-        # secrets.json field, so behaviour is identical until then.
-        return self.credentials.eodhd_token()
+        # INTERIM SHIM until platform.configuration (PR #20) merges: same secrets.json field.
+        return core.value(self.ctx, TOKEN) if core else self.credentials.eodhd_token()
 
-    def missing(self):
-        """Required keys not yet configured; empty when the connector is usable."""
+    def needs_configuration(self):
+        """Core's standard needs-configuration tool result, or None when configured."""
         core = self._core()
         if core is not None:
-            return list(core.missing(self.ctx))
-        # INTERIM SHIM, see eodhd_token().
-        return [] if self.eodhd_token()[0] == 'configured' else [TOKEN]
+            return core.needs_configuration(self.ctx)
+        # INTERIM SHIM until platform.configuration (PR #20) merges.
+        return None if self.eodhd_token()[0] == 'configured' else envelope(None, [issue('needs_configuration')])
