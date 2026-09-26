@@ -67,7 +67,6 @@ CREATE TABLE assertions (
   value TEXT NOT NULL,
   valid_from TEXT,
   valid_to TEXT,
-  tier TEXT NOT NULL CHECK (tier IN ('T0', 'T1', 'T3', 'T4')),
   authority TEXT NOT NULL CHECK (authority IN ('source_asserted', 'snapshot', 'rule_confirmed', 'model_confirmed',
                                                 'model_suggested', 'user_attested', 'curated')),
   source TEXT NOT NULL,
@@ -81,10 +80,6 @@ CREATE TABLE assertions (
       OR (scheme IN ('isin', 'share_class_figi') AND level = 'security')
       OR (scheme = 'composite_figi' AND level = 'composite')
       OR (scheme IN ('figi', 'ticker_mic', 'caip19') AND level = 'listing')),
-  CHECK ((tier = 'T0' AND authority IN ('source_asserted', 'snapshot'))
-      OR (tier = 'T1' AND authority = 'rule_confirmed')
-      OR (tier = 'T3' AND authority IN ('model_confirmed', 'model_suggested'))
-      OR (tier = 'T4' AND authority IN ('user_attested', 'curated'))),
   CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to)
 );
 CREATE INDEX assertions_key ON assertions (scheme, value);
@@ -99,7 +94,6 @@ CREATE TABLE relations (
   ratio TEXT,
   valid_from TEXT,
   valid_to TEXT,
-  tier TEXT NOT NULL CHECK (tier IN ('T0', 'T1', 'T3', 'T4')),
   authority TEXT NOT NULL,
   source TEXT NOT NULL,
   source_record TEXT,

@@ -32,7 +32,6 @@ CREATE TABLE relations (
   ratio TEXT,
   valid_from TEXT,
   valid_to TEXT,
-  tier TEXT NOT NULL CHECK (tier IN ('T0', 'T1', 'T3', 'T4')),
   authority TEXT NOT NULL,
   source TEXT NOT NULL,
   plugin TEXT NOT NULL,
@@ -51,7 +50,6 @@ CREATE TABLE bindings (
   subject_id TEXT NOT NULL,
   level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
   status TEXT NOT NULL CHECK (status IN ('candidate', 'confirmed', 'conflicting', 'rejected')),
-  tier TEXT CHECK (tier IS NULL OR tier IN ('T0', 'T1', 'T3', 'T4')),
   authority TEXT NOT NULL,
   rule_id TEXT,                    -- versioned rule for T1, e.g. 'ticker_mic@1'
   evidence_ids TEXT NOT NULL,

@@ -61,7 +61,7 @@ def assertion_row(item):
     provenance = item.provenance
     return {"evidence_id": item.evidence_id, "subject_id": item.subject_id, "level": item.level.value,
             "scheme": item.scheme.value, "value": item.value, "valid_from": item.validity.valid_from,
-            "valid_to": item.validity.valid_to, "tier": item.tier.value, "authority": item.authority.value,
+            "valid_to": item.validity.valid_to, "authority": item.authority.value,
             "source": provenance.source, "source_record": provenance.source_record,
             "source_version": provenance.source_version, "plugin": provenance.plugin,
             "adapter_version": provenance.adapter_version, "retrieved_at": provenance.retrieved_at}
@@ -99,7 +99,7 @@ def load_reference(db, fixture):
             "evidence_id": model.evidence_id({"kind": "relation", "type": relation.type, "from": relation.from_id,
                                               "to": relation.to_id, "source": relation.provenance.source}),
             "type": relation.type.value, "from_id": relation.from_id, "to_id": relation.to_id, "ratio": relation.ratio,
-            "tier": "T4", "authority": relation.authority.value, "source": relation.provenance.source,
+            "authority": relation.authority.value, "source": relation.provenance.source,
             "plugin": relation.provenance.plugin, "adapter_version": relation.provenance.adapter_version,
             "retrieved_at": relation.provenance.retrieved_at})
     return evidence
@@ -193,7 +193,7 @@ class FixtureTest(unittest.TestCase):
                 insert(state, "bindings", {
                     "id": f"{name}:{index}", "plugin": binding.plugin, "provider": ref.provider, "native_id": ref.native_id,
                     "native_scope": ref.native_scope, "subject_id": binding.subject_id, "level": binding.level.value,
-                    "status": binding.status.value, "tier": binding.tier.value, "authority": binding.authority.value,
+                    "status": binding.status.value, "authority": binding.authority.value,
                     "rule_id": binding.rule_id, "evidence_ids": list(binding.evidence_ids)})
 
 
