@@ -3,6 +3,7 @@ import importlib
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from . import config
 from .definition import TOOLS, TOOLSET, schemas
@@ -36,6 +37,10 @@ def register(ctx):
     budgets = failures = batching = importlib.import_module(wire.__package__ + '.connector')
     reads = failures.WorkerReads(process)
     simple_batch, market_batch = batching.NativeBatch(size=32, age=300), batching.NativeBatch(size=3, age=300)
+    # access -> (expires, snapshot). Pages are read-only slices of one packed
+    # snapshot, so it is kept here uncopied rather than in the shared read
+    # cache, which deep-copies every value on each read.
+    snapshots = {}
     config.register_cli(ctx, read_key)
     demand = importlib.import_module(wire.__package__ + '.request_context')
     def requires_key(operation):
@@ -98,12 +103,17 @@ def register(ctx):
                 bulk = {'timeout': 45, 'output_limit': 8_000_000} if endpoint == 'catalogue' else {'timeout': 12}
                 return reads.read([python, '-I', worker], {'mode': access, 'token': token, 'operation': endpoint, 'arguments': args}, env,
                     cancelled=cancelled, budget=budget, **bulk,
-                    age=1800 if endpoint == 'catalogue' else 0 if fresh else 900 if args.get('days', 1) != 1 else 300)
+                    age=0 if endpoint == 'catalogue' or fresh else 900 if args.get('days', 1) != 1 else 300)
             if operation == 'catalogue':
+                expires, snapshot = snapshots.get(access, (0, None))
+                if time.monotonic() < expires:
+                    return envelope(catalogue_page(snapshot, clean))
                 raw = call('catalogue', {})
                 if raw.get('error'):
                     return source_failure(raw)
-                return envelope(catalogue_page(raw['data'], clean))
+                page = catalogue_page(raw['data'], clean)
+                snapshots[access] = (time.monotonic() + 1800, raw['data'])
+                return envelope(page)
             if operation == 'read_batch':
                 groups = {}
                 for item in clean['reads']:
