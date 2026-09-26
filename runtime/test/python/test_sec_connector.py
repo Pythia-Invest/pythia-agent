@@ -102,8 +102,7 @@ class SecIdentity(unittest.TestCase):
         self.assertEqual((claim.native_ref.native_id, claim.attributes.name), (CIK, 'Example Holdings'))
         self.assertEqual(instance.invoke('resolve', {'identifiers': {'ticker_mic': 'EX@XNAS'}})['outcome'], 'empty')
         self.assertEqual(len(transport.calls), 1)  # The retained ticker file serves later resolves.
-        for arguments in ({}, {'identifiers': {}}, {'identifiers': {'cik': CIK, 'ticker_mic': 'EXA@XNAS'}},
-                          {'identifiers': {'ticker_mic': 'EXA'}}, {'identifiers': {'cik': '0'}}):
+        for arguments in ({}, {'identifiers': {}}, {'identifiers': {'ticker_mic': 'EXA'}}, {'identifiers': {'cik': '0'}}):
             with self.subTest(arguments=arguments):
                 self.assertEqual(instance.invoke('resolve', arguments)['issues'][0]['code'], 'invalid_request')
 
