@@ -155,13 +155,3 @@ CREATE TABLE native_coins (
   native_id TEXT NOT NULL,
   PRIMARY KEY (provider, native_scope, native_id)
 );
-
--- Plugin-contributed ranking signals. A missing signal is unknown, not small.
-CREATE TABLE rank_signals (
-  subject_id TEXT NOT NULL,
-  signal TEXT NOT NULL,
-  value REAL NOT NULL,
-  as_of TEXT NOT NULL,
-  source TEXT NOT NULL,
-  PRIMARY KEY (subject_id, signal, source)
-);
