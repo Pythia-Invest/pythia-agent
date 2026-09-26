@@ -13,44 +13,28 @@ metadata:
 
 # EODHD market data
 
-Use the market-data feature's shared operations for canonical identity,
-preferred or pinned prices and history. EODHD has no search tool here: find
-investments through Pythia, then use an exact `SYMBOL.EXCHANGE` reference.
-EODHD details, catalogue rows and identifier mappings return ISIN, CUSIP, FIGI,
-LEI and CIK values as typed source assertions. They are claims for Pythia to
-compare, not proof: a catalogue ISIN can describe an underlying security, and
-FIGI grain is not stated. Only exact Common Stock evidence can establish an
-instrument mapping. Preserve ambiguous or conflicting identifiers. An exchange
-suffix or matching ticker does not prove cross-provider identity.
+Use the market-data feature's shared operations for canonical identity and
+preferred or pinned prices. EODHD has no search tool here: find investments
+through Pythia, then use an exact `SYMBOL.EXCHANGE` reference.
 
-The connector keeps delayed scalar quotes, raw daily OHLC, split/dividend-adjusted
-close, and intraday bars as distinct series. Keep their units, source timestamps,
-adjustments, coverage and completion qualifications. Missing values are not zero;
-request success does not establish freshness or entitlement. Identifier mapping
-by symbol or ISIN is bounded and preserves distinct assertions and incomplete
-pagination.
+Details and catalogue rows carry source-asserted ISINs. Only the identifier
+mapping tools (by symbol or by ISIN) return CUSIP, FIGI, LEI and CIK. Every
+identifier is a claim for Pythia to compare, not proof: a catalogue ISIN can
+describe an underlying security, FIGI grain is not stated, and a matching ticker
+or exchange suffix does not prove cross-provider identity. Keep ambiguous,
+conflicting or incompletely paginated mappings visible.
 
-News returns bounded ticker-linked headlines for an explicit date window, not an
-exhaustive history. Fundamentals need a separate EODHD entitlement. A
-`not_entitled` result means the connected plan lacks that dataset; say so, and
-do not describe it as missing data or substitute another source unasked.
+Delayed quotes, raw daily OHLC, adjusted close and intraday bars are distinct
+series; keep their units, timestamps, adjustments and completion. Missing values
+are not zero, and a successful request does not establish freshness or plan
+entitlement.
 
-Specialist native tools expose explicit EODHD quotes and recent charts: US stock
-closed EDGX one-minute bars, or five-minute intraday bars with unknown completion
-for STOXX50E.INDX, GDAXI.INDX and FCHI.INDX. Preserve each chart feed, interval,
-completion and latest-returned calendar-date qualifiers; do not describe these
-feeds as interchangeable or session-complete.
+A `needs_configuration` result means `eodhd_api_token` is not yet in
+`secrets.json` in the Pythia config folder: tell the user that rather than
+reporting a data failure. Preserve authentication, access, rate-limit and
+partial-result diagnostics.
 
-The EODHD API token is the `eodhd_api_token` field of `secrets.json` in the
-Pythia config folder. A `needs_configuration` result means it is not set yet:
-tell the user that rather than reporting a data failure. Native plugin and toolset enablement are separate
-choices; a configured token does not enable the connector. Configuration never
-proves provider-plan entitlement.
-Preserve authentication, access, rate-limit and partial-result diagnostics.
-
-EDGX streaming is disabled by default. The native `eodhd-streaming --mode` command
-selects `disabled`, `demo` or `account` explicitly. A stream needs a supported USD
-US stock and an explicit `venue: XEDX` series selection; it is not a consolidated
-quote or a substitute for delayed REST history. Quotes, book timestamps, trade
-sizes and session reference prices retain their own meaning. Gaps after reconnect
-remain gaps; healthy delivery is not evidence of a fresh price.
+EDGX streaming is off until the native `eodhd-streaming --mode demo` or
+`--mode account` command enables it, and applies only to an explicit
+`venue: XEDX` series for a US stock. It is not a consolidated quote; gaps after
+a reconnect remain gaps.
