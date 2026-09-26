@@ -22,22 +22,17 @@ function transport(reply: unknown) {
 
 const signal = new AbortController().signal;
 const response: SearchResponse = {
-  groups: [
+  rows: [
     {
-      id: "security:isin:NL0010273215",
+      id: "listing:isin:NL0010273215:XAMS:EUR",
+      ticker: "ASML",
       name: "ASML Holding N.V.",
       kind: "ordinary",
-      depositary_of: null,
-      rows: [
-        {
-          id: "listing:isin:NL0010273215:XAMS:EUR",
-          ticker: "ASML",
-          mic: "XAMS",
-          venue: "Euronext Amsterdam",
-          currency: "EUR",
-          bindings: [],
-        },
-      ],
+      mic: "XAMS",
+      venue: "Euronext Amsterdam",
+      country: "NL",
+      listings: 1,
+      bindings: [],
     },
   ],
   lookup: [],
@@ -60,10 +55,10 @@ describe("search transport", () => {
     await expect(
       transportSearch(failed)({ query: "asml", limit: 20 }, signal),
     ).rejects.toThrow();
-    const [group] = response.groups;
+    const [row] = response.rows;
     const malformed = transport({
       outcome: "ok",
-      data: { ...response, groups: [{ ...group, rows: [] }] },
+      data: { ...response, rows: [{ ...row, listings: -1 }] },
     }).value;
     await expect(
       transportSearch(malformed)({ query: "asml", limit: 20 }, signal),

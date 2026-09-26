@@ -143,9 +143,19 @@ write, no reconciliation. Core's `identity-search` builds the directory in
 memory (FTS5) from the newest reference file and ranks with one versioned,
 gold-calibrated additive score (exact ticker or identifier, name match,
 notability from each security's source `rank`, primary and home line,
-penalties for OTC lines and derivatives); issuers compete by their best line
-and results group by security, the home line before a foreign receipt. "Look up in X" explicitly calls one provider's
-`resolve`, and the result joins like any other claim.
+penalties for OTC lines and derivatives); issuers compete by their best line.
+Results are one row per instrument, never nested: a security with its
+depositary receipts and registry shares folded in (the same economic share), or
+a crypto asset. Share classes, preferreds and products on a company are rows of
+their own and rank below it. A row shows one representative listing: the one
+the query names (a venue word, a provider symbol such as `ASML.AS` through the
+installed plugins' `mic_table`, an identifier, or an exact ticker unless the
+query also reads as the name, so `relx` still shows the home line), else the
+investor's `search_listing_preference` in `settings.json`: `primary` (default,
+the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
+exchange). Core declares the key in its `configuration.json`. "Look up in X"
+explicitly calls one provider's `resolve`, and the result joins like any other
+claim.
 
 ## Rationale
 

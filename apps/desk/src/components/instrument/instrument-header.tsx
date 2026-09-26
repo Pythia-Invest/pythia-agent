@@ -90,7 +90,8 @@ export function InstrumentHeader({ page }: { page: SubjectPage }) {
   );
 }
 
-/** Sibling listings of the security; each is its own page. */
+/** Listings of the instrument, receipts included; each is its own page. A
+ * listing of another kind than the open one says which (Depositary receipt). */
 export function ListingSwitcher({ page }: { page: SubjectPage }) {
   if (page.listings.length < 2) return null;
   return (
@@ -121,6 +122,9 @@ export function ListingSwitcher({ page }: { page: SubjectPage }) {
                 .filter(Boolean)
                 .join(" · ")}
             </span>
+            {listing.kind && listing.kind !== page.subject.kind ? (
+              <span>{KIND_LABELS[listing.kind]}</span>
+            ) : null}
             {listing.primary ? (
               <span className="text-[10px] text-foreground-secondary uppercase tracking-wide">
                 Primary

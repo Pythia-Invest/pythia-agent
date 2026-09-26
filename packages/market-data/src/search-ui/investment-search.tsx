@@ -11,7 +11,7 @@ import {
 } from "@pythia/widget-sdk";
 import { LoaderCircle, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { LookupOffer, SearchGroup } from "../search";
+import type { LookupOffer, SearchRow } from "../search";
 import {
   type LookupRunner,
   type SearchBackend,
@@ -47,7 +47,7 @@ export type InvestmentSearchProps = {
 };
 
 const TABBABLE = 'button:not(:disabled):not([tabindex="-1"])';
-const NO_GROUPS: SearchGroup[] = [];
+const NO_ROWS: SearchRow[] = [];
 const NO_OFFERS: LookupOffer[] = [];
 const NO_OPTIONS: SearchOption[] = [];
 
@@ -92,10 +92,10 @@ export function InvestmentSearch({
   const response = trimmed ? result.data : undefined;
   const fresh = Boolean(response) && !result.isPlaceholderData;
   const shownLookup = lookupState?.query === trimmed ? lookupState : undefined;
-  const found = shownLookup?.status === "done" ? shownLookup.groups : NO_GROUPS;
+  const found = shownLookup?.status === "done" ? shownLookup.rows : NO_ROWS;
   const options = useMemo(
     () => [
-      ...searchOptions(response?.groups ?? NO_GROUPS, "directory"),
+      ...searchOptions(response?.rows ?? NO_ROWS, "directory"),
       ...searchOptions(found, "lookup"),
     ],
     [response, found],
@@ -137,20 +137,20 @@ export function InvestmentSearch({
     const controller = new AbortController();
     lookupAbort.current = controller;
     const base = { plugin: offer.plugin, label: offer.label, query: trimmed };
-    setLookupState({ ...base, status: "running", groups: [] });
+    setLookupState({ ...base, status: "running", rows: [] });
     // The pressed action is disabled while it runs; the field keeps focus so
     // the arrow keys reach the rows it returns.
     input.current?.focus();
     try {
-      const groups = await lookup(
+      const rows = await lookup(
         { plugin: offer.plugin, query: trimmed },
         controller.signal,
       );
       if (!controller.signal.aborted)
-        setLookupState({ ...base, status: "done", groups });
+        setLookupState({ ...base, status: "done", rows });
     } catch {
       if (!controller.signal.aborted)
-        setLookupState({ ...base, status: "error", groups: [] });
+        setLookupState({ ...base, status: "error", rows: [] });
     }
   }
 

@@ -163,30 +163,32 @@ the native reader remains responsible for semantic validation.
 
 `@pythia/market-data/search` is the provisional contract of the core local
 directory `search` operation and the only place its types live. The response
-holds ranked groups, one per security: its name, instrument kind, the underlying
-security of a depositary receipt, and its listings in order, primary listing
-first. A listing row carries its subject `id`, ticker, MIC and venue label,
-currency and confirmed provider bindings; a crypto asset is one row without a
-venue. The response also names the plugins offering an explicit lookup. The
-directory-search backend implements this shape; the core ranks and the client
-keeps the order.
+holds ranked rows, one per instrument: a security with its depositary receipts
+folded in, or a crypto asset. A row carries the subject `id` of its
+representative listing, the security's subject id, ticker, name, instrument
+kind, the listing's MIC, short venue label and venue country, how many other
+listings the instrument has, and confirmed provider bindings of that listing.
+Core picks the representative listing (see ADR 0037: a listing the query names,
+else `search_listing_preference` in `settings.json`, `primary` by default, or
+`EU` or `US`). The response also names the plugins offering an explicit lookup.
+The core ranks and the client keeps the order.
 
 `@pythia/market-data/search-ui` is the search bar, composed from the SDK's
 shared Autocomplete, combobox parts and ToggleGroup. Typing reads only the local
 directory; no connector is called on that path. The first shown row is always
 highlighted and Enter opens it, but never a row of a previous query while the
-typed one loads. Each security is one group: its
-lead row shows ticker, name, venue and type, and its other listings follow as
-compact rows. A depositary receipt is its own security, labelled as a receipt of
-its underlying. Type pills ask the directory for their instrument kinds and never
-take focus from the field. Tiny connector logos appear only for bindings on that
-row; rows carry no prices. The panel is anchored below the field with fixed
-geometry, keeps the previous answer while the next loads, and reopens instantly
-from `['plugin', 'pythia', 'search', …]`, the query cache of core's serving
-`pythia`/`identity-search` operation. A
-query the directory does not hold can be looked up explicitly, in one plugin per
-action and never concurrently, when the host supplies a lookup runner. Selecting a
-row reports its subject id, which an instrument page addresses.
+typed one loads. Each row is one line without group headers: ticker, name, the
+venue with a small country flag, a plain type (Stock, ETF, Fund, Crypto, …) and
+"+N" other listings; the precise type, such as registry shares, belongs on the
+instrument page. Type pills ask the directory for their instrument kinds and
+never take focus from the field. Tiny connector logos appear only for bindings
+on that listing; rows carry no prices. The panel is anchored below the field
+with fixed geometry, keeps the previous answer while the next loads, and reopens
+instantly from `['plugin', 'pythia', 'search', …]`, the query cache of core's
+serving `pythia`/`identity-search` operation. A query the directory does not
+hold can be looked up explicitly, in one plugin per action and never
+concurrently, when the host supplies a lookup runner. Selecting a row reports
+its listing's subject id, which an instrument page addresses.
 
 The feature's `top-bar` presentation composes the bar with the Desk title and
 actions under ADR 0036 and is Desk's product default top bar; a workspace

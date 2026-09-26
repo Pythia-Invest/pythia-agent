@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
 
+from . import rules
 from .config import BUILDER_VERSION
 from .model import Snapshot
 
@@ -147,11 +149,18 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     for venue in snap.venues.values():
         label = VENUE_NAMES.get(venue.mic) or VENUE_NAMES.get(venue.operating_mic) or venue.name or venue.mic
         tables["venues"].append({"mic": venue.mic, "operating_mic": venue.operating_mic, "name": label, "country": venue.country or None})
+    # An issuer's tickers keep their capitals when its name is re-cased for display (ASML, RELX).
+    tickers: dict[str, frozenset[str]] = {}
+    for listing in snap.listings.values():
+        owner = snap.securities[listing.security_id].issuer_id if listing.security_id in snap.securities else None
+        if owner and listing.ticker:
+            tickers[owner] = tickers.get(owner, frozenset()) | set(re.split(r"[^A-Z0-9]+", listing.ticker.upper()))
     for key, issuer in sorted(snap.issuers.items()):
         subject = ids.issuers[key]
         country = issuer.country if issuer.country and len(issuer.country) == 2 else None
         status = "inactive" if issuer.entity_status == "INACTIVE" else "active"
-        tables["issuers"].append({"id": subject, "name": issuer.name[:512], "country": country, "status": status})
+        shown = rules.display_case(issuer.name, tickers.get(key, frozenset()), sec=issuer.source == "sec")
+        tables["issuers"].append({"id": subject, "name": shown[:512], "country": country, "status": status})
         if issuer.lei:
             assert_(subject, "lei", issuer.lei, "gleif" if issuer.source == "gleif" else "esma_firds")
         if issuer.cik:
@@ -170,7 +179,9 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         issuer = snap.issuers.get(security.issuer_id or "")
         tables["securities"].append({
             "id": subject, "issuer_id": ids.issuers.get(security.issuer_id or ""),
-            "name": (title or (issuer.name if issuer else None) or subject)[:512], "asset_class": "equity",
+            "name": rules.display_case(title or (issuer.name if issuer else None) or subject,
+                                       tickers.get(security.issuer_id or "", frozenset()),
+                                       sec=bool(issuer and issuer.source == "sec"))[:512], "asset_class": "equity",
             "kind": KIND.get(security.kind, "other"), "status": STATUS.get(security.activity, "unknown"),
             "rank": security.rank})
         if security.isin:

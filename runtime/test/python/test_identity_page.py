@@ -66,34 +66,75 @@ class Fixture(unittest.TestCase):
             coins=lambda provider, caip19: coins.get((provider, caip19)), queue=[])}
 
 
+SHELL, SHEL = "listing:isin:GB00BP6MXD84:XAMS:EUR", "listing:figi:BBG0147BN6G2"
+SHELL_OTC = "listing:isin:GB00BP6MXD84:OTCM:USD"
+BANK = [("common", "ordinary", "BNK"), ("preferred", "preferred", "BNK-PA"), ("note1", "other", "BNKN"),
+        ("note2", "other", "BNKO")]
+
+
 class SearchTest(Fixture):
-    def test_ticker_finds_the_home_line_before_the_foreign_receipt(self):
-        result = search.Directory(self.ref).search("asml", limit=5)
-        self.assertEqual([group["id"] for group in result["groups"]],
-                         ["security:isin:NL0010273215", "security:isin:USN070592100"])
-        self.assertEqual(result["groups"][0]["rows"][0]["id"], ASML)
+    def setUp(self):
+        super().setUp()
+        with sqlite3.connect(self.path) as db:
+            db.executemany("INSERT INTO venues VALUES (?, ?, ?, ?)", [
+                ("XAMS", "XAMS", "Euronext Amsterdam", "NL"), ("XNGS", "XNAS", "Nasdaq", "US"),
+                ("XNYS", "XNYS", "NYSE", "US")])
+            # Shell: home line on Amsterdam, a receipt on NYSE whose ticker starts the name; a bank with a
+            # preferred and two notes.
+            db.executemany("INSERT INTO issuers (id, name, country) VALUES (?, ?, ?)",
+                           [("issuer:lei:21380068P1DRHMJ8KU70", "Shell plc", "GB"), ("issuer:cik:1", "Bank Corp", "US")])
+            securities = [("security:isin:GB00BP6MXD84", "issuer:lei:21380068P1DRHMJ8KU70", "ordinary"),
+                          ("security:figi:BBG0147BN6H1", "issuer:lei:21380068P1DRHMJ8KU70", "depositary_receipt"),
+                          *((f"security:bank:{key}", "issuer:cik:1", kind) for key, kind, _ in BANK)]
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'x', 'equity', ?)",
+                           securities)
+            listings = [(SHELL, "security:isin:GB00BP6MXD84", "XAMS", "SHELL", "EUR", 0),
+                        (SHELL_OTC, "security:isin:GB00BP6MXD84", "OTCM", "RYDAF", "USD", 0),
+                        (SHEL, "security:figi:BBG0147BN6H1", "XNYS", "SHEL", "USD", 1),
+                        *((f"listing:bank:{key}", f"security:bank:{key}", "XNYS", ticker, "USD", 1)
+                          for key, _, ticker in BANK)]
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?, ?, ?, ?3, ?, ?, ?)", listings)
+        self.directory = search.Directory(self.ref)
+
+    def rows(self, query, **options):
+        return [row["id"] for row in self.directory.search(query, limit=5, **options)["rows"]]
+
+    def test_a_receipt_folds_into_the_company_row_shown_through_its_primary_listing(self):
+        row, = self.directory.search("asml", limit=5)["rows"]
+        self.assertEqual(row, {"id": ASML, "ticker": "ASML", "name": "ASML Holding N.V.", "kind": "ordinary",
+                               "mic": "XAMS", "venue": "Euronext Amsterdam", "country": "NL", "listings": 1,
+                               "bindings": []})
+
+    def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
+        us = "listing:isin:USN070592100:XNAS:USD"
+        self.assertEqual(self.rows("asml", prefer="US"), [us])
+        self.assertEqual(self.rows("asml", prefer="EU"), [ASML])
+        self.assertEqual(self.rows("ASML.AS", prefer="US", suffixes=lambda: {".AS": {"XAMS"}}), [ASML])
+        self.assertEqual(self.rows("ASML.US", suffixes=lambda: {".US": {"XNAS", "XNYS"}}), [us])
+        self.assertEqual(self.rows("USN070592100"), [us])
+
+    def test_a_typed_ticker_names_its_listing_unless_the_query_is_the_name(self):
+        self.assertEqual(self.rows("SHEL")[:1], [SHEL])  # a receipt ticker that only starts the name
+        self.assertEqual(self.rows("shell")[:1], [SHELL])
+
+    def test_the_page_lists_what_the_row_counts(self):
+        row = self.directory.search("shell", limit=1)["rows"][0]
+        listings = self.directory.instrument_listings("security:figi:BBG0147BN6H1")
+        # The receipt carries the only primary flag; the company's home line still leads, marked primary.
+        self.assertEqual([(item["id"], item["kind"], item["primary"]) for item in listings],
+                         [(SHELL, "ordinary", True), (SHELL_OTC, "ordinary", False),
+                          (SHEL, "depositary_receipt", False)])
+        self.assertEqual(row["listings"], len(listings) - 1)
 
     def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):
         bound = {BTC: [{"plugin": "coinmarketcap", "ref": "1"}]}
-        result = search.Directory(self.ref).search("BTC", limit=5, bindings=lambda ids: bound)
-        self.assertEqual(result["groups"][0]["rows"][0], {"id": BTC, "ticker": "BTC", "mic": None, "venue": None,
-                                                          "currency": None, "bindings": bound[BTC]})
+        row = self.directory.search("BTC", limit=5, bindings=lambda ids: bound)["rows"][0]
+        self.assertEqual({key: row[key] for key in ("id", "mic", "country", "listings", "bindings")},
+                         {"id": BTC, "mic": None, "country": None, "listings": 0, "bindings": bound[BTC]})
 
-    def test_an_issuers_main_share_is_kept_before_its_notes(self):
-        directory = search.Directory(self.ref)
-        def line(security, kind, score, key):
-            return (score, {"grp": "issuer:lei:X", "security": security, "kind": kind, "prim": 1, "listing": f"l-{security}",
-                            "ticker": security.upper(), "mic": "XNYS", "venue": "NYSE", "currency": "USD",
-                            "name": "Bank", "depositary_of": None}, key)
-        lines = [line("note1", "other", 5.0, (0, 0, 0, 9)), line("note2", "other", 6.0, (0, 0, 0, 9)),
-                 line("fund", "fund", 7.0, (0, 0, 0, 1)), line("common", "ordinary", 4.0, (0, 0, 0, 0))]
-        with unittest.mock.patch.object(directory, "lines", return_value=lines):
-            groups = directory.search("bank", limit=5)["groups"]
-        self.assertEqual([group["id"] for group in groups], ["common", "fund"])  # not the two notes
-
-    def test_identifier_queries_are_exact(self):
-        self.assertEqual([g["id"] for g in search.Directory(self.ref).search("USN070592100", limit=5)["groups"]],
-                         ["security:isin:USN070592100"])
+    def test_an_issuers_main_share_and_preferred_come_before_its_notes(self):
+        self.assertEqual(self.rows("bank corp"), ["listing:bank:common", "listing:bank:preferred"])
 
 
 class PageTest(Fixture):
