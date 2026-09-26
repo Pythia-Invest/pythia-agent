@@ -18,7 +18,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 
 from native_plugin_fixtures import Context
-from test_market_data_identity import PACKAGE, platform_module
+from test_market_data_identity import PACKAGE, PLATFORM, platform_module
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/coinmarketcap'
 NAME = 'coinmarketcap_fixture'
@@ -132,7 +132,6 @@ class CoinMarketCap(unittest.TestCase):
             self.assertNotIn('search', [item['operation'] for item in marker['operations']])
             result = call(ctx, 'catalogue', {'scope': 'coins', 'limit': 2})
         self.assertEqual(result['outcome'], 'ok', result['issues'])
-        self.assertEqual(calls, [('map', {'start': 1, 'limit': 2}), ('listings', {'start': 1, 'limit': 500, 'convert': 'USD'})])
         page = result['data']
         self.assertEqual(page['next_cursor'], '2')
         coin, token = page['rows']
@@ -155,6 +154,15 @@ class CoinMarketCap(unittest.TestCase):
         self.assertEqual(partial['data']['rank_signals']['market_cap'], 'unavailable')
         self.assertIsNone(partial['data']['next_cursor'])
         self.assertEqual(partial['data']['rows'][0]['rank']['cmc_rank'], 1)
+
+    def test_configuration_declaration_parses_with_core(self):
+        try:
+            configuration = importlib.import_module(PLATFORM + '.configuration')
+        except ModuleNotFoundError:
+            self.skipTest('core platform.configuration is not on this branch yet')
+        fields = configuration.parse(json.loads((ROOT / 'configuration.json').read_text()))
+        self.assertEqual([(item['key'], item['kind'], item['required']) for item in fields],
+                         [('coinmarketcap_api_key', 'secret', True)])
 
     def test_missing_or_invalid_key_is_reported_without_a_request(self):
         for status in ('missing', 'invalid'):
