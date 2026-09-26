@@ -20,7 +20,8 @@ export function TypePills({
       // Pressing the chosen pill again keeps it: one type is always chosen.
       onValueChange={([next]) => next && onChange(next)}
       data-slot="investment-search-types"
-      className="flex min-w-0 flex-wrap gap-1.5 rounded-none bg-transparent p-0"
+      // One row at every width: a narrow panel scrolls the pills sideways.
+      className="flex min-w-0 flex-nowrap gap-1.5 overflow-x-auto rounded-none bg-transparent p-0 [scrollbar-width:none]"
     >
       {TYPE_FILTERS.map((filter) => (
         <Toggle<TypeFilter>
@@ -29,7 +30,7 @@ export function TypePills({
           label={filter.label}
           size="sm"
           onMouseDown={keepInputFocus}
-          className="rounded-pill data-pressed:border-border-strong"
+          className="flex-none rounded-pill data-pressed:border-border-strong"
         />
       ))}
     </ToggleGroup>
