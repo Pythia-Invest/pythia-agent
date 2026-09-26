@@ -19,7 +19,8 @@ def helpers(ctx):
     if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
         raise RuntimeError('unavailable')
     namespace = loaded.module.__name__
-    return tuple(importlib.import_module(namespace + '.' + name) for name in ('wire', 'process', 'credentials'))
+    wire, process, dependency = (importlib.import_module(namespace + '.' + name) for name in ('wire', 'process', '_platform'))
+    return wire, process, dependency.platform().configuration
 
 
 def paths():
@@ -32,8 +33,8 @@ def paths():
 
 
 def register(ctx):
-    wire, process, credentials = helpers(ctx)
-    configuration = Configuration(ctx, wire, credentials)
+    wire, process, core = helpers(ctx)
+    configuration = Configuration(ctx, core)
     definitions = schemas(wire)
     budgets = failures = batching = importlib.import_module(wire.__package__ + '.connector')
     reads = failures.WorkerReads(process)
@@ -71,8 +72,7 @@ def register(ctx):
                     raise ValueError('invalid_request')
             blocked = configuration.needs_configuration()
             if blocked:
-                # No provider request is attempted. Shared reads keep the
-                # market-data wire issue shape, which has no `fields`.
+                # No provider request. The market-data backend's strict issue schema rejects `fields`.
                 if operation in SHARED: raise RuntimeError('needs_configuration')
                 return blocked
             if not installed():

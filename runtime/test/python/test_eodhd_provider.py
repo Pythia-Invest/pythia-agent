@@ -29,6 +29,15 @@ def request(definition, mode='history'):
         'requirements': {'freshness': 'any', 'completion': 'any', 'coverage': 'any'}}
 
 
+def core(state='configured'):
+    """Stands in for core platform.configuration with its documented result shape."""
+    blocked = None if state == 'configured' else {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [{
+        'code': 'needs_configuration', 'severity': 'error', 'message': 'Needs configuration.',
+        'fields': [{'key': 'eodhd_api_token', 'label': 'EODHD API token', 'file': 'secrets.json', 'status': state}]}]}
+    return types.SimpleNamespace(value=lambda _ctx, _key: (state, 'synthetic' if state == 'configured' else None),
+                                 needs_configuration=lambda _ctx: blocked)
+
+
 class Provider(unittest.TestCase):
     def test_catalogue_pages_share_worker_snapshot_and_reject_version_drift(self):
         provider = importlib.import_module('test_eodhd.__init__')
@@ -41,9 +50,9 @@ class Provider(unittest.TestCase):
                 'rows': [{'symbol': 'SYNTH.AS', 'currency': 'EUR', 'name': 'Synthetic', 'type': 'Common Stock', 'isin': 'US0378331005', 'actual_venue': 'AS'},
                          {'symbol': 'OTHER.AS', 'currency': 'EUR', 'name': 'Other', 'type': 'ETF', 'isin': 'NOT-AN-ISIN', 'actual_venue': 'AS'}]}, 'issues': [], 'complete': True}
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=worker)
-        local_credentials = types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic'))
+        local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_credentials)), \
+        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -69,9 +78,9 @@ class Provider(unittest.TestCase):
             calls.append(args[1])
             return {'data': None, 'issues': ['access_denied'], 'complete': False, 'http_status': 403}
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=worker)
-        local_credentials = types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic'))
+        local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_credentials)), \
+        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -93,9 +102,9 @@ class Provider(unittest.TestCase):
             calls.append(args[1])
             return {'data': None, 'issues': ['access_denied'], 'complete': False, 'http_status': 403}
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=worker)
-        local_credentials = types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic'))
+        local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_credentials)), \
+        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -112,9 +121,9 @@ class Provider(unittest.TestCase):
                   'lei': 'SYNTHETICLEI00000001', 'cusip': None, 'cik': '12345'}
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}),
             run_worker=lambda *args, **kwargs: {'data': [record], 'issues': [], 'complete': True})
-        local_credentials = types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic'))
+        local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_credentials)), \
+        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -130,9 +139,9 @@ class Provider(unittest.TestCase):
     def test_no_provider_search_operation_is_registered(self):
         provider = importlib.import_module('test_eodhd.__init__')
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=None)
-        local_credentials = types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic'))
+        local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_credentials)), \
+        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -154,9 +163,9 @@ class Provider(unittest.TestCase):
         definition = series.definition(identity.native('SYNTH.AS', 'EUR'), 'latest')
         for state in ('missing', 'invalid'):
             with self.subTest(state=state):
-                local_credentials = types.SimpleNamespace(eodhd_token=lambda state=state: (state, None))
+                local_core = core(state)
                 ctx = Context('pythia-eodhd')
-                with patch.object(provider, 'helpers', return_value=(wire, process, local_credentials)), \
+                with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
                         patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                         patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
                     provider.register(ctx)
@@ -166,6 +175,8 @@ class Provider(unittest.TestCase):
                     latest = json.loads(ctx.tools[provider.TOOLS['latest']]({'request': request(definition, 'latest'),
                         'source_selector': definition['source_detail']['values']['read_selector']}))
                 self.assertEqual((news['outcome'], news['issues'][0]['code']), ('error', 'needs_configuration'))
+                # Agent tools pass core's result through, including which field is missing.
+                self.assertEqual(news['issues'][0]['fields'][0]['key'], 'eodhd_api_token')
                 wire.validate_read_result(latest)
                 self.assertEqual(latest['issues'][0]['code'], 'needs_configuration')
         self.assertEqual(calls, [])
@@ -177,9 +188,9 @@ class Provider(unittest.TestCase):
                 process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}),
                     run_worker=lambda *args, **kwargs: {'data': None, 'issues': [code],
                         'retry_after': 7, 'failure': {'code': code, 'origin': origin}})
-                local_credentials = types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic'))
+                local_core = core()
                 ctx = Context('pythia-eodhd')
-                with patch.object(provider, 'helpers', return_value=(wire, process, local_credentials)), \
+                with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
                         patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                         patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
                     provider.register(ctx)
@@ -289,10 +300,10 @@ class Provider(unittest.TestCase):
             {'data': [row, {**row, 'close': '3'}, {**row, 'date': '2026-09-02'}], 'issues': []}])
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}),
             run_worker=lambda *args, **kwargs: next(payloads))
-        local_credentials = types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic'))
+        local_core = core()
         ctx = Context('pythia-eodhd')
         handlers = ctx.tools
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_credentials)), \
+        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
