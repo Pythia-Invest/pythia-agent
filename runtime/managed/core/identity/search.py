@@ -26,6 +26,7 @@ US_LISTED = ("XNAS", "XNYS", "XCBO")
 # The search contract's kinds (packages/market-data/src/search.ts); the reference holds a subset.
 KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other")
 MAX_ROWS = 8
+PER_ISSUER = 2  # securities shown per issuer
 
 ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 LEI = re.compile(r"^[A-Z0-9]{18}[0-9]{2}$")
@@ -212,8 +213,8 @@ class Directory:
                bindings: Callable[[list[str]], dict[str, list[dict]]] = lambda ids: {}) -> dict[str, Any]:
         """The SearchResponse (packages/market-data/src/search.ts) for one query."""
         allowed = set(kinds) if kinds else None
-        # Rank issuers by their best line (an issuer's lines compete once); inside an issuer, its
-        # securities follow their best line's representative key (home line before a foreign ADR).
+        # Rank issuers by their best line (an issuer's lines compete once); inside an issuer, its best
+        # securities by representative key (home line before a foreign ADR), at most PER_ISSUER of them.
         issuers: dict[str, list] = {}
         for score, line, key in self.lines(query):
             if allowed is not None and line["kind"] not in allowed:
@@ -223,9 +224,11 @@ class Directory:
             issuer[1].setdefault(line["security"], []).append((key, line))
         rows: dict[str, list[dict]] = {}
         for _score, securities in sorted(issuers.values(), key=lambda item: -item[0]):
-            for security, members in sorted(securities.items(), key=lambda item: max(key for key, _ in item[1]),
-                                            reverse=True):
-                rows[security] = [line for _key, line in sorted(members, key=lambda pair: pair[0], reverse=True)][:MAX_ROWS]
+            best = sorted(securities.items(), key=lambda item: max(key for key, _ in item[1]), reverse=True)
+            for security, members in best[:PER_ISSUER]:  # an issuer's preferreds never crowd out other issuers
+                # The primary listing first (the contract), then the best line for the query.
+                ordered = sorted(members, key=lambda pair: (pair[1]["prim"], pair[0]), reverse=True)
+                rows[security] = [line for _key, line in ordered][:MAX_ROWS]
             if len(rows) >= limit:
                 break
         rows = dict(list(rows.items())[:limit])

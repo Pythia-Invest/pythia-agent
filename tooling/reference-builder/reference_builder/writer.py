@@ -20,12 +20,16 @@ def write(snap: Snapshot, path: Path, meta: dict[str, str], sources: list[dict])
     try:
         connection.executescript(schema.DDL)
         connection.execute(f"PRAGMA user_version = {schema.SCHEMA_VERSION}")
+        ignored = {}
         for table, values in schema.rows(snap, meta, sources).items():
             verb = "INSERT OR IGNORE" if table in schema.FIRST_WINS else "INSERT"
             for row in values:
                 names = ",".join(row)
                 connection.execute(f"{verb} INTO {table} ({names}) VALUES ({','.join('?' * len(row))})", tuple(row.values()))
             counts[table] = connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+            if len(values) > counts[table]:
+                ignored[table] = len(values) - counts[table]  # duplicate IDs of collapsed lines, or constraint violations
+        snap.audit["writer_ignored"] = ignored
         connection.commit()
         connection.execute("VACUUM")
     finally:

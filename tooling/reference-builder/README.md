@@ -34,8 +34,11 @@ IDs from core's `subject_id()`; identifier assertions carry authority
 and each provider's coin id for BTC, ETH, SOL and a few other native coins), so
 search finds those coins without a provider. Securities carry a notability
 `rank` (FITRS turnover order, SEC file order, curated coin order) for search.
-Lines without a venue or trading currency (OpenFIGI-only home lines) are left
-out and counted in the manifest audit (`schema`).
+Lines core cannot key are left out and counted in the manifest audit
+(`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue) and
+OpenFIGI-only home lines (no trading currency). Rows the writer ignores
+(duplicate IDs of collapsed lines, or a constraint violation) are counted per
+table under `writer_ignored`.
 
 ## Rules applied
 

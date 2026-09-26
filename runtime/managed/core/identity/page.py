@@ -161,7 +161,8 @@ def _addressable(info: PluginInfo, level: Level, subject: dict) -> bool:
 
 
 def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Callable[[str, str], sqlite3.Row | None],
-             coins: Callable[[str, str], str | None], queue: list[dict]) -> dict | None:
+             coins: Callable[[str, str], str | None], queue: list[dict],
+             misses: Mapping[str, str] = {}) -> dict | None:
     """One plugin's answer for one section, or None when it cannot address the subject."""
     entry = info.manifest.content.get(section)
     target = entry and subject["ids"].get(entry.via)
@@ -175,14 +176,18 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     answer = {"section": str(section), "plugin": info.key, "label": info.label, "status": "ready", "binding": None,
               "binding_status": None, "request": None, "alternatives": [], "reason": None}
     missing = info.missing[0] if info.missing else None
-    conflict = next((item for item in queue if item["plugin"] == info.manifest.plugin), None)
+    queued = next((item for item in queue if item["plugin"] == info.manifest.plugin), None)
+    conflict = queued if queued and queued.get("kind", "conflict") == "conflict" else None
     if not info.enabled:
         return {**answer, "status": "disabled", "reason": f"{info.label} is disabled"}
     if missing:
         return {**answer, "status": "needs_configuration",
                 "reason": f"{info.label} needs configuration: add {missing['key']} to {missing['file']}"}
-    if conflict or (row and row["status"] == "conflicting"):
+    if (conflict and not (row and row["status"] == "confirmed")) or (row and row["status"] == "conflicting"):
         return {**answer, "status": "conflict", "reason": f"{info.label}'s record contradicts the reference; queued for review"}
+    if wants_resolve and (queued or info.key in misses):
+        reason = misses.get(info.key) or f"{info.label}'s answer is queued for review ({queued['reason']})"
+        return {**answer, "status": "unresolved", "reason": reason}
     if wants_resolve:
         return {**answer, "status": "resolving", "reason": f"Looking up in {info.label}"}
     if row:
@@ -207,7 +212,7 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
                    if (answer := evaluate(info, section, subject, **lookups)) is not None]
         if not answers:
             continue
-        usable = [answer for answer in answers if answer["status"] in ("ready", "resolving", "conflict")]
+        usable = [answer for answer in answers if answer["status"] in ("ready", "resolving")]
         chosen = (usable or answers)[0]
         chosen["alternatives"] = [{"plugin": answer["plugin"], "label": answer["label"], "status": answer["status"]}
                                   for answer in answers if answer is not chosen]
@@ -218,12 +223,13 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
 # ---- applying one resolve answer --------------------------------------------------------------------------------
 
 def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: dict, sent: Mapping[str, str], *,
-                  now: str, as_of: str | None = None) -> tuple[Binding | None, QueueItem | None, list[RecordClaim]]:
+                  now: str, as_of: str | None = None, bound_to: Callable[[ProviderRef], str | None] = lambda ref: None) -> tuple[Binding | None, QueueItem | None, list[RecordClaim]]:
     """Decide a resolve answer with the one authority rule: a binding, a queue item, or neither (no match).
 
     The answer names a native reference for the identifiers core sent (`sent`). Rule
     `resolve_answer@1` binds it to the subject unless identifier evidence or the
-    depositary-receipt guard contradicts it (a conflict); several references are a residual.
+    depositary-receipt guard contradicts it, or `bound_to` says the reference is already
+    confirmed for another subject (a conflict, never a re-point); several references are a residual.
     """
     target, plugin = subject["ids"][level], info.manifest.plugin
     records = [claim for claim in batch.claims if isinstance(claim, RecordClaim) and claim.native_ref is not None
@@ -246,6 +252,10 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     outcome = decide(verdict, item, claimed=records[0].identifiers, evidence=subject["evidence"],
                      as_of=as_of or date.today().isoformat(), record_kind=records[0].attributes.kind,
                      subject_kind=kind if kind in set(InstrumentKind) else None)
+    other = bound_to(ref)
+    if outcome is VerdictOutcome.CONFIRMED and evidence_ids and other not in (None, target):
+        return None, QueueItem(id=item.id, kind="conflict", reason="binding", subject_ids=(other, target),
+                               evidence_ids=evidence_ids, **base), records
     if outcome is VerdictOutcome.CONFIRMED and evidence_ids:
         return Binding(provider_ref=ref, subject_id=target, status="confirmed", authority="rule_confirmed",
                        evidence_ids=evidence_ids, plugin=plugin, rule_id=RESOLVE_RULE), None, records

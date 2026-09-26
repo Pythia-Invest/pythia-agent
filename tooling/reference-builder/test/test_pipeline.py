@@ -143,6 +143,9 @@ class PipelineTest(unittest.TestCase):
             self.assertEqual({s["source"]: s["licence"] for s in json.loads(release["sources"])}, {"esma_firds": "x", "openfigi": "y"})
             self.assertEqual(btc, ("1",))
             self.assertGreater(counts["assertions"], counts["listings"])
+            written = counts["listings"] + self.snap.audit["writer_ignored"].get("listings", 0)
+            dropped = sum(n for key, n in self.snap.audit["schema"].items() if key.startswith("lines_without_"))
+            self.assertEqual(written + dropped, len(self.snap.listings) + 6)  # every line is accounted for; +6 seeded coins
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
 
     def test_eu_only_scope_makes_no_sec_lookups(self):
