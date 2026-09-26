@@ -26,7 +26,16 @@ python3 tooling/reference-builder/run.py --help
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
 | Snapshot and manifest | `schema.py`, `writer.py`, `manifest.py` | |
 
-`schema.py` is the only module that knows the table layout.
+`schema.py` is the only module that knows the table layout. The file is core's
+reference store (`runtime/managed/core/identity/sql/reference.sql`) with subject
+IDs from core's `subject_id()`; identifier assertions carry authority
+`snapshot`. It also carries core's curated native-coin seed
+(`runtime/managed/core/identity/native_coins.json`: chains, provider chain ids
+and each provider's coin id for BTC, ETH, SOL and a few other native coins), so
+search finds those coins without a provider. Securities carry a notability
+`rank` (FITRS turnover order, SEC file order, curated coin order) for search.
+Lines without a venue or trading currency (OpenFIGI-only home lines) are left
+out and counted in the manifest audit (`schema`).
 
 ## Rules applied
 
@@ -78,7 +87,7 @@ and MIC files for one day.
 
 ## Rights
 
-The snapshot's `sources` table records each source's URL, version, retrieval
+The snapshot's `release.sources` entry records each source's URL, version, retrieval
 time and licence label. Only MIC codes that listings reference are included,
 never the full ISO list. The snapshot stays on the device that built it;
 redistributing OpenFIGI tickers and names, and ISIN-to-FIGI pairs, is

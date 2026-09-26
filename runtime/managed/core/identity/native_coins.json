@@ -1,0 +1,31 @@
+{
+  "rule_id": "native_coins@1",
+  "note": "Curated, Pythia-authored. Native coins carry no contract, so each provider's coin id is mapped to the coin's CAIP-19 slip44 id on its home chain. Rank is a coarse market-cap order used only for search notability.",
+  "chains": [
+    {"caip2": "bip122:000000000019d6689c085ae165831e93", "name": "Bitcoin"},
+    {"caip2": "eip155:1", "name": "Ethereum"},
+    {"caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "name": "Solana"},
+    {"caip2": "xrpl:0", "name": "XRP Ledger"},
+    {"caip2": "bip122:1a91e3dace36e2be3bf030a65679fe82", "name": "Dogecoin"},
+    {"caip2": "bip122:12a765e31ffd4059bada1e25190f6e98", "name": "Litecoin"}
+  ],
+  "provider_chains": [
+    {"provider": "coingecko", "chain": "ethereum", "caip2": "eip155:1"},
+    {"provider": "coingecko", "chain": "solana", "caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"},
+    {"provider": "coinmarketcap", "chain": "1", "caip2": "eip155:1"}
+  ],
+  "coins": [
+    {"caip19": "bip122:000000000019d6689c085ae165831e93/slip44:0", "name": "Bitcoin", "symbol": "BTC", "rank": 1,
+     "coinmarketcap": "1", "coingecko": "bitcoin"},
+    {"caip19": "eip155:1/slip44:60", "name": "Ether", "symbol": "ETH", "rank": 2, "aliases": ["Ethereum"],
+     "coinmarketcap": "1027", "coingecko": "ethereum"},
+    {"caip19": "xrpl:0/slip44:144", "name": "XRP", "symbol": "XRP", "rank": 4, "aliases": ["Ripple"],
+     "coinmarketcap": "52", "coingecko": "ripple"},
+    {"caip19": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501", "name": "Solana", "symbol": "SOL", "rank": 6,
+     "coinmarketcap": "5426", "coingecko": "solana"},
+    {"caip19": "bip122:1a91e3dace36e2be3bf030a65679fe82/slip44:3", "name": "Dogecoin", "symbol": "DOGE", "rank": 9,
+     "coinmarketcap": "74", "coingecko": "dogecoin"},
+    {"caip19": "bip122:12a765e31ffd4059bada1e25190f6e98/slip44:2", "name": "Litecoin", "symbol": "LTC", "rank": 20,
+     "coinmarketcap": "2", "coingecko": "litecoin"}
+  ]
+}

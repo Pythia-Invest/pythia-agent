@@ -24,8 +24,11 @@ CREATE TABLE securities (
   issuer_id TEXT REFERENCES issuers(id),
   name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 512),
   asset_class TEXT NOT NULL CHECK (asset_class IN ('equity', 'crypto')),
-  kind TEXT NOT NULL CHECK (kind IN ('ordinary', 'depositary_receipt', 'coin', 'token')),
+  kind TEXT NOT NULL CHECK (kind IN ('ordinary', 'preferred', 'depositary_receipt', 'etf', 'fund', 'other', 'coin',
+                                     'token')),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'unknown')),
+  rank INTEGER CHECK (rank IS NULL OR rank >= 1),  -- notability order within its source, 1 = most notable:
+                                                   -- FITRS turnover, SEC file order, curated coin order
   CHECK ((asset_class = 'crypto') = (kind IN ('coin', 'token')))
 );
 

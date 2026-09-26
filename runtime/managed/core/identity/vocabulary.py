@@ -44,8 +44,14 @@ class AssetClass(StrEnum):
 
 
 class InstrumentKind(StrEnum):
+    """Instrument kinds; the names match the search contract (packages/market-data/src/search.ts)."""
+
     ORDINARY = "ordinary"
+    PREFERRED = "preferred"
     DEPOSITARY_RECEIPT = "depositary_receipt"
+    ETF = "etf"
+    FUND = "fund"
+    OTHER = "other"  # warrants, rights, units and lines no source classifies
     COIN = "coin"
     TOKEN = "token"
 
