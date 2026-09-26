@@ -81,7 +81,6 @@ CREATE TABLE queue (
   scheme TEXT,                     -- conflict: the contested scheme
   contested_values TEXT NOT NULL DEFAULT '[]',
   state TEXT NOT NULL CHECK (state IN ('open', 'resolved', 'superseded', 'dismissed')),
-  attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
   opened_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   resolved_by TEXT,                -- the verdict that settled it

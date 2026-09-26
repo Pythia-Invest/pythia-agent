@@ -88,7 +88,6 @@ class QueueItem:
     provider_ref: ProviderRef | None = None
     scheme: Scheme | None = None    # conflict: the contested scheme
     values: tuple[str, ...] = ()    # conflict: the contested values
-    attempts: int = 0
 
     def __post_init__(self) -> None:
         _coerce(self, kind=QueueItemKind, reason=QueueReason, state=QueueState, provider_ref=ProviderRef, scheme=Scheme)
