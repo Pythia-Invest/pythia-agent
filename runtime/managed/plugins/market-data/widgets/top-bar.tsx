@@ -18,6 +18,12 @@ export default function InvestmentTopBar({ data }: TopBarProps) {
   // filters Desk's chat lists and must not follow what is typed here.
   const [query, setQuery] = useState("");
   const queryClient = useQueryClient();
+  const page = (subjectId: string) => ({
+    queryKey: subjectQueryKey(subjectId),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      readSubject(data.transport, subjectId, signal),
+    staleTime: SUBJECT_STALE_MS,
+  });
   return (
     <search
       data-slot="market-data-top-bar"
@@ -32,23 +38,22 @@ export default function InvestmentTopBar({ data }: TopBarProps) {
         query={query}
         onQueryChange={setQuery}
         search={transportSearch(data.transport)}
-        // The page composition is a fast local read: warm it for the row under
-        // the pointer or keyboard highlight so the click opens on cached data.
+        // The page composition is a fast local read: warm it for the row or
+        // listing under the pointer or keyboard highlight, so the click opens
+        // on cached data. The side list reads the same composition.
         onHighlight={(subjectId) =>
-          void queryClient.prefetchQuery({
-            queryKey: subjectQueryKey(subjectId),
-            queryFn: ({ signal }) =>
-              readSubject(data.transport, subjectId, signal),
-            staleTime: SUBJECT_STALE_MS,
-          })
+          void queryClient.prefetchQuery(page(subjectId))
         }
-        // The host shell routes the chosen subject to its instrument page; the
-        // next search starts empty instead of appending to this query.
-        onSelect={(subjectId) => {
+        listings={async (row) =>
+          (await queryClient.fetchQuery(page(row.id))).listings
+        }
+        // The host shell routes the choice to the instrument's page on that
+        // listing; the next search starts empty instead of appending.
+        onSelect={({ subject, listing }) => {
           setQuery("");
           window.dispatchEvent(
             new CustomEvent("pythia:open-subject", {
-              detail: { subject_id: subjectId },
+              detail: { subject_id: subject, listing_id: listing },
             }),
           );
         }}

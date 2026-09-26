@@ -21,6 +21,7 @@ export {
 export {
   searchOptions,
   choiceOf,
+  listingOptions,
   KIND_LABELS,
   TYPE_FILTERS,
   type RowSource,

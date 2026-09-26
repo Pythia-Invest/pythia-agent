@@ -56,13 +56,16 @@ function others(count: number) {
 function optionLabel(
   { row }: SearchOption,
   bindings: readonly SearchBinding[],
+  expandable: boolean,
 ) {
   return [
     row.ticker,
     row.name,
     row.venue ?? row.mic,
     ROW_LABELS[row.kind],
-    row.listings ? `${others(row.listings)} (Right arrow to show them)` : null,
+    row.listings
+      ? `${others(row.listings)}${expandable ? " (Right arrow to show them)" : ""}`
+      : null,
     bindings.length
       ? `via ${bindings.map((binding) => connectorName(binding.plugin)).join(", ")}`
       : null,
@@ -90,7 +93,7 @@ export function SearchRowOption({
   return (
     <ComboboxItem
       value={option}
-      aria-label={optionLabel(option, bindings)}
+      aria-label={optionLabel(option, bindings, Boolean(onExpand))}
       // Base UI clicks the highlighted row on Enter, so this is the one path
       // for pointer and keyboard choices.
       onClick={onChoose}
@@ -186,7 +189,7 @@ export function ListingRowOption({
         venue,
         listing.currency,
         type,
-        shown ? "preferred listing" : null,
+        shown ? "the listing the result opens" : null,
       ]
         .filter(Boolean)
         .join(", ")}
@@ -213,8 +216,12 @@ export function ListingRowOption({
         ) : null}
       </span>
       {shown ? (
-        <span className="flex-none text-[10px] text-foreground-secondary uppercase tracking-wide">
-          Preferred
+        // "Default", not "Preferred": the type column may say Preferred stock.
+        <span
+          title="The listing Enter on the result opens"
+          className="flex-none text-[10px] text-foreground-secondary uppercase tracking-wide"
+        >
+          Default
         </span>
       ) : null}
       <span className="w-28 flex-none truncate text-right text-foreground-secondary">
