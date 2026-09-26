@@ -37,16 +37,48 @@ def _core():
 identity = _core()
 DDL = identity.schema_sql(identity.Store.REFERENCE)
 SCHEMA_VERSION = int(importlib.import_module("pythia_core_identity.store").REFERENCE_SCHEMA_VERSION)
-KIND = {"share": "ordinary", "dr": "depositary_receipt", "preferred": "preferred", "fund": "fund"}
-STATUS = {"active": "active", "suspect": "unknown", "inactive": "inactive"}
-# Curated short venue labels (Pythia-authored); other venues keep their ISO 10383 name.
+# Curated short venue labels (Pythia-authored), by operating MIC or by a segment that
+# investors name on its own (growth markets, ETF segments). A segment without its own
+# label takes its operator's; other venues keep their ISO 10383 name.
 VENUE_NAMES = {
+    # Euronext
     "XAMS": "Euronext Amsterdam", "XPAR": "Euronext Paris", "XBRU": "Euronext Brussels", "XLIS": "Euronext Lisbon",
-    "XMIL": "Euronext Milan", "XDUB": "Euronext Dublin", "XOSL": "Euronext Oslo", "XLON": "London Stock Exchange",
-    "XETR": "Xetra", "XFRA": "Frankfurt", "XSWX": "SIX Swiss Exchange", "XPRA": "Prague Stock Exchange",
+    "XMIL": "Euronext Milan", "XDUB": "Euronext Dublin", "XMSM": "Euronext Dublin", "XOSL": "Euronext Oslo",
+    "ALXP": "Euronext Growth Paris", "XMLI": "Euronext Access Paris", "ALXB": "Euronext Growth Brussels",
+    "MLXB": "Euronext Access Brussels", "VPXB": "Euronext Brussels", "ALXL": "Euronext Growth Lisbon",
+    "ENXL": "Euronext Access Lisbon", "XESM": "Euronext Growth Dublin", "XACD": "Euronext Access Dublin",
+    "EXGM": "Euronext Growth Milan", "MTAA": "Euronext Milan", "ETFP": "Borsa Italiana ETFplus", "ETLX": "EuroTLX",
+    "BGEM": "Borsa Italiana Global Equity", "MERK": "Euronext Growth Oslo", "XOAS": "Euronext Expand Oslo",
+    # Germany and Austria
+    "XETR": "Xetra", "XFRA": "Frankfurt", "XSTU": "Stuttgart", "XMUN": "Munich", "MUND": "gettex",
+    "XDUS": "Düsseldorf", "XHAM": "Hamburg", "HAMN": "LS Exchange", "XHAN": "Hanover", "XBER": "Berlin",
+    "TGAT": "Tradegate", "XWBO": "Vienna Stock Exchange",
+    # Nordics and Baltics
+    "XSTO": "Nasdaq Stockholm", "XHEL": "Nasdaq Helsinki", "XCSE": "Nasdaq Copenhagen", "XICE": "Nasdaq Iceland",
+    "XTAL": "Nasdaq Tallinn", "XRIS": "Nasdaq Riga", "XLIT": "Nasdaq Vilnius", "SSME": "First North Sweden",
+    "FSME": "First North Finland", "DSME": "First North Denmark", "FNIS": "First North Iceland",
+    "FNEE": "First North Estonia", "FNLV": "First North Latvia", "FNLT": "First North Lithuania",
+    "XSAT": "Spotlight Stock Market", "XNGM": "Nordic Growth Market",
+    # Southern, central and eastern Europe
+    "BMEX": "BME Spanish Exchanges", "XMAD": "Madrid Stock Exchange", "GROW": "BME Growth", "SCLE": "BME Scaleup",
+    "XLAT": "Latibex", "POSE": "Portfolio Stock Exchange", "ASEX": "Athens Stock Exchange", "XCYS": "Cyprus Stock Exchange",
+    "XMAL": "Malta Stock Exchange", "XWAR": "Warsaw Stock Exchange", "XNCO": "NewConnect", "XPRA": "Prague Stock Exchange",
+    "XRMZ": "RM-System Prague", "XBUD": "Budapest Stock Exchange", "XBRA": "Bratislava Stock Exchange",
+    "XLJU": "Ljubljana Stock Exchange", "XZAG": "Zagreb Stock Exchange", "XBSE": "Bucharest Stock Exchange",
+    "XBUL": "Bulgarian Stock Exchange", "MBUL": "MTF Sofia", "XLUX": "Luxembourg Stock Exchange",
+    "EMTF": "Luxembourg Euro MTF", "NPEX": "NPEX", "XNXC": "NXCHANGE", "HMTF": "Vorvel",
+    # Pan-European trading venues (multilateral, dark and request-for-quote)
+    "CCXE": "Cboe Europe", "CCRM": "Cboe Europe RM", "AQEU": "Aquis Europe", "TQEX": "Turquoise Europe",
+    "ITGL": "Posit", "XIGG": "Blockmatch Europe", "SGMU": "Sigma X Europe", "TPIC": "TP ICAP", "TWEU": "Tradeweb EU",
+    "BTFE": "Bloomberg MTF", "MANL": "MarketAxess", "OCXE": "OneChronos Europe", "UBSL": "UBS Europe",
+    # United Kingdom, Switzerland, United States
+    "XLON": "London Stock Exchange", "XSWX": "SIX Swiss Exchange",
     "XNAS": "Nasdaq", "XNGS": "Nasdaq", "XNMS": "Nasdaq", "XNCM": "Nasdaq", "XNYS": "NYSE", "XASE": "NYSE American",
-    "ARCX": "NYSE Arca", "BATS": "Cboe BZX", "XCBO": "Cboe", "OTCM": "OTC Markets",
+    "ARCX": "NYSE Arca", "XCHI": "NYSE Texas", "BATS": "Cboe BZX", "XCBO": "Cboe", "IEXG": "IEX",
+    "TXSE": "Texas Stock Exchange", "OTCM": "OTC Markets",
 }
+KIND = {"share": "ordinary", "dr": "depositary_receipt", "etf": "etf", "preferred": "preferred", "fund": "fund"}
+STATUS = {"active": "active", "suspect": "unknown", "inactive": "inactive"}
 FIRST_WINS = {"names", "listings", "composites", "assertions"}  # collapsed lines share an ID; the first row wins
 # (the writer audits every ignored row, so a constraint violation is counted, not hidden)
 
@@ -84,7 +116,7 @@ class _Ids:
             return None
         found = derive("listing", {"isin": security.isin, "figi": listing.figi},
                        operating_mic=listing.operating_mic or listing.mic, currency=listing.currency)
-        return found or identity.provisional_id("listing", "sec", "ticker", f"{listing.mic}.{listing.ticker}")
+        return found or identity.provisional_id("listing", listing.source, "ticker", f"{listing.mic}.{listing.ticker}")
 
 
 def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str, list[dict]]:
@@ -115,8 +147,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             tables["names"].append({"subject_id": subject, "name": text[:512], "source": source})
 
     for venue in snap.venues.values():
-        tables["venues"].append({"mic": venue.mic, "operating_mic": venue.operating_mic, "name": VENUE_NAMES.get(venue.mic) or venue.name or venue.mic,
-                                 "country": venue.country or None})
+        label = VENUE_NAMES.get(venue.mic) or VENUE_NAMES.get(venue.operating_mic) or venue.name or venue.mic
+        tables["venues"].append({"mic": venue.mic, "operating_mic": venue.operating_mic, "name": label, "country": venue.country or None})
     # An issuer's tickers keep their capitals when its name is re-cased for display (ASML, RELX).
     tickers: dict[str, frozenset[str]] = {}
     for listing in snap.listings.values():
@@ -136,10 +168,14 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         for text, _kind, _language, source in issuer.names:
             if text != issuer.name:
                 name(subject, text, source)
+    line_names: dict[str, str] = {}
+    for listing in snap.listings.values():
+        if listing.name and listing.security_id:
+            line_names.setdefault(listing.security_id, listing.name)
+    titles: dict[str, str | None] = {}
     for key, security in sorted(snap.securities.items()):
         subject = ids.securities[key]
-        lines = [l for l in snap.listings.values() if l.security_id == key]
-        title = security.name or next((l.name for l in lines if l.name), None)
+        title = titles[key] = security.name or line_names.get(key)
         issuer = snap.issuers.get(security.issuer_id or "")
         tables["securities"].append({
             "id": subject, "issuer_id": ids.issuers.get(security.issuer_id or ""),
@@ -176,7 +212,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         if listing.ticker:
             assert_(subject, "ticker_mic", f"{listing.ticker}@{listing.operating_mic or listing.mic}",
                     listing.ticker_source or listing.source, **span)
-        name(subject, listing.name, listing.source)
+        if listing.name != titles.get(listing.security_id):  # the security row already carries its title
+            name(subject, listing.name, listing.source)
     for relation in snap.relationships:
         source, target = ids.securities.get(relation.from_id), f"security:{relation.to_id}"
         try:

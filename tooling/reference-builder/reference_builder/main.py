@@ -20,8 +20,8 @@ from .pipeline import build_snapshot
 
 def parse_args(argv: list[str]) -> BuildConfig:
     parser = argparse.ArgumentParser(prog="reference-builder", description="Build the open reference snapshot.")
-    parser.add_argument("--mics", default="XAMS", help="comma-separated operating MICs (default XAMS)")
-    parser.add_argument("--no-sec", action="store_true", help="skip SEC ticker lines")
+    parser.add_argument("--mics", default="ALL", help="comma-separated operating MICs (default ALL: every EU/EEA venue in FIRDS)")
+    parser.add_argument("--no-sec", action="store_true", help="skip US lines (SEC company and fund tickers)")
     parser.add_argument("--as-of", type=date.fromisoformat, default=datetime.now(timezone.utc).date())
     parser.add_argument("--out", type=Path, help="output directory")
     parser.add_argument("--cache", type=Path, help="download cache directory")
@@ -50,20 +50,21 @@ def run(config: BuildConfig) -> int:
     day = timedelta(days=config.listing_file_max_age_days)
     venues = mic.parse(mic.fetch(downloads, day))
 
-    full_docs, delta_docs = firds.firds_files(USER_AGENT, config.as_of, config.deltas)
+    full_docs, delta_docs = firds.firds_files(USER_AGENT, config.as_of, config.deltas, config.scope.cfi_prefixes)
     full = [firds.download(downloads, "esma_firds", d) for d in full_docs]
     deltas = [firds.download(downloads, "esma_firds", d) for d in delta_docs]
     admissions, record_counts = firds.load_admissions(full, deltas, config.scope.cfi_prefixes)
     transparency = None
     if config.fitrs:
-        transparency = firds.load_transparency([firds.download(downloads, "esma_fitrs", d) for d in firds.fitrs_files(USER_AGENT, config.as_of)], config.as_of)
+        transparency = firds.load_transparency([firds.download(downloads, "esma_fitrs", d) for d in firds.fitrs_files(USER_AGENT, config.as_of, config.scope.cfi_prefixes)], config.as_of)
 
     sec_rows = sec.parse(sec.fetch(downloads, config.contact, config.sec_file, day)) if config.scope.sec else []
+    funds = sec.parse_funds(sec.fetch_funds(downloads, config.contact, day)) if config.scope.sec and not config.sec_file else []
     figi = OpenFigi(config.cache_dir, USER_AGENT, load_openfigi_key(), timedelta(days=config.openfigi_max_age_days))
     log(f"OpenFIGI: {'keyed' if figi.keyed else 'keyless (slower rate limits)'}")
     gleif = GleifClient(config.cache_dir, USER_AGENT, timedelta(days=config.gleif_max_age_days))
 
-    inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes())
+    inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes(), funds)
     snap = build_snapshot(inputs, gleif.fetch, figi.map)
     snap.audit["firds_records"] = dict(sorted(record_counts.items()))
     snap.audit["fitrs_isins"] = len(transparency) if transparency is not None else None
@@ -87,7 +88,7 @@ def run(config: BuildConfig) -> int:
     stamp = config.as_of.strftime("%Y%m%d")
     build_id = f"reference-{stamp}"
     meta = {"build_id": build_id, "schema_version": str(schema.SCHEMA_VERSION), "builder_version": BUILDER_VERSION,
-            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics) + (",SEC" if config.scope.sec else "")}
+            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics or ["EEA"]) + (",US" if config.scope.sec else "")}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)
     manifest.write_manifest(config.out_dir / "manifest.json", {

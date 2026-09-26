@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 from . import rules
 from .config import Scope
-from .model import FirdsRecord, GleifEntity, Issuer, Listing, Relationship, Security, SecTicker, Snapshot, Transparency, Venue
+from .model import FirdsRecord, GleifEntity, Issuer, Listing, Relationship, Security, SecFund, SecTicker, Snapshot, Transparency, Venue
 
 FigiMap = Callable[[list[dict]], list[dict]]
 GleifFetch = Callable[[set[str]], dict[str, GleifEntity]]
@@ -30,6 +30,7 @@ class Inputs:
     transparency: dict[str, Transparency] | None
     sec_tickers: list[SecTicker]
     figi_mic_codes: set[str]
+    sec_funds: list[SecFund] = field(default_factory=list)
 
 
 def operating(venues: dict[str, Venue], mic: str | None) -> str | None:
@@ -44,11 +45,10 @@ def scope_isins(inputs: Inputs) -> dict[str, list[FirdsRecord]]:
     by_isin: dict[str, list[FirdsRecord]] = defaultdict(list)
     for record in inputs.admissions.values():
         by_isin[record.isin].append(record)
-    wanted = set(inputs.scope.mics)
     return {
         isin: sorted(records, key=lambda r: r.mic)
         for isin, records in sorted(by_isin.items())
-        if any(operating(inputs.venues, rules.lit_segment(r.mic)) in wanted for r in records)
+        if any(inputs.scope.covers(operating(inputs.venues, rules.lit_segment(r.mic))) for r in records)
     }
 
 
@@ -64,16 +64,32 @@ def issuer_from_gleif(entity: GleifEntity) -> Issuer:
 
 
 def _eu_listings(inputs: Inputs, isin: str, records: list[FirdsRecord]) -> dict[str, FirdsRecord]:
-    """One admission per lit segment on scope venues (auxiliary segments collapse)."""
+    """One admission per operating venue in scope, keyed by its segment MIC.
+
+    A venue's segments (lit, off-book, midpoint, auction, a second retail book)
+    are one line to an investor, and core keys a listing by operating MIC and
+    currency. The operator's own MIC wins, then a regulated-market segment, then
+    a lit segment.
+    """
     chosen: dict[str, FirdsRecord] = {}
     for record in records:
         lit = rules.lit_segment(record.mic)
-        if operating(inputs.venues, lit) not in inputs.scope.mics:
+        op = operating(inputs.venues, lit)
+        if not inputs.scope.covers(op):
             continue
-        current = chosen.get(lit)
-        if current is None or (record.mic == lit and current.mic != lit):
-            chosen[lit] = record
-    return chosen
+        current = chosen.get(op or lit)
+        if current is None or _segment_order(inputs, op, record) < _segment_order(inputs, op, current):
+            chosen[op or lit] = record
+    listing = {op: record for op, record in chosen.items() if op not in rules.TRADING_ONLY_VENUES}
+    if not listing:  # traded only on trading-only venues: keep the line on its relevant venue
+        relevant = operating(inputs.venues, next((r.relevant_mic for r in records if r.relevant_mic), None))
+        listing = {op: record for op, record in chosen.items() if op == relevant} or chosen
+    return {rules.lit_segment(record.mic): record for record in listing.values()}
+
+
+def _segment_order(inputs: Inputs, op: str | None, record: FirdsRecord) -> tuple:
+    venue = inputs.venues.get(record.mic)
+    return (record.mic != op, (venue.category if venue else None) != "RMKT", record.mic != rules.lit_segment(record.mic), record.mic)
 
 
 def _figi_job(inputs: Inputs, isin: str, segment: str) -> dict:
@@ -90,8 +106,10 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
 
     plan = [(isin, seg, rec) for isin, rs in scoped.items() for seg, rec in sorted(_eu_listings(inputs, isin, rs).items())]
     answers = figi_map([_figi_job(inputs, isin, seg) for isin, seg, _ in plan])
-    fanout_answers = figi_map([{"idType": "ID_ISIN", "idValue": isin} for isin in scoped])
-    fanout = {isin: (a.get("data") or []) for isin, a in zip(scoped, fanout_answers)}
+    # Every OpenFIGI line of an ISIN, for home-market evidence and US cross-listings. ETFs need
+    # neither, and a US ISIN's home line comes from the SEC and symbol-directory lines instead.
+    wanted = [isin for isin, rs in scoped.items() if not isin.startswith("US") and rules.firds_kind(rs[0].cfi) != "etf"]
+    fanout = {isin: (a.get("data") or []) for isin, a in zip(wanted, figi_map([{"idType": "ID_ISIN", "idValue": i} for i in wanted]))}
     audit["openfigi_fanout_isins_answered"] = sum(1 for rows in fanout.values() if rows)
 
     as_of = inputs.as_of.isoformat()
@@ -103,7 +121,7 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
         op = operating(inputs.venues, segment)
         venue = inputs.venues.get(segment) or inputs.venues.get(op or "")
         listing = Listing(
-            listing_id=f"{segment}:{isin}", source="esma_firds", row_class="dr" if record.cfi.startswith("ED") else "share",
+            listing_id=f"{segment}:{isin}", source="esma_firds", row_class=rules.firds_kind(record.cfi),
             security_id=f"isin:{isin}", issuer_id=issuer.issuer_id, mic=segment, operating_mic=op,
             country=venue.country if venue else None, currency=record.currency, name=record.full_name,
             valid_from=record.first_trade, valid_to=record.termination,
@@ -166,13 +184,18 @@ def _apply_figi(listing: Listing, row: dict, fisn: str | None) -> None:
 def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     head = next((r for r in records if r.mic == r.relevant_mic), records[0])
     relevant = next((r.relevant_mic for r in records if r.relevant_mic), None)
+    moved = operating(inputs.venues, relevant) in rules.TRADING_ONLY_VENUES and _listing_venue(inputs, isin, listings)
+    if moved:
+        relevant = moved.mic
     share_class = next((l.share_class_figi for l in listings if l.share_class_figi), None)
     xetra_live = any(r.mic in XETRA_SEGMENTS and not (r.termination and r.termination <= inputs.as_of.isoformat()) for r in records)
     primary_mic, rule, home_row = rules.primary_venue(isin, operating(inputs.venues, relevant), xetra_live, fanout)
+    if moved and rule == "firds_relevant_venue":
+        rule = "trading_venue_to_listing_venue"
     audit[f"primary_{rule}"] += 1
     fitrs = (inputs.transparency or {}).get(isin)
     security = Security(
-        security_id=f"isin:{isin}", kind="dr" if head.cfi.startswith("ED") else "share", source="esma_firds",
+        security_id=f"isin:{isin}", kind=rules.firds_kind(head.cfi), source="esma_firds",
         issuer_id=f"lei:{head.issuer_lei}", isin=isin, share_class_figi=share_class, cfi=head.cfi, fisn=head.short_name,
         name=head.full_name, currency=head.currency, primary_mic=primary_mic, primary_rule=rule,
         turnover_eur=fitrs.turnover_eur if fitrs else None, turnover_method=fitrs.methodology if fitrs else None,
@@ -185,6 +208,15 @@ def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     _mark_primary(snap, security, listings, relevant, home_row)
     states = {l.status for l in listings}
     security.activity = "active" if "active" in states else ("suspect" if "suspect" in states else ("inactive" if states else "active"))
+
+
+def _listing_venue(inputs: Inputs, isin: str, listings: list[Listing]) -> Listing | None:
+    """The primary line when FIRDS names a trading-only venue: home country, then regulated market, then MIC."""
+    def order(line: Listing) -> tuple:
+        venue = inputs.venues.get(line.mic or "")
+        return (line.country != isin[:2], (venue.category if venue else None) != "RMKT", line.mic or "")
+
+    return min((l for l in listings if l.operating_mic not in rules.TRADING_ONLY_VENUES), key=order, default=None)
 
 
 def _mark_primary(snap, security, listings, relevant, home_row) -> None:

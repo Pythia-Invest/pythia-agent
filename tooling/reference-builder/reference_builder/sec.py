@@ -1,4 +1,5 @@
-"""SEC `company_tickers_exchange.json`: ticker, CIK, company title and exchange."""
+"""SEC ticker files: `company_tickers_exchange.json` (ticker, CIK, company title, exchange)
+and `company_tickers_mf.json` (fund CIK, series, class and ticker: no name, no exchange)."""
 
 from __future__ import annotations
 
@@ -8,14 +9,16 @@ from pathlib import Path
 
 from .config import sec_user_agent
 from .fetch import Downloader
-from .model import SecTicker
+from .model import SecFund, SecTicker
 
 SEC_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
+FUNDS_URL = "https://www.sec.gov/files/company_tickers_mf.json"
 
 # SEC exchange labels to operating MICs. "NYSE" also covers NYSE American and
 # NYSE Arca listings in this file, so XNYS is recorded with that caveat. "CBOE"
 # does not name the Cboe exchange, so it maps to Cboe's operating MIC, not a segment.
 EXCHANGE_MIC = {"Nasdaq": "XNAS", "NYSE": "XNYS", "CBOE": "XCBO", "OTC": "OTCM"}
+# Operating MICs of US exchanges (a listing there, unlike OTC, can be a primary line).
 LISTED_MICS = frozenset({"XNAS", "XNYS", "XCBO"})
 
 
@@ -23,15 +26,24 @@ def fetch(downloader: Downloader, contact: str | None, local: Path | None, max_a
     if local is not None:
         record = downloader.register_local("sec_company_tickers", local)
     else:
-        agent = sec_user_agent(contact)
-        if agent is None:
-            raise SystemExit(
-                "SEC requires a name and email in the User-Agent: set `sec_identity` in "
-                "<config>/pythia/settings.json (the SEC plugin's contact), pass --sec-file with a "
-                "downloaded company_tickers_exchange.json, or build with --no-sec."
-            )
-        record = downloader.get("sec_company_tickers", SEC_URL, "company_tickers_exchange.json", max_age=max_age, user_agent=agent)
+        record = downloader.get("sec_company_tickers", SEC_URL, "company_tickers_exchange.json", max_age=max_age, user_agent=_agent(contact))
     return Path(record.path).read_bytes()
+
+
+def fetch_funds(downloader: Downloader, contact: str | None, max_age: timedelta) -> bytes:
+    record = downloader.get("sec_fund_tickers", FUNDS_URL, "company_tickers_mf.json", max_age=max_age, user_agent=_agent(contact))
+    return Path(record.path).read_bytes()
+
+
+def _agent(contact: str | None) -> str:
+    agent = sec_user_agent(contact)
+    if agent is None:
+        raise SystemExit(
+            "SEC requires a name and email in the User-Agent: set `sec_identity` in "
+            "<config>/pythia/settings.json (the SEC plugin's contact), pass --sec-file with a "
+            "downloaded company_tickers_exchange.json, or build with --no-sec."
+        )
+    return agent
 
 
 def parse(data: bytes) -> list[SecTicker]:
@@ -56,3 +68,14 @@ def parse(data: bytes) -> list[SecTicker]:
             )
         )
     return rows
+
+
+def parse_funds(data: bytes) -> list[SecFund]:
+    payload = json.loads(data)
+    index = {name: payload["fields"].index(name) for name in ("cik", "seriesId", "classId", "symbol")}
+    funds: dict[str, SecFund] = {}
+    for values in payload["data"]:
+        ticker = str(values[index["symbol"]] or "").strip().upper()
+        if ticker:
+            funds.setdefault(ticker, SecFund(str(int(values[index["cik"]])), values[index["seriesId"]], values[index["classId"]], ticker))
+    return list(funds.values())

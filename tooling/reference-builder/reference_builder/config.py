@@ -24,15 +24,23 @@ _CONTACT_SHAPE = re.compile(r"\S+@\S+\.\S+")
 
 @dataclass(frozen=True)
 class Scope:
-    """Which venues and populations a build covers."""
+    """Which venues and populations a build covers.
 
-    mics: tuple[str, ...] = ("XAMS",)
+    `mics=None` covers every venue in FIRDS (all EU/EEA trading venues); a tuple
+    of operating MICs restricts the build to those venues. CFI prefixes select
+    shares (ES), depositary receipts (ED) and exchange-traded funds (CE).
+    """
+
+    mics: tuple[str, ...] | None = None
     sec: bool = True
-    cfi_prefixes: tuple[str, ...] = ("ES", "ED")
+    cfi_prefixes: tuple[str, ...] = ("ES", "ED", "CE")
+
+    def covers(self, operating_mic: str | None) -> bool:
+        return self.mics is None or operating_mic in self.mics
 
     def describe(self) -> dict:
         return {
-            "mics": list(self.mics),
+            "mics": list(self.mics) if self.mics is not None else "all FIRDS venues",
             "sec": self.sec,
             "cfi_prefixes": list(self.cfi_prefixes),
         }
@@ -54,7 +62,10 @@ class BuildConfig:
     listing_file_max_age_days: int = 1
 
 
-def parse_mics(value: str) -> tuple[str, ...]:
+def parse_mics(value: str | None) -> tuple[str, ...] | None:
+    """Comma-separated operating MICs; empty or `ALL` means every FIRDS venue."""
+    if not value or value.strip().upper() == "ALL":
+        return None
     mics = tuple(dict.fromkeys(m.strip().upper() for m in value.split(",") if m.strip()))
     for mic in mics:
         if not re.fullmatch(r"[A-Z0-9]{4}", mic):

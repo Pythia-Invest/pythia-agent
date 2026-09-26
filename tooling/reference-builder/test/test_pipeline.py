@@ -12,7 +12,7 @@ from unittest import mock
 from reference_builder import firds, gleif, linking, manifest, mic, sec, writer
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
-from reference_builder.model import SecTicker, Snapshot
+from reference_builder.model import SecFund, SecTicker, Snapshot
 from reference_builder.pipeline import build_snapshot
 
 from .fixtures import (
@@ -93,7 +93,8 @@ class PipelineTest(unittest.TestCase):
         self.snap = build_snapshot(inputs(), gleif_fetch, FakeOpenFigi(OPENFIGI))
 
     def test_asml_resolves_on_xams_with_its_nasdaq_line_under_the_same_issuer(self):
-        results = manifest.check_canaries(self.snap, manifest.default_canaries(Scope()))
+        canaries = [c for c in manifest.default_canaries(Scope(mics=("XAMS",))) if c.get("ticker") != "TSLL"]  # no ETF in this fixture
+        results = manifest.check_canaries(self.snap, canaries)
         self.assertTrue(all(r["ok"] for r in results), results)
         xams = self.snap.listings[f"XAMS:{ASML_ISIN}"]
         issuer = self.snap.issuers[xams.issuer_id]
@@ -154,6 +155,95 @@ class PipelineTest(unittest.TestCase):
         self.assertFalse(any(job["idType"] == "TICKER" for job in figi.jobs))
         self.assertFalse(any(l.source == "sec" for l in snap.listings.values()))
 
+
+
+APPLE_ISIN, APPLE_LEI = "US0378331005", "HWUPKR0MPOU8FGXBT394"
+ETF_ISIN, ETF_LEI = "IE00B5BMR087", "549300AAAAAAAAAAAA03"
+DARK_ISIN = "NL0000000077"  # trades only on a trading-only venue
+WIDE_FIRDS = fulins([
+    firds_record(ASML_ISIN, "XAMS", ASML_LEI, name="ASML HOLDING"),
+    firds_record(ASML_ISIN, "XETB", ASML_LEI, name="ASML HOLDING"),  # two Xetra segments: one Xetra line
+    firds_record(ASML_ISIN, "XETA", ASML_LEI, name="ASML HOLDING"),
+    firds_record(ASML_ISIN, "CEUX", ASML_LEI, name="ASML HOLDING"),  # Cboe Europe trades it; it lists on XAMS
+    firds_record(APPLE_ISIN, "FRAB", APPLE_LEI, name="APPLE INC", relevant="XFRA"),
+    firds_record(ETF_ISIN, "XETA", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
+    firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
+    firds_record(DARK_ISIN, "CEUX", NN_LEI, name="DARK ONLY", relevant="CEUX"),
+])
+WIDE_SEC = sec_json([
+    (320193, "Apple Inc.", "AAPL", "Nasdaq"),
+    (937966, "ASML HOLDING NV", "ASML", "Nasdaq"),
+    (884394, "SPDR S&P 500 ETF TRUST", "SPY", "NYSE"),
+])
+WIDE_FUNDS = [SecFund("1424958", "S1", "C1", "TSLL"), SecFund("36405", "S2", "C2", "VOO"), SecFund("2110", "S3", "C3", "LACAX")]
+WIDE_OPENFIGI = OPENFIGI | {
+    ("ID_ISIN", ASML_ISIN, "XETA"): [figi_row("ASME", "GY", "BBGASMLGY001", "BBGASMLSC001")],
+    ("ID_ISIN", APPLE_ISIN, "FRAB"): [figi_row("APC", "GF", "BBGAAPLGF001", "BBGAAPLSC001")],
+    ("ID_ISIN", APPLE_ISIN, "US"): [figi_row("AAPL", "US", "BBGAAPL00001", "BBGAAPLSC001")],
+    ("ID_ISIN", ETF_ISIN, "XETA"): [figi_row("SXR8", "GY", "BBGETFGY0001", "BBGETFSC0001", sec_type="ETP")],
+    ("TICKER", "SPY", "US"): [figi_row("SPY", "US", "BBGSPY000001", "BBGSPYSC0001", sec_type="ETP")],
+    ("TICKER", "TSLL", "US"): [figi_row("TSLL", "US", "BBGTSLL00001", "BBGTSLLSC001", sec_type="ETP", name="DIRX DLY TSLA BUL 2X ETF")],
+    ("TICKER", "TSLL", "UQ"): [figi_row("TSLL", "UQ", "BBGTSLLUQ001", "BBGTSLLSC001", sec_type="ETP")],
+    ("TICKER", "VOO", "US"): [figi_row("VOO", "US", "BBGVOO000001", "BBGVOOSC0001", sec_type="ETP")],  # NYSE Arca: no UQ line
+    ("TICKER", "LACAX", "US"): [figi_row("LACAX", "US", "BBGLACAX0001", "BBGLACAXSC01", sec_type="Open-End Fund")],
+}
+
+
+class AllVenuesTest(unittest.TestCase):
+    """The default scope: every FIRDS venue under the venue policy, ETFs, and SEC fund ETFs."""
+
+    def setUp(self):
+        patcher = mock.patch("urllib.request.urlopen", side_effect=AssertionError("network access in a test"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(WIDE_FIRDS), Scope().cfi_prefixes), Counter())
+        turnover = firds.select_transparency(firds.transparency_records(stream(fitrs([(ASML_ISIN, "2026-04-01", 5e8), (APPLE_ISIN, "2026-04-01", 1e6)]))), date(2026, 9, 25))
+        self.snap = build_snapshot(
+            Inputs(date(2026, 9, 25), Scope(), mic.parse(MIC_CSV.encode()), admissions, turnover, sec.parse(WIDE_SEC),
+                   {"XAMS", "XETA", "FRAB"}, WIDE_FUNDS),
+            gleif_fetch, FakeOpenFigi(WIDE_OPENFIGI))
+
+    def lines(self, isin):
+        return sorted(l.mic for l in self.snap.listings.values() if l.security_id == f"isin:{isin}" and l.source == "esma_firds")
+
+    def test_one_line_per_listing_venue_operator(self):
+        self.assertEqual(self.lines(ASML_ISIN), ["XAMS", "XETA"], "one Xetra line; no Cboe Europe line")
+
+    def test_trading_only_venue_is_kept_only_as_the_only_market(self):
+        self.assertEqual(self.lines(DARK_ISIN), ["CEUX"])
+        etf = self.snap.securities[f"isin:{ETF_ISIN}"]
+        self.assertEqual((self.lines(ETF_ISIN), etf.primary_mic, etf.primary_rule, etf.kind),
+                         (["XETA"], "XETR", "trading_venue_to_listing_venue", "etf"))
+        self.assertTrue(self.snap.listings[f"XETA:{ETF_ISIN}"].is_primary)
+
+    def test_us_share_traded_in_europe_keeps_its_us_home_line_and_rank(self):
+        apple = self.snap.securities[f"isin:{APPLE_ISIN}"]
+        self.assertEqual((apple.primary_mic, apple.primary_rule, apple.rank), ("XNAS", "us_exchange_listing", 1))
+        self.assertTrue(self.snap.listings["XNAS:AAPL"].is_primary)
+        self.assertFalse(self.snap.listings[f"FRAB:{APPLE_ISIN}"].is_primary)
+
+    def test_fund_etfs_are_placed_only_when_openfigi_shows_the_nasdaq_line(self):
+        tsll = self.snap.listings["XNAS:TSLL"]
+        security = self.snap.securities[tsll.security_id]
+        self.assertEqual((security.kind, security.issuer_id, security.name, tsll.is_primary), ("etf", None, "DIRX DLY TSLA BUL 2X ETF", True))
+        self.assertFalse(any(l.ticker in ("VOO", "LACAX") for l in self.snap.listings.values()))
+        self.assertEqual(dict(self.snap.audit["us_etfs"]), {"fund_tickers": 3, "exchange_traded": 2, "placed_nasdaq": 1, "unplaced_not_nasdaq": 1})
+        self.assertEqual(self.snap.listings["XNYS:SPY"].row_class, "etf")
+
+    def test_eu_and_us_etf_canaries_apply_to_the_default_scope(self):
+        names = {c["name"] for c in manifest.default_canaries(Scope())}
+        self.assertTrue({"SAP on Xetra", "LVMH on Euronext Paris", "Nokia on Nasdaq Helsinki", "Direxion Daily TSLA Bull 2X ETF"} <= names)
+        results = {r["name"]: r["ok"] for r in manifest.check_canaries(self.snap, manifest.default_canaries(Scope()))}
+        self.assertTrue(results["Direxion Daily TSLA Bull 2X ETF"])
+
+    def test_segment_venues_take_their_operator_label(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(self.snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                venues = dict(db.execute("select mic, name from venues"))
+        self.assertEqual((venues["FRAB"], venues["XETA"], venues["CEUX"]), ("Frankfurt", "Xetra", "Cboe Europe"))
 
 
 class CikLinkTest(unittest.TestCase):
