@@ -8,7 +8,11 @@ const nextConfig = {
   ...(developmentOrigin
     ? { allowedDevOrigins: [new URL(developmentOrigin).hostname] }
     : {}),
-  transpilePackages: ["@pythia/ui"],
+  transpilePackages: [
+    "@pythia/ui",
+    "@pythia/market-data",
+    "@pythia/widget-sdk",
+  ],
 };
 
 export default nextConfig;

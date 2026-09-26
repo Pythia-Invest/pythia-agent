@@ -6,3 +6,4 @@
 @import "./catalog-components.css";
 @import "./catalog-layout.css";
 @source "../../../../packages/ui/src";
+@source "../../../../packages/market-data/src/search-ui";
