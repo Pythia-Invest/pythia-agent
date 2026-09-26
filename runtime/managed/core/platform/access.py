@@ -28,12 +28,17 @@ def canonical_access_revision():
         return None
     try:
         directory = Path(root).lstat()
-        info = (Path(root) / 'secrets.json').lstat()
-        if (not stat.S_ISDIR(directory.st_mode) or not stat.S_ISREG(info.st_mode)
-                or any(item.st_uid != os.getuid() or item.st_mode & 0o077 for item in (directory, info))
-                or not directory.st_mode & stat.S_IXUSR or not info.st_mode & stat.S_IRUSR):
+        files = [(Path(root) / 'secrets.json').lstat()]
+        # Plugin identity configuration lives in settings.json; it may be absent.
+        try:
+            files.append((Path(root) / 'settings.json').lstat())
+        except FileNotFoundError:
+            pass
+        if (not stat.S_ISDIR(directory.st_mode) or not directory.st_mode & stat.S_IXUSR
+                or any(not stat.S_ISREG(item.st_mode) or not item.st_mode & stat.S_IRUSR for item in files)
+                or any(item.st_uid != os.getuid() or item.st_mode & 0o077 for item in (directory, *files))):
             return None
-        return [info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns]
+        return [value for item in files for value in (item.st_dev, item.st_ino, item.st_mtime_ns, item.st_ctime_ns)]
     except OSError:
         return None
 

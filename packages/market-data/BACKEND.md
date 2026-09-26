@@ -98,12 +98,14 @@ of native caller, configuration, environment and contribution availability.
 Environment values and the internal access fingerprint are not persisted or returned. This invalidates
 cache reuse when native settings change while readiness remains true, or an
 in-process credential environment changes; restart also discards the cache.
-The fingerprint also includes metadata for the canonical `secrets.json` under
-the lifecycle-injected `PYTHIA_CONFIG_ROOT`: device/inode and nanosecond change/
-modification times. No secret file contents are opened or hashed. Atomic secret
-replacement invalidates cache even without an environment/configuration change.
-Missing, inaccessible, nonprivate or nonregular metadata disables cache get/put
-for that invocation while leaving native reads available. Rotation detected
+The fingerprint also includes metadata for the canonical `secrets.json` and,
+when present, `settings.json` under the lifecycle-injected `PYTHIA_CONFIG_ROOT`:
+device/inode and nanosecond change/modification times. No file contents are
+opened or hashed. Atomic secret replacement, or any `settings.json` write,
+invalidates cache even without an environment/configuration change. Missing
+`secrets.json`, or inaccessible, group- or world-accessible or nonregular metadata
+for either file, disables cache get/put for that invocation while leaving
+native reads available. Rotation detected
 between selection and publication rejects the result as `selection_changed`.
 Native eligibility is checked before a cache hit and publication. Preference and
 identity revisions are rechecked under the identity database write lock; no

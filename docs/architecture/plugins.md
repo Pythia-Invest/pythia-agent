@@ -144,6 +144,78 @@ instead of copying this demonstration's handler. The loaded core also exports
 `platform.declare_operation` for code that needs declaration helpers and
 handler-bound coordination hooks; neither mechanism creates another inventory.
 
+## Plugin configuration
+
+A plugin that needs a credential or a provider contact ships a static
+`configuration.json` beside `plugin.yaml`. Core reads it on each use without
+running plugin code:
+
+```json
+{
+  "schema_version": 1,
+  "fields": [
+    {"key": "sec_identity", "kind": "identity", "label": "SEC contact",
+     "description": "Your name and email address, sent as the SEC User-Agent.",
+     "url": "https://www.sec.gov/os/accessing-edgar-data", "required": true},
+    {"key": "openfigi_api_key", "kind": "secret", "label": "OpenFIGI API key"}
+  ]
+}
+```
+
+- `key` matches `^[a-z][a-z0-9_]{2,63}$` and names the field in the store.
+  Reuse an existing name, such as `eodhd_api_token`, so saved values keep
+  working. `schema_version` and keys starting with `hermes_` or `pythia_` are
+  reserved; core's `configuration.RESERVED` and `RESERVED_PREFIXES` are the
+  only lists.
+- `kind` is `secret`, stored in `secrets.json`, or `identity`, one line of text
+  stored in `settings.json`.
+- `label` (at most 80 characters) is required. `description` (at most 400),
+  `url` (an `https` page on obtaining the value) and `required` (default
+  `false`) are optional.
+- A bundled plugin lists `configuration.json` among its copied files in
+  `scripts/dev/managed-plugins.mjs`.
+
+Until a settings interface exists, the investor edits the files in the Pythia
+config folder, `${XDG_CONFIG_HOME:-~/.config}/pythia`, adding top-level fields
+(create `settings.json` if absent) and keeping `schema_version: 1` and every existing field:
+
+```json
+{"schema_version": 1, "hermes_api_key": "<keep unchanged>", "openfigi_api_key": "<your key>"}
+```
+
+Both files must be mode `0600`; a file readable by others is reported as
+invalid and never read. Values are read on each use, without a restart. Core
+rejects control characters and surrounding spaces, and for a secret also inner
+whitespace and more than 512 characters. Provider-specific format rules belong
+to the plugin that uses the value.
+
+Plugin code calls `platform.configuration.value(ctx, key)`. It returns
+`(status, value)` with status `configured`, `missing` or `invalid`, and raises
+`ValueError` for a key the plugin does not declare. The value is present only
+when configured; never log, return or forward it. A tool that depends on
+required fields checks them first:
+
+```python
+blocked = platform.configuration.needs_configuration(ctx)
+if blocked is not None:
+    return json.dumps(blocked)
+```
+
+The result is the standard error envelope with one `needs_configuration` issue
+whose `fields` list `{key, label, file, status}` for each unmet field, so the
+agent can tell the investor what to set. `platform.configuration.missing(ctx)`
+returns the same list. Neither contains a value.
+
+Declared keys name store fields; they are not a security boundary. Plugins run
+in-process and any plugin may declare any non-reserved key; sharing a key such
+as `eodhd_api_token` is how plugins share one value. Enable only plugins you
+trust.
+
+Rejected: a Desk-owned field allowlist (a Desk change per provider), a settings
+UI or writer in the POC, and a block in Hermes's `plugin.yaml` (Hermes owns that
+schema). Hermes `requires_env` and `.env` custody were rejected because they
+keep provider secrets in the Hermes environment instead of Pythia custody.
+
 ## Skills and contracts
 
 Put feature guidance and supporting files inside the plugin. Register it with
