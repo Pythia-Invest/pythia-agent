@@ -59,6 +59,15 @@ def summary(item: dict) -> dict:
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
 
+def family(ref: sqlite3.Connection, subject_id: str) -> list[str]:
+    """The subject and its listing, security, issuer and composite, as the page groups its questions."""
+    try:
+        subject = load_subject(ref, subject_id)
+    except ValueError:  # a malformed subject id
+        return []
+    return [subject_id, *(value for value in subject["ids"].values() if value)] if subject else [subject_id]
+
+
 def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict | None:
     """One item in full: the provider record, the candidates, the cited evidence and every verdict so far.
 

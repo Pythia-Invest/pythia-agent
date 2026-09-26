@@ -183,7 +183,7 @@ class Identity:
                     return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown queue item.")
                 subject, plugin = arguments.get("subject_id"), arguments.get("plugin")
                 items = self.store.queue_items(
-                    subject_ids=_family(ref, str(subject)) if subject else None, kind=arguments.get("kind"),
+                    subject_ids=queue.family(ref, str(subject)) if subject else None, kind=arguments.get("kind"),
                     plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)} if plugin else None)
             finally:
                 ref.close()
@@ -339,15 +339,6 @@ def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
     if issue:
         body["issues"] = [{"code": "unavailable" if data is None else "empty", "message": issue}]
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
-
-
-def _family(ref, subject_id: str) -> list[str]:
-    """The subject and its listing, security, issuer and composite, as the page groups them."""
-    try:
-        subject = page.load_subject(ref, subject_id)
-    except ValueError:  # a malformed subject id
-        return []
-    return [subject_id, *(value for value in subject["ids"].values() if value)] if subject else [subject_id]
 
 
 def _suffixes() -> dict[str, set[str]]:

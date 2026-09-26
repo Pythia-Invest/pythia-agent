@@ -157,10 +157,9 @@ class IdentityStore:
              json.dumps(item.values), item.state, item.opened_at, now()))
 
     def open_queue(self, subject_ids: Iterable[str]) -> list[dict]:
-        wanted = set(subject_ids)
-        rows = self.db.execute("SELECT id, kind, reason, plugins, subject_ids, candidate_ids FROM queue WHERE state='open'").fetchall()
-        return [{"id": row["id"], "plugin": json.loads(row["plugins"])[0], "kind": row["kind"], "reason": row["reason"]}
-                for row in rows if wanted & set(json.loads(row["subject_ids"]) + json.loads(row["candidate_ids"]))]
+        """The page's short form of a subject's open items."""
+        return [{"id": item["id"], "plugin": item["plugins"][0], "kind": item["kind"], "reason": item["reason"]}
+                for item in self.queue_items(subject_ids=subject_ids)]
 
     def queue_items(self, *, subject_ids: Iterable[str] | None = None, plugins: Iterable[str] | None = None,
                     kind: str | None = None, state: str = "open") -> list[dict]:
