@@ -155,3 +155,8 @@ export interface HermesClient {
   listSkills(): Promise<HermesSkill[]>;
   listToolsets(): Promise<HermesToolset[]>;
 }
+
+/** A plugin's current native widget declarations with Desk module URLs. */
+export type WidgetPresentation = Awaited<
+  ReturnType<typeof import("./widget-routes").readWidgetPresentation>
+>;

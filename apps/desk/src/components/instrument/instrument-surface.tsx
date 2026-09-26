@@ -130,10 +130,12 @@ function SectionRead({
   if (query.isPending) return <SectionLoading label={label} />;
   try {
     return children(query.data);
-  } catch {
+  } catch (error) {
+    const shape = error instanceof Error && error.name === "ZodError";
     return (
       <SectionFailure
-        message={`${section.label} answered in an unexpected shape.`}
+        message={`${section.label}: ${shape || !(error instanceof Error) ? "the answer had an unexpected shape." : error.message}`}
+        onRetry={() => void query.refetch()}
       />
     );
   }

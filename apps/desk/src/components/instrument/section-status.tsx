@@ -18,6 +18,17 @@ function levelName(level: string) {
   return level.replaceAll("_", " ");
 }
 
+/** Core's reason often repeats the title ("X needs configuration: add k to
+ * f"); keep only what the title does not already say. */
+function reasonDetail({ reason, label }: SubjectSection) {
+  if (!reason) return "";
+  const colon = reason.indexOf(": ");
+  const rest =
+    reason.startsWith(label) && colon > 0 ? reason.slice(colon + 2) : reason;
+  if (rest.startsWith(`${label} is `)) return "";
+  return sentence(rest);
+}
+
 function sentence(text: string) {
   const trimmed = text.trim();
   const first = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
@@ -74,11 +85,7 @@ export function SectionPlaceholder({
         title: `${section.label}: ${section.status.replaceAll("_", " ")}`,
         fallback: "",
       });
-  const detail = unsupported
-    ? null
-    : section.reason
-      ? sentence(section.reason)
-      : shown.fallback;
+  const detail = unsupported ? null : reasonDetail(section) || shown.fallback;
   return (
     <div
       role="note"

@@ -69,7 +69,8 @@ function page_(subject: string) {
         binding: null,
         request: null,
         alternatives: [],
-        reason: "add sec_identity to settings.json",
+        reason:
+          "SEC EDGAR needs configuration: add sec_identity to settings.json",
       },
     ],
     queue: [],
@@ -95,21 +96,30 @@ async function routeIdentity(page: Page) {
       return route.fulfill({
         json: {
           schema_version: 1,
+          outcome: "ok",
           data: {
-            ...page_(primary).sections[1],
-            status: "ready",
-            binding: { provider: "gleif", native_scope: "lei", native_id: lei },
-            request: {
-              plugin: "pythia-gleif",
-              operation: "gleif-profile",
-              arguments: {
-                native_ref: {
+            sections: [
+              {
+                ...page_(primary).sections[1],
+                status: "ready",
+                binding: {
                   provider: "gleif",
                   native_scope: "lei",
                   native_id: lei,
                 },
+                request: {
+                  plugin: "pythia-gleif",
+                  operation: "gleif-profile",
+                  arguments: {
+                    native_ref: {
+                      provider: "gleif",
+                      native_scope: "lei",
+                      native_id: lei,
+                    },
+                  },
+                },
               },
-            },
+            ],
           },
         },
       });
@@ -183,8 +193,12 @@ test("an instrument that cannot be opened says so and offers a retry", async ({
 }) => {
   await page.route("**/api/data/read", (route) =>
     route.fulfill({
-      status: 404,
-      json: { error: { message: "Synthetic subject is unknown." } },
+      json: {
+        schema_version: 1,
+        outcome: "empty",
+        data: null,
+        issues: [{ code: "unavailable", message: "Unknown subject." }],
+      },
     }),
   );
   await page.goto(
@@ -193,6 +207,6 @@ test("an instrument that cannot be opened says so and offers a retry", async ({
   const failure = page
     .getByRole("alert")
     .filter({ hasText: "This instrument could not be opened." });
-  await expect(failure).toContainText("Synthetic subject is unknown.");
+  await expect(failure).toContainText("Unknown subject.");
   await expect(failure.getByRole("button", { name: "Retry" })).toBeVisible();
 });

@@ -1,7 +1,7 @@
 "use client";
 import {
   readSubject,
-  resolveSection,
+  resolveSections,
   SUBJECT_PLUGIN,
   SUBJECT_STALE_MS,
   type SubjectSection,
@@ -24,8 +24,8 @@ export function useSubjectPage(subjectId: string) {
 }
 
 /** Sections whose address core could not derive are resolved by their
- * plugin, one request per plugin, all in parallel. Other sections pass
- * through untouched. A failed resolution stays "resolving" and is reported in
+ * plugin, one invoke per plugin, all in parallel; core answers with that
+ * plugin's updated sections. Other sections pass through untouched. A failed resolution stays "resolving" and is reported in
  * `failed` with its retry, so the section shows the failure, not a verdict. */
 export function useResolvedSections(
   subjectId: string,
@@ -49,7 +49,7 @@ export function useResolvedSections(
         plugin,
       ],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
-        resolveSection(
+        resolveSections(
           { invoke: api.pluginInvoke.bind(api) },
           subjectId,
           plugin,
@@ -65,18 +65,9 @@ export function useResolvedSections(
     if (plugin && query.isError) failed.set(plugin, () => void query.refetch());
   });
   const resolved = sections.map((section) => {
+    if (section.status !== "resolving") return section;
     const answer = resolutions[plugins.indexOf(section.plugin)]?.data;
-    if (section.status !== "resolving" || !answer) return section;
-    // One answer per plugin; a plugin serving several sections shares its
-    // status and address with each of them.
-    return answer.section === section.section
-      ? answer
-      : {
-          ...section,
-          status: answer.status,
-          binding: answer.binding,
-          reason: answer.reason,
-        };
+    return answer?.find((item) => item.section === section.section) ?? section;
   });
   return { sections: resolved, failed };
 }

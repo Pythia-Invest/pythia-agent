@@ -79,9 +79,8 @@ export const subjectPageSchema = z.object({
   security: z.object({ id: text, name: text, isin: optionalText }).nullish(),
   listings: z.array(subjectListingSchema).default([]),
   sections: z.array(subjectSectionSchema).default([]),
-  queue: z
-    .array(z.object({ id: text, plugin: text, reason: text }))
-    .default([]),
+  /** Open conflict/residual items; the page only counts them. */
+  queue: z.array(z.unknown()).default([]),
 });
 export type SubjectPage = z.infer<typeof subjectPageSchema>;
 
@@ -130,7 +129,21 @@ export function subjectQueryKey(subjectId: string) {
 }
 export const SUBJECT_STALE_MS = 30_000;
 
-const envelope = <T extends z.ZodType>(data: T) => z.object({ data });
+const answer = z.object({
+  outcome: z.string().optional(),
+  data: z.unknown(),
+  issues: z.array(z.object({ message: z.string() })).optional(),
+});
+
+/** Pythia envelopes answer "empty" or "error" with null data and an issue. */
+function coreData<T extends z.ZodType>(value: unknown, data: T): z.infer<T> {
+  const parsed = answer.parse(value);
+  if (parsed.data === null || parsed.data === undefined)
+    throw Error(
+      parsed.issues?.[0]?.message ?? "Nothing is known about this subject.",
+    );
+  return data.parse(parsed.data);
+}
 
 export async function readSubject(
   transport: Pick<PluginTransport, "read">,
@@ -145,18 +158,18 @@ export async function readSubject(
     },
     signal,
   );
-  return envelope(subjectPageSchema).parse(value).data;
+  return coreData(value, subjectPageSchema);
 }
 
-/** Asks one plugin to resolve the subject's address for its section; answers
- * with the updated section. Core stores the resulting binding or queue item,
+/** Asks one plugin to resolve the subject's address; answers with that
+ * plugin's updated sections. Core stores the resulting binding or queue item,
  * so this is an invoke (the deliberate page open), never an automatic read. */
-export async function resolveSection(
+export async function resolveSections(
   transport: Pick<PluginTransport, "invoke">,
   subjectId: string,
   plugin: string,
   signal?: AbortSignal,
-): Promise<SubjectSection> {
+): Promise<SubjectSection[]> {
   const value = await transport.invoke(
     {
       plugin: SUBJECT_PLUGIN,
@@ -165,12 +178,13 @@ export async function resolveSection(
     },
     signal,
   );
-  return envelope(subjectSectionSchema).parse(value).data;
+  return coreData(value, z.object({ sections: z.array(subjectSectionSchema) }))
+    .sections;
 }
 
 export function parseProfile(value: unknown): Profile {
-  return envelope(profileSchema).parse(value).data;
+  return coreData(value, profileSchema);
 }
 export function parseFilings(value: unknown): Filings {
-  return envelope(filingsSchema).parse(value).data;
+  return coreData(value, filingsSchema);
 }
