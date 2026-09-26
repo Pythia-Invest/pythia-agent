@@ -56,6 +56,14 @@ test-system:
 qualify:
     pnpm run test:qualification
 
+# Regenerate Desk's Hermes goldens from the pinned Hermes, provider-free (ADR 0020).
+capture-hermes:
+    pnpm run capture:hermes
+
+# Fail when committed Hermes goldens differ from a fresh pinned capture.
+check-hermes-capture:
+    pnpm run check:hermes-capture
+
 # Desk browser smoke tests against a Desk that is already running (see `just dev-paths`).
 test-e2e desk_url:
     PYTHIA_DESK_URL="{{desk_url}}" pnpm --filter @pythia/desk test:e2e

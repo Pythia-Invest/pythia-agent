@@ -1,0 +1,70 @@
+{
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/runs",
+        "json": {
+          "input": "When was the annual report filed?",
+          "session_id": "capture-session"
+        }
+      },
+      "status": 202,
+      "body": {
+        "run_id": "run_capture_1",
+        "status": "started",
+        "replayed": false
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_1/events"
+      },
+      "status": 200,
+      "sse": [
+        "data: {\"event\": \"reasoning.available\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225601.0, \"text\": \"I will check the filing first.\"}",
+        "data: {\"event\": \"tool.started\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225602.0, \"tool\": \"terminal\", \"preview\": \"python3 fetch_filings.py\"}",
+        "data: {\"event\": \"tool.completed\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225603.0, \"tool\": \"terminal\", \"duration\": 1.25, \"error\": false}",
+        "data: {\"event\": \"tool.started\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225604.0, \"tool\": \"web_search\", \"preview\": \"ACME 2025 annual report\"}",
+        "data: {\"event\": \"tool.completed\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225605.0, \"tool\": \"web_search\", \"duration\": 0.5, \"error\": true}",
+        "data: {\"event\": \"tool.started\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225606.0, \"tool\": \"tool_call\", \"preview\": \"pythia_eod_prices\"}",
+        "data: {\"event\": \"tool.completed\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225607.0, \"tool\": \"tool_call\", \"duration\": 0.3, \"error\": false}",
+        "data: {\"event\": \"tool.started\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225608.0, \"tool\": \"delegate_task\", \"preview\": \"2 tasks: Summarize the risk factors in the 202... | Compare the reported segment margins ...\"}",
+        "data: {\"event\": \"subagent.start\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225609.0, \"preview\": \"Summarize the risk factors in the 2025 annual report\", \"goal\": \"Summarize the risk factors in the 2025 annual report\", \"task_count\": 2, \"task_index\": 0, \"subagent_id\": \"capture-subagent-1\", \"child_session_id\": \"capture-child-session-1\", \"depth\": 1, \"model\": \"capture-model\", \"tool_count\": 0}",
+        "data: {\"event\": \"subagent.start\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225610.0, \"preview\": \"Compare the reported segment margins with the prior year\", \"goal\": \"Compare the reported segment margins with the prior year\", \"task_count\": 2, \"task_index\": 1, \"subagent_id\": \"capture-subagent-2\", \"child_session_id\": \"capture-child-session-2\", \"depth\": 1, \"model\": \"capture-model\", \"tool_count\": 0}",
+        "data: {\"event\": \"subagent.complete\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225611.0, \"preview\": \"Three risk factors changed materially.\", \"goal\": \"Summarize the risk factors in the 2025 annual report\", \"task_count\": 2, \"task_index\": 0, \"subagent_id\": \"capture-subagent-1\", \"child_session_id\": \"capture-child-session-1\", \"depth\": 1, \"model\": \"capture-model\", \"tool_count\": 0, \"status\": \"completed\", \"summary\": \"Three risk factors changed materially.\", \"duration_seconds\": 12.5, \"input_tokens\": 1200, \"output_tokens\": 300, \"reasoning_tokens\": 0, \"api_calls\": 3, \"files_read\": [], \"files_written\": [], \"output_tail\": []}",
+        "data: {\"event\": \"subagent.complete\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225612.0, \"preview\": \"Segment data was unavailable.\", \"goal\": \"Compare the reported segment margins with the prior year\", \"task_count\": 2, \"task_index\": 1, \"subagent_id\": \"capture-subagent-2\", \"child_session_id\": \"capture-child-session-2\", \"depth\": 1, \"model\": \"capture-model\", \"tool_count\": 0, \"status\": \"failed\", \"summary\": \"Segment data was unavailable.\", \"duration_seconds\": 4.0}",
+        "data: {\"event\": \"tool.completed\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225613.0, \"tool\": \"delegate_task\", \"duration\": 16.5, \"error\": false}",
+        "data: {\"event\": \"message.delta\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225614.0, \"delta\": \"The annual report \"}",
+        "data: {\"event\": \"message.delta\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225615.0, \"delta\": \"was filed on 2026-02-01.\"}",
+        "data: {\"event\": \"run.completed\", \"run_id\": \"run_capture_1\", \"timestamp\": 1767225616.0, \"output\": \"The annual report was filed on 2026-02-01.\", \"usage\": {\"input_tokens\": 1500, \"output_tokens\": 250, \"total_tokens\": 1750}, \"pending_steer\": \"Also compare it with the prior year.\"}",
+        ": stream closed"
+      ]
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_1"
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run",
+        "run_id": "run_capture_1",
+        "status": "completed",
+        "updated_at": 1767225617.0,
+        "created_at": 1767225600.0,
+        "session_id": "capture-session",
+        "model": "hermes-agent",
+        "last_event": "run.completed",
+        "output": "The annual report was filed on 2026-02-01.",
+        "usage": {
+          "input_tokens": 1500,
+          "output_tokens": 250,
+          "total_tokens": 1750
+        },
+        "pending_steer": "Also compare it with the prior year."
+      }
+    }
+  ]
+}

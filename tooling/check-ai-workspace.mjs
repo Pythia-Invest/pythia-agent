@@ -17,6 +17,7 @@ const expectedSkills = [
   "resolve-conflicts",
   "review",
   "run-test-plan",
+  "upgrade-hermes",
 ];
 const expectedAgents = ["implementer.md", "researcher.md", "reviewer.md"];
 const builderAgentRoots = [
@@ -177,6 +178,7 @@ function checkInstructionTopology(root) {
     "implement-plan",
     "create-test-plan",
     "run-test-plan",
+    "upgrade-hermes",
   ]) {
     const markdown = readFileSync(
       path.join(skillRoot, skill, "SKILL.md"),

@@ -1,4 +1,5 @@
 import { bootstrapRuntime, readApiKey } from "../dev/runtime.mjs";
+import { isPinnedHermesHealth } from "../dev/hermes-pin.mjs";
 import { applyMigrations } from "../update/migrations.mjs";
 import {
   installUnits,
@@ -122,14 +123,7 @@ export async function startAndVerify(paths, options = {}) {
     fetch: fetcher,
     headers: { Authorization: `Bearer ${apiKey}` },
     contentTypes: ["application/json"],
-    validate: async (response) => {
-      const value = await response.json();
-      return (
-        value?.status === "ok" &&
-        value?.platform === "hermes-agent" &&
-        value?.version === "0.21.0"
-      );
-    },
+    validate: async (response) => isPinnedHermesHealth(await response.json()),
   });
   await waitFor(`http://127.0.0.1:${paths.ports.desk}/api/health`, {
     fetch: fetcher,

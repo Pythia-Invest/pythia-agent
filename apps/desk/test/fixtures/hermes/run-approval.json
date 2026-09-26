@@ -1,0 +1,113 @@
+{
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/runs",
+        "json": {
+          "input": "Clean the build directory.",
+          "session_id": "capture-session"
+        }
+      },
+      "status": 202,
+      "body": {
+        "run_id": "run_capture_2",
+        "status": "started",
+        "replayed": false
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_2"
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run",
+        "run_id": "run_capture_2",
+        "status": "waiting_for_approval",
+        "updated_at": 1767225603.0,
+        "created_at": 1767225600.0,
+        "session_id": "capture-session",
+        "model": "hermes-agent",
+        "last_event": "approval.request",
+        "approval": {
+          "command": "rm -rf ./build",
+          "pattern_key": "recursive delete",
+          "pattern_keys": [
+            "recursive delete"
+          ],
+          "description": "recursive delete",
+          "allow_permanent": true,
+          "allow_session": true,
+          "request_id": "capture_id_1",
+          "event": "approval.request",
+          "run_id": "run_capture_2",
+          "timestamp": 1767225602.0,
+          "choices": [
+            "once",
+            "session",
+            "always",
+            "deny"
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/runs/run_capture_2/approval",
+        "json": {
+          "choice": "once",
+          "request_id": "capture_id_1"
+        }
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run.approval_response",
+        "run_id": "run_capture_2",
+        "choice": "once",
+        "request_id": "capture_id_1",
+        "resolved": 1
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_2/events"
+      },
+      "status": 200,
+      "sse": [
+        "data: {\"event\": \"tool.started\", \"run_id\": \"run_capture_2\", \"timestamp\": 1767225601.0, \"tool\": \"terminal\", \"preview\": \"rm -rf ./build\"}",
+        "data: {\"command\": \"rm -rf ./build\", \"pattern_key\": \"recursive delete\", \"pattern_keys\": [\"recursive delete\"], \"description\": \"recursive delete\", \"allow_permanent\": true, \"allow_session\": true, \"request_id\": \"capture_id_1\", \"event\": \"approval.request\", \"run_id\": \"run_capture_2\", \"timestamp\": 1767225602.0, \"choices\": [\"once\", \"session\", \"always\", \"deny\"]}",
+        "data: {\"event\": \"approval.responded\", \"run_id\": \"run_capture_2\", \"timestamp\": 1767225604.0, \"choice\": \"once\", \"request_id\": \"capture_id_1\", \"resolved\": 1}",
+        "data: {\"event\": \"tool.completed\", \"run_id\": \"run_capture_2\", \"timestamp\": 1767225605.0, \"tool\": \"terminal\", \"duration\": 0.2, \"error\": false}",
+        "data: {\"event\": \"run.completed\", \"run_id\": \"run_capture_2\", \"timestamp\": 1767225606.0, \"output\": \"Removed the build directory.\", \"usage\": {\"input_tokens\": 0, \"output_tokens\": 0, \"total_tokens\": 0}}",
+        ": stream closed"
+      ]
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_2"
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run",
+        "run_id": "run_capture_2",
+        "status": "completed",
+        "updated_at": 1767225607.0,
+        "created_at": 1767225600.0,
+        "session_id": "capture-session",
+        "model": "hermes-agent",
+        "last_event": "run.completed",
+        "output": "Removed the build directory.",
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0
+        }
+      }
+    }
+  ]
+}

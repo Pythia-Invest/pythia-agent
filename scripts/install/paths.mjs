@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { hermesPin } from "../dev/hermes-pin.mjs";
 
 function root(environment, explicit, xdg, fallback) {
   return resolve(
@@ -99,11 +100,7 @@ export function resolveInstallPaths(environment = process.env) {
     binRoot: binBase,
     installedCommand: join(binBase, "pythia"),
     fetchCache: join(cacheRoot, "downloads"),
-    hermesSource: join(
-      runtimeRoot,
-      "hermes",
-      "29112bef099274229cadff79cdff7bf7b99c4b77",
-    ),
+    hermesSource: join(runtimeRoot, "hermes", hermesPin().commit),
     managedRoot: checkout ? join(checkout, "runtime", "managed") : null,
     // Historical environment retained only for the explicit Basic Memory transition.
     legacyPython: join(runtimeRoot, "managed-python"),
