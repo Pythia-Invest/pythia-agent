@@ -34,7 +34,7 @@ export function ConnectorMark({
 }
 
 /** The regional-indicator flag of an ISO 3166 country code. */
-export function countryFlag(country: string): string {
+function countryFlag(country: string): string {
   return String.fromCodePoint(
     ...[...country.toUpperCase()].map(
       (letter) => 0x1f1a5 + letter.charCodeAt(0),

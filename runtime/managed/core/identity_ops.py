@@ -139,7 +139,7 @@ class Identity:
         from .platform import configuration
         try:
             _status, value = configuration.value(self.ctx, PREFERENCE)
-        except (AttributeError, TypeError, ValueError):  # no declaration beside this copy of core
+        except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
             return "primary"
         return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
 
@@ -168,6 +168,10 @@ class Identity:
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
         finally:
             ref.close()
+        security = subject["ids"].get(Level.SECURITY)
+        if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
+            listings = search.directory(path, store.open_reference).instrument_listings(security)
+            subject["view"]["listings"] = listings or subject["view"]["listings"]
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row
@@ -232,14 +236,14 @@ def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
 
 
-def _suffixes() -> dict[str, str]:
-    """Provider symbol suffixes (".AS") that name one operating MIC, from the installed plugins' contracts."""
+def _suffixes() -> dict[str, set[str]]:
+    """Provider symbol suffixes (".AS", ".US") and the operating MICs they name, from the installed contracts."""
     venues: dict[str, set[str]] = {}
     for info in installed():
         for mic, code in info.manifest.mic_table.items():
             if code.startswith("."):
                 venues.setdefault(code.upper(), set()).add(mic)
-    return {code: mics.pop() for code, mics in venues.items() if len(mics) == 1}
+    return venues
 
 
 def installed() -> list[page.PluginInfo]:
