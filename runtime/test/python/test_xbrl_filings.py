@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 from test_gleif_connector import SkillContext, register_with_market_data
 from test_market_data_identity import wire
+from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/xbrl-filings'
 spec = importlib.util.spec_from_file_location('xbrl_fixture', ROOT / '__init__.py', submodule_search_locations=[str(ROOT)])
@@ -96,20 +97,22 @@ class XbrlSemantics(unittest.TestCase):
             self.assertEqual(set(declared), {'pythia_http_operation'}, name)
             self.assertEqual((declared['pythia_http_operation']['plugin'], declared['pythia_http_operation']['read_only']),
                              ('pythia-xbrl-filings', True))
-        self.assertEqual(json.loads(ctx.tools['pythia_xbrl_filings_resolve']({'lei': LEI}))['data']['status'], 'resolved')
-        changed = json.loads(ctx.tools['pythia_xbrl_filings_resolve']({'lei': LEI, 'refresh': True}))
+        filings = json.loads(ctx.registrations['pythia_xbrl_filings_filings']['schema']['parameters']['$comment'])
+        self.assertEqual(filings['pythia_http_operation']['operation'], 'xbrl-filings-filings')
+        batch = checked_batch('xbrl-filings', ctx.tools['pythia_xbrl_filings_resolve']({'identifiers': {'lei': LEI}}))
+        self.assertEqual(batch.claims[0].native_ref.native_id, LEI)
+        changed = json.loads(ctx.tools['pythia_xbrl_filings_resolve']({'identifiers': {'lei': LEI}, 'refresh': True}))
         self.assertEqual((changed['data'], changed['issues'][0]['code']), (None, 'unavailable'))
 
     def test_resolve_echoes_the_repository_lei_and_rejects_another_entity(self):
         transport = FakeTransport([entity(), entity(OTHER)])
         reader = plugin.Reader(wire, connector, transport=transport)
-        result = reader.invoke('resolve', {'lei': LEI})
+        result = reader.invoke('resolve', {'identifiers': {'lei': LEI}})
         self.assertEqual(result['outcome'], 'ok', result)
-        self.assertEqual((result['data']['status'], result['data']['native_level']), ('resolved', 'issuer'))
-        self.assertEqual(result['data']['native_ref'], REF)
-        self.assertEqual(result['data']['echoed'], {'lei': LEI})
+        claim, = checked_batch('xbrl-filings', result).claims
+        self.assertEqual((claim.level, claim.native_ref.wire(), [item.value for item in claim.identifiers]), ('issuer', REF, [LEI]))
         self.assertEqual(transport.requests[0]['url'], identity.entity_url(LEI))
-        rejected = reader.invoke('resolve', {'lei': LEI, 'refresh': True})
+        rejected = reader.invoke('resolve', {'identifiers': {'lei': LEI}, 'refresh': True})
         self.assertEqual(rejected['issues'][0]['code'], 'invalid_response')
         for native in ({**REF, 'qualifiers': {'currency': 'EUR'}}, {**REF, 'native_id': LEI[:-2] + '00'}):
             with self.assertRaises(ValueError):
@@ -121,7 +124,8 @@ class XbrlSemantics(unittest.TestCase):
         raw['data'][0]['attributes']['inconsistency_count'] = 1
         result = reports.filings(raw, LEI, STAMP, 10)
         row = result['filings'][0]
-        self.assertNotIn('filed_at', row)
+        self.assertEqual((row['filed_at'], row['language']), (None, None))
+        self.assertEqual(result['source'], {'label': 'filings.xbrl.org', 'url': 'https://filings.xbrl.org'})
         self.assertEqual((row['period_end'], row['form'], row['country']), ('2025-12-31', 'ESEF', 'ZZ'))
         base = f'https://filings.xbrl.org/{LEI}/2025-12-31/ESEF/ZZ/0/'
         self.assertEqual(row['links'], {'viewer': base + 'report/ixbrlviewer.html', 'report': base + 'report/report.xhtml',
@@ -201,7 +205,7 @@ class XbrlSemantics(unittest.TestCase):
         transport = FakeTransport([entity(), entity(), metadata(), document()])
         reader = plugin.Reader(wire, connector, transport=transport)
         for refresh in (False, False, True):
-            self.assertEqual(reader.invoke('resolve', {'lei': LEI, 'refresh': refresh})['outcome'], 'ok')
+            self.assertEqual(reader.invoke('resolve', {'identifiers': {'lei': LEI}, 'refresh': refresh})['outcome'], 'ok')
         self.assertEqual(len(transport.requests), 2)
         for _ in range(2):
             result = reader.invoke('fundamentals', {'native_ref': REF})
@@ -274,7 +278,7 @@ class XbrlSemantics(unittest.TestCase):
         for operation in ('resolve', 'fundamentals'):
             failure = connector.SourceFailure({'error': 'missing_observation'})
             reader = plugin.Reader(wire, connector, transport=FakeTransport([failure]))
-            arguments = {'lei': LEI} if operation == 'resolve' else {'native_ref': REF}
+            arguments = {'identifiers': {'lei': LEI}} if operation == 'resolve' else {'native_ref': REF}
             result = reader.invoke(operation, arguments)
             self.assertEqual(result['outcome'], 'empty' if operation == 'resolve' else 'error')
         self.assertEqual(result['issues'][0]['code'], 'missing_observation')
@@ -282,7 +286,7 @@ class XbrlSemantics(unittest.TestCase):
     def test_invalid_arguments_never_reach_provider(self):
         transport = FakeTransport([])
         reader = plugin.Reader(wire, connector, transport=transport)
-        for operation, arguments in (('resolve', {'lei': LEI[:-1] + str((int(LEI[-1]) + 1) % 10)}),
+        for operation, arguments in (('resolve', {'identifiers': {'lei': LEI[:-1] + str((int(LEI[-1]) + 1) % 10)}}),
                                      ('resolve', {'query': 'Synthetic'}), ('filings', {'native_ref': {**REF, 'native_scope': 'cik'}}),
                                      ('facts', {'native_ref': REF, 'report_id': '1', 'concepts': []})):
             result = reader.invoke(operation, deepcopy(arguments))
