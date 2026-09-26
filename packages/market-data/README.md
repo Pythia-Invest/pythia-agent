@@ -187,17 +187,22 @@ with fixed geometry, keeps the previous answer while the next loads, and reopens
 instantly from `['plugin', 'pythia', 'search', …]`, the query cache of core's
 serving `pythia`/`identity-search` operation. A query the directory does not
 hold can be looked up explicitly, in one plugin per action and never
-concurrently, when the host supplies a lookup runner. Selecting a row reports
-its listing's subject id, which an instrument page addresses.
+concurrently, when the host supplies a lookup runner. Enter or a click on a row
+reports `{subject, listing}` for its representative (preferred) listing. When
+the host supplies a listings reader, → on the highlighted row or a click on its
+"+N" replaces the rows with that instrument's listings (venue, currency, type;
+the one the row opens marked Default) in the same listbox; Enter opens that
+listing and ← or Esc goes back.
 
 The feature's `top-bar` presentation composes the bar with the Desk title and
 actions under ADR 0036 and is Desk's product default top bar; a workspace
 `desk/top-bar.json` selects another bar or `renderer: null` for the core one. It
 offers no lookup yet. While a row is highlighted it prefetches that subject's
 page composition (`pythia`/`identity-subject`) under the key Desk's instrument
-route reads (`@pythia/market-data/subject`), and a choice is announced as a
-`pythia:open-subject` window event with `{subject_id}`, which Desk routes to
-`/instrument/[subject]`. The module keeps its own query, so typing never filters
+route reads (`@pythia/market-data/subject`); the side list reads its listings
+from the same composition. A choice is announced as a `pythia:open-subject`
+window event with `{subject_id, listing_id}`, which Desk routes to
+`/instrument/[subject]?listing=`. The module keeps its own query, so typing never filters
 Desk's chat lists. The Design Lab's investment search demonstration renders the
 bar over a Lab-local synthetic directory.
 
