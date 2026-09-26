@@ -3,11 +3,15 @@ import {
   transportSearch,
 } from "@pythia/market-data/search-ui";
 import type { TopBarProps } from "@pythia/widget-sdk";
+import { useState } from "react";
 
 /** Feature-owned top bar: the shell's title and actions around the local
  * investment search. Select it in `desk/top-bar.json` as presentation
  * `top-bar`; users may replace the whole module (ADR 0036). */
 export default function InvestmentTopBar({ data }: TopBarProps) {
+  // The investment query is this module's own state: the shell's `data.query`
+  // filters Desk's chat lists and must not follow what is typed here.
+  const [query, setQuery] = useState("");
   return (
     <search
       data-slot="market-data-top-bar"
@@ -19,8 +23,8 @@ export default function InvestmentTopBar({ data }: TopBarProps) {
       {/* No lookup runner yet: the explicit "Look up in …" action appears once
           the core lookup operation exists. */}
       <InvestmentSearch
-        query={data.query}
-        onQueryChange={data.onQueryChange}
+        query={query}
+        onQueryChange={setQuery}
         search={transportSearch(data.transport)}
         // Instrument pages address subjects. Until page composition owns a
         // route, the choice is announced for whichever surface opens it.
