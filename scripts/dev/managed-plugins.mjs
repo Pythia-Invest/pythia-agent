@@ -197,6 +197,41 @@ export const MANAGED_PLUGINS = Object.freeze([
       "worker.py",
     ]),
   }),
+  Object.freeze({
+    name: "pythia-eodhd",
+    install: true,
+    // Makes no provider request until its declared configuration
+    // (configuration.json) is complete: eodhd_api_token in secrets.json.
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/eodhd",
+    files: Object.freeze([
+      "__init__.py",
+      "plugin.yaml",
+      "configuration.json",
+      "configuration.py",
+      "definition.py",
+      "identity.py",
+      "catalogue_pages.py",
+      "series.py",
+      "results.py",
+      "stream.py",
+      "stream_results.py",
+      "session_context.py",
+      "skills/eodhd/SKILL.md",
+    ]),
+    workers: Object.freeze([
+      "eodhd-live.ts",
+      "eodhd-stream-reference.ts",
+      "eodhd-market-data.ts",
+      "eodhd-market-data-operations.ts",
+      "eodhd-market-data-values.ts",
+      "eodhd-market-data-errors.ts",
+      "eodhd-market-data-dashboard.ts",
+      "eodhd-market-data-research.ts",
+      "eodhd-market-data-fundamentals.ts",
+    ]),
+  }),
 ]);
 
 // Core runner helpers that connector workers import. Listed once, ahead of the

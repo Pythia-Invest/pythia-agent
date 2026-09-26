@@ -16,7 +16,9 @@ The release installs the shared owner, contracts, execution helpers and agent
 skill, plus the credential-free [Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md)
 and the [CoinGecko connector](../../runtime/managed/plugins/coingecko/README.md)
 (keyless, or with the investor's own optional key). `describe` reports only
-installed, enabled native contributions. The original core SEC/EODHD tools are
+installed, enabled native contributions. The bundled
+[EODHD connector](eodhd.md) adds prices, catalogue, identifier and research
+reads once its API token is configured. The original core SEC/EODHD tools are
 retired; other connector packages must supply those capabilities explicitly.
 Enabling the owner does not install a provider or prove an account's access.
 The bundled [CoinMarketCap connector](../../runtime/managed/plugins/coinmarketcap/README.md)
