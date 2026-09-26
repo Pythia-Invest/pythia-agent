@@ -3,44 +3,40 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SearchGroup, SearchRequest, SearchResponse } from "../src/search";
+import type { SearchRequest, SearchResponse, SearchRow } from "../src/search";
 import type { SearchBackend } from "../src/search-ui/controller";
 import { InvestmentSearch } from "../src/search-ui/investment-search";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-function group(ticker: string): SearchGroup {
+function row(ticker: string): SearchRow {
   return {
-    id: `security:${ticker}`,
+    id: `listing:${ticker}`,
+    security: `security:${ticker}`,
+    ticker,
     name: `${ticker} Holding`,
     kind: "ordinary",
-    depositary_of: null,
-    rows: [
-      {
-        id: `listing:${ticker}`,
-        ticker,
-        mic: "XAMS",
-        venue: "Euronext Amsterdam",
-        currency: "EUR",
-        bindings: [],
-      },
-    ],
+    mic: "XAMS",
+    venue: "Euronext Amsterdam",
+    country: "NL",
+    listings: 0,
+    bindings: [],
   };
 }
 
 /** A directory whose answers the test releases one query at a time. */
 function directory() {
-  const pending = new Map<string, (groups: SearchGroup[]) => void>();
+  const pending = new Map<string, (rows: SearchRow[]) => void>();
   const requests: SearchRequest[] = [];
   const search: SearchBackend = (request) => {
     requests.push(request);
     return new Promise<SearchResponse>((resolve) =>
-      pending.set(request.query, (groups) => resolve({ groups, lookup: [] })),
+      pending.set(request.query, (rows) => resolve({ rows, lookup: [] })),
     );
   };
-  async function answer(query: string, groups: SearchGroup[]) {
+  async function answer(query: string, rows: SearchRow[]) {
     await until(() => expect(pending.has(query)).toBe(true));
-    await act(async () => pending.get(query)?.(groups));
+    await act(async () => pending.get(query)?.(rows));
   }
   return { search, requests, answer };
 }
@@ -122,8 +118,12 @@ describe("investment search", () => {
     const { search, answer } = directory();
     await act(async () => root.render(<Harness search={search} />));
     await type("asml");
-    await answer("asml", [group("ASML"), group("ASME")]);
+    await answer("asml", [{ ...row("ASML"), listings: 2 }, row("ASME")]);
     await until(() => expect(rows()).toEqual(["ASML", "ASME"]));
+    // One instrument per row, read in the order it is shown.
+    expect(
+      document.querySelector('[role="option"]')?.getAttribute("aria-label"),
+    ).toBe("ASML, ASML Holding, Euronext Amsterdam, Stock, 2 other listings");
     // Rows that arrive after typing still come highlighted: Enter opens what
     // is shown highlighted.
     await until(() =>
@@ -151,7 +151,7 @@ describe("investment search", () => {
     const { search, answer } = directory();
     await act(async () => root.render(<Harness search={search} />));
     await type("as");
-    await answer("as", [group("ASR"), group("ASML")]);
+    await answer("as", [row("ASR"), row("ASML")]);
     await until(() => expect(rows()).toEqual(["ASR", "ASML"]));
 
     await type("asml");
@@ -160,7 +160,7 @@ describe("investment search", () => {
     await press("Enter");
     expect(selected).toEqual([]);
 
-    await answer("asml", [group("ASML")]);
+    await answer("asml", [row("ASML")]);
     await until(() => expect(rows()).toEqual(["ASML"]));
     await press("Enter");
     expect(selected).toEqual(["listing:ASML"]);
@@ -170,7 +170,7 @@ describe("investment search", () => {
     const { search, answer, requests } = directory();
     await act(async () => root.render(<Harness search={search} />));
     await type("asml");
-    await answer("asml", [group("ASML")]);
+    await answer("asml", [row("ASML")]);
 
     await press("Escape");
     await until(() =>

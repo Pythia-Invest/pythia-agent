@@ -20,6 +20,7 @@ export {
 export {
   searchOptions,
   KIND_LABELS,
+  ROW_LABELS,
   TYPE_FILTERS,
   type RowSource,
   type SearchOption,

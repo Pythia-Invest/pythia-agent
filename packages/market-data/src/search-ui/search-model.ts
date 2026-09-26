@@ -1,4 +1,4 @@
-import type { InstrumentKind, SearchGroup, SearchRow } from "../search";
+import type { InstrumentKind, SearchRow } from "../search";
 
 export type TypeFilter =
   | "all"
@@ -31,6 +31,7 @@ export const TYPE_FILTERS: readonly {
   { value: "bonds", label: "Bonds", kinds: ["bond"] },
 ];
 
+/** The precise instrument type, for the instrument page. */
 export const KIND_LABELS: Record<InstrumentKind, string> = {
   ordinary: "Stock",
   preferred: "Preferred stock",
@@ -45,29 +46,26 @@ export const KIND_LABELS: Record<InstrumentKind, string> = {
   other: "Other",
 };
 
+/** The plain type a result row shows; a receipt on its own reads as a stock. */
+export const ROW_LABELS: Record<InstrumentKind, string> = {
+  ...KIND_LABELS,
+  preferred: "Preferred",
+  depositary_receipt: "Stock",
+  token: "Crypto",
+};
+
 export type RowSource = "directory" | "lookup";
 
-/** One selectable row in panel order. A group's first row leads it with the
- * security's name and type; its other listings follow as compact rows. */
+/** One selectable row in panel order. */
 export type SearchOption = {
   key: string;
   row: SearchRow;
-  group: SearchGroup;
-  lead: boolean;
   source: RowSource;
 };
 
 export function searchOptions(
-  groups: readonly SearchGroup[],
+  rows: readonly SearchRow[],
   source: RowSource,
 ): SearchOption[] {
-  return groups.flatMap((group) =>
-    group.rows.map((row, index) => ({
-      key: `${source}:${group.id}:${row.id}`,
-      row,
-      group,
-      lead: index === 0,
-      source,
-    })),
-  );
+  return rows.map((row) => ({ key: `${source}:${row.id}`, row, source }));
 }

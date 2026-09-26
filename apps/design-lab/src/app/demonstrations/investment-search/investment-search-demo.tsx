@@ -13,6 +13,7 @@ import { type ReactNode, useState } from "react";
 import {
   demoLookup,
   demoLookupOffers,
+  demoLookupRow,
   demoSearch,
   searchDemoDirectory,
 } from "./search-demo";
@@ -23,34 +24,11 @@ const lookup = demoLookup(900);
 const crypto = TYPE_FILTERS.find((type) => type.value === "crypto")?.kinds;
 
 function options(query: string, kinds?: typeof crypto) {
-  return searchOptions(
-    searchDemoDirectory(query, { kinds }).groups,
-    "directory",
-  );
+  return searchOptions(searchDemoDirectory(query, { kinds }).rows, "directory");
 }
 
-/** A synthetic lookup answer: groups of the search shape with subject ids. */
-const found = searchOptions(
-  [
-    {
-      id: "security:demo:ASML.MI",
-      name: "ASML.MI (synthetic lookup result)",
-      kind: "ordinary",
-      depositary_of: null,
-      rows: [
-        {
-          id: "listing:demo:ASML.MI",
-          ticker: "ASML.MI",
-          mic: null,
-          venue: null,
-          currency: null,
-          bindings: [{ plugin: "yahoo", ref: "ASML.MI" }],
-        },
-      ],
-    },
-  ],
-  "lookup",
-);
+/** A synthetic lookup answer: rows of the search shape with subject ids. */
+const found = searchOptions([demoLookupRow("ASML.MI")], "lookup");
 
 function Specimen({
   title,
@@ -124,9 +102,9 @@ export function InvestmentSearchDemo() {
           </div>
         </QueryClientProvider>
         <p className="text-foreground-secondary text-xs">
-          Try asml, asm, bitcoin, sol, IE00B4L5Y983 or zzzz. Arrow keys move,
-          Enter opens, Esc closes, Tab reaches the type pills and the lookup
-          action.
+          Try asml, asmlf, alphabet, bitcoin, IE00B4L5Y983 or zzzz. Arrow keys
+          move, Enter opens, Esc closes, Tab reaches the type pills and the
+          lookup action.
         </p>
         <output className="text-body text-foreground">
           {chosen
@@ -149,10 +127,22 @@ export function InvestmentSearchDemo() {
             status="loading"
           />
           <Specimen
-            title="Listings of one security"
-            note="Amsterdam primary first, then Xetra and the OTC line; the New York Registry Shares are a depositary receipt of the same issuer."
-            query="asml"
-            options={options("asml")}
+            title="One row per instrument"
+            note="ASML shows its Amsterdam primary listing; the Nasdaq registry shares, Xetra and OTC lines are its other listings. ASM International is another company."
+            query="asm"
+            options={options("asm")}
+          />
+          <Specimen
+            title="A typed ticker names its listing"
+            note="ASMLF opens the OTC listing of the same company row."
+            query="asmlf"
+            options={options("asmlf")}
+          />
+          <Specimen
+            title="Share classes"
+            note="GOOGL and GOOG are different instruments of one issuer, so each has its own row."
+            query="alphabet"
+            options={options("alphabet")}
           />
           <Specimen
             title="Type filter"
@@ -176,7 +166,7 @@ export function InvestmentSearchDemo() {
               label: "Yahoo Finance",
               query: "asml.mi",
               status: "done",
-              groups: found.map((option) => option.group),
+              rows: found.map((option) => option.row),
             }}
           />
           <Specimen
@@ -188,7 +178,7 @@ export function InvestmentSearchDemo() {
               label: "Yahoo Finance",
               query: "adyen",
               status: "running",
-              groups: [],
+              rows: [],
             }}
           />
           <Specimen

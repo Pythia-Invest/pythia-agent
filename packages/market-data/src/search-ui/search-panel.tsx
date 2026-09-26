@@ -1,13 +1,7 @@
-import {
-  Button,
-  ComboboxGroup,
-  ComboboxList,
-  EmptyState,
-  Skeleton,
-} from "@pythia/widget-sdk";
+import { Button, ComboboxList, EmptyState, Skeleton } from "@pythia/widget-sdk";
 import { LoaderCircle } from "lucide-react";
-import { type MouseEvent, type ReactNode, useEffect, useRef } from "react";
-import type { LookupOffer, SearchGroup } from "../search";
+import { type MouseEvent, useEffect, useRef } from "react";
+import type { LookupOffer, SearchRow } from "../search";
 import {
   type SearchOption,
   TYPE_FILTERS,
@@ -23,7 +17,7 @@ export type LookupState = {
   label: string;
   query: string;
   status: "running" | "done" | "error";
-  groups: SearchGroup[];
+  rows: SearchRow[];
 };
 
 export type SearchPanelProps = {
@@ -44,16 +38,6 @@ export type SearchPanelProps = {
   onChoose(option: SearchOption): void;
 };
 
-/** Consecutive rows of one security form one ARIA group. */
-function byGroup(options: readonly SearchOption[]) {
-  const groups: SearchOption[][] = [];
-  for (const option of options) {
-    if (option.lead || !groups.length) groups.push([]);
-    groups.at(-1)?.push(option);
-  }
-  return groups;
-}
-
 const keepInputFocus = (event: MouseEvent) => event.preventDefault();
 
 /** Body of the anchored search panel: type pills, one listbox, explicit
@@ -69,29 +53,16 @@ export function SearchPanel(props: SearchPanelProps) {
   }, [query, filter]);
   // Rows exist only while they are shown, so the combobox never highlights or
   // selects a hidden one.
-  const groups = byGroup(status === "ready" ? props.options : []);
-  const directory = groups.filter((rows) => rows[0]?.source === "directory");
-  const found = groups.filter((rows) => rows[0]?.source === "lookup");
-  const renderGroup = (rows: SearchOption[]): ReactNode => {
-    const first = rows[0];
-    if (!first) return null;
-    return (
-      <ComboboxGroup
-        key={first.key}
-        aria-label={first.group.name}
-        data-slot="investment-search-group"
-        className="py-0"
-      >
-        {rows.map((option) => (
-          <SearchRowOption
-            key={option.key}
-            option={option}
-            onChoose={() => props.onChoose(option)}
-          />
-        ))}
-      </ComboboxGroup>
-    );
-  };
+  const shown = status === "ready" ? props.options : [];
+  const directory = shown.filter((option) => option.source === "directory");
+  const found = shown.filter((option) => option.source === "lookup");
+  const renderRow = (option: SearchOption) => (
+    <SearchRowOption
+      key={option.key}
+      option={option}
+      onChoose={() => props.onChoose(option)}
+    />
+  );
   const filterLabel = TYPE_FILTERS.find((type) => type.value === filter)?.label;
   const announcement =
     status === "loading"
@@ -112,7 +83,7 @@ export function SearchPanel(props: SearchPanelProps) {
       <div
         ref={body}
         data-slot="investment-search-body"
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1.5 pb-1.5 [scrollbar-gutter:stable]"
+        className="@container min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1.5 pb-1.5 [scrollbar-gutter:stable]"
       >
         {status === "prompt" ? (
           <EmptyState
@@ -173,10 +144,10 @@ export function SearchPanel(props: SearchPanelProps) {
         <ComboboxList
           aria-label="Investments"
           aria-busy={status === "ready" && !fresh}
-          hidden={!groups.length}
-          className="grid max-h-none gap-1 overflow-visible"
+          hidden={!shown.length}
+          className="grid max-h-none overflow-visible"
         >
-          {directory.map(renderGroup)}
+          {directory.map(renderRow)}
           {found.length && lookup ? (
             <div
               aria-hidden="true"
@@ -186,7 +157,7 @@ export function SearchPanel(props: SearchPanelProps) {
               From {lookup.label}
             </div>
           ) : null}
-          {found.map(renderGroup)}
+          {found.map(renderRow)}
         </ComboboxList>
         {lookup?.status === "running" ? (
           <p className="flex items-center gap-2 px-2.5 py-3 text-foreground-secondary text-xs">
@@ -253,20 +224,14 @@ export function SearchPanel(props: SearchPanelProps) {
 
 function SkeletonRows() {
   return (
-    <div aria-hidden="true" className="grid gap-1">
-      {[0, 1, 2, 3, 4].map((row) => (
-        <div
-          key={row}
-          className="flex h-12 items-center justify-between gap-3 px-2.5"
-        >
-          <div className="grid gap-1.5">
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="h-3 w-40" />
-          </div>
-          <div className="grid justify-items-end gap-1.5">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-3 w-12" />
-          </div>
+    <div aria-hidden="true" className="grid">
+      {[0, 1, 2, 3, 4, 5].map((row) => (
+        <div key={row} className="flex h-9 items-center gap-3 px-2.5">
+          <Skeleton className="h-3 w-14 flex-none" />
+          <Skeleton className="h-3 w-40" />
+          <span className="flex-1" />
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-10" />
         </div>
       ))}
     </div>

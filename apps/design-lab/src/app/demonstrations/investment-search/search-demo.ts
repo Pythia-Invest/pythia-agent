@@ -1,6 +1,5 @@
 /**
- * Synthetic in-memory directory for the investment search demonstration until
- * the core directory search exists.
+ * Synthetic in-memory directory for the investment search demonstration.
  *
  * Names, tickers, venues and ISINs mirror public reference data so the cases
  * are recognisable; subject ids follow the identity fixtures. Bindings, dates,
@@ -10,134 +9,152 @@
 import type {
   InstrumentKind,
   LookupRequest,
-  SearchGroup,
   SearchRequest,
   SearchResponse,
   SearchRow,
 } from "@pythia/market-data/search";
 
-const asml = "security:isin:NL0010273215";
+type Listing = Pick<SearchRow, "id" | "ticker"> &
+  Partial<Pick<SearchRow, "mic" | "venue" | "country" | "bindings">>;
 
-function row(
-  values: Pick<SearchRow, "id" | "ticker"> & Partial<SearchRow>,
-): SearchRow {
-  return {
-    mic: null,
-    venue: null,
-    currency: null,
-    bindings: [],
-    ...values,
-  };
-}
+/** One instrument and its listings, primary listing first. */
+type Instrument = {
+  security: string;
+  name: string;
+  kind: InstrumentKind;
+  listings: Listing[];
+};
+
+const yahoo = (ref: string) => ({ plugin: "yahoo", ref });
+const eodhd = (ref: string) => ({ plugin: "eodhd", ref });
 
 function coin(
-  id: string,
+  security: string,
   name: string,
   ticker: string,
   refs: [string, string],
-): SearchGroup {
+): Instrument {
   return {
-    id,
+    security,
     name,
     kind: "coin",
-    depositary_of: null,
-    rows: [
-      row({
-        id,
+    listings: [
+      {
+        id: security,
         ticker,
         bindings: [
           { plugin: "coinmarketcap", ref: refs[0] },
           { plugin: "coingecko", ref: refs[1] },
         ],
-      }),
+      },
     ],
   };
 }
 
 /** Directory order stands in for prominence among equal matches. */
-export const demoGroups: readonly SearchGroup[] = [
+export const demoInstruments: readonly Instrument[] = [
   {
-    id: asml,
+    security: "security:isin:NL0010273215",
     name: "ASML Holding N.V.",
     kind: "ordinary",
-    depositary_of: null,
-    rows: [
-      row({
+    listings: [
+      {
         id: "listing:isin:NL0010273215:XAMS:EUR",
         ticker: "ASML",
         mic: "XAMS",
         venue: "Euronext Amsterdam",
-        currency: "EUR",
-        bindings: [
-          { plugin: "yahoo", ref: "ASML.AS" },
-          { plugin: "eodhd", ref: "ASML.AS" },
-        ],
-      }),
-      row({
+        country: "NL",
+        bindings: [yahoo("ASML.AS"), eodhd("ASML.AS")],
+      },
+      // The New York Registry Shares fold into the company row.
+      {
+        id: "listing:isin:USN070592100:XNAS:USD",
+        ticker: "ASML",
+        mic: "XNAS",
+        venue: "Nasdaq",
+        country: "US",
+        bindings: [yahoo("ASML"), eodhd("ASML.US")],
+      },
+      {
         id: "listing:isin:NL0010273215:XETR:EUR",
         ticker: "ASME",
         mic: "XETR",
         venue: "Xetra",
-        currency: "EUR",
-      }),
-      row({
-        id: "listing:isin:NL0010273215:PINX:USD",
+        country: "DE",
+      },
+      {
+        id: "listing:isin:NL0010273215:OTCM:USD",
         ticker: "ASMLF",
-        mic: "PINX",
-        venue: "OTC Pink",
-        currency: "USD",
-        bindings: [{ plugin: "yahoo", ref: "ASMLF" }],
-      }),
+        mic: "OTCM",
+        venue: "OTC Markets",
+        country: "US",
+        bindings: [yahoo("ASMLF")],
+      },
     ],
   },
   {
-    id: "security:isin:USN070592100",
-    name: "ASML Holding N.V. New York Registry Shares",
-    kind: "depositary_receipt",
-    depositary_of: { id: asml, name: "ASML Holding N.V." },
-    rows: [
-      row({
-        id: "listing:isin:USN070592100:XNAS:USD",
-        ticker: "ASML",
-        mic: "XNGS",
-        venue: "Nasdaq Global Select",
-        currency: "USD",
-        bindings: [
-          { plugin: "yahoo", ref: "ASML" },
-          { plugin: "eodhd", ref: "ASML.US" },
-        ],
-      }),
-    ],
-  },
-  {
-    id: "security:isin:NL0000334118",
+    security: "security:isin:NL0000334118",
     name: "ASM International N.V.",
     kind: "ordinary",
-    depositary_of: null,
-    rows: [
-      row({
+    listings: [
+      {
         id: "listing:isin:NL0000334118:XAMS:EUR",
         ticker: "ASM",
         mic: "XAMS",
         venue: "Euronext Amsterdam",
-        currency: "EUR",
-        bindings: [{ plugin: "yahoo", ref: "ASM.AS" }],
-      }),
+        country: "NL",
+        bindings: [yahoo("ASM.AS")],
+      },
+    ],
+  },
+  // Share classes are different instruments: one row each.
+  {
+    security: "security:isin:US02079K3059",
+    name: "Alphabet Inc.",
+    kind: "ordinary",
+    listings: [
+      {
+        id: "listing:isin:US02079K3059:XNAS:USD",
+        ticker: "GOOGL",
+        mic: "XNAS",
+        venue: "Nasdaq",
+        country: "US",
+      },
     ],
   },
   {
-    id: "security:isin:IE00B4L5Y983",
+    security: "security:isin:US02079K1079",
+    name: "Alphabet Inc.",
+    kind: "ordinary",
+    listings: [
+      {
+        id: "listing:isin:US02079K1079:XNAS:USD",
+        ticker: "GOOG",
+        mic: "XNAS",
+        venue: "Nasdaq",
+        country: "US",
+      },
+    ],
+  },
+  {
+    security: "security:isin:IE00B4L5Y983",
     name: "iShares Core MSCI World UCITS ETF",
     kind: "etf",
-    depositary_of: null,
-    rows: [
-      row({
+    listings: [
+      {
         id: "listing:isin:IE00B4L5Y983:XAMS:EUR",
         ticker: "IWDA",
         mic: "XAMS",
         venue: "Euronext Amsterdam",
-        currency: "EUR",
-      }),
+        country: "NL",
+      },
+      {
+        id: "listing:isin:IE00B4L5Y983:XLON:GBP",
+        ticker: "SWDA",
+        mic: "XLON",
+        venue: "London Stock Exchange",
+        country: "GB",
+      },
     ],
   },
   coin(
@@ -157,25 +174,23 @@ export const demoGroups: readonly SearchGroup[] = [
     ["5426", "solana"],
   ),
   {
-    id: "index:demo:AEX",
+    security: "index:demo:AEX",
     name: "AEX Index",
     kind: "index",
-    depositary_of: null,
-    rows: [
-      row({
+    listings: [
+      {
         id: "index:demo:AEX",
         ticker: "AEX",
         venue: "Euronext Amsterdam",
-        currency: "EUR",
-      }),
+        country: "NL",
+      },
     ],
   },
   {
-    id: "fx:demo:EURUSD",
+    security: "fx:demo:EURUSD",
     name: "Euro / US Dollar",
     kind: "fx",
-    depositary_of: null,
-    rows: [row({ id: "fx:demo:EURUSD", ticker: "EUR/USD" })],
+    listings: [{ id: "fx:demo:EURUSD", ticker: "EUR/USD" }],
   },
 ];
 
@@ -183,18 +198,39 @@ export const demoLookupOffers: SearchResponse["lookup"] = [
   { plugin: "yahoo", label: "Yahoo Finance" },
 ];
 
+/** The row an instrument shows: an exactly typed ticker picks its listing,
+ * otherwise the primary one. */
+function demoRow(instrument: Instrument, query: string): SearchRow {
+  const typed = query.toUpperCase();
+  const [primary, ...rest] = instrument.listings;
+  const listing =
+    rest.find((line) => line.ticker === typed) ?? primary ?? rest[0];
+  if (!listing) throw Error(`${instrument.security} has no listing`);
+  return {
+    mic: null,
+    venue: null,
+    country: null,
+    bindings: [],
+    ...listing,
+    security: instrument.security,
+    name: instrument.name,
+    kind: instrument.kind,
+    listings: instrument.listings.length - 1,
+  };
+}
+
 /** 0 exact ticker or ISIN, 1 ticker prefix, 2 name word prefix, 3 name text. */
-function score(group: SearchGroup, query: string) {
+function score({ security, name, listings }: Instrument, query: string) {
   const q = query.toLowerCase();
-  const tickers = group.rows.map((line) => line.ticker.toLowerCase());
-  const isin = group.id.startsWith("security:isin:")
-    ? group.id.slice(14).toLowerCase()
+  const tickers = listings.map((line) => line.ticker.toLowerCase());
+  const isin = security.startsWith("security:isin:")
+    ? security.slice(14).toLowerCase()
     : undefined;
-  const name = group.name.toLowerCase();
+  const lower = name.toLowerCase();
   if (tickers.includes(q) || isin === q) return 0;
   if (tickers.some((ticker) => ticker.startsWith(q))) return 1;
-  if (name.split(/[\s/.]+/).some((word) => word.startsWith(q))) return 2;
-  return name.includes(q) ? 3 : undefined;
+  if (lower.split(/[\s/.]+/).some((word) => word.startsWith(q))) return 2;
+  return lower.includes(q) ? 3 : undefined;
 }
 
 export function searchDemoDirectory(
@@ -204,17 +240,21 @@ export function searchDemoDirectory(
     limit = 20,
   }: { kinds?: readonly InstrumentKind[] | undefined; limit?: number } = {},
 ): SearchResponse {
-  const groups = demoGroups
-    .map((group, order) => ({ group, order, score: score(group, query) }))
+  const rows = demoInstruments
+    .map((instrument, order) => ({
+      instrument,
+      order,
+      score: score(instrument, query),
+    }))
     .filter(
       (entry): entry is typeof entry & { score: number } =>
         entry.score !== undefined &&
-        (!kinds || kinds.includes(entry.group.kind)),
+        (!kinds || kinds.includes(entry.instrument.kind)),
     )
     .sort((a, b) => a.score - b.score || a.order - b.order)
     .slice(0, limit)
-    .map((entry) => entry.group);
-  return { groups, lookup: demoLookupOffers };
+    .map((entry) => demoRow(entry.instrument, query));
+  return { rows, lookup: demoLookupOffers };
 }
 
 function wait(ms: number, signal: AbortSignal) {
@@ -241,21 +281,21 @@ export function demoLookup(delay = 0) {
   return async ({ plugin, query }: LookupRequest, signal: AbortSignal) => {
     await wait(delay, signal);
     if (plugin !== "yahoo") return [];
-    const symbol = query.toUpperCase().slice(0, 12);
-    return [
-      {
-        id: `security:demo:${symbol}`,
-        name: `${symbol} (synthetic lookup result)`,
-        kind: "ordinary",
-        depositary_of: null,
-        rows: [
-          row({
-            id: `listing:demo:${symbol}`,
-            ticker: symbol,
-            bindings: [{ plugin: "yahoo", ref: symbol }],
-          }),
-        ],
-      },
-    ] satisfies SearchGroup[];
+    return [demoLookupRow(query.toUpperCase().slice(0, 12))];
+  };
+}
+
+export function demoLookupRow(symbol: string): SearchRow {
+  return {
+    id: `listing:demo:${symbol}`,
+    security: `security:demo:${symbol}`,
+    ticker: symbol,
+    name: `${symbol} (synthetic lookup result)`,
+    kind: "ordinary",
+    mic: null,
+    venue: null,
+    country: null,
+    listings: 0,
+    bindings: [{ plugin: "yahoo", ref: symbol }],
   };
 }

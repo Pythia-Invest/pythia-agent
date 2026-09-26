@@ -3,9 +3,9 @@ import { type PluginTransport, useQuery } from "@pythia/widget-sdk";
 import { z } from "zod";
 import {
   type LookupRequest,
-  type SearchGroup,
   type SearchRequest,
   type SearchResponse,
+  type SearchRow,
   searchResponseSchema,
 } from "../search";
 import { TYPE_FILTERS, type TypeFilter } from "./search-model";
@@ -27,9 +27,9 @@ export type SearchBackend = (
 export type LookupRunner = (
   request: LookupRequest,
   signal: AbortSignal,
-) => Promise<SearchGroup[]>;
+) => Promise<SearchRow[]>;
 
-/** Directory groups for the typed query. The previous answer stays on screen
+/** Directory rows for the typed query. The previous answer stays on screen
  * while the next one loads, and a reopened panel answers from the cache. */
 export function useDirectorySearch(
   search: SearchBackend,
