@@ -70,6 +70,7 @@ const surfaces = {
     "InstrumentSparkline",
     "instrumentNumber",
     "cn",
+    "Autocomplete",
     "Button",
     "Combobox",
     "ComboboxEmpty",

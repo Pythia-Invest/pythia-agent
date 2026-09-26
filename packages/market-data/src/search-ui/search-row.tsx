@@ -65,7 +65,13 @@ function optionLabel(option: SearchOption, bindings: readonly SearchBinding[]) {
  * venue and type on the right; the security's other listings follow as
  * compact rows with ticker and venue. Logos appear only for connectors bound
  * to that row. No prices. */
-export function SearchRowOption({ option }: { option: SearchOption }) {
+export function SearchRowOption({
+  option,
+  onChoose,
+}: {
+  option: SearchOption;
+  onChoose(): void;
+}) {
   const { row, group, lead } = option;
   const bindings = onePerPlugin(row.bindings);
   const venue = row.venue ?? row.mic;
@@ -76,6 +82,9 @@ export function SearchRowOption({ option }: { option: SearchOption }) {
     <ComboboxItem
       value={option}
       aria-label={optionLabel(option, bindings)}
+      // Base UI clicks the highlighted row on Enter, so this is the one path
+      // for pointer and keyboard choices.
+      onClick={onChoose}
       data-slot="investment-search-row"
       data-kind={group.kind}
       data-lead={lead || undefined}

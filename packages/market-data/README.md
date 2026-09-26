@@ -172,9 +172,10 @@ directory-search backend implements this shape; the core ranks and the client
 keeps the order.
 
 `@pythia/market-data/search-ui` is the search bar, composed from the SDK's
-shared Combobox and ToggleGroup. Typing reads only the local directory; no
-connector is called on that path, and Enter never opens a row of a previous
-query while the typed one loads. Each security is one group: its
+shared Autocomplete, combobox parts and ToggleGroup. Typing reads only the local
+directory; no connector is called on that path. The first shown row is always
+highlighted and Enter opens it, but never a row of a previous query while the
+typed one loads. Each security is one group: its
 lead row shows ticker, name, venue and type, and its other listings follow as
 compact rows. A depositary receipt is its own security, labelled as a receipt of
 its underlying. Type pills ask the directory for their instrument kinds and never

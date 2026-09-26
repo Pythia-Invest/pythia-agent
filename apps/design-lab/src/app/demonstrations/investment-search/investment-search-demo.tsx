@@ -76,6 +76,7 @@ function Specimen({
             onFilter={ignore}
             onRetry={ignore}
             onLookup={ignore}
+            onChoose={ignore}
             {...props}
             options={list}
           />

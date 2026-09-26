@@ -19,6 +19,7 @@
     "ButtonGroup": "src/actions/button.tsx",
     "Calendar": "src/calendar/calendar.tsx",
     "Citation": "src/semantics/research.tsx",
+    "Autocomplete": null,
     "ComboboxEmpty": null,
     "ComboboxGroup": null,
     "ComboboxGroupLabel": null,

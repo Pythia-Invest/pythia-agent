@@ -19,6 +19,7 @@ export {
   type InstrumentWidgetOptions,
 } from "@pythia/ui/market-widgets";
 export {
+  Autocomplete,
   Button,
   Combobox,
   ComboboxEmpty,

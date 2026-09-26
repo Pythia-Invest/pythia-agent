@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Combobox,
+  Autocomplete,
   ComboboxInput,
   ComboboxInputGroup,
   ComboboxPopup,
@@ -43,10 +43,6 @@ export type InvestmentSearchProps = {
   className?: string | undefined;
 };
 
-/** The first shown row is always highlighted, so Enter opens what the user
- * sees highlighted. Base UI's combobox engine supports this as "always" (the
- * option Autocomplete exposes); Combobox's types only name the boolean. */
-const HIGHLIGHT_FIRST_ROW = "always" as unknown as boolean;
 const TABBABLE = 'button:not(:disabled):not([tabindex="-1"])';
 const NO_GROUPS: SearchGroup[] = [];
 const NO_OFFERS: LookupOffer[] = [];
@@ -155,17 +151,13 @@ export function InvestmentSearch({
   }
 
   return (
-    <Combobox<SearchOption>
-      // Rows are destinations, not a remembered value: a choice reports its
-      // subject id and leaves the typed query as it was.
-      value={null}
-      onValueChange={(option) => {
-        if (option) onSelect(option.row.id);
-      }}
-      inputValue={query}
-      onInputValueChange={(value, details) => {
-        // Base UI also writes the chosen row's label, and clears the field when
-        // the panel closes; only typing and Escape change the query.
+    // An autocomplete: the field's text is the value and rows are
+    // destinations, so a choice reports its subject id and keeps the query.
+    <Autocomplete<SearchOption>
+      value={query}
+      onValueChange={(value, details) => {
+        // Base UI also writes the chosen row's label into the field; only
+        // typing and Escape change the query.
         if (
           details.reason !== "input-change" &&
           details.reason !== "escape-key"
@@ -179,9 +171,12 @@ export function InvestmentSearch({
       }}
       open={open}
       onOpenChange={setOpen}
-      itemToStringLabel={(option) => option.row.ticker}
+      openOnInputClick
+      itemToStringValue={(option) => option.row.ticker}
       filter={null}
-      autoHighlight={HIGHLIGHT_FIRST_ROW}
+      // The first shown row is always highlighted, so Enter opens the row the
+      // user sees highlighted.
+      autoHighlight="always"
       // The rows the panel shows, in its order, so the highlight follows
       // arriving results.
       items={status === "ready" ? options : NO_OPTIONS}
@@ -277,10 +272,11 @@ export function InvestmentSearch({
               onFilter={setFilter}
               onRetry={() => void result.refetch()}
               onLookup={(offer) => void runLookup(offer)}
+              onChoose={(option) => onSelect(option.row.id)}
             />
           </ComboboxPopup>
         </ComboboxPositioner>
       </ComboboxPortal>
-    </Combobox>
+    </Autocomplete>
   );
 }

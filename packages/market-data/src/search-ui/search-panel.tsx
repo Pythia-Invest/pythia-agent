@@ -40,6 +40,8 @@ export type SearchPanelProps = {
   onFilter(value: TypeFilter): void;
   onRetry(): void;
   onLookup(offer: LookupOffer): void;
+  /** A row was chosen by pointer or Enter. */
+  onChoose(option: SearchOption): void;
 };
 
 /** Consecutive rows of one security form one ARIA group. */
@@ -81,7 +83,11 @@ export function SearchPanel(props: SearchPanelProps) {
         className="py-0"
       >
         {rows.map((option) => (
-          <SearchRowOption key={option.key} option={option} />
+          <SearchRowOption
+            key={option.key}
+            option={option}
+            onChoose={() => props.onChoose(option)}
+          />
         ))}
       </ComboboxGroup>
     );
