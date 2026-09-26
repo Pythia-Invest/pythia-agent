@@ -83,7 +83,7 @@ export function createTopBarRoutes(
           renderer: null,
           settings: {},
           issue:
-            "Custom top bar is unavailable. Using the default header; check desk/top-bar.json and the plugin's native availability.",
+            "The selected top bar is unavailable. Using the core header; check desk/top-bar.json and the plugin's native availability.",
         } satisfies TopBarSelection);
       }
     },

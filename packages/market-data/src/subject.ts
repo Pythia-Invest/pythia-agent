@@ -16,7 +16,11 @@ import { providerRefSchema } from "./widgets/contract";
 export const SUBJECT_PLUGIN = "pythia";
 
 const text = z.string().min(1);
-const optionalText = text.nullish();
+/** Absent, null and empty text all mean "not known". */
+const optionalText = z
+  .string()
+  .nullish()
+  .transform((value) => value || null);
 
 export const SECTION_STATUSES = [
   "ready",
@@ -67,7 +71,7 @@ export const subjectPageSchema = z.object({
     name: text,
     kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
   }),
-  identifiers: z.record(z.string(), z.string().nullish()).default({}),
+  identifiers: z.record(z.string(), optionalText).default({}),
   issuer: z
     .object({
       id: text,
@@ -93,7 +97,7 @@ const addressSchema = z
 export const profileSchema = z.object({
   name: optionalText,
   legal_name: optionalText,
-  identifiers: z.record(z.string(), z.string().nullish()).default({}),
+  identifiers: z.record(z.string(), optionalText).default({}),
   jurisdiction: optionalText,
   legal_address: addressSchema,
   headquarters: addressSchema,
