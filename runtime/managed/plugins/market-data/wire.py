@@ -144,6 +144,11 @@ def _semantics(kind, value, path):
             times = [datetime.fromisoformat(session[part][edge].replace('Z', '+00:00'))
                      for part, edge in [('extended', 'start'), ('regular', 'start'), ('regular', 'end'), ('extended', 'end')]]
             require(times[0] <= times[1] < times[2] <= times[3], path, "invalid session boundaries")
+            if "previous_regular" in session:
+                previous = [datetime.fromisoformat(session['previous_regular'][edge].replace('Z', '+00:00')) for edge in ('start', 'end')]
+                require(previous[0] < previous[1] <= times[0], path, "previous session must precede this session")
+        if "extended" in value:
+            require(Decimal(value['extended']['value']) > 0, path, "invalid extended price")
         if "reference_close" in value:
             require(Decimal(value['reference_close']['value']) > 0, path, "invalid reference close")
         if "top_of_book" in value:
