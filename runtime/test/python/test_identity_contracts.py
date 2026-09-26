@@ -306,6 +306,21 @@ class ResolutionTest(unittest.TestCase):
         self.assertIs(self.decide(self.verdict(), evidence=[self.figi("BBG000C1HT47"), stale]), outcome.CONFIRMED)
         self.assertIs(self.decide(self.verdict(), evidence=[stale]), outcome.BLOCKED)
 
+    def test_an_open_isin_outranks_a_stale_overlay_isin(self):
+        outcome = identity.VerdictOutcome
+        security = "security:isin:NL0010273215"
+        reference = identity.IdentifierAssertion(subject_id=security, scheme="isin", value="NL0010273215",
+                                                 authority="snapshot",
+                                                 provenance={**PROVENANCE, "plugin": "esma_firds", "source": "firds"})
+        stale = identity.IdentifierAssertion(subject_id=security, scheme="isin", value="NL0006034001",
+                                             authority="source_asserted", provenance=PROVENANCE)
+        claimed = [identity.IdentifierValue("isin", "NL0010273215")]
+        facts = {"claimed": claimed, "as_of": "2026-09-25", "record_kind": None, "subject_kind": None,
+                 "threshold": 0.95}
+        item = self.item("listing:provisional:eodhd:catalogue:ASML.AS", self.LISTING)
+        self.assertIs(identity.decide(self.verdict(), item, evidence=[reference, stale], **facts), outcome.CONFIRMED)
+        self.assertIs(identity.decide(self.verdict(), item, evidence=[stale], **facts), outcome.BLOCKED)
+
     def test_a_receipt_is_never_the_same_security_as_its_underlying(self):
         outcome = identity.VerdictOutcome
         item = self.item("composite:provisional:eodhd:catalogue:ADYEY.US", self.ADYEN)

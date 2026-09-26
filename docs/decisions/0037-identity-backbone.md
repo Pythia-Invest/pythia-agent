@@ -98,7 +98,9 @@ A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
    (`contradicts`): a valid T0 assertion for a single-valued scheme, at that
    scheme's own level on the subject or an ancestor, with a different value.
    Open reference evidence outranks a provider's identifier; a provider's value
-   vetoes only where no open evidence exists for that scheme.
+   vetoes only where no open evidence exists for that scheme. Reference-store
+   assertions carry authority `snapshot` and overlay (provider) assertions
+   carry `source_asserted`, so an open ISIN wins over a provider's stale one.
 2. The depositary-receipt guard overrides every verdict: a receipt and its
    share are never the same instrument.
 3. A verdict's relation must fit the chosen subject's level.
