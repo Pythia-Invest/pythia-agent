@@ -107,11 +107,12 @@ CREATE TABLE verdicts (
   input_digest TEXT,
   rule_id TEXT,
   rationale TEXT,
+  user_turn TEXT,                  -- the Desk user action behind a user_attested verdict; an agent cannot supply one
   outcome TEXT NOT NULL CHECK (outcome IN ('confirmed', 'suggested', 'blocked', 'ambiguous', 'no_match')),
   created_at TEXT NOT NULL,
   CHECK ((resolver = 'rules' AND authority = 'rule_confirmed' AND rule_id IS NOT NULL)
       OR (resolver IN ('agent', 'plugin') AND authority IN ('model_confirmed', 'model_suggested'))
-      OR (resolver = 'user' AND authority = 'user_attested')),
+      OR (resolver = 'user' AND authority = 'user_attested' AND user_turn IS NOT NULL)),
   CHECK (authority NOT IN ('model_confirmed', 'model_suggested')
       OR (confidence IS NOT NULL AND model IS NOT NULL AND prompt_version IS NOT NULL AND input_digest IS NOT NULL)),
   CHECK ((chosen_id IS NULL) = (relation IN ('none', 'ambiguous')))

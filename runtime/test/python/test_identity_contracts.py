@@ -292,7 +292,8 @@ class ResolutionTest(unittest.TestCase):
         self.assertIs(self.decide(self.verdict(), threshold=None), outcome.SUGGESTED)
         self.assertIs(self.decide(self.verdict(), claimed_figi="BBG000K6N6G7"), outcome.BLOCKED)
         user = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None, prompt_version=None,
-                            input_digest=None, provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
+                            input_digest=None, user_turn="desk:turn-1",
+                            provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
         self.assertIs(self.decide(user, threshold=None), outcome.CONFIRMED)
         self.assertIs(self.decide(user, claimed_figi="BBG000K6N6G7"), outcome.BLOCKED)
         other = self.verdict(relation="unrelated")

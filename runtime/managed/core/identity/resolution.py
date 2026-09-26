@@ -121,6 +121,7 @@ class Verdict:
     input_digest: str | None = None   # sha256:<hex> of exactly what the model saw
     rule_id: str | None = None        # required for rule_confirmed
     rationale: str | None = None
+    user_turn: str | None = None      # required for user_attested: the Desk user action that made it
 
     def __post_init__(self) -> None:
         _coerce(self, resolver=ResolverKind, authority=Authority, relation=VerdictRelation, provenance=Provenance)
@@ -142,6 +143,8 @@ class Verdict:
         _require(self.input_digest is None or bool(DIGEST.match(self.input_digest)), "verdict: input_digest is sha256:<hex>")
         _require((self.authority is Authority.RULE_CONFIRMED) == (self.rule_id is not None),
                  "verdict: rule_id is required exactly for rule confirmations")
+        _require((self.authority is Authority.USER_ATTESTED) == bool(self.user_turn),
+                 "verdict: user_turn is required exactly for user attestations")
         _require(self.rationale is None or len(self.rationale) <= 400, "verdict: rationale at most 400 characters")
 
 
