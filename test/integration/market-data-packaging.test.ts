@@ -127,10 +127,15 @@ platform_toolsets:
           .filter((name) => lstatSync(join(destination, String(name))).isFile())
           .sort(),
       ).toEqual([...files, PLUGIN_COPY_RECEIPT].sort());
+      // Buffer.equals, not toEqual: a deep equality walk over the compiled
+      // widget and runner bundles byte by byte exceeded the test timeout in CI.
       for (const file of files)
-        expect(readFileSync(join(destination, file))).toEqual(
-          readFileSync(join(paths.managedRoot, source, file)),
-        );
+        expect(
+          readFileSync(join(destination, file)).equals(
+            readFileSync(join(paths.managedRoot, source, file)),
+          ),
+          file,
+        ).toBe(true);
     }
     expect(readFileSync(join(paths.profileRoot, "config.yaml"), "utf8")).toBe(
       config,
