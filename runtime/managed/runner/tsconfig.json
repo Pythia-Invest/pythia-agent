@@ -8,5 +8,6 @@
     "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["provider-*.ts", "yahoo*.ts", "eodhd-*.ts"]
+  "include": ["**/*.ts"],
+  "exclude": ["dist"]
 }

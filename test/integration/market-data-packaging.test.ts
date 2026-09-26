@@ -13,18 +13,21 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { buildManagedWidgets } from "../../scripts/dev/build-managed-widgets.mjs";
 import { MANAGED_WIDGET_BUILDS } from "../../scripts/dev/managed-widget-builds.mjs";
 import {
   MANAGED_PLUGINS,
-  managedRunnerFiles,
-  managedWorkerFiles,
+  managedRunnerBuilds,
   refreshManagedPlugins,
 } from "../../scripts/dev/managed-plugins.mjs";
 import { PLUGIN_COPY_RECEIPT } from "../../scripts/dev/files.mjs";
 
 const repository = new URL("../../", import.meta.url).pathname;
+const runnerBuilds = managedRunnerBuilds(MANAGED_PLUGINS);
+// Compiled once per file into a private directory, so no other test shares
+// (or races on) the checkout's runner output.
+const runnerOutput = mkdtempSync(join(tmpdir(), "pythia-runner-dist-"));
 // Packaging consumes actual compiled release inputs, just like explicit runtime
 // preparation. Never rely on committed bundles or a previous contributor build.
 beforeAll(async () => {
@@ -32,9 +35,12 @@ beforeAll(async () => {
     join(repository, "node_modules/typescript/bin/tsc"),
     "--project",
     join(repository, "runtime/managed/runner/tsconfig.json"),
+    "--outDir",
+    runnerOutput,
   ]);
   await buildManagedWidgets(repository);
 }, 60_000);
+afterAll(() => rmSync(runnerOutput, { recursive: true, force: true }));
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0))
@@ -57,15 +63,18 @@ function fixture(profile = "fixture") {
       );
     }
   }
-  for (const { sources, compiled } of managedRunnerFiles(MANAGED_PLUGINS)) {
-    for (const file of [...sources, ...compiled]) {
-      const destination = join(managedRoot, "runner", file);
-      mkdirSync(dirname(destination), { recursive: true });
-      copyFileSync(
-        join(repository, "runtime/managed/runner", file),
-        destination,
-      );
-    }
+  const dist = "runtime/managed/runner/dist/";
+  for (const path of runnerBuilds.flatMap(({ entry, output }) =>
+    output ? [entry, output] : [entry],
+  )) {
+    const destination = join(managedRoot, path.replace("runtime/managed/", ""));
+    mkdirSync(dirname(destination), { recursive: true });
+    copyFileSync(
+      path.startsWith(dist)
+        ? join(runnerOutput, path.slice(dist.length))
+        : join(repository, path),
+      destination,
+    );
   }
   return {
     root,
@@ -151,17 +160,22 @@ platform_toolsets:
         commands.push(args);
       },
     });
-    const defaults = MANAGED_PLUGINS.filter(
-      (plugin) => plugin.install && plugin.enabledByDefault,
-    ).map((plugin) => plugin.name);
     expect(commands.map((args) => args[3])).toEqual([
       "doctor",
-      ...defaults.map(() => "enable"),
+      "enable",
+      "enable",
+      "enable",
+      "enable",
     ]);
     expect(
       commands.filter((args) => args[3] === "doctor").map((args) => args[4]),
     ).toEqual([join(paths.profileRoot, "plugins", "pythia")]);
-    expect(commands.slice(1).map((args) => args[4])).toEqual(defaults);
+    expect(commands.slice(1).map((args) => args[4])).toEqual([
+      "pythia",
+      "pythia-market-data",
+      "pythia-yahoo-discovery",
+      "pythia-eodhd",
+    ]);
     const failed: string[][] = [];
     expect(() =>
       refreshManagedPlugins(paths, "synthetic", {
@@ -218,43 +232,27 @@ platform_toolsets:
     expect(readFileSync(join(foreign, "keep"), "utf8")).toBe("untouched");
   });
 
-  it("requires compiled connector workers before any package is replaced", () => {
-    const paths = fixture();
-    const worker = MANAGED_PLUGINS.flatMap(
-      (plugin) => managedWorkerFiles(plugin).compiled,
-    )[0];
-    if (!worker) throw Error("Missing managed connector worker.");
-    rmSync(join(paths.managedRoot, "runner", worker));
-    const commands: string[][] = [];
-    expect(() =>
-      refreshManagedPlugins(paths, "synthetic", {
-        execute: (_paths: unknown, args: string[]) => {
-          commands.push(args);
-        },
-      }),
-    ).toThrow();
-    expect(commands).toEqual([]);
-    expect(existsSync(join(paths.profileRoot, "plugins"))).toBe(false);
-  });
-
-  it("requires explicit widget compilation before any package is replaced", () => {
-    const paths = fixture();
-    const artifact = MANAGED_WIDGET_BUILDS[0];
-    if (!artifact) throw Error("Missing managed widget build input.");
-    rmSync(
-      join(paths.managedRoot, artifact.output.replace("runtime/managed/", "")),
-    );
-    const commands: string[][] = [];
-    expect(() =>
-      refreshManagedPlugins(paths, "synthetic", {
-        execute: (_paths: unknown, args: string[]) => {
-          commands.push(args);
-        },
-      }),
-    ).toThrow();
-    expect(commands).toEqual([]);
-    expect(existsSync(join(paths.profileRoot, "plugins"))).toBe(false);
-  });
+  it.each([
+    ["widget", MANAGED_WIDGET_BUILDS[0]?.output],
+    ["connector worker", runnerBuilds.find(({ output }) => output)?.output],
+  ])(
+    "requires explicit %s compilation before any package is replaced",
+    (_kind, output) => {
+      if (!output) throw Error("Missing managed build output.");
+      const paths = fixture();
+      rmSync(join(paths.managedRoot, output.replace("runtime/managed/", "")));
+      const commands: string[][] = [];
+      expect(() =>
+        refreshManagedPlugins(paths, "synthetic", {
+          execute: (_paths: unknown, args: string[]) => {
+            commands.push(args);
+          },
+        }),
+      ).toThrow();
+      expect(commands).toEqual([]);
+      expect(existsSync(join(paths.profileRoot, "plugins"))).toBe(false);
+    },
+  );
 
   it("installs optional payloads without enabling them and leaves omitted/community plugins alone", () => {
     const paths = fixture();
@@ -294,11 +292,12 @@ platform_toolsets:
     );
     expect(
       commands.filter((args) => args[3] === "enable").map((args) => args[4]),
-    ).toEqual(
-      payloads
-        .filter((plugin) => plugin.install && plugin.enabledByDefault)
-        .map((plugin) => plugin.name),
-    );
+    ).toEqual([
+      "pythia",
+      "pythia-market-data",
+      "pythia-yahoo-discovery",
+      "pythia-eodhd",
+    ]);
     expect(readFileSync(join(community, "plugin.yaml"), "utf8")).toBe(
       "name: community\n",
     );

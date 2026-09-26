@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
-  copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -34,10 +33,6 @@ import {
 import { recoverDevelopmentInitialization } from "../../scripts/dev/supervisor.mjs";
 import { copySourceSnapshot } from "../../tooling/source-snapshot.mjs";
 import { buildManagedWidgets } from "../../scripts/dev/build-managed-widgets.mjs";
-import {
-  MANAGED_PLUGINS,
-  managedRunnerFiles,
-} from "../../scripts/dev/managed-plugins.mjs";
 
 const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
   /\/$/u,
@@ -131,25 +126,16 @@ printf '%s\\n' "$*" >> '${commandLog}'
     // preparation must finish before copied-source validation or refresh.
     await buildManagedWidgets(paths.repositoryRoot);
     // Connector workers come from the same explicit preparation step. The
-    // snapshot has no dependencies to compile against, so reuse this checkout's.
+    // snapshot has no dependencies to compile against, so this checkout's
+    // compiler builds the identical runner sources straight into the snapshot
+    // (never the shared checkout output). It takes seconds, hence the timeout.
     execFileSync(process.execPath, [
       join(repositoryRoot, "node_modules/typescript/bin/tsc"),
       "--project",
       join(repositoryRoot, "runtime/managed/runner/tsconfig.json"),
+      "--outDir",
+      join(paths.repositoryRoot, "runtime/managed/runner/dist"),
     ]);
-    for (const { compiled } of managedRunnerFiles(MANAGED_PLUGINS))
-      for (const file of compiled) {
-        const destination = join(
-          paths.repositoryRoot,
-          "runtime/managed/runner",
-          file,
-        );
-        mkdirSync(dirname(destination), { recursive: true });
-        copyFileSync(
-          join(repositoryRoot, "runtime/managed/runner", file),
-          destination,
-        );
-      }
     await refreshRuntimeAssets(
       { ...paths, managedCore },
       "safe-local-key-value",
@@ -172,7 +158,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
         )
         .join("\n"),
     );
-  });
+  }, 60_000);
 
   it("recreates a tampered Hermes source cache from the verified archive", async () => {
     const root = temporaryRoot();

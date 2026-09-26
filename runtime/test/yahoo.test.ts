@@ -190,19 +190,26 @@ test("Yahoo batched quotes retain missing members and reject alien identities", 
     },
   ]);
   const request = {
-    operation: "dashboard",
-    arguments: { kind: "quotes", symbols: ["ONE", "TWO"] },
+    operation: "quote_bundle",
+    arguments: { symbols: ["ONE", "TWO"] },
   };
   const sdk = { quote } as unknown as Client;
   const result = await execute(request, sdk);
+  expect(quote).toHaveBeenCalledTimes(1);
   expect(result.data).toMatchObject({
-    quotes: [
-      { symbol: "ONE", price: 10, metadata: { delay: 15 } },
-      { symbol: "TWO", price: null },
-    ],
+    common: { ONE: { metadata: { symbol: "ONE", delay: 15 } } },
+    display: {
+      quotes: [
+        { symbol: "ONE", price: 10, metadata: { delay: 15 } },
+        { symbol: "TWO", price: null },
+      ],
+    },
   });
+  expect(result.data).not.toHaveProperty("common.TWO");
   // Old extended fields can remain present during REGULAR; do not surface them.
-  expect(result.data).toMatchObject({ quotes: [{ extended: null }, {}] });
+  expect(result.data).toMatchObject({
+    display: { quotes: [{ extended: null }, {}] },
+  });
   const pre = await execute(request, {
     quote: async () => [
       {
@@ -217,17 +224,19 @@ test("Yahoo batched quotes retain missing members and reject alien identities", 
     ],
   } as unknown as Client);
   expect(pre.data).toMatchObject({
-    quotes: [
-      {
-        price: 10,
-        extended: {
-          session: "pre",
-          price: 11,
-          timestamp: Date.parse("2026-01-03T08:00:00Z") / 1000,
+    display: {
+      quotes: [
+        {
+          price: 10,
+          extended: {
+            session: "pre",
+            price: 11,
+            timestamp: Date.parse("2026-01-03T08:00:00Z") / 1000,
+          },
         },
-      },
-      {},
-    ],
+        {},
+      ],
+    },
   });
   quote.mockResolvedValueOnce([
     {
@@ -247,10 +256,7 @@ test.each(["POSTPOST", "CLOSED", "PREPRE"])(
   "Yahoo retains the completed post quote in %s",
   async (marketState) => {
     const result = await execute(
-      {
-        operation: "dashboard",
-        arguments: { kind: "quotes", symbols: ["ONE"] },
-      },
+      { operation: "quote_bundle", arguments: { symbols: ["ONE"] } },
       {
         quote: async () => [
           {
@@ -266,18 +272,20 @@ test.each(["POSTPOST", "CLOSED", "PREPRE"])(
       } as unknown as Client,
     );
     expect(result.data).toMatchObject({
-      quotes: [
-        {
-          price: 100,
-          extended: {
-            session: "post",
-            price: 103,
-            change: 3,
-            percent: 3,
-            timestamp: Date.parse("2026-09-16T23:59:00Z") / 1000,
+      display: {
+        quotes: [
+          {
+            price: 100,
+            extended: {
+              session: "post",
+              price: 103,
+              change: 3,
+              percent: 3,
+              timestamp: Date.parse("2026-09-16T23:59:00Z") / 1000,
+            },
           },
-        },
-      ],
+        ],
+      },
     });
   },
 );
@@ -361,6 +369,8 @@ test("Yahoo has no free-text search; ISIN resolve returns listing rows only", as
         quoteType: "EQUITY",
         longname: "Synthetic N.V.",
       },
+      { isYahooFinance: true, symbol: "SYNTH.AS", exchange: "AMS" },
+      { isYahooFinance: true, symbol: "not a symbol", exchange: "SYN" },
       { isYahooFinance: false, name: "Synthetic startup" },
     ],
     news: [{ title: "Synthetic headline" }],
@@ -393,4 +403,46 @@ test("Yahoo has no free-text search; ISIN resolve returns listing rows only", as
     },
   });
   expect(JSON.stringify(result)).not.toContain("Synthetic");
+});
+test("Yahoo news is keyed by a validated symbol and keeps only items tagged with it", async () => {
+  const search = vi.fn(async () => ({
+    quotes: [{ isYahooFinance: true, symbol: "OTHER" }],
+    news: [
+      {
+        uuid: "one",
+        title: "Tagged",
+        publisher: "Synthetic Wire",
+        link: "https://example.test/one",
+        providerPublishTime: new Date("2026-01-02T12:00:00Z"),
+        type: "STORY",
+        relatedTickers: ["SYNTH", "OTHER"],
+      },
+      { uuid: "two", title: "Untagged", relatedTickers: ["OTHER"] },
+      { uuid: "three", title: "No tickers" },
+    ],
+  }));
+  const sdk = { search } as unknown as Client;
+  for (const args of [
+    { symbol: "free text" },
+    { symbol: "SYNTH", options: { count: 21 } },
+    { symbol: "SYNTH", options: { quotesCount: 5 } },
+  ])
+    expect(
+      await execute({ operation: "news", arguments: args }, sdk),
+    ).toMatchObject({ data: null, issues: ["invalid_request"] });
+  expect(search).not.toHaveBeenCalled();
+  const result = await execute(
+    { operation: "news", arguments: { symbol: "SYNTH" } },
+    sdk,
+  );
+  expect(search).toHaveBeenCalledWith(
+    "SYNTH",
+    expect.objectContaining({ quotesCount: 0, newsCount: 10 }),
+  );
+  expect(result.data).toMatchObject({
+    source: "yahoo.news",
+    result: { symbol: "SYNTH", news: [{ uuid: "one", title: "Tagged" }] },
+  });
+  expect(JSON.stringify(result)).not.toContain("Untagged");
+  expect(result.data).not.toHaveProperty("result.quotes");
 });

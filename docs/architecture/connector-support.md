@@ -111,10 +111,11 @@ per-item partial failures, cache exclusion, safe logging and resident process
 reuse/cleanup. The copied native HTTP qualification checks auth/profile/access,
 shared tool/HTTP lifetime and responsiveness without model or CLI subprocesses.
 
-Concrete connectors such as [EODHD](eodhd.md) use these helpers. Synthetic
-qualification makes no live-provider, browser, broker, paid-stream or
-production-service claim. Provider
-PRs must exercise registered tools, real worker admission sizes and actual response
+Connector packages carry their own evidence; the bundled Yahoo connector is
+tested with synthetic Yahoo-shaped values and [EODHD](eodhd.md) with synthetic
+EODHD-shaped values. This document makes no live-provider,
+browser, broker, paid-stream or production-service claim. Provider PRs must
+exercise registered tools, real worker admission sizes and actual response
 layouts with synthetic fixtures, then qualify live behavior separately when
 explicitly authorized. A passing helper test cannot establish a connector's units,
 coverage, entitlements or API billing. Local counters cannot enforce account-wide
