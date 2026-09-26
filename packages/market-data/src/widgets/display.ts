@@ -103,7 +103,7 @@ function path(
             label: `Previous close · ${close.provider_ref.provider} · ${close.dataset}`,
           },
         }
-      : !sessionEvidence
+      : !session
         ? {
             baseline: {
               value: first.value,
@@ -119,6 +119,11 @@ function path(
     ...(Number.isFinite(intervalMs) && intervalMs > 0 ? { intervalMs } : {}),
   };
 }
+export {
+  number as decimalNumber,
+  field as seriesField,
+  semantics as seriesSemantics,
+};
 /** One financial-contract adapter for every standard instrument renderer. No
  * provider names, source request formats or cross-provider matching rules. */
 export function financialInstrument(
