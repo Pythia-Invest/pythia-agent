@@ -288,6 +288,12 @@ class Relation:
         _require(self.from_id != self.to_id, "relation: endpoints must be distinct subjects")
         check_relation(self.type, subject_level(self.from_id), subject_level(self.to_id), self.ratio)
 
+    @property
+    def evidence_id(self) -> str:
+        return evidence_id({"kind": "relation", "type": self.type, "from_id": self.from_id, "to_id": self.to_id,
+                            "from": self.validity.valid_from, "source": self.provenance.source,
+                            "record": self.provenance.source_record})
+
 
 def check_relation(type: RelationType, from_level: Level, to_level: Level, ratio: str | None) -> None:
     """Level and ratio rules shared by stored relations and relation claims."""

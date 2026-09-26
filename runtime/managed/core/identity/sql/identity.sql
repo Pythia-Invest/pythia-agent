@@ -36,11 +36,16 @@ CREATE TABLE relations (
   source TEXT NOT NULL,
   plugin TEXT NOT NULL,
   retrieved_at TEXT NOT NULL,
-  CHECK (from_id <> to_id)
+  CHECK (from_id <> to_id),
+  CHECK (type = 'successor_of' OR (from_id LIKE 'security:%' AND to_id LIKE 'security:%')),
+  CHECK (ratio IS NULL OR type = 'depositary_receipt_of'),
+  CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to)
 );
 
 -- One current binding per provider reference. The market-data read pipeline
 -- keeps addressing by provider_ref; the backbone supplies which subject it is.
+-- Uniqueness excludes plugin: two clones of one provider cannot both bind the
+-- same reference.
 CREATE TABLE bindings (
   id TEXT PRIMARY KEY,
   plugin TEXT NOT NULL,            -- whose claim made it

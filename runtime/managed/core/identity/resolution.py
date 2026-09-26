@@ -31,7 +31,7 @@ class QueueReason(StrEnum):
     IDENTIFIER = "identifier"                        # conflict: one key claimed by two subjects, or two values
     BINDING = "binding"                              # conflict: new evidence contradicts a binding
     RELATION = "relation"                            # conflict: a typed edge contradicts identifiers
-    GUARD = "guard"                                  # conflict: a verdict or rule tripped a DR/share-class guard
+    GUARD = "guard"                                  # conflict: a verdict or rule tripped the depositary-receipt guard
 
 
 REASONS = {

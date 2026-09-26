@@ -96,8 +96,7 @@ def load_reference(db, fixture):
     for row in fixture.get("relations", []):
         relation = model.Relation(**row)
         insert(db, "relations", {
-            "evidence_id": model.evidence_id({"kind": "relation", "type": relation.type, "from": relation.from_id,
-                                              "to": relation.to_id, "source": relation.provenance.source}),
+            "evidence_id": relation.evidence_id,
             "type": relation.type.value, "from_id": relation.from_id, "to_id": relation.to_id, "ratio": relation.ratio,
             "authority": relation.authority.value, "source": relation.provenance.source,
             "plugin": relation.provenance.plugin, "adapter_version": relation.provenance.adapter_version,
