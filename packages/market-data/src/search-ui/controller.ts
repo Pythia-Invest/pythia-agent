@@ -10,7 +10,8 @@ import {
 } from "../search";
 import { TYPE_FILTERS, type TypeFilter } from "./search-model";
 
-export const SEARCH_PLUGIN = "pythia-market-data";
+/** Core serves the local directory search. */
+export const SEARCH_PLUGIN = "pythia";
 /** Feature cache keys start with the native plugin id so Desk can withdraw
  * retained results when the feature's access changes (ADR 0036). */
 export const searchQueryKey = ["plugin", SEARCH_PLUGIN, "search"] as const;
@@ -58,18 +59,17 @@ const envelopeSchema = z.object({
   data: z.unknown().optional(),
 });
 
-/** Provisional read-only binding of the core directory search until the
- * directory-search backend defines its export. It never names the feature's
- * provider `search` action, so no connector is reached from the typing path;
- * until the export exists the panel shows its unavailable state. */
+/** Read-only binding of the core directory search (`pythia`/`identity-search`).
+ * It never names a provider `search` action, so no connector is reached from
+ * the typing path; a denied or missing export shows the unavailable state. */
 export function transportSearch(transport: PluginTransport): SearchBackend {
   return async (request, signal) => {
     const envelope = envelopeSchema.parse(
       await transport.read(
         {
           plugin: SEARCH_PLUGIN,
-          operation: "query",
-          arguments: { action: "directory_search", ...request },
+          operation: "identity-search",
+          arguments: { ...request },
         },
         signal,
       ),

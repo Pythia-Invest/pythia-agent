@@ -53,6 +53,7 @@ async function until(check: () => void) {
 let root: Root;
 let host: HTMLElement;
 const selected: string[] = [];
+const highlighted: string[] = [];
 
 function Harness({ search }: { search: SearchBackend }) {
   const [client] = useState(() => new QueryClient());
@@ -64,6 +65,7 @@ function Harness({ search }: { search: SearchBackend }) {
         onQueryChange={setQuery}
         search={search}
         onSelect={(id) => selected.push(id)}
+        onHighlight={(id) => highlighted.push(id)}
         shortcut={false}
       />
     </QueryClientProvider>
@@ -105,6 +107,7 @@ async function press(key: string) {
 
 beforeEach(async () => {
   selected.length = 0;
+  highlighted.length = 0;
   host = document.body.appendChild(document.createElement("div"));
   root = createRoot(host);
 });
@@ -130,6 +133,8 @@ describe("investment search", () => {
           ?.getAttribute("aria-label"),
       ).toMatch(/^ASML,/),
     );
+    // The host can prepare the highlighted row's page before the choice.
+    expect(highlighted.at(-1)).toBe("listing:ASML");
 
     await press("Enter");
     expect(selected).toEqual(["listing:ASML"]);

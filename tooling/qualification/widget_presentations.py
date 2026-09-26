@@ -13,7 +13,7 @@ async def qualify_widget_presentations(post, disable, root):
     metadata = result['data']
     assert metadata['version'] == 1
     assert {row['id'] for row in metadata['widgets']} == {
-        'instrument-tile', 'instrument-compact-tile', 'instrument-table', 'top-bar'}
+        'instrument-tile', 'instrument-compact-tile', 'instrument-table', 'instrument-panel', 'top-bar'}
     for descriptor in metadata['widgets']:
         top_bar = descriptor['id'] == 'top-bar'
         assert descriptor['input_contract'] == ('pythia.desk-topbar.v1' if top_bar else 'pythia.instrument-read.v1')
