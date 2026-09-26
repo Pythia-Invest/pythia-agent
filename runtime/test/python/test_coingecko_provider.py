@@ -254,7 +254,8 @@ class Access(unittest.TestCase):
             self.assertEqual([len(page['data']['rows']) for page in pages], [2, 1])
             self.assertEqual(len(calls), 1, 'pages share one cached source snapshot')
             self.assertEqual((calls[0][0]['mode'], calls[0][0]['token']), ('keyless', None))
-            self.assertEqual(calls[0][1]['output_limit'], 8_000_000)
+            # The packed live list (~4 MB) exceeds the default 2 MB worker bound.
+            self.assertGreater(calls[0][1]['output_limit'], 4_000_000)
         manifest = (ROOT / 'plugins/coingecko/plugin.yaml').read_text()
         self.assertEqual({line.strip()[2:] for line in manifest.splitlines() if line.strip().startswith('- pythia_coingecko_')},
                          set(provider.TOOLS.values()))
