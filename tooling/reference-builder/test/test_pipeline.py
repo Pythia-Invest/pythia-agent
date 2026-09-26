@@ -55,6 +55,7 @@ SEC = sec_json([
     (937966, "ASML HOLDING NV", "ASMLF", "OTC"),
     (918541, "NN INC", "NNBR", "Nasdaq"),
     (1306965, "Shell plc", "SHEL", "NYSE"),
+    (1000001, "Example Listed Trust", "EXLT", "CBOE"),
 ])
 OPENFIGI = {
     ("ID_ISIN", ASML_ISIN, "XAMS"): [figi_row("ASML", "NA", "BBGASMLNA001", "BBGASMLSC001")],
@@ -67,6 +68,7 @@ OPENFIGI = {
     ("TICKER", "ASMLF", "US"): [figi_row("ASMLF", "US", "BBGASMLOT001", "BBGASMLSC001")],
     ("TICKER", "NNBR", "US"): [figi_row("NNBR", "US", "BBGNNBR00001", "BBGNNBRSC001")],
     ("TICKER", "SHEL", "US"): [figi_row("SHEL", "US", "BBGSHELUS001", "BBGSHELADR01", sec_type2="Depositary Receipt")],
+    ("TICKER", "EXLT", "US"): [figi_row("EXLT", "US", "BBGEXLTUS001", "BBGEXLTSC001")],
 }
 
 
@@ -106,6 +108,10 @@ class PipelineTest(unittest.TestCase):
         self.assertIsNone(self.snap.issuers[f"lei:{NN_LEI}"].cik)
         self.assertEqual(self.snap.listings["XNAS:NNBR"].issuer_id, "cik:918541")
 
+    def test_sec_cboe_line_sits_on_cboe_operating_mic_as_a_listed_primary(self):
+        line = self.snap.listings["XCBO:EXLT"]
+        self.assertEqual((line.mic, line.operating_mic, line.is_primary), ("XCBO", "XCBO", True))
+
     def test_uk_issuer_gets_its_home_line_as_primary(self):
         shell = self.snap.securities[f"isin:{SHELL_ISIN}"]
         self.assertEqual((shell.primary_mic, shell.primary_rule), ("XLON", "home_listing_evidence"))
@@ -128,7 +134,7 @@ class PipelineTest(unittest.TestCase):
                 cik_rule = db.execute("select rule_id from identifiers where scheme='cik' and subject_id=?", (f"lei:{ASML_LEI}",)).fetchone()[0]
                 provenance = {row[0]: row[1] for row in db.execute("select source, licence from sources")}
             self.assertEqual(counts["listings"], len(self.snap.listings))
-            self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM"})
+            self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM", "XCBO"})
             self.assertEqual(cik_rule, "share_class_figi")
             self.assertEqual(provenance, {"esma_firds": "x", "openfigi": "y"})
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest

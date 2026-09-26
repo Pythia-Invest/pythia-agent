@@ -13,9 +13,10 @@ from .model import SecTicker
 SEC_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 
 # SEC exchange labels to operating MICs. "NYSE" also covers NYSE American and
-# NYSE Arca listings in this file, so XNYS is recorded with that caveat.
-EXCHANGE_MIC = {"Nasdaq": "XNAS", "NYSE": "XNYS", "CBOE": "BATS", "OTC": "OTCM"}
-LISTED_MICS = frozenset({"XNAS", "XNYS", "BATS"})
+# NYSE Arca listings in this file, so XNYS is recorded with that caveat. "CBOE"
+# does not name the Cboe exchange, so it maps to Cboe's operating MIC, not a segment.
+EXCHANGE_MIC = {"Nasdaq": "XNAS", "NYSE": "XNYS", "CBOE": "XCBO", "OTC": "OTCM"}
+LISTED_MICS = frozenset({"XNAS", "XNYS", "XCBO"})
 
 
 def fetch(downloader: Downloader, contact: str | None, local: Path | None, max_age: timedelta) -> bytes:
