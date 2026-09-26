@@ -4,6 +4,7 @@ import { KIND_LABELS } from "@pythia/market-data/search-ui";
 import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
 import { Menu, Skeleton } from "@pythia/ui";
 import { Check, ChevronDown } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { instrumentHref } from "./instrument-href";
 import { listingGroups, listingLabel } from "./listing-groups";
 
@@ -101,7 +102,12 @@ function ListingSelector({
   page: SubjectPage;
   subjectId: string;
 }) {
-  const current = currentListing(page);
+  // The URL's listing is the choice at once; the composition that follows
+  // it may still be loading.
+  const requested = useSearchParams().get("listing");
+  const current =
+    page.listings.find((listing) => listing.id === requested) ??
+    currentListing(page);
   const ids = page.identifiers;
   const label = current
     ? listingLabel(current)
@@ -148,6 +154,7 @@ function ListingSelector({
                     <Menu.RadioItem
                       key={listing.id}
                       value={listing.id}
+                      closeOnClick
                       data-slot="instrument-listing-option"
                       className="min-h-9 gap-3 py-1.5 text-xs"
                     >

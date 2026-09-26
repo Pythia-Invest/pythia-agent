@@ -186,6 +186,8 @@ test("a chosen subject opens its page; cards load and fail independently", async
     page.getByRole("menuitemradio", { checked: true }),
   ).toContainText("SYN");
   await other.click();
+  // A pick closes the menu and names the new listing at once.
+  await expect(page.getByRole("menuitemradio")).toHaveCount(0);
   await expect(page).toHaveURL(
     new RegExp(
       `/instrument/${encodeURIComponent(primary)}\\?listing=${encodeURIComponent(secondary)}$`,
@@ -322,4 +324,24 @@ test("busy native admission (429) is retried instead of shown", async ({
   );
   await expect(page.getByText("Requests are busy")).toHaveCount(0);
   expect(busy.size).toBe(0);
+});
+
+test("a listing that is not this instrument's falls back to the page's subject", async ({
+  page,
+}) => {
+  await routeIdentity(page);
+  const asked: string[] = [];
+  page.on("request", (request) => {
+    if (!request.url().endsWith("/api/data/read")) return;
+    const body = request.postDataJSON();
+    if (body?.operation === "identity-subject")
+      asked.push(body.arguments.subject_id);
+  });
+  await page.goto(
+    `/instrument/${encodeURIComponent(primary)}?listing=${encodeURIComponent("listing:other:instrument")}`,
+  );
+  await expect(
+    page.getByRole("button", { name: /^Listing: SYN · Euronext Amsterdam/ }),
+  ).toBeVisible();
+  expect(asked).not.toContain("listing:other:instrument");
 });

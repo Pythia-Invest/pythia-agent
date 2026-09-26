@@ -155,7 +155,11 @@ export function SearchPanel(props: SearchPanelProps) {
               </span>
               <span className="text-foreground-secondary">
                 {" "}
-                · {side.row.listings + 1} listings
+                ·{" "}
+                {side.status === "ready"
+                  ? side.options.length
+                  : side.row.listings + 1}{" "}
+                listings
               </span>
             </p>
           </div>

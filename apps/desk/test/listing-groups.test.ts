@@ -47,9 +47,9 @@ describe("instrument listing groups", () => {
     ]);
   });
 
-  it("keeps the primary line at home and falls back to its country", () => {
-    // A company listed away from its home country (core: home=false) still
-    // opens on its primary line; without core's flag, country decides.
+  it("keeps the primary line at home even away from the issuer's country", () => {
+    // Shell's primary line is in Amsterdam while the issuer is British
+    // (core: home=false); it still leads the selector.
     expect(
       groups([
         line("shell", { primary: true, home: false, country: "NL" }),
@@ -58,16 +58,6 @@ describe("instrument listing groups", () => {
     ).toEqual([
       ["home", ["shell"]],
       ["otc", ["shel"]],
-    ]);
-    expect(
-      groups([
-        line("a", { primary: true, country: "DE", home: undefined }),
-        line("b", { country: "DE", home: undefined }),
-        line("c", { country: "FR", home: undefined }),
-      ]),
-    ).toEqual([
-      ["home", ["a", "b"]],
-      ["exchanges", ["c"]],
     ]);
   });
 

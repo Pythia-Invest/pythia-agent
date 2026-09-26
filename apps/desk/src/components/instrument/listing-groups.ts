@@ -13,28 +13,24 @@ function offExchange(listing: SubjectListing) {
 }
 
 /**
- * An instrument's listings for the page's selector: the home market, other
- * exchanges, then OTC lines and receipts. Home is core's `home` flag (a venue
- * in the issuer's country); without it, the primary listing's country. Supplied
- * order is kept within each group; empty groups are left out.
+ * An instrument's listings for the page's selector: the home market (core's
+ * `home` flag, a venue in the issuer's country, and always the primary line),
+ * other exchanges, then OTC lines and receipts. Supplied order is kept within
+ * each group; empty groups are left out.
  */
 export function listingGroups(
   listings: readonly SubjectListing[],
 ): ListingGroup[] {
   const primary = listings.find((listing) => listing.primary) ?? listings[0];
-  const home = primary?.country ?? null;
   const groups: ListingGroup[] = [
     { key: "home", label: "Home market", listings: [] },
     { key: "exchanges", label: "Other exchanges", listings: [] },
     { key: "otc", label: "OTC & ADRs", listings: [] },
   ];
   for (const listing of listings) {
-    const atHome =
-      listing.home ??
-      (listing === primary || (home !== null && listing.country === home));
     const group = offExchange(listing)
       ? groups[2]
-      : atHome || listing === primary
+      : listing.home === true || listing === primary
         ? groups[0]
         : groups[1];
     group?.listings.push(listing);
