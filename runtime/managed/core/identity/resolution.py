@@ -104,6 +104,14 @@ class QueueItem:
         _require(bool(self.plugins) and all(NAMESPACE.match(plugin) for plugin in self.plugins),
                  "queue item: plugins names the claiming plugins")
 
+    @property
+    def key(self) -> str:
+        """Dedupe key: at most one open item per question, however often ingest re-asks it."""
+        ref = self.provider_ref
+        parts = (self.kind, self.reason, ",".join(sorted(self.subject_ids)), self.scheme or "",
+                 f"{ref.provider}.{ref.native_scope}:{ref.native_id}" if ref else "")
+        return "|".join(parts)
+
 
 @dataclass(frozen=True, slots=True)
 class Verdict:

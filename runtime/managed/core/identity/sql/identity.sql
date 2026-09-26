@@ -72,6 +72,7 @@ CREATE INDEX bindings_subject ON bindings (subject_id, status);
 -- drains it: built-in rules, the Hermes agent, a resolver plugin, or the user.
 CREATE TABLE queue (
   id TEXT PRIMARY KEY,
+  key TEXT NOT NULL,               -- QueueItem.key: kind|reason|subjects|scheme|provider ref
   kind TEXT NOT NULL CHECK (kind IN ('residual', 'conflict')),
   reason TEXT NOT NULL,
   subject_ids TEXT NOT NULL,
@@ -90,6 +91,7 @@ CREATE TABLE queue (
       OR (kind = 'conflict' AND reason IN ('identifier', 'binding', 'relation', 'guard')))
 );
 CREATE INDEX queue_open ON queue (state, opened_at);
+CREATE UNIQUE INDEX queue_open_key ON queue (key) WHERE state = 'open';
 
 -- Every verdict any resolver submitted, with the outcome the authority rule gave it.
 CREATE TABLE verdicts (
