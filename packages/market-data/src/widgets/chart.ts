@@ -57,7 +57,7 @@ const WORDS: Record<ChartPeriod, string> = {
   YTD: "Year to date",
   "1Y": "Past year",
   "5Y": "Past 5 years",
-  MAX: "All available history",
+  MAX: "Longest available history",
 };
 
 /** The page chart reads one listing through its explicit source address. */
@@ -161,16 +161,15 @@ export function chartPlan(list: readonly Series[], now: number) {
     : undefined;
   const reads = new Map<ChartPeriod, PlannedRead>();
   const unavailable = new Map<ChartPeriod, string>();
-  const source = list[0]?.provider_ref.provider ?? "This source";
   for (const period of CHART_PERIODS) {
     if (period === "1D" || period === "5D") {
       if (intraday)
         reads.set(period, { series: intraday, days: 5, role: "intraday" });
-      else unavailable.set(period, `${source} declares no intraday bars.`);
+      else unavailable.set(period, "The source declares no intraday bars.");
       continue;
     }
     if (!daily || !year) {
-      unavailable.set(period, `${source} declares no daily history.`);
+      unavailable.set(period, "The source declares no daily history.");
       continue;
     }
     const start = periodStart(period, now);
@@ -188,7 +187,7 @@ export function chartPlan(list: readonly Series[], now: number) {
     else
       unavailable.set(
         period,
-        `${source} provides at most ${longest} days of daily history.`,
+        `The source provides at most ${longest} days of daily history.`,
       );
   }
   return { reads, unavailable, year };
@@ -442,7 +441,7 @@ function periodPath(
         start: start ?? first.time,
         end: Math.max(today, last.time),
       },
-      dates: true,
+      dates: series.time_anchor === "session_date",
       baseline: {
         value: first.value,
         label: `First close in this period (${day(first.time)})`,
@@ -462,7 +461,10 @@ function periodChange(
   return {
     absolute: last - base,
     percent: ((last - base) / base) * 100,
-    label: WORDS[period],
+    label:
+      period === "MAX"
+        ? `Since ${new Date(path.points[0]?.time ?? 0).toISOString().slice(0, 10)}`
+        : WORDS[period],
     basis: `Chart change from the ${path.baseline.label.toLowerCase()} to the latest chart observation`,
   };
 }
