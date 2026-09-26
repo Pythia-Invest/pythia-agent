@@ -96,6 +96,16 @@ def directory_matches(raw, observed_at, symbol, mic=None):
                    and (mic is None or line.get('venue', {}).get('operating_mic') == mic) for line in lines)]
 
 
+def claims(records):
+    """A resolve answer in core's ClaimBatch wire form (ADR 0038): one issuer claim per SEC filer record."""
+    return {'plugin': 'pythia-sec', 'provider': 'sec', 'adapter_version': '1', 'origin': 'resolve', 'claims': [
+        {'level': 'issuer', 'identifiers': [{'scheme': 'cik', 'value': record['native_ref']['native_id']}],
+         'native_ref': record['native_ref'], 'attributes': {'name': record['name']},
+         'provenance': {'plugin': 'pythia-sec', 'source': 'sec', 'adapter_version': '1',
+                        'retrieved_at': record['observed_at'], 'source_record': record['source_url']}}
+        for record in records]}
+
+
 def _date(value):
     if not isinstance(value, str) or not re.match(r'\d{4}-\d{2}-\d{2}', value):
         return None

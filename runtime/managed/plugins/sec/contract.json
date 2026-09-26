@@ -24,10 +24,12 @@
   "resolve": {
     "tool": "pythia_sec_resolve",
     "input_schemes": [
-      "cik"
+      "cik",
+      "ticker_mic"
     ],
     "echoes": [
-      "cik"
+      "cik",
+      "ticker_mic"
     ]
   }
 }

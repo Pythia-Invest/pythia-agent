@@ -103,13 +103,15 @@ def filings(raw, identifier, observed_at, limit=20):
             raise ValueError('invalid_response')
         row = {'accession': accession, 'form': form,
                'filed_at': checked_date(recent['filingDate'][index]), 'title': filing_title(form),
-               'url': filing_url(identifier, accession, recent['primaryDocument'][index] or None)}
+               'url': filing_url(identifier, accession, recent['primaryDocument'][index] or None),
+               'period_end': None, 'language': None}
         report_dates = recent.get('reportDate', [])
         if index < len(report_dates) and report_dates[index]:
             row['period_end'] = checked_date(report_dates[index])
         rows.append(row)
     return {'dataset': 'filings', 'provider': 'sec', 'provider_ref': reference(identifier),
             'observed_at': observed_at, 'source_url': submissions_url(identifier), 'filings': rows,
+            'source': {'label': 'SEC EDGAR', 'url': 'https://www.sec.gov/edgar/browse/?CIK=' + identifier},
             'coverage': {'scope': 'recent_submissions', 'returned': len(rows),
                          'total_available': total, 'complete': len(rows) == total and not filing_data.get('files')}}
 
