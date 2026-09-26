@@ -66,21 +66,18 @@ mint); the mapping must not treat those addresses as the native asset.
 
 ## Plan limits and terms
 
-Measured with a free Basic key on 2026-09-25 through `/v1/key/info`:
-15,000 credits a month, 50 requests a minute, no daily credit limit, reset on
-the first of the month (UTC). Observed credit use: map 0 (top 200 by rank, and
-paging by ID); listings 1 for 200 rows (documented as one credit per 250 rows
-per convert currency); quotes 1 for Bitcoin, Ether and Solana together; info 1
-for the same three; historical quotes 1 for three daily points; key info 0. The
-Basic plan includes these endpoints, with historical quotes limited to one month
-intraday and one year daily ([pricing](https://coinmarketcap.com/api/pricing/),
+The free Basic plan allows 15,000 credits a month and 50 requests a minute
+([pricing](https://coinmarketcap.com/api/pricing/),
 [endpoint reference](https://coinmarketcap.com/api/documentation/pro-api-reference/cryptocurrency)).
+Map pages cost no credits (observed 2026-09-25); listings cost one credit per
+200 rows, quotes and info one per 100 coins, and historical quotes one per 100
+data points. Basic history is limited to one month intraday and one year daily.
 
 The local request budget is 30 requests a minute, leaving room for other use of
-the same account. A daily catalogue sync costs about 2 credits (the listings
-read); pages of the ID map are free. Ten watched coins at the ten-minute quote
-cadence cost about 144 credits a day. Other devices and tools share the
-account's quota, and local counters cannot see them.
+the same account. A daily catalogue sync costs 3 credits (the 500-row listings
+read). Ten watched coins at the ten-minute quote cadence cost about 144 credits
+a day. Other devices and tools share the account's quota, and local counters
+cannot see them.
 
 The pricing page describes the Basic plan as free, with a commercial-use licence
 for one product and no redistribution or resale of the data as a standalone

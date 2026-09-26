@@ -2,7 +2,7 @@
 
 Sources (checked 2026-09-25): /v1/cryptocurrency/map (no credits; id, rank,
 name, symbol, slug, is_active, platform) and /v3/cryptocurrency/listings/latest
-(one credit per 250 rows; market cap). Pages follow the permanent coin ID, so
+(one credit per 200 rows; market cap). Pages follow the permanent coin ID, so
 offsets stay stable while ranks move. A coin activated or retired during a sync
 can shift one row; the next sync repairs that drift. Rows are source-asserted
 identifiers and rank signals, never matches with another provider.
