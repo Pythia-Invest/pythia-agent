@@ -193,21 +193,12 @@ class Access(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'unavailable'):
             config.access('demo', unreadable)
 
-    def test_key_is_read_through_core_configuration_with_a_temporary_legacy_shim(self):
+    def test_key_is_read_through_core_configuration(self):
         ctx = object()
         configuration = types.SimpleNamespace(value=lambda owner, key: ('configured', owner is ctx and key))
-        legacy = types.SimpleNamespace(_token=lambda key: ('missing', None))
-        self.assertEqual(config.key_reader(ctx, lambda: types.SimpleNamespace(configuration=configuration), legacy)(),
+        self.assertEqual(config.key_reader(ctx, lambda: types.SimpleNamespace(configuration=configuration))(),
                          ('configured', 'coingecko_api_key'))
-        with tempfile.TemporaryDirectory() as root, patch.dict(os.environ, {'PYTHIA_CONFIG_ROOT': root, 'COINGECKO_API_KEY': 'AMBIENT'}):
-            credentials = importlib.import_module(PACKAGE + '.credentials')
-            read = config.key_reader(ctx, lambda: types.SimpleNamespace(), credentials)
-            self.assertEqual(read(), ('missing', None), 'no ambient fallback')
-            path = Path(root) / 'secrets.json'
-            path.write_text(json.dumps({'schema_version': 1, 'coingecko_api_key': 'SYNTHETIC'})); path.chmod(0o600)
-            self.assertEqual(read(), ('configured', 'SYNTHETIC'))
 
-    @unittest.skipUnless((ROOT / 'core/platform/configuration.py').is_file(), 'core configuration lands with PR #20')
     def test_declaration_parses_with_core_configuration(self):
         spec = importlib.util.spec_from_file_location('cg_core_configuration', ROOT / 'core/platform/configuration.py')
         core = importlib.util.module_from_spec(spec); spec.loader.exec_module(core)

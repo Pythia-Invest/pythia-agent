@@ -19,7 +19,7 @@ def helpers(ctx):
     loaded = get_plugin_manager()._plugins.get('pythia-market-data')
     if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
         raise RuntimeError('unavailable')
-    return tuple(importlib.import_module(loaded.module.__name__ + '.' + name) for name in ('wire', 'process', 'credentials', '_platform'))
+    return tuple(importlib.import_module(loaded.module.__name__ + '.' + name) for name in ('wire', 'process', '_platform'))
 
 
 def paths():
@@ -31,8 +31,8 @@ def paths():
 
 
 def register(ctx):
-    wire, process, credentials, feature_platform = helpers(ctx)
-    read_key = config.key_reader(ctx, feature_platform.platform, credentials)
+    wire, process, feature_platform = helpers(ctx)
+    read_key = config.key_reader(ctx, feature_platform.platform)
     definitions = schemas(wire)
     budgets = failures = batching = importlib.import_module(wire.__package__ + '.connector')
     reads = failures.WorkerReads(process)

@@ -21,17 +21,9 @@ def read(ctx):
     return mode, currency
 
 
-def key_reader(ctx, platform, credentials):
+def key_reader(ctx, platform):
     """Zero-argument (status, value) reader for the key, through core configuration."""
-    def read_key():
-        configuration = getattr(platform(), 'configuration', None)
-        if configuration is not None:
-            return configuration.value(ctx, KEY)
-        # TEMPORARY SHIM: remove with the credentials argument once
-        # platform.configuration (identity-backbone-desk-connections-settings)
-        # lands. Reads the same custody field through market-data's reader.
-        return credentials._token(KEY)
-    return read_key
+    return lambda: platform().configuration.value(ctx, KEY)
 
 
 def access(mode, credential):
