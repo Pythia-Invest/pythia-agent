@@ -154,7 +154,3 @@ def register(ctx):
                     'message': 'Native access changed during the GLEIF read.'}]))
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-gleif', schema=schema, handler=handler)
-    # The page's profile section reads this exact tool over HTTP (read-only).
-    importlib.import_module(wire.__package__ + '.specialist').register_read_command(
-        ctx, 'gleif-profile', TOOLS['profile'], 'Read a GLEIF legal-entity profile by LEI reference',
-        cache_seconds=3600, schema=reader.definitions['profile'], plugin='pythia-gleif')

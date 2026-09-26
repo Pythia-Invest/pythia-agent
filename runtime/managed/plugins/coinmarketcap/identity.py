@@ -117,17 +117,3 @@ def identifiers(row, platform):
         result.append({'scheme': SCHEMES['contract'], 'value': platform['address'], 'level': 'deployment',
                        'authority': 'source_asserted', 'network': platform['network']})
     return result
-
-
-def claims(row, retrieved_at):
-    """A resolve answer in core's ClaimBatch wire form: only what CoinMarketCap states about the coin."""
-    identifier, symbol = row_id(row), text(row.get('symbol'), 64)
-    attributes = {'name': text(row.get('name'), 256), 'asset_class': 'crypto',
-                  'kind': row.get('category') if row.get('category') in ('coin', 'token') else None}
-    if symbol and re.fullmatch(r'[A-Z0-9][A-Z0-9.&-]{0,15}', symbol):
-        attributes['ticker'] = symbol
-    provenance = {'plugin': 'pythia-coinmarketcap', 'source': PROVIDER, 'adapter_version': '1',
-                  'retrieved_at': retrieved_at, 'source_record': 'coin:' + identifier}
-    return {'plugin': 'pythia-coinmarketcap', 'provider': PROVIDER, 'adapter_version': '1', 'origin': 'resolve',
-            'claims': [{'level': 'security', 'identifiers': [], 'native_ref': native(identifier),
-                        'attributes': attributes, 'provenance': provenance}]}

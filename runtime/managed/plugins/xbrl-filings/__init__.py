@@ -141,7 +141,3 @@ def register(ctx):
                     'message': 'Native access changed during the XBRL repository read.'}]))
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-xbrl-filings', schema=schema, handler=handler)
-    # The page's filings section reads this exact tool over HTTP (read-only).
-    importlib.import_module(wire.__package__ + '.specialist').register_read_command(
-        ctx, 'xbrl-filings-filings', TOOLS['filings'], 'Read indexed XBRL report metadata by LEI reference',
-        cache_seconds=3600, schema=reader.definitions['filings'], plugin='pythia-xbrl-filings')

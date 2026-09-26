@@ -21,7 +21,6 @@ from urllib.error import HTTPError
 
 from native_plugin_fixtures import Context
 from test_market_data_identity import PACKAGE, PLATFORM, platform_module
-from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/coinmarketcap'
 NAME = 'coinmarketcap_fixture'
@@ -197,17 +196,6 @@ class CoinMarketCap(unittest.TestCase):
         # A shared contract with another provider's coin is a candidate, never a merge.
         other = {'provider': 'coingecko', 'native_scope': 'coin', 'native_id': 'synthetic-token'}
         self.assertEqual(matching.compare(native, details['evidence'], other, [{**e, 'provider_ref': other} for e in contract], 'crypto'), 'candidate')
-
-    def test_resolve_states_only_what_coinmarketcap_records_as_a_claim_batch(self):
-        with registered() as (ctx, calls):
-            batch = checked_batch('coinmarketcap', call(ctx, 'resolve', {'native_id': '7'}))
-        self.assertEqual(calls, [('info', {'id': '7'})])
-        claim, = batch.claims
-        self.assertEqual((claim.level, claim.identifiers, claim.native_ref.native_id), ('security', (), '7'))
-        self.assertEqual((claim.attributes.name, claim.attributes.ticker, claim.attributes.kind), ('Synthetic Token', 'SYN', 'token'))
-        with registered(key=None) as (ctx, calls):
-            self.assertEqual(call(ctx, 'resolve', {'native_id': '7'})['issues'][0]['code'], 'needs_configuration')
-        self.assertEqual(calls, [])
 
     def test_quotes_share_native_requests_and_history_uses_observation_times(self):
         with registered() as (ctx, calls):

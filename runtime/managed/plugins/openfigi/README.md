@@ -2,18 +2,13 @@
 
 `pythia-openfigi` is a Hermes-native plugin with one operation, `resolve`
 (`pythia_openfigi_resolve`). It maps identifiers through OpenFIGI's
-`/v3/mapping` endpoint and returns the evidence to Pythia's core, which decides
-identity. It supplies no prices, catalogue or search, and it is not called while
-a user types: resolution is explicit, for example when a page needs a FIGI or an
-offline reference build maps ISINs.
+`/v3/mapping` endpoint and returns the evidence to its caller; Pythia's core
+decides identity. It supplies no prices, catalogue or search, and it is not
+called while a user types: resolution is explicit, for example when the agent
+needs a FIGI. It fills no page section, so it ships no `contract.json`; the
+offline reference build has its own OpenFIGI client.
 
-The tool takes one ISIN (`{"identifiers": {"isin": ...}}`, the `resolve` input
-declared in `contract.json`) and answers with a `ClaimBatch` in core's wire form
-(ADR 0038): one listing claim per OpenFIGI candidate with its FIGI, composite
-FIGI, share-class FIGI, ticker and Bloomberg exchange code (`provider_venue`).
-An unmatched ISIN is outcome `empty`. Internally the connector maps jobs
-(`idType` + `idValue`, optional filters), which the offline reference build
-reuses:
+Supported jobs (`idType` + `idValue`, optional filters):
 
 - `ID_ISIN`, alone or with `micCode` or `exchCode` (for example ISIN + XAMS);
 - `TICKER` with a venue, `micCode` or `exchCode` (a bare ticker spans every

@@ -6,14 +6,12 @@ limits apply.
 """
 import importlib
 import json
-import re
 
 from . import mapping
 from .client import Transport
 from .definition import TOOL, schema
 
 AGE = 86400  # Identical successful mappings are retained for a day.
-TICKER = re.compile(r'[A-Z0-9][A-Z0-9.&-]{0,15}')
 
 
 def helpers(ctx):
@@ -30,24 +28,6 @@ def failure(code, message):
             'issues': [{'code': code, 'severity': 'error', 'message': message}]}
 
 
-def claims(isin, candidates, observed_at):
-    """One listing claim per OpenFIGI candidate: only the identifiers and venue code it states."""
-    result = []
-    for item in candidates:
-        identifiers = [{'scheme': 'isin', 'value': isin}]
-        identifiers += [{'scheme': scheme, 'value': item[key]} for key, scheme in
-                        (('shareClassFIGI', 'share_class_figi'), ('compositeFIGI', 'composite_figi'), ('figi', 'figi'))
-                        if item[key]]
-        attributes = {'name': item['name'], 'provider_venue': item['exchCode']}
-        if item['ticker'] and TICKER.fullmatch(item['ticker']):
-            attributes['ticker'] = item['ticker']
-        result.append({'level': 'listing', 'identifiers': identifiers, 'attributes': attributes,
-                       'provenance': {'plugin': 'pythia-openfigi', 'source': 'openfigi', 'adapter_version': '1',
-                                      'retrieved_at': observed_at, 'source_record': 'figi:' + item['figi']}})
-    return {'plugin': 'pythia-openfigi', 'provider': 'openfigi', 'adapter_version': '1', 'origin': 'resolve',
-            'claims': result}
-
-
 class Resolver:
     """``configuration()`` returns core's ``platform.configuration`` for ``ctx``."""
 
@@ -56,26 +36,13 @@ class Resolver:
         self.definition = schema()
         self.reads = connector.WorkerReads(transport or Transport(connector))
 
-    def resolve(self, arguments, cancelled=None, scope=None):
-        """The native tool: one ISIN, answered in core's ClaimBatch wire form (ADR 0038)."""
-        try:
-            isin = self.wire.validate_parameters(self.definition['parameters'], arguments)['identifiers']['isin']
-        except (ValueError, KeyError, TypeError):
-            return failure('invalid_request', 'The OpenFIGI mapping request is invalid.')
-        result = self.invoke({'jobs': [{'idType': 'ID_ISIN', 'idValue': isin}]}, cancelled, scope)
-        if result['outcome'] != 'ok':
-            return {**result, 'data': None}
-        found = result['data']['results'][0]['candidates']
-        return {**result, 'data': claims(isin, found, result['data']['observed_at'])}
-
     def invoke(self, arguments, cancelled=None, scope=None):
-        """Map explicit OpenFIGI jobs in bounded, key-sized requests."""
         readiness, key = self.configuration().value(self.ctx, 'openfigi_api_key')
         notes = [] if readiness != 'invalid' else [{'code': 'invalid_configuration', 'severity': 'warning',
             'message': "The OpenFIGI API key (openfigi_api_key in Pythia's secrets.json) is invalid; "
                        'keyless limits were used.'}]
         try:
-            jobs = mapping.validate(arguments.get('jobs'))
+            jobs = mapping.validate(self.wire.validate_parameters(self.definition['parameters'], arguments)['jobs'])
             budget = self.connector.connection('openfigi', key, concurrency=2, per_minute=250 if key else 25)
             reuse = scope is None or scope.get('cacheable', False)
             raw = self.reads.read([__file__], {'operation': 'mapping', 'jobs': jobs, 'key': key}, {},
@@ -125,7 +92,7 @@ def register(ctx):
         try:
             selection = helpers(ctx)[2]  # A disabled dependency cannot serve retained results.
             access = selection.native_access_scope()
-            result = resolver.resolve(arguments, context.get('cancelled'), scope=access)
+            result = resolver.invoke(arguments, context.get('cancelled'), scope=access)
             if selection.native_access_scope() != access:
                 result = failure('unavailable', 'Access changed during the OpenFIGI read.')
         except RuntimeError:

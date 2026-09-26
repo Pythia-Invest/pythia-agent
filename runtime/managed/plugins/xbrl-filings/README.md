@@ -15,7 +15,7 @@ Pythia's core; company names and ticker strings never establish equivalence.
 | Operation | Input | Result |
 | --- | --- | --- |
 | `resolve` | `identifiers.lei`; optional `refresh` | a `ClaimBatch` in core's wire form (ADR 0038): one issuer claim with the entity name, its LEI and the native reference (`xbrl-filings`/`lei`); outcome `empty` when the LEI is not indexed |
-| `filings` | `native_ref`, optional `limit` | indexed reports with viewer, report, package and xBRL-JSON links, and the state of the latest period; exported read-only over HTTP as `pythia-xbrl-filings`/`xbrl-filings-filings` for the Desk's filings section (`filed_at` and `language` are null: the repository indexes neither) |
+| `filings` | `native_ref`, optional `limit` | indexed reports with viewer, report, package and xBRL-JSON links, and the state of the latest period; read by the Desk's filings section through its declared read-only operation `pythia-xbrl-filings`/`filings` (`filed_at` and `language` are null: the repository indexes neither) |
 | `fundamentals` | `native_ref`, optional `report_id` | eight standard IFRS facts from one report |
 | `facts` | `native_ref`, `report_id`, `concepts` | selected numeric xBRL-JSON concepts from one report |
 

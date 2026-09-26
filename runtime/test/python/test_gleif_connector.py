@@ -98,7 +98,7 @@ def register_with_market_data(test, module, ctx, transport, scopes):
         'pythia-market-data': SimpleNamespace(enabled=True, module=sys.modules[PACKAGE])})
     selection = importlib.import_module(PACKAGE + '.selection')
     connector_module = importlib.import_module(PACKAGE + '.connector')
-    for patcher in (patch.dict(sys.modules, {'hermes_cli.plugins': manager, 'tools.registry': ctx.registry_module}),
+    for patcher in (patch.dict(sys.modules, {'hermes_cli.plugins': manager}),
                     patch.object(connector_module, 'Transport', return_value=transport),
                     patch.object(selection, 'native_access_scope', side_effect=lambda: next(scopes))):
         patcher.start()
@@ -119,8 +119,6 @@ class GleifSemantics(unittest.TestCase):
             self.assertEqual(set(declared), {'pythia_http_operation'}, name)
             self.assertEqual((declared['pythia_http_operation']['plugin'], declared['pythia_http_operation']['read_only']),
                              ('pythia-gleif', True))
-        profile = json.loads(ctx.registrations['pythia_gleif_profile']['schema']['parameters']['$comment'])
-        self.assertEqual(profile['pythia_http_operation']['operation'], 'gleif-profile')
         batch = checked_batch('gleif', ctx.tools['pythia_gleif_resolve']({'identifiers': {'lei': FIRST}}))
         self.assertEqual(batch.claims[0].native_ref.native_id, FIRST)
         # A result completed under a different native access scope is not published.

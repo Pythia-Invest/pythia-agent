@@ -190,13 +190,14 @@ def claims(candidates, observed_at, source_url, requested_isin=None):
     for item in candidates:
         echoed = item['echoed']
         identifiers = [{'scheme': scheme, 'value': echoed[scheme]} for scheme in ('isin', 'lei', 'cik') if scheme in echoed]
-        status = (item['entity_status'] or '').lower()
         claim = {'level': 'security' if requested_isin else 'issuer', 'identifiers': identifiers,
-                 'attributes': {'issuer_name' if requested_isin else 'name': item['name'],
-                                'status': status if status in ('active', 'inactive') else None},
+                 'attributes': {'issuer_name': item['name']} if requested_isin else {'name': item['name']},
                  'provenance': {'plugin': 'pythia-gleif', 'source': PROVIDER, 'adapter_version': '1',
                                 'retrieved_at': observed_at, 'source_record': source_url}}
         if not requested_isin:
+            # Entity status describes the legal entity, never a security.
+            status = (item['entity_status'] or '').lower()
+            claim['attributes']['status'] = status if status in ('active', 'inactive') else None
             claim['native_ref'] = item['native_ref']
         result.append(claim)
     return {'plugin': 'pythia-gleif', 'provider': PROVIDER, 'adapter_version': '1', 'origin': 'resolve', 'claims': result}

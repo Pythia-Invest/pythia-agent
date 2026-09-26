@@ -24,9 +24,11 @@
       "tool": "pythia_coinmarketcap_history"
     }
   },
-  "resolve": {
-    "tool": "pythia_coinmarketcap_resolve",
-    "input_schemes": [],
-    "echoes": []
+  "catalogue": {
+    "mode": "bulk",
+    "tool": "pythia_coinmarketcap_catalogue",
+    "scopes": [
+      "coins"
+    ]
   }
 }

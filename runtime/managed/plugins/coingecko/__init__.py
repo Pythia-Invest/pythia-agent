@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from . import config
 from .definition import TOOLS, TOOLSET, schemas
-from .identity import candidate, claims, reference
+from .identity import candidate, reference
 from .series import modes, definition, selector, bounds
 from .results import issue, envelope, base, read
 from .dashboard import read as dashboard
@@ -146,11 +146,6 @@ def register(ctx):
                 raw = call(endpoint, {'id': reference(native), 'currency': currency.lower(), **controls})
                 result = failures.qualify_failure(read(request, series, mode, raw), raw)
                 return wire.validate_read_result(result)
-            if operation == 'resolve':
-                raw = call('details', {'id': clean['native_id']})
-                if raw.get('error'):
-                    return source_failure(raw)
-                return {'schema_version': 1, 'outcome': 'ok', 'data': claims(raw['data'], clean['native_id']), 'issues': []}
             native = clean['native_ref']
             raw = call('details', {'id': reference(native)})
             if raw.get('error'):
