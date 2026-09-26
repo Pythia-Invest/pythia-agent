@@ -48,7 +48,7 @@ function timeTicks(g: PathGeometry, timeZone: string | undefined) {
     const step = [1, 2, 3, 6, 12, 24, 60].find((s) => months / s <= 7) ?? 120;
     const month = formatter("UTC", { month: "short" });
     let y = first.getUTCFullYear(),
-      m = first.getUTCMonth() + 1;
+      m = first.getUTCMonth();
     for (;;) {
       if (m > 11) {
         y += Math.floor(m / 12);
