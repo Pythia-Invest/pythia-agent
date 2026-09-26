@@ -1,8 +1,8 @@
-import { ComboboxItem, cn } from "@pythia/widget-sdk";
+import { ComboboxItem } from "@pythia/widget-sdk";
 import { Plug } from "lucide-react";
 import type { SearchBinding } from "../search";
 import { connectors } from "./connector-icons";
-import { KIND_LABELS, type SearchOption } from "./search-model";
+import { ROW_LABELS, type SearchOption } from "./search-model";
 
 export function connectorName(plugin: string): string {
   return connectors[plugin]?.name ?? plugin;
@@ -33,6 +33,15 @@ export function ConnectorMark({
   );
 }
 
+/** The regional-indicator flag of an ISO 3166 country code. */
+function countryFlag(country: string): string {
+  return String.fromCodePoint(
+    ...[...country.toUpperCase()].map(
+      (letter) => 0x1f1a5 + letter.charCodeAt(0),
+    ),
+  );
+}
+
 function onePerPlugin(bindings: readonly SearchBinding[]) {
   return bindings.filter(
     (binding, index) =>
@@ -40,19 +49,20 @@ function onePerPlugin(bindings: readonly SearchBinding[]) {
   );
 }
 
-function kindLabel({ group }: SearchOption) {
-  const kind = KIND_LABELS[group.kind];
-  return group.depositary_of ? `${kind} of ${group.depositary_of.name}` : kind;
+function others(count: number) {
+  return `${count} other listing${count === 1 ? "" : "s"}`;
 }
 
-function optionLabel(option: SearchOption, bindings: readonly SearchBinding[]) {
-  const { row, group } = option;
+function optionLabel(
+  { row }: SearchOption,
+  bindings: readonly SearchBinding[],
+) {
   return [
     row.ticker,
-    group.name,
+    row.name,
     row.venue ?? row.mic,
-    kindLabel(option),
-    row.currency,
+    ROW_LABELS[row.kind],
+    row.listings ? others(row.listings) : null,
     bindings.length
       ? `via ${bindings.map((binding) => connectorName(binding.plugin)).join(", ")}`
       : null,
@@ -61,10 +71,9 @@ function optionLabel(option: SearchOption, bindings: readonly SearchBinding[]) {
     .join(", ");
 }
 
-/** One minimal row. A group's lead row shows ticker and name on the left,
- * venue and type on the right; the security's other listings follow as
- * compact rows with ticker and venue. Logos appear only for connectors bound
- * to that row. No prices. */
+/** One instrument on one line: ticker, name, the representative listing's
+ * venue with its country flag, a plain type and how many other listings it
+ * has. Logos appear only for connectors bound to that listing. No prices. */
 export function SearchRowOption({
   option,
   onChoose,
@@ -72,12 +81,9 @@ export function SearchRowOption({
   option: SearchOption;
   onChoose(): void;
 }) {
-  const { row, group, lead } = option;
+  const { row } = option;
   const bindings = onePerPlugin(row.bindings);
   const venue = row.venue ?? row.mic;
-  const detail = [lead ? KIND_LABELS[group.kind] : null, row.currency]
-    .filter(Boolean)
-    .join(" · ");
   return (
     <ComboboxItem
       value={option}
@@ -86,70 +92,50 @@ export function SearchRowOption({
       // for pointer and keyboard choices.
       onClick={onChoose}
       data-slot="investment-search-row"
-      data-kind={group.kind}
-      data-lead={lead || undefined}
-      className={cn(
-        "gap-3 px-2.5",
-        lead ? "min-h-12 py-1.5" : "min-h-8 py-1 pl-6",
-      )}
+      data-kind={row.kind}
+      className="min-h-9 gap-3 px-2.5 py-1.5 text-xs"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <span className="w-18 flex-none truncate font-semibold text-body text-foreground">
+        {row.ticker}
+      </span>
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span className="truncate text-foreground">{row.name}</span>
+        {bindings.length ? (
           <span
-            className={cn(
-              "truncate text-foreground",
-              lead ? "font-semibold text-body" : "text-xs",
-            )}
+            aria-hidden="true"
+            data-slot="investment-search-connectors"
+            className="flex flex-none items-center gap-1"
           >
-            {row.ticker}
+            {bindings.slice(0, 4).map((binding) => (
+              <ConnectorMark
+                key={binding.plugin}
+                plugin={binding.plugin}
+                title={`${connectorName(binding.plugin)} · ${binding.ref}`}
+              />
+            ))}
           </span>
-          {bindings.length ? (
-            <span
-              aria-hidden="true"
-              data-slot="investment-search-connectors"
-              className="flex flex-none items-center gap-1"
-            >
-              {bindings.slice(0, 4).map((binding) => (
-                <ConnectorMark
-                  key={binding.plugin}
-                  plugin={binding.plugin}
-                  title={`${connectorName(binding.plugin)} · ${binding.ref}`}
-                />
-              ))}
+        ) : null}
+      </span>
+      {venue ? (
+        <span className="flex min-w-0 max-w-[32%] flex-none items-center gap-1.5 text-foreground-secondary">
+          {row.country ? (
+            <span aria-hidden="true" title={row.country} className="flex-none">
+              {countryFlag(row.country)}
             </span>
           ) : null}
-        </div>
-        {lead ? (
-          <div className="truncate text-foreground-secondary text-xs">
-            {group.name}
-          </div>
-        ) : null}
-      </div>
-      <div
-        className={cn(
-          "max-w-[45%] flex-none text-right text-xs",
-          !lead && "flex gap-1.5",
-        )}
+          {/* A narrow panel keeps the flag and drops the venue name. */}
+          <span className="@max-sm:hidden truncate">{venue}</span>
+        </span>
+      ) : null}
+      <span className="w-16 flex-none truncate text-right text-foreground-secondary">
+        {ROW_LABELS[row.kind]}
+      </span>
+      <span
+        title={row.listings ? others(row.listings) : undefined}
+        className="w-6 flex-none text-right text-foreground-secondary tabular-nums"
       >
-        {venue ? (
-          <div
-            className={cn(
-              "truncate",
-              lead ? "text-foreground" : "text-foreground-secondary",
-            )}
-          >
-            {venue}
-          </div>
-        ) : null}
-        {detail ? (
-          <div
-            title={lead ? kindLabel(option) : undefined}
-            className="truncate text-foreground-secondary"
-          >
-            {lead || !venue ? detail : `· ${detail}`}
-          </div>
-        ) : null}
-      </div>
+        {row.listings ? `+${row.listings}` : null}
+      </span>
     </ComboboxItem>
   );
 }

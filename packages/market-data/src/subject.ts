@@ -61,6 +61,8 @@ export const subjectListingSchema = z.object({
   venue: optionalText,
   currency: optionalText,
   primary: z.boolean().default(false),
+  /** The listed security's kind: a folded receipt is labelled as one. */
+  kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
 });
 export type SubjectListing = z.infer<typeof subjectListingSchema>;
 
