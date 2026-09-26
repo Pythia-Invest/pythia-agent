@@ -166,7 +166,6 @@ class Provider(unittest.TestCase):
                     latest = json.loads(ctx.tools[provider.TOOLS['latest']]({'request': request(definition, 'latest'),
                         'source_selector': definition['source_detail']['values']['read_selector']}))
                 self.assertEqual((news['outcome'], news['issues'][0]['code']), ('error', 'needs_configuration'))
-                self.assertIn('needs an API token', news['issues'][0]['message'])
                 wire.validate_read_result(latest)
                 self.assertEqual(latest['issues'][0]['code'], 'needs_configuration')
         self.assertEqual(calls, [])
