@@ -177,3 +177,26 @@ def candidate(row, requested_isin=None):
             'entity_status': text(entity.get('status')),
             'registration_status': text(registration.get('status')),
             'successors': successors(entity)}
+
+
+def claims(candidates, observed_at, source_url, requested_isin=None):
+    """A resolve answer in core's ClaimBatch wire form (ADR 0038): what GLEIF records, nothing inferred.
+
+    An LEI answers with the issuer record and its native reference. An ISIN answers
+    with one security claim per mapped issuer: the ISIN and that issuer's
+    identifiers, never a pick among them.
+    """
+    result = []
+    for item in candidates:
+        echoed = item['echoed']
+        identifiers = [{'scheme': scheme, 'value': echoed[scheme]} for scheme in ('isin', 'lei', 'cik') if scheme in echoed]
+        status = (item['entity_status'] or '').lower()
+        claim = {'level': 'security' if requested_isin else 'issuer', 'identifiers': identifiers,
+                 'attributes': {'issuer_name' if requested_isin else 'name': item['name'],
+                                'status': status if status in ('active', 'inactive') else None},
+                 'provenance': {'plugin': 'pythia-gleif', 'source': PROVIDER, 'adapter_version': '1',
+                                'retrieved_at': observed_at, 'source_record': source_url}}
+        if not requested_isin:
+            claim['native_ref'] = item['native_ref']
+        result.append(claim)
+    return {'plugin': 'pythia-gleif', 'provider': PROVIDER, 'adapter_version': '1', 'origin': 'resolve', 'claims': result}

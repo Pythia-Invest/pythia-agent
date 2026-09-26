@@ -97,6 +97,10 @@ class Reader:
                 except (ValueError, TypeError, KeyError, AttributeError):
                     issues.append({'code': 'invalid_response', 'severity': 'error',
                         'message': 'GLEIF returned parent data that could not be interpreted safely.'})
+            # The page's accounting parent: the ultimate one, else the direct one.
+            parents = {item['kind']: item['target'] for item in summary['relationships']}
+            parent = parents.get('IS_ULTIMATELY_CONSOLIDATED_BY') or parents.get('IS_DIRECTLY_CONSOLIDATED_BY')
+            summary['parent'] = {'name': parent['name'], 'lei': parent['value']} if parent else None
             return envelope(summary, issues)
         except (self.wire.WireError, ValueError, TypeError, KeyError, AttributeError) as error:
             code = 'invalid_request' if str(error) == 'invalid_request' or isinstance(error, self.wire.WireError) else 'invalid_response'
@@ -104,42 +108,33 @@ class Reader:
                 'The GLEIF request is invalid.' if code == 'invalid_request' else 'GLEIF returned data that could not be interpreted safely.'}])
         except (RuntimeError, OSError) as error:
             if getattr(error, 'raw', {}).get('error') == 'missing_observation' and operation == 'resolve':
-                return envelope({'status': 'not_found', 'request': self.request(clean)}, outcome='empty')
+                return envelope(None, outcome='empty')
             return self.failure(error)
 
-    @staticmethod
-    def request(clean):
-        scheme = 'isin' if 'isin' in clean else 'lei'
-        return {'scheme': scheme, 'value': clean[scheme]}
-
     def resolve(self, clean, fetch, validate_record):
-        """Echo the identifiers GLEIF asserts; the caller decides whether they agree."""
-        if ('isin' in clean) == ('lei' in clean):
+        """Answer with the claims GLEIF's records make; core decides whether they agree."""
+        identifiers = clean['identifiers']
+        if ('isin' in identifiers) == ('lei' in identifiers):
             raise ValueError('invalid_request')
-        request = self.request(clean)
-        if 'isin' in clean:
-            requested = records.isin(clean['isin'])
+        if 'isin' in identifiers:
+            requested = records.isin(identifiers['isin'])
             url = records.endpoint(**{'filter[isin]': requested, 'page[size]': 10})
             # Only resolve reads this collection, so its rows need only be candidates.
             raw = fetch(url, lambda raw: [records.candidate(row) for row in records.collection(raw['data'], 10)[0]])
             rows, truncated = records.collection(raw['data'], 10)
         else:
             requested = None
-            url = records.endpoint(records.lei(clean['lei']))
-            raw = fetch(url, lambda raw: validate_record(raw, clean['lei']))
+            url = records.endpoint(records.lei(identifiers['lei']))
+            raw = fetch(url, lambda raw: validate_record(raw, identifiers['lei']))
             row = raw['data'].get('data')
-            records.record(row, clean['lei'])
+            records.record(row, identifiers['lei'])
             rows, truncated = [row], False
-        candidates = [records.candidate(row, requested) for row in rows]
-        base = {'request': request, 'observed_at': raw['observed_at'], 'source_url': url}
         issues = [{'code': 'resolve_limited', 'severity': 'warning', 'message':
                    'GLEIF maps this ISIN to more issuer records than one bounded page returns.'}] if truncated else []
-        if not candidates:
-            return envelope({'status': 'not_found', **base}, issues, outcome='empty')
-        if len(candidates) == 1 and not truncated:
-            return envelope({'status': 'resolved', **base, **candidates[0]}, issues)
-        # Several issuer records for one ISIN are shown, never silently picked.
-        return envelope({'status': 'ambiguous', **base, 'candidates': candidates}, issues)
+        if not rows:
+            return envelope(None, issues, outcome='empty')
+        candidates = [records.candidate(row, requested) for row in rows]
+        return envelope(records.claims(candidates, raw['observed_at'], url, requested), issues)
 
 
 def register(ctx):
@@ -159,3 +154,7 @@ def register(ctx):
                     'message': 'Native access changed during the GLEIF read.'}]))
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-gleif', schema=schema, handler=handler)
+    # The page's profile section reads this exact tool over HTTP (read-only).
+    importlib.import_module(wire.__package__ + '.specialist').register_read_command(
+        ctx, 'gleif-profile', TOOLS['profile'], 'Read a GLEIF legal-entity profile by LEI reference',
+        cache_seconds=3600, schema=reader.definitions['profile'], plugin='pythia-gleif')
