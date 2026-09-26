@@ -214,7 +214,7 @@ class Directory:
         """The SearchResponse (packages/market-data/src/search.ts) for one query."""
         allowed = set(kinds) if kinds else None
         # Rank issuers by their best line (an issuer's lines compete once); inside an issuer, its best
-        # securities by their best line's score, at most PER_ISSUER of them.
+        # securities (see _security_order), at most PER_ISSUER of them.
         issuers: dict[str, list] = {}
         for score, line, key in self.lines(query):
             if allowed is not None and line["kind"] not in allowed:
@@ -224,8 +224,7 @@ class Directory:
             issuer[1].setdefault(line["security"], []).append((score, key, line))
         rows: dict[str, list[dict]] = {}
         for _score, securities in sorted(issuers.values(), key=lambda item: -item[0]):
-            best = sorted(securities.items(), reverse=True,  # by best line score; ordinary shares win ties
-                          key=lambda item: (max(score for score, _k, _l in item[1]), item[1][0][2]["kind"] == "ordinary"))
+            best = sorted(securities.items(), key=_security_order, reverse=True)
             for security, members in best[:PER_ISSUER]:  # an issuer's preferreds never crowd out other issuers
                 # The primary listing first (the contract), then the best line for the query.
                 ordered = sorted(members, key=lambda entry: (entry[2]["prim"], entry[1]), reverse=True)
@@ -253,6 +252,18 @@ class Directory:
         with self.lock:
             return dict(self.db.execute(
                 f"SELECT security, name FROM doc WHERE security IN ({','.join('?' * len(securities))})", securities))
+
+
+KIND_ORDER = {"ordinary": 3, "coin": 3, "depositary_receipt": 2}  # notes, funds and preferreds rank below
+
+
+def _security_order(item: tuple[str, list]) -> tuple:
+    """Order an issuer's securities: a venue named in the query, then the home line over a foreign
+    issuer's US line, then an exact ticker, then an exchange line over OTC (representative-key fields),
+    then the main share before a receipt before notes, funds and preferreds, then the best line score."""
+    members = item[1]
+    return (max(key[:3] + key[4:5] for _score, key, _line in members), KIND_ORDER.get(members[0][2]["kind"], 1),
+            max(score for score, _key, _line in members))
 
 
 def _score(lines: Iterable[dict], query: str, *, exact: str | None = None, hint: str | None = None,
