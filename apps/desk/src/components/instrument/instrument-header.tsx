@@ -80,13 +80,6 @@ export function InstrumentHeader({
           ))}
         </dl>
       ) : null}
-      {page.queue.length ? (
-        <p className="text-foreground-secondary text-xs">
-          {page.queue.length === 1
-            ? "One identity question is open for the agent to review."
-            : `${page.queue.length} identity questions are open for the agent to review.`}
-        </p>
-      ) : null}
     </header>
   );
 }
