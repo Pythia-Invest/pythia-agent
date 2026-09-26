@@ -35,12 +35,12 @@ not a registry: deleting the package removes the declaration.
   level); and a flat table from operating MIC to the provider's venue code or
   suffix, so core can build a native reference from `ticker_mic` without a call.
 - **`content`** maps core's page sections (`quote`, `chart`, `profile`,
-  `financials`, `news`) to a tool, the level the data is about and the level of
+  `financials`, `news`, `filings`) to a tool, the level the data is about and the level of
   the reference used to call (`via`). `via` may be narrower than `level`, never
   broader, and must be addressable: EODHD financials are issuer data fetched
   via a listing.
 - **`catalogue.mode`** is the one provider term core enforces. `bulk` names a
-  catalogue tool and scopes and keeps typed records in the plugin's overlay.
+  catalogue tool and scopes and keeps typed records in the identity store's plugin-tagged claims.
   `resolve_only`, the default when the block is absent, keeps only the records
   the user picked. Each plugin enforces its provider's other terms itself.
 - **`resolve`** is an optional lookup from global identifiers to a native

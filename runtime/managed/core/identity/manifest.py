@@ -28,6 +28,7 @@ class Section(StrEnum):
     PROFILE = "profile"
     FINANCIALS = "financials"
     NEWS = "news"
+    FILINGS = "filings"
 
 
 class CatalogueMode(StrEnum):

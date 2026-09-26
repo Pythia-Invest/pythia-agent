@@ -1,7 +1,8 @@
 -- Identity store (ADR 0037): private, transactional, device-local.
 -- Holds what the device decided on top of the reference store: subjects the
 -- reference lacks, local relations, provider bindings, the resolution queue
--- (residuals and conflicts) and resolver verdicts. Missing evidence never erases
+-- (residuals and conflicts), resolver verdicts, and the provider records plugins
+-- claimed (one table, tagged by plugin). Missing evidence never erases
 -- a confirmed binding: only positive evidence of an end sets valid_to or status.
 -- Portable SQL throughout the backbone stores: ISO-8601 text for dates and
 -- instants, JSON as TEXT validated by the store module, FTS5 only in the directory.
@@ -13,8 +14,8 @@ CREATE TABLE metadata (
 
 -- Subjects no reference build knows yet: IDs derived from their open identifiers,
 -- or provisional IDs derived from the provider reference that introduced them.
--- Descriptive provider fields stay in that plugin's overlay store, so this file
--- (with user state) holds no provider data. Re-keyed through the reference id_aliases.
+-- Descriptive provider fields stay in the plugin-tagged claims table below.
+-- Re-keyed through the reference id_aliases.
 CREATE TABLE subjects (
   id TEXT PRIMARY KEY,
   level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
@@ -122,3 +123,23 @@ CREATE TABLE verdicts (
   CHECK ((chosen_id IS NULL) = (relation IN ('none', 'ambiguous')))
 );
 CREATE INDEX verdicts_item ON verdicts (item_id);
+
+-- Provider records plugins claimed (RecordClaim), tagged by plugin. A resolve-only
+-- plugin keeps only the records the user opened; a bulk catalogue keeps its pages
+-- under a scope. Provider data never leaves the device; a disabled plugin's rows
+-- are hidden and its rows are deleted when its credential is removed
+-- (DELETE ... WHERE plugin = ?). Claims are subordinate to open reference evidence.
+CREATE TABLE claims (
+  plugin TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  native_scope TEXT NOT NULL,
+  native_id TEXT NOT NULL,
+  scope TEXT,                      -- bulk catalogue scope; NULL for a resolve-only pick
+  level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
+  name TEXT,
+  claim TEXT NOT NULL,             -- the RecordClaim as emitted (claims.batch_to_json form)
+  claim_digest TEXT NOT NULL,      -- unchanged digest => no re-join
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,         -- not seen in a complete scope != delisted; never unbinds by itself
+  PRIMARY KEY (plugin, native_scope, native_id)
+);

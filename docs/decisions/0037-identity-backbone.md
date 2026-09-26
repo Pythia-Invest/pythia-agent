@@ -99,7 +99,7 @@ A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
    scheme's own level on the subject or an ancestor, with a different value.
    Open reference evidence outranks a provider's identifier; a provider's value
    vetoes only where no open evidence exists for that scheme. Reference-store
-   assertions carry authority `snapshot` and overlay (provider) assertions
+   assertions carry authority `snapshot` and provider claim assertions
    carry `source_asserted`, so an open ISIN wins over a provider's stale one.
 2. The depositary-receipt guard overrides every verdict: a receipt and its
    share are never the same instrument.
@@ -120,14 +120,18 @@ involved and has a dedupe key, so re-ingest never duplicates an open question.
 Manual resolution is allowed and never required; resolution never runs on the
 search or page path.
 
-**Stores.** Embedded SQLite in portable SQL, each reached through a thin store
-module: `reference.sqlite3` (open reference data, built on the device and
-replaced atomically), `overlay-<plugin>.sqlite3` (one provider's records and
-core's join outcome; a resolve-only plugin keeps only the records the user
-picked, with their identifiers and name) and `identity.sqlite3` (local
-subjects, bindings, queue and verdicts). Provider data stays in the overlays and
-never leaves the device. The directory and its FTS5 index come with the local
-search piece.
+**Stores.** Two embedded SQLite files in portable SQL, reached through a thin
+store module: `reference.sqlite3` (open reference data, built on the device and
+replaced atomically, read-only in between) and `identity.sqlite3` (local
+subjects, bindings, queue, verdicts, and one `claims` table of provider records
+tagged by plugin; a resolve-only plugin keeps only the records the user opened).
+Provider data never leaves the device; removing a plugin's credential deletes
+its claim rows. The search directory and its FTS5 index are derived from the
+reference file and rebuilt when it changes.
+
+A separate overlay file per plugin was rejected: one plugin column gives the
+same isolation (hide when disabled, delete on credential removal) with one
+schema, one connection and transactional joins across claims and bindings.
 
 **Ingest join.** Each record is joined once, at ingest; the first match wins and
 a contradiction stops the chain: ISIN plus operating MIC and currency; ISIN

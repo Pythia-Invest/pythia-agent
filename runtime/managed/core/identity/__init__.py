@@ -14,7 +14,7 @@ from pathlib import Path
 from .claims import (
     BatchOrigin, Claim, ClaimBatch, ClaimEmitter, ClaimError, Deployment, EmitReceipt, IdentifierValue,
     RecordAttributes,
-    RecordClaim, RelationClaim, check_batch,
+    RecordClaim, RelationClaim, batch_from_json, batch_to_json, check_batch,
 )
 from .manifest import MANIFEST_FILE, CatalogueMode, Manifest, ManifestError, Section, validate_manifest
 from .model import (
@@ -38,8 +38,7 @@ class Store(StrEnum):
     """Backbone stores, each with its own SQLite schema."""
 
     REFERENCE = "reference"  # reference.sqlite3, built on the device, read-only between builds
-    IDENTITY = "identity"    # identity.sqlite3, the private identity store
-    OVERLAY = "overlay"      # overlay-<plugin>.sqlite3, one per bulk-catalogue plugin
+    IDENTITY = "identity"    # identity.sqlite3: device decisions plus plugin-tagged provider claims
 
 
 def schema_sql(store: Store | str) -> str:

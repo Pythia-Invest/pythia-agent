@@ -86,7 +86,7 @@ class ProviderRef:
     """Exactly the existing market-data wire `provider_ref`; the read pipeline stays keyed by it.
 
     Identity is (provider, native_scope, native_id). Qualifiers (currency,
-    venue, route, network) only select reads; bindings, overlay rows, batch
+    venue, route, network) only select reads; bindings, claim rows, batch
     checks and provisional IDs never key on them.
     """
 
