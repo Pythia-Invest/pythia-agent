@@ -7,6 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema.json": "./schema.json",
+    "./search": "./src/search.ts",
+    "./search-demo": "./src/search-demo.ts",
+    "./search-ui": "./src/search-ui/index.ts",
     "./widgets": "./src/widgets/index.ts",
     "./widgets/contract": "./src/widgets/contract.ts"
   },
@@ -15,10 +18,18 @@
     "test:unit": "vitest run test"
   },
   "dependencies": {
+    "@pythia/widget-sdk": "workspace:*",
+    "lucide-react": "catalog:",
     "zod": "catalog:"
   },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
   "devDependencies": {
-    "@pythia/widget-sdk": "workspace:*",
-    "@types/react": "catalog:"
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   }
 }

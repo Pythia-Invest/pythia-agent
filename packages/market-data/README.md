@@ -158,3 +158,38 @@ window kind and optional maximum span without changing financial series identity
 Neither field certifies entitlements. The package exports `marketDataSchema`
 alongside its types so Desk validates wire shapes from the same generated schema;
 the native reader remains responsible for semantic validation.
+
+## Investment search
+
+`@pythia/market-data/search` is the provisional contract of the core local
+directory `search` operation and the only place its types live. The response
+holds ranked groups, one per security: its name, instrument kind, the underlying
+security of a depositary receipt, and its listings in order, primary listing
+first. A listing row carries its subject `id`, ticker, MIC and venue label,
+currency and confirmed provider bindings; a crypto asset is one row without a
+venue. The response also names the directory it was read from (reference
+snapshot and as-of instant) and the plugins offering an explicit lookup. The
+directory-search backend implements this shape; the core ranks and the client
+keeps the order.
+
+`@pythia/market-data/search-ui` is the search bar. Typing reads only the local
+directory; no connector is called on that path. Each security is one group: its
+lead row shows ticker, name, venue and type, and its other listings follow as
+compact rows. A depositary receipt is its own security, labelled as a receipt of
+its underlying. Type pills ask the directory for their instrument kinds and never
+take focus from the field. Tiny connector logos appear only for bindings on that
+row; rows carry no prices. The panel is anchored below the field with fixed
+geometry, keeps the previous answer while the next loads, and reopens instantly
+from the feature's `['plugin', 'pythia-market-data', 'search', …]` query cache. A
+query the directory does not hold can be looked up explicitly, in one plugin per
+action and never concurrently, when the host supplies a lookup runner. Selecting a
+row reports its subject id, which an instrument page addresses.
+
+The feature's `top-bar` presentation composes the bar with the Desk title and
+actions under ADR 0036. Select it in the workspace's `desk/top-bar.json` with
+`{"plugin": "pythia-market-data", "presentation": "top-bar"}`. It is not the
+product default while the directory operation is being built: its transport
+binding is provisional, it offers no lookup yet, and until an instrument route
+exists a selection is announced as a `pythia:open-subject` window event with
+`{subject_id}`. `@pythia/market-data/search-demo` is a synthetic in-memory
+directory for tests and the Design Lab's investment search demonstration.
