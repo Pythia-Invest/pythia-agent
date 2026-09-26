@@ -83,12 +83,17 @@ class Provenance:
 
 @dataclass(frozen=True, slots=True)
 class ProviderRef:
-    """Exactly the existing market-data wire `provider_ref`; the read pipeline stays keyed by it."""
+    """Exactly the existing market-data wire `provider_ref`; the read pipeline stays keyed by it.
+
+    Identity is (provider, native_scope, native_id). Qualifiers (currency,
+    venue, route, network) only select reads; bindings, overlay rows, batch
+    checks and provisional IDs never key on them.
+    """
 
     provider: str
     native_id: str
     native_scope: str
-    qualifiers: Mapping[str, str] = field(default_factory=dict)
+    qualifiers: Mapping[str, str] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
         _require(bool(NAMESPACE.match(self.provider)), "provider_ref.provider: namespace required")

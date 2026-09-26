@@ -48,7 +48,6 @@ CREATE TABLE bindings (
   provider TEXT NOT NULL,
   native_id TEXT NOT NULL,
   native_scope TEXT NOT NULL,
-  qualifiers TEXT NOT NULL DEFAULT '{}',
   subject_id TEXT NOT NULL,
   level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
   status TEXT NOT NULL CHECK (status IN ('candidate', 'confirmed', 'conflicting', 'rejected')),
@@ -60,7 +59,7 @@ CREATE TABLE bindings (
   valid_to TEXT,
   verified_at TEXT,                -- last positive verification (e.g. a resolve-only quote check)
   verdict_id TEXT REFERENCES verdicts(id),  -- the verdict that confirmed or rejected it (ADR 0012 override)
-  UNIQUE (provider, native_id, native_scope, qualifiers),
+  UNIQUE (provider, native_scope, native_id),  -- wire qualifiers select reads; they never key identity
   CHECK (subject_id LIKE level || ':%'),
   CHECK (status <> 'confirmed' OR authority IN ('source_asserted', 'snapshot', 'rule_confirmed', 'model_confirmed',
                                                  'user_attested', 'curated')),
