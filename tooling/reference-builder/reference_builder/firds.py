@@ -203,12 +203,14 @@ def select_transparency(records: Iterable[Transparency], as_of: date) -> dict[st
     return chosen
 
 
-def load_transparency(paths: list[str], as_of: date) -> dict[str, Transparency]:
+def load_transparency(paths: list[str], as_of: date) -> dict[str, Transparency] | None:
+    """Equity transparency results per ISIN, or None when FITRS offered none (unavailable, not all missing)."""
+
     def all_records() -> Iterator[Transparency]:
         for path in paths:
             for member in _members(path):
                 yield from transparency_records(member)
 
     chosen = select_transparency(all_records(), as_of)
-    log(f"FITRS: {len(chosen)} ISINs with an equity transparency result")
-    return chosen
+    log(f"FITRS: {len(chosen)} ISINs with an equity transparency result" if chosen else "FITRS: no equity transparency result; activity check skipped")
+    return chosen or None

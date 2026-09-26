@@ -71,6 +71,9 @@ class FirdsTest(unittest.TestCase):
         chosen = firds.select_transparency(firds.transparency_records(stream(xml)), date(2026, 9, 25))
         self.assertEqual(chosen[ASML_ISIN].turnover_eur, 250.0)
 
+    def test_empty_transparency_index_is_unavailable_not_all_missing(self):
+        self.assertIsNone(firds.load_transparency([], date(2026, 9, 25)))
+
 
 class GleifTest(unittest.TestCase):
     def test_non_latin_legal_name_uses_typed_alternative_never_previous_name(self):
