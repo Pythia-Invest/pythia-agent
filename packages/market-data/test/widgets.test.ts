@@ -12,7 +12,10 @@ const input: FinancialWidgetInput = {
     feed: "prices",
     subjects: [
       {
-        subject: { kind: "listing", id: "listing:provisional:synthetic:symbol:fixture" },
+        subject: {
+          kind: "listing",
+          id: "listing:provisional:synthetic:symbol:fixture",
+        },
         symbol: "FIX",
         name: "Fixture",
         price: { mode: "preferred", criteria: { currency: "USD" } },

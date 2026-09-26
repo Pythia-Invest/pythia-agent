@@ -14,7 +14,10 @@ import {
 } from "../src/widgets";
 
 const row: FinancialRow = {
-  subject: { kind: "listing", id: "listing:provisional:synthetic:symbol:history" },
+  subject: {
+    kind: "listing",
+    id: "listing:provisional:synthetic:symbol:history",
+  },
   symbol: "FIX",
   name: "Synthetic history",
   price: { mode: "preferred", criteria: {} },
