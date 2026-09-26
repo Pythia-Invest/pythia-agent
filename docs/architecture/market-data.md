@@ -24,6 +24,13 @@ data is used under that investor's own agreement with the provider. Each plugin
 carries its provider's terms and enforces what they require. Pythia itself never
 publishes, pools or redistributes provider data.
 
+Two open-data reference connectors are bundled as well. The
+[SEC connector](../../runtime/managed/plugins/sec/README.md) supplies filer
+resolve, filings and reported US GAAP/IFRS facts; it needs a configured SEC
+contact (name and email). The [OpenFIGI connector](../../runtime/managed/plugins/openfigi/README.md)
+resolves identifiers to FIGIs, and its API key is optional. Neither offers
+provider search, and both return evidence rather than identity decisions.
+
 - [Wire contracts](../../packages/market-data/README.md): subject, series,
   observation and read result, with provenance and financial semantics.
 - [Identity](../../packages/market-data/IDENTITY.md): narrow source-specific

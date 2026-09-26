@@ -88,6 +88,39 @@ export const MANAGED_PLUGINS = Object.freeze([
     ]),
     workers: Object.freeze(["yahoo.ts", "yahoo-prices.ts", "yahoo-options.ts"]),
   }),
+  Object.freeze({
+    name: "pythia-sec",
+    install: true,
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/sec",
+    files: Object.freeze([
+      "__init__.py",
+      "plugin.yaml",
+      "configuration.json",
+      "README.md",
+      "definition.py",
+      "client.py",
+      "identity.py",
+      "financials.py",
+    ]),
+  }),
+  Object.freeze({
+    name: "pythia-openfigi",
+    install: true,
+    enabledByDefault: true,
+    doctor: false,
+    source: "plugins/openfigi",
+    files: Object.freeze([
+      "__init__.py",
+      "plugin.yaml",
+      "configuration.json",
+      "README.md",
+      "definition.py",
+      "client.py",
+      "mapping.py",
+    ]),
+  }),
 ]);
 
 // Core runner helpers that connector workers import. Listed once, ahead of the
