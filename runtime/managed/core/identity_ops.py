@@ -89,21 +89,28 @@ class Identity:
                 out.setdefault(row["subject_id"], []).append({"plugin": row["plugin"], "ref": row["native_id"]})
             return out
 
-        data = directory.search(arguments["query"], limit=arguments["limit"], kinds=arguments.get("kinds"),
-                                bindings=bindings)
+        query = str(arguments.get("query") or "").strip()[:128]
+        limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
+        data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), bindings=bindings) if query else {
+            "groups": [], "lookup": []}
         return _envelope("ok" if data["groups"] else "empty", data)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
-        view = self._compose(arguments["subject_id"])
+        try:
+            view = self._compose(str(arguments.get("subject_id") or ""))
+        except ValueError:  # a malformed subject id
+            view = None
         return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown subject.")
 
     def resolve(self, arguments: dict, **_context: Any) -> str:
-        subject_id, wanted = arguments["subject_id"], arguments["plugin"]
+        subject_id, wanted = str(arguments.get("subject_id") or ""), arguments.get("plugin")
         path, ref = self.reference()
         if ref is None:
             return _envelope("empty", None, issue="No reference data on this device yet.")
         try:
             subject = page.load_subject(ref, subject_id)
+        except ValueError:
+            subject = None
         finally:
             ref.close()
         info = next((item for item in installed() if wanted in (item.key, item.manifest.plugin)), None)

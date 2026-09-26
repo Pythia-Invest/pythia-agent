@@ -139,7 +139,12 @@ alone (`self` only); share-class or composite FIGI; exact `ticker_mic` as a weak
 binding re-verified on page open; otherwise a provisional subject and a residual.
 
 **Search is a local read** of the directory: no provider call, no identity
-write, no reconciliation. "Look up in X" explicitly calls one provider's
+write, no reconciliation. Core's `identity-search` builds the directory in
+memory (FTS5) from the newest reference file and ranks with one versioned,
+gold-calibrated additive score (exact ticker or identifier, name match,
+notability from each security's source `rank`, primary and home line,
+penalties for OTC lines and derivatives); issuers compete by their best line
+and results group by security, the home line before a foreign receipt. "Look up in X" explicitly calls one provider's
 `resolve`, and the result joins like any other claim.
 
 ## Rationale

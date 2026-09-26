@@ -32,8 +32,9 @@ not a registry: deleting the package removes the declaration.
 
 - **`addressing`** lists the plugin's native reference scopes, each at one
   level; the global schemes it accepts per level (a scheme must belong to that
-  level); and a flat table from operating MIC to the provider's venue code or
-  suffix, so core can build a native reference from `ticker_mic` without a call.
+  level); and a flat table from operating MIC to the literal suffix core appends
+  to the ticker (`".AS"`, or `""` for a bare symbol), so core can build a
+  native reference from `ticker_mic` without a call.
 - **`content`** maps core's page sections (`quote`, `chart`, `profile`,
   `financials`, `news`, `filings`) to a tool, the level the data is about and the level of
   the reference used to call (`via`). `via` may be narrower than `level`, never
@@ -74,6 +75,25 @@ plugin; core joins at ingest.
 Identity overlap between plugins is solved by the join: one subject, two
 bindings. Content overlap, page budgets and resolver declarations belong to
 the page composition and matcher pieces.
+
+**Page sections never wait on a provider.** Core's `identity-subject`
+operation reads the reference file, the identity store and the contracts only.
+Per section it takes the first usable plugin in a fixed default order (quote
+and chart: Yahoo, EODHD, CoinMarketCap, CoinGecko; profile: GLEIF; filings:
+filings.xbrl.org, SEC) that can address the subject at the content entry's
+`via` level, and lists the others as alternatives with their status
+(`disabled`, `needs_configuration`, ...). A plugin is addressed at once when
+core holds a confirmed binding or can derive the native reference from open
+identifiers: the MIC suffix table, a native scope named after a scheme the
+plugin accepts at that level (GLEIF by `lei`, SEC by `cik`), or core's curated
+native-coin table (rule `native_coins@1`, a confirmed binding). A derived
+reference is an address, never identifier evidence, and is recomputed rather
+than stored. Otherwise the section is `resolving`, and the Desk asks
+`identity-resolve` for that one plugin after rendering: core runs its declared
+`resolve` with a short timeout, applies `decide` (rule `resolve_answer@1`: the
+answer to open identifiers binds unless identifier evidence or the receipt
+guard contradicts it) and stores a binding or a queue item, so the next open
+is local. Resolve answers use the wire form of `claims.batch_to_json`.
 
 ## Rationale
 
