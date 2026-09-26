@@ -7,8 +7,8 @@ Pythia's directory, and the reference builder ingests SEC's ticker file itself.
 
 | Operation | Tool | Source | Returns |
 | --- | --- | --- | --- |
-| `resolve` | `pythia_sec_resolve` | ticker file or `submissions/CIK##########.json` | Filer identity by exact CIK, or by exact ticker with an optional operating MIC: echoed CIK, current and former names, listed lines. Several filers for one ticker are all returned with an `ambiguous` warning. |
-| `filings` | `pythia_sec_filings` | submissions | Recent filings with form, filing date, report period and document link, including 20-F, 40-F and 6-K. |
+| `resolve` | `pythia_sec_resolve` | ticker file or `submissions/CIK##########.json` | `identifiers.cik`, or `identifiers.ticker_mic` (`TICKER@MIC`, operating MIC): a `ClaimBatch` in core's wire form (ADR 0038), one issuer claim (name, CIK, native reference) per matching filer. Several filers for one ticker are all claimed with an `ambiguous` warning; a MIC SEC does not list (anything but XNAS, XNYS, XCBO, OTCM) is `empty` without a request. |
+| `filings` | `pythia_sec_filings` | submissions | Recent filings with form, filing date, report period and document link, including 20-F, 40-F and 6-K. The Desk's filings section reads it through its declared read-only operation `pythia-sec`/`filings`. |
 | `fundamentals` | `pythia_sec_fundamentals` | `api/xbrl/companyfacts` | Latest annual US GAAP or IFRS (`ifrs-full`, used by foreign private issuers) facts with exact periods, units and filing provenance. |
 | `facts` | `pythia_sec_facts` | companyfacts | Native facts for explicit concepts of one taxonomy. |
 

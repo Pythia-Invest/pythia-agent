@@ -82,6 +82,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     source: "plugins/yahoo-discovery",
     files: Object.freeze([
       "__init__.py",
+      "contract.json",
       "plugin.yaml",
       "README.md",
       "definition.py",
@@ -99,6 +100,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     source: "plugins/sec",
     files: Object.freeze([
       "__init__.py",
+      "contract.json",
       "plugin.yaml",
       "configuration.json",
       "README.md",
@@ -132,6 +134,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     source: "plugins/gleif",
     files: Object.freeze([
       "__init__.py",
+      "contract.json",
       "definition.py",
       "records.py",
       "profile.py",
@@ -148,6 +151,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     source: "plugins/xbrl-filings",
     files: Object.freeze([
       "__init__.py",
+      "contract.json",
       "definition.py",
       "identity.py",
       "reports.py",
@@ -165,6 +169,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     source: "plugins/coingecko",
     files: Object.freeze([
       "__init__.py",
+      "contract.json",
       "plugin.yaml",
       "configuration.json",
       "README.md",
@@ -187,6 +192,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     // The isolated Python worker is copied with the package; no runner workers.
     files: Object.freeze([
       "__init__.py",
+      "contract.json",
       "plugin.yaml",
       "configuration.json",
       "README.md",
@@ -209,6 +215,7 @@ export const MANAGED_PLUGINS = Object.freeze([
     source: "plugins/eodhd",
     files: Object.freeze([
       "__init__.py",
+      "contract.json",
       "plugin.yaml",
       "configuration.json",
       "configuration.py",

@@ -1,0 +1,45 @@
+{
+  "plugin": "pythia-yahoo-discovery",
+  "provider": "yahoo",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "symbol",
+        "level": "listing",
+        "asset_classes": [
+          "equity"
+        ]
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "ticker_mic"
+      ]
+    },
+    "mic_table": {
+      "XAMS": ".AS",
+      "XBRU": ".BR",
+      "XLIS": ".LS",
+      "XMIL": ".MI",
+      "XDUB": ".IR",
+      "XOSL": ".OL",
+      "XPAR": ".PA",
+      "XNAS": "",
+      "XNYS": "",
+      "XCBO": "",
+      "OTCM": ""
+    }
+  },
+  "content": {
+    "quote": {
+      "level": "listing",
+      "via": "listing",
+      "tool": "pythia_yahoo_latest"
+    },
+    "chart": {
+      "level": "listing",
+      "via": "listing",
+      "tool": "pythia_yahoo_history"
+    }
+  }
+}

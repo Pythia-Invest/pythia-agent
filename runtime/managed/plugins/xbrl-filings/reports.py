@@ -69,8 +69,11 @@ def filings(raw, identifier, observed_at, limit):
     rows, total = records(raw, identifier)
     return {'dataset': 'filings', 'provider': PROVIDER, 'provider_ref': reference(identifier),
         'observed_at': observed_at, 'source_url': reports_url(identifier),
+        'source': {'label': 'filings.xbrl.org', 'url': ORIGIN},
+        # The repository indexes neither a regulator filing date (date_added is its own ingestion) nor a language.
         'filings': [{'accession': row['hash'], 'report_id': row['id'], 'form': row['form'],
             'country': row['country'], 'title': row['form'] + ' report', 'period_end': row['period_end'],
+            'filed_at': None, 'language': None,
             'url': row['url'], 'links': row['links'], 'machine_readable': available(row),
             'source_detail': detail(row)} for row in rows[:limit]],
         'latest': latest(rows, total),

@@ -61,6 +61,7 @@ def profile(row, observed_at):
                 fields.append({'key': key, 'label': label, **date_value(value)})
         elif text(value):
             fields.append({'key': key, 'label': label, 'value': value})
+    addresses = {}
     for key, label in (('legalAddress', 'Legal address'), ('headquartersAddress', 'Headquarters')):
         address = entity.get(key)
         if not isinstance(address, dict):
@@ -71,11 +72,18 @@ def profile(row, observed_at):
         parts = [part for part in [*lines, address.get('city'), address.get('region'),
                                   address.get('postalCode'), address.get('country')] if text(part)]
         if parts:
-            fields.append({'key': key, 'label': label, 'value': ', '.join(parts)[:4000]})
+            addresses[key] = ', '.join(parts)[:4000]
+            fields.append({'key': key, 'label': label, 'value': addresses[key]})
     # A declared successor is a distinct entity; it never replaces this record.
     relationships = [{'kind': 'SUCCEEDED_BY', 'target': {'scheme': 'lei', 'value': item['lei'], 'name': item['name']},
                       'source_url': url} for item in successors(entity) if item['lei'] != identifier]
-    return {'dataset': 'profile', 'provider': PROVIDER, 'provider_ref': reference(identifier),
+    legal_name = entity['legalName']['name']
+    # The normalized page-profile fields come first; `parent` is added after the parent reads.
+    return {'name': legal_name, 'legal_name': legal_name, 'jurisdiction': text(entity.get('jurisdiction')),
+        'legal_address': addresses.get('legalAddress'), 'headquarters': addresses.get('headquartersAddress'),
+        'status': text(entity.get('status')), 'category': text(entity.get('category')),
+        'source': {'label': 'GLEIF', 'url': 'https://search.gleif.org/#/record/' + identifier},
+        'dataset': 'profile', 'provider': PROVIDER, 'provider_ref': reference(identifier),
         'observed_at': observed_at, 'source_url': url, 'identifiers': identifiers(entity, identifier),
         'names': names(entity), 'fields': fields, 'relationships': relationships, 'limitations': [
             'LEI registration status is separate from whether the legal entity is active.',

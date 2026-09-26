@@ -1,0 +1,34 @@
+{
+  "plugin": "pythia-coinmarketcap",
+  "provider": "coinmarketcap",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "coin",
+        "level": "security",
+        "asset_classes": [
+          "crypto"
+        ]
+      }
+    ]
+  },
+  "content": {
+    "quote": {
+      "level": "security",
+      "via": "security",
+      "tool": "pythia_coinmarketcap_latest"
+    },
+    "chart": {
+      "level": "security",
+      "via": "security",
+      "tool": "pythia_coinmarketcap_history"
+    }
+  },
+  "catalogue": {
+    "mode": "bulk",
+    "tool": "pythia_coinmarketcap_catalogue",
+    "scopes": [
+      "coins"
+    ]
+  }
+}
