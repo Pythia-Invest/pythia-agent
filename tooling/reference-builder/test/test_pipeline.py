@@ -9,9 +9,10 @@ from datetime import date
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import firds, gleif, manifest, mic, sec, writer
+from reference_builder import firds, gleif, linking, manifest, mic, sec, writer
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
+from reference_builder.model import SecTicker, Snapshot
 from reference_builder.pipeline import build_snapshot
 
 from .fixtures import (
@@ -138,6 +139,16 @@ class PipelineTest(unittest.TestCase):
         self.assertFalse(any(job["idType"] == "TICKER" for job in figi.jobs))
         self.assertFalse(any(l.source == "sec" for l in snap.listings.values()))
 
+
+
+class CikLinkTest(unittest.TestCase):
+    def test_identifier_link_wins_the_lei_over_an_earlier_name_link(self):
+        snap = Snapshot(as_of="2026-09-25")
+        tickers = [SecTicker("100", "Acme Holdings", "ACMH", "Nasdaq", 0), SecTicker("200", "Acme", "ACME", "NYSE", 1)]
+        evidence = {"100": [("LEIX", "name_unique")], "200": [("LEIX", "share_class_figi")]}
+        links = linking._decide(snap, tickers, evidence, Counter())
+        self.assertEqual(links, {"200": ("LEIX", "share_class_figi")})
+        self.assertEqual([(f.subject_id, f.flag) for f in snap.flags], [("cik:100", "lei_already_linked")])
 
 if __name__ == "__main__":
     unittest.main()

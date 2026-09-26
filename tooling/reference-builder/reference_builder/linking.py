@@ -83,8 +83,8 @@ def _name_evidence(snap, tickers, evidence) -> None:
 
 
 def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
-    links: dict[str, tuple[str, str]] = {}
-    claimed: dict[str, str] = {}
+    """One LEI per CIK. Identifier links claim their LEI before any name link does."""
+    candidates = []
     for cik in sorted({t.cik for t in tickers}, key=int):
         found = evidence.get(cik, [])
         strong = {lei for lei, rule in found if rule in IDENTIFIER_RULES}
@@ -93,16 +93,23 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
             snap.flag(f"cik:{cik}", "cik_lei_conflict", ",".join(sorted(strong)))
             audit["link_conflicts"] += 1
             continue
-        lei = next(iter(strong or weak), None) if len(strong) == 1 or len(weak) == 1 else None
-        if lei is None:
+        if strong:
+            lei = next(iter(strong))
+            rule = next(r for l, r in found if l == lei and r in IDENTIFIER_RULES)
+            if weak and weak != strong:
+                snap.flag(f"cik:{cik}", "name_link_contradicted", ",".join(sorted(weak)))
+        elif len(weak) == 1:
+            lei, rule = next(iter(weak)), "name_unique"
+        else:
             continue
-        if weak and strong and weak != strong:
-            snap.flag(f"cik:{cik}", "name_link_contradicted", ",".join(sorted(weak)))
+        candidates.append((rule == "name_unique", cik, lei, rule))
+    links: dict[str, tuple[str, str]] = {}
+    claimed: dict[str, str] = {}
+    for _weak, cik, lei, rule in sorted(candidates, key=lambda c: c[0]):  # stable: CIK order within a pass
         if lei in claimed:
             snap.flag(f"cik:{cik}", "lei_already_linked", f"{lei} to cik:{claimed[lei]}")
             audit["link_conflicts"] += 1
             continue
-        rule = next(r for l, r in found if l == lei and (r in IDENTIFIER_RULES or not strong))
         links[cik] = (lei, rule)
         claimed[lei] = cik
         audit[f"link_{rule}"] += 1
