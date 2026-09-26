@@ -115,12 +115,21 @@ afterEach(async () => {
 });
 
 describe("investment search", () => {
-  it("opens the typed query's top row on Enter and keeps the query", async () => {
+  it("highlights the typed query's top row, opens it on Enter and keeps the query", async () => {
     const { search, answer } = directory();
     await act(async () => root.render(<Harness search={search} />));
     await type("asml");
     await answer("asml", [group("ASML"), group("ASME")]);
     await until(() => expect(rows()).toEqual(["ASML", "ASME"]));
+    // Rows that arrive after typing still come highlighted: Enter opens what
+    // is shown highlighted.
+    await until(() =>
+      expect(
+        document
+          .querySelector('[role="option"][data-highlighted]')
+          ?.getAttribute("aria-label"),
+      ).toMatch(/^ASML,/),
+    );
 
     await press("Enter");
     expect(selected).toEqual(["listing:ASML"]);

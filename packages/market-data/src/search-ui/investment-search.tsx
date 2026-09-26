@@ -43,9 +43,14 @@ export type InvestmentSearchProps = {
   className?: string | undefined;
 };
 
+/** The first shown row is always highlighted, so Enter opens what the user
+ * sees highlighted. Base UI's combobox engine supports this as "always" (the
+ * option Autocomplete exposes); Combobox's types only name the boolean. */
+const HIGHLIGHT_FIRST_ROW = "always" as unknown as boolean;
 const TABBABLE = 'button:not(:disabled):not([tabindex="-1"])';
 const NO_GROUPS: SearchGroup[] = [];
 const NO_OFFERS: LookupOffer[] = [];
+const NO_OPTIONS: SearchOption[] = [];
 
 /** Busy cues appear only when work is noticeably slow, so fast local reads
  * never flash a spinner. */
@@ -75,7 +80,6 @@ export function InvestmentSearch({
 }: InvestmentSearchProps) {
   const input = useRef<HTMLInputElement>(null);
   const popup = useRef<HTMLDivElement>(null);
-  const highlighted = useRef<SearchOption | undefined>(undefined);
   const lookupAbort = useRef<AbortController | null>(null);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<TypeFilter>("all");
@@ -175,12 +179,12 @@ export function InvestmentSearch({
       }}
       open={open}
       onOpenChange={setOpen}
-      onItemHighlighted={(option) => {
-        highlighted.current = option;
-      }}
       itemToStringLabel={(option) => option.row.ticker}
       filter={null}
-      autoHighlight
+      autoHighlight={HIGHLIGHT_FIRST_ROW}
+      // The rows the panel shows, in its order, so the highlight follows
+      // arriving results.
+      items={status === "ready" ? options : NO_OPTIONS}
     >
       <ComboboxInputGroup
         data-slot="investment-search"
@@ -216,16 +220,11 @@ export function InvestmentSearch({
               return;
             }
             if (event.key !== "Enter" || !open || !trimmed) return;
-            // Enter opens a row of the typed query only: rows of the previous
-            // query, still shown while it loads, are not a choice.
-            const first = options[0];
-            if (!fresh || !highlighted.current) {
+            // Enter opens the highlighted row of the typed query only: rows of
+            // the previous query, still shown while it loads, are not a choice.
+            if (!fresh) {
               event.preventDefault();
               event.preventBaseUIHandler();
-              if (fresh && first) {
-                onSelect(first.row.id);
-                setOpen(false);
-              }
             }
           }}
           className="min-h-0 px-0 text-body"
