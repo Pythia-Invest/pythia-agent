@@ -18,7 +18,6 @@ BUILDER_VERSION = "1"
 USER_AGENT = "pythia-agent reference builder (contact via github.com/Pythia-Invest)"
 # SEC fair-access rules require a reachable contact mailbox in the User-Agent.
 SEC_USER_AGENT = "pythia-agent reference builder {contact}"
-CONTACT_ENV = "PYTHIA_REFERENCE_CONTACT"
 OPENFIGI_KEY_ENV = "OPENFIGI_API_KEY"
 _CONTACT_SHAPE = re.compile(r"\S+@\S+\.\S+")
 
@@ -78,12 +77,23 @@ def load_openfigi_key(env: dict[str, str] | None = None) -> str | None:
     value = (env.get(OPENFIGI_KEY_ENV) or "").strip()
     if value:
         return value
-    path = config_dir(env) / "secrets.json"
+    return _stored(config_dir(env) / "secrets.json", "openfigi_api_key")
+
+
+def load_sec_identity(env: dict[str, str] | None = None) -> str | None:
+    """Return the SEC plugin's configured contact, `sec_identity` in the device settings file.
+
+    Sent only in the SEC User-Agent; callers must never log, print or persist it.
+    """
+    return _stored(config_dir(env) / "settings.json", "sec_identity")
+
+
+def _stored(path: Path, key: str) -> str | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    stored = data.get("openfigi_api_key") if isinstance(data, dict) else None
+    stored = data.get(key) if isinstance(data, dict) else None
     return stored.strip() if isinstance(stored, str) and stored.strip() else None
 
 

@@ -25,9 +25,9 @@ def fetch(downloader: Downloader, contact: str | None, local: Path | None, max_a
         agent = sec_user_agent(contact)
         if agent is None:
             raise SystemExit(
-                "SEC requires a contact mailbox in the User-Agent: set PYTHIA_REFERENCE_CONTACT "
-                "(or --contact), pass --sec-file with a downloaded company_tickers_exchange.json, "
-                "or build without --sec."
+                "SEC requires a name and email in the User-Agent: set `sec_identity` in "
+                "<config>/pythia/settings.json (the SEC plugin's contact), pass --sec-file with a "
+                "downloaded company_tickers_exchange.json, or build with --no-sec."
             )
         record = downloader.get("sec_company_tickers", SEC_URL, "company_tickers_exchange.json", max_age=max_age, user_agent=agent)
     return Path(record.path).read_bytes()

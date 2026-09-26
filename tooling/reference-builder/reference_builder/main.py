@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 from collections import Counter
@@ -12,7 +11,7 @@ from pathlib import Path
 
 from . import firds, manifest, mic, schema, sec, writer
 from .assemble import Inputs
-from .config import BUILDER_VERSION, CONTACT_ENV, USER_AGENT, BuildConfig, Scope, load_openfigi_key, parse_mics
+from .config import BUILDER_VERSION, USER_AGENT, BuildConfig, Scope, load_openfigi_key, load_sec_identity, parse_mics
 from .fetch import Downloader, log, utc_now
 from .gleif import GleifClient
 from .openfigi import MAPPING_URL, OpenFigi
@@ -29,7 +28,6 @@ def parse_args(argv: list[str]) -> BuildConfig:
     parser.add_argument("--deltas", action="store_true", help="also apply FIRDS daily deltas (DLTINS) since the weekly file")
     parser.add_argument("--no-fitrs", action="store_true", help="skip the FITRS activity and turnover check")
     parser.add_argument("--sec-file", type=Path, help="use a downloaded company_tickers_exchange.json")
-    parser.add_argument("--contact", help=f"SEC contact mailbox for the User-Agent (default: ${CONTACT_ENV})")
     parser.add_argument("--no-gates", action="store_true", help="write the snapshot even if a canary fails")
     args = parser.parse_args(argv)
     defaults = BuildConfig(scope=Scope(), as_of=args.as_of)
@@ -41,7 +39,7 @@ def parse_args(argv: list[str]) -> BuildConfig:
         deltas=args.deltas,
         fitrs=not args.no_fitrs,
         gates=not args.no_gates,
-        contact=args.contact or os.environ.get(CONTACT_ENV),
+        contact=load_sec_identity() if not args.no_sec and not args.sec_file else None,
         sec_file=args.sec_file,
     )
 

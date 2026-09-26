@@ -1,12 +1,13 @@
 """Source parsing: FIRDS full and delta records, FITRS, GLEIF typed names, SEC, MIC."""
 
+import json
 import tempfile
 import unittest
 from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 
-from reference_builder import firds, gleif, mic, sec
+from reference_builder import config, firds, gleif, mic, sec
 from reference_builder.fetch import Downloader
 from reference_builder.rules import display_name
 
@@ -91,6 +92,14 @@ class SecAndMicTest(unittest.TestCase):
     def test_sec_download_requires_a_contact_mailbox(self):
         with tempfile.TemporaryDirectory() as tmp, self.assertRaises(SystemExit):
             sec.fetch(Downloader(Path(tmp), "test"), contact="no mailbox", local=None, max_age=timedelta(days=1))
+
+    def test_sec_contact_comes_from_the_settings_file_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {"XDG_CONFIG_HOME": tmp, "PYTHIA_REFERENCE_CONTACT": "Env Contact env@example.org"}
+            self.assertIsNone(config.load_sec_identity(env))
+            (Path(tmp) / "pythia").mkdir()
+            (Path(tmp) / "pythia" / "settings.json").write_text(json.dumps({"sec_identity": " Example Research research@example.org "}))
+            self.assertEqual(config.load_sec_identity(env), "Example Research research@example.org")
 
     def test_mic_rows_map_segments_to_operating_mic(self):
         venues = mic.parse(MIC_CSV.encode())

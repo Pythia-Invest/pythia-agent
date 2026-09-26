@@ -58,7 +58,7 @@ python3 tooling/reference-builder/run.py --help
 
 | Setting | Purpose |
 | --- | --- |
-| `PYTHIA_REFERENCE_CONTACT` or `--contact` | Required for the SEC download: SEC fair-access rules require a name and email in the User-Agent. It is sent only to SEC and never written to the outputs. |
+| `sec_identity` in `${XDG_CONFIG_HOME:-~/.config}/pythia/settings.json` | The SEC plugin's configured contact, required for the SEC download: SEC fair-access rules require a name and email in the User-Agent. It is sent only to SEC and never written to the outputs. |
 | `--sec-file` | Use an already downloaded `company_tickers_exchange.json` instead. |
 | `OPENFIGI_API_KEY` | OpenFIGI key. Otherwise `openfigi_api_key` from `${XDG_CONFIG_HOME:-~/.config}/pythia/secrets.json`. Without a key the build still works under keyless rate limits: about 45 minutes for the SEC tickers instead of about 1 minute. The key is sent only in the OpenFIGI request header. |
 
