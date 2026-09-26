@@ -19,6 +19,7 @@ import {
 import { defaultRestart, withFileLock } from "@/server/device-settings-native";
 import { atomicWriteStore, requireStore } from "@/server/device-settings-store";
 import type { HermesClient, HermesSkill, HermesToolset } from "@/server/types";
+import { capturedCli } from "./hermes-capture";
 
 const roots: string[] = [];
 
@@ -261,7 +262,8 @@ describe("device settings", () => {
   });
 
   it.each([
-    ["missing", "openai-codex: logged out\n"],
+    // Pinned `hermes auth status` output (ADR 0020 capture).
+    ["missing", capturedCli().auth_status_logged_out.stdout],
     ["present", "openai-codex: logged in\n"],
   ] as const)(
     "reports the root OpenAI Codex status without a global readiness claim (%s)",

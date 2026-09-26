@@ -53,10 +53,10 @@ a shell directory change; start a fresh session in the intended project when
 that happens. Treat other repositories as reference unless explicitly in scope.
 
 Ordinary development and verification do not require a plan or runbook.
-`create-plan`, `implement-plan`, `create-test-plan` and `run-test-plan` are
-explicit-only workflows, including their cross-skill handoffs. Use the native
-invocation controls as well as precise descriptions; do not re-enable implicit
-selection while updating a skill.
+`create-plan`, `implement-plan`, `create-test-plan`, `run-test-plan` and
+`upgrade-hermes` are explicit-only workflows, including their cross-skill
+handoffs. Use the native invocation controls as well as precise descriptions;
+do not re-enable implicit selection while updating a skill.
 
 ### What selecting a workflow does
 

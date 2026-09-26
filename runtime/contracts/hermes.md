@@ -77,6 +77,33 @@ See the tagged upstream
 [installer](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/scripts/install.sh) and
 [curated extras](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/pyproject.toml).
 
+`runtime/versions.json` is the single pin record. The install-facing
+`runtime/hermes/hermes-source.json` repeats its release, commit and
+archive beside the hydration command; `just check` fails when they disagree.
+Code derives the installed source directory and expected health version from
+the record; prose that names the version is found by searching for it.
+
+## Process, environment and health
+
+Both the development supervisor and the installed user unit start
+`hermes -p <profile> gateway run --external-supervisor`, so an upstream update
+restart exits back to Pythia's owner instead of launching Hermes's detached
+watcher. The process environment sets `HERMES_HOME`,
+`HERMES_DISABLE_LAZY_INSTALLS=1` and `API_SERVER_HOST`/`PORT`/`KEY`. The API
+server platform is enabled by the presence of a usable `API_SERVER_KEY` (at
+least 16 characters, `gateway/config.py:_apply_env_overrides`); there is no
+separate enable flag. Plugin handlers run in the Hermes process and read
+Pythia's own `PYTHIA_*` variables from that same environment.
+
+Readiness is unauthenticated `GET /health`, which returns
+`{"status":"ok","platform":"hermes-agent","version":<hermes_cli.__version__>}`.
+The development supervisor and installed readiness accept only the pinned
+`package_version`, so a stale or foreign gateway on the port is not mistaken
+for Pythia's Hermes. A profile's session database is
+`$HERMES_HOME/state.db` for `default` and
+`$HERMES_HOME/profiles/<profile>/state.db` otherwise; only the allowlisted
+read-only runner below opens it.
+
 ## Profile and credential owner
 
 The sole bootstrap exception for a missing profile is exactly:
@@ -459,7 +486,11 @@ Respond at `POST /v1/runs/{run_id}/approval` with
 `{"choice":"once|session|always|deny","request_id":"…"}`; bulk-resolution
 fields are outside the first slice. `deny` is rejection. The response unblocks
 the same run; there is no resume request. Invalid choice/request is HTTP 400;
-no active matching approval is 409. Stop is
+no active matching approval is 409. `/v1/runs` raises approval events only
+because `gateway run` sets `HERMES_EXEC_ASK=1`; without it the API server
+denies dangerous commands outright. The pinned default `approvals.mode` is
+`smart`, which asks an auxiliary model before the user, and the Pythia seed
+does not override it. Stop is
 `POST /v1/runs/{run_id}/stop`. It is idempotent for a terminal run; an active
 run first becomes stopping, receives a hard interrupt, and becomes cancelled
 only when the agent exits and emits `run.cancelled`. There is no `/cancel`
@@ -573,3 +604,98 @@ verified in the native framed section. Settings separately exposes the native
 `terminal.cwd` and Desk workspace root as matched/different/unavailable, preserving
 the user's cwd; canonical host references and browser root admission do not
 change when those roots differ.
+
+## Known defects at this pin
+
+Recorded 2026-09-23. Recheck on every upgrade and remove resolved entries.
+
+- **Mid-run steering is not saved.** `agent/tool_executor.py:_flush_session_db_after_tool_progress`
+  saves each tool result immediately; `apply_pending_steer_to_tool_results` then
+  appends the steer to that saved message in memory only, and later flushes skip
+  saved rows. The model sees the steer for the rest of that run only; later runs
+  rebuild history from `state.db` and probably do not. The steer disappears
+  from Desk on reload. Upstream commit `7dc796463d` (2026-09-09, first released
+  in v2026.9.11) saves a standalone `role: "user"`, `display_kind: "steer"` row.
+  Resolved by upgrading the pin; a browser-side copy was rejected as a second
+  transcript store.
+- **Upgrade blocked: `GET /v1/skills` returns HTTP 500** in v2026.9.11 through
+  v2026.9.21 and on `main` as of 2026-09-23. Commit `a6ee31f55a` made the
+  handler call `_find_all_skills(skip_disabled=False, include_editorial=True)`;
+  the same-day revert `0dcadf6f41` removed that parameter from
+  `tools/skills_tool.py` but not the call, so it raises `TypeError`. Desk
+  skill settings and the skill-toggle readback depend on this endpoint. Upstream
+  issue NousResearch/hermes-agent#108967; fix PRs #108968 and #113058 are
+  unmerged. Pythia stays on v2026.8.31 until the first release containing the
+  fix, which also resolves the steering defect.
+
+## Touchpoint index
+
+Every place Pythia depends on Hermes behavior has one row here. An upgrade
+walks this table against the new release; a change that adds or alters a
+dependency updates its row and coverage in the same change
+([rule](../../.agents/rules/hermes-touchpoints.md)). Locations name files, not
+lines. Anchors name the file and symbol at the pin. Desk paths are relative to
+`apps/desk/src/`.
+
+Coverage terms: **probe** is `tooling/qualification/native_hermes_probe.py`
+against the real pin; **assembled** is the assembled run of `just qualify`;
+**manual** is a `tooling/qualification/workspace-*.py` script run by hand;
+**wire capture** is the provider-free capture of pinned Hermes output
+(`just capture-hermes`, checked by `just check-hermes-capture` in `just qualify`; [ADR 0020](../../docs/decisions/0020-hermes-wire-capture-goldens.md)); **fixture** is hand-written
+test data, which guards Pythia behavior but cannot detect Hermes drift.
+
+| Pythia location | Hermes anchor at the pin | If it changes | Coverage |
+| --- | --- | --- | --- |
+| **Install, process and environment** | | | |
+| `runtime/versions.json`, `runtime/hermes/hermes-source.json`, `scripts/dev/runtime-source.mjs` | tag tarball; `pyproject.toml` `all` extra and `uv.lock` | Loud: hash, missing file or `uv sync` error | `test/integration/dev-managed-assets.test.ts`; pin agreement in `just check` |
+| `scripts/dev/runtime-config.mjs`, `scripts/install/runtime-source.mjs`, `server/native-session-context.ts` | uv layout `.venv/bin/hermes` and `python` | Loud: missing executable | probe |
+| `scripts/dev/hermes-pin.mjs`, `scripts/dev/supervisor-services.mjs`, `scripts/install/runtime-prepare.mjs` | `gateway/platforms/api_server.py:_handle_health` (`_hermes_version`) | Loud: never ready | `test/unit/hermes-pin.test.ts`; wire capture golden (not yet asserted) |
+| `scripts/dev/runtime-config.mjs`, `scripts/install/systemd.mjs`, `packaging/systemd/pythia-agent-hermes.service.in` | `gateway run --external-supervisor`; `hermes_cli/gateway.py:_prepare_profile_gateway_update_restart` | Loud if removed; silent if restart ownership moves | assembled |
+| `scripts/dev/environment.mjs`, `scripts/install/systemd.mjs`, `scripts/install/service-launch.py` | `API_SERVER_KEY`/`HOST`/`PORT` in `gateway/config.py:_apply_env_overrides`; `HERMES_DISABLE_LAZY_INSTALLS` in `tools/lazy_deps.py:_allow_lazy_installs` | Loud: no listener; silent: lazy installs change the locked environment | assembled (listener); none (lazy installs) |
+| `runtime/managed/core/__init__.py` | plugin handlers run in the gateway process and inherit its `PYTHIA_*` environment | Silent: tools report unavailable | fixture `runtime/test/python/test_core.py`; assembled |
+| `server/native-session-context.ts` | `hermes_state.py:DEFAULT_DB_PATH`; `profiles/<profile>/state.db` layout | Silent: context unavailable | manual `workspace-session-context.py` |
+| **CLI and configuration** | | | |
+| `scripts/dev/runtime-config.mjs`, `scripts/dev/runtime-prepare.mjs` | `profile create --no-alias --no-skills`; `.no-bundled-skills` marker (`hermes_cli/skills_hub.py`) | Loud | probe |
+| `scripts/dev/runtime-config.mjs`, `server/device-settings.ts`, `server/model-initialization.ts`, `scripts/update/workspace-transition-state.mjs` | `config get <key> --json`, `config set` (`hermes_cli/config.py:get_config_value`, `set_config_value`) | Mostly loud through readback | probe (`terminal.cwd`, `skills.external_dirs`); fixture for other keys |
+| `scripts/dev/runtime-config.mjs`, `scripts/update/workspace-transition-state.mjs` | stderr `Config key not set: <key>` (`get_config_value`) | Loud: wrong error raised | wire capture golden (not yet asserted) |
+| `server/device-settings.ts` | first line `<provider>: logged in` or `: logged out` (`hermes_cli/auth_commands.py:auth_status_command`) | Silent: status shows unavailable | probe (logged-out shape); wire capture |
+| `scripts/dev/runtime-auth.mjs` | copied OAuth provider set (`auth_commands.py:_OAUTH_CAPABLE_PROVIDERS`) | Silent: stale provider list | none |
+| `scripts/dev/runtime-auth.mjs`, `scripts/install/cli.mjs` | `-p default auth add --type`, `auth logout`, `-p default model` (`auth_commands.py`, `hermes_cli/subcommands/auth.py`) | Loud | none (interactive) |
+| `server/device-settings.ts` | `tools enable` / `disable <toolset> --platform api_server` (`hermes_cli/subcommands/tools.py`) | Loud through `/v1/toolsets` readback | assembled |
+| `scripts/dev/managed-plugins.mjs`, `scripts/update/workspace-transition.mjs` | `plugins doctor <dir> --ci`, `plugins enable <name> --no-allow-tool-override` (`hermes_cli/plugin_dev.py`, `hermes_cli/subcommands/plugins.py`) | Loud | `test/integration/dev-managed-assets.test.ts`; assembled |
+| **Profile seed** (`runtime/seeds/profile/config.yaml`) | | | |
+| `skills.external_dirs` with `${PYTHIA_MANAGED_SKILLS_DIR}` | `hermes_cli/config_defaults.py`; `agent/skill_utils.py` | Silent: no managed skills | probe |
+| `plugins.enabled`, `platform_toolsets.{cli,cron,api_server}` | `hermes_cli/plugins.py`; `toolsets.py` | Silent: tools or prompt section absent | assembled (`/v1/toolsets`) |
+| `auxiliary.free_only` | `agent/auxiliary_client.py` | Silent: paid fallback | none |
+| **Plugin API and private Python seams** | | | |
+| `runtime/managed/core/__init__.py`, `plugin.yaml` | `hermes_cli/plugins.py:PluginContext.register_tool`, `register_system_prompt_section`, `MAX_SYSTEM_PROMPT_SECTIONS_TOTAL_CHARS` | Loud through `plugins doctor` | probe (`native_hermes_plugin.py` dispatch); fixture `test_core.py` |
+| `runtime/managed/core/desk_view.py` | native `session_id` keyword from `model_tools.py:handle_function_call` | Silent: view unavailable | manual `workspace-view.py`; fixture `test_desk_view.py` |
+| `runtime/managed/runner/native_session_context.py` | private `agent/system_prompt.py:_restore_plugin_prompt_sections` | Loud import error; Desk shows unavailable | manual `workspace-session-context.py` |
+| `runtime/managed/runner/native_session_context.py` | `hermes_state.py:SessionDB(read_only=True)`, `get_session`, `get_messages`, `get_compression_lineage`, `search_messages`, `get_messages_around`, `get_meta`, `fts_rebuild_status`, private `_fts_enabled` | Signatures loud; fields and semantics silent (wrong scope or unavailable) | manual; env-gated `test/native-session-context.test.ts` |
+| **Native feature plugins** (`runtime/managed/core/platform/`, `runtime/managed/plugins/`; [seams](#qualified-market-data-extension-seams)) | | | |
+| protected routes in `core/platform/http.py` | `ctx.register_platform_handler("api_server", factory)`; `BasePlatformAdapter._wire_plugin_handlers`, `APIServerAdapter.connect`; `_expected_api_key`, `_check_auth` | Loud: routes absent or unauthenticated | probe (`native_hermes_plugin.py`); assembled (`financial_http.mjs`) |
+| operation ownership in `core/platform/access.py` | plugin manager `_registration_order`; `plugins.disabled` over `plugins.enabled`; registry tool schemas with `$comment` annotations | Silent: operations denied, or allowed after disable | fixture `test_financial_native_access.py`; assembled |
+| bundled skill in `plugins/market-data/__init__.py` | `ctx.register_skill(name, path, description=...)`; qualified names in `skills_list`, `skill_view` | Silent: skill not discoverable | assembled (`plugin-skills.mjs`) |
+| **HTTP API** (`server/hermes.ts`, `server/hermes-records.ts`, `server/hermes-inventory.ts`) | | | |
+| bearer auth and error body | `api_server.py:_check_auth`, `_openai_error` | Loud | wire capture; fixture `test/hermes.test.ts` |
+| `GET /v1/capabilities` `features.run_steer`, `model_options` | `api_server.py:_handle_capabilities` | Silent: steering hidden | wire capture |
+| `GET /api/sessions` | `_handle_list_sessions`, `_session_response` | Silent: optional fields missing | wire capture; fixture `hermes.test.ts` |
+| `POST`/`GET`/`PATCH /api/sessions[/{id}]`, `invalid_title` retry (also `server/routes.ts`) | `_handle_create_session`, `_handle_get_session`, `_handle_patch_session` | Mostly loud | wire capture (create, `invalid_title`); fixture `routes.test.ts` (PATCH) |
+| `GET /api/sessions/{id}/messages?order=` and `pagination` | `_handle_session_messages`, `_message_response` | Silent | wire capture; fixture `hermes.test.ts` |
+| `GET /api/model/options[?refresh=true]` (also `server/model-catalog.ts`) | `_handle_model_options`; `hermes_cli/inventory.py` | Silent: empty or wrong picker | fixture `model-catalog.test.ts` (not capturable offline: Hermes fetches remote catalogs) |
+| `POST /v1/runs` body and 202 reply (also `server/attachments.ts`) | `api_server_runs.py:_handle_runs`; `api_server.py:_request_agent_overrides`, `_request_reasoning_config`, `MAX_REQUEST_BYTES` | Missing `run_id` loud; other fields silent | wire capture; fixture `hermes.test.ts` |
+| `GET /v1/runs/{id}` fields and status values (also `client/run-terminal-event.ts`, `client/hermes-transport.ts`) | `api_server_runs.py:_handle_get_run`, `_set_run_status`, `_durable_run_status` | Silent: an unknown terminal value keeps Desk following the run | wire capture; fixture `run-lifecycle.test.ts` |
+| `POST /v1/runs/{id}/approval`, `/steer`, `/stop` | `_handle_run_approval`, `_handle_steer_run`, `_handle_stop_run` | Loud on 4xx | wire capture; fixture `hermes.test.ts`, `routes.test.ts` |
+| `GET /v1/skills`, `/v1/toolsets` (also `scripts/doctor/doctor.mjs`) | `api_server.py:_handle_skills`, `_handle_toolsets` | Loud: 502 on shape | assembled |
+| **SSE events and run status** | | | |
+| `server/hermes-events.ts` frame parsing and the qualified event names | `api_server.py:_sse_frame`; `api_server_runs.py:_handle_run_events` | Silent: renamed or new events dropped | wire capture; fixture `hermes.test.ts` |
+| event fields in `server/hermes-events.ts`, `client/hermes-run-mapper.ts` | `api_server_runs.py:_make_run_event_callback`, `_text_cb` in `_handle_runs` | Silent | wire capture; fixture `hermes-transport.test.ts` |
+| copied reasoning-tag strip in `client/hermes-run-mapper.ts` | `agent/conversation_loop.py` interim content callback (tags, 500 characters) | Silent: duplicated text | fixture `hermes-transport.test.ts` |
+| `subagent.complete.status` in `client/run-delegations.ts` | `tools/delegate_tool.py` result statuses | Silent: shown as ended | wire capture (completed, failed) |
+| **History rows and parsed strings** | | | |
+| `display_kind: "hidden"` in `client/chat-message.ts` | `api_server.py:_project_client_message` | Silent: placeholder rows shown | wire capture |
+| note `display_kind` values in `client/chat-message.ts` | `gateway/run.py`; `hermes_cli/cli_agent_setup_mixin.py`; `gateway/slash_commands.py` | Silent: notes shown as user bubbles | wire capture (`hidden`, delegation notices); `e2e/chat-layout.spec.ts` (`model_switch`); none for `auto_continue`, `personality_switch`, `skill_invocation` |
+| `tool_calls` and the `tool_call` bridge in `client/chat-message.ts`, `components/chat/tool-copy.ts` | `tools/tool_search.py:TOOL_CALL_NAME` | Silent: generic tool label | wire capture |
+| tool names in `components/chat/tool-copy.ts` | `tools/web_tools.py`, `file_tools.py`, `terminal_tool.py`, `process_registry.py`, `skills_tool.py` | Silent: generic copy | wire capture; fixture `turn-model.test.ts` |
+| provider error wrappers in `components/chat/backend-error.ts` | error text from `api_server_runs.py:_handle_runs` | Cosmetic | fixture `backend-error.test.ts` |
+| Pythia markers in `attachments.ts`, `workspace/references.ts`, `workspace/session-context.ts` | verbatim user content in `hermes_state.py`; search in `hermes_state_search.py` | Silent: context or scope lost | manual |

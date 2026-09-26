@@ -1,0 +1,20 @@
+{
+  "hermes_release": "v2026.8.31",
+  "hermes_package_version": "0.21.0",
+  "hermes_commit": "29112bef099274229cadff79cdff7bf7b99c4b77",
+  "capture_script": "tooling/qualification/hermes-wire-capture.py",
+  "regenerate": "just capture-hermes",
+  "content": "Hermes-generated protocol and formatter output from scripted agents (ADR 0020). No model, provider, credential or network was used.",
+  "files": [
+    "cli.json",
+    "formatters.json",
+    "run-approval.json",
+    "run-cancelled.json",
+    "run-completed.json",
+    "run-failed.json",
+    "run-steered.json",
+    "service.json",
+    "session-history.json"
+  ],
+  "captured_on": "2026-09-23"
+}

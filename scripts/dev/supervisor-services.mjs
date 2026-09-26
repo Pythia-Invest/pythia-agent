@@ -3,6 +3,7 @@ import { workspaceTransitionStatus } from "../update/workspace-transition.mjs";
 import { verifyBasicMemoryReadiness } from "../install/basic-memory-readiness.mjs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { hermesPin, isPinnedHermesHealth } from "./hermes-pin.mjs";
 import { identityMatches, processIdentity } from "./processes.mjs";
 import { runtimeCommands } from "./runtime.mjs";
 import { exitOutcome } from "./supervisor-processes.mjs";
@@ -75,8 +76,10 @@ async function hermesHealth(paths, child, timeoutMs = 45_000) {
     timeoutMs,
   );
   const body = await response.json().catch(() => ({}));
-  if (body.status !== "ok") {
-    throw new Error("Hermes health endpoint returned an unexpected response.");
+  if (!isPinnedHermesHealth(body)) {
+    throw new Error(
+      `Hermes health endpoint did not report the pinned hermes-agent ${hermesPin().packageVersion} (got ${JSON.stringify(body?.version ?? null)}).`,
+    );
   }
 }
 

@@ -1,0 +1,310 @@
+{
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "platform": "hermes-agent",
+        "version": "0.21.0"
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/capabilities"
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.api_server.capabilities",
+        "platform": "hermes-agent",
+        "model": "hermes-agent",
+        "auth": {
+          "type": "bearer",
+          "required": true
+        },
+        "runtime": {
+          "mode": "server_agent",
+          "tool_execution": "server",
+          "split_runtime": false,
+          "description": "The API server creates a server-side Hermes AIAgent; tools execute on the API-server host unless a future explicit split-runtime mode is enabled."
+        },
+        "features": {
+          "chat_completions": true,
+          "chat_completions_streaming": true,
+          "responses_api": true,
+          "responses_streaming": true,
+          "run_submission": true,
+          "runs_idempotency": {
+            "supported": true,
+            "durable": true,
+            "retention_seconds": 86400
+          },
+          "run_status": true,
+          "run_events_sse": true,
+          "run_stop": true,
+          "run_steer": true,
+          "run_approval_response": true,
+          "tool_progress_events": true,
+          "approval_events": true,
+          "session_resources": true,
+          "model_options": true,
+          "session_chat": true,
+          "session_chat_streaming": true,
+          "session_fork": true,
+          "session_model_lock": true,
+          "admin_config_rw": false,
+          "jobs_admin": false,
+          "memory_write_api": false,
+          "skills_api": true,
+          "audio_api": false,
+          "realtime_voice": false,
+          "session_continuity_header": "X-Hermes-Session-Id",
+          "session_key_header": "X-Hermes-Session-Key",
+          "cors": false,
+          "browser_extension_control": {
+            "enabled": false,
+            "protocol_version": 1,
+            "capabilities": [
+              "browser_back",
+              "browser_click",
+              "browser_navigate",
+              "browser_press",
+              "browser_screenshot",
+              "browser_scroll",
+              "browser_snapshot",
+              "browser_tab_activate",
+              "browser_tabs",
+              "browser_type",
+              "controller.noop"
+            ],
+            "artifact_capabilities": [
+              "browser_artifact_download",
+              "browser_artifact_upload"
+            ],
+            "developer_capabilities": [
+              "browser_cdp",
+              "browser_evaluate"
+            ],
+            "developer_mode": false,
+            "artifact_transport": {
+              "upload": {
+                "method": "POST",
+                "path": "/v1/artifacts/upload"
+              },
+              "download": {
+                "method": "GET",
+                "path": "/v1/artifacts/download/{artifact_id}"
+              },
+              "max_bytes": 10485760,
+              "ttl_seconds": 300.0,
+              "allowed_mime_types": [
+                "application/json",
+                "application/pdf",
+                "image/gif",
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "text/plain"
+              ]
+            },
+            "real_browser_actions": true,
+            "transports": {
+              "local_vps": "websocket-subprotocol-ticket",
+              "cloud": "authenticated-gateway-rpc"
+            }
+          }
+        },
+        "endpoints": {
+          "health": {
+            "method": "GET",
+            "path": "/health"
+          },
+          "health_detailed": {
+            "method": "GET",
+            "path": "/health/detailed"
+          },
+          "models": {
+            "method": "GET",
+            "path": "/v1/models"
+          },
+          "model_options": {
+            "method": "GET",
+            "path": "/api/model/options"
+          },
+          "chat_completions": {
+            "method": "POST",
+            "path": "/v1/chat/completions"
+          },
+          "responses": {
+            "method": "POST",
+            "path": "/v1/responses"
+          },
+          "runs": {
+            "method": "POST",
+            "path": "/v1/runs"
+          },
+          "run_status": {
+            "method": "GET",
+            "path": "/v1/runs/{run_id}"
+          },
+          "run_events": {
+            "method": "GET",
+            "path": "/v1/runs/{run_id}/events"
+          },
+          "run_approval": {
+            "method": "POST",
+            "path": "/v1/runs/{run_id}/approval"
+          },
+          "run_steer": {
+            "method": "POST",
+            "path": "/v1/runs/{run_id}/steer"
+          },
+          "run_stop": {
+            "method": "POST",
+            "path": "/v1/runs/{run_id}/stop"
+          },
+          "skills": {
+            "method": "GET",
+            "path": "/v1/skills"
+          },
+          "toolsets": {
+            "method": "GET",
+            "path": "/v1/toolsets"
+          },
+          "sessions": {
+            "method": "GET",
+            "path": "/api/sessions"
+          },
+          "session_create": {
+            "method": "POST",
+            "path": "/api/sessions"
+          },
+          "session": {
+            "method": "GET",
+            "path": "/api/sessions/{session_id}"
+          },
+          "session_update": {
+            "method": "PATCH",
+            "path": "/api/sessions/{session_id}"
+          },
+          "session_delete": {
+            "method": "DELETE",
+            "path": "/api/sessions/{session_id}"
+          },
+          "session_messages": {
+            "method": "GET",
+            "path": "/api/sessions/{session_id}/messages"
+          },
+          "session_fork": {
+            "method": "POST",
+            "path": "/api/sessions/{session_id}/fork"
+          },
+          "session_chat": {
+            "method": "POST",
+            "path": "/api/sessions/{session_id}/chat"
+          },
+          "session_chat_stream": {
+            "method": "POST",
+            "path": "/api/sessions/{session_id}/chat/stream"
+          },
+          "session_model_lock": {
+            "method": "POST",
+            "path": "/api/sessions/{session_id}/model"
+          },
+          "browser_control_register": {
+            "method": "POST",
+            "path": "/v1/browser-control/register"
+          },
+          "browser_control_ws": {
+            "method": "GET",
+            "path": "/v1/browser-control/ws"
+          },
+          "artifact_upload": {
+            "method": "POST",
+            "path": "/v1/artifacts/upload"
+          },
+          "artifact_download": {
+            "method": "GET",
+            "path": "/v1/artifacts/download/{artifact_id}"
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/capabilities",
+        "headers": {}
+      },
+      "status": 401,
+      "body": {
+        "error": {
+          "message": "Invalid gateway API key (API_SERVER_KEY)",
+          "type": "gateway_auth_error",
+          "code": "gateway_auth_failed"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/api/sessions",
+        "json": {
+          "title": "Capture chat"
+        }
+      },
+      "status": 201,
+      "body": {
+        "object": "hermes.session",
+        "session": {
+          "id": "api_capture_1",
+          "source": "api_server",
+          "user_id": null,
+          "model": null,
+          "title": "Capture chat",
+          "started_at": 1767225600.0,
+          "ended_at": null,
+          "end_reason": null,
+          "message_count": 0,
+          "tool_call_count": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "reasoning_tokens": 0,
+          "estimated_cost_usd": null,
+          "actual_cost_usd": null,
+          "api_call_count": 0,
+          "parent_session_id": null,
+          "pinned": false,
+          "archived": false,
+          "hidden": false,
+          "has_system_prompt": false,
+          "has_model_config": false
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/api/sessions",
+        "json": {
+          "title": "Capture chat"
+        }
+      },
+      "status": 400,
+      "body": {
+        "error": {
+          "message": "Title already in use by session api_capture_1",
+          "type": "invalid_request_error",
+          "param": null,
+          "code": "invalid_title"
+        }
+      }
+    }
+  ]
+}
