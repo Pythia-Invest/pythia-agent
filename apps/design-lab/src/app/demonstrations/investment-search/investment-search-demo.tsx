@@ -2,6 +2,8 @@
 
 import {
   InvestmentSearch,
+  listingOptions,
+  type SearchChoice,
   SearchPanel,
   type SearchPanelProps,
   searchOptions,
@@ -11,6 +13,8 @@ import { Combobox } from "@pythia/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import {
+  demoListingChoices,
+  demoListings,
   demoLookup,
   demoLookupOffers,
   demoLookupRow,
@@ -21,6 +25,7 @@ import {
 const ignore = () => {};
 const search = demoSearch(180);
 const lookup = demoLookup(900);
+const listings = demoListings(300);
 const crypto = TYPE_FILTERS.find((type) => type.value === "crypto")?.kinds;
 
 function options(query: string, kinds?: typeof crypto) {
@@ -76,7 +81,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function InvestmentSearchDemo() {
   const [client] = useState(() => new QueryClient());
   const [query, setQuery] = useState("");
-  const [chosen, setChosen] = useState<string>();
+  const [chosen, setChosen] = useState<SearchChoice>();
   return (
     <div className="grid gap-10">
       <p className="max-w-measure text-body text-foreground-secondary">
@@ -96,6 +101,7 @@ export function InvestmentSearchDemo() {
               search={search}
               lookup={lookup}
               onSelect={setChosen}
+              listings={listings}
               className="max-w-[60%] flex-none"
             />
             <span className="flex-1" />
@@ -103,12 +109,13 @@ export function InvestmentSearchDemo() {
         </QueryClientProvider>
         <p className="text-foreground-secondary text-xs">
           Try asml, asmlf, alphabet, bitcoin, IE00B4L5Y983 or zzzz. Arrow keys
-          move, Enter opens, Esc closes, Tab reaches the type pills and the
-          lookup action.
+          move, Enter opens the row&apos;s listing, → or “+N” shows the
+          instrument&apos;s listings (← back), Esc closes, Tab reaches the type
+          pills and the lookup action.
         </p>
         <output className="text-body text-foreground">
           {chosen
-            ? `Selected subject ${chosen}. The instrument page opens it once its route exists.`
+            ? `Opens instrument ${chosen.subject} on listing ${chosen.listing}.`
             : "No row selected yet."}
         </output>
       </Section>
@@ -131,6 +138,22 @@ export function InvestmentSearchDemo() {
             note="ASML shows its Amsterdam primary listing; the Nasdaq registry shares, Xetra and OTC lines are its other listings. ASM International is another company."
             query="asm"
             options={options("asm")}
+          />
+          <Specimen
+            title="An instrument's listings"
+            note="→ or “+3” on the ASML row: every line of the company, receipts included; Enter opens that listing, ← goes back."
+            query="asml"
+            side={(() => {
+              const row = searchDemoDirectory("asml").rows[0];
+              return row
+                ? {
+                    row,
+                    status: "ready" as const,
+                    options: listingOptions(row, demoListingChoices(row.id)),
+                  }
+                : undefined;
+            })()}
+            options={options("asml")}
           />
           <Specimen
             title="A typed ticker names its listing"

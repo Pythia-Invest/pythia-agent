@@ -242,11 +242,12 @@ class Directory:
         primary, even when a receipt carries its own primary flag. Empty for a security not in the directory."""
         with self.lock:
             rows = self.db.execute(
-                "SELECT listing, ticker, mic, venue, currency, kind FROM doc"
+                "SELECT listing, ticker, mic, venue, currency, kind, country, otc, home FROM doc"
                 " WHERE inst = (SELECT inst FROM doc WHERE security = ? LIMIT 1) AND crypto = 0"
                 " ORDER BY security <> inst, prim DESC, fus, otc, home DESC, mic, listing", (security,)).fetchall()
-        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind"), row), primary=index == 0)
-                for index, row in enumerate(rows)]
+        # country, otc and home let the page group lines: home market, other exchanges, OTC and receipts.
+        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind", "country"), row),
+                     otc=bool(row[7]), home=bool(row[8]), primary=index == 0) for index, row in enumerate(rows)]
 
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
                suffixes: Callable[[], dict[str, set[str]]] = dict,

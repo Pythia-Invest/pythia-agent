@@ -8,7 +8,11 @@ import {
   type SearchRow,
   searchResponseSchema,
 } from "../search";
-import { TYPE_FILTERS, type TypeFilter } from "./search-model";
+import {
+  type ListingChoice,
+  TYPE_FILTERS,
+  type TypeFilter,
+} from "./search-model";
 
 /** Core serves the local directory search. */
 export const SEARCH_PLUGIN = "pythia";
@@ -22,6 +26,27 @@ export type SearchBackend = (
   request: SearchRequest,
   signal: AbortSignal,
 ) => Promise<SearchResponse>;
+
+/** An instrument's listings for its side list (a local read). */
+export type ListingsReader = (
+  row: SearchRow,
+  signal: AbortSignal,
+) => Promise<ListingChoice[]>;
+
+/** The expanded row's listings; nothing is read until a row is expanded. */
+export function useInstrumentListings(
+  read: ListingsReader | undefined,
+  row: SearchRow | null,
+) {
+  return useQuery<ListingChoice[]>({
+    queryKey: [...searchQueryKey, "listings", row?.id],
+    queryFn: ({ signal }) => (read && row ? read(row, signal) : []),
+    enabled: Boolean(read && row),
+    staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
 
 /** Runs one explicit lookup in one plugin. */
 export type LookupRunner = (

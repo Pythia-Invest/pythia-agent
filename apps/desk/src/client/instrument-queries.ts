@@ -29,6 +29,13 @@ export function useSubjectPage(subjectId: string) {
     queryFn: () =>
       readSubject({ read: (request) => api.pluginRead(request) }, subjectId),
     staleTime: SUBJECT_STALE_MS,
+    // Switching to another listing of the same instrument keeps the page on
+    // screen while that listing's composition loads; another instrument
+    // starts from its own skeleton.
+    placeholderData: (previous) =>
+      previous?.listings.some((listing) => listing.id === subjectId)
+        ? previous
+        : undefined,
     ...busyRetry,
   });
 }
@@ -44,6 +51,9 @@ export function useSubjectPage(subjectId: string) {
  */
 export function useResolvedSections(
   subjectId: string,
+  /** The page's instrument: issuer-level sections (profile, filings) resolve
+   * once for it, not again for every listing the investor switches to. */
+  instrumentId: string,
   sections: readonly SubjectSection[],
 ) {
   const api = useDeskApi();
@@ -54,27 +64,37 @@ export function useResolvedSections(
         .map((section) => section.plugin),
     ),
   ];
+  const issuerLevel = (plugin: string) =>
+    sections.every(
+      (section) =>
+        section.plugin !== plugin ||
+        section.section === "profile" ||
+        section.section === "filings",
+    );
   const resolutions = useQueries({
-    queries: plugins.map((plugin) => ({
-      queryKey: [
-        "plugin",
-        SUBJECT_PLUGIN,
-        "identity-resolve",
-        subjectId,
-        plugin,
-      ],
-      queryFn: () =>
-        resolveSections(
-          { invoke: (request) => api.pluginInvoke(request) },
-          subjectId,
+    queries: plugins.map((plugin) => {
+      const subject = issuerLevel(plugin) ? instrumentId : subjectId;
+      return {
+        queryKey: [
+          "plugin",
+          SUBJECT_PLUGIN,
+          "identity-resolve",
+          subject,
           plugin,
-        ),
-      staleTime: Infinity,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      ...busyRetry,
-    })),
+        ],
+        queryFn: () =>
+          resolveSections(
+            { invoke: (request) => api.pluginInvoke(request) },
+            subject,
+            plugin,
+          ),
+        staleTime: Infinity,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        ...busyRetry,
+      };
+    }),
   });
   const failed = new Map<SubjectSection, () => void>();
   const resolved = sections.map((section) => {

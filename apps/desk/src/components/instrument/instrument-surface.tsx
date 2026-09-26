@@ -7,6 +7,7 @@ import {
 } from "@pythia/market-data/subject";
 import type { FinancialWidgetInput } from "@pythia/market-data/widgets";
 import { Button, cn } from "@pythia/ui";
+import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   useResolvedSections,
@@ -16,11 +17,7 @@ import {
 } from "@/client/instrument-queries";
 import { BoundWidget } from "@/components/widgets/bound-widget";
 import { type PageBlock, pageBlocks } from "./blocks";
-import {
-  InstrumentHeader,
-  InstrumentPageSkeleton,
-  ListingSwitcher,
-} from "./instrument-header";
+import { InstrumentHeader, InstrumentPageSkeleton } from "./instrument-header";
 import {
   SectionFailure,
   SectionLoading,
@@ -77,8 +74,27 @@ function SectionCard({
  * prefetched by search, so header and card frames render at once; each card's
  * content then loads on its own. */
 export function InstrumentSurface({ subjectId }: { subjectId: string }) {
-  const page = useSubjectPage(subjectId);
-  const resolved = useResolvedSections(subjectId, page.data?.sections ?? []);
+  // `?listing=` names the listing whose quote and chart the page shows; the
+  // selector changes it in place (history.replaceState), so the page and the
+  // issuer's profile and filings stay mounted with their reads. Only a listing
+  // of this instrument is honoured: an unknown or foreign id shows the route
+  // subject instead of failing or showing another instrument.
+  const requested = useSearchParams().get("listing");
+  const instrument = useSubjectPage(subjectId);
+  const listingId =
+    requested &&
+    instrument.data?.listings.some((listing) => listing.id === requested)
+      ? requested
+      : null;
+  const page = useSubjectPage(listingId ?? subjectId);
+  // Resolution follows the composition on screen: while another listing's
+  // composition loads, the previous one (a placeholder) keeps its cached
+  // resolutions and nothing is resolved on its behalf.
+  const resolved = useResolvedSections(
+    page.data?.subject.id ?? listingId ?? subjectId,
+    subjectId,
+    page.data?.sections ?? [],
+  );
   if (page.isPending) return <InstrumentPageSkeleton />;
   if (page.isError)
     return (
@@ -105,8 +121,7 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
       aria-label={view.subject.name}
       className="@container mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-5 min-[600px]:px-6"
     >
-      <InstrumentHeader page={view} />
-      <ListingSwitcher page={view} />
+      <InstrumentHeader page={view} subjectId={subjectId} />
       <div className="grid @3xl:grid-cols-3 grid-cols-1 gap-3">
         {pageBlocks(view.sections).map((block) => {
           const retry = block.sections

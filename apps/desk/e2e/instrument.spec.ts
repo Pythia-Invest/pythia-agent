@@ -83,44 +83,41 @@ async function routeIdentity(page: Page) {
     release = resolve;
   });
   const operations: string[] = [];
+  const profile = {
+    ...page_(primary).sections[1],
+    status: "ready",
+    binding: { provider: "gleif", native_scope: "lei", native_id: lei },
+    request: {
+      plugin: "pythia-gleif",
+      operation: "profile",
+      arguments: {
+        native_ref: { provider: "gleif", native_scope: "lei", native_id: lei },
+      },
+    },
+  };
+  // Once resolved, core stores the binding: later compositions are ready.
+  let bound = false;
   await page.route(/\/api\/data\/(read|invoke)$/u, async (route) => {
     const body = route.request().postDataJSON();
     const kind = new URL(route.request().url()).pathname.split("/").at(-1);
     operations.push(`${kind} ${body.plugin}/${body.operation}`);
-    if (body.operation === "identity-subject")
+    if (body.operation === "identity-subject") {
+      const view = page_(body.arguments.subject_id);
+      const sections = view.sections.map((section) =>
+        bound && section.section === "profile" ? profile : section,
+      );
       return route.fulfill({
-        json: { schema_version: 1, data: page_(body.arguments.subject_id) },
+        json: { schema_version: 1, data: { ...view, sections } },
       });
+    }
     if (body.operation === "identity-resolve") {
       await resolved;
+      bound = true;
       return route.fulfill({
         json: {
           schema_version: 1,
           outcome: "ok",
-          data: {
-            sections: [
-              {
-                ...page_(primary).sections[1],
-                status: "ready",
-                binding: {
-                  provider: "gleif",
-                  native_scope: "lei",
-                  native_id: lei,
-                },
-                request: {
-                  plugin: "pythia-gleif",
-                  operation: "profile",
-                  arguments: {
-                    native_ref: {
-                      provider: "gleif",
-                      native_scope: "lei",
-                      native_id: lei,
-                    },
-                  },
-                },
-              },
-            ],
-          },
+          data: { sections: [profile] },
         },
       });
     }
@@ -178,14 +175,31 @@ test("a chosen subject opens its page; cards load and fail independently", async
   expect(operations).toContain("invoke pythia/identity-resolve");
   expect(operations).toContain("read pythia/identity-subject");
 
-  const listings = page.getByRole("navigation", { name: "Listings" });
-  await expect(listings.locator('[aria-current="page"]')).toContainText(
-    "Euronext Amsterdam",
-  );
-  await listings.getByRole("link", { name: /SYN1/ }).click();
+  // The listing is a selector on the instrument's page: switching changes the
+  // price source and the URL, while the issuer's profile keeps its read.
+  const selector = page.getByRole("button", {
+    name: /^Listing: SYN · Euronext Amsterdam · EUR/,
+  });
+  await selector.click();
+  const other = page.getByRole("menuitemradio", { name: /SYN1/ });
+  await expect(
+    page.getByRole("menuitemradio", { checked: true }),
+  ).toContainText("SYN");
+  await other.click();
+  // A pick closes the menu and names the new listing at once.
+  await expect(page.getByRole("menuitemradio")).toHaveCount(0);
   await expect(page).toHaveURL(
-    new RegExp(`/instrument/${encodeURIComponent(secondary)}$`),
+    new RegExp(
+      `/instrument/${encodeURIComponent(primary)}\\?listing=${encodeURIComponent(secondary)}$`,
+    ),
   );
+  await expect(
+    page.getByRole("button", { name: /^Listing: SYN1 · Xetra · EUR/ }),
+  ).toBeVisible();
+  await expect(profile.getByText("Legal name")).toBeVisible();
+  expect(
+    operations.filter((operation) => operation === "read pythia-gleif/profile"),
+  ).toHaveLength(1);
 });
 
 test("an instrument that cannot be opened says so and offers a retry", async ({
@@ -310,4 +324,24 @@ test("busy native admission (429) is retried instead of shown", async ({
   );
   await expect(page.getByText("Requests are busy")).toHaveCount(0);
   expect(busy.size).toBe(0);
+});
+
+test("a listing that is not this instrument's falls back to the page's subject", async ({
+  page,
+}) => {
+  await routeIdentity(page);
+  const asked: string[] = [];
+  page.on("request", (request) => {
+    if (!request.url().endsWith("/api/data/read")) return;
+    const body = request.postDataJSON();
+    if (body?.operation === "identity-subject")
+      asked.push(body.arguments.subject_id);
+  });
+  await page.goto(
+    `/instrument/${encodeURIComponent(primary)}?listing=${encodeURIComponent("listing:other:instrument")}`,
+  );
+  await expect(
+    page.getByRole("button", { name: /^Listing: SYN · Euronext Amsterdam/ }),
+  ).toBeVisible();
+  expect(asked).not.toContain("listing:other:instrument");
 });

@@ -14,14 +14,19 @@ export {
   searchQueryKey,
   transportSearch,
   useDirectorySearch,
+  type ListingsReader,
   type LookupRunner,
   type SearchBackend,
 } from "./controller";
 export {
   searchOptions,
+  choiceOf,
+  listingOptions,
   KIND_LABELS,
   TYPE_FILTERS,
   type RowSource,
+  type ListingChoice,
+  type SearchChoice,
   type SearchOption,
   type TypeFilter,
 } from "./search-model";

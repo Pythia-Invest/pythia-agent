@@ -6,6 +6,7 @@
  * ranking and lookup answers are synthetic. There are no prices and no
  * provider data.
  */
+import type { ListingChoice } from "@pythia/market-data/search-ui";
 import type {
   InstrumentKind,
   LookupRequest,
@@ -15,7 +16,11 @@ import type {
 } from "@pythia/market-data/search";
 
 type Listing = Pick<SearchRow, "id" | "ticker"> &
-  Partial<Pick<SearchRow, "mic" | "venue" | "country" | "bindings">>;
+  Partial<Pick<SearchRow, "mic" | "venue" | "country" | "bindings">> & {
+    /** A folded receipt's own kind. */
+    kind?: InstrumentKind;
+    currency?: string;
+  };
 
 /** One instrument and its listings, primary listing first. */
 type Instrument = {
@@ -73,6 +78,8 @@ export const demoInstruments: readonly Instrument[] = [
         mic: "XNAS",
         venue: "Nasdaq",
         country: "US",
+        kind: "depositary_receipt",
+        currency: "USD",
         bindings: [yahoo("ASML"), eodhd("ASML.US")],
       },
       {
@@ -206,12 +213,13 @@ function demoRow(instrument: Instrument, query: string): SearchRow {
   const listing =
     rest.find((line) => line.ticker === typed) ?? primary ?? rest[0];
   if (!listing) throw Error(`${instrument.security} has no listing`);
+  const { kind: _kind, currency: _currency, ...shown } = listing;
   return {
     mic: null,
     venue: null,
     country: null,
     bindings: [],
-    ...listing,
+    ...shown,
     name: instrument.name,
     kind: instrument.kind,
     listings: instrument.listings.length - 1,
@@ -272,6 +280,31 @@ export function demoSearch(delay = 0) {
   return async (request: SearchRequest, signal: AbortSignal) => {
     await wait(delay, signal);
     return searchDemoDirectory(request.query, request);
+  };
+}
+
+/** An instrument's lines for the side list, primary first, as the core's
+ * page composition supplies them. */
+export function demoListingChoices(rowId: string): ListingChoice[] {
+  const instrument = demoInstruments.find((item) =>
+    item.listings.some((line) => line.id === rowId),
+  );
+  return (instrument?.listings ?? []).map((line, index) => ({
+    id: line.id,
+    ticker: line.ticker,
+    mic: line.mic ?? null,
+    venue: line.venue ?? null,
+    currency: line.currency ?? (line.country === "US" ? "USD" : "EUR"),
+    kind: line.kind ?? instrument?.kind ?? null,
+    country: line.country ?? null,
+    primary: index === 0,
+  }));
+}
+
+export function demoListings(delay = 0) {
+  return async (row: SearchRow, signal: AbortSignal) => {
+    await wait(delay, signal);
+    return demoListingChoices(row.id);
   };
 }
 

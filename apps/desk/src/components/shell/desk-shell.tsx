@@ -104,13 +104,22 @@ export function DeskShell({ children }: { children: ReactNode }) {
     setPinnedIds(readPins());
   }, []);
 
-  // Top-bar modules announce a chosen investment; the shell owns routing.
+  // Top-bar modules announce a chosen investment (`subject_id`, optionally
+  // the `listing_id` whose price to show); the shell owns routing.
   useEffect(() => {
+    const valid = (value: unknown): value is string =>
+      typeof value === "string" && value.length > 0 && value.length <= 512;
     const onOpenSubject = (event: Event) => {
-      const id = (event as CustomEvent<{ subject_id?: unknown }>).detail
-        ?.subject_id;
-      if (typeof id === "string" && id && id.length <= 512)
-        router.push(instrumentHref(id));
+      const detail = (
+        event as CustomEvent<{ subject_id?: unknown; listing_id?: unknown }>
+      ).detail;
+      if (valid(detail?.subject_id))
+        router.push(
+          instrumentHref(
+            detail.subject_id,
+            valid(detail.listing_id) ? detail.listing_id : null,
+          ),
+        );
     };
     window.addEventListener("pythia:open-subject", onOpenSubject);
     return () =>

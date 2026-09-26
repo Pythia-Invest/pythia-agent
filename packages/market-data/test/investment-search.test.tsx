@@ -4,7 +4,10 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchRequest, SearchResponse, SearchRow } from "../src/search";
-import type { SearchBackend } from "../src/search-ui/controller";
+import type {
+  ListingsReader,
+  SearchBackend,
+} from "../src/search-ui/controller";
 import { InvestmentSearch } from "../src/search-ui/investment-search";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -50,7 +53,13 @@ let host: HTMLElement;
 const selected: string[] = [];
 const highlighted: string[] = [];
 
-function Harness({ search }: { search: SearchBackend }) {
+function Harness({
+  search,
+  listings,
+}: {
+  search: SearchBackend;
+  listings?: ListingsReader;
+}) {
   const [client] = useState(() => new QueryClient());
   const [query, setQuery] = useState("");
   return (
@@ -59,7 +68,12 @@ function Harness({ search }: { search: SearchBackend }) {
         query={query}
         onQueryChange={setQuery}
         search={search}
-        onSelect={(id) => selected.push(id)}
+        onSelect={({ subject, listing }) =>
+          selected.push(
+            subject === listing ? subject : `${subject} @ ${listing}`,
+          )
+        }
+        listings={listings}
         onHighlight={(id) => highlighted.push(id)}
         shortcut={false}
       />
@@ -182,5 +196,49 @@ describe("investment search", () => {
     expect(field().value).toBe("");
     // Nothing but the typed query was ever read.
     expect(requests.map((request) => request.query)).toEqual(["asml"]);
+  });
+
+  it("→ shows the highlighted instrument's listings; Enter opens one, ← goes back", async () => {
+    const { search, answer } = directory();
+    const asked: string[] = [];
+    const listing = (id: string, ticker: string, venue: string) => ({
+      id,
+      ticker,
+      mic: null,
+      venue,
+      currency: "EUR",
+      kind: "ordinary" as const,
+      country: null,
+      primary: id === "listing:ASML",
+    });
+    const listings: ListingsReader = async (instrument) => {
+      asked.push(instrument.id);
+      return [
+        listing("listing:ASML", "ASML", "Euronext Amsterdam"),
+        listing("listing:ASME", "ASME", "Xetra"),
+      ];
+    };
+    await act(async () =>
+      root.render(<Harness search={search} listings={listings} />),
+    );
+    await type("asml");
+    await answer("asml", [{ ...row("ASML"), listings: 1 }, row("ASM")]);
+    await until(() => expect(rows()).toEqual(["ASML", "ASM"]));
+    // Nothing is read for the side list until the user asks for it.
+    expect(asked).toEqual([]);
+
+    await press("ArrowRight");
+    await until(() => expect(rows()).toEqual(["ASML", "ASME"]));
+    expect(asked).toEqual(["listing:ASML"]);
+    await press("ArrowLeft");
+    await until(() => expect(rows()).toEqual(["ASML", "ASM"]));
+
+    await press("ArrowRight");
+    await until(() => expect(rows()).toEqual(["ASML", "ASME"]));
+    await press("ArrowDown");
+    await press("Enter");
+    // The instrument opens on the chosen listing; a plain Enter on the row
+    // would have opened its representative listing.
+    expect(selected).toEqual(["listing:ASML @ listing:ASME"]);
   });
 });

@@ -1,8 +1,8 @@
 import { ComboboxItem } from "@pythia/widget-sdk";
-import { Plug } from "lucide-react";
+import { ChevronRight, Plug } from "lucide-react";
 import type { SearchBinding } from "../search";
 import { connectors } from "./connector-icons";
-import { ROW_LABELS, type SearchOption } from "./search-model";
+import { KIND_LABELS, ROW_LABELS, type SearchOption } from "./search-model";
 
 export function connectorName(plugin: string): string {
   return connectors[plugin]?.name ?? plugin;
@@ -56,13 +56,16 @@ function others(count: number) {
 function optionLabel(
   { row }: SearchOption,
   bindings: readonly SearchBinding[],
+  expandable: boolean,
 ) {
   return [
     row.ticker,
     row.name,
     row.venue ?? row.mic,
     ROW_LABELS[row.kind],
-    row.listings ? others(row.listings) : null,
+    row.listings
+      ? `${others(row.listings)}${expandable ? " (Right arrow to show them)" : ""}`
+      : null,
     bindings.length
       ? `via ${bindings.map((binding) => connectorName(binding.plugin)).join(", ")}`
       : null,
@@ -77,9 +80,12 @@ function optionLabel(
 export function SearchRowOption({
   option,
   onChoose,
+  onExpand,
 }: {
   option: SearchOption;
   onChoose(): void;
+  /** Shows the instrument's listings; absent when the host reads none. */
+  onExpand?: (() => void) | undefined;
 }) {
   const { row } = option;
   const bindings = onePerPlugin(row.bindings);
@@ -87,7 +93,7 @@ export function SearchRowOption({
   return (
     <ComboboxItem
       value={option}
-      aria-label={optionLabel(option, bindings)}
+      aria-label={optionLabel(option, bindings, Boolean(onExpand))}
       // Base UI clicks the highlighted row on Enter, so this is the one path
       // for pointer and keyboard choices.
       onClick={onChoose}
@@ -130,11 +136,96 @@ export function SearchRowOption({
       <span className="w-16 flex-none truncate text-right text-foreground-secondary">
         {ROW_LABELS[row.kind]}
       </span>
-      <span
-        title={row.listings ? others(row.listings) : undefined}
-        className="w-6 flex-none text-right text-foreground-secondary tabular-nums"
-      >
-        {row.listings ? `+${row.listings}` : null}
+      {row.listings && onExpand ? (
+        // Pointer path to the side list; keyboard users press → on the row,
+        // which its label announces. Clicking here never opens the row.
+        <span
+          aria-hidden="true"
+          title={`Show ${others(row.listings)}`}
+          data-slot="investment-search-expand"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={(event) => {
+            event.stopPropagation();
+            event.preventDefault();
+            onExpand();
+          }}
+          className="motion-fast -my-1 flex h-6 w-9 flex-none cursor-pointer items-center justify-end gap-0.5 rounded-control pr-0.5 text-foreground-secondary tabular-nums transition-colors hover:bg-interaction-active hover:text-foreground"
+        >
+          +{row.listings}
+          <ChevronRight className="size-3 flex-none" />
+        </span>
+      ) : (
+        <span
+          title={row.listings ? others(row.listings) : undefined}
+          className="w-9 flex-none pr-0.5 text-right text-foreground-secondary tabular-nums"
+        >
+          {row.listings ? `+${row.listings}` : null}
+        </span>
+      )}
+    </ComboboxItem>
+  );
+}
+
+/** One line of the expanded instrument: ticker, venue with its flag,
+ * currency and type. The line the search row stood for (the preferred
+ * listing) is marked. */
+export function ListingRowOption({
+  option,
+  onChoose,
+}: {
+  option: SearchOption;
+  onChoose(): void;
+}) {
+  const { row, listing } = option;
+  if (!listing) return null;
+  const venue = listing.venue ?? listing.mic;
+  const type = listing.kind ? KIND_LABELS[listing.kind] : null;
+  const shown = listing.id === row.id;
+  return (
+    <ComboboxItem
+      value={option}
+      aria-label={[
+        listing.ticker ?? listing.mic,
+        venue,
+        listing.currency,
+        type,
+        shown ? "the listing the result opens" : null,
+      ]
+        .filter(Boolean)
+        .join(", ")}
+      onClick={onChoose}
+      data-slot="investment-search-listing"
+      className="min-h-9 gap-3 px-2.5 py-1.5 text-xs"
+    >
+      <span className="w-18 flex-none truncate font-semibold text-body text-foreground">
+        {listing.ticker ?? listing.mic}
+      </span>
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-foreground-secondary">
+        {listing.country ? (
+          <span
+            aria-hidden="true"
+            title={listing.country}
+            className="flex-none"
+          >
+            {countryFlag(listing.country)}
+          </span>
+        ) : null}
+        <span className="truncate text-foreground">{venue}</span>
+        {listing.currency ? (
+          <span className="flex-none">{listing.currency}</span>
+        ) : null}
+      </span>
+      {shown ? (
+        // "Default", not "Preferred": the type column may say Preferred stock.
+        <span
+          title="The listing Enter on the result opens"
+          className="flex-none text-[10px] text-foreground-secondary uppercase tracking-wide"
+        >
+          Default
+        </span>
+      ) : null}
+      <span className="w-28 flex-none truncate text-right text-foreground-secondary">
+        {type}
       </span>
     </ComboboxItem>
   );
