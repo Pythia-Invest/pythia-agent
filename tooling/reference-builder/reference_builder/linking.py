@@ -138,6 +138,7 @@ def _listing(snap: Snapshot, ticker: SecTicker, row: dict | None, link, audit: C
     listing.issuer_id, listing.mic, listing.operating_mic, listing.country = issuer.issuer_id, mic, mic, "US"
     listing.ticker, listing.ticker_root, listing.ticker_class, listing.ticker_source = ticker.ticker, root, klass, "sec"
     listing.currency = listing.currency or "USD"
+    listing.position = ticker.position if listing.position is None else min(listing.position, ticker.position)
     listing.name = listing.name or ticker.name
     if row:
         listing.figi, listing.composite_figi = row.get("figi"), row.get("compositeFIGI")

@@ -52,7 +52,7 @@ class GleifProfileDates(unittest.TestCase):
                 malformed['attributes']['registration']['lastUpdateDate'] = bad
                 transport = Transport({url: {'data': malformed}})
                 reader = plugin.Reader(wire, connector, transport=transport)
-                rejected = reader.invoke('resolve', {'lei': FIRST})
+                rejected = reader.invoke('resolve', {'identifiers': {'lei': FIRST}})
                 self.assertEqual(rejected['issues'][0]['code'], 'invalid_response')
                 transport.responses[url] = {'data': record()}
                 recovered = reader.invoke('profile', {'native_ref': records.reference(FIRST)})

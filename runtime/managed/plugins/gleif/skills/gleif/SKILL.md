@@ -5,8 +5,8 @@ description: Use GLEIF for exact LEI and ISIN issuer evidence, legal-entity prof
 
 # Legal entities with GLEIF
 
-Use `resolve` with an exact LEI or ISIN to read the issuer references GLEIF
-asserts. An ISIN mapping is issuer evidence with incomplete coverage, not a
+Use `resolve` with an exact LEI or ISIN to read the identity claims GLEIF's
+records make (the LEI, a mapped ISIN, an EDGAR CIK). An ISIN mapping is issuer evidence with incomplete coverage, not a
 security master: it can return several entities, which stay ambiguous until
 other evidence decides, or none. A depositary receipt's ISIN can map to the
 depositary bank. Names never prove that two investments share an issuer, and

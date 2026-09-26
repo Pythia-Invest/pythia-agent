@@ -94,7 +94,11 @@ def _read_json(path):
 
 def fields(ctx):
     """The calling plugin's declared fields, read on each call; an absent file declares none."""
-    directory = _plugin_dir(ctx)
+    return fields_at(_plugin_dir(ctx))
+
+
+def fields_at(directory):
+    """The fields a plugin package directory declares (core reads other plugins' declarations)."""
     if directory is None:
         return []
     try:
@@ -151,8 +155,12 @@ def value(ctx, key):
 
 def missing(ctx):
     """Required declared fields that are not configured, as ``{key, label, file, status}``."""
+    return missing_at(_plugin_dir(ctx))
+
+
+def missing_at(directory):
     rows = []
-    for field in fields(ctx):
+    for field in fields_at(directory):
         if field['required']:
             status = read(field['kind'], field['key'])[0]
             if status != 'configured':

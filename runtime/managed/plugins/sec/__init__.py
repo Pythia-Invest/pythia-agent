@@ -95,17 +95,21 @@ class Reader:
 
     @staticmethod
     def resolve(clean, fetch):
-        if ('cik' in clean) == ('ticker' in clean) or ('mic' in clean and 'ticker' not in clean):
+        identifiers = clean['identifiers']
+        if not identifiers:
             raise ValueError('invalid_request')
-        if 'cik' in clean:
-            number = identity.cik(clean['cik'])
+        if 'cik' in identifiers:
+            number = identity.cik(identifiers['cik'])
             raw = fetch('submissions', number)
-            return envelope([identity.submission_record(raw['data'], number, raw['observed_at'])])
+            return envelope(identity.claims([identity.submission_record(raw['data'], number, raw['observed_at'])]))
+        ticker, mic = identifiers['ticker_mic'].split('@')
+        if mic not in identity.OPERATING_MICS.values():
+            return envelope(None)  # SEC lists no other venue; no request is made.
         raw = fetch('directory')
-        matches = identity.directory_matches(raw['data'], raw['observed_at'], clean['ticker'], clean.get('mic'))
+        matches = identity.directory_matches(raw['data'], raw['observed_at'], ticker, mic)
         issues = [{'code': 'ambiguous', 'severity': 'warning',
                    'message': 'Several SEC filers list this ticker; none is selected.'}] if len(matches) > 1 else []
-        return envelope(matches, issues)
+        return envelope(identity.claims(matches) if matches else None, issues)
 
 
 def register(ctx):

@@ -1,4 +1,4 @@
-"""OpenFIGI ``/v3/mapping`` jobs and results, kept pure for runtime and offline reuse.
+"""OpenFIGI ``/v3/mapping`` jobs and results, kept pure (no I/O).
 
 Source: https://www.openfigi.com/api/documentation (consulted 2026-09-25).
 """

@@ -116,6 +116,7 @@ class Security:
     activity: str = "active"
     turnover_eur: float | None = None
     turnover_method: str | None = None
+    rank: int | None = None  # notability order within its source, 1 = most notable (see pipeline.rank)
 
 
 @dataclass
@@ -143,6 +144,7 @@ class Listing:
     status_reasons: list[str] = field(default_factory=list)
     valid_from: str | None = None
     valid_to: str | None = None
+    position: int | None = None  # SEC lines: order in the SEC file
 
 
 @dataclass(frozen=True)

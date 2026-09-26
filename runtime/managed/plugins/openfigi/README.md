@@ -2,10 +2,11 @@
 
 `pythia-openfigi` is a Hermes-native plugin with one operation, `resolve`
 (`pythia_openfigi_resolve`). It maps identifiers through OpenFIGI's
-`/v3/mapping` endpoint and returns the evidence to Pythia's core, which decides
-identity. It supplies no prices, catalogue or search, and it is not called while
-a user types: resolution is explicit, for example when a page needs a FIGI or an
-offline reference build maps ISINs.
+`/v3/mapping` endpoint and returns the evidence to its caller; Pythia's core
+decides identity. It supplies no prices, catalogue or search, and it is not
+called while a user types: resolution is explicit, for example when the agent
+needs a FIGI. It fills no page section, so it ships no `contract.json`; the
+offline reference build has its own OpenFIGI client.
 
 Supported jobs (`idType` + `idValue`, optional filters):
 

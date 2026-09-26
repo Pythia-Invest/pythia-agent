@@ -10,9 +10,10 @@ def schemas(wire):
     native_ref = wire.parameter_schema('provider_ref')
     refresh = {'type': 'boolean', 'description': 'Read fresh SEC data, bypassing the retained copy.'}
     fields = {
-        'resolve': ({'cik': {'type': 'string', 'pattern': '^[0-9]{1,10}$'},
-            'ticker': {'type': 'string', 'minLength': 1, 'maxLength': 32},
-            'mic': {'type': 'string', 'pattern': '^[A-Z0-9]{4}$'}, 'refresh': refresh}, []),
+        'resolve': ({'identifiers': {'type': 'object', 'additionalProperties': False, 'properties': {
+                'cik': {'type': 'string', 'pattern': '^[0-9]{1,10}$'},
+                'ticker_mic': {'type': 'string', 'pattern': '^[A-Z0-9][A-Z0-9.&-]{0,15}@[A-Z0-9]{4}$'}}},
+            'refresh': refresh}, ['identifiers']),
         'filings': ({'native_ref': native_ref, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50},
                      'refresh': refresh}, ['native_ref']),
         'fundamentals': ({'native_ref': native_ref, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 30},
@@ -25,9 +26,9 @@ def schemas(wire):
             ['native_ref', 'taxonomy', 'concepts']),
     }
     descriptions = {
-        'resolve': 'Resolve SEC filer identity by exact CIK, or by exact ticker with an optional ISO operating MIC '
-            '(XNAS, XNYS, XCBO or OTCM). Returns echoed identifiers and listed lines as evidence for Pythia\'s identity '
-            'checks, never a merge.',
+        'resolve': 'Resolve SEC filer identity by exact identifiers.cik (preferred when both are given), or by identifiers.ticker_mic (TICKER@MIC with '
+            'an ISO operating MIC: XNAS, XNYS, XCBO or OTCM). Answers with an identity claim batch for Pythia\'s core: '
+            'one issuer claim (name, CIK, native reference) per matching filer, never a pick or a merge.',
         'filings': 'Read recent public SEC filings for an SEC CIK reference with accession, form, filing date, '
             'report period and document link. 20-F, 40-F and 6-K forms from foreign issuers are included.',
         'fundamentals': 'Read supported reported annual facts for an SEC CIK reference from US GAAP or IFRS '
