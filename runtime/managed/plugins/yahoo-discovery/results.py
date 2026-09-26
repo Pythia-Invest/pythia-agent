@@ -88,7 +88,7 @@ def read(request, series, mode, raw):
                 values[field] = format(Decimal(str(v)), 'f')
             if len(fields) > 1 and (float(values['low']) > min(float(values['open']), float(values['close'])) or float(values['high']) < max(float(values['open']), float(values['close']))):
                 raise ValueError()
-            interval = None if daily or mode == 'latest' else {'start': time, 'end': {'kind': 'instant', 'value': (point + timedelta(seconds={'minute': 60, 'five_minute': 300, 'hour': 3600}[mode])).isoformat()}}
+            interval = None if daily or mode == 'latest' else {'start': time, 'end': {'kind': 'instant', 'value': (point + timedelta(seconds={'minute': 60, 'five_minute': 300, 'five_minute_extended': 300, 'hour': 3600}[mode])).isoformat()}}
             observations.append({'shape': series['shape'], 'time': time, 'interval': interval, 'completion': {'state': 'unknown', 'basis': 'unknown'}, **values})
         except (ValueError, TypeError, KeyError, InvalidOperation, OverflowError):
             if not any(i['code'] == 'invalid_value' for i in issues): issues.append(issue('invalid_value'))
@@ -117,12 +117,21 @@ def read(request, series, mode, raw):
         changes = {key: format(Decimal(str(value)), 'f') for key, value in (data.get('change') or {}).items()
                    if key in ('absolute', 'percent') and type(value) in (int, float) and Decimal(str(value)).is_finite()}
         if changes: context['change'] = {**changes, 'baseline': {'kind': 'previous_close', 'time': {'kind': 'unknown'}}}
+        close = data.get('previous_close')
+        if type(close) in (int, float) and Decimal(str(close)).is_finite() and close > 0:
+            context['reference_close'] = {'value': format(Decimal(str(close)), 'f'), 'unit': next(iter(series['fields'].values()))['unit'],
+                'time': {'kind': 'unknown'}, 'provider_ref': series['provider_ref'], 'dataset': 'Yahoo:quote:regularMarketPreviousClose',
+                'retrieved_at': data.get('retrieved_at') or result['retrieved_at']}
         # The shared latest series measures the regular quote. Extended trading
         # is not implied for cash indices, nor is it this series' observation.
         state = metadata.get('market_state')
         if state in ('REGULAR', 'CLOSED', 'PRE', 'PREPRE', 'POST', 'POSTPOST'):
             context['session'] = {'state': 'regular' if state == 'REGULAR' else 'closed', 'basis': 'source'}
         result['price_context'] = context
+    # Intraday history carries the schedule of the current or last session.
+    session = (raw.get('data') or {}).get('session')
+    if mode not in ('latest', 'daily', 'adjusted') and observations and isinstance(session, dict):
+        result['price_context'] = {'session_window': session}
     result['issues'] = issues
     result['outcome'] = ('partial' if issues else 'ok') if observations else ('error' if any(i['severity'] == 'error' for i in issues) else 'empty')
     result['requirements_satisfied'] = result['outcome'] != 'error' and all(v == 'any' for v in request['requirements'].values())

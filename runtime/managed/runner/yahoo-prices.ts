@@ -18,21 +18,27 @@ const bounds = (v: unknown) => {
 };
 /** Pair pre/regular/post by their actual boundaries, never by array position or
  * assumed US hours. The newest started schedule wins, even before its first bar. */
-function equitySession(meta: Record<string, unknown>, now: number) {
-  const historical = object(meta.tradingPeriods),
+function schedules(meta: Record<string, unknown>, now: number) {
+  const historical = meta.tradingPeriods,
     currentPeriods = object(meta.currentTradingPeriod);
-  const periods = (kind: string) =>
-    [
-      ...(Array.isArray(historical[kind])
-        ? (historical[kind] as unknown[]).flat()
-        : []),
+  // Regular-only reads return one array of per-session groups; extended reads
+  // return pre/regular/post groups.
+  const periods = (kind: string) => {
+    const groups = Array.isArray(historical)
+      ? kind === "regular"
+        ? historical
+        : []
+      : object(historical)[kind];
+    return [
+      ...(Array.isArray(groups) ? groups.flat() : []),
       currentPeriods[kind],
     ]
       .map(bounds)
       .filter((p): p is { start: number; end: number } => p !== null);
+  };
   const pre = periods("pre"),
     post = periods("post");
-  const schedules = periods("regular")
+  return periods("regular")
     .map((regular) => ({
       regular,
       start: pre.find((p) => p.end === regular.start)?.start ?? regular.start,
@@ -40,10 +46,32 @@ function equitySession(meta: Record<string, unknown>, now: number) {
     }))
     .filter((p) => p.start <= now)
     .sort((a, b) => b.start - a.start);
-  const current = schedules[0];
+}
+/** The current or last started session as contract session evidence: the
+ * newest schedule whose pre-market or regular hours have begun. */
+function lastSession(meta: Record<string, unknown>, now: number) {
+  const current = schedules(meta, now)[0];
+  const zone = meta.exchangeTimezoneName;
+  if (!current || typeof zone !== "string" || !zone) return null;
+  const iso = (t: number) => new Date(t).toISOString();
+  return {
+    date: new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(
+      current.regular.start,
+    ),
+    timezone: zone,
+    regular: {
+      start: iso(current.regular.start),
+      end: iso(current.regular.end),
+    },
+    extended: { start: iso(current.start), end: iso(current.end) },
+  };
+}
+function equitySession(meta: Record<string, unknown>, now: number) {
+  const all = schedules(meta, now);
+  const current = all[0];
   if (!current) return undefined;
   if (now < current.regular.start) {
-    const previous = schedules.find((p) => p.regular.end < current.start);
+    const previous = all.find((p) => p.regular.end < current.start);
     if (!previous) return undefined;
     return {
       regular: previous.regular,
@@ -179,6 +207,8 @@ export async function yahooPrices(
       absolute: number(q.regularMarketChange),
       percent: number(q.regularMarketChangePercent),
     },
+    // The close the regular change is measured against.
+    previous_close: number(q.regularMarketPreviousClose),
   });
   // Every quote read (metadata, latest, batches, quote dashboards) shares one
   // coalesced native quote call through quote_bundle.
@@ -318,6 +348,7 @@ export async function yahooPrices(
     adjusted: "1d",
     minute: "1m",
     five_minute: "5m",
+    five_minute_extended: "5m",
     hour: "1h",
   } as const;
   if (!(mode in intervals)) throw Error("invalid_request");
@@ -337,7 +368,7 @@ export async function yahooPrices(
     period1: new Date(start - (interval === "1d" ? 86400000 : 0)),
     period2: new Date(end + (interval === "1d" ? 86400000 : 1000)),
     interval,
-    includePrePost: false,
+    includePrePost: mode === "five_minute_extended",
     events: "div,splits",
   });
   const meta = metadata(d.meta, s);
@@ -348,6 +379,13 @@ export async function yahooPrices(
   return {
     metadata: meta,
     retrieved_at,
+    // Intraday equity reads carry the schedule of the current or last session;
+    // continuous markets keep elapsed time, not Yahoo's UTC daily bucket.
+    session:
+      interval !== "1d" &&
+      (d.meta.instrumentType === "EQUITY" || d.meta.instrumentType === "ETF")
+        ? lastSession(record(d.meta), Date.parse(retrieved_at))
+        : null,
     rows: d.quotes.map((q) => ({
       time: interval === "1d" ? day(q.date) : q.date,
       open: q.open,
