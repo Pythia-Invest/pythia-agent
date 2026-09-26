@@ -9,9 +9,6 @@ from . import schema
 from .fetch import sha256_file
 from .model import Snapshot
 
-# Tables whose natural key may legitimately repeat with a different detail.
-FIRST_WINS = {"flags", "issuer_names"}
-
 
 def write(snap: Snapshot, path: Path, meta: dict[str, str], sources: list[dict]) -> dict[str, int]:
     """Create `path` from scratch and return row counts per table."""
@@ -23,14 +20,16 @@ def write(snap: Snapshot, path: Path, meta: dict[str, str], sources: list[dict])
     try:
         connection.executescript(schema.DDL)
         connection.execute(f"PRAGMA user_version = {schema.SCHEMA_VERSION}")
+        ignored = {}
         for table, values in schema.rows(snap, meta, sources).items():
-            if not values:
-                counts[table] = 0
-                continue
-            verb = "INSERT OR IGNORE" if table in FIRST_WINS else "INSERT"
-            marks = ",".join("?" * len(values[0]))
-            connection.executemany(f"{verb} INTO {table} VALUES ({marks})", values)
+            verb = "INSERT OR IGNORE" if table in schema.FIRST_WINS else "INSERT"
+            for row in values:
+                names = ",".join(row)
+                connection.execute(f"{verb} INTO {table} ({names}) VALUES ({','.join('?' * len(row))})", tuple(row.values()))
             counts[table] = connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+            if len(values) > counts[table]:
+                ignored[table] = len(values) - counts[table]  # duplicate IDs of collapsed lines, or constraint violations
+        snap.audit["writer_ignored"] = ignored
         connection.commit()
         connection.execute("VACUUM")
     finally:

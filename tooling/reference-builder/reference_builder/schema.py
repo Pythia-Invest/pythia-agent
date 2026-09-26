@@ -1,112 +1,209 @@
 """Reference snapshot tables: the only module that knows the on-disk layout.
 
-The layout follows the identity backbone's four levels (issuer, security,
-listing; composites are carried as `composite_figi` on listings) plus identifier
-assertions with provenance. When the core contract DDL changes, adapt this
-module; the assembly stages stay untouched.
+The file is core's reference store (`runtime/managed/core/identity/sql/reference.sql`)
+with subject IDs from core's `subject_id()`, so core reads it without a mapping.
+The assembled snapshot keeps its own working IDs; this module translates them.
+Identifier assertions carry authority `snapshot` (carried from a verified build);
+the curated native-coin seed carries `curated`.
 """
 
 from __future__ import annotations
 
-import hashlib
+import importlib.util
 import json
-from collections.abc import Iterator
+import sys
+from collections import Counter
+from pathlib import Path
 
+from .config import BUILDER_VERSION
 from .model import Snapshot
 
-SCHEMA_VERSION = 1
-
-DDL = """
-CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE sources(source TEXT PRIMARY KEY, url TEXT NOT NULL, version TEXT, retrieved_at TEXT NOT NULL,
-  sha256 TEXT, licence TEXT NOT NULL);
-CREATE TABLE venues(mic TEXT PRIMARY KEY, operating_mic TEXT NOT NULL, level TEXT, name TEXT, country TEXT,
-  category TEXT, status TEXT);
-CREATE TABLE issuers(issuer_id TEXT PRIMARY KEY, lei TEXT UNIQUE, cik TEXT UNIQUE, name TEXT NOT NULL,
-  legal_name TEXT, name_rule TEXT, jurisdiction TEXT, country TEXT, entity_status TEXT, registration_status TEXT,
-  source TEXT NOT NULL);
-CREATE TABLE issuer_names(issuer_id TEXT NOT NULL REFERENCES issuers, name TEXT NOT NULL, name_type TEXT NOT NULL,
-  language TEXT, source TEXT NOT NULL, PRIMARY KEY(issuer_id, name_type, name));
-CREATE TABLE securities(security_id TEXT PRIMARY KEY, isin TEXT UNIQUE, share_class_figi TEXT,
-  issuer_id TEXT REFERENCES issuers, kind TEXT NOT NULL, cfi TEXT, fisn TEXT, name TEXT, notional_currency TEXT,
-  primary_mic TEXT, primary_rule TEXT, activity TEXT NOT NULL, turnover_eur REAL, turnover_method TEXT,
-  source TEXT NOT NULL);
-CREATE TABLE listings(listing_id TEXT PRIMARY KEY, security_id TEXT REFERENCES securities,
-  issuer_id TEXT REFERENCES issuers, mic TEXT, operating_mic TEXT, country TEXT, ticker TEXT, ticker_root TEXT,
-  ticker_class TEXT, currency TEXT, figi TEXT, composite_figi TEXT, share_class_figi TEXT, row_class TEXT NOT NULL,
-  security_type TEXT, name TEXT, is_primary INTEGER NOT NULL, status TEXT NOT NULL, status_reasons TEXT,
-  valid_from TEXT, valid_to TEXT, source TEXT NOT NULL, ticker_source TEXT);
-CREATE TABLE identifiers(evidence_id TEXT PRIMARY KEY, subject_id TEXT NOT NULL, level TEXT NOT NULL,
-  scheme TEXT NOT NULL, value TEXT NOT NULL, valid_from TEXT, valid_to TEXT, source TEXT NOT NULL,
-  authority TEXT NOT NULL, rule_id TEXT);
-CREATE TABLE relationships(from_id TEXT NOT NULL, relation TEXT NOT NULL, to_id TEXT NOT NULL,
-  source TEXT NOT NULL, rule_id TEXT, PRIMARY KEY(from_id, relation, to_id));
-CREATE TABLE flags(subject_id TEXT NOT NULL, flag TEXT NOT NULL, detail TEXT, PRIMARY KEY(subject_id, flag));
-CREATE INDEX listings_security ON listings(security_id);
-CREATE INDEX listings_issuer ON listings(issuer_id);
-CREATE INDEX listings_ticker ON listings(ticker, mic);
-CREATE INDEX securities_issuer ON securities(issuer_id);
-CREATE INDEX identifiers_value ON identifiers(scheme, value);
-CREATE INDEX identifiers_subject ON identifiers(subject_id);
-"""
+CORE = Path(__file__).resolve().parents[3] / "runtime" / "managed" / "core" / "identity"
 
 
-def _evidence_id(subject: str, scheme: str, value: str, valid_from: str | None, source: str) -> str:
-    """Content hash, so an unchanged assertion keeps its id across releases."""
-    raw = "\x1f".join([subject, scheme, value, valid_from or "", source])
-    return "snap:" + hashlib.sha256(raw.encode()).hexdigest()[:32]
+def _core():
+    """Load core's identity package from the checkout (standard library only, no I/O at import)."""
+    name = "pythia_core_identity"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, CORE / "__init__.py", submodule_search_locations=[str(CORE)])
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
 
 
-def _assertions(snap: Snapshot) -> Iterator[tuple]:
-    def row(subject, level, scheme, value, source, authority="source_asserted", rule=None, start=None, end=None):
-        return (_evidence_id(subject, scheme, value, start, source), subject, level, scheme, value, start, end, source, authority, rule)
+identity = _core()
+DDL = identity.schema_sql(identity.Store.REFERENCE)
+SCHEMA_VERSION = int(importlib.import_module("pythia_core_identity.store").REFERENCE_SCHEMA_VERSION)
+KIND = {"share": "ordinary", "dr": "depositary_receipt", "preferred": "preferred", "fund": "fund"}
+STATUS = {"active": "active", "suspect": "unknown", "inactive": "inactive"}
+# Curated short venue labels (Pythia-authored); other venues keep their ISO 10383 name.
+VENUE_NAMES = {
+    "XAMS": "Euronext Amsterdam", "XPAR": "Euronext Paris", "XBRU": "Euronext Brussels", "XLIS": "Euronext Lisbon",
+    "XMIL": "Euronext Milan", "XDUB": "Euronext Dublin", "XOSL": "Euronext Oslo", "XLON": "London Stock Exchange",
+    "XETR": "Xetra", "XFRA": "Frankfurt", "XSWX": "SIX Swiss Exchange", "XPRA": "Prague Stock Exchange",
+    "XNAS": "Nasdaq", "XNGS": "Nasdaq", "XNMS": "Nasdaq", "XNCM": "Nasdaq", "XNYS": "NYSE", "XASE": "NYSE American",
+    "ARCX": "NYSE Arca", "BATS": "Cboe BZX", "XCBO": "Cboe", "OTCM": "OTC Markets",
+}
+FIRST_WINS = {"names", "listings", "composites", "assertions"}  # collapsed lines share an ID; the first row wins
+# (the writer audits every ignored row, so a constraint violation is counted, not hidden)
 
-    for issuer in snap.issuers.values():
+
+def derive(level: str, identifiers: dict[str, str | None], **context) -> str | None:
+    """Core's subject ID from the well-formed identifiers only (a malformed value is no key)."""
+    valid = {}
+    for scheme, value in identifiers.items():
+        try:
+            valid[scheme] = identity.normalize_identifier(scheme, value) if value else None
+        except ValueError:
+            pass
+    return identity.subject_id(level, valid, **context)
+
+
+class _Ids:
+    """Working IDs (`lei:X`, `isin:X`, `XAMS:<ISIN>`) to core subject IDs."""
+
+    def __init__(self, snap: Snapshot):
+        self.snap = snap
+        self.issuers = {key: self._issuer(item) for key, item in snap.issuers.items()}
+        self.securities = {key: self._security(item) for key, item in snap.securities.items()}
+
+    def _issuer(self, issuer) -> str:
+        found = derive("issuer", {"lei": issuer.lei, "cik": issuer.cik})
+        return found or identity.provisional_id("issuer", issuer.source, "id", issuer.issuer_id.split(":", 1)[1])
+
+    def _security(self, security) -> str:
+        found = derive("security", {"isin": security.isin, "share_class_figi": security.share_class_figi})
+        return found or identity.provisional_id("security", security.source, "id", security.security_id.split(":", 1)[1])
+
+    def listing(self, listing) -> str | None:
+        security = self.snap.securities.get(listing.security_id or "")
+        if not listing.mic or not listing.currency or security is None:
+            return None
+        found = derive("listing", {"isin": security.isin, "figi": listing.figi},
+                       operating_mic=listing.operating_mic or listing.mic, currency=listing.currency)
+        return found or identity.provisional_id("listing", "sec", "ticker", f"{listing.mic}.{listing.ticker}")
+
+
+def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str, list[dict]]:
+    """Table name -> rows as column dicts, in dependency order."""
+    at = meta.get("created_at") or f"{snap.as_of}T00:00:00Z"
+    ids, audit = _Ids(snap), Counter()
+    tables: dict[str, list[dict]] = {name: [] for name in (
+        "release", "venues", "issuers", "securities", "composites", "listings", "assertions", "relations", "names",
+        "chains", "provider_chains", "native_coins")}
+
+    def assert_(subject, scheme, value, source, *, record=None, start=None, end=None, authority="snapshot"):
+        try:
+            item = identity.IdentifierAssertion(
+                subject_id=subject, scheme=scheme, value=value, authority=authority,
+                provenance={"plugin": source, "source": source, "adapter_version": BUILDER_VERSION, "retrieved_at": at,
+                            "source_record": record},
+                validity={"valid_from": start, "valid_to": end})
+        except ValueError:
+            audit[f"skipped_{scheme}"] += 1
+            return
+        tables["assertions"].append({
+            "evidence_id": item.evidence_id, "subject_id": subject, "level": item.level, "scheme": scheme,
+            "value": item.value, "valid_from": start, "valid_to": end, "authority": authority, "source": source,
+            "source_record": record, "plugin": source, "adapter_version": BUILDER_VERSION, "retrieved_at": at})
+
+    def name(subject, text, source):
+        if text:
+            tables["names"].append({"subject_id": subject, "name": text[:512], "source": source})
+
+    for venue in snap.venues.values():
+        tables["venues"].append({"mic": venue.mic, "operating_mic": venue.operating_mic, "name": VENUE_NAMES.get(venue.mic) or venue.name or venue.mic,
+                                 "country": venue.country or None})
+    for key, issuer in sorted(snap.issuers.items()):
+        subject = ids.issuers[key]
+        country = issuer.country if issuer.country and len(issuer.country) == 2 else None
+        status = "inactive" if issuer.entity_status == "INACTIVE" else "active"
+        tables["issuers"].append({"id": subject, "name": issuer.name[:512], "country": country, "status": status})
         if issuer.lei:
-            yield row(issuer.issuer_id, "issuer", "lei", issuer.lei, "gleif" if issuer.source == "gleif" else "esma_firds")
+            assert_(subject, "lei", issuer.lei, "gleif" if issuer.source == "gleif" else "esma_firds")
         if issuer.cik:
-            rule = issuer.cik_rule
-            yield row(issuer.issuer_id, "issuer", "cik", issuer.cik, "sec", "rule" if rule else "source_asserted", rule)
-    for security in snap.securities.values():
+            assert_(subject, "cik", issuer.cik, "sec", record=issuer.cik_rule)
+        for text, _kind, _language, source in issuer.names:
+            if text != issuer.name:
+                name(subject, text, source)
+    for key, security in sorted(snap.securities.items()):
+        subject = ids.securities[key]
+        lines = [l for l in snap.listings.values() if l.security_id == key]
+        title = security.name or next((l.name for l in lines if l.name), None)
+        issuer = snap.issuers.get(security.issuer_id or "")
+        tables["securities"].append({
+            "id": subject, "issuer_id": ids.issuers.get(security.issuer_id or ""),
+            "name": (title or (issuer.name if issuer else None) or subject)[:512], "asset_class": "equity",
+            "kind": KIND.get(security.kind, "other"), "status": STATUS.get(security.activity, "unknown"),
+            "rank": security.rank})
         if security.isin:
-            yield row(security.security_id, "security", "isin", security.isin, "esma_firds")
+            assert_(subject, "isin", security.isin, "esma_firds")
         if security.share_class_figi:
-            yield row(security.security_id, "security", "share_class_figi", security.share_class_figi, "openfigi")
-    for listing in snap.listings.values():
+            assert_(subject, "share_class_figi", security.share_class_figi, "openfigi")
+    for listing in sorted(snap.listings.values(), key=lambda l: (not l.is_primary, l.status != "active", l.listing_id)):
+        subject = ids.listing(listing)
+        if subject is None:  # core needs a venue and a trading currency for a venue line
+            audit["lines_without_venue" if not listing.mic else "lines_without_currency"] += 1
+            continue
+        security_id = ids.securities[listing.security_id]
+        composite = None
+        security = snap.securities[listing.security_id]
+        if listing.composite_figi and listing.country:
+            composite = derive("composite", {"isin": security.isin, "share_class_figi": security.share_class_figi},
+                               country=listing.country)
+            if composite:
+                tables["composites"].append({"id": composite, "security_id": security_id, "country": listing.country})
+                assert_(composite, "composite_figi", listing.composite_figi, "openfigi")
+        tables["listings"].append({
+            "id": subject, "security_id": security_id, "composite_id": composite, "mic": listing.mic,
+            "operating_mic": listing.operating_mic, "ticker": listing.ticker, "currency": listing.currency,
+            "chain": None, "is_primary": int(listing.is_primary), "status": STATUS.get(listing.status, "unknown")})
         span = {"start": listing.valid_from, "end": listing.valid_to}
         if listing.figi:
-            yield row(listing.listing_id, "listing", "figi", listing.figi, "openfigi", **span)
-        if listing.composite_figi:
-            yield row(listing.listing_id, "listing", "composite_figi", listing.composite_figi, "openfigi", **span)
-        if listing.ticker and listing.mic:
-            yield row(listing.listing_id, "listing", "ticker_mic", f"{listing.ticker}@{listing.mic}", listing.ticker_source or listing.source, **span)
+            assert_(subject, "figi", listing.figi, "openfigi", **span)
+        if listing.ticker:
+            assert_(subject, "ticker_mic", f"{listing.ticker}@{listing.operating_mic or listing.mic}",
+                    listing.ticker_source or listing.source, **span)
+        name(subject, listing.name, listing.source)
+    for relation in snap.relationships:
+        source, target = ids.securities.get(relation.from_id), f"security:{relation.to_id}"
+        try:
+            item = identity.Relation(type=relation.relation, from_id=source, to_id=target, authority="snapshot",
+                                     provenance={"plugin": relation.source, "source": relation.source,
+                                                 "adapter_version": BUILDER_VERSION, "retrieved_at": at,
+                                                 "source_record": relation.rule_id})
+        except (TypeError, ValueError):
+            audit["skipped_relations"] += 1
+            continue
+        tables["relations"].append({
+            "evidence_id": item.evidence_id, "type": item.type, "from_id": source, "to_id": target,
+            "authority": "snapshot", "source": relation.source, "source_record": relation.rule_id,
+            "plugin": relation.source, "adapter_version": BUILDER_VERSION, "retrieved_at": at})
+    _native_coins(tables, assert_)
+    snap.audit["schema"] = dict(sorted(audit.items()))
+    release = {"schema_version": str(SCHEMA_VERSION), "release": meta.get("build_id", ""), "built_at": at,
+               "built_by": "device", "sources": json.dumps(sources, sort_keys=True), **meta}
+    tables["release"] = [{"key": key, "value": str(value)} for key, value in sorted(release.items())]
+    return tables
 
 
-def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str, list[tuple]]:
-    """Table name → rows, in insertion order matching the DDL columns."""
-    return {
-        "meta": sorted(meta.items()),
-        "sources": [(s["source"], s["url"], s.get("version"), s["retrieved_at"], s.get("sha256"), s["licence"]) for s in sources],
-        "venues": [(v.mic, v.operating_mic, v.level, v.name, v.country, v.category, v.status) for v in snap.venues.values()],
-        "issuers": [
-            (i.issuer_id, i.lei, i.cik, i.name, i.legal_name, i.name_rule, i.jurisdiction, i.country, i.entity_status,
-             i.registration_status, i.source)
-            for i in sorted(snap.issuers.values(), key=lambda i: i.issuer_id)
-        ],
-        "issuer_names": sorted({(i.issuer_id, n, kind, lang, src) for i in snap.issuers.values() for n, kind, lang, src in i.names}),
-        "securities": [
-            (s.security_id, s.isin, s.share_class_figi, s.issuer_id, s.kind, s.cfi, s.fisn, s.name, s.currency, s.primary_mic,
-             s.primary_rule, s.activity, s.turnover_eur, s.turnover_method, s.source)
-            for s in sorted(snap.securities.values(), key=lambda s: s.security_id)
-        ],
-        "listings": [
-            (l.listing_id, l.security_id, l.issuer_id, l.mic, l.operating_mic, l.country, l.ticker, l.ticker_root, l.ticker_class,
-             l.currency, l.figi, l.composite_figi, l.share_class_figi, l.row_class, l.security_type, l.name, int(l.is_primary),
-             l.status, json.dumps(sorted(set(l.status_reasons))) if l.status_reasons else None, l.valid_from, l.valid_to,
-             l.source, l.ticker_source)
-            for l in sorted(snap.listings.values(), key=lambda l: l.listing_id)
-        ],
-        "identifiers": sorted(set(_assertions(snap))),
-        "relationships": sorted({(r.from_id, r.relation, r.to_id, r.source, r.rule_id) for r in snap.relationships}),
-        "flags": sorted({(f.subject_id, f.flag, f.detail) for f in snap.flags}, key=lambda f: (f[0], f[1])),
-    }
+def _native_coins(tables: dict[str, list[dict]], assert_) -> None:
+    """Core's curated native-coin seed: the crypto assets search finds without any provider."""
+    seed = json.loads((CORE / "native_coins.json").read_text(encoding="utf-8"))
+    tables["chains"] += seed["chains"]
+    tables["provider_chains"] += seed["provider_chains"]
+    for coin in seed["coins"]:
+        security = identity.subject_id("security", {"caip19": coin["caip19"]})
+        listing = identity.subject_id("listing", {"caip19": coin["caip19"]})
+        tables["securities"].append({"id": security, "issuer_id": None, "name": coin["name"], "asset_class": "crypto",
+                                     "kind": "coin", "status": "active", "rank": coin["rank"]})
+        tables["listings"].append({"id": listing, "security_id": security, "composite_id": None, "mic": None,
+                                   "operating_mic": None, "ticker": coin["symbol"], "currency": None,
+                                   "is_primary": 1, "status": "active", "chain": coin["caip19"].split("/", 1)[0]})
+        assert_(listing, "caip19", coin["caip19"], "pythia", record=seed["rule_id"], authority="curated")
+        for alias in coin.get("aliases", []):
+            tables["names"].append({"subject_id": security, "name": alias, "source": "pythia"})
+        for provider in ("coinmarketcap", "coingecko"):
+            tables["native_coins"].append({"caip19": coin["caip19"], "provider": provider, "native_scope": "coin",
+                                           "native_id": coin[provider]})

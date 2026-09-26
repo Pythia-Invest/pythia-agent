@@ -8,10 +8,11 @@ Plugins never choose an evidence tier: the core assigns it at ingest.
 """
 from __future__ import annotations
 
+import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import StrEnum
-from typing import Mapping, Protocol
+from typing import Any, Mapping, Protocol
 
 from .manifest import Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
@@ -221,3 +222,32 @@ def check_batch(batch: ClaimBatch, manifest: Manifest) -> None:
             if key in seen:
                 raise _fail(index, "duplicate native reference in batch")
             seen.add(key)
+
+
+def batch_to_json(batch: ClaimBatch) -> dict[str, Any]:
+    """The wire form of a batch: plain JSON values with the dataclass field names.
+
+    A relation claim is told apart from a record claim by its `from_key`.
+    """
+    return json.loads(json.dumps(asdict(batch)))
+
+
+def batch_from_json(document: Mapping[str, Any] | str) -> ClaimBatch:
+    """Parse and validate a wire batch; raise ClaimError naming what is wrong."""
+    try:
+        body = json.loads(document) if isinstance(document, str) else document
+        if not isinstance(body, Mapping) or not isinstance(body.get("claims"), list):
+            raise ValueError("object with a claims list required")
+        claims = []
+        for index, item in enumerate(body["claims"]):
+            try:
+                if not isinstance(item, Mapping):
+                    raise ValueError("object required")
+                claims.append(RelationClaim(**item) if "from_key" in item else RecordClaim(**item))
+            except (TypeError, ValueError) as error:
+                raise _fail(index, str(error)) from None
+        return ClaimBatch(**{**body, "claims": tuple(claims)})
+    except ClaimError:
+        raise
+    except (TypeError, ValueError) as error:
+        raise _fail(None, str(error)) from None

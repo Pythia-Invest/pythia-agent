@@ -131,12 +131,21 @@ class PipelineTest(unittest.TestCase):
             counts = writer.write(self.snap, path, {"build_id": "test"}, sources)
             with sqlite3.connect(path) as db:
                 venues = {row[0] for row in db.execute("select mic from venues")}
-                cik_rule = db.execute("select rule_id from identifiers where scheme='cik' and subject_id=?", (f"lei:{ASML_LEI}",)).fetchone()[0]
-                provenance = {row[0]: row[1] for row in db.execute("select source, licence from sources")}
-            self.assertEqual(counts["listings"], len(self.snap.listings))
+                cik = db.execute("select source_record, authority from assertions where scheme='cik' and subject_id=?",
+                                 (f"issuer:lei:{ASML_LEI}",)).fetchone()
+                release = dict(db.execute("select key, value from release"))
+                asml = db.execute("select security_id, is_primary from listings where id=?",
+                                  (f"listing:isin:{ASML_ISIN}:XAMS:EUR",)).fetchone()
+                btc = db.execute("select native_id from native_coins where provider='coinmarketcap' and caip19 like 'bip122:%/slip44:0'").fetchone()
+            self.assertEqual(asml, (f"security:isin:{ASML_ISIN}", 1))
             self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM", "XCBO"})
-            self.assertEqual(cik_rule, "share_class_figi")
-            self.assertEqual(provenance, {"esma_firds": "x", "openfigi": "y"})
+            self.assertEqual(cik, ("share_class_figi", "snapshot"))
+            self.assertEqual({s["source"]: s["licence"] for s in json.loads(release["sources"])}, {"esma_firds": "x", "openfigi": "y"})
+            self.assertEqual(btc, ("1",))
+            self.assertGreater(counts["assertions"], counts["listings"])
+            written = counts["listings"] + self.snap.audit["writer_ignored"].get("listings", 0)
+            dropped = sum(n for key, n in self.snap.audit["schema"].items() if key.startswith("lines_without_"))
+            self.assertEqual(written + dropped, len(self.snap.listings) + 6)  # every line is accounted for; +6 seeded coins
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
 
     def test_eu_only_scope_makes_no_sec_lookups(self):
