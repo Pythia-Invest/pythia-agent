@@ -97,7 +97,10 @@ export function useSectionRead(request: PluginRequest | null | undefined) {
     queryKey: ["plugin", request?.plugin, "section", request],
     queryFn: () => api.pluginRead(request as PluginRequest),
     enabled: Boolean(request),
-    staleTime: SUBJECT_STALE_MS,
+    // Plugin content: every new mount rechecks native access, like other
+    // plugin reads; a mount during a running read joins it.
+    staleTime: 0,
+    refetchOnMount: "always",
     ...busyRetry,
   });
 }
