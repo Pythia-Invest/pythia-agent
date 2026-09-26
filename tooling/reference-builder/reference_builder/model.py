@@ -80,13 +80,13 @@ class SecTicker:
 
 
 @dataclass(frozen=True)
-class UsListing:
-    """One line of the Nasdaq Trader symbol directory."""
+class SecFund:
+    """One share class in the SEC fund file: the trust's CIK, series, class and ticker."""
 
-    ticker: str  # SEC style: share classes as `BRK-B`
-    name: str
-    mic: str
-    etf: bool
+    cik: str
+    series: str
+    share_class: str
+    ticker: str
 
 
 # ---- assembled snapshot ------------------------------------------------------

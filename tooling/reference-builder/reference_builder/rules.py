@@ -30,6 +30,26 @@ MAIN_EXCH_CODE = {
     "XSTO": "SS", "XHEL": "FH", "XCSE": "DC", "XOSL": "NO", "BMEX": "SQ", "XMAD": "SQ", "XWAR": "PW",
     "XWBO": "AV", "XLON": "LN", "XSWX": "SE", "XDUB": "ID",
 }
+# Venue policy (Pythia-authored). Pan-European venues that trade shares and ETFs listed
+# elsewhere: lit and dark MTFs, request-for-quote platforms, systematic internalisers and
+# OTFs, by operating MIC. They are not where an instrument lists, so their lines are left
+# out unless one is the security's only market. Every other FIRDS venue stays, including
+# the German regional exchanges and Tradegate.
+TRADING_ONLY_VENUES = frozenset({
+    "CCXE", "CCRM",  # Cboe Europe (MTF and regulated market books)
+    "AQEU",  # Aquis Exchange Europe
+    "TQEX",  # Turquoise Europe
+    "ITGL",  # Posit
+    "XIGG",  # Instinet Blockmatch Europe
+    "SGMU",  # Sigma X Europe
+    "OCXE",  # OneChronos Markets Europe
+    "TPIC", "ICOT",  # TP ICAP EU MTF and ICAP EU OTF
+    "TWEU",  # Tradeweb EU
+    "BTFE",  # Bloomberg Trading Facility
+    "MANL",  # MarketAxess NL
+    "UBSL", "CREM", "XDNB", "AACA",  # systematic internalisers: UBS, Credem, DNB, Crédit Agricole CIB
+    "TSAF", "AURB",  # OTFs: TSAF, Aurel
+})
 # Auxiliary segments (midpoint, off-book, auction) collapse onto the operator's lit segment.
 LIT_SEGMENT = {
     "DSTO": "XSTO", "MSTO": "XSTO", "PSTO": "XSTO", "DHEL": "XHEL", "MHEL": "XHEL", "PHEL": "XHEL",

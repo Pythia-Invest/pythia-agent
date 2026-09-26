@@ -7,7 +7,7 @@ from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 
-from reference_builder import config, firds, gleif, mic, sec, us_listed
+from reference_builder import config, firds, gleif, mic, sec
 from reference_builder.fetch import Downloader
 from reference_builder.rules import display_name
 
@@ -22,7 +22,6 @@ from .fixtures import (
     gleif_item,
     sec_json,
     stream,
-    symbol_directory,
     write_zip,
 )
 
@@ -108,13 +107,10 @@ class SecAndMicTest(unittest.TestCase):
             (Path(tmp) / "pythia" / "settings.json").write_text(json.dumps({"sec_identity": " Example Research research@example.org "}))
             self.assertEqual(config.load_sec_identity(env), "Example Research research@example.org")
 
-    def test_symbol_directory_places_tickers_on_their_exchange(self):
-        rows = us_listed.parse(*symbol_directory(
-            [("TSLL", "Direxion Daily TSLA Bull 2X ETF", "Y"), ("AAPL", "Apple Inc. - Common Stock", "N")],
-            [("VOO", "Vanguard S&P 500 ETF", "P", "Y"), ("BRK.B", "Berkshire Hathaway Inc.", "N", "N"),
-             ("ZTST", "Test issue", "V", "N"), ("ODD", "Unknown exchange", "Q", "N")]))
-        self.assertEqual({t: (r.mic, r.etf) for t, r in rows.items()},
-                         {"TSLL": ("XNAS", True), "AAPL": ("XNAS", False), "VOO": ("ARCX", True), "BRK-B": ("XNYS", False)})
+    def test_fund_file_keeps_one_row_per_ticker(self):
+        data = json.dumps({"fields": ["cik", "seriesId", "classId", "symbol"],
+                           "data": [[1424958, "S01", "C01", "tsll"], [1424958, "S01", "C02", "TSLL"], [2110, "S02", "C03", "LACAX"]]}).encode()
+        self.assertEqual([(f.cik, f.ticker) for f in sec.parse_funds(data)], [("1424958", "TSLL"), ("2110", "LACAX")])
 
     def test_mic_rows_map_segments_to_operating_mic(self):
         venues = mic.parse(MIC_CSV.encode())

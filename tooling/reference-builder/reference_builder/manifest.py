@@ -14,7 +14,7 @@ LICENCES = {
     "esma_fitrs": "ESMA legal notice: reuse with acknowledgement",
     "gleif_lei_records": "CC0 1.0",
     "sec_company_tickers": "US federal government work (public domain)",
-    "nasdaqtrader_symbols": "Nasdaq Trader symbol directory, Nasdaq terms of use: read on the device, not redistributed",
+    "sec_fund_tickers": "US federal government work (public domain)",
     "openfigi": "FIGI and associated metadata under the MIT licence (OMG FIGI standard, Annex D.6)",
 }
 

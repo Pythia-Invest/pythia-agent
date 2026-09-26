@@ -13,7 +13,7 @@ from datetime import date
 
 from . import rules
 from .config import Scope
-from .model import FirdsRecord, GleifEntity, Issuer, Listing, Relationship, Security, SecTicker, Snapshot, Transparency, UsListing, Venue
+from .model import FirdsRecord, GleifEntity, Issuer, Listing, Relationship, Security, SecFund, SecTicker, Snapshot, Transparency, Venue
 
 FigiMap = Callable[[list[dict]], list[dict]]
 GleifFetch = Callable[[set[str]], dict[str, GleifEntity]]
@@ -30,7 +30,7 @@ class Inputs:
     transparency: dict[str, Transparency] | None
     sec_tickers: list[SecTicker]
     figi_mic_codes: set[str]
-    us_listed: dict[str, UsListing] = field(default_factory=dict)
+    sec_funds: list[SecFund] = field(default_factory=list)
 
 
 def operating(venues: dict[str, Venue], mic: str | None) -> str | None:
@@ -80,7 +80,11 @@ def _eu_listings(inputs: Inputs, isin: str, records: list[FirdsRecord]) -> dict[
         current = chosen.get(op or lit)
         if current is None or _segment_order(inputs, op, record) < _segment_order(inputs, op, current):
             chosen[op or lit] = record
-    return {rules.lit_segment(record.mic): record for record in chosen.values()}
+    listing = {op: record for op, record in chosen.items() if op not in rules.TRADING_ONLY_VENUES}
+    if not listing:  # traded only on trading-only venues: keep the line on its relevant venue
+        relevant = operating(inputs.venues, next((r.relevant_mic for r in records if r.relevant_mic), None))
+        listing = {op: record for op, record in chosen.items() if op == relevant} or chosen
+    return {rules.lit_segment(record.mic): record for record in listing.values()}
 
 
 def _segment_order(inputs: Inputs, op: str | None, record: FirdsRecord) -> tuple:
@@ -180,9 +184,14 @@ def _apply_figi(listing: Listing, row: dict, fisn: str | None) -> None:
 def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     head = next((r for r in records if r.mic == r.relevant_mic), records[0])
     relevant = next((r.relevant_mic for r in records if r.relevant_mic), None)
+    moved = operating(inputs.venues, relevant) in rules.TRADING_ONLY_VENUES and _listing_venue(inputs, isin, listings)
+    if moved:
+        relevant = moved.mic
     share_class = next((l.share_class_figi for l in listings if l.share_class_figi), None)
     xetra_live = any(r.mic in XETRA_SEGMENTS and not (r.termination and r.termination <= inputs.as_of.isoformat()) for r in records)
     primary_mic, rule, home_row = rules.primary_venue(isin, operating(inputs.venues, relevant), xetra_live, fanout)
+    if moved and rule == "firds_relevant_venue":
+        rule = "trading_venue_to_listing_venue"
     audit[f"primary_{rule}"] += 1
     fitrs = (inputs.transparency or {}).get(isin)
     security = Security(
@@ -199,6 +208,15 @@ def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     _mark_primary(snap, security, listings, relevant, home_row)
     states = {l.status for l in listings}
     security.activity = "active" if "active" in states else ("suspect" if "suspect" in states else ("inactive" if states else "active"))
+
+
+def _listing_venue(inputs: Inputs, isin: str, listings: list[Listing]) -> Listing | None:
+    """The primary line when FIRDS names a trading-only venue: home country, then regulated market, then MIC."""
+    def order(line: Listing) -> tuple:
+        venue = inputs.venues.get(line.mic or "")
+        return (line.country != isin[:2], (venue.category if venue else None) != "RMKT", line.mic or "")
+
+    return min((l for l in listings if l.operating_mic not in rules.TRADING_ONLY_VENUES), key=order, default=None)
 
 
 def _mark_primary(snap, security, listings, relevant, home_row) -> None:

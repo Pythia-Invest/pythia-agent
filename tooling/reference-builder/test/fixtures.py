@@ -27,6 +27,10 @@ MIC_CSV = (
     "XFRA,XFRA,OPRT,DEUTSCHE BOERSE AG,,,OTHR,,DE,FRANKFURT,,ACTIVE\n"
     "FRAB,XFRA,SGMT,BOERSE FRANKFURT - FREIVERKEHR,,,MLTF,,DE,FRANKFURT,,ACTIVE\n"
     "ARCX,XNYS,SGMT,NYSE ARCA,,,RMKT,,US,NEW YORK,,ACTIVE\n"
+    "CCXE,CCXE,OPRT,CBOE EUROPE EQUITIES,,,MLTF,,NL,AMSTERDAM,,ACTIVE\n"
+    "CEUX,CCXE,SGMT,CBOE EUROPE - DXE ORDER BOOKS,,,MLTF,,NL,AMSTERDAM,,ACTIVE\n"
+    "TWEU,TWEU,OPRT,TRADEWEB EU BV,,,MLTF,,NL,AMSTERDAM,,ACTIVE\n"
+    "TWEM,TWEU,SGMT,TRADEWEB EU BV - MTF,,,MLTF,,NL,AMSTERDAM,,ACTIVE\n"
     "XLON,XLON,OPRT,LONDON STOCK EXCHANGE,,,RMKT,,GB,LONDON,,ACTIVE\n"
     "XNAS,XNAS,OPRT,NASDAQ,,,RMKT,,US,NEW YORK,,ACTIVE\n"
     "XNYS,XNYS,OPRT,NEW YORK STOCK EXCHANGE,,,RMKT,,US,NEW YORK,,ACTIVE\n"
@@ -110,19 +114,9 @@ def sec_json(rows: list[tuple[int, str, str, str | None]]) -> bytes:
     return json.dumps({"fields": ["cik", "name", "ticker", "exchange"], "data": [list(r) for r in rows]}).encode()
 
 
-def symbol_directory(nasdaq: list[tuple[str, str, str]], other: list[tuple[str, str, str, str]]) -> tuple[bytes, bytes]:
-    """Nasdaq Trader `nasdaqlisted.txt` rows (symbol, name, ETF) and `otherlisted.txt` rows (symbol, name, exchange, ETF)."""
-    listed = ["Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares"]
-    listed += [f"{s}|{n}|G|N|N|100|{e}|N" for s, n, e in nasdaq] + ["File Creation Time: 0925202621:31|||||||"]
-    others = ["ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol"]
-    others += [f"{s}|{n}|{x}|{s}|{e}|100|{'Y' if s.startswith('Z') else 'N'}|{s}" for s, n, x, e in other]
-    others += ["File Creation Time: 0925202621:31||||||"]
-    return "\n".join(listed).encode(), "\n".join(others).encode()
-
-
-def figi_row(ticker, exch, figi, scf, sec_type2="Common Stock", composite=None, name="ROW"):
+def figi_row(ticker, exch, figi, scf, sec_type2="Common Stock", composite=None, name="ROW", sec_type="Common Stock"):
     return {"figi": figi, "ticker": ticker, "exchCode": exch, "compositeFIGI": composite or figi, "shareClassFIGI": scf,
-            "securityType": "Common Stock", "securityType2": sec_type2, "marketSector": "Equity", "name": name}
+            "securityType": sec_type, "securityType2": sec_type2, "marketSector": "Equity", "name": name}
 
 
 class FakeOpenFigi:
