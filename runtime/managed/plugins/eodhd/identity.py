@@ -18,6 +18,8 @@ def isin(value):
 
 # Scheme -> subject level the value identifies; None where EODHD leaves it unqualified.
 LEVELS = {'isin': 'security', 'cusip': 'security', 'figi': None, 'lei': 'issuer', 'cik': 'issuer'}
+# Fixed scheme shapes (no checksum); ISIN and CIK are checked separately.
+SHAPES = {'cusip': r'[A-Z0-9]{8}[0-9]', 'figi': r'[A-Z]{2}G[A-Z0-9]{8}[0-9]', 'lei': r'[A-Z0-9]{18}[0-9]{2}'}
 
 
 def identifier(scheme, value):
@@ -28,7 +30,7 @@ def identifier(scheme, value):
         if not isinstance(value, str) or not re.fullmatch(r'[0-9]{1,10}', value):
             return None
         value = value.zfill(10)
-    elif not isinstance(value, str) or not re.fullmatch(r'[A-Z0-9]{1,64}', value):
+    elif scheme != 'isin' and (not isinstance(value, str) or not re.fullmatch(SHAPES[scheme], value)):
         return None
     return {'scheme': scheme, 'value': value, 'level': LEVELS[scheme], 'authority': 'source_asserted'}
 
