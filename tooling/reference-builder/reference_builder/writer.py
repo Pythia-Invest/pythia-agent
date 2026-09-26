@@ -1,9 +1,7 @@
-"""Write the snapshot SQLite file (atomically) and its gzip copy."""
+"""Write the snapshot SQLite file atomically."""
 
 from __future__ import annotations
 
-import gzip
-import shutil
 import sqlite3
 from pathlib import Path
 
@@ -39,13 +37,6 @@ def write(snap: Snapshot, path: Path, meta: dict[str, str], sources: list[dict])
         connection.close()
     tmp.replace(path)
     return counts
-
-
-def gzip_copy(path: Path) -> Path:
-    target = path.with_name(path.name + ".gz")
-    with path.open("rb") as source, gzip.GzipFile(target, "wb", compresslevel=9, mtime=0) as sink:
-        shutil.copyfileobj(source, sink)
-    return target
 
 
 def describe(path: Path) -> dict:

@@ -116,7 +116,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual((fund.status, fund.valid_to), ("inactive", "2026-01-31"))
         self.assertEqual(self.snap.securities[f"isin:{FUND_ISIN}"].activity, "inactive")
 
-    def test_written_snapshot_holds_only_used_venues_and_attribution(self):
+    def test_written_snapshot_holds_only_used_venues_and_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "reference-test.sqlite3"
             sources = [{"source": "esma_firds", "url": "https://example.invalid/f", "retrieved_at": "2026-09-25T00:00:00Z", "licence": "x"},
@@ -125,13 +125,11 @@ class PipelineTest(unittest.TestCase):
             with sqlite3.connect(path) as db:
                 venues = {row[0] for row in db.execute("select mic from venues")}
                 cik_rule = db.execute("select rule_id from identifiers where scheme='cik' and subject_id=?", (f"lei:{ASML_LEI}",)).fetchone()[0]
+                provenance = {row[0]: row[1] for row in db.execute("select source, licence from sources")}
             self.assertEqual(counts["listings"], len(self.snap.listings))
             self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM"})
             self.assertEqual(cik_rule, "share_class_figi")
-            text = manifest.notice("test", sources)
-            self.assertIn("drafted using material downloaded from ESMA's website", text)
-            self.assertIn("Permission is hereby granted", text)
-            self.assertNotIn("GLEIF", text)
+            self.assertEqual(provenance, {"esma_firds": "x", "openfigi": "y"})
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
 
     def test_eu_only_scope_makes_no_sec_lookups(self):

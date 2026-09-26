@@ -24,7 +24,7 @@ python3 tooling/reference-builder/run.py --help
 | US tickers | `sec.py` | SEC `company_tickers_exchange.json` |
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
-| Snapshot, manifest, NOTICE | `schema.py`, `writer.py`, `manifest.py` | |
+| Snapshot and manifest | `schema.py`, `writer.py`, `manifest.py` | |
 
 `schema.py` is the only module that knows the table layout.
 
@@ -65,18 +65,17 @@ python3 tooling/reference-builder/run.py --help
 ## Outputs
 
 `.local/reference-builder/out/` (git-ignored, override with `--out`) receives
-`reference-<YYYYMMDD>.sqlite3`, a gzip copy, `manifest.json` (source URLs,
-retrieval times and versions, row counts, audit counts, canary results and
-SHA-256 checksums) and `NOTICE` (attribution per source used).
+`reference-<YYYYMMDD>.sqlite3` and `manifest.json` (source URLs, retrieval
+times and versions, row counts, audit counts, canary results and SHA-256
+checksums).
 `.local/reference-builder/downloads/` (override with `--cache`) caches source
 files and API answers: OpenFIGI answers for 30 days, GLEIF records and the SEC
 and MIC files for one day.
 
 ## Rights
 
-The NOTICE carries the ESMA acknowledgement and disclaimer, the GLEIF CC0 and
-non-endorsement notice, the SEC citation and the MIT notice for FIGI metadata.
-Only MIC codes that listings reference are included, never the full ISO list.
-Redistributing OpenFIGI tickers and names, and ISIN-to-FIGI pairs, is still
-unconfirmed. Publishing a snapshot, as opposed to building one locally, waits
-for those confirmations.
+The snapshot's `sources` table records each source's URL, version, retrieval
+time and licence label. Only MIC codes that listings reference are included,
+never the full ISO list. The snapshot stays on the device that built it;
+redistributing OpenFIGI tickers and names, and ISIN-to-FIGI pairs, is
+unconfirmed.

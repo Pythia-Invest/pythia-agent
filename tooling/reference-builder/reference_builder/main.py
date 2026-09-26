@@ -92,9 +92,6 @@ def run(config: BuildConfig) -> int:
             "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics) + (",SEC" if config.scope.sec else "")}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)
-    compressed = writer.gzip_copy(snapshot_path)
-    notice_path = config.out_dir / "NOTICE"
-    notice_path.write_text(manifest.notice(build_id, sources), encoding="utf-8")
     manifest.write_manifest(config.out_dir / "manifest.json", {
         "build_id": build_id,
         "schema_version": schema.SCHEMA_VERSION,
@@ -105,8 +102,6 @@ def run(config: BuildConfig) -> int:
         "wall_seconds": round(time.monotonic() - clock, 1),
         "scope": config.scope.describe() | {"firds_deltas": config.deltas, "fitrs": config.fitrs},
         "snapshot": writer.describe(snapshot_path),
-        "compressed": writer.describe(compressed),
-        "notice": writer.describe(notice_path),
         "tables": counts,
         "sources": sources,
         "openfigi": figi_meta,
