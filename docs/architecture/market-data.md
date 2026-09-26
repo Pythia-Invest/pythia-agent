@@ -24,6 +24,13 @@ data is used under that investor's own agreement with the provider. Each plugin
 carries its provider's terms and enforces what they require. Pythia itself never
 publishes, pools or redistributes provider data.
 
+Two open-data reference connectors are bundled as well. The
+[SEC connector](../../runtime/managed/plugins/sec/README.md) supplies filer
+resolve, filings and reported US GAAP/IFRS facts; it needs a configured SEC
+contact (name and email). The [OpenFIGI connector](../../runtime/managed/plugins/openfigi/README.md)
+resolves identifiers to FIGIs, and its API key is optional. Neither offers
+provider search, and both return evidence rather than identity decisions.
+
 - [Wire contracts](../../packages/market-data/README.md): subject, series,
   observation and read result, with provenance and financial semantics.
 - [Identity](../../packages/market-data/IDENTITY.md): narrow source-specific
@@ -41,7 +48,20 @@ LEI or ISIN to legal-entity references and reads the legal profile, and
 report links and reported facts. Both are addressed by LEI and contribute no
 market-data series or search.
 
-Provider preferences are deterministic application logic. Only proven identities,
+The identity direction has changed. ADR 0037 replaces the provider-bound rules in
+the identity document with a core-owned backbone of issuer, security, listing
+and crypto subjects. Provider symbols become bindings, joined at ingest by
+identifier agreement. The [ADR 0012 amendment](../decisions/0012-investment-identity-and-repair.md#amendment-2026-09)
+records which parts of the provider-bound model are superseded. Reference data
+will be built on the device directly from open sources
+([ADR 0039](../decisions/0039-local-first-reference-data-and-rights.md)).
+Investment search will read a local directory and will call no provider while
+the user types. Provider data is used under the investor's own agreement with
+each provider; each plugin carries and enforces its provider's terms, and Pythia
+itself never publishes, pools or redistributes provider data. The identity
+document describes the implemented rules until identity v2 replaces them.
+
+Provider preferences are deterministic application logic. Only confirmed identities,
 compatible series and eligible operations participate. Failure after selecting a
 source never authorizes fallback or history stitching. A preference change does
 not rewrite retained research or source pins. Unknown units, times, completion,
