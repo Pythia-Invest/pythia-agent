@@ -64,7 +64,11 @@ rejected. Choosing suitable sampling or aggregation belongs before rendering.
 are subdued and dashed boundaries separate them. `sessionGap` may omit a known
 closed interval between the prior regular session and pre-market; timestamps are
 unchanged, and the supplied accessible chart description must explain that
-omission. An absent baseline stays neutral instead of inventing a gain/loss basis.
+omission. `sessionGaps` applies the same rule to several intervals; product
+multi-day views keep calendar time, and the Design Lab compares that with a
+session-compressed axis for a pending decision. An absent baseline stays neutral
+instead of inventing a gain/loss basis. `timeZone` names the zone for axis
+labels (normally the exchange's), and `dates` marks session-date coordinates.
 
 `InstrumentPathView` reserves chart height during loading and unavailable states.
 It can display its small loading indicator while the price is already visible.
@@ -80,6 +84,12 @@ both themes; this layer adds no palette.
 Public exports are `InstrumentIdentity`, `InstrumentStatusDot`,
 `InstrumentPrice`, `InstrumentChange`, `InstrumentExtendedSummary`,
 `InstrumentPathView` and `InstrumentSparkline`, plus their display types.
+Page-scale parts share the same drawing: `InstrumentChart` adds price and time
+axes and a pointer readout to the sparkline's path, `InstrumentQuoteHeader`
+shows activity in words, the regular price and change, an extended quote and an
+optional labelled period change, `InstrumentStats` renders supplied statistics
+with their provenance, and `InstrumentPeriodSelector` is an exclusive period
+choice. They add no palette and compute no returns.
 Use `InstrumentPathView` with a complete display item when activity and loading
 should govern the chart. Use `InstrumentSparkline` directly for an already
 qualified path and explicitly choose its tail behavior. Geometry and tooltip

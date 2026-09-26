@@ -201,7 +201,22 @@ route reads (`@pythia/market-data/subject`), and a choice is announced as a
 Desk's chat lists. The Design Lab's investment search demonstration renders the
 bar over a Lab-local synthetic directory.
 
-The instrument page mounts the `instrument-panel` presentation: the standard
-tile filling its section card, bound to the section's explicit provider
-reference (a widget row's `subject` may be a Pythia subject or a `ProviderRef`;
-the latter reads that source only).
+The instrument page mounts the `instrument-chart` presentation for a section
+with history (`instrument-panel`, the standard tile filling its card, for a
+quote-only section), bound to the section's explicit provider reference (a
+widget row's `subject` may be a Pythia subject or a `ProviderRef`; the latter
+reads that source only). Its `chartBinding` (input contract
+`pythia.instrument-chart.v1`: subject, symbol, name and a host-selected period
+`1D`, `5D`, `1M`, `6M`, `YTD`, `1Y`, `5Y` or `MAX`) reads the quote and the
+source's declared series, then chooses bars per period with `chartPlan`: 1D and
+5D share the finest intraday series covering five days within 2,000 points
+(extended hours preferred); longer periods use daily bars, 1M–1Y sharing one
+year that also supplies the statistics; a period beyond the declared span says
+so instead of stretching a shorter history. 1D draws the current or last
+session from supplied `session_window` evidence with its previous close as
+baseline only when the quote belongs to that session; continuous markets and
+sources without session evidence show the past 24 hours. Other periods keep
+calendar time and state their comparison basis. Open, high, low and volume come
+from the latest daily bar (with its date), the previous close only from the
+quote's `reference_close`, and the 52-week range from a year of daily bars; a
+field the source does not supply is omitted.

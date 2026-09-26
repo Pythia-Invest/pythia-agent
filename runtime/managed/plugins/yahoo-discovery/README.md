@@ -35,6 +35,18 @@ unresolved candidate under [ADR 0012](../../../../docs/decisions/0012-investment
 Yahoo `EQUITY` is not promoted to Common Stock or proof of an issuer. Name or
 ticker similarity never creates a canonical relationship.
 
+## Price series
+
+`series` declares one quote series and bar series: daily and dividend-adjusted
+daily closes (up to ten years), and 1-minute, 5-minute and hourly bars of the
+regular session (up to seven days). `five_minute_extended` adds 5-minute bars
+including Yahoo's pre- and post-market trades where the venue has them. Intraday
+equity and fund reads carry `price_context.session_window`: the current or last
+started session's regular and extended bounds from Yahoo's trading periods,
+never assumed hours. Continuous markets carry none and keep elapsed time. Quotes
+carry the previous close their change is measured against, and bars keep the
+reported volume (shares for equities and funds).
+
 ## No provider search
 
 Investment search is a local read of Pythia's directory; this connector offers

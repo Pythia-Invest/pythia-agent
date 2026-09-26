@@ -195,7 +195,9 @@ shell routes `pythia:open-subject` window events there. The page renders core's
 local `pythia`/`identity-subject` composition at once, then loads each section
 on its own: `resolving` sections through `identity-resolve` (an explicit invoke,
 because core stores the resulting binding), quote and chart through the
-market-data `instrument-panel` widget bound to the section's provider reference,
+market-data `instrument-chart` widget bound to the section's provider reference
+(the page keeps the selected chart period, 1D by default; a quote-only section
+uses `instrument-panel`),
 and profile and filings through the section's own read. Sections that cannot be
 served show why and which configuration key would change that.
 A separate toolbar inside the Workspace page, beneath the shell header, owns
