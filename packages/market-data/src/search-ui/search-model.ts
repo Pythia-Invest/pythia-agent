@@ -1,4 +1,5 @@
 import type { InstrumentKind, SearchRow } from "../search";
+import type { SubjectListing } from "../subject";
 
 export type TypeFilter =
   | "all"
@@ -54,14 +55,54 @@ export const ROW_LABELS: Record<InstrumentKind, string> = {
   token: "Crypto",
 };
 
-export type RowSource = "directory" | "lookup";
+export type RowSource = "directory" | "lookup" | "listing";
 
-/** One selectable row in panel order. */
+/** One line of an instrument, as its side list shows it. */
+export type ListingChoice = Pick<
+  SubjectListing,
+  | "id"
+  | "ticker"
+  | "mic"
+  | "venue"
+  | "currency"
+  | "kind"
+  | "country"
+  | "primary"
+>;
+
+/** One selectable row in panel order: an instrument, or (in an instrument's
+ * side list) one of its listings. */
 export type SearchOption = {
   key: string;
   row: SearchRow;
   source: RowSource;
+  listing?: ListingChoice | undefined;
 };
+
+/** What a choice opens: the instrument's page (addressed by the row's
+ * subject, its representative listing) on one of its listings. */
+export type SearchChoice = { subject: string; listing: string };
+
+/** A row opens its representative (preferred) listing; a side-list line
+ * opens the same instrument on the listing it names. */
+export function choiceOf(option: SearchOption): SearchChoice {
+  return {
+    subject: option.row.id,
+    listing: option.listing?.id ?? option.row.id,
+  };
+}
+
+export function listingOptions(
+  row: SearchRow,
+  listings: readonly ListingChoice[],
+): SearchOption[] {
+  return listings.map((listing) => ({
+    key: `listing:${listing.id}`,
+    row,
+    source: "listing",
+    listing,
+  }));
+}
 
 export function searchOptions(
   rows: readonly SearchRow[],

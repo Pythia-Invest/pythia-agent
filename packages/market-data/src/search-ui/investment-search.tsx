@@ -13,11 +13,16 @@ import { LoaderCircle, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LookupOffer, SearchRow } from "../search";
 import {
+  type ListingsReader,
   type LookupRunner,
   type SearchBackend,
   useDirectorySearch,
+  useInstrumentListings,
 } from "./controller";
 import {
+  choiceOf,
+  listingOptions,
+  type SearchChoice,
   type SearchOption,
   searchOptions,
   type TypeFilter,
@@ -36,8 +41,12 @@ export type InvestmentSearchProps = {
   /** Runs the explicit single-plugin lookup the directory offers at the
    * bottom of the panel. Without it, no lookup action is shown. */
   lookup?: LookupRunner | undefined;
-  /** The chosen row's subject id, which an instrument page addresses. */
-  onSelect(subjectId: string): void;
+  /** The chosen instrument and listing: a row opens its representative
+   * (preferred) listing, a side-list line the listing it names. */
+  onSelect(choice: SearchChoice): void;
+  /** Reads an instrument's listings for its side list (→ or "+N"). Without
+   * it, rows open directly and show no side list. */
+  listings?: ListingsReader | undefined;
   /** The subject id of a row the user highlights with pointer or keyboard
    * (not the automatic first row), so a host can prepare that page. */
   onHighlight?: ((subjectId: string) => void) | undefined;
@@ -74,6 +83,7 @@ export function InvestmentSearch({
   search,
   lookup,
   onSelect,
+  listings,
   onHighlight,
   shortcut = true,
   className,
@@ -84,6 +94,10 @@ export function InvestmentSearch({
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<TypeFilter>("all");
   const [lookupState, setLookupState] = useState<LookupState>();
+  // The instrument whose listings replace the rows, and the option the user
+  // (or the automatic first-row highlight) is on.
+  const [expanded, setExpanded] = useState<SearchRow | null>(null);
+  const highlighted = useRef<SearchOption | undefined>(undefined);
 
   const trimmed = query.trim();
   // Every keystroke is its own local read; React Query cancels the superseded
@@ -107,6 +121,31 @@ export function InvestmentSearch({
       : response
         ? "ready"
         : "loading";
+  const sideRead = useInstrumentListings(listings, expanded);
+  const sideOptions = useMemo(
+    () => (expanded ? listingOptions(expanded, sideRead.data ?? []) : []),
+    [expanded, sideRead.data],
+  );
+  const side = expanded
+    ? {
+        row: expanded,
+        status: sideRead.isError
+          ? ("error" as const)
+          : sideRead.data
+            ? ("ready" as const)
+            : ("loading" as const),
+        options: sideOptions,
+      }
+    : undefined;
+  // A new query, type or closed panel returns to the rows.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on these changes only
+  useEffect(() => setExpanded(null), [trimmed, filter, open]);
+  const expand = (option: SearchOption | undefined) => {
+    if (!listings || !option || option.listing || !option.row.listings)
+      return false;
+    setExpanded(option.row);
+    return true;
+  };
   const busy = useDelayedFlag(
     open && Boolean(trimmed) && result.isFetching,
     250,
@@ -179,16 +218,20 @@ export function InvestmentSearch({
       // Only a highlight the user moved (keyboard or pointer); the automatic
       // first-row highlight follows every keystroke and is not a signal.
       onItemHighlighted={(option, details) => {
-        if (option && details.reason !== "none") onHighlight?.(option.row.id);
+        highlighted.current = option;
+        if (option && details.reason !== "none")
+          onHighlight?.(option.listing?.id ?? option.row.id);
       }}
-      itemToStringValue={(option) => option.row.ticker}
+      itemToStringValue={(option) =>
+        option.listing?.ticker ?? option.row.ticker
+      }
       filter={null}
       // The first shown row is always highlighted, so Enter opens the row the
       // user sees highlighted.
       autoHighlight="always"
       // The rows the panel shows, in its order, so the highlight follows
       // arriving results.
-      items={status === "ready" ? options : NO_OPTIONS}
+      items={status !== "ready" ? NO_OPTIONS : side ? side.options : options}
     >
       <ComboboxInputGroup
         data-slot="investment-search"
@@ -221,6 +264,26 @@ export function InvestmentSearch({
             if (event.key === "Tab" && !event.shiftKey && open && next) {
               event.preventDefault();
               next.focus();
+              return;
+            }
+            // → opens the highlighted instrument's listings once the caret is
+            // at the end of the text; ← or Esc goes back to the rows.
+            const input = event.currentTarget;
+            if (
+              event.key === "ArrowRight" &&
+              open &&
+              !side &&
+              input.selectionStart === input.value.length &&
+              expand(highlighted.current)
+            ) {
+              event.preventDefault();
+              event.preventBaseUIHandler();
+              return;
+            }
+            if ((event.key === "ArrowLeft" || event.key === "Escape") && side) {
+              event.preventDefault();
+              event.preventBaseUIHandler();
+              setExpanded(null);
               return;
             }
             if (event.key !== "Enter" || !open || !trimmed) return;
@@ -281,7 +344,10 @@ export function InvestmentSearch({
               onFilter={setFilter}
               onRetry={() => void result.refetch()}
               onLookup={(offer) => void runLookup(offer)}
-              onChoose={(option) => onSelect(option.row.id)}
+              onChoose={(option) => onSelect(choiceOf(option))}
+              side={side}
+              onExpand={listings ? (option) => void expand(option) : undefined}
+              onCollapse={() => setExpanded(null)}
             />
           </ComboboxPopup>
         </ComboboxPositioner>
