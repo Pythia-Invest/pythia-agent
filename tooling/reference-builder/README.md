@@ -37,7 +37,11 @@ python3 tooling/reference-builder/run.py --help
 - **Primary venue.** Start from the FIRDS relevant venue. For a non-EEA ISIN
   with a real home-exchange line in OpenFIGI, use the home exchange (Shell and
   Unilever move to XLON). Move Frankfurt floor to Xetra when a live Xetra line
-  exists.
+  exists. Known debatable results in the XAMS build: DSM-Firmenich moves to
+  XSWX; Coca-Cola Europacific Partners and Accsys Technologies (AIM plus
+  Euronext Amsterdam) move to XLON. OpenFIGI does not tell AIM from the LSE
+  main market, so the rule cannot separate these cases without turnover
+  evidence from both venues.
 - **OpenFIGI multi-row answers.** Prefer the venue's main exchange code, reject
   currency-suffixed MTF tickers, then prefer the shortest ticker.
 - **Names.** Use the GLEIF legal name when it is Latin script. Otherwise use the
