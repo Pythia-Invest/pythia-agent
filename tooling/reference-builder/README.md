@@ -58,8 +58,8 @@ table under `writer_ignored`.
   currency-suffixed MTF tickers, then prefer the shortest ticker.
 - **Names.** Use the GLEIF legal name when it is Latin script. Otherwise use the
   typed alternative-language name, then the transliterated legal name. Never use
-  a previous name. Display names drop SEC state and ADR markers (`/DE/`,
-  `/ADR`) and re-case all-capitals names (`rules.display_case`): legal forms
+  a previous name. SEC titles drop their state and ADR markers (`/DE/`,
+  ` DE`, `/ADR`), and display names re-case all-capitals names (`rules.display_case`): legal forms
   keep their usual spelling (N.V., PLC, AG, Inc), and the issuer's tickers,
   words without a vowel and short uncommon words stay capitals (ASML, KPN,
   ING). Mixed-case names are kept as written.
