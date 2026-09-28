@@ -74,6 +74,20 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(installed["notices"], ["LEI records from GLEIF under CC0 1.0. GLEIF does not endorse this data.",
                                              "Source: ESMA FIRDS."])
 
+    def test_a_package_carries_its_build_questions_into_the_installed_copy(self):
+        source = make_package(self.root / "out")
+        data = json.dumps({"questions": [{"kind": "residual", "reason": "ambiguous", "subject_ids": ["security:isin:X"]}]}).encode()
+        (source / "questions-20260926.json").write_bytes(data)
+        manifest = json.loads((source / "package.json").read_text())
+        manifest["claims"] = {"file": "questions-20260926.json", "bytes": len(data), "sha256": hashlib.sha256(b"damaged").hexdigest()}
+        (source / "package.json").write_text(json.dumps(manifest))
+        with self.assertRaises(reference_package.PackageError):
+            reference_package.install(source, self.data)
+        manifest["claims"]["sha256"] = hashlib.sha256(data).hexdigest()
+        (source / "package.json").write_text(json.dumps(manifest))
+        reference_package.install(source, self.data)
+        self.assertEqual(reference_package.questions(store.reference_path(self.data))[0]["reason"], "ambiguous")
+
     def test_reinstalling_the_current_package_changes_nothing(self):
         source = make_package(self.root / "out")
         reference_package.install(source, self.data)

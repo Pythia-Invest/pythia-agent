@@ -156,6 +156,32 @@ class VerdictTest(QueueFixture):
         self.assertEqual(self.identity.queue_item(item.id)["state"], "open")
 
 
+class BuildQuestionTest(QueueFixture):
+    """The reference build's own questions (its package's `claims`): imported once, answered without a provider."""
+
+    def test_build_questions_are_imported_once_answered_provisionally_and_superseded_when_dropped(self):
+        security = page.load_subject(self.ref, ASML)["ids"]["security"]
+        home = {"question": "home_market", "kind": "residual", "reason": "ambiguous", "subject_ids": [security],
+                "candidate_ids": [ASML]}
+        issuer = {"question": "issuer_identity", "kind": "conflict", "reason": "identifier", "subject_ids": [security],
+                  "evidence_ids": ["record:0123456789abcdef"], "scheme": "lei", "values": ["529900G3SW56SHYNPR95"]}
+        self.assertEqual(queue.import_build(self.identity, [home, issuer, {"kind": "bogus"}], NOW)["added"], 2)
+        self.assertEqual(queue.import_build(self.identity, [home, issuer], NOW)["added"], 0, "never asked twice")
+        listed = queue.listing(self.identity, self.ref, subject_id=None, kind=None, plugins={queue.BUILD}, limit=10,
+                               answered=False, notice=False)
+        texts = {item["reason"]: item["question"] for item in listed["items"]}
+        self.assertIn("529900G3SW56SHYNPR95", texts["identifier"])
+        item = next(item for item in listed["items"] if item["reason"] == "ambiguous")
+        with self.assertRaises(queue.Refused):
+            queue.submit(self.identity, self.ref, item_id=item["id"], resolver="agent", relation="same_listing",
+                         chosen_id="listing:isin:USN070592100:XNAS:USD", now=NOW, as_of=AS_OF)
+        result = queue.submit(self.identity, self.ref, item_id=item["id"], resolver="agent", relation="same_listing",
+                              chosen_id=ASML, now=NOW, as_of=AS_OF)
+        self.assertEqual((result["outcome"], result["state"], result["authority"]), ("confirmed", "resolved", "agent_confirmed"))
+        self.assertEqual(queue.import_build(self.identity, [home], NOW),
+                         {"asked": 1, "added": 0, "superseded": 1}, "the answered one stays answered; the dropped one goes")
+
+
 class StoreTest(QueueFixture):
     def test_a_rolled_back_transaction_never_drops_another_threads_write(self):
         writer = threading.Thread(target=self.identity.put_miss, args=(ASML, "pythia-eodhd", "EODHD found no match", 60))
