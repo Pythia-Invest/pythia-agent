@@ -25,6 +25,33 @@ def require(condition, path, reason):
         raise WireError(f"{path}: {reason}")
 
 
+_TAGS = {}
+
+
+def _tagged(branches):
+    """Object variants told apart by one single-value enum field (such as
+    `kind` or `shape`): only the variant a value names can match it."""
+    key = id(branches)
+    if key not in _TAGS:
+        tags = None
+        for field in ("kind", "shape"):
+            values = [branch.get("properties", {}).get(field, {}).get("enum") for branch in branches]
+            if all(branch.get("type") == "object" and field in branch.get("required", []) for branch in branches) \
+                    and all(v is not None and len(v) == 1 for v in values) and len({v[0] for v in values}) == len(values):
+                tags = (field, {v[0]: branch for v, branch in zip(values, branches)})
+                break
+        _TAGS[key] = tags
+    return _TAGS[key]
+
+
+def _branches(branches, value):
+    tags = _tagged(branches)
+    if tags is None or not isinstance(value, dict) or not isinstance(value.get(tags[0]), str):
+        return branches
+    branch = tags[1].get(value[tags[0]])
+    return [branch] if branch else []
+
+
 def _shape(spec, value, path):
     if "$ref" in spec:
         _shape(DEFS[spec["$ref"].rsplit("/", 1)[1]], value, path)
@@ -32,7 +59,7 @@ def _shape(spec, value, path):
     for keyword in ("oneOf", "anyOf"):
         if keyword in spec:
             matches = 0
-            for branch in spec[keyword]:
+            for branch in _branches(spec[keyword], value):
                 try:
                     _shape(branch, value, path)
                     matches += 1
@@ -200,6 +227,12 @@ def validate_observation(value, series):
     """Validate an observation in its series context; returns an independent value."""
     validate("series", series)
     result = validate("observation", value)
+    _observation_in_series(value, series)
+    return result
+
+
+def _observation_in_series(value, series):
+    """Series-context rules for an already validated observation and series."""
     require(value["shape"] == series["shape"], "observation", "series shape differs")
     require("volume" not in value or "volume" in series["fields"], "observation", "volume field not defined")
     time = value["time"]
@@ -209,7 +242,6 @@ def validate_observation(value, series):
     if anchor in ("interval_start", "interval_end") and value["interval"]:
         bound = value["interval"]["start" if anchor == "interval_start" else "end"]
         require(_time_value(time) == _time_value(bound), "observation", "interval anchor differs")
-    return result
 
 
 def _read(value, path):
@@ -233,8 +265,10 @@ def _read(value, path):
                 requested = {**requested, "qualifiers": {**actual.get("qualifiers", {}), **requested.get("qualifiers", {})}}
                 actual = {**actual, "qualifiers": actual.get("qualifiers", {})}
             require(requested == actual, path, "selected subject differs from requested intent")
+        # The read result's own pass has validated the series and each
+        # observation; only their relation remains to check here.
         for observation in observations:
-            validate_observation(observation, series)
+            _observation_in_series(observation, series)
             time = observation["time"]
             if time["kind"] != "unknown":
                 for window in (value["returned_window"], request["window"]):
@@ -259,7 +293,13 @@ def _walk(spec, value, path):
         _walk(DEFS[kind], value, path)
         _semantics(kind, value, path)
     elif "oneOf" in spec or "anyOf" in spec:
-        for branch in spec.get("oneOf", spec.get("anyOf", [])):
+        variants = spec.get("oneOf", spec.get("anyOf", []))
+        branches = _branches(variants, value)
+        # The shape pass already validated the named variant; walk it directly.
+        if len(branches) == 1 and _tagged(variants) is not None:
+            _walk(branches[0], value, path)
+            return
+        for branch in branches:
             try:
                 _shape(branch, value, path)
             except WireError:
