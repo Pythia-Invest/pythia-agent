@@ -22,7 +22,7 @@ RULE = "market_catalogue@1"
 FILE = Path(__file__).with_name("market_catalogue.json")
 # Provider -> the native scope its symbols are addressed in.
 SCOPES = {"yahoo": "symbol", "eodhd": "catalogue"}
-FIELDS = {"id", "name", "description", "asset_class", *SCOPES}
+FIELDS = {"id", "name", "description", "group", "asset_class", *SCOPES}
 
 
 @cache
@@ -33,7 +33,7 @@ def entries() -> dict[str, dict[str, Any]]:
         raise ValueError("market catalogue: unexpected rule")
     found: dict[str, dict[str, Any]] = {}
     for item in document["subjects"]:
-        if not isinstance(item, dict) or set(item) - FIELDS or not {"id", "name", "asset_class"} <= set(item):
+        if not isinstance(item, dict) or set(item) - FIELDS or not {"id", "name", "group", "asset_class"} <= set(item):
             raise ValueError(f"market catalogue: malformed entry {item!r}")
         if item["id"].split(":", 2)[1] != "pythia" or item["id"] in found:
             raise ValueError(f"market catalogue: {item['id']} needs a unique Pythia key")

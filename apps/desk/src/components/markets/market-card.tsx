@@ -5,13 +5,12 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
-import { useLocalTime } from "@/client/local-time";
-import { useSubjectPage } from "@/client/instrument-queries";
+import { useSubjectPages } from "@/client/market-queries";
 import { instrumentHref } from "@/components/instrument/instrument-href";
 import { useBindingSnapshot } from "@/components/widgets/bound-widget";
 import { subjectLabel, subjectQuote, unavailableItem } from "./market-subjects";
 
-const TILE = { name: true, change: "both", pathHeight: 36 } as const;
+const TILE = { name: true, change: "both" } as const;
 
 /** A click anywhere on a card or table row opens the page its own link
  * names; its controls (status explanations, the link) keep their clicks. The
@@ -28,60 +27,106 @@ export function openByLink(push: (href: string) => void) {
   };
 }
 
-/**
- * One market at a glance from a subject ID alone: its name, last value,
- * change, today's path, market and data state, and the source core chose for
- * the instrument page's quote. Clicking opens that page. A subject no source
- * can serve still shows, with the reason.
- */
-export function MarketCard({ subject }: { subject: string }) {
-  const page = useSubjectPage(subject);
-  const quote = page.data ? subjectQuote(page.data) : undefined;
-  const { snapshot } = useBindingSnapshot(dayBinding, {
-    rows: quote?.row ? [quote.row] : [],
+/** A quote time short enough for a card: the time today, else the weekday
+ * too, in the viewer's zone; the tile's status explains the full time. */
+function shortTime(value: string) {
+  const date = new Date(value);
+  const today = date.toDateString() === new Date().toDateString();
+  return new Intl.DateTimeFormat(undefined, {
+    ...(today ? {} : { weekday: "short" }),
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
+/** Each subject's display: its page composition, core's quote source and one
+ * shared quote-and-path read for all of them. Reads start once every
+ * composition has answered, so they join the update channel together. */
+export function useSubjectDays(subjects: readonly string[]) {
+  const pages = useSubjectPages(subjects);
+  const settled = pages.every((page) => !page.isPending);
+  const quotes = pages.map((page) =>
+    page.data ? subjectQuote(page.data) : undefined,
+  );
+  const rows = settled
+    ? quotes.flatMap((quote) => (quote?.row ? [quote.row] : []))
+    : [];
+  const { snapshot } = useBindingSnapshot(dayBinding, { rows });
+  let next = 0;
+  return subjects.map((subject, index) => {
+    const page = pages[index];
+    const quote = quotes[index];
+    const label = page?.data ? subjectLabel(page.data) : undefined;
+    const at = quote?.row && settled ? next++ : -1;
+    const item =
+      at >= 0 && snapshot?.data.rows[at]
+        ? { ...snapshot.data.rows[at], id: subject }
+        : unavailableItem(
+            subject,
+            label?.symbol ?? subject,
+            label?.name,
+            page?.error
+              ? page.error.message || "This subject could not be read."
+              : (quote?.reason ?? "Loading"),
+          );
+    return {
+      subject,
+      item,
+      label,
+      source: quote?.row ? quote.source : undefined,
+      asOf: at >= 0 ? (snapshot?.data.times[at] ?? null) : null,
+      loading: Boolean(
+        page?.isPending ||
+          (quote?.row && (at < 0 || snapshot?.data.pending[at] !== false)),
+      ),
+      known: Boolean(page?.data),
+    };
   });
-  const time = useLocalTime();
+}
+
+export type SubjectDay = ReturnType<typeof useSubjectDays>[number];
+
+/**
+ * One market at a glance: its name, last value, change, today's path, market
+ * and data state, and the source core chose for the instrument page's quote.
+ * Clicking the card opens that page. A subject no source can serve still
+ * shows, with the reason.
+ */
+export function DayCard({ day }: { day: SubjectDay }) {
   const router = useRouter();
-  const href = instrumentHref(subject);
-  const label = page.data ? subjectLabel(page.data) : undefined;
-  const item =
-    quote?.row && snapshot?.data.rows[0]
-      ? snapshot.data.rows[0]
-      : unavailableItem(
-          subject,
-          label?.symbol ?? subject,
-          label?.name,
-          page.error
-            ? page.error.message || "This subject could not be read."
-            : (quote?.reason ?? "Loading"),
-        );
-  const asOf = snapshot?.data.times[0];
   return (
     <Frame
-      href={href}
-      name={label?.symbol ?? subject}
+      href={instrumentHref(day.subject)}
+      name={day.label?.symbol ?? day.subject}
       onClick={openByLink(router.push)}
       footer={
-        page.isPending ? (
-          "Loading…"
-        ) : quote?.row ? (
+        day.source ? (
           <>
-            {quote.source}
-            {asOf ? ` · ${time(asOf, "compact")}` : ""}
+            {day.source}
+            {day.asOf ? ` · ${shortTime(day.asOf)}` : ""}
           </>
+        ) : day.known ? (
+          <span className="text-warning">{day.item.statusLabel}</span>
         ) : (
-          <span className="text-warning">{item.statusLabel}</span>
+          "Loading…"
         )
       }
     >
       <InstrumentTile
-        item={item}
+        item={day.item}
         options={TILE}
-        loading={page.isPending || snapshot?.state === "loading"}
+        loading={day.loading}
         className="border-0 bg-transparent p-0"
       />
     </Frame>
   );
+}
+
+/** One market card from its subject ID alone. */
+export function MarketCard({ subject }: { subject: string }) {
+  const [day] = useSubjectDays([subject]);
+  return day ? <DayCard day={day} /> : null;
 }
 
 function Frame({
@@ -104,7 +149,7 @@ function Frame({
       aria-label={name}
       onClick={onClick}
       className={cn(
-        "flex min-w-0 cursor-pointer flex-col gap-1 rounded-control border border-border/60 bg-raised px-2.5 pt-2 pb-1.5",
+        "flex w-44 max-w-full shrink-0 cursor-pointer flex-col gap-1 rounded-control border border-border/55 bg-raised px-2.5 pt-2 pb-1",
         "motion-fast transition-colors hover:border-border-strong",
       )}
     >

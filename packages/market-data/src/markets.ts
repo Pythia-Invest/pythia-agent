@@ -21,7 +21,8 @@ export const MOVER_LISTS = ["most_active", "gainers", "losers"] as const;
 export type MoverList = (typeof MOVER_LISTS)[number];
 
 export const marketOverviewSchema = z.object({
-  cards: z.array(text).default([]),
+  /** Each card's subject and the group it shows in ("US", "Rates & FX"). */
+  cards: z.array(z.object({ subject: text, group: text })).default([]),
   watchlist: z.array(text).default([]),
 });
 export type MarketOverview = z.infer<typeof marketOverviewSchema>;
@@ -50,8 +51,10 @@ export type MoverRow = z.infer<typeof moverRowSchema>;
 const sourceSchema = z.object({ source: text, provider: text, plugin: text });
 export const marketMoversSchema = z.object({
   list: text,
-  /** The market the list ranks, as the source states it ("US"). */
+  /** The market the list ranks, as the source states it ("US"), and which of
+   * its shares ("US stocks with a market cap of $2B or more"). */
   market: optionalText,
+  universe: optionalText,
   source: sourceSchema.nullish(),
   retrieved_at: optionalText,
   rows: z.array(moverRowSchema).default([]),

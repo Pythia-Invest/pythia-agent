@@ -16,18 +16,18 @@ import re
 import sqlite3
 from typing import Any
 
-from .identity import page
+from .identity import market_catalogue, page
 from .identity.concepts import REGISTRY, Concept, ranked, select
 from .identity.schemes import SUBJECT_ID as SUBJECT_PATTERN
 
 logger = logging.getLogger(__name__)
 CARDS, WATCHLIST = "markets_cards", "markets_watchlist"  # declared in configuration.json
 MAX_SUBJECTS = 24
-# A global overview (docs/architecture/markets-overview.md): US, Europe and Asia, futures, a rate, FX and crypto.
+# A global default (docs/architecture/markets-overview.md): US, Europe and Asia, a rate, FX, commodities and crypto.
 DEFAULT_CARDS = (
-    "index:pythia:sp500", "index:pythia:nasdaq-composite", "index:pythia:euro-stoxx-50", "index:pythia:dax",
-    "index:pythia:ftse-100", "index:pythia:nikkei-225", "index:pythia:hang-seng", "future:pythia:es",
-    "future:pythia:cl", "future:pythia:gc", "series:pythia:us-10y-yield", "fx:pythia:EURUSD",
+    "index:pythia:sp500", "index:pythia:nasdaq100", "future:pythia:XCME.ES", "index:pythia:euro-stoxx-50",
+    "index:pythia:ftse100", "index:pythia:nikkei225", "index:pythia:hang-seng", "series:pythia:us-treasury-10y-yield",
+    "fx:pythia:EURUSD", "future:pythia:XCEC.GC", "future:pythia:XNYM.CL",
     "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
 )
 DEFAULT_WATCHLIST = (
@@ -78,7 +78,7 @@ class MarketReads:
 
     def overview(self, _arguments: dict, **_context: Any) -> str:
         issues: list[dict] = []
-        cards = self._subjects(CARDS, DEFAULT_CARDS, issues)
+        cards = [{"subject": subject, "group": _group(subject)} for subject in self._subjects(CARDS, DEFAULT_CARDS, issues)]
         watchlist = self._subjects(WATCHLIST, DEFAULT_WATCHLIST, issues)
         return _envelope("ok", {"cards": cards, "watchlist": watchlist}, issues)
 
@@ -124,7 +124,7 @@ class MarketReads:
                             "status": status, "tool": tool})
         order = ranked(entries, self.identity.order(), REGISTRY[Concept.MARKET_MOVERS].default_order)
         chosen, alternatives, skipped = select(order)
-        data = {"list": name, "market": None, "source": None, "retrieved_at": None, "rows": [],
+        data = {"list": name, "market": None, "universe": None, "source": None, "retrieved_at": None, "rows": [],
                 "alternatives": [page.source(item) for item in alternatives],
                 "skipped": [{**page.source(item), "code": item["status"]} for item in skipped]}
         if not chosen:
@@ -140,8 +140,9 @@ class MarketReads:
         issues = [item for item in result.get("issues", []) if isinstance(item, dict) and isinstance(item.get("message"), str)]
         if len(rows) < min(limit, len(body.get("rows", []))):
             issues.append({"code": "source_drift", "message": f"{answer['label']} answered rows Pythia could not read."})
-        data.update(market=body.get("market") if isinstance(body.get("market"), str) else None,
-                    retrieved_at=body.get("retrieved_at") if isinstance(body.get("retrieved_at"), str) else None,
+        text = lambda key: body[key][:120] if isinstance(body.get(key), str) else None  # noqa: E731
+        data.update(market=text("market"), universe=text("universe"),
+                    retrieved_at=text("retrieved_at"),
                     rows=self._resolve(rows))
         return _envelope("ok" if rows else "empty", data, issues)
 
@@ -186,6 +187,12 @@ class MarketReads:
             if ref is not None:
                 ref.close()
         return rows
+
+
+def _group(subject: str) -> str:
+    """The overview group a card sits in: the catalogue's, else crypto or stocks."""
+    item = market_catalogue.entries().get(subject)
+    return item["group"] if item else "Crypto" if subject.startswith("security:caip19:") else "Stocks"
 
 
 def _valid(row: Any) -> bool:

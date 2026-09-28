@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 SCREENS = {'most_active': 'most_actives', 'gainers': 'day_gainers', 'losers': 'day_losers'}
 LIMIT = 25
+# What the predefined screens rank, from their criteria (rawCriteria): US equities, market cap of $2B or more,
+# OTC venues excluded; gainers and losers also need a price of $5 or more and a move beyond 3% or -2.5%.
+UNIVERSE = 'US stocks with a market cap of $2B or more'
 # Yahoo exchange code -> operating MIC (ISO 10383). Nasdaq's tiers, NYSE American and NYSE Arca are segments
 # of their operating MIC; Cboe's equities follow the reference builder's operating MIC (XCBO); every OTC Markets
 # tier is OTCM.
@@ -116,5 +119,6 @@ def adapt(payload, list_name, limit):
         message = "Yahoo's screener answer has changed: " + '; '.join(found) + '.'
         logger.warning('yahoo screener drift (%s): %s', list_name, message)
         issues.append({'code': 'source_drift', 'severity': 'warning', 'message': message})
-    data = {'list': list_name, 'market': 'US', 'retrieved_at': payload.get('retrieved_at'), 'rows': rows}
+    data = {'list': list_name, 'market': 'US', 'universe': UNIVERSE, 'retrieved_at': payload.get('retrieved_at'),
+            'rows': rows}
     return data, issues

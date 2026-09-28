@@ -1,6 +1,5 @@
 "use client";
 import type { MoverList } from "@pythia/market-data/markets";
-import { dayBinding } from "@pythia/market-data/widgets";
 import {
   type InstrumentDisplay,
   type InstrumentRead,
@@ -9,18 +8,12 @@ import {
 import { ArrowUpRight, Unlink } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
 import { useLocalTime } from "@/client/local-time";
-import { useMarketMovers, useSubjectPages } from "@/client/market-queries";
+import { useMarketMovers } from "@/client/market-queries";
 import { instrumentHref } from "@/components/instrument/instrument-href";
-import { useBindingSnapshot } from "@/components/widgets/bound-widget";
-import { openByLink } from "./market-card";
-import {
-  moverItem,
-  subjectLabel,
-  subjectQuote,
-  unavailableItem,
-} from "./market-subjects";
+import { openByLink, type SubjectDay } from "./market-card";
+import { Block } from "./markets-overview";
+import { moverItem } from "./market-subjects";
 
 const MOVERS_ROWS = 10;
 
@@ -61,8 +54,7 @@ function LinkedTable({
     >
       <InstrumentTable
         read={read}
-        options={{ name: true, change: "both", path }}
-        className="w-full"
+        options={{ name: true, path }}
         action={(item: InstrumentDisplay) => {
           const target = links.get(item.id);
           if (!target) return null;
@@ -81,39 +73,6 @@ function LinkedTable({
         }}
       />
     </div>
-  );
-}
-
-function Panel({
-  title,
-  meta,
-  notice,
-  children,
-}: {
-  title: string;
-  meta?: ReactNode;
-  notice?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section
-      data-slot="market-table"
-      aria-label={title}
-      className="flex min-w-0 flex-col gap-1.5"
-    >
-      <header className="flex items-baseline justify-between gap-2">
-        <h3 className="font-semibold text-foreground text-xs">{title}</h3>
-        <span className="min-w-0 truncate text-[10px] text-foreground-secondary">
-          {meta}
-        </span>
-      </header>
-      {children}
-      {notice ? (
-        <p role="status" className="text-[11px] text-warning">
-          {notice}
-        </p>
-      ) : null}
-    </section>
   );
 }
 
@@ -158,66 +117,62 @@ export function MoversTable({
   const drift = query.data?.issues.find(
     (issue) => issue.code === "source_drift",
   );
-  const asOf = movers?.rows[0]?.time;
   return (
-    <Panel
-      title={title}
-      meta={
-        movers?.source
-          ? [movers.market, source, asOf ? time(asOf, "compact") : null]
-              .filter(Boolean)
-              .join(" · ")
-          : null
-      }
-      notice={drift?.message}
-    >
+    <Block title={title}>
       <LinkedTable read={read} path={false} links={links} />
-    </Panel>
+      {drift ? (
+        <p role="status" className="mt-1.5 text-[11px] text-warning">
+          {drift.message}
+        </p>
+      ) : null}
+    </Block>
+  );
+}
+
+/** What the lists rank, their source and the time of their quotes, from the
+ * first list's read (the tables share one source). */
+export function MoversCaption() {
+  const query = useMarketMovers("most_active", MOVERS_ROWS);
+  const time = useLocalTime();
+  const movers = query.data?.movers;
+  if (!movers?.source) return null;
+  const asOf = movers.rows[0]?.time;
+  return (
+    <p className="-mt-1 mb-3 text-[11px] text-foreground-secondary">
+      {[
+        movers.universe ?? movers.market,
+        movers.source.source,
+        asOf ? `quotes as of ${time(asOf, "compact")}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+    </p>
   );
 }
 
 /** The configured subjects with prices and today's path, each through the
  * quote source core chose for it. */
-export function WatchlistTable({ subjects }: { subjects: readonly string[] }) {
-  const pages = useSubjectPages(subjects);
-  const quotes = pages.map((page) =>
-    page.data ? subjectQuote(page.data) : undefined,
+export function WatchlistTable({ days }: { days: SubjectDay[] }) {
+  const links = new Map<string, RowLink>(
+    days.map((day) => [
+      day.subject,
+      {
+        href: day.known ? instrumentHref(day.subject) : null,
+        name: day.label?.name ?? day.label?.symbol ?? day.subject,
+        note: day.item.statusLabel,
+      },
+    ]),
   );
-  const priced = quotes.flatMap((quote) => (quote?.row ? [quote.row] : []));
-  const { snapshot } = useBindingSnapshot(dayBinding, { rows: priced });
-  const links = new Map<string, RowLink>();
-  let next = 0;
-  const rows = subjects.map((subject, index) => {
-    const page = pages[index];
-    const quote = quotes[index];
-    const label = page?.data ? subjectLabel(page.data) : undefined;
-    const item: InstrumentDisplay =
-      quote?.row && snapshot?.data.rows[next]
-        ? { ...(snapshot.data.rows[next++] as InstrumentDisplay), id: subject }
-        : unavailableItem(
-            subject,
-            label?.symbol ?? subject,
-            label?.name,
-            page?.error
-              ? page.error.message || "This subject could not be read."
-              : (quote?.reason ?? "Loading"),
-          );
-    links.set(subject, {
-      href: page?.data ? instrumentHref(subject) : null,
-      name: label?.name ?? label?.symbol ?? subject,
-      note: item.statusLabel,
-    });
-    return item;
-  });
-  const loading = pages.some((page) => page.isPending);
-  const read: InstrumentRead = !subjects.length
+  const rows = days.map((day) => day.item);
+  const loading = days.every((day) => !day.known && day.loading);
+  const read: InstrumentRead = !days.length
     ? {
         state: "empty",
         rows: [],
         message:
           "Add subject IDs to markets_watchlist in settings.json to follow them here.",
       }
-    : loading && !pages.some((page) => page.data)
+    : loading
       ? { state: "loading", rows: [] }
       : { state: "ready", rows };
   return <LinkedTable read={read} path links={links} />;
