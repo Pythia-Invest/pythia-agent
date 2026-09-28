@@ -610,21 +610,21 @@
     outline: var(--py-focus-width) solid var(--py-focus-ring);
     outline-offset: 2px;
   }
+}
 
-  @media (prefers-reduced-motion: reduce) {
-    :root {
-      --py-motion-fast: 0.01ms;
-      --py-motion-standard: 0.01ms;
-    }
+/* Outside every layer, so it outranks animate-* and transition utilities. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --py-motion-fast: 0.01ms;
+    --py-motion-standard: 0.01ms;
+  }
 
-    *,
-    *::before,
-    *::after {
-      /* Important, so animate-* and transition utilities cannot override it. */
-      scroll-behavior: auto !important;
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
   }
 }
