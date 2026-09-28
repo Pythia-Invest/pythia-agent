@@ -453,6 +453,41 @@ class ConceptToolTest(AgentToolFixture):
         refused = self.call(agent_reads.prices, subject_id=ASML, period="1Y", start="2026-01-01")
         self.assertEqual(refused["issues"][0]["code"], "invalid_request")
 
+    def test_prices_periods_read_bounded_windows_around_their_start_and_end(self):
+        today = agent_reads.datetime.now(agent_reads.timezone.utc).date()
+        anchor = agent_reads.period_start("1Y", today)
+        windows = []
+
+        def market_data(args, **_):  # a crypto-like source: daily bars on instant edges, one year back at most
+            window = args["request"]["window"]
+            windows.append(window)
+            start = window["start"] and window["start"]["value"][:10]
+            if window["start"] and window["start"]["kind"] == "session_date":
+                return json.dumps(self.read_result(args["request"], outcome="error", issues=[
+                    {"code": "incompatible_series", "message": "No series.", "severity": "error"}]))
+            if start and start <= anchor.isoformat():
+                return json.dumps(self.read_result(args["request"], outcome="error", issues=[
+                    {"code": "unsupported_window", "message": "Too far back.", "severity": "error"}]))
+            first, last = agent_reads.date.fromisoformat(start), today
+            bars = [{"shape": "ohlc", "time": {"kind": "instant", "value": f"{day.isoformat()}T00:00:00Z"},
+                     "close": "100" if day < today - agent_reads.timedelta(days=30) else "150"}
+                    for day in (first, first + agent_reads.timedelta(days=1), last)]
+            return json.dumps(self.read_result(args["request"], observations=bars))
+
+        self.handlers[agent_reads.MARKET_DATA_TOOL] = market_data
+        read = self.call(agent_reads.prices, subject_id=ASML, period="1Y")
+        self.assertTrue(all(window["end"] for window in windows))  # every read is bounded
+        self.assertEqual(windows[0]["start"], {"kind": "session_date",
+                                               "value": (anchor - agent_reads.BASE_SLACK).isoformat()})
+        self.assertEqual(windows[-1]["start"], {"kind": "instant",  # the recent closes, after the dates were refused
+                                                "value": f"{(today - agent_reads.BASE_SLACK).isoformat()}T00:00:00Z"})
+        self.assertLessEqual(windows[-1]["end"]["value"], agent_reads.datetime.now(
+            agent_reads.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        period = read["period_return"]
+        self.assertEqual((period["from"]["t"][:10], period["change_pct"]),
+                         ((anchor + agent_reads.timedelta(days=1)).isoformat(), "50.00"))
+        self.assertIn("first close on or after", period["basis"])
+
     def test_the_identity_answer_is_recorded_as_the_agent(self):
         with mock.patch.object(queue_ops.questions, "submit", return_value={"outcome": "refused"}) as submit:
             result = self.call(agent_tools.answer, item_id="q1", relation="none")

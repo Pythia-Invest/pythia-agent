@@ -63,6 +63,8 @@ INTERVALS = {"1d": {"kind": "day", "count": 1}, "1h": {"kind": "hour", "count": 
              "30m": {"kind": "minute", "count": 30}, "5m": {"kind": "minute", "count": 5},
              "1m": {"kind": "minute", "count": 1}}
 RETRY_CRITERIA = {"incompatible_series", "ambiguous_series"}
+BASE_SLACK = timedelta(days=14)  # daily bars read around a period's start, to find the close before it
+ONE_READ_DAYS = 80  # a period this short reads one window; longer ones read around its start and its end
 
 
 # ---- pythia_prices -------------------------------------------------------------------------------------------------
@@ -119,16 +121,20 @@ def _period_return(period: str, observations: list, start: date | None) -> dict 
     closes = [(item.get("time", {}).get("value"), _number(item.get("close", item.get("value"))))
               for item in observations]
     closes = [(when, value) for when, value in closes if isinstance(when, str) and value is not None]
+    basis = "close before the period's start to the latest close"
     if start is None:
         base = closes[-6] if len(closes) >= 6 else None
     else:
         base = next((row for row in reversed(closes) if row[0][:10] < start.isoformat()), None)
+        if base is None:  # a source whose history begins at the period's start (CoinGecko's free year)
+            base = next((row for row in closes if start.isoformat() <= row[0][:10] <= (start + BASE_SLACK).isoformat()),
+                        None)
+            basis = "first close on or after the period's start (the source's history begins there) to the latest close"
     if base is None or not base[1] or len(closes) < 2:
         return None
     last = closes[-1]
     return {"period": period, "from": {"t": base[0], "close": str(base[1])}, "to": {"t": last[0], "close": str(last[1])},
-            "change_pct": str(((last[1] - base[1]) / base[1] * 100).quantize(Decimal("0.01"))),
-            "basis": "close before the period's start to the latest close"}
+            "change_pct": str(((last[1] - base[1]) / base[1] * 100).quantize(Decimal("0.01"))), "basis": basis}
 
 
 def _unit(series: dict | None) -> dict:
@@ -136,6 +142,36 @@ def _unit(series: dict | None) -> dict:
     field = fields.get("value") or fields.get("close") or {}
     unit, adjustment = field.get("unit", {}), field.get("adjustment", {}).get("kind")
     return {key: value for key, value in (("currency", unit.get("code")), ("adjustment", adjustment)) if value}
+
+
+def _window(start: date, end: date, kind: str) -> dict:
+    if kind == "session_date":
+        return {"start": {"kind": kind, "value": start.isoformat()}, "end": {"kind": kind, "value": end.isoformat()}}
+    close = min(datetime.combine(end, datetime.max.time(), timezone.utc), datetime.now(timezone.utc))
+    return {"start": {"kind": kind, "value": f"{start.isoformat()}T00:00:00Z"},
+            "end": {"kind": kind, "value": close.strftime("%Y-%m-%dT%H:%M:%SZ")}}
+
+
+def _read(ctx: Any, subject: dict, context: dict, interval: str | None = None, start: date | None = None,
+          end: date | None = None) -> dict:
+    """One market-data read of the chosen source: its latest value, or bars over a bounded window. With no compatible
+    series it retries close-only bars, then (daily) instant edges, which crypto sources use for daily bars."""
+    request = {"schema_version": 1, "operation": "history" if start else "latest",
+               "view": {"kind": "pythia", "subject": subject}, "window": {"start": None, "end": None},
+               "limit": 5000 if start else 1,
+               "requirements": {"freshness": "any", "completion": "any", "coverage": "any"}}
+    attempts = [(request["window"], {})]
+    if start:
+        kinds = ("session_date", "instant") if INTERVALS[interval]["kind"] == "day" else ("instant",)
+        attempts = [(_window(start, end, kind), criteria) for kind in kinds
+                    for criteria in ({"interval": INTERVALS[interval], "measurement": "ohlc"},
+                                     {"interval": INTERVALS[interval]})]
+    for window, criteria in attempts:
+        result = run_tool(ctx, MARKET_DATA_TOOL, {"action": "read", "request": {**request, "window": window},
+                                                  "criteria": criteria}, context)
+        if result.get("outcome") != "error" or not {issue.get("code") for issue in result.get("issues", [])} & RETRY_CRITERIA:
+            break
+    return result
 
 
 def prices(ctx: Any, arguments: dict, **context: Any) -> str:
@@ -147,18 +183,14 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
     if period is not None and (period not in PERIODS or start or end or interval != "1d"):
         return encode(failure("invalid_request", f"period is one of {', '.join(PERIODS)} and replaces start, end "
                                                  "and interval."))
-    anchor = None
-    if period and period != "1D":  # daily closes from before the period's start; 5D needs six bars
-        today = datetime.now(timezone.utc).date()
-        anchor = period_start(period, today)
-        start = ((anchor or today) - timedelta(days=14)).isoformat()
     try:
-        for value in (start, end):
-            if value:
-                date.fromisoformat(value)
+        start, end = (date.fromisoformat(value) if value else None for value in (start, end))
     except (TypeError, ValueError):
         return encode(failure("invalid_request", "start and end are dates written YYYY-MM-DD."))
-    operation = "history" if start else "latest"
+    today, anchor = datetime.now(timezone.utc).date(), None
+    if period and period != "1D":  # daily closes from before the period's start; 5D needs six bars
+        anchor = period_start(period, today)
+        start = (anchor or today) - BASE_SLACK
     try:
         infos = plugins()
         if wanted is not None and (wanted := source_key(wanted, infos)) is None:
@@ -179,21 +211,16 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
         if not target:
             return encode(failure("no_listing", "This issuer has no listing in the reference; it has no price."))
     view_subject = chosen["binding"]  # read exactly the source core chose (or the one named), so the label is true
-    daily = INTERVALS[interval]["kind"] == "day"
-    edge = (lambda value, _clock: {"kind": "session_date", "value": value}) if daily else (
-        lambda value, clock: {"kind": "instant", "value": f"{value}T{clock}Z"})
-    request = {"schema_version": 1, "operation": operation, "view": {"kind": "pythia", "subject": view_subject},
-               "window": {"start": edge(start, "00:00:00") if start else None,
-                          "end": edge(end, "23:59:59") if end else None},
-               "limit": 5000 if start else 1,
-               "requirements": {"freshness": "any", "completion": "any", "coverage": "any"}}
-    attempts = [{}] if not start else [{"interval": INTERVALS[interval], "measurement": "ohlc"},
-                                       {"interval": INTERVALS[interval]}]
-    for criteria in attempts:
-        result = run_tool(ctx, MARKET_DATA_TOOL, {"action": "read", "request": request, "criteria": criteria}, context)
-        codes = {issue.get("code") for issue in result.get("issues", [])}
-        if result.get("outcome") != "error" or not codes & RETRY_CRITERIA:
-            break
+    operation = "history" if start else "latest"
+    head: list = []
+    if anchor and (today - start).days > ONE_READ_DAYS:  # read around the start, then the recent closes
+        for first in (start, anchor + timedelta(days=1)):  # the second fits a source that looks back exactly a year
+            around = _read(ctx, view_subject, context, "1d", first, anchor + BASE_SLACK)
+            if head := around.get("observations") or []:
+                break
+        start = today - BASE_SLACK
+    result = _read(ctx, view_subject, context, interval, start, end or today) if start else _read(
+        ctx, view_subject, context)
     provenance = result.get("provenance") or {}
     source = {**label(chosen["plugin"], infos), "as_of": (result.get("freshness") or {}).get("as_of") or provenance.get("source_time"),
               "retrieved_at": result.get("retrieved_at"),
@@ -203,6 +230,9 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
     if "delay_seconds" in context_fields:
         source["delay_seconds"] = context_fields["delay_seconds"]
     observations = result.get("observations") or []
+    if head:
+        known = {item.get("time", {}).get("value") for item in observations}
+        observations = [item for item in head if item.get("time", {}).get("value") not in known] + observations
     points = arguments.get("points")
     points = 10 if points is None else max(0, min(int(points), 400))
     out = {"schema_version": 1, "outcome": result.get("outcome", "error"), "subject_id": target, "source": source,
