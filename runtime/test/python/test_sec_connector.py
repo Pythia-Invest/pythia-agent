@@ -27,6 +27,7 @@ sys.modules[spec.name] = plugin
 spec.loader.exec_module(plugin)
 identity = importlib.import_module('sec_fixture.identity')
 financials = importlib.import_module('sec_fixture.financials')
+filings = importlib.import_module('sec_fixture.filings')
 client = importlib.import_module('sec_fixture.client')
 connector = importlib.import_module(wire.__package__ + '.connector')
 
@@ -156,7 +157,7 @@ class SecFinancials(unittest.TestCase):
             'accessionNumber': ['0000123456-25-000001'], 'form': ['20-F'],
             'filingDate': ['2025-08-01'], 'reportDate': ['2025-06-30'],
             'primaryDocument': ['example-20250630.htm']}, 'files': [{'name': 'older.json'}]}}
-        result = financials.filings(raw, CIK, STAMP)
+        result = filings.filings(raw, CIK, STAMP)
         self.assertFalse(result['coverage']['complete'])
         self.assertEqual((result['filings'][0]['filed_at'], result['filings'][0]['period_end']), ('2025-08-01', '2025-06-30'))
         self.assertEqual(result['filings'][0]['title'], 'Foreign issuer report')
@@ -172,21 +173,37 @@ def submissions_block(forms, start_year):
     dates = [(date(start_year, 12, 31) - timedelta(days=7 * index)).isoformat() for index in range(len(forms))]
     return {'accessionNumber': [f'0000123456-{day[2:4]}-{index:06d}' for index, day in enumerate(dates)],
             'form': list(forms), 'filingDate': dates, 'reportDate': [''] * len(forms),
-            'primaryDocument': ['doc.htm'] * len(forms)}
+            'primaryDocument': ['doc.htm'] * len(forms), 'acceptanceDateTime': [day + 'T12:00:00.000Z' for day in dates],
+            'items': [''] * len(forms), 'primaryDocDescription': [''] * len(forms),
+            'isInlineXBRL': [0] * len(forms), 'size': [1000] * len(forms)}
 
 
 class SecFormsSearch(unittest.TestCase):
     """An annual report crowded out of the most recent filings is still found (agent eval F3)."""
 
     def test_a_10k_behind_many_recent_filings_is_found_in_the_whole_recent_list(self):
-        recent = submissions_block(['4'] * 300 + ['10-K'] + ['8-K'] * 100, 2026)
+        recent = submissions_block(['4'] * 300 + ['8-K'] * 60 + ['10-K'] + ['8-K'] * 40, 2026)
         raw = {'cik': 123456, 'filings': {'recent': recent, 'files': []}}
         instance, transport = reader({'submissions': raw})
         plain = instance.invoke('filings', {'native_ref': REF, 'limit': 50})
-        self.assertNotIn('10-K', {row['form'] for row in plain['data']['filings']})
+        self.assertEqual({row['form'] for row in plain['data']['filings']}, {'8-K'})
         found = instance.invoke('filings', {'native_ref': REF, 'limit': 5, 'forms': ['10-K', '20-F']})
         self.assertEqual([row['form'] for row in found['data']['filings']], ['10-K'])
         self.assertEqual(found['data']['coverage']['scanned'], 401)
+
+    def test_a_default_read_leaves_out_ownership_forms_unless_they_are_named(self):
+        # Apple's newest 10-K sat at position 65 of its recent list, behind hundreds of Forms 4 and 144.
+        forms = ['4', '144', 'SC 13G/A', '4/A', 'SCHEDULE 13G/A', '3', '5', '144/A', 'SCHEDULE 13G'] * 7 + ['10-K', '8-K']
+        raw = {'cik': 123456, 'filings': {'recent': submissions_block(forms, 2026), 'files': []}}
+        instance, _ = reader({'submissions': raw})
+        plain = instance.invoke('filings', {'native_ref': REF, 'limit': 20})
+        self.assertEqual([row['form'] for row in plain['data']['filings']], ['10-K', '8-K'])
+        coverage = plain['data']['coverage']
+        self.assertEqual((coverage['omitted'], coverage['complete']), (63, True))
+        self.assertEqual(coverage['omitted_forms'], ['144', '3', '4', '5', 'SC 13G', 'SCHEDULE 13G'])
+        named = instance.invoke('filings', {'native_ref': REF, 'limit': 20, 'forms': ['4', 'SCHEDULE 13G']})
+        self.assertEqual({row['form'] for row in named['data']['filings']}, {'4', '4/A', 'SCHEDULE 13G/A', 'SCHEDULE 13G'})
+        self.assertIsNone(named['data']['coverage']['omitted_forms'])
 
     def test_older_pages_are_read_back_five_years_at_most_three(self):
         recent = submissions_block(['4'] * 60, 2026)  # the recent list reaches back only a few months
@@ -214,6 +231,105 @@ class SecFormsSearch(unittest.TestCase):
         self.assertEqual([issue['code'] for issue in missing['issues']], ['incomplete'])
         with self.assertRaises(ValueError):  # only the filer's own page names reach a URL
             identity.submissions_page_url(CIK, '../CIK0000000001.json')
+
+
+def periodic_submissions(*rows):
+    """A submissions document listing (accession, form, isXBRL) filings, newest first."""
+    return {'cik': '123456', 'filings': {'files': [], 'recent': {
+        'accessionNumber': [item[0] for item in rows], 'form': [item[1] for item in rows],
+        'filingDate': ['2026-06-10'] * len(rows), 'isXBRL': [item[2] for item in rows],
+        'primaryDocument': ['doc.htm'] * len(rows)}}}
+
+
+class SecFilingFields(unittest.TestCase):
+    """The submissions fields a filing keeps, as the EDGAR submissions API defines them."""
+
+    def block(self, **columns):
+        return {'cik': 123456, 'filings': {'files': [], 'recent': {
+            'accessionNumber': ['0000123456-26-000003', '0000123456-26-000002', '0000123456-26-000001'],
+            'form': ['8-K', 'EFFECT', '10-K'], 'filingDate': ['2026-09-24', '2026-09-01', '2026-08-01'],
+            'reportDate': ['2026-09-22', '', '2026-06-30'],
+            'primaryDocument': ['ex-8k.htm', 'xslEFFECT/primary_doc.xml', 'ex-20260630.htm'],
+            'acceptanceDateTime': ['2026-09-24T22:30:07.000Z', '2026-09-01T12:00:00.000Z', '2026-08-01T10:01:26.000Z'],
+            'items': ['2.02,9.01', '20260901', ''], 'primaryDocDescription': ['FORM 8-K', '', '10-K'],
+            'isInlineXBRL': [1, 0, 1], 'size': [412345, 1500, 9392337], **columns}}}
+
+    def test_acceptance_time_8k_items_description_inline_xbrl_and_submission_size_are_kept(self):
+        eight_k, effect, annual = filings.filings(self.block(), CIK, STAMP)['filings']
+        self.assertEqual((eight_k['accepted_at'], eight_k['items'], eight_k['description']),
+                         ('2026-09-24T22:30:07.000Z', ['2.02', '9.01'], 'FORM 8-K'))
+        self.assertEqual((annual['inline_xbrl'], annual['submission_bytes'], annual['items']), (True, 9392337, None))
+        # Other forms put dates or form names in `items`; only 8-K item numbers are read.
+        self.assertEqual((effect['items'], effect['description']), (None, None))
+
+    def test_missing_or_malformed_fields_are_counted_as_drift_never_reinterpreted(self):
+        result = filings.filings(self.block(size=[1, 'large', 3], items=['2.02,10.01', '', '']), CIK, STAMP)
+        self.assertEqual(result['filings'][1]['submission_bytes'], None)
+        self.assertEqual(result['drift'], {'malformed': {'size': 1}, 'unknown_8k_item': {'10.01': 1}})
+        missing = filings.filings(self.block(acceptanceDateTime=None), CIK, STAMP)
+        self.assertEqual(missing['drift'], {'missing_field': {'acceptanceDateTime': 1}})
+        self.assertEqual({row['accepted_at'] for row in missing['filings']}, {None})
+        with self.assertRaisesRegex(ValueError, 'invalid_response'):  # a column of another length is a broken shape
+            filings.filings(self.block(size=[1, 2]), CIK, STAMP)
+
+    def test_an_unknown_form_is_listed_under_its_native_name_and_raises_a_drift_warning(self):
+        raw = self.block(form=['8-K', 'SCHEDULE 13Z', '10-K'])
+        instance, _ = reader({'submissions': raw})
+        result = instance.invoke('filings', {'native_ref': REF})
+        self.assertEqual(result['outcome'], 'ok')
+        self.assertEqual(result['data']['filings'][1]['title'], 'SCHEDULE 13Z')
+        self.assertEqual(result['data']['drift'], {'unknown_form': {'SCHEDULE 13Z': 1}})
+        self.assertEqual([(issue['code'], issue['severity']) for issue in result['issues']], [('drift', 'warning')])
+        self.assertIn('SCHEDULE 13Z', result['issues'][0]['message'])
+
+    def test_titles_cover_renamed_ownership_schedules_and_offering_forms(self):
+        self.assertEqual({form: filings.filing_title(form) for form in
+                          ('SCHEDULE 13G/A', 'SC 13G', '144', '424B2', 'FWP', 'PX14A6G', 'SD')}, {
+            'SCHEDULE 13G/A': 'Passive investor ownership report (amended)',
+            'SC 13G': 'Passive investor ownership report',
+            '144': 'Notice of proposed sale of restricted securities', '424B2': 'Prospectus',
+            'FWP': 'Free writing prospectus', 'PX14A6G': 'Exempt proxy solicitation notice',
+            'SD': 'Specialized disclosure report'})
+
+
+class SecFactsFreshness(unittest.TestCase):
+    """companyfacts must include the latest periodic report (it silently lacked 2026 20-F statements)."""
+
+    def facts(self, accession, taxonomy='ifrs-full'):
+        raw = companyfacts({'JPY': [observation(100, form='20-F', accession=accession)]}, taxonomy, 'Revenue')
+        raw['facts']['dei'] = {'EntityCommonStockSharesOutstanding': {'units': {'shares': [
+            observation(5, start=None, form='20-F', accession='0000123456-26-000009')]}}}
+        return raw
+
+    def test_the_latest_periodic_accession_must_carry_statement_facts(self):
+        submissions = periodic_submissions(('0000123456-26-000010', '6-K', 0), ('0000123456-26-000011', '20-F/A', 1),
+                                           ('0000123456-26-000009', '20-F', 1), ('0000123456-25-000001', '20-F', 1))
+        stale = financials.freshness(submissions, self.facts('0000123456-25-000001'), CIK)
+        self.assertEqual((stale['status'], stale['latest_filing']['accession']), ('stale', '0000123456-26-000009'))
+        self.assertIn('0000123456-26-000009', stale['reason'])
+        fresh = financials.freshness(submissions, self.facts('0000123456-26-000009', 'us-gaap'), CIK)
+        self.assertEqual((fresh['status'], fresh['reason']), ('fresh', None))
+        self.assertIsNone(financials.freshness(periodic_submissions(('0000123456-26-000010', '6-K', 0)),
+                                               self.facts('0000123456-25-000001'), CIK))
+        unflagged = periodic_submissions(('0000123456-26-000009', '20-F', 1))
+        del unflagged['filings']['recent']['isXBRL']
+        self.assertEqual(financials.freshness(unflagged, self.facts('0000123456-25-000001'), CIK)['status'], 'unknown')
+
+    def test_stale_fundamentals_say_so_in_the_result_and_its_issues(self):
+        submissions = periodic_submissions(('0000123456-26-000009', '20-F', 1))
+        instance, transport = reader({'companyfacts': self.facts('0000123456-25-000001'), 'submissions': submissions})
+        result = instance.invoke('fundamentals', {'native_ref': REF})
+        self.assertEqual((result['outcome'], result['data']['freshness']['status']), ('ok', 'stale'))
+        self.assertEqual([(issue['code'], issue['severity']) for issue in result['issues']], [('stale', 'warning')])
+        self.assertTrue(result['data']['limitations'][0].startswith('Stale:'))
+        self.assertEqual(result['data']['facts'][0]['value'], '100')  # still served, marked stale
+        unread, _ = reader({'companyfacts': self.facts('0000123456-25-000001')})
+        unknown = unread.invoke('fundamentals', {'native_ref': REF})
+        self.assertEqual((unknown['data']['freshness']['status'], unknown['issues'][0]['code']),
+                         ('unknown', 'freshness_unknown'))
+        current, _ = reader({'companyfacts': self.facts('0000123456-26-000009'), 'submissions': submissions})
+        fresh = current.invoke('fundamentals', {'native_ref': REF})
+        self.assertEqual((fresh['issues'], fresh['data']['freshness']['status']), ([], 'fresh'))
 
 
 class SecConfiguration(unittest.TestCase):
@@ -265,8 +381,34 @@ class SecExecution(unittest.TestCase):
             return transport.run_worker([], {'operation': 'submissions', 'cik': CIK, 'contact': CONTACT}, {},
                 cancelled=lambda: False, budget=connector.connection('sec-test-gzip', concurrency=1, per_minute=10))
         self.assertEqual(read()['data'], SUBMISSIONS)
-        with patch.object(client, 'MAX_BYTES', 64), self.assertRaisesRegex(RuntimeError, 'output_limit'):
+        with patch.object(client, 'JSON_MAX_BYTES', 64), self.assertRaisesRegex(RuntimeError, 'output_limit'):
             read()
+
+    def test_a_filing_document_has_its_own_size_cap_above_the_json_one(self):
+        body = b'<html>' + b'x' * 200 + b'</html>'
+        requests = []
+
+        def serve(request, timeout):
+            requests.append(request)
+            response = io.BytesIO(gzip.compress(body))
+            response.status = 200
+            response.headers = {'Content-Encoding': 'gzip', 'Content-Type': 'text/html'}
+            return response
+        transport = client.Transport(connector, opener=SimpleNamespace(open=serve))
+
+        def read(document='asml-20251231.htm'):
+            return transport.run_worker([], {'operation': 'document', 'cik': CIK, 'contact': CONTACT,
+                                             'accession': '0000123456-26-000001', 'document': document}, {},
+                cancelled=lambda: False, budget=connector.connection('sec-test-document', concurrency=1, per_minute=10))
+        with patch.object(client, 'JSON_MAX_BYTES', 64):
+            value = read()['data']
+        self.assertEqual((value['text'], value['bytes'], value['content_type']), (body.decode(), len(body), 'text/html'))
+        self.assertEqual(requests[0].full_url,
+                         'https://www.sec.gov/Archives/edgar/data/123456/000012345626000001/asml-20251231.htm')
+        with patch.object(client, 'DOCUMENT_MAX_BYTES', 64), self.assertRaisesRegex(RuntimeError, 'output_limit'):
+            read()
+        with self.assertRaisesRegex(ValueError, 'invalid_response'):  # only a checked document name reaches a URL
+            read('../../other.htm')
 
     def test_successful_reads_are_retained_but_failures_and_refresh_are_not(self):
         class Flaky(Transport):
@@ -277,16 +419,17 @@ class SecExecution(unittest.TestCase):
                     self.calls.append('failed')
                     raise connector.SourceFailure({'error': 'rate_limit', 'retry_after': 30, 'limit_origin': 'provider'})
                 return super().run_worker(*args, **options)
-        transport = Flaky({'companyfacts': companyfacts({'USD': [observation(100)]})})
+        transport = Flaky({'companyfacts': companyfacts({'USD': [observation(100)]}),
+                           'submissions': periodic_submissions(('0000123456-25-000001', '10-K', 1))})
         instance = plugin.Reader(wire, connector, settings, None, transport=transport)
         for _ in range(2):
             self.assertEqual(instance.invoke('fundamentals', {'native_ref': REF})['outcome'], 'ok')
-        self.assertEqual(len(transport.calls), 1)
+        self.assertEqual(len(transport.calls), 2)  # companyfacts and submissions, each once
         transport.fail = True
         for _ in range(2):
             issue = instance.invoke('fundamentals', {'native_ref': REF, 'refresh': True})['issues'][0]
             self.assertEqual((issue['code'], issue['retry_after_seconds']), ('rate_limit', 30))
-        self.assertEqual(len(transport.calls), 3)
+        self.assertEqual(len(transport.calls), 4)
 
 
 if __name__ == '__main__':

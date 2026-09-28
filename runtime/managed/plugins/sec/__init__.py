@@ -8,7 +8,7 @@ import json
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import financials, identity
+from . import filings, financials, identity
 from .client import Transport
 from .definition import TOOLS, schemas
 
@@ -85,11 +85,11 @@ class Reader:
                 limit, forms = clean.get('limit', 20), clean.get('forms')
                 pages, issues = [], []
                 if forms:  # an annual report must not be crowded out: read older pages back five years, at most three
-                    first = financials.filings(raw['data'], number, raw['observed_at'], limit, forms)
+                    first = filings.filings(raw['data'], number, raw['observed_at'], limit, forms)
                     since = (datetime.now(timezone.utc) - timedelta(days=5 * 366)).date().isoformat()
                     deadline = time.monotonic() + PAGING_SECONDS
                     if len(first['filings']) < limit and (first['coverage']['searched_back_to'] or '9') > since:
-                        for name in financials.older_pages(raw['data'], since)[:PAGES]:
+                        for name in filings.older_pages(raw['data'], since)[:PAGES]:
                             left = deadline - time.monotonic()
                             try:  # best effort: an older page never costs the filings already read
                                 if left < 1:
@@ -99,15 +99,16 @@ class Reader:
                                 issues.append({'code': 'incomplete', 'severity': 'warning', 'message':
                                                'Older SEC filings could not be searched; the list is incomplete.'})
                                 break
-                result = financials.filings(raw['data'], number, raw['observed_at'], limit, forms, pages)
+                result = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, pages)
                 if issues:
                     result['coverage']['complete'] = False
-                return envelope(result, issues)
+                return envelope(result, [*issues, *self.drift(operation, result.get('drift'))])
             if operation == 'facts' and len(set(clean['concepts'])) != len(clean['concepts']):
                 raise ValueError('invalid_request')
             raw = fetch('companyfacts', number)
             if operation == 'fundamentals':
-                return envelope(financials.fundamentals(raw['data'], number, raw['observed_at'], clean.get('limit', 20)))
+                result = financials.fundamentals(raw['data'], number, raw['observed_at'], clean.get('limit', 20))
+                return envelope(result, self.freshness(result, raw['data'], number, fetch))
             return envelope(financials.native_facts(raw['data'], number, raw['observed_at'],
                 clean['taxonomy'], clean['concepts'], clean.get('limit', 100)))
         except (ValueError, KeyError, TypeError) as error:
@@ -117,6 +118,37 @@ class Reader:
         except (RuntimeError, OSError) as error:
             detail = self.connector.detail(error)
             return self.connector.qualify_failure(failure(detail['code'], detail['message']), getattr(error, 'raw', {}))
+
+    def drift(self, operation, drift):
+        """The warning for unexpected SEC input, also logged for maintainers; empty when there is none."""
+        issue = filings.drift_issue(drift)
+        if issue is None:
+            return []
+        for kind, values in drift.items():
+            self.connector.emit('source_drift', level='warning', provider='sec', operation=operation, code=kind,
+                                count=sum(values.values()))
+        return [issue]
+
+    def freshness(self, result, facts, number, fetch):
+        """Mark `result` stale, visibly, when companyfacts lacks the latest periodic report; its warnings."""
+        try:
+            state = financials.freshness(fetch('submissions', number)['data'], facts, number)
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+            state = {'status': 'unknown', 'latest_filing': None, 'reason': 'SEC\'s filing list could not be read, '
+                     'so whether these facts include the latest report is unknown.'}
+        if state is None:  # nothing to check against, which is not a warning
+            result['freshness'] = {'status': 'unknown', 'latest_filing': None,
+                                   'reason': 'SEC lists no recent 10-K, 10-Q, 20-F or 40-F with XBRL for this filer.'}
+            return []
+        result['freshness'] = state
+        if state['status'] == 'fresh':
+            return []
+        result['limitations'].insert(0, state['reason'])
+        if state['status'] == 'stale':
+            self.connector.emit('source_drift', level='warning', provider='sec', operation='fundamentals',
+                                code='companyfacts_behind', count=1)
+        return [{'code': 'stale' if state['status'] == 'stale' else 'freshness_unknown', 'severity': 'warning',
+                 'message': state['reason']}]
 
     @staticmethod
     def resolve(clean, fetch):
