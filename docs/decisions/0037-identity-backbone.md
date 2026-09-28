@@ -222,29 +222,32 @@ levels live in core's vocabulary module, not in SQL. The persistent
 `identity.sqlite3` checks only an ID's format, so a new kind or relation never
 needs a table rebuild; the rebuilt `reference.sqlite3` may keep its checks.
 
-### Search groups by company; relations declare grouping behaviour
+### Search groups by investable entity; relations declare grouping behaviour
 
-Relations never merge subjects. Search groups results **per company**: the
-company name, then a compact set of its relevant listings (the one the query
-names, the preferred market or currency, the primary line) and an entry that
-expands to all of them. Share classes, preferreds and products of the same
-issuer group under it naturally, as distinct instruments; a crypto asset heads
-its own group.
+Relations never merge subjects. Search groups results by **investable
+entity**: the company for its equity securities; the product itself for a
+fund, ETF, ETN or ETC, so a product is never buried under its issuer; the asset
+for crypto. A group shows its name, a compact set of relevant listings (the one
+the query names, the preferred market or currency, the primary line) and an
+entry that expands to all of them. A company's share classes and preferreds
+group under it as distinct instruments.
 
-Each relation type declares one behaviour that extends or limits that grouping:
+Each relation type declares one behaviour:
 
 | Behaviour | Meaning | Examples |
 | --- | --- | --- |
-| `fold` | Sameness across subjects that must share one group although they are distinct securities or deployments, possibly under different issuers | `depositary_receipt_of` (a receipt issued by a depositary bank joins its underlying's company), `native_deployment_of` (a chain deployment of a curated asset) |
-| `related` | Different things: shown nearby as links, never in the group | `wraps`, `bridged_from`, `staked_as`, `tracks`, `successor_of`; later, for example, `derivative_on` and `tokenized_from` |
+| `fold` | Sameness across subjects that must be shown together although they are distinct securities or deployments, possibly under different issuers | `depositary_receipt_of` (a receipt or registry line, even one issued by a depositary bank), `native_deployment_of` (a chain deployment of a curated asset) |
+| `related` | Different things: shown nearby as links, never folded | `share_class_of`, `wraps`, `bridged_from`, `staked_as`, `tracks`, `successor_of`; later, for example, `derivative_on` and `tokenized_from` |
 
-A **group** is the issuer's subjects, or the root asset's when there is no
-issuer, closed under `fold` relations. Search and pages derive grouping from
-these declarations, not from rules per asset class: a new relation type states
-its behaviour when it is added, so an unforeseen case groups without new code.
-The listing page's header switches between the instrument's own lines, folded
-lines such as depositary receipts included; it never lists another share class.
-There is no per-instrument memory; saved listings belong to watchlists later.
+A **group** is the investable entity's subjects closed under `fold` relations.
+Search and pages derive grouping from these declarations, not from rules per
+asset class: a new relation type states its behaviour when it is added, so an
+unforeseen case groups without new code. The instrument page's listing
+selector lists the security plus everything folded into it (receipts, registry
+lines, native deployments), not the whole company group; the company's other
+securities, such as share classes and preferreds, appear as "other securities
+of" the company. There is no per-instrument memory; saved listings belong to
+watchlists later.
 
 ### Crypto keys come from curated tables
 
@@ -312,7 +315,7 @@ version; a changed rule is a new version with aliases from the old IDs.
 ### Rationale and consequences
 
 An open kind vocabulary keeps each new asset class additive; SQLite cannot
-change a check constraint without rebuilding the table. Grouping by company
+change a check constraint without rebuilding the table. Grouping by investable entity
 plus declared `fold` relations gives one general rule instead of cases per
 asset class. Curated crypto keys and a hostable key rule keep the promise that
 installs and rebuilds agree on every ID, which watchlists, notes, holdings and
@@ -323,8 +326,8 @@ a later team edition depend on.
 - The identity package, both SQL files, the manifest validator's level checks,
   the reference builder and the truth set adopt these rules.
 - Rejected: `series` or `index` as extra levels (they are not tradable lines of
-  an issuer); `fold` for share classes (they are economically different and
-  already group under their issuer); keying multi-chain tokens by a provider's
+  an issuer); `fold` for share classes (they are economically different;
+  `share_class_of` is `related`, and they already group under their company); keying multi-chain tokens by a provider's
   primary platform (installs would disagree); keying CGS-area securities by
   ISIN (a hosted build could not carry them); aliases from build-to-build diffs
   (lost on a fresh install).
