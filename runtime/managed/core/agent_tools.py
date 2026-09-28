@@ -1,0 +1,223 @@
+"""The agent's always-visible Pythia tools: find, instrument and one identity answer, plus shared helpers.
+
+These are thin core front ends over operations that already exist: core identity, the market-data
+feature's read backend and each plugin's contract-declared filings tool. Plugin tools stay registered
+under their own owners but out of the model's view; these handlers run them through `may_run`
+(`platform.access.eligible_tools`), never through model visibility. Schemas carry no `$comment`
+operation markers, and every result is bounded. See docs/architecture/agent-tools.md.
+"""
+from __future__ import annotations
+
+import copy
+import json
+import logging
+from functools import partial
+from typing import Any, Callable
+
+from . import identity_ops, queue_ops
+from .identity import page
+from .identity.manifest import Section
+
+logger = logging.getLogger(__name__)
+TOOLSET = "pythia-desk"  # the only Pythia toolset the model sees; plugin and core operation toolsets stay hidden
+MAX_CHARS = 16_000       # far below Hermes's 100k spill: a result is replayed on every later turn
+CONTEXT = ("task_id", "session_id")      # what a nested dispatch forwards from the native call
+
+SUBJECT = {"type": "string", "minLength": 5, "maxLength": 370,
+           "description": "A subject id from pythia_find, such as listing:… or security:…"}
+SOURCE = {"type": "string", "minLength": 2, "maxLength": 64,
+          "description": "Read only this source (a provider name such as yahoo or sec). Without it, the first "
+                         "source in the investor's order that serves the subject is used; nothing falls back."}
+
+FIND = {
+    "name": "pythia_find",
+    "description": "Find companies, securities, funds, listings and crypto assets in the investor's local reference by "
+                   "name, ticker, ISIN, LEI, CIK or FIGI. Start here for any investment the user names. Each row carries "
+                   "its subject id (pass it to the other pythia tools), ticker, venue and key identifiers. Local only; "
+                   "no provider is called. A row is a candidate: check name and venue before relying on it.",
+    "parameters": {"type": "object", "properties": {
+        "query": {"type": "string", "minLength": 1, "maxLength": 128},
+        "kinds": {"type": "array", "maxItems": 16, "items": {"type": "string"},
+                  "description": "Optional instrument kinds, such as ordinary, etf, fund or coin."},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 25}},
+        "required": ["query"], "additionalProperties": False},
+}
+INSTRUMENT = {
+    "name": "pythia_instrument",
+    "description": "Everything Pythia knows locally about one investment: identifiers (ISIN, LEI, CIK, FIGI), issuer, "
+                   "its listings and related instruments, and which source serves each concept (quote, chart, profile, "
+                   "filings) or why none does. Use it to pick a listing, find an issuer's LEI or CIK, or see which "
+                   "sources are connected. Local only.",
+    "parameters": {"type": "object", "properties": {"subject_id": SUBJECT},
+                   "required": ["subject_id"], "additionalProperties": False},
+}
+ANSWER = copy.deepcopy(queue_ops.VERDICT_SCHEMA)  # the same arguments as the Desk's identity-verdict, no marker
+ANSWER["name"] = "pythia_answer_identity_question"
+ANSWER["description"] = ("Record the agent's provisional answer to one open identity question after reading it in full with "
+                         "`pythia identity queue`. " + queue_ops.VERDICT_SCHEMA["description"].split(". ", 1)[1])
+ANSWER["parameters"]["properties"]["chosen_id"] = {"type": "string", "minLength": 5, "maxLength": 370}
+
+
+
+# ---- shared helpers ------------------------------------------------------------------------------------------------
+
+def failure(code: str, message: str, **extra: Any) -> dict:
+    return {"schema_version": 1, "outcome": "error", **extra,
+            "issues": [{"code": code, "severity": "error", "message": message}]}
+
+
+def encode(result: dict, limit: int = MAX_CHARS) -> str:
+    """JSON for the model, within `limit` characters: the longest list is shortened, and the result says so."""
+    text = json.dumps(result, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    if len(text) <= limit:
+        return text
+    result = copy.deepcopy(result)
+    lists = []
+
+    def collect(value: Any, path: str, depth: int) -> None:
+        if isinstance(value, list) and len(value) > 1:
+            lists.append((path, value))
+        if depth < 3 and isinstance(value, dict):
+            for key, item in value.items():
+                collect(item, f"{path}.{key}" if path else key, depth + 1)
+
+    collect(result, "", 0)
+    if lists:
+        path, items = max(lists, key=lambda entry: len(json.dumps(entry[1], ensure_ascii=False)))
+        total = len(items)
+        while len(items) > 1 and len(text) > limit:
+            del items[max(1, len(items) * 3 // 4):]
+            result["truncated"] = {"field": path, "returned": len(items), "total": total,
+                                   "hint": "Narrow the request (limit, dates, fields) to see the rest."}
+            text = json.dumps(result, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+        if len(text) <= limit:
+            return text
+    return json.dumps(failure("result_too_large", f"The result has {len(text)} characters, more than the {limit} "
+                                                  "a tool result may carry. Narrow the request."), separators=(",", ":"))
+
+
+def forward(context: dict) -> dict:
+    return {key: context[key] for key in CONTEXT if context.get(key)}
+
+
+def run_tool(ctx: Any, name: str, arguments: dict, context: dict) -> dict:
+    """Run one plugin tool the model does not see, after `may_run`; any failure becomes an envelope."""
+    from .platform.access import ContextUnavailable, eligible_tools
+    try:
+        if name not in eligible_tools():
+            return failure("unavailable", "That source is disabled or unavailable in this profile.")
+    except ContextUnavailable:
+        return failure("unavailable", "No trusted caller context; the source was not called.")
+    raw = ctx.dispatch_tool(name, arguments, **forward(context))
+    try:
+        result = json.loads(raw) if isinstance(raw, str) else None
+    except ValueError:
+        result = None
+    if not isinstance(result, dict):
+        return failure("invalid_response", "The source returned something Pythia could not read.")
+    if "error" in result and "schema_version" not in result:  # Hermes's envelope for a handler that raised
+        logger.warning("plugin tool %s failed: %s", name, str(result["error"])[:300])
+        return failure("source_error", "The source failed while answering; try again or use another source.")
+    return result
+
+
+def identity() -> identity_ops.Identity:
+    if identity_ops.CURRENT is None:
+        raise RuntimeError("core identity is not loaded")
+    return identity_ops.CURRENT
+
+
+def label(plugin_key: str) -> dict:
+    info = next((item for item in identity_ops.installed() if item.key == plugin_key), None)
+    provider = info.manifest.provider if info else plugin_key
+    return {"source": page.LABELS.get(provider, provider), "provider": provider, "plugin": plugin_key}
+
+
+def concept_sources(subject_id: str, section: Section, wanted: str | None) -> tuple[dict | None, list, list, str | None]:
+    """The subject, its usable sources for one concept in core's order and the skipped ones with reasons.
+
+    A source whose reference needs a lookup is resolved once when it would be used, as the Desk does."""
+    core = identity()
+    try:
+        _path, subject, lookups, issue = core._load(subject_id)
+    except ValueError:
+        return None, [], [], "Unknown subject id; find the investment with pythia_find."
+    if subject is None:
+        return None, [], [], issue or "Unknown subject id; find the investment with pythia_find."
+    answers = page.answers(subject, identity_ops.installed(), section, **lookups)
+    named = [answer for answer in answers if wanted in (answer["plugin"], label(answer["plugin"])["provider"])]
+    first = (named or [answer for answer in answers if answer["status"] in ("ready", "resolving")] or [None])[0]
+    if first is not None and first["status"] == "resolving":
+        core.resolve({"subject_id": subject["id"], "plugin": first["plugin"]})
+        _path, subject, lookups, _issue = core._load(subject_id)
+        answers = page.answers(subject, identity_ops.installed(), section, **lookups)
+    ready = [answer for answer in answers if answer["status"] == "ready" and answer["binding"]]
+    skipped = [{**label(answer["plugin"]), "reason": answer["reason"] or answer["status"]}
+               for answer in answers if answer not in ready]
+    return subject, ready, skipped, None
+
+
+def choose(ready: list, skipped: list, wanted: str | None, concept: str) -> tuple[dict | None, dict | None]:
+    """(chosen answer, error envelope): the named source, or the first usable one. Never a silent substitute."""
+    if wanted:
+        chosen = next((answer for answer in ready if wanted in (answer["plugin"], label(answer["plugin"])["provider"])), None)
+        if chosen is None:
+            why = next((row["reason"] for row in skipped if wanted in (row["plugin"], row["provider"])), None)
+            return None, failure("source_unavailable", f"{wanted} cannot serve {concept} for this subject"
+                                 + (f": {why}." if why else ".") + " The alternatives below can; name one to use it.",
+                                 alternatives=[label(answer["plugin"]) for answer in ready], skipped=skipped)
+        return chosen, None
+    if not ready:
+        return None, failure("no_source", f"No connected source serves {concept} for this subject.", skipped=skipped,
+                             next="pythia_instrument shows each source's state; the investor can enable or configure one.")
+    return ready[0], None
+
+
+# ---- pythia_find and pythia_instrument -----------------------------------------------------------------------------
+
+def find(arguments: dict, **_context: Any) -> str:
+    arguments = {**arguments, "limit": min(int(arguments.get("limit") or 10), 25)}
+    result = json.loads(identity().search(arguments))
+    for row in (result.get("data") or {}).get("rows", []):
+        row.pop("bindings", None)  # Desk's confirmed provider bindings; the agent reads through subject ids
+    (result.get("data") or {}).pop("lookup", None)
+    if result.get("outcome") == "ok":
+        result["next"] = ("pythia_instrument for a row's identifiers, listings and sources; pythia_prices, "
+                          "pythia_filings and `pythia help` take its subject id.")
+    return encode(result)
+
+
+def instrument(arguments: dict, **_context: Any) -> str:
+    result = json.loads(identity().subject(arguments))
+    view = result.get("data")
+    if not isinstance(view, dict):
+        return encode(result)
+    sources = [{"concept": section["section"], **label(section["plugin"]), "status": section["status"],
+                **({"reason": section["reason"]} if section["reason"] else {}),
+                **({"reference": section["binding"]} if section["binding"] else {}),
+                "alternatives": [{**label(item["plugin"]), "status": item["status"]} for item in section["alternatives"]]}
+               for section in view.pop("sections", [])]
+    queue = view.pop("queue", [])
+    view["sources"] = sources
+    if queue:
+        view["open_identity_questions"] = len(queue)
+    result["next"] = ("pythia_prices for quote and chart, pythia_filings for filings; `pythia help` lists provider "
+                      "depth (reported facts, fundamentals, profiles, news) by source.")
+    return encode(result)
+
+
+# ---- the identity answer (a narrow, provisional write) --------------------------------------------------------------
+
+def answer(arguments: dict, **context: Any) -> str:
+    return encode(json.loads(queue_ops.submit_verdict(identity(), arguments, **context)))
+
+
+def register(ctx: Any) -> None:
+    from .agent_reads import FILINGS, PRICES, filings, prices
+    from .pythia_command import SCHEMA as PYTHIA, command
+    tools: list[tuple[dict, Callable[..., str]]] = [
+        (FIND, find), (INSTRUMENT, instrument), (PRICES, partial(prices, ctx)), (FILINGS, partial(filings, ctx)),
+        (PYTHIA, partial(command, ctx)), (ANSWER, answer)]
+    for schema, handler in tools:
+        ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
+                          description=schema["description"].split(". ")[0])

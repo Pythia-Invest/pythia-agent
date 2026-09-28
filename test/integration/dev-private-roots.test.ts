@@ -239,6 +239,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
     ).toContain("auxiliary:\n  free_only: true\n");
     const expectedPlatformToolsets = `platform_toolsets:
   cli:
+    - pythia-desk
     - cronjob
     - delegation
     - file
@@ -250,6 +251,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
     - vision
     - web
   cron:
+    - pythia-desk
     - cronjob
     - delegation
     - file

@@ -29,5 +29,8 @@
     "echoes": [
       "lei"
     ]
-  }
+  },
+  "functions": [
+    "profile"
+  ]
 }

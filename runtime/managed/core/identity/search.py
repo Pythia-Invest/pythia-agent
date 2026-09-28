@@ -297,6 +297,7 @@ class Directory:
         bound = bindings([line["listing"] for line in shown])
         return {"rows": [{"id": line["listing"], "ticker": line["ticker"], "name": line["name"],
                           "kind": line["ikind"], "mic": line["mic"], "venue": line["venue"], "country": line["country"],
+                          "isin": line["isin"], "lei": line["lei"], "cik": line["cik"],
                           "listings": self.listings.get(line["inst"], 0),
                           "bindings": bound.get(line["listing"], [])[:16]} for line in shown],
                 "lookup": []}

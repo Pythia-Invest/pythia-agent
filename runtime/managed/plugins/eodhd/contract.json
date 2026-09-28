@@ -48,5 +48,9 @@
       "via": "listing",
       "tool": "pythia_eodhd_history"
     }
-  }
+  },
+  "functions": [
+    "eodhd-fundamentals",
+    "eodhd-news"
+  ]
 }

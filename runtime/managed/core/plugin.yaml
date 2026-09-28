@@ -9,3 +9,9 @@ provides_tools:
   - pythia_identity_resolve
   - pythia_identity_queue
   - pythia_identity_verdict
+  - pythia_find
+  - pythia_instrument
+  - pythia_prices
+  - pythia_filings
+  - pythia
+  - pythia_answer_identity_question

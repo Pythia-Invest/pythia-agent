@@ -436,7 +436,7 @@ class BackendMutationTests(unittest.TestCase):
     def test_a_subject_core_does_not_route_is_unresolved_without_source_calls(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = Sources()
-            for reason, words in ((None, "No installed source"), ("unknown_subject", "pythia_identity_search"),
+            for reason, words in ((None, "No installed source"), ("unknown_subject", "pythia_find"),
                                   ("no_reference_data", "no readable reference data"), ("core_unavailable", "not loaded")):
                 backend = Backend(directory, subjects=lambda _id, reason=reason: {"refs": [], "reason": reason},
                                   source_call=sources.call, source_projection=sources.project, access_scope=lambda: sources.access)

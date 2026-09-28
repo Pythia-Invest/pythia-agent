@@ -9,11 +9,11 @@ from .wire import require, validate, validate_read_result, WireError
 
 def read_failure(request, code, *, reason="unavailable", alternatives=(), provider=None, selected=None, source_issues=()):
     # A key's text before ":" is the issue code; the rest picks the explanation.
-    messages = {"unresolved_identity": "No installed source serves this subject yet. Check it with pythia_identity_subject; pythia_identity_resolve asks a source that needs a lookup.",
-                "unresolved_identity:unknown_subject": "This subject id is not in the device's reference data. Find the investment with pythia_identity_search.",
+    messages = {"unresolved_identity": "No installed source serves this subject yet. pythia_instrument shows each source's state for it.",
+                "unresolved_identity:unknown_subject": "This subject id is not in the device's reference data. Find the investment with pythia_find.",
                 "unresolved_identity:no_reference_data": "This device has no readable reference data yet, so no subject can be routed. Explicit source references still read.",
                 "unresolved_identity:core_unavailable": "Pythia core identity is not loaded, so no subject can be routed. Explicit source references still read.",
-                "issuer_subject": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them.",
+                "issuer_subject": "An issuer has no price. Read one of its securities or listings; pythia_instrument lists them.",
                 "ambiguous_series": "Several source series match; specify more criteria or pin a descriptor.",
                 "ambiguous_source": "Several sources are eligible; set a source order or pin a descriptor.",
                 "incompatible_series": "The selected source has no compatible series.",

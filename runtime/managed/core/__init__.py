@@ -15,9 +15,12 @@ def register(ctx: Any) -> None:
     from . import identity_ops
 
     identity_ops.register(ctx)
+    from . import agent_tools
+
+    agent_tools.register(ctx)
     ctx.register_tool(
         name="pythia_desk_view",
-        toolset="pythia-desk",
+        toolset=agent_tools.TOOLSET,
         schema=DESK_VIEW_SCHEMA,
         handler=desk_view,
         description="Current Pythia Desk page and observable selection",

@@ -109,8 +109,8 @@ class SearchTest(Fixture):
     def test_a_receipt_folds_into_the_company_row_shown_through_its_primary_listing(self):
         row, = self.directory.search("asml", limit=5)["rows"]
         self.assertEqual(row, {"id": ASML, "ticker": "ASML", "name": "ASML Holding N.V.", "kind": "ordinary",
-                               "mic": "XAMS", "venue": "Euronext Amsterdam", "country": "NL", "listings": 1,
-                               "bindings": []})
+                               "mic": "XAMS", "venue": "Euronext Amsterdam", "country": "NL", "isin": "NL0010273215",
+                               "lei": "724500Y6DUVHQD6OXN27", "cik": "937966", "listings": 1, "bindings": []})
 
     def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
         us = "listing:figi:BBG000K6N6G7"

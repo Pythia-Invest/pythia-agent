@@ -49,5 +49,8 @@
       "via": "listing",
       "tool": "pythia_yahoo_history"
     }
-  }
+  },
+  "functions": [
+    "yahoo-finance"
+  ]
 }

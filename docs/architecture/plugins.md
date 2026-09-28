@@ -151,6 +151,31 @@ instead of copying this demonstration's handler. The loaded core also exports
 `platform.declare_operation` for code that needs declaration helpers and
 handler-bound coordination hooks; neither mechanism creates another inventory.
 
+## Reaching the agent
+
+The agent does not see plugin tools. Core's visible tools read a plugin's
+contract concepts (quote, chart, filings), and one `pythia` tool reaches provider
+depth. To offer a read to the agent, list the operation names your tools already
+declare in `contract.json`:
+
+```json
+{"plugin": "example-research", "provider": "example", "addressing": {},
+ "functions": ["summary"]}
+```
+
+`pythia help` then lists `example summary` with the first sentence of the tool's
+description, and `pythia help example summary` prints its parameter schema.
+Only read-only declarations run; a tool core runs for a concept, resolve or
+catalogue is never a function, and a write is never one. A `native_ref`
+parameter, or one named after your native scope, is filled from the agent's
+`subject_id`. Nothing else is declared, and your schema, description and handler
+stay your own. [Agent tools](agent-tools.md) owns the placement rule and the
+table of every tool.
+
+Keep your tools in your own toolset. Pythia's seed turns its managed toolsets
+off for the model; a new toolset is visible until the investor turns it off in
+`hermes tools`.
+
 ## Plugin configuration
 
 A plugin that needs a credential or a provider contact ships a static

@@ -29,5 +29,9 @@
     "echoes": [
       "lei"
     ]
-  }
+  },
+  "functions": [
+    "facts",
+    "fundamentals"
+  ]
 }

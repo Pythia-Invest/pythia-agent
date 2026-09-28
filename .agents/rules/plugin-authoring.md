@@ -31,6 +31,9 @@ Use native registration, discovery and enablement. An exported operation must
 belong to its actual native tool owner. Authentication, profiles, HTTP admission,
 execution bounds and cleanup belong to the shared platform adapter. Do not add
 plugin-specific bearer checks, arbitrary tool dispatch or another registry.
+Only core registers model-visible tools; a plugin offers a read to the agent by
+listing its declared operation under contract `functions`, per the placement
+rule in [agent tools](../../docs/architecture/agent-tools.md).
 
 Bundled native skills use explicit qualified discovery at the pinned release;
 do not assume they enter the automatic prompt skill index. Keep descriptions and

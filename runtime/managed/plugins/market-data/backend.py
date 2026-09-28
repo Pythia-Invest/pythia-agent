@@ -34,7 +34,7 @@ def envelope(data, *, mutation=False, issues=(), outcome="ok"):
 
 
 ISSUER_ISSUE = {"code": "issuer_subject", "severity": "error",
-                "message": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them."}
+                "message": "An issuer has no price. Read one of its securities or listings; pythia_instrument lists them."}
 
 
 class Backend:

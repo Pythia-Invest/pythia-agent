@@ -86,9 +86,13 @@ def owns_tool(tool, declared_plugin):
 
 
 def eligible_tools():
+    """Plugin tools Pythia may run for a trusted caller (``may_run``), whether or not the model sees them.
+
+    Authority is native: the owning plugin is enabled, the tool's availability check passes and its
+    toolset is not disabled for the profile. A toolset left off a platform only hides the tool from
+    the model there; Desk, core's agent tools and `pythia` still run it (docs/architecture/agent-tools.md)."""
     from gateway.session_context import get_session_env
     from hermes_cli.config import load_config_readonly
-    from hermes_cli.tools_config import _get_platform_tools
     from model_tools import get_tool_definitions, _clear_tool_defs_cache
     from tools.registry import registry, invalidate_check_fn_cache
     from agent.skill_utils import parse_config_string_list
@@ -96,9 +100,10 @@ def eligible_tools():
     if not platform:
         raise ContextUnavailable('execution: trusted platform is required')
     config = load_config_readonly()
-    enabled = _get_platform_tools(config, platform, include_default_mcp_servers=False)
     disabled = parse_config_string_list((config.get('agent') or {}).get('disabled_toolsets', []))
     owners = native_tool_owners()
+    enabled = {getattr(registry.get_entry(name), 'toolset', None) for name, (owner, plugin) in owners.items()
+               if native_plugin_enabled(owner, plugin, config)} - {None}
     ownership = tuple((name, key, id(plugin), plugin.enabled) for name, (key, plugin) in sorted(owners.items()))
     key = (native_access_scope()['scope'], id(registry), id(get_tool_definitions),
            tuple(registry.get_all_tool_names()), ownership)

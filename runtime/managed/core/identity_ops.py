@@ -25,7 +25,7 @@ from .identity import batch_from_json, batch_to_json, page, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
-TOOLSET = "pythia-desk"
+TOOLSET = "pythia-core"  # operations for Desk and core; the agent reaches them through agent_tools
 PLUGIN = "pythia"  # the core plugin (plugin.yaml)
 NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
 MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes

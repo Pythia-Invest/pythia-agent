@@ -17,6 +17,7 @@ from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
 TOOL = re.compile(r"^[a-z][a-z0-9_]{0,63}\Z")
+OPERATION = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")  # a native operation declaration's name
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 
 
@@ -69,6 +70,8 @@ class Manifest:
     catalogue_tool: str | None
     catalogue_scopes: tuple[str, ...]
     resolve: Resolve | None
+    # The plugin's own declared read-only operations the agent reaches through the `pythia` tool.
+    functions: tuple[str, ...] = ()
 
     def native_scope(self, native_scope: str) -> NativeScope | None:
         return next((item for item in self.native if item.native_scope == native_scope), None)
@@ -101,6 +104,15 @@ def _enum(kind: type[StrEnum], value: Any, path: str) -> Any:
         raise ManifestError(f"{path}: expected one of {', '.join(kind)}") from None
 
 
+def _names(value: Any, path: str) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise ManifestError(f"{path}: list required")
+    names = tuple(_match(OPERATION, item, path) for item in value)
+    if len(set(names)) != len(names):
+        raise ManifestError(f"{path}: duplicate values")
+    return names
+
+
 def _enums(kind: type[StrEnum], value: Any, path: str) -> tuple[Any, ...]:
     if not isinstance(value, list):
         raise ManifestError(f"{path}: list required")
@@ -112,7 +124,8 @@ def _enums(kind: type[StrEnum], value: Any, path: str) -> tuple[Any, ...]:
 
 def validate_manifest(document: Any) -> Manifest:
     """Validate a parsed `contract.json`; raise ManifestError naming the first bad path."""
-    body = _object(document, "manifest", {"plugin", "provider", "addressing"}, {"content", "catalogue", "resolve"})
+    body = _object(document, "manifest", {"plugin", "provider", "addressing"},
+                   {"content", "catalogue", "resolve", "functions"})
     addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table"})
     native = []
     if not isinstance(addressing.get("native", []), list):
@@ -165,6 +178,7 @@ def validate_manifest(document: Any) -> Manifest:
         if DEPTH[via] < DEPTH[level] or via not in addressable:
             raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
         content[Section(key)] = ContentEntry(level, via, _match(TOOL, entry["tool"], f"{path}.tool"))
+    functions = _names(body.get("functions", []), "functions")
     return Manifest(_match(NAMESPACE, body["plugin"], "manifest.plugin"),
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
-                    tuple(native), schemes, mic_table, content, mode, tool, scopes, resolve)
+                    tuple(native), schemes, mic_table, content, mode, tool, scopes, resolve, functions)
