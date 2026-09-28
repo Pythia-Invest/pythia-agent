@@ -64,7 +64,7 @@ describe("Hermes adapter", () => {
               id: "s-1",
               title: null,
               preview: "hello",
-              source: "not-consumed",
+              source: "api_server",
               pinned: true,
             },
           ],
@@ -77,7 +77,7 @@ describe("Hermes adapter", () => {
       fetch: fetcher as typeof fetch,
     });
     await expect(client.listSessions(60, 0)).resolves.toEqual([
-      { id: "s-1", title: null, preview: "hello" },
+      { id: "s-1", title: null, preview: "hello", source: "api_server" },
     ]);
   });
 

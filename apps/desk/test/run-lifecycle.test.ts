@@ -60,6 +60,37 @@ afterEach(() => {
 });
 
 describe("SDK chat and native run lifetime", () => {
+  it("keeps the streamed answer and reports private-safe diagnostics when history fails", async () => {
+    const f = fixture();
+    const warning = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+    vi.mocked(f.api.listMessages).mockRejectedValue(
+      new Error("private provider body"),
+    );
+    f.session.send("Private research question");
+    await vi.advanceTimersByTimeAsync(0);
+    f.setStatus({
+      run_id: "run",
+      status: "completed",
+      output: "Private research answer",
+    });
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(JSON.stringify(f.session.chat.messages)).toContain(
+      "Private research answer",
+    );
+    expect(warning).toHaveBeenCalledExactlyOnceWith(
+      "Pythia completed-history read failed",
+      { sessionId: "chat", messageId: "run" },
+    );
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(
+      "Private research",
+    );
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(
+      "private provider body",
+    );
+  });
+
   it("keeps one stream across observers and reconciles a terminal status even if SSE stalls", async () => {
     const f = fixture();
     f.session.initialize(() => ({ text: "Question", attachments: [] }));

@@ -1,10 +1,14 @@
+import type { UIMessageChunk } from "ai";
 import { describe, expect, it } from "vitest";
+import type { DeskDataParts } from "@/client/chat-message";
 import { RunEventMapper } from "@/client/hermes-run-mapper";
 import { terminalEvent } from "@/client/run-terminal-event";
+import { toolView } from "@/components/chat/tool-copy";
 import { mapHermesEvent } from "@/server/hermes";
 import type { DeskRunEvent } from "@/server/types";
 import { captured, capturedClient, sseEvents } from "./hermes-capture";
 
+type Chunk = UIMessageChunk<unknown, DeskDataParts>;
 const RUNS = [
   "run-completed.json",
   "run-approval.json",
@@ -39,11 +43,81 @@ describe("pinned Hermes run stream", () => {
     }
   });
 
+  it("maps a completed run with tools, research agents and usage", async () => {
+    const { client, runId } = run("run-completed.json");
+    const events = await stream(client, runId);
+    const { chunks, mapper } = mapAll(runId, events);
+
+    const tools = new Map<string, Chunk["type"]>();
+    const names = new Map<string, string>();
+    for (const chunk of chunks) {
+      if (chunk.type === "tool-input-available")
+        names.set(chunk.toolCallId, chunk.toolName);
+      if (
+        chunk.type === "tool-output-available" ||
+        chunk.type === "tool-output-error"
+      )
+        tools.set(names.get(chunk.toolCallId) ?? "", chunk.type);
+    }
+    expect(tools.get("terminal")).toBe("tool-output-available");
+    expect(tools.get("web_search")).toBe("tool-output-error");
+    expect(tools.get("delegate_task")).toBe("tool-output-available");
+
+    const agents = new Map<string, DeskDataParts["agent"]>();
+    for (const chunk of chunks)
+      if (chunk.type === "data-agent") agents.set(chunk.data.id, chunk.data);
+    expect([...agents.values()].map((agent) => agent.status)).toEqual([
+      "completed",
+      "failed",
+    ]);
+    expect(agents.get("capture-child-session-1")).toMatchObject({
+      sessionId: "capture-child-session-1",
+      summary: "Three risk factors changed materially.",
+    });
+
+    const completed = events.at(-1);
+    expect(completed).toMatchObject({
+      event: "run.completed",
+      pending_steer: "Also compare it with the prior year.",
+    });
+    const text = chunks
+      .flatMap((chunk) => (chunk.type === "text-delta" ? [chunk.delta] : []))
+      .join("");
+    expect(text).toContain(completed?.output);
+    const finish = chunks.findLast((chunk) => chunk.type === "finish");
+    expect(finish?.messageMetadata).toMatchObject({
+      outcome: "completed",
+      run: {
+        usage: { input_tokens: 1500, output_tokens: 250, total_tokens: 1750 },
+      },
+    });
+    expect(mapper.terminal).toBe(true);
+  });
+
   it("shows Hermes reasoning as commentary before the first tool", async () => {
     const { client, runId } = run("run-completed.json");
     const { chunks } = mapAll(runId, await stream(client, runId));
     const first = chunks.find((chunk) => chunk.type === "text-delta");
     expect(first).toMatchObject({ delta: "I will check the filing first." });
+  });
+
+  it("names the deferred tool behind a live tool_call bridge event", async () => {
+    const { client, runId } = run("run-completed.json");
+    const { chunks } = mapAll(runId, await stream(client, runId));
+    const bridge = chunks.find(
+      (chunk) =>
+        chunk.type === "tool-input-available" && chunk.toolName === "tool_call",
+    );
+    if (bridge?.type !== "tool-input-available") throw new Error("no bridge");
+    expect(
+      toolView({
+        type: "dynamic-tool",
+        toolCallId: bridge.toolCallId,
+        toolName: bridge.toolName,
+        input: bridge.input,
+        state: "input-available",
+      }).toolName,
+    ).toBe("pythia_eod_prices");
   });
 
   it("resolves a native approval round trip", async () => {
@@ -74,6 +148,29 @@ describe("pinned Hermes run stream", () => {
     expect(approvals[1]).toMatchObject({ requestId, responded: "once" });
     expect(terminalEvent(await client.getRun(runId))?.event).toBe(
       "run.completed",
+    );
+  });
+
+  it("accepts steering and shows it where Hermes accepted it", async () => {
+    const { client, runId } = run("run-steered.json");
+    expect((await client.getRun(runId)).status).toBe("running");
+    expect(await client.steerRun(runId, "Focus on 2025 only.")).toEqual({
+      run_id: runId,
+      accepted: true,
+    });
+    const events = await stream(client, runId);
+    const steered = events.find((event) => event.event === "run.steered");
+    expect(steered).toBeDefined();
+    const mapper = new RunEventMapper(runId);
+    const chunks = mapper.steered(steered as DeskRunEvent, {
+      id: "steer-1",
+      text: "Focus on 2025 only.",
+    });
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: "data-steer",
+        data: expect.objectContaining({ text: "Focus on 2025 only." }),
+      }),
     );
   });
 

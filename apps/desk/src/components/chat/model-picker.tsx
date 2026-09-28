@@ -258,12 +258,12 @@ export function ModelPicker({
         <SearchSelect.Trigger
           appearance="inline"
           aria-label="Model"
-          className="w-52 max-w-[55vw]"
+          className="max-w-[40vw] justify-start gap-1 text-foreground-secondary hover:text-foreground"
         >
           <SearchSelect.Value placeholder="Select model" />
         </SearchSelect.Trigger>
         <SearchSelect.Portal>
-          <SearchSelect.Positioner align="start" side="top">
+          <SearchSelect.Positioner align="end" side="top">
             <SearchSelect.Popup
               aria-label="Select model"
               className="flex w-[min(24rem,calc(100vw-2rem))] flex-col"

@@ -128,14 +128,24 @@ export function createHermesClient(
         modelOptions: features.model_options === true,
       };
     },
-    async listSessions(limit, offset) {
+    async listSessions(limit, offset, options) {
       const query = new URLSearchParams({
-        include_children: "false",
+        include_children: String(options?.includeChildren ?? false),
         limit: String(limit),
         offset: String(offset),
       });
-      const body = await json(`/api/sessions?${query}`);
+      if (options?.source) query.set("source", options.source);
+      const body = await json(`/api/sessions?${query}`, {
+        signal: options?.signal ?? null,
+      });
       return Array.isArray(body.data) ? body.data.map(session) : [];
+    },
+    async getSession(sessionId, signal) {
+      const body = await json(
+        `/api/sessions/${encodeURIComponent(sessionId)}`,
+        { signal: signal ?? null },
+      );
+      return session(body.session);
     },
     async createSession(title) {
       const body = await json("/api/sessions", {
@@ -154,9 +164,10 @@ export function createHermesClient(
       );
       return session(body.session);
     },
-    async listMessages(sessionId, limit, offset) {
+    async listMessages(sessionId, limit, offset, options) {
       const body = await json(
-        `/api/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}&offset=${offset}&order=latest`,
+        `/api/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}&offset=${offset}&order=${options?.order ?? "latest"}`,
+        { signal: options?.signal ?? null },
       );
       const pagination = object(body.pagination);
       const data = Array.isArray(body.data) ? body.data.map(message) : [];

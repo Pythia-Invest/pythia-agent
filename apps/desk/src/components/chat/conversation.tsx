@@ -1,20 +1,42 @@
 "use client";
 
-import { WorkspaceReferenceCards } from "./workspace-reference-cards";
-import { userWorkspaceContext } from "@/client/chat-message";
-
 import { cn } from "@pythia/ui";
 import { ArrowDown } from "lucide-react";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { DeskUIMessage } from "@/client/chat-message";
+import type { OptimisticSteer } from "@/client/desk-chat";
 import { AssistantMessage, type RespondToApproval } from "./assistant-message";
-import { MessageAttachment } from "./attachment-card";
 import { CHAT_MEASURE_CLASS } from "./chat-opening";
 import { SystemNote } from "./message-parts";
+import { UserMessage } from "./user-message";
+
+/**
+ * The transcript column. The gap under the last message is wider than the one
+ * between messages: the composer is a different kind of thing, and the action
+ * bar should not read as belonging to it.
+ */
+export const TRANSCRIPT_CLASS =
+  "grid gap-3 @[48rem]/chat:px-6 px-4 pt-2.5 pb-6";
+
+/** Ephemeral view state, retained when switching between parent and child chats. */
+export type ConversationPosition = { top: number; following: boolean };
 
 export interface ConversationProps {
   approvalPending: boolean;
   messages: DeskUIMessage[];
+  beforeMessages?: ReactNode;
+  afterMessages?: ReactNode;
+  /** Saved child history has no live stream; absence of one does not prove completion. */
+  finalized?: boolean;
+  position?: ConversationPosition;
+  onAtLatestChange?: (atLatest: boolean) => void;
   hasEarlier?: boolean;
   loadingEarlier?: boolean;
   onLoadEarlier?: () => Promise<unknown>;
@@ -24,39 +46,12 @@ export interface ConversationProps {
   streaming: boolean;
   /** Epoch ms the current turn was submitted; the origin for the first wait. */
   turnStartedAt: number;
-}
-
-function UserMessage({ message }: { message: DeskUIMessage }) {
-  const text = message.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("\n");
-  return (
-    <div
-      className="ms-auto grid w-fit min-w-0 max-w-[85%] gap-1.5 rounded-container border border-border bg-subtle px-3 py-2"
-      data-role="user"
-      data-slot="message"
-    >
-      {message.parts.some((part) => part.type === "file") ? (
-        <div className="flex flex-wrap gap-1">
-          {message.parts.flatMap((part, index) =>
-            part.type === "file"
-              ? [<MessageAttachment key={`${part.url}:${index}`} part={part} />]
-              : [],
-          )}
-        </div>
-      ) : null}
-      <WorkspaceReferenceCards context={userWorkspaceContext(message)} />
-      {text ? (
-        <div className="min-w-0 whitespace-pre-wrap break-words text-foreground text-reading leading-reading">
-          {text}
-        </div>
-      ) : null}
-    </div>
-  );
+  /** Guidance sent to the running reply that it has not yet reported. */
+  steers?: OptimisticSteer[];
 }
 
 /** Before the assistant message exists: the same status line the turn will keep. */
-function PendingReply({ turnStartedAt }: { turnStartedAt: number }) {
+export function PendingReply({ turnStartedAt }: { turnStartedAt: number }) {
   return (
     <AssistantMessage
       approvalPending={false}
@@ -75,6 +70,11 @@ function PendingReply({ turnStartedAt }: { turnStartedAt: number }) {
 export function Conversation({
   approvalPending,
   messages,
+  beforeMessages,
+  afterMessages,
+  finalized = true,
+  position,
+  onAtLatestChange,
   hasEarlier = false,
   loadingEarlier = false,
   onLoadEarlier,
@@ -82,17 +82,38 @@ export function Conversation({
   onRespondToApproval,
   streaming,
   turnStartedAt,
+  steers = [],
 }: ConversationProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const followLatestRef = useRef(true);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(position?.following ?? true);
+  const lastScrollTopRef = useRef(0);
   const touchYRef = useRef<number | null>(null);
-  const [atBottom, setAtBottom] = useState(true);
+  const [atBottom, setAtBottom] = useState(position?.following ?? true);
+  useEffect(() => {
+    onAtLatestChange?.(atBottom);
+  }, [atBottom, onAtLatestChange]);
   const earlierAnchorRef = useRef<{
     height: number;
     top: number;
     firstId: string | undefined;
   } | null>(null);
   const lastMessage = messages.at(-1);
+  // Only messages sent while this transcript is open settle in; history and
+  // the saved copy that replaces a live turn appear without motion.
+  const initialIds = useRef<Set<string> | null>(null);
+  if (initialIds.current === null)
+    initialIds.current = new Set(messages.map((message) => message.id));
+  const justSent = (message: DeskUIMessage) =>
+    streaming &&
+    !initialIds.current?.has(message.id) &&
+    messages.lastIndexOf(message) >= messages.length - 2;
+  const delivered = new Set(
+    lastMessage?.parts.flatMap((part) =>
+      part.type === "data-steer" && part.id ? [part.id] : [],
+    ),
+  );
+  const sending = steers.filter((steer) => !delivered.has(steer.id));
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -101,12 +122,17 @@ export function Conversation({
 
   const handleScroll = () => {
     const viewport = viewportRef.current;
-    if (!viewport) return;
+    if (!viewport?.clientHeight) return;
     const distance =
       viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-    const nextAtBottom = distance < 48;
-    followLatestRef.current = nextAtBottom;
-    setAtBottom(nextAtBottom);
+    const movingDown = viewport.scrollTop > lastScrollTopRef.current;
+    lastScrollTopRef.current = viewport.scrollTop;
+    const nextAtBottom = distance <= 1;
+    // A small upward gesture must stay detached. Only reaching the actual end
+    // while moving down (or explicitly jumping there) resumes streaming follow.
+    if (!nextAtBottom) followLatestRef.current = false;
+    else if (movingDown) followLatestRef.current = true;
+    setAtBottom(nextAtBottom && followLatestRef.current);
   };
 
   const stopFollowing = useCallback(() => {
@@ -116,6 +142,7 @@ export function Conversation({
     // controls the jump button in handleScroll.
     if (!viewport || viewport.scrollTop <= 0) return;
     followLatestRef.current = false;
+    lastScrollTopRef.current = viewport.scrollTop;
   }, []);
 
   const jumpToLatest = useCallback(() => {
@@ -123,14 +150,44 @@ export function Conversation({
     setAtBottom(true);
     scrollToBottom("instant");
   }, [scrollToBottom]);
-
-  // Start at the latest message, then keep following while pinned to the end.
+  // Whoever just wrote something wants to see it.
+  const steerCount = steers.length;
+  const seenSteers = useRef(steerCount);
   useLayoutEffect(() => {
-    scrollToBottom("instant");
-  }, [scrollToBottom]);
+    if (steerCount > seenSteers.current) jumpToLatest();
+    seenSteers.current = steerCount;
+  }, [steerCount, jumpToLatest]);
+
+  // Restore a switched-away conversation without keeping its transcript mounted.
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (position && !position.following && viewport) {
+      viewport.scrollTop = position.top;
+      lastScrollTopRef.current = viewport.scrollTop;
+    } else scrollToBottom("instant");
+    return () => {
+      if (position && viewport) {
+        // A drawer ancestor may already be detached when React cleans up its
+        // descendants; detached elements report zero despite the last view.
+        position.top = lastScrollTopRef.current;
+        position.following = followLatestRef.current;
+      }
+    };
+  }, [position, scrollToBottom]);
   useLayoutEffect(() => {
     if (followLatestRef.current) scrollToBottom("instant");
   }, [messages, streaming, scrollToBottom]);
+  // Follow height changes through disclosure animations, not just token renders.
+  // A reader's upward gesture immediately detaches this observer as well.
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    const observer = new ResizeObserver(() => {
+      if (followLatestRef.current) scrollToBottom("instant");
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [scrollToBottom]);
   useLayoutEffect(() => {
     const anchor = earlierAnchorRef.current;
     const viewport = viewportRef.current;
@@ -148,7 +205,10 @@ export function Conversation({
   return (
     <div className="relative min-h-0 flex-1">
       <div
-        className="h-full overflow-y-auto [overflow-anchor:none]"
+        className={cn(
+          "h-full overflow-y-auto",
+          atBottom ? "[overflow-anchor:none]" : "[overflow-anchor:auto]",
+        )}
         data-slot="conversation"
         onScroll={handleScroll}
         onTouchMove={(event) => {
@@ -170,14 +230,10 @@ export function Conversation({
         ref={viewportRef}
       >
         <div
-          className={cn(
-            CHAT_MEASURE_CLASS,
-            // The gap under the last message is wider than the one between
-            // messages: the composer is a different kind of thing, and the
-            // action bar should not read as belonging to it.
-            "grid gap-3 @[48rem]/chat:px-6 px-4 pt-2.5 pb-6",
-          )}
+          ref={contentRef}
+          className={cn(CHAT_MEASURE_CLASS, TRANSCRIPT_CLASS)}
         >
+          {beforeMessages}
           {hasEarlier ? (
             <button
               className="motion-fast h-6 cursor-pointer justify-self-center rounded-md border-0 bg-transparent px-2 text-foreground-secondary text-xs transition-colors hover:bg-interaction-hover hover:text-foreground disabled:opacity-disabled"
@@ -200,12 +256,24 @@ export function Conversation({
           ) : null}
           {messages.map((message) =>
             message.role === "user" ? (
-              <UserMessage key={message.id} message={message} />
+              <UserMessage
+                entering={justSent(message)}
+                key={message.id}
+                message={message}
+              />
             ) : message.role === "system" ? (
               <SystemNote key={message.id} message={message} />
             ) : (
               <AssistantMessage
+                onInspectActivity={() => {
+                  // Reading the activity must not be yanked away by new output.
+                  followLatestRef.current = false;
+                  const viewport = viewportRef.current;
+                  if (viewport) lastScrollTopRef.current = viewport.scrollTop;
+                }}
                 approvalPending={approvalPending}
+                finalized={finalized}
+                latest={message === lastMessage}
                 key={message.id}
                 message={message}
                 onRetry={
@@ -213,6 +281,7 @@ export function Conversation({
                 }
                 onRespondToApproval={onRespondToApproval}
                 streaming={streaming && message === lastMessage}
+                {...(message === lastMessage ? { sending } : {})}
                 turnStartedAt={turnStartedAt}
               />
             ),
@@ -220,18 +289,19 @@ export function Conversation({
           {streaming && lastMessage?.role === "user" ? (
             <PendingReply turnStartedAt={turnStartedAt} />
           ) : null}
+          {afterMessages}
         </div>
       </div>
-      {/* Named, not a bare arrow: it appears only once you have scrolled away,
-          so it has to say where it takes you. */}
       {!atBottom ? (
         <button
-          className="motion-fast absolute bottom-2 left-1/2 flex h-6.5 -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-pill border border-border bg-overlay pr-2.5 pl-2 font-medium text-foreground text-xs shadow-popup transition-colors hover:bg-interaction-hover"
+          aria-label="Jump to latest"
+          title="Jump to latest"
+          className="motion-fast absolute bottom-3 left-1/2 grid size-8 -translate-x-1/2 cursor-pointer place-items-center rounded-pill border border-border bg-overlay text-foreground shadow-popup transition-colors hover:bg-interaction-hover focus-visible:outline-2 focus-visible:outline-ring"
+          data-slot="jump-to-latest"
           onClick={jumpToLatest}
           type="button"
         >
-          <ArrowDown aria-hidden="true" className="size-3 stroke-[1.8]" />
-          Jump to latest
+          <ArrowDown aria-hidden="true" className="size-4 stroke-[1.8]" />
         </button>
       ) : null}
     </div>

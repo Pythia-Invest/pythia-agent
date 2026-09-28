@@ -15,6 +15,7 @@ function fakeClient() {
       providers: [],
     })),
     listSessions: vi.fn(async () => []),
+    getSession: vi.fn(async (id: string) => ({ id })),
     createSession: vi.fn(async (title?: string) => ({
       id: "s-1",
       title: title ?? null,
@@ -134,6 +135,42 @@ function mutation(
 }
 
 describe("Desk routes", () => {
+  it("admits work reads before accessing native state", async () => {
+    const client = fakeClient();
+    const routes = createDeskRoutes(client);
+    const context = { params: Promise.resolve({ sessionId: "s-1" }) };
+    const rejected = await routes.work(
+      readRequest("/api/sessions/s-1/work", {
+        origin: "https://elsewhere.test",
+      }),
+      context,
+    );
+    expect(rejected.status).toBe(403);
+    expect(client.listMessages).not.toHaveBeenCalled();
+    expect(client.listSessions).not.toHaveBeenCalled();
+    const accepted = await routes.work(
+      readRequest("/api/sessions/s-1/work"),
+      context,
+    );
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toMatchObject({
+      plans: [],
+      agents: [],
+      offset: 0,
+    });
+  });
+  it("lets Hermes own automatic naming when no title is supplied", async () => {
+    const client = fakeClient();
+    const response = await createDeskRoutes(client).createSession(
+      mutation("/api/sessions", {}),
+    );
+    expect(response.status).toBe(201);
+    expect(client.createSession).toHaveBeenCalledExactlyOnceWith(undefined);
+    expect(await response.json()).toEqual({
+      session: { id: "s-1", title: null },
+    });
+  });
+
   it("retries a rejected suggested title once without a title", async () => {
     const client = fakeClient();
     client.createSession.mockRejectedValueOnce(

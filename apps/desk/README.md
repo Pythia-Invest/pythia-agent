@@ -61,9 +61,65 @@ that unwraps serialization and relay prefixes from Hermes's message, identifies
 the selected provider/model and HTTP status when available, and offers Retry.
 Desk does not classify the cause or replace it with its own guidance.
 
+Each assistant turn opens with one quiet line: while Pythia works it says what
+is happening now ("Reading report.md"), beside a small amber dot; once the
+answer begins it settles to "Worked for 42s". Prose streams in a stable answer
+area from its first token. Nothing opens by itself; choosing the line opens the
+turn's record inline, with commentary, plain-language tool rows and their
+details, approvals, the latest plan and the turn's research agents. While the
+run is live, the plan and agents sit directly under the line. The line settling
+does not claim completion: resumed tools bring it back without opening the
+record.
+Choosing an agent shows its conversation in the main chat area, with Back to
+chat and the agent's state; "and N more" opens the Research agents directory,
+whose search, status filter, list position and pagination persist across
+selections. Parent replies continue in the background; returning restores the
+draft and reading position. Search matches loaded titles, task text and IDs.
+Rows lead with the task's first sentence and a short native identifier, and
+every row has a labelled status icon. The list renders 25 matches per page and
+shows when more summaries may remain unloaded. Status unknown stays separate
+from finished. The child view reuses the main transcript's turns, activity,
+Markdown answers and scroll handling. Only the selected child transcript is
+loaded, and recent summary polling does not rescan older pages. A cleared plan
+disappears until a new nonempty plan is recorded. The opening bubble is
+labelled Task; its Background it was given disclosure shows the parent-supplied
+delegation context when the assignment can be uniquely matched; it is not a
+generated summary or private reasoning. The child view refreshes saved
+messages while completion is unconfirmed, without child token streaming or a
+composer. These
+are read-only projections; see [ADR 0016](../../docs/decisions/0016-native-work-visibility.md)
+for refresh, pagination, and native API limitations. No raw tool result viewer,
+inferred plan, child steering, or model-formatting override is added.
+
 The conversation loads the latest native history first and can prepend older
 pages without moving the reader. Completed answers offer copy controls, retain
 explicit source links. Native token usage remains in message metadata.
+
+Even a small upward scroll pauses following streamed text. Reach the actual
+bottom again or use **Jump to latest** to resume. New chats leave their title
+unset so Hermes can derive and improve it; explicit renames remain user-owned.
+Automatic improvement depends on native auxiliary model availability.
+
+After completion, Desk reads up to ten native pages of 100 rows to recover
+tool arguments/results and the submitted turn boundary, including when later
+background work has appended another answer. It never declares an unconfirmed
+tool successful or calls missing UI evidence a native failure. If enrichment
+cannot match or its read fails, the streamed answer stays visible and the
+browser console emits `Pythia completed-history reconciliation incomplete` or
+`Pythia completed-history read failed`, with session/message IDs only.
+
+For developer diagnosis, correlate that session ID and time with native
+`GET /api/sessions/{id}/messages?limit=100&offset=0&order=latest` (page backward
+until the relevant user boundary) and Hermes gateway logs. Compare tool-call
+IDs with result IDs; a result row may itself contain an error, and delegated
+child sessions need separate inspection. The native profile `state.db` can be
+opened read-only when API projection is insufficient. Keep transcripts and
+provider error bodies in ignored private working records, never test fixtures
+or public logs. There is no secondary telemetry store. Desk renders Markdown
+when present in the model's text without adding formatting instructions or
+overriding Hermes's native platform hint; see the
+[Hermes contract](../../runtime/contracts/hermes.md). Existing profile settings
+and already-generated answers are preserved.
 
 Files and images can be selected with the paperclip, pasted or dropped into the
 composer. Uploads show compact cards with removal and retry; sent images open a

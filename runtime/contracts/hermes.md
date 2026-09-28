@@ -180,6 +180,18 @@ ambiguous matches and unsupported or secret-bearing fields fail without copying
 credentials or other provider rows. `config get` returns `${VAR}` references
 already expanded, so templated fields are copied with their current values. See [development](../../docs/development.md) for apply semantics.
 
+Desk renders the model's returned text with Markdown support. Fresh profiles seed
+native `platform_hints.api_server.replace` to identify that capability and retain
+native file/media delivery limitations. It removes the pinned API hint's plain-text
+ban and unrelated brevity/document-style restrictions, without prescribing a
+response template. Other platform hints and core Hermes instructions are unchanged.
+Existing profiles remain user-owned: adopt the seed's replacement explicitly with
+native `hermes -p <profile> config set platform_hints.api_server.replace <text>`,
+verify with `config get platform_hints.api_server --json`, then restart Hermes.
+Review any existing replacement/append customizations before adoption. Use a fresh
+chat; saved output and cached native session instructions are not rewritten.
+See [the presentation decision](../../docs/decisions/0018-desk-markdown-platform-hint.md).
+
 Run and request failures retain the error message Hermes supplies. Desk does
 not classify provider failures or substitute onboarding guidance. The local
 Hermes API bearer remains server-only and is mechanically redacted if Hermes
@@ -422,21 +434,58 @@ The bounded session surface is:
 
 - `GET /api/sessions?limit=<n>&offset=<n>&include_children=false`; consume
   `data[].{id,title,last_active,preview,message_count,ended_at}`.
-- `POST /api/sessions` with `{"title":"…"}`; consume the HTTP 201 session.
+- `POST /api/sessions` with `{}` for ordinary new chats; consume the HTTP 201
+  session. Hermes derives a quick title and can upgrade it with its auxiliary
+  model. A supplied title has native user authority (`title_source = NULL`)
+  and blocks automatic replacement, so Desk must not supply a prompt-derived
+  title. Explicit titles remain supported through `{"title":"…"}`.
   Suggested titles must be unique. Native `invalid_title` (HTTP 400) rolls back
   the new row; Desk may retry that specific rejection once with `{}` to let
   Hermes create an untitled session. It never retries ambiguous failures or
   changes an existing session to make a suggested title available.
 - `PATCH /api/sessions/{id}` with `{"title":"…"}`. Unknown fields return 400
   `unsupported_session_field`; an invalid title returns 400 `invalid_title`.
-- `GET /api/sessions/{id}/messages?limit=<n>&offset=<n>`; the native maximum is
-  500. Consume `data[].{id,role,content,timestamp,tool_call_id,tool_name,
+- `GET /api/sessions/{id}/messages?limit=<n>&offset=<n>&order=latest|oldest`;
+  the native maximum is 500. Desk pages from `latest` for chats and uses
+  `oldest` for a child's opening assignment. Consume
+  `data[].{id,role,content,timestamp,tool_call_id,tool_name,
   tool_calls,finish_reason,reasoning,reasoning_content,display_kind}` plus pagination.
   Tool-related and reasoning fields are optional; `timestamp` is epoch seconds.
 
 There is no separate session-resume endpoint. Supplying an existing
 `session_id` to a new run reloads its transcript. See
 [session API tests](https://github.com/NousResearch/hermes-agent/blob/29112bef099274229cadff79cdff7bf7b99c4b77/tests/gateway/test_session_api.py).
+
+### Saved text Desk interprets
+
+Some saved history is Hermes-authored text rather than typed fields. Desk reads
+only these shapes, each listed in the touchpoint index:
+
+- `display_kind: "hidden"` marks compaction carriers and interrupt placeholders
+  (`api_server.py:_project_client_message`); every transcript surface drops them.
+- `display_kind` values `async_delegation_complete`, `auto_continue`,
+  `internal_notification`, `model_switch`, `personality_switch` and
+  `skill_invocation` mark user-role rows that no person typed; Desk shows notes.
+  The pinned API-server path stores background notices unmarked, so Desk also
+  recognizes the fixed headers `[ASYNC DELEGATION COMPLETE`,
+  `[ASYNC DELEGATION BATCH COMPLETE` (per-task `✗` or `--- ERROR` means not
+  every agent finished; `tools/process_registry.py:_format_async_delegation`)
+  and `[IMPORTANT: Background process …` / `[IMPORTANT: <n> background …`
+  (`format_process_notification`, `gateway/run.py`).
+- Accepted steer guidance is wrapped by `agent/prompt_builder.py:format_steer_marker`
+  in `[OUT-OF-BAND USER MESSAGE …]` … `[/OUT-OF-BAND USER MESSAGE]`. This pin
+  appends it in memory to a tool result that is already saved, so the saved
+  transcript never contains it (see [known defects](#known-defects-at-this-pin)).
+  Desk's history parser already expects the v2026.9.11+ form, a `role: "user"`
+  row with `display_kind: "steer"` carrying the marker. That is a known,
+  intentional gap until the upgrade: no pinned history row matches it.
+- `web_*`, `browser_*` and `mcp_*` results of at least 32 characters are wrapped
+  in `<untrusted_tool_result source="…">` (`agent/tool_dispatch_helpers.py:_maybe_wrap_untrusted`);
+  Desk strips the envelope before reading a JSON `error`/`status`/`exit_code`.
+- Deferred plugin tools arrive as `tool_call` with `{name, arguments}`
+  (`tools/tool_search.py:TOOL_CALL_NAME`); Desk presents the inner tool.
+- Delegated-agent session `preview` is the first 60 characters of the task
+  (`hermes_state_common.py:_shape_preview`); Desk matches agents by it.
 
 ## Runs, stream, approvals, and stop
 
@@ -446,7 +495,10 @@ Create with `POST /v1/runs` and a bounded body
 `GET /v1/runs/{run_id}` and stream `GET /v1/runs/{run_id}/events`. Status may
 contain `object`, `run_id`, `status`, `created_at`, `updated_at`, `session_id`,
 `model`, and optional `approval`, `output`, `usage`, `error`, `pending_steer`,
-or `last_event`.
+or `last_event`. `status` is `queued`, `running`, `waiting_for_approval` or
+`stopping` while active and `completed`, `failed`, `cancelled` or `interrupted`
+when terminal (`interrupted` recovers a durable run whose owner died). Desk stops
+following a run only on a terminal value it knows.
 
 The event endpoint consumes one `asyncio.Queue` per run. It does not replay or
 broadcast: simultaneous subscribers compete for queued events. A subscriber's
@@ -618,6 +670,92 @@ verified in the native framed section. Settings separately exposes the native
 the user's cwd; canonical host references and browser root admission do not
 change when those roots differ.
 
+## Native work inspection
+
+Desk qualifies `GET /api/sessions?include_children=true&source=subagent&limit=200&offset=…`
+for bounded discovery. Native session summaries expose `source`,
+`parent_session_id`, `model`, and `ended_at`; other parent edges can represent
+branches or compaction, so parentage alone is not delegation. The API has no
+parent-session filter. `GET /api/sessions/{id}` verifies selected-child
+parentage, and messages with `order=oldest` recover its initial assignment.
+Additional parent-supplied context resides in the child's system prompt (not
+exposed here), but can be recovered from uniquely matching retained parent
+`delegate_task` arguments.
+
+Each delegated child is a separate native agent and session in the same profile
+database, with `source=subagent` and `parent_session_id`. The child opens its own
+database connection and starts a fresh conversation: the delegated goal is its
+first user message, while optional parent-supplied context is embedded in the
+focused child system prompt. It does not inherit the parent's full transcript.
+The parent receives a delegation result/summary; the child's full messages stay
+in its linked session. Live `subagent_id`, durable `child_session_id`, and the
+parent HTTP `run_id` are different identities; a child session ID is not a
+child `/v1/runs` handle. Ordinary child messages use the same user, assistant,
+tool-call/result and optional saved reasoning shapes as parent history. Desk
+therefore reuses the history mapper and full conversation renderer. The initial
+assignment appears once as an attributed opening user bubble; its native row ID
+prevents duplication across history pages. The drawer offers no composer.
+
+The native session response exposes an optional `title`, but
+`agent/turn_context.py:_UNTITLED_PLATFORMS` explicitly excludes `subagent` from
+automatic title generation to avoid per-child auxiliary model calls. The
+advertised delegation task schema supplies `goal`, `context` and `output_schema`,
+with no short name/title field. A friendly automatically generated agent name
+cannot be assumed to exist on the pinned API.
+
+The session-list limit is at most 200 and `has_more` concerns the global
+source-filtered page, not the selected parent's children. There is no
+parent-scoped count or general task-text search on this HTTP route; the optional
+title filter is exact-match lookup. Pagination follows last activity, so offsets
+can move while agents work. Large-swarm views must distinguish loaded records
+from complete discovery, deduplicate by durable session ID, and avoid fetching
+all child transcripts just to populate navigation. Native parent links allow
+lineage inspection, but Desk's current work route admits only direct children.
+
+Native `todo` results contain full `todos`, `revision`, and summary counts.
+Items carry `id`, `content`, `status` and optional `parent`; states are `pending`,
+`in_progress`, `completed`, `cancelled`. Replace removes omitted IDs; merge
+updates/appends. Empty snapshots clear the plan. Revision belongs to its native
+session; it is not a global clock. Desk compares loaded snapshots for removals.
+
+The ordinary loop persists calls before execution and results before progress
+projection (`agent/conversation_loop.py`, `agent/tool_executor.py`). Child
+agents use dedicated connections to the same profile database
+(`tools/delegate_tool.py`), permitting saved-step polling. The separate
+`codex_app_server` path can flush projected messages at turn end
+(`agent/codex_runtime.py`); do not promise universal polling latency.
+
+Hermes's desktop `tui_gateway` has `todo.updated`, child stream mirrors and
+`subagent.steer`. These are not HTTP-run endpoints; a second gateway does not
+share the API process's active-child registry. Desk retains one `/v1/runs`
+subscriber and uses the read-only history API for work inspection.
+
+### Final-answer start is not an HTTP event
+
+The pinned `gateway/platforms/api_server_runs.py:_text_cb` projects each
+non-null display callback to `message.delta` with only the run ID, timestamp
+and text. It drops null segment boundaries and carries no message ID, phase or
+finish reason. `run.completed.output` is the authoritative final output after
+the native loop returns; it is not an answer-start signal.
+
+`agent/codex_runtime.py:_consume_codex_event_stream` does inspect Responses
+message phases and routes commentary/analysis separately from answer text,
+but the display callback loses that phase. It also accepts unphased text and
+can emit text before a later function-call item. In the chat-completions path,
+`agent/chat_completion_helpers.py` likewise emits content before the response's
+remaining tool calls are known. Native continuation/verification can resume
+the loop after an apparent answer. Neither model identity, an empty pending-tool
+queue, a text delay, `reasoning.available`, nor history polling can establish a
+final-answer start across the supported providers.
+
+Reliable early presentation requires a native message identity and explicit
+answer/commentary phase forwarded before its first delta, with resumed work
+still able to reopen activity. That is a future native HTTP capability, not
+something Desk can recover from today's event payload. Desk explicitly chooses early collapse as a presentation tradeoff (ADR 0016):
+prose renders outside activity immediately, while the native run remains active.
+Resumed tools update the disclosure without reopening it. Only run completion
+confirms final output; early collapse is never described as reliable detection.
+
 ## Known defects at this pin
 
 Recorded 2026-09-23. Recheck on every upgrade and remove resolved entries.
@@ -626,11 +764,12 @@ Recorded 2026-09-23. Recheck on every upgrade and remove resolved entries.
   saves each tool result immediately; `apply_pending_steer_to_tool_results` then
   appends the steer to that saved message in memory only, and later flushes skip
   saved rows. The model sees the steer for the rest of that run only; later runs
-  rebuild history from `state.db` and probably do not. The steer disappears
-  from Desk on reload. Upstream commit `7dc796463d` (2026-09-09, first released
-  in v2026.9.11) saves a standalone `role: "user"`, `display_kind: "steer"` row.
-  Resolved by upgrading the pin; a browser-side copy was rejected as a second
-  transcript store.
+  rebuild history from `state.db` and probably do not. Desk shows the steer live
+  and keeps it through end-of-run reconciliation, but it disappears on reload.
+  Upstream commit `7dc796463d` (2026-09-09, first released in v2026.9.11) saves a
+  standalone `role: "user"`, `display_kind: "steer"` row, which Desk already
+  reads. Resolved by upgrading the pin; a browser-side copy was rejected as a
+  second transcript store.
 - **Upgrade blocked: `GET /v1/skills` returns HTTP 500** in v2026.9.11 through
   v2026.9.21 and on `main` as of 2026-09-23. Commit `a6ee31f55a` made the
   handler call `_find_all_skills(skip_disabled=False, include_editorial=True)`;
@@ -682,7 +821,7 @@ test data, which guards Pythia behavior but cannot detect Hermes drift.
 | `plugins.enabled`, `platform_toolsets.{cli,cron,api_server}` | `hermes_cli/plugins.py`; `hermes_cli/tools_config.py` | Silent: tools or prompt section absent | assembled (`/v1/toolsets`) |
 | `profile/SOUL.md` (also `scripts/update/workspace-transition-state.mjs`) | `agent/prompt_builder.py:load_soul_md` | Silent: identity guidance absent | manual `workspace-instructions.py` |
 | `workspace/AGENTS.md` in the native working folder | context-file discovery from `terminal.cwd` (`agent/prompt_builder.py`) | Silent: investor context absent | manual `workspace-instructions.py` |
-| `auxiliary.free_only` | `agent/auxiliary_client.py` | Silent: paid fallback | none |
+| `auxiliary.free_only`, `platform_hints.api_server.replace` | `agent/auxiliary_client.py`; `agent/prompt_builder.py:PLATFORM_HINTS` | Silent: paid fallback or wrong prompt | none |
 | **Plugin API and private Python seams** | | | |
 | `runtime/managed/core/__init__.py`, `plugin.yaml` | `hermes_cli/plugins.py:PluginContext.register_tool`, `register_system_prompt_section`, `MAX_SYSTEM_PROMPT_SECTIONS_TOTAL_CHARS` | Loud through `plugins doctor` | probe (`native_hermes_plugin.py` dispatch); fixture `test_core.py` |
 | `runtime/managed/core/desk_view.py` | native `session_id` keyword from `model_tools.py:handle_function_call` | Silent: view unavailable | manual `workspace-view.py`; fixture `test_desk_view.py` |
@@ -698,9 +837,9 @@ test data, which guards Pythia behavior but cannot detect Hermes drift.
 | **HTTP API** (`server/hermes.ts`, `server/hermes-records.ts`, `server/hermes-inventory.ts`) | | | |
 | bearer auth and error body | `api_server.py:_check_auth`, `_openai_error` | Loud | wire capture; fixture `test/hermes.test.ts` |
 | `GET /v1/capabilities` `features.run_steer`, `model_options` | `api_server.py:_handle_capabilities` | Silent: steering hidden | wire capture |
-| `GET /api/sessions` | `_handle_list_sessions`, `_session_response` | Silent: optional fields missing | wire capture golden (not yet asserted); fixture `hermes.test.ts` |
+| `GET /api/sessions` including `source=subagent` (also `server/work.ts`) | `_handle_list_sessions`, `_session_response` | Silent: optional fields missing | wire capture; fixture `hermes.test.ts`, `work.test.ts` |
 | `POST`/`GET`/`PATCH /api/sessions[/{id}]`, `invalid_title` retry (also `server/routes.ts`) | `_handle_create_session`, `_handle_get_session`, `_handle_patch_session` | Mostly loud | wire capture (create, `invalid_title`); fixture `routes.test.ts` (PATCH) |
-| `GET /api/sessions/{id}/messages?order=` and `pagination` | `_handle_session_messages`, `_message_response` | Silent | wire capture golden (not yet asserted); fixture `hermes.test.ts` |
+| `GET /api/sessions/{id}/messages?order=` and `pagination` | `_handle_session_messages`, `_message_response` | Silent | wire capture; fixture `hermes.test.ts` |
 | `GET /api/model/options[?refresh=true]` (also `server/model-catalog.ts`) | `_handle_model_options`; `hermes_cli/inventory.py` | Silent: empty or wrong picker | fixture `model-catalog.test.ts` (not capturable offline: Hermes fetches remote catalogs) |
 | `POST /v1/runs` body and 202 reply (also `server/attachments.ts`) | `api_server_runs.py:_handle_runs`; `api_server.py:_request_agent_overrides`, `_request_reasoning_config`, `MAX_REQUEST_BYTES` | Missing `run_id` loud; other fields silent | wire capture; fixture `hermes.test.ts` |
 | `GET /v1/runs/{id}` fields and status values (also `client/run-terminal-event.ts`, `client/hermes-transport.ts`) | `api_server_runs.py:_handle_get_run`, `_set_run_status`, `_durable_run_status` | Silent: an unknown terminal value keeps Desk following the run | wire capture; fixture `run-lifecycle.test.ts` |
@@ -710,11 +849,17 @@ test data, which guards Pythia behavior but cannot detect Hermes drift.
 | `server/hermes-events.ts` frame parsing and the qualified event names | `api_server.py:_sse_frame`; `api_server_runs.py:_handle_run_events` | Silent: renamed or new events dropped | wire capture; fixture `hermes.test.ts` |
 | event fields in `server/hermes-events.ts`, `client/hermes-run-mapper.ts` | `api_server_runs.py:_make_run_event_callback`, `_text_cb` in `_handle_runs` | Silent | wire capture; fixture `hermes-transport.test.ts` |
 | copied reasoning-tag strip in `client/hermes-run-mapper.ts` | `agent/conversation_loop.py` interim content callback (tags, 500 characters) | Silent: duplicated text | fixture `hermes-transport.test.ts` |
-| `subagent.complete.status` in `client/run-delegations.ts` | `tools/delegate_tool.py` result statuses | Silent: shown as ended | wire capture golden (completed, failed; not yet asserted) |
+| `subagent.complete.status` in `client/run-delegations.ts` | `tools/delegate_tool.py` result statuses | Silent: shown as ended | wire capture (completed, failed); fixture `work.test.ts` (other statuses) |
 | **History rows and parsed strings** | | | |
-| `display_kind: "hidden"` in `client/chat-message.ts` | `api_server.py:_project_client_message` | Silent: placeholder rows shown | wire capture golden (not yet asserted) |
-| note `display_kind` values in `client/chat-message.ts` | `gateway/run.py`; `hermes_cli/cli_agent_setup_mixin.py`; `gateway/slash_commands.py` | Silent: notes shown as user bubbles | wire capture (`hidden`, delegation notices); `e2e/chat-layout.spec.ts` (`model_switch`); none for `auto_continue`, `personality_switch`, `skill_invocation` |
-| `tool_calls` and the `tool_call` bridge in `client/chat-message.ts`, `components/chat/tool-copy.ts` | `tools/tool_search.py:TOOL_CALL_NAME` | Silent: generic tool label | wire capture golden (not yet asserted) |
-| tool names in `components/chat/tool-copy.ts` | `tools/web_tools.py`, `file_tools.py`, `terminal_tool.py`, `process_registry.py`, `skills_tool.py` | Silent: generic copy | wire capture golden (not yet asserted); fixture `turn-model.test.ts` |
+| `display_kind: "hidden"` in `client/chat-message.ts`, `server/work.ts` | `api_server.py:_project_client_message` | Silent: placeholder rows shown | wire capture |
+| note `display_kind` values in `client/chat-message.ts`, `components/chat/message-parts.tsx` | `gateway/run.py`; `hermes_cli/cli_agent_setup_mixin.py`; `gateway/slash_commands.py` | Silent: notes shown as user bubbles | wire capture (`hidden`, delegation and background notices); `e2e/chat-layout.spec.ts` (`model_switch`); none for `auto_continue`, `personality_switch`, `skill_invocation` |
+| delegation and background notice headers in `client/chat-message.ts` | `tools/process_registry.py:_format_async_delegation`, `format_process_notification`; `gateway/run.py` | Silent: notices shown as user text or wrong outcome | wire capture |
+| steer marker and `display_kind: "steer"` row in `client/chat-message.ts`, `client/chat-reconciliation.ts` | `agent/prompt_builder.py:format_steer_marker`; `agent/agent_runtime_helpers.py:apply_pending_steer_to_tool_results` (the pin saves no steer) | Known gap until upgrade: guidance disappears on reload | wire capture; fixture `chat-message.test.ts` (v2026.9.11+ shape) |
+| `tool_calls` and the `tool_call` bridge in `client/chat-message.ts`, `components/chat/tool-copy.ts` | `tools/tool_search.py:TOOL_CALL_NAME` | Silent: generic tool label | wire capture; fixture `turn-model.test.ts` |
+| untrusted envelope and JSON failure fields in `components/chat/tool-copy.ts` | `agent/tool_dispatch_helpers.py:_maybe_wrap_untrusted` | Silent: failed tools look done | wire capture; fixture `turn-activity.test.ts` |
+| tool names and result shapes in `components/chat/tool-copy.ts`, `components/chat/turn-activity.tsx` | `tools/web_tools.py`, `file_tools.py`, `terminal_tool.py`, `process_registry.py`, `skills_tool.py` | Silent: generic copy, no details | fixture `turn-activity.test.ts` |
+| `delegate_task` arguments and `todo` results in `server/work.ts`, `components/chat/turn-activity.tsx`, `client/work-state.ts` | `tools/delegate_tool.py:DELEGATE_TASK_SCHEMA`; `tools/todo_tool.py:todo_tool` | Silent: plan or agents missing | wire capture; fixture `work.test.ts` |
+| live `delegate_task` preview `"<action> <subagent id>"` for `list`, `steer` and `stop` in `components/chat/tool-copy.ts` | `agent/display.py:build_tool_preview` | Cosmetic: the status line says agents are starting | fixture `turn-activity.test.ts` |
+| 60-character task preview match in `components/chat/turn-work.ts` | `hermes_state_common.py:_shape_preview` | Silent: agents not matched | wire capture |
 | provider error wrappers in `components/chat/backend-error.ts` | error text from `api_server_runs.py:_handle_runs` | Cosmetic | fixture `backend-error.test.ts` |
 | Pythia markers in `attachments.ts`, `workspace/references.ts`, `workspace/session-context.ts` | verbatim user content in `hermes_state.py`; search in `hermes_state_search.py` | Silent: context or scope lost | manual |

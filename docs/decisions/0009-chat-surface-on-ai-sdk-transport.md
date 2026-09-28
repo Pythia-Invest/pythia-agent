@@ -72,24 +72,18 @@ because Hermes sessions are append-only. Approvals bypass the SDK's boolean
 approval helpers. Live-profile browser smoke tests cover history, the empty
 state and composer gating without sending a prompt.
 
-The transcript preserves assistant prose in chronological order. A later tool
-call never reclassifies visible prose as reasoning. Tools, native reasoning
-parts and answered approvals form one activity surface for the turn. While a
-run is active, it is a non-interactive status line whose plain-language label
-updates in place from the latest reasoning or tool event, such as `Searching
-market news · 4s`; the accumulated log does not expand beneath it. Only that
-line shows browser-observed elapsed time. Once the run settles, it becomes one
-closed `Show details` disclosure whose body is a plain chronological list. It
-uses no repeated reasoning headings, success checkmarks, vertical timeline
-rail, raw input/output field grid, or nested tool disclosures.
+[ADR 0016](0016-native-work-visibility.md) replaces the earlier single-status
+presentation with accumulating activity. Commentary, tool activity, native
+reasoning and answered approvals stay visible while the run works. The final
+answer remains outside the completed-work disclosure; explicit inspection and
+reading position take priority over automatic collapse. Plan and Agents controls
+above the composer expose native state through bounded read-only projections.
 
-This presentation follows the pinned source's actual capabilities. On
-`/v1/runs`, `reasoning.available` contains up to 500 characters of ordinary
-assistant content, including final responses; it is not the provider's
-reasoning stream. While active, non-streamed preview content drives the same
-live status line. It remains ordinary assistant prose if later work proves it
-was interim commentary, while a terminal output replaces a final preview in
-place. History supplies full assistant content and optional distinct reasoning
+On `/v1/runs`, `reasoning.available` contains up to 500 characters of ordinary
+assistant content, including final responses; it is not the provider's reasoning
+stream. Non-streamed previews remain commentary, deduplicated against streamed
+text; terminal output replaces a final preview in place.
+History supplies full assistant content and optional distinct reasoning
 fields. Transcript timestamps are not execution-duration evidence.
 Tool results and native call IDs come from history; the live API supplies only
 names, previews, duration and error flags. Overlapping same-name calls remain
@@ -126,8 +120,12 @@ arrives. Guidance returned as terminal `pending_steer` becomes the next user
 turn, because Hermes accepted it after the prior answer had already settled.
 The composer follows the pinned Hermes desktop interaction: while a run is
 active, its single primary control shows Stop when the input is empty and
-changes to Send when the user types steerable text. The acknowledgement is a
-quiet system line, not another user bubble.
+changes to Send when the user types steerable text. Guidance appears as the
+user's own message under a "Steered" divider (Hermes's term) at the point the
+run received it. The work before it closes there with its own "Worked for"
+line and the work after it continues below, so each steer reads as it
+happened; folding unanswered work into the next segment was rejected because
+it hid what the model did before the guidance arrived.
 
 Desk discovers `run_steer` and `model_options` through the native capability
 document. A compact picker passes only the qualified provider, model and
@@ -166,8 +164,27 @@ Only the server-side Hermes bearer is mechanically redacted if an upstream
 response echoes it. Retry is available only on the latest failed turn, while idle, and repeats
 that turn with the selected model; Desk
 never silently falls back to another provider. The transport retains the selected model and native run token totals as SDK
-message metadata. The current answer action row exposes copy and Sources; it
-does not display response metadata.
+message metadata. Web citations are ordinary Markdown links: the Pythia plugin prompt asks for a
+link named after the publication right after the sentence it supports. Desk
+treats a short web link in that position (after sentence-ending punctuation, or
+after another citation) as a citation and renders it as a pill with the site's
+favicon; hovering shows the page title from the turn's own web tool results.
+Adjacent citations share one pill ("site +2") whose preview steps through them,
+and the pill follows the source shown.
+Every other web link stays in the prose, marked as external, and all open in a
+new tab. The favicon is requested from the cited site without a referrer,
+never from a third-party icon service. Hermes carries no citation structure,
+so a special syntax or a parsed sources block was rejected: plain links read
+correctly in every Hermes client and older answers gain pills without change.
+
+The answer action row exposes copy, Sources, and the time the answer
+completed, shown on hover. It offers no Regenerate: the pinned API server has
+no retry, undo or rewind operation. Hermes's native `/retry` and `/undo` rewind
+the transcript, but only its CLI, messaging gateway and the dashboard's
+JSON-RPC surface expose them. Re-sending the prompt as a new message was tried
+and rejected because it duplicates the turn instead of replacing the answer,
+and the SDK's local `regenerate()` hides a turn Hermes keeps. Revisit when the
+chosen Hermes surface offers a native rewind.
 
 The active run identifier is held in session storage for reconnection, never as
 a second session or run authority. Reloading the page verifies native run
@@ -196,6 +213,25 @@ approval decisions; equal answer text alone never removes an earlier turn. A fre
 independent replayable SSE fixtures were rejected because both violate the
 pinned queue contract.
 
+Chat rows, dock tabs and chat-history choices share a compact working spinner
+and unread-reply dot. Working takes precedence while the retained Chat owner
+is submitting or observing a run; a completed assistant answer becomes unread
+when its main conversation is not visible at the latest messages in the focused
+browser document. Reading a child agent, a different chat, older messages, or a
+hidden browser tab does not acknowledge the parent's answer. Opening the main
+conversation at the bottom or using Jump to latest clears its dot. Only unread
+session IDs are kept in browser session storage so a reload preserves them;
+no transcript, native session record, or read receipt is added.
+
+Working indicators cover runs this browser starts or reconnects to, not work
+started by another native client. Ordinary history refreshes can also mark a
+newly appended assistant answer unread; loading older pages never does. This
+does not discover replies in unobserved sessions. The pinned Hermes session
+index has no active run or unread-message field. Inferring a new reply from a changed title,
+timestamp or message count was rejected because tool activity and user messages
+also change those values. Polling every transcript or opening additional stream
+readers was also rejected; indicators reuse the existing retained run observer.
+
 History requests use explicit newest-first pagination. Older native pages are
 prepended on request while preserving the reader's scroll anchor. Delegation
 events enrich the one process disclosure with child goal, status and duration;
@@ -203,6 +239,35 @@ the surface does not expose child output tails or represent them as evidence.
 Completed answers provide copy controls and collect only explicit final-answer
 links into a compact anchored Sources panel, avoiding a transcript layout shift.
 Tool calls are never converted into citations.
+
+Any upward movement during streaming detaches following immediately, including
+a gesture inside the former 48px bottom tolerance. Following resumes only on
+downward arrival at the actual end or an explicit Jump to latest. A proximity
+threshold was rejected because it fought small attempts to read earlier text.
+
+Completion enrichment reads newest-first native pages back to the submitted
+user boundary, bounded to ten pages of 100 rows. It can match the completed
+answer before later native background turns, while preserving native-row
+anchors, local follow-ups and run-only details. A single-page read was rejected
+after long research turns exceeded it. Reaching the bound or failing a read
+keeps the streamed answer and logs only session/message identifiers in the
+browser console. Unconfirmed tools remain unconfirmed; missing UI evidence
+does not imply a failed native call and is not shown as "results unavailable".
+Native failures retain their existing disclosure. Delegation controls describe
+checking, stopping or updating background research without internal IDs.
+
+New chats are created untitled so Hermes owns automatic naming. Supplying the
+first prompt as a title was rejected because native title precedence treats it
+as user-owned and prevents improvement. The existing Desk title editor writes
+to the same native session through PATCH and refreshes the session list; Desk
+does not keep a separate title. Explicit renames keep user precedence, while
+auxiliary model availability governs automatic title improvement.
+
+Desk renders the returned model text using its Markdown renderer. The initial
+choice to retain the native plain-text platform hint is superseded by
+[ADR 0018](0018-desk-markdown-platform-hint.md): fresh profiles advertise Desk's
+Markdown capability through Hermes's native replacement setting. Rendering tests
+prove formatting support, not model writing quality.
 
 The rationale is a stable reading surface with inspectable evidence of work.
 Rejected alternatives are retrospectively folding prose into "thinking",
@@ -264,13 +329,12 @@ mobile copy stays inside the native modal Drawer. Theme selection belongs to
 Settings; the rail has no duplicate theme toggle.
 
 User messages are right-aligned bubbles within the reading column; assistant
-prose and system notes share its left edge. Completed answer actions remain
-visible for every answer, inset from the text edge, with compact icons and
-spacing. Run progress belongs in the transcript, not beside Submit. The
+prose and system notes share its left edge. Completed answer actions stay
+visible on the latest answer and appear on hover or focus for earlier ones,
+with quiet 16px icons in 28px targets. Run progress belongs in the transcript, not beside Submit. The
 14px product reading size is retained; tighter paragraph and turn spacing
-provides density without reducing body readability. Full-width user cards,
-hover-only historical actions and duplicated composer phase labels were
-rejected following user review.
+provides density without reducing body readability. Full-width user cards
+and duplicated composer phase labels were rejected following user review.
 
 Docked chat tabs share the available width equally, capped at 200px. Selection
 and title length do not change their width; the unsaved New chat tab follows

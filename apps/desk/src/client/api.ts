@@ -1,6 +1,8 @@
 import { BrowserRequest, DeskApiError, bodyError } from "./browser-request";
 export { DeskApiError } from "./browser-request";
 import { readLimitedBytes } from "./response-bytes";
+import { readDeskEvents } from "./run-stream";
+import type { WorkPage, AgentPage } from "@/work/types";
 import type { ReadInput } from "@pythia/market-data";
 import type { FinancialRead } from "@pythia/market-data/widgets/contract";
 import {
@@ -21,7 +23,6 @@ import { workspaceContentUrl } from "@/workspace/paths";
 import type { Attachment } from "@/attachments";
 import type {
   ApprovalChoice,
-  DeskRunEvent,
   HermesMessagePage,
   HermesCapabilities,
   HermesSession,
@@ -35,21 +36,26 @@ import type { HermesToolset } from "@/server/types";
 import type { DeskReleaseStatus } from "@/server/release-status";
 import type { ModelCatalog, ModelSelection } from "@/server/model-catalog";
 
-function parseFrame(frame: string) {
-  const data = frame
-    .split(/\r?\n/u)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n");
-  if (!data) return null;
-  try {
-    return JSON.parse(data) as DeskRunEvent;
-  } catch {
-    return null;
-  }
-}
-
 export class DeskApi extends BrowserRequest {
+  work(sessionId: string, offset: number, signal?: AbortSignal) {
+    return this.json<WorkPage>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/work?offset=${offset}`,
+      { signal: signal ?? null },
+    );
+  }
+
+  agentWork(
+    sessionId: string,
+    childId: string,
+    offset: number,
+    signal?: AbortSignal,
+  ) {
+    return this.json<AgentPage>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/work?${new URLSearchParams({ child: childId, offset: String(offset) })}`,
+      { signal: signal ?? null },
+    );
+  }
+
   async *dataUpdates(resources: DataResource[], signal: AbortSignal) {
     if (!this.csrfToken) await this.initialize();
     const response = await fetch("/api/data/updates", {
@@ -223,7 +229,7 @@ export class DeskApi extends BrowserRequest {
     ).toolset;
   }
 
-  async createSession(title: string) {
+  async createSession(title?: string) {
     return (
       await this.json<{ session: HermesSession }>("/api/sessions", {
         body: JSON.stringify({ title }),
@@ -367,27 +373,6 @@ export class DeskApi extends BrowserRequest {
     }
     if (!response.body)
       throw new DeskApiError("The run stream was empty.", 502);
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        buffer += decoder.decode(value, { stream: !done });
-        const frames = buffer.split(/\r?\n\r?\n/u);
-        buffer = frames.pop() ?? "";
-        for (const frame of frames) {
-          const event = parseFrame(frame);
-          if (event) yield event;
-        }
-        if (done) break;
-      }
-      if (buffer.trim()) {
-        const event = parseFrame(buffer);
-        if (event) yield event;
-      }
-    } finally {
-      await reader.cancel().catch(() => undefined);
-    }
+    yield* readDeskEvents(response.body);
   }
 }

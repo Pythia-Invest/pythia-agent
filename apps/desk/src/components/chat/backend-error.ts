@@ -47,7 +47,10 @@ function quotedMessage(value: string) {
  * innermost message. This formats an error; it does not classify its cause.
  */
 export function formatBackendError(value: string): BackendError {
-  const clean = value.trim();
+  // Desk draws its own status icon; Hermes's console emoji would double it.
+  const clean = value
+    .trim()
+    .replace(/^(?:\p{Extended_Pictographic}\uFE0F?\s*)+/u, "");
   const status = clean.match(/^(?:Error code:\s*|HTTP\s+)(\d+)/iu)?.[1];
   let message = quotedMessage(clean) ?? clean;
   message = message.replace(

@@ -5,9 +5,15 @@ import { useCodeHighlight } from "@/components/workspace/previews/code";
 import { CHAT_MARKDOWN_SANITIZER } from "@/components/workspace/markdown-policy";
 
 import { ChatArtifactLink } from "@/components/workspace/workspace-link";
+import { rehypeCitations } from "./citations";
 import { Button, cn } from "@pythia/ui";
 import { Streamdown } from "streamdown";
-import { useState } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
 import {
   type ApprovalData,
   type DeskUIMessage,
@@ -28,8 +34,96 @@ import { ChatError, ChatNote } from "./chat-status";
  * A module constant because Streamdown compares this prop by identity when
  * deciding whether to re-render.
  */
-const ARTIFACT_REHYPE = [CHAT_MARKDOWN_SANITIZER];
-const ARTIFACT_COMPONENTS = { a: ChatArtifactLink };
+// Citations are marked after sanitizing, so the mark survives to the link.
+const ARTIFACT_REHYPE = [CHAT_MARKDOWN_SANITIZER, rehypeCitations];
+
+type Cell<T extends "table" | "thead" | "tbody" | "tr" | "th" | "td"> =
+  ComponentProps<T> & { node?: unknown };
+
+/*
+ * Tables are Desk's own markup rather than Streamdown's framed widget: quiet
+ * row rules, no outer frame or fixed height, every row readable in place,
+ * horizontal scroll only when the columns genuinely do not fit.
+ */
+function ChatTable({
+  node: _node,
+  className: _className,
+  ...props
+}: Cell<"table">) {
+  return (
+    <div className="my-3 max-w-full overflow-x-auto" data-slot="chat-table">
+      <table
+        className="w-full border-collapse font-sans text-body tabular-nums leading-ui"
+        {...props}
+      />
+    </div>
+  );
+}
+
+function ChatTableHead({
+  node: _node,
+  className: _className,
+  ...props
+}: Cell<"thead">) {
+  return <thead {...props} />;
+}
+
+function ChatTableBody({
+  node: _node,
+  className: _className,
+  ...props
+}: Cell<"tbody">) {
+  return <tbody {...props} />;
+}
+
+function ChatTableRow({
+  node: _node,
+  className: _className,
+  ...props
+}: Cell<"tr">) {
+  return (
+    <tr
+      className="border-border border-b last:border-b-0 [thead_&]:border-border-strong"
+      {...props}
+    />
+  );
+}
+
+function ChatTableHeader({
+  node: _node,
+  className: _className,
+  ...props
+}: Cell<"th">) {
+  return (
+    <th
+      className="whitespace-nowrap px-3 py-2 text-start align-bottom font-medium text-foreground-secondary first:ps-0 last:pe-0"
+      {...props}
+    />
+  );
+}
+
+function ChatTableCell({
+  node: _node,
+  className: _className,
+  ...props
+}: Cell<"td">) {
+  return (
+    <td
+      className="px-3 py-2 align-top text-foreground first:ps-0 last:pe-0"
+      {...props}
+    />
+  );
+}
+
+const ARTIFACT_COMPONENTS = {
+  a: ChatArtifactLink,
+  table: ChatTable,
+  thead: ChatTableHead,
+  tbody: ChatTableBody,
+  tr: ChatTableRow,
+  th: ChatTableHeader,
+  td: ChatTableCell,
+};
 
 export const LINK_SAFETY = { enabled: true, onLinkCheck: () => true } as const;
 
@@ -38,6 +132,21 @@ export const LINK_SAFETY = { enabled: true, onLinkCheck: () => true } as const;
  * It merges classes with its own tailwind-merge, which drops theme names such
  * as `text-body`; the chat surface sets face and size, this only inherits.
  */
+/** Streaming words fade in; a module constant because Streamdown compares by identity. */
+const WORD_FADE = { animation: "fadeIn", duration: 280, sep: "word" } as const;
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return reduced;
+}
+
 export function AssistantText({
   streaming,
   text,
@@ -46,6 +155,7 @@ export function AssistantText({
   text: string;
 }) {
   const code = useCodeHighlight(/```|~~~/.test(text) && text.length <= 100_000);
+  const reducedMotion = usePrefersReducedMotion();
   return (
     <div
       className="min-w-0 font-reading text-reading"
@@ -56,8 +166,9 @@ export function AssistantText({
         components={ARTIFACT_COMPONENTS}
         rehypePlugins={ARTIFACT_REHYPE}
         skipHtml
-        className="min-w-0 text-foreground leading-reading [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_code]:rounded-control [&_code]:bg-subtle [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.9em] [&_h1]:mt-5 [&_h1]:mb-2 [&_h1]:font-semibold [&_h1]:text-lg [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:font-semibold [&_h2]:text-body [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_pre]:my-2.5 [&_pre]:overflow-x-auto [&_pre]:rounded-container [&_pre]:border [&_pre]:border-border [&_pre]:bg-subtle [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-2.5 [&_table]:w-full [&_table]:border-collapse [&_table]:font-sans [&_table]:tabular-nums [&_td]:border [&_td]:border-border [&_td]:px-2.5 [&_td]:py-1.5 [&_th]:border [&_th]:border-border [&_th]:bg-subtle [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-start [&_ul]:my-2 [&_ul]:list-disc [&_ul]:ps-5"
+        className="min-w-0 text-foreground leading-reading [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_code]:rounded-control [&_code]:bg-subtle [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.9em] [&_h1]:mt-5 [&_h1]:mb-2 [&_h1]:font-semibold [&_h1]:text-lg [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:font-semibold [&_h2]:text-body [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-outside [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_pre]:my-2.5 [&_pre]:overflow-x-auto [&_pre]:rounded-container [&_pre]:border [&_pre]:border-border [&_pre]:bg-subtle [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:my-2 [&_ul]:list-outside [&_ul]:list-disc [&_ul]:ps-5"
         isAnimating={streaming}
+        animated={streaming && !reducedMotion ? WORD_FADE : false}
         controls={{ code: { copy: true } }}
         linkSafety={LINK_SAFETY}
         mode={streaming ? "streaming" : "static"}
@@ -158,42 +269,57 @@ export function ApprovalCard({
   );
 }
 
+/** Machine notices whose text is addressed to the agent, never to the reader. */
+const AGENT_ADDRESSED = new Set([
+  "async_delegation_complete",
+  "async_delegation_incomplete",
+  "internal_notification",
+]);
+
 /**
  * A transcript event that is neither person nor agent: Hermes switched model,
- * continued on its own, finished a delegated task, or loaded a skill. One
- * quiet left-aligned line, with the injected text a click away when there is any.
+ * continued on its own, finished background research, or loaded a skill. One
+ * quiet line. Injected text a reader can use is a click away; notices written
+ * for the agent (result dumps, file paths) are not offered at all.
  */
+/** A timeline event in the conversation: a centred label on a hairline. */
+export function TimelineDivider({ children }: { children: ReactNode }) {
+  return (
+    <p className="m-0 flex items-center gap-3 text-foreground-secondary text-xs leading-ui before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+      {children}
+    </p>
+  );
+}
+
 export function SystemNote({ message }: { message: DeskUIMessage }) {
   const kind = message.metadata?.note;
-  const text = userText(message);
+  const text = AGENT_ADDRESSED.has(kind ?? "") ? "" : userText(message);
   const [open, setOpen] = useState(false);
   if (!kind) return null;
   return (
     <div
-      className="grid min-w-0 justify-items-start gap-1 text-start"
+      className="grid min-w-0 gap-1 pb-5 text-start"
       data-note={kind}
       data-role="system"
       data-slot="message"
     >
-      <p className="m-0 text-foreground-disabled text-xs leading-ui">
+      <TimelineDivider>
         {NOTE_COPY[kind]}
         {text ? (
-          <>
-            {" "}
-            <button
-              className="cursor-pointer border-0 bg-transparent p-0 text-foreground-disabled text-xs underline underline-offset-2 hover:text-foreground-secondary"
-              onClick={() => setOpen(!open)}
-              type="button"
-            >
-              {open ? "Hide" : "Show"}
-            </button>
-          </>
+          <button
+            className="-ms-1.5 cursor-pointer border-0 bg-transparent p-0 text-foreground-secondary text-xs underline-offset-2 hover:text-foreground hover:underline"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            type="button"
+          >
+            {open ? "Hide" : "Show"}
+          </button>
         ) : null}
-      </p>
+      </TimelineDivider>
       {open && text ? (
-        <pre className="m-0 max-h-64 w-full overflow-auto whitespace-pre-wrap rounded-container border border-border bg-subtle p-3 text-start font-reading text-foreground-secondary text-xs leading-reading">
+        <p className="m-0 max-h-64 w-full overflow-auto whitespace-pre-wrap text-start text-body text-foreground-secondary leading-reading">
           {text}
-        </pre>
+        </p>
       ) : null}
     </div>
   );
