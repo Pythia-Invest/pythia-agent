@@ -96,6 +96,26 @@ describe("chart periods follow the series a source declares", () => {
     expect(plan.unavailable.get("5Y")).toMatch(/at most 366 days/u);
   });
 
+  it("uses CoinGecko's 5-minute day for 1D and hourly samples for 5D and 1M", () => {
+    const plan = chartPlan(
+      [
+        declared("s5m", { kind: "minute", count: 5 }, 1, "all"),
+        declared("o30m", { kind: "minute", count: 30 }, 1, "all"),
+        declared("s1h", { kind: "hour", count: 1 }, 90, "all"),
+        declared("o4h", { kind: "hour", count: 4 }, 7, "all"),
+        declared("d1", { kind: "day", count: 1 }, 90, "all"),
+      ],
+      NOW,
+      true,
+    );
+    expect(plan.reads.get("1D")).toMatchObject({
+      series: { id: "series:s5m" },
+      days: 1,
+    });
+    expect(plan.reads.get("5D")?.series.id).toBe("series:s1h");
+    expect(plan.reads.get("1M")?.series.id).toBe("series:s1h");
+  });
+
   it("names periods beyond a short daily history instead of stretching it", () => {
     const plan = chartPlan(
       [

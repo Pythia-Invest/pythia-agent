@@ -268,6 +268,15 @@ class Provider(unittest.TestCase):
                     self.assertNotIn('interval=', spec.full_url)
                 else:
                     self.assertIn('price_change_percentage=24h%2C7d%2C30d', spec.full_url)
+
+    def test_recent_chart_is_the_unkeyed_five_minute_day(self):
+        req = {'mode': 'keyless', 'token': None, 'operation': 'recent_chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', 'days': 1}}
+        url = worker.request_spec(req).full_url
+        self.assertIn('/coins/bitcoin/market_chart?', url)
+        self.assertIn('days=1', url)
+        self.assertNotIn('interval=', url)
+        with self.assertRaises(ValueError):
+            worker.request_spec({**req, 'arguments': {**req['arguments'], 'days': 7}})
         calls = []
         def call(op, args):
             calls.append((op, args))
@@ -387,6 +396,14 @@ class Provider(unittest.TestCase):
         req = request(definition); req['window'] = {'start':{'kind':'instant','value':(now-timedelta(days=2)).isoformat()},'end':{'kind':'instant','value':now.isoformat()}}
         with self.assertRaisesRegex(ValueError,'unsupported_window'): series.bounds(req,'ohlc_30m',now)
         with self.assertRaisesRegex(ValueError,'unsupported_series'): series.selector(series.definition(NATIVE,'ohlc_daily','USD')['source_detail']['values']['read_selector'],'demo')
+        # The free 5-minute day: one rolling day of market_chart samples.
+        five = series.definition(NATIVE, 'sample_5m', 'USD')
+        self.assertIn('sample_5m', series.modes('demo'))
+        self.assertEqual((five['interval'], five['read_support']['max_span_seconds']), ({'kind': 'minute', 'count': 5}, 86400))
+        req = request(five); req['window'] = {'start': {'kind': 'instant', 'value': (now - timedelta(hours=24)).isoformat()}, 'end': {'kind': 'instant', 'value': now.isoformat()}}
+        self.assertEqual(series.bounds(req, 'sample_5m', now), ('recent_chart', {'days': 1}))
+        req['window']['start']['value'] = (now - timedelta(days=2)).isoformat()
+        with self.assertRaisesRegex(ValueError, 'unsupported_window'): series.bounds(req, 'sample_5m', now)
 
     def test_unknown_latest_time_invalid_prices_and_granularity(self):
         d = series.definition(NATIVE, 'latest', 'USD'); req = request(d,True)
