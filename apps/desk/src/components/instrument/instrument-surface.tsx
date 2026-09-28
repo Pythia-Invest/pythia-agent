@@ -33,6 +33,7 @@ import {
   SectionPlaceholder,
   SourcesLine,
 } from "./section-status";
+import { LiveMarketView } from "./live-view";
 import { FilingsView, ProfileView } from "./section-views";
 
 /** Canonical price presentations of the market-data feature: the price
@@ -47,6 +48,7 @@ const SPAN: Record<PageBlock["type"], string> = {
   market: "@3xl:col-span-2",
   quote: "",
   chart: "@3xl:col-span-2",
+  live: "@3xl:col-span-3",
   profile: "",
   filings: "@3xl:col-span-3",
   other: "",
@@ -181,6 +183,7 @@ function BlockContent({
         {(value) => <ProfileView profile={parseProfile(value)} />}
       </SectionRead>
     );
+  if (block.type === "live") return <LiveMarketView section={lead} />;
   if (block.type === "filings")
     return (
       <SectionRead section={lead} label="Loading filings…">

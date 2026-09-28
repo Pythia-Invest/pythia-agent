@@ -1,7 +1,11 @@
 "use client";
 
 import { KIND_LABELS } from "@pythia/market-data/search-ui";
-import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
+import type {
+  RelatedSubject,
+  SubjectListing,
+  SubjectPage,
+} from "@pythia/market-data/subject";
 import { cn, Skeleton } from "@pythia/ui";
 import Link from "next/link";
 import { instrumentHref } from "./instrument-href";
@@ -13,6 +17,33 @@ const IDENTIFIERS = [
   ["figi", "FIGI"],
   ["caip19", "CAIP-19"],
 ] as const;
+
+/** How a related subject reads from this page: [this is the source, this is the target]. */
+const RELATION_WORDS: Record<string, [string, string]> = {
+  derivative_on: ["Underlying", "Market"],
+  tracks: ["Tracks", "Tracked by"],
+  wraps: ["Wraps", "Wrapped as"],
+  successor_of: ["Successor of", "Succeeded by"],
+};
+/** Kinds this Desk opens as a page; others are named without a link. */
+const PAGE_KINDS = new Set([
+  "issuer",
+  "security",
+  "composite",
+  "listing",
+  "market",
+]);
+
+function relationWords({ type, direction }: RelatedSubject) {
+  const words = RELATION_WORDS[type];
+  return words
+    ? words[direction === "from" ? 1 : 0]
+    : direction === "from"
+      ? "Related"
+      : type
+          .replaceAll("_", " ")
+          .replace(/^./u, (first) => first.toUpperCase());
+}
 
 function currentListing(page: SubjectPage): SubjectListing | undefined {
   return (
@@ -60,6 +91,36 @@ export function InstrumentHeader({ page }: { page: SubjectPage }) {
       </h1>
       {issuer ? (
         <p className="text-foreground-secondary text-xs">Issued by {issuer}</p>
+      ) : null}
+      {page.related.length ? (
+        <ul
+          aria-label="Related"
+          data-slot="instrument-related"
+          className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
+        >
+          {page.related.map((item) => (
+            <li
+              key={`${item.type}:${item.direction}:${item.id}`}
+              className="flex min-w-0 gap-1.5"
+            >
+              <span className="text-foreground-secondary">
+                {relationWords(item)}
+              </span>
+              {PAGE_KINDS.has(item.kind) ? (
+                <Link
+                  href={instrumentHref(item.id)}
+                  className="truncate text-foreground underline-offset-2 outline-ring hover:underline focus-visible:outline-2"
+                >
+                  {item.name ?? item.id}
+                </Link>
+              ) : (
+                <span className="truncate text-foreground">
+                  {item.name ?? item.id}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
       ) : null}
       {identifiers.length ? (
         <dl

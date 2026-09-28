@@ -71,9 +71,13 @@ export function SectionPlaceholder({
     },
   };
   const status = known[section.status];
-  const unsupported = !["quote", "chart", "profile", "filings"].includes(
-    section.section,
-  );
+  const unsupported = ![
+    "quote",
+    "chart",
+    "live",
+    "profile",
+    "filings",
+  ].includes(section.section);
   const shown = unsupported
     ? {
         icon: <Shapes />,

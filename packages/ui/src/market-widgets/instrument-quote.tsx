@@ -113,7 +113,10 @@ export type InstrumentStat = {
   /** A single value, or a low–high range. Missing values render as a dash. */
   value?: number | null | undefined;
   range?: { low: number | null; high: number | null } | undefined;
-  format?: "price" | "quantity" | undefined;
+  /** `percent` shows a signed rate already in percent (0.00125 → +0.00125%). */
+  format?: "price" | "quantity" | "percent" | undefined;
+  /** Unit after the value, such as a coin for open interest. */
+  unit?: string | undefined;
   /** Source, observation time and derivation, for inspection. */
   detail: string;
 };
@@ -137,11 +140,15 @@ export function InstrumentStats({
   className?: string;
 }) {
   const text = (stat: InstrumentStat, value: number | null | undefined) =>
-    stat.format === "quantity"
-      ? value == null || !Number.isFinite(value)
-        ? "—"
-        : quantity.format(value)
-      : instrumentNumber(value, precision);
+    value == null || !Number.isFinite(value)
+      ? "—"
+      : `${
+          stat.format === "quantity"
+            ? quantity.format(value)
+            : stat.format === "percent"
+              ? `${value > 0 ? "+" : ""}${value.toLocaleString("en-US", { maximumSignificantDigits: 4 })}%`
+              : instrumentNumber(value, precision)
+        }${stat.unit ? ` ${stat.unit}` : ""}`;
   return (
     <dl
       data-slot="instrument-stats"
