@@ -5,10 +5,11 @@ from datetime import datetime, timezone
 from .identity import reference
 from .config import CURRENCIES
 
-MODES = {'latest': ('tick', 1), 'sample_hourly': ('hour', 1), 'sample_daily': ('day', 1),
+MODES = {'latest': ('tick', 1), 'sample_5m': ('minute', 5), 'sample_hourly': ('hour', 1), 'sample_daily': ('day', 1),
          'ohlc_30m': ('minute', 30), 'ohlc_4h': ('hour', 4), 'ohlc_4d': ('day', 4),
          'ohlc_hourly': ('hour', 1), 'ohlc_daily': ('day', 1)}
-ROLLING = {'ohlc_30m': 1, 'ohlc_4h': 7, 'ohlc_4d': 90}
+# Fixed lookbacks in days. market_chart returns ~5-minute samples for one day.
+ROLLING = {'sample_5m': 1, 'ohlc_30m': 1, 'ohlc_4h': 7, 'ohlc_4d': 90}
 
 
 def modes(access):
@@ -69,5 +70,5 @@ def bounds(request, mode, clock=None, access="demo"):
         # original request and report actual coverage, including a missing start.
         if end <= clock.timestamp() - days * 86400 or end - start > days * 86400:
             raise ValueError('unsupported_window')
-        return 'ohlc', {'days': days}
+        return ('recent_chart', {'days': days}) if mode == 'sample_5m' else ('ohlc', {'days': days})
     return ('chart' if mode.startswith('sample') else 'ohlc_range'), {'from': int(start), 'to': int(end), 'interval': 'hourly' if mode.endswith('hourly') else 'daily'}

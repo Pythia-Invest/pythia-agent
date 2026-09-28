@@ -17,7 +17,9 @@ only contributes catalogue rows and content.
 | `pythia_coingecko_dashboard` | Up to three coins as quotes or rolling charts for widgets | Required |
 
 Only the standard read operations carry the market-data contribution marker.
-Hourly and daily OHLC ranges need paid access.
+Hourly and daily OHLC ranges need paid access. Without them, the finest series
+is `sample_5m`: the past day of ~5-minute `market_chart` samples, which needs no
+key. Hourly samples cover up to 90 days, and 30-minute OHLC candles one day.
 
 ## Access and configuration
 
