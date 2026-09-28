@@ -45,6 +45,8 @@ class KindTest(Fixture):
 
     def test_relation_kinds_and_grouping_live_in_the_vocabulary(self):
         self.assertEqual(relation("tracks", "security:isin:IE00B5BMR087", "index:pythia:sp500").type, "tracks")
+        perp = relation("derivative_on", "market:pythia:hyperliquid-btc-perp", "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0")
+        self.assertEqual(perp.type, "derivative_on")  # a perp market on a coin
         for type, start, end in (("wraps", ASML, SHARE), ("tracks", "index:pythia:sp500", SHARE),
                                  ("share_class_of", SHARE, "issuer:lei:724500Y6DUVHQD6OXN27")):
             with self.subTest(type=type), self.assertRaises(ValueError):
@@ -64,7 +66,7 @@ class KindTest(Fixture):
         D = "depositary_receipt_of"
         roots, odd = identity.fold_roots([(D, "security:adr", "security:x"), (D, "security:adr", "security:y"),
                                           (D, "security:a", "security:b"), (D, "security:b", "security:a")])
-        self.assertEqual(roots, {"security:adr": "security:x"})
+        self.assertEqual(roots, {})  # neither target is guessed
         self.assertEqual(sorted(odd), [("cycle", "security:a"), ("cycle", "security:b"),
                                        ("second_target", "security:adr")])
 

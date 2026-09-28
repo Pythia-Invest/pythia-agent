@@ -116,15 +116,22 @@ class PipelineTest(unittest.TestCase):
         link_receipts(self.snap)  # a receipt might be of the preferred: never guessed
         self.assertNotIn(receipt, {item.from_id for item in self.snap.relationships})
 
-    def test_a_stated_underlying_outside_the_build_yields_to_the_issuer_rule_and_is_counted(self):
+    def test_a_stated_underlying_outside_the_build_or_inactive_yields_to_the_issuer_rule_and_is_counted(self):
         receipt = self.snap.listings["XNAS:ASML"].security_id
-        self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", "isin:NL9999999999", "esma_firds",
-                                                   "firds_underlying_isin")]  # a superseded ISIN
-        self.snap.audit.clear()
-        link_receipts(self.snap)
-        edges = {(item.from_id, item.to_id, item.rule_id) for item in self.snap.relationships}
-        self.assertIn((receipt, f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
-        self.assertEqual(self.snap.audit["relations"]["firds_underlying_outside_build"], 1)
+        issuer = self.snap.securities[receipt].issuer_id
+        self.snap.securities["isin:NL9999999998"] = Security("isin:NL9999999998", "share", "esma_firds", issuer_id=issuer,
+                                                             isin="NL9999999998", activity="inactive")  # superseded
+        for stated, reason in (("isin:NL9999999999", "firds_underlying_outside_build"),
+                               ("isin:NL9999999998", "firds_underlying_inactive")):
+            with self.subTest(reason=reason):
+                self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", stated, "esma_firds",
+                                                           "firds_underlying_isin")]
+                self.snap.audit.clear()
+                link_receipts(self.snap)
+                edges = {(item.from_id, item.to_id, item.rule_id) for item in self.snap.relationships}
+                self.assertIn((receipt, f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
+                self.assertEqual(self.snap.audit["relations"][reason], 1)
+                self.assertIn((receipt, reason, stated), {(f.subject_id, f.flag, f.detail) for f in self.snap.flags})
 
     def test_similar_names_do_not_link_different_companies(self):
         self.assertIsNone(self.snap.issuers[f"lei:{NN_LEI}"].cik)

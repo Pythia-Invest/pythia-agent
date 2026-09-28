@@ -267,8 +267,9 @@ RECEIPT_RULE = "receipt_issuer_share@1"
 def link_receipts(snap: Snapshot) -> None:
     """Every receipt's `depositary_receipt_of` names a security of this build, or the receipt has none.
 
-    A FIRDS-stated underlying ISIN is kept when a security of the build carries it; FIRDS often names a
-    superseded ISIN (GSK, ArcelorMittal) or one outside the scope, so such an edge is dropped and counted. A
+    A FIRDS-stated underlying ISIN is kept when an active security of the build carries it; FIRDS often names a
+    superseded ISIN (GSK, ArcelorMittal, Tenaris) or one outside the scope, so such an edge is dropped, flagged
+    and counted. A
     receipt no source links (SEC ADRs and New York registry shares; OpenFIGI names no underlying) is linked to its
     issuer's one active ordinary share. Several candidates narrow to the ones FIRDS lists (an ISIN); an issuer with
     a preferred share, or still several candidates, gets no edge: a receipt of a preferred or of another class is
@@ -277,10 +278,15 @@ def link_receipts(snap: Snapshot) -> None:
     by_isin = {security.isin: key for key, security in snap.securities.items() if security.isin}
     kept = []
     for item in snap.relationships:
-        if item.relation == "depositary_receipt_of" and item.to_id not in snap.securities:
-            target = by_isin.get(item.to_id.split(":", 1)[1])
-            if target is None:
-                audit["firds_underlying_outside_build"] += 1
+        if item.relation == "depositary_receipt_of":
+            target = item.to_id if item.to_id in snap.securities else by_isin.get(item.to_id.split(":", 1)[1])
+            # A superseded underlying (Tenaris' old ISIN) may still be in the build, inactive: like a missing one,
+            # the edge is dropped, flagged and counted, and the issuer rule below decides.
+            reason = ("firds_underlying_outside_build" if target is None else
+                      "firds_underlying_inactive" if snap.securities[target].activity == "inactive" else None)
+            if reason:
+                audit[reason] += 1
+                snap.flag(item.from_id, reason, item.to_id)
                 continue
             item = Relationship(item.from_id, item.relation, target, item.source, item.rule_id)
         kept.append(item)

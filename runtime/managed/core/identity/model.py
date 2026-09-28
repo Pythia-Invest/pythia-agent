@@ -312,20 +312,17 @@ def fold_roots(edges: Iterable[tuple[str, str, str]]) -> tuple[dict[str, str], l
     from -> to until a subject that folds into nothing (a receipt into its share). Subjects no fold edge leaves are
     their own unit and absent from the result.
 
-    Odd fold data is kept and reported, never silently resolved: a subject with a second fold target keeps the first
-    in sorted order, and a fold cycle leaves its members as their own units. The second value lists them as
-    ("second_target" | "cycle", subject_id) for the build report and the reference audit."""
-    out: dict[str, str] = {}
-    odd: list[tuple[str, str]] = []
-    for type, start, end in sorted(tuple(edge) for edge in edges):
-        if type not in FOLD:
-            continue
-        if start in out and out[start] != end:
-            odd.append(("second_target", start))
-            continue
-        out[start] = end
+    Odd fold data is reported, never guessed: a subject with a second fold target, and the members of a fold
+    cycle, stay their own units. The second value lists them as ("second_target" | "cycle", subject_id) for the
+    build report and the reference audit."""
+    targets: dict[str, set[str]] = {}
+    for type, start, end in (tuple(edge) for edge in edges):
+        if type in FOLD:
+            targets.setdefault(start, set()).add(end)
+    odd = [("second_target", start) for start, ends in sorted(targets.items()) if len(ends) > 1]
+    out = {start: next(iter(ends)) for start, ends in targets.items() if len(ends) == 1}
     roots: dict[str, str] = {}
-    for start in out:
+    for start in sorted(out):
         seen, node = {start}, out[start]
         while node in out and node not in seen:
             seen.add(node)

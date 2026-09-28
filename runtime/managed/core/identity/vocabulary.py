@@ -90,7 +90,8 @@ class RelationType(StrEnum):
     BRIDGED_FROM = "bridged_from"                    # lock-and-mint bridged token -> the asset it bridges
     STAKED_AS = "staked_as"                          # staked asset -> its liquid staking token
     TRACKS = "tracks"                                # fund, ETC or ETN -> the index or asset it tracks
-    DERIVATIVE_ON = "derivative_on"                  # leveraged, inverse or structured product -> its underlying
+    DERIVATIVE_ON = "derivative_on"                  # leveraged, inverse or structured product, or a perp market
+                                                     # -> its underlying
     TOKENIZED_FROM = "tokenized_from"                # tokenized security -> the security it represents
     SUCCESSOR_OF = "successor_of"                    # new subject -> old one after a natural key changed
                                                      # (new ISIN after a corporate action, LEI merger)
@@ -123,7 +124,7 @@ RELATIONS: dict[RelationType, RelationRule] = {
     RelationType.BRIDGED_FROM: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
     RelationType.STAKED_AS: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
     RelationType.TRACKS: RelationRule((_SECURITY, _UNDERLYING), Grouping.RELATED),
-    RelationType.DERIVATIVE_ON: RelationRule((_SECURITY, _UNDERLYING), Grouping.RELATED),
+    RelationType.DERIVATIVE_ON: RelationRule((frozenset({Kind.SECURITY, Kind.MARKET}), _UNDERLYING), Grouping.RELATED),
     RelationType.TOKENIZED_FROM: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
     RelationType.SUCCESSOR_OF: RelationRule(None, Grouping.RELATED),
 }
