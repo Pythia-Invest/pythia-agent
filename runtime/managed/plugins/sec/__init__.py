@@ -171,7 +171,7 @@ class Reader:
         result = financials.fundamentals(raw['data'], number, raw['observed_at'], limit)
         if state is None:  # nothing to check against, which is not a warning
             result['freshness'] = {'status': 'unknown', 'latest_filing': None,
-                                   'reason': 'SEC lists no recent 10-K, 10-Q, 20-F or 40-F with XBRL for this filer.'}
+                                   'reason': 'SEC lists no recent 10-K, 10-Q, 20-F, 40-F or 6-K with XBRL for this filer.'}
             return envelope(result)
         result['freshness'] = state
         if state['status'] == 'fresh':
