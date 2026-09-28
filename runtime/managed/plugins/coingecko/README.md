@@ -74,8 +74,9 @@ equivalence between coins or providers; the identity owner decides joins and
 derives CAIP-19.
 
 Native coins such as Bitcoin, Ether and Solana carry no contract. Joining
-native coins across providers, and mapping platform names to CAIP-2 chains,
-needs a core-owned table (CAIP-19 `slip44` IDs); the connector emits neither.
+coins across providers, and mapping platform names to CAIP-2 chains, is core's
+curated canonical-asset table (`canonical_assets@1`); the connector emits
+neither.
 
 ## CoinGecko plans and terms
 

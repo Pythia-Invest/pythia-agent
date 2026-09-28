@@ -25,7 +25,7 @@ python3 tooling/reference-builder/run.py --help
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
 | Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
-| Snapshot and manifest | `schema.py`, `writer.py`, `manifest.py` | |
+| Snapshot, manifest and package | `schema.py`, `writer.py`, `manifest.py`, `package.py` | |
 
 `schema.py` is the only module that knows the table layout. The file is core's
 reference store (`runtime/managed/core/identity/sql/reference.sql`) with subject
@@ -37,10 +37,13 @@ listings by FIGI. `id_aliases` maps every other key a subject could have had
 or names two subjects, is dropped and counted. Identifier assertions carry
 authority `snapshot`. Venues carry their ISO 10383 market category (`RMKT`,
 `MLTF`…), which search uses to prefer a regulated listing over open-market
-trading. It also carries core's curated native-coin seed
-(`runtime/managed/core/identity/native_coins.json`: chains, provider chain ids
-and each provider's coin id for BTC, ETH, SOL and a few other native coins), so
-search finds those coins without a provider. Securities carry a notability
+trading. It also carries core's curated canonical crypto assets
+(`runtime/managed/core/identity/canonical_assets.json`, rule
+`canonical_assets@1`: chains, provider chain ids, and per asset its canonical
+deployment, its same-security deployments and each provider's coin id), so
+search finds those assets without a provider and every install keys them
+alike. `just canonical-assets-drift` checks the table against CoinGecko and
+CoinMarketCap; the evidence per row is in `truth/canonical-assets-audit.md`. Securities carry a notability
 `rank` (FITRS turnover order, SEC file order, curated coin order) for search; a
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit
@@ -251,9 +254,12 @@ baseline in the same change.
 ## Outputs
 
 `.local/reference-builder/out/` (git-ignored, override with `--out`) receives
-`reference-<YYYYMMDD>.sqlite3` and `manifest.json` (source URLs, retrieval
+`reference-<YYYYMMDD>.sqlite3`, `manifest.json` (source URLs, retrieval
 times and versions, row counts, audit counts, canary results and SHA-256
-checksums).
+checksums) and `package.json` (`package.py`). With `package.json`, the directory
+is a [reference package](../../docs/architecture/reference-package.md). Core
+reads only a package installed with `just reference-install`; development
+startup installs this one automatically.
 `.local/reference-builder/downloads/` (override with `--cache`) caches source
 files and API answers: OpenFIGI answers (in `openfigi-answers.sqlite3`) for 30
 days, GLEIF records and the SEC and MIC files for one day. `--sec-file` builds

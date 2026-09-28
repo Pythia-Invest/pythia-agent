@@ -1,7 +1,7 @@
 """Thin store module for the two backbone files (ADR 0037): open, create, read and write.
 
-`reference-<date>.sqlite3` is read-only: the newest file in the reference
-directory (`PYTHIA_REFERENCE_DIR`, else `<core data dir>/reference`).
+The reference SQLite file is read-only: the one in the installed reference
+package under `<core data dir>/reference` (`reference_package`, ADR 0039).
 `identity.sqlite3` lives in the core plugin's data directory and is created
 private on first use. Portable SQL only; callers own nothing but the path.
 """
@@ -21,16 +21,15 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
-from . import Store, schema_sql
+from . import Store, reference_package, schema_sql
 from .model import Binding, ProviderRef
 from .schemes import registered_kind
 from .vocabulary import PROVISIONAL
 from .resolution import QueueItem, Verdict, VerdictOutcome
 
 logger = logging.getLogger(__name__)
-REFERENCE_DIR_ENV = "PYTHIA_REFERENCE_DIR"
 SCHEMA_VERSION = "4"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds)
-REFERENCE_SCHEMA_VERSION = "2"  # reference-*.sqlite3 release.schema_version, written by the builder
+REFERENCE_SCHEMA_VERSION = str(reference_package.FORMAT_VERSION)  # the reference SQLite's release.schema_version
 
 
 def now() -> str:
@@ -38,26 +37,8 @@ def now() -> str:
 
 
 def reference_path(data_dir: Path) -> Path | None:
-    """The newest reference build this core can read, or None when the device has none yet.
-
-    A build with another schema, or one that does not open, is skipped for the previous one.
-    """
-    configured = os.environ.get(REFERENCE_DIR_ENV)
-    directory = Path(configured) if configured and Path(configured).is_absolute() else Path(data_dir) / "reference"
-    builds = sorted(directory.glob("reference-*.sqlite3"), reverse=True) if directory.is_dir() else []
-    return next((path for path in builds if _compatible(path)), None)
-
-
-def _compatible(path: Path) -> bool:
-    try:
-        connection = open_reference(path)
-        try:
-            row = connection.execute("SELECT value FROM release WHERE key = 'schema_version'").fetchone()
-        finally:
-            connection.close()
-    except sqlite3.Error:
-        return False
-    return row is not None and row[0] == REFERENCE_SCHEMA_VERSION
+    """The installed reference package's SQLite file, or None when the device has none this core can read."""
+    return reference_package.current(data_dir)
 
 
 def open_reference(path: Path) -> sqlite3.Connection:

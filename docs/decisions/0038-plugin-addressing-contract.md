@@ -93,7 +93,7 @@ filings.xbrl.org, SEC) that can address the subject at the content entry's
 core holds a confirmed binding or can derive the native reference from open
 identifiers: the MIC suffix table, a native scope named after a scheme the
 plugin accepts at that level (GLEIF by `lei`, SEC by `cik`), or core's curated
-native-coin table (rule `native_coins@1`, a confirmed binding). A derived
+canonical-asset table (rule `canonical_assets@1`, a confirmed binding). A derived
 reference is an address, never identifier evidence, and is recomputed rather
 than stored; only its read checks are stored (ADR 0037, "Read checks"). Otherwise the section is `resolving`, and the Desk asks
 `identity-resolve` for that one plugin after rendering: core runs its declared

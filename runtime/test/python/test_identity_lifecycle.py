@@ -11,7 +11,8 @@ from pathlib import Path
 from test_identity_contracts import identity
 from test_identity_page import ASML, plugin
 from test_identity_queue import AS_OF, NOW, QueueFixture, answer, load_core
-from pythia_identity_fixture import lifecycle, page, store, subject as subjects  # noqa: E402
+from test_reference_package import make_package
+from pythia_identity_fixture import lifecycle, page, reference_package, store, subject as subjects  # noqa: E402
 
 SECURITY = "security:isin:NL0010273215"
 NEW_SECURITY, NEW_LISTING = "security:figi:BBG001S7Q066", "listing:figi:BBG000C1HT47"
@@ -58,6 +59,10 @@ class LifecycleTest(QueueFixture):
         self.assertTrue(self.identity.put_binding(binding))
         return binding
 
+    def install(self, path, build_id, data):
+        """Install a build of the fixture reference as a package, as `just reference-install` does."""
+        reference_package.install(make_package(self.builds / f"package-{path.stem}", build_id, source=path), data)
+
     def rekey(self, path, again=False):
         with closing(store.open_reference(path)) as ref:
             return lifecycle.rekey(self.identity, ref, lifecycle.release_id(ref, path.stem), again=again)
@@ -73,10 +78,14 @@ class LifecycleTest(QueueFixture):
                             aliases=[(ASML, NEW_LISTING), (SECURITY, NEW_SECURITY)])
         core = load_core()
         from pythia_core_queue_fixture import identity_ops
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
-        with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(self.builds)}), \
-                unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("eodhd")]):
-            view = json.loads(ops.subject({"subject_id": ASML}))["data"]  # a saved old ID, as a bookmark holds it
+        data = Path(self.tmp.name) / "core"
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=data)))
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("eodhd")]):
+            self.install(self.path, "reference-20260926", data)  # the release the rows were written under
+            self.assertEqual(json.loads(ops.subject({"subject_id": ASML}))["data"]["subject"]["id"], ASML)
+            self.install(path, "reference-20261001", data)  # installing a newer package re-keys nothing yet
+            self.assertEqual(self.bound()[0], ASML)
+            view = json.loads(ops.subject({"subject_id": ASML}))["data"]  # its first read, by a bookmarked old ID
         ops.store.db.close()
         del core
         [quote] = [section for section in view["sections"] if section["section"] == "quote"]
@@ -93,6 +102,40 @@ class LifecycleTest(QueueFixture):
         self.assertEqual((item["candidate_ids"], item["state"]), ([NEW_LISTING], "open"))
         self.assertLessEqual(set(item["evidence_ids"]), cited)
         self.assertEqual(item["key"], replace(conflict, subject_ids=tuple(item["subject_ids"])).key)
+
+    def test_a_same_day_rebuild_is_a_new_release_for_the_re_key(self):
+        self.bind()
+        core = load_core()
+        from pythia_core_queue_fixture import identity_ops
+        data = Path(self.tmp.name) / "core"
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=data)))
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("eodhd")]):
+            self.install(self.path, "reference-20261001", data)
+            ops.subject({"subject_id": ASML})
+            # Rebuilt the same day with the same build ID: another checksum, and a re-keyed ASML.
+            self.install(self.release("rebuild", renames=[(ASML, NEW_LISTING)], aliases=[(ASML, NEW_LISTING)]),
+                         "reference-20261001", data)
+            ops.subject({"subject_id": ASML})
+        ops.store.db.close()
+        del core
+        self.assertEqual(self.bound()[0], NEW_LISTING)
+
+    def test_a_same_day_rebuild_settles_the_whole_queue_again(self):
+        core = load_core()
+        from pythia_core_queue_fixture import identity_ops, queue_ops
+        data = Path(self.tmp.name) / "core"
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=data)))
+        settled = []
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: []), \
+                unittest.mock.patch.object(queue_ops.questions, "settle_by_rules",
+                                           lambda _store, _ref, _plugins, items, **_: settled.append(len(items))):
+            self.ask(answer(("isin", "USN070592100")))  # one open question
+            for source in (self.path, self.release("rebuild")):  # the same build ID, another checksum
+                self.install(source, "reference-20261001", data)
+                queue_ops.settle(ops, [])  # no subject of its own: only a new release settles every open item
+        ops.store.db.close()
+        del core
+        self.assertEqual(settled, [1, 1])
 
     def test_a_two_hop_alias_chain_is_followed(self):
         self.bind()
