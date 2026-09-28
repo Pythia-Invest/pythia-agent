@@ -88,6 +88,10 @@ def request_spec(value):
             path += '/market_chart'
             query = {'vs_currency': args['currency'], 'days': days, 'precision': 'full'}
             if days > 1: query['interval'] = 'hourly'
+        elif operation == 'recent_chart' and set(args) == {'id', 'currency', 'days'} and args['days'] == 1:
+            # One day without an interval returns ~5-minute samples on every plan.
+            path += '/market_chart'
+            query = {'vs_currency': args['currency'], 'days': 1, 'precision': 'full'}
         elif operation == 'chart' and set(args) == {'id', 'currency', 'from', 'to', 'interval'}:
             # Hourly points need ranges up to 90 days; one daily request serves any range.
             if args['interval'] not in ('hourly', 'daily') or any(type(args[k]) is not int for k in ('from', 'to')) or not 0 <= args['to'] - args['from'] <= (90 if args['interval'] == 'hourly' else 36600) * 86400:
