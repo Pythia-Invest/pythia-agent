@@ -3,9 +3,10 @@
 Core serves a subject through addresses it derives (a ticker and MIC suffix table) or
 binds. Market-data already describes each routed reference before reading it; what that
 answer states about itself (its ISIN, currency, venue) is checked here, once per window,
-with rule `read_check@1`. A match stamps the binding's `verified_at`; a clear mismatch
-opens a conflict in Repairs and the page stops serving a derived address. Nothing here
-calls a provider.
+with rule `read_check@1`. A match stamps the binding's `verified_at`; another ISIN or venue
+opens a conflict in Repairs and the page stops serving a derived address. Another currency
+only leaves the address unverified while the reference's listing currency is not a
+signed-off fact (`ENFORCE_CURRENCY`). Nothing here calls a provider.
 """
 from __future__ import annotations
 
@@ -30,14 +31,18 @@ logger = logging.getLogger(__name__)
 CHECK_EVERY = 15 * 60  # seconds: one check per subject, reference and stated values in this window, per process
 STATED = ("isin", "currency", "venue", "name")  # what a read may state about itself
 MINOR_UNITS = {"GBX": "GBP", "ILA": "ILS", "ZAC": "ZAR"}  # a price in minor units trades in the major currency
+# The reference's listing currency is not yet a signed-off fact (FIRDS carries the notional currency), so another
+# currency only marks the address unverified. Set True once it comes from a signed-off source (ADR 0037).
+ENFORCE_CURRENCY = False
 
 
 def check_read(identity: Identity, subject_id: str, native_ref: dict, stated: dict) -> str:
     """Check what one read of a reference routed for a subject states about itself against the subject.
 
-    Returns `verified` (a match stamps `verified_at`), `refused` (a mismatch: a conflict opens in Repairs and
-    the page stops serving the reference), `questioned` (a mismatch on a confirmed binding: the question opens,
-    the binding keeps serving) or `unchecked` (nothing comparable, or not a reference core serves now)."""
+    Returns `verified` (a match stamps `verified_at`), `unverified` (only the currency differs, not enforced:
+    served, labelled, no Repairs item), `refused` (a mismatch: a conflict opens in Repairs and the page stops
+    serving the reference), `questioned` (a mismatch on a confirmed binding: the question opens, the binding keeps
+    serving) or `unchecked` (nothing comparable, or not a reference core serves now)."""
     try:
         ref = ProviderRef(native_ref["provider"], native_ref["native_id"], native_ref["native_scope"])
     except (KeyError, TypeError, ValueError):
@@ -60,14 +65,14 @@ def check_read(identity: Identity, subject_id: str, native_ref: dict, stated: di
 
 
 def compare(info: page.PluginInfo, subject: dict, ref: ProviderRef, stated: Mapping[str, str], *,
-            now: str) -> tuple[RecordClaim, str | None, bool]:
-    """What one read states about `ref`, as the plugin's record, and the first clear mismatch with the subject's
-    reference data, with whether anything could be compared.
+            now: str) -> tuple[RecordClaim, dict[str, str], bool]:
+    """What one read states about `ref`, as the plugin's record, the mismatches with the subject's reference
+    data by rule (`isin`, `venue`, `currency`), and whether anything could be compared.
 
-    Clear mismatches: another ISIN than the security's; another currency than the listing's trading currency
-    (minor units count as their major currency); a venue, through the contract's `venue_codes`, where the
-    security has no line. Names, instrument types, venue codes the contract does not map and anything the read
-    does not state are never compared."""
+    Mismatches: another ISIN than the security's; a venue, through the contract's `venue_codes`, where the
+    security has no line (the venues its listing rows are keyed on); another currency than the listing's
+    (minor units count as their major currency). Names, instrument types, venue codes the contract does not
+    map and anything the read does not state are never compared."""
     listing, values = subject["listing"], {key: value.strip() for key, value in stated.items()}
     try:
         isin = normalize_identifier(Scheme.ISIN, values["isin"].upper()) if values.get("isin") else None
@@ -83,25 +88,25 @@ def compare(info: page.PluginInfo, subject: dict, ref: ProviderRef, stated: Mapp
                     "provider_venue": venue or None, "operating_mic": info.manifest.venue_codes.get(venue)},
         provenance={"plugin": info.manifest.plugin, "source": info.manifest.provider, "adapter_version": page.READ_RULE,
                     "retrieved_at": now})
-    mismatches, compared = [], False
+    mismatches, compared = {}, False
     isins = {item.value for item in subject["evidence"] if item.scheme == "isin"}
     if record.identifiers and isins:
         compared = True
         if isin not in isins:
-            mismatches.append(f"ISIN {isin}, not {', '.join(sorted(isins))}")
+            mismatches["isin"] = f"ISIN {isin}, not {', '.join(sorted(isins))}"
     trading, stated_currency = listing and listing["currency"], record.attributes.currency
     if stated_currency and trading:
         compared = True
         if MINOR_UNITS.get(stated_currency, stated_currency) != MINOR_UNITS.get(trading, trading):
-            mismatches.append(f"currency {stated_currency}, not {trading}")
+            mismatches["currency"] = f"currency {stated_currency}, not {trading}"
     mic = record.attributes.operating_mic
     lines = {line["mic"] for line in subject["view"]["listings"]} | (
         {listing["operating_mic"] or listing["mic"]} if listing else set())
     if mic and lines - {None}:
         compared = True
         if mic not in lines:
-            mismatches.append(f"venue {venue} ({mic}), where this security has no line")
-    return record, "; ".join(mismatches) or None, compared
+            mismatches["venue"] = f"venue {venue} ({mic}), where this security has no line"
+    return record, mismatches, compared
 
 
 def _check(identity: Identity, subject_id: str, ref: ProviderRef, said: dict) -> str:
@@ -116,18 +121,21 @@ def _check(identity: Identity, subject_id: str, ref: ProviderRef, said: dict) ->
         return "unchecked"
     info = next(item for item in plugins if item.key == served["plugin"])
     target, now = subject["ids"][Level(served["via"])], store.now()
-    record, mismatch, compared = compare(info, subject, ref, said, now=now)
+    record, mismatches, compared = compare(info, subject, ref, said, now=now)
     if not compared:
         return "unchecked"
+    differs = mismatches.pop("currency", None) if not ENFORCE_CURRENCY else None
+    mismatch = "; ".join(mismatches.values()) or None
     evidence = tuple(dict.fromkeys(item.evidence_id for item in subject["evidence"]))
     identity_store = identity.store
     with identity_store.transaction():
         kept = identity_store.claim(info.manifest.plugin, ref)
         if kept is None or kept["provenance"]["adapter_version"] == page.READ_RULE:  # never over a resolve record
             identity_store.put_claim(info.manifest.plugin, ref.provider, json.loads(json.dumps(dataclasses.asdict(record))))
-        identity_store.put_check(ref, target, info.manifest.plugin, page.READ_RULE, evidence, matched=not mismatch)
+        outcome = "conflicting" if mismatch else "unverified" if differs else "verified"
+        identity_store.put_check(ref, target, info.manifest.plugin, page.READ_RULE, evidence, outcome)
         if not mismatch:
-            return "verified"
+            return "unverified" if differs else "verified"
         row = identity_store.binding_for(ref)
         bound = row is not None and row["subject_id"] == target and row["status"] == "confirmed"
         item = QueueItem(id=uuid.uuid4().hex, kind="conflict", reason="binding", subject_ids=(target,),

@@ -243,6 +243,17 @@ OTC-only receipt has no primary expectation. To add an entry, check it against
 the primary sources, add it with its sources, run the audit and update the
 baseline in the same change.
 
+Currency evidence from devices: core records the trading currency a price
+source states on its own reads (ADR 0037, "Read checks") and, while the listing
+currency is not signed off, only labels a difference. To count agreements and
+differences per venue against the reference a device used:
+
+```sh
+python3 tooling/reference-builder/read_check_audit.py --identity <identity.sqlite3> --reference <reference.sqlite3>
+```
+
+It prints counts and reference listing IDs only; keep its output out of commits.
+
 ## Configuration
 
 | Setting | Purpose |

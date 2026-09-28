@@ -1,6 +1,5 @@
 """Read checks (ADR 0037): what a source's own read states about the reference it serves, against the reference."""
 import json
-import sqlite3
 import types
 import unittest
 import unittest.mock
@@ -9,7 +8,8 @@ from pathlib import Path
 from test_identity_contracts import identity
 from test_identity_page import ASML, CONTRACTS, Fixture
 from test_identity_queue import load_core
-from pythia_identity_fixture import page, queue, store  # noqa: E402
+from test_reference_package import make_package
+from pythia_identity_fixture import page, queue, reference_package  # noqa: E402
 
 YAHOO = {**CONTRACTS["yahoo"], "addressing": {**CONTRACTS["yahoo"]["addressing"],
                                               "venue_codes": {"AMS": "XAMS", "NMS": "XNAS"}}}
@@ -23,18 +23,13 @@ class ReadCheckTest(Fixture):
         from pythia_core_queue_fixture import identity_ops, read_checks
         from pythia_core_queue_fixture.identity import page as core_page, validate_manifest
         self.checks = read_checks
-        builds = Path(self.tmp.name) / "builds"
-        builds.mkdir()
-        (builds / self.path.name).write_bytes(self.path.read_bytes())
-        with sqlite3.connect(builds / self.path.name) as db:
-            db.execute("INSERT INTO release (key, value) VALUES ('schema_version', ?)", (store.REFERENCE_SCHEMA_VERSION,))
+        reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
         # The plugin as the loaded core sees it (its enums are the core package's own).
         self.yahoo = core_page.PluginInfo(key="pythia-yahoo", manifest=validate_manifest(YAHOO))
         self.installed = unittest.mock.Mock(side_effect=lambda: [self.yahoo])
-        for patch in (unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}),
-                      unittest.mock.patch.object(identity_ops, "installed", self.installed)):
-            patch.start()
-            self.addCleanup(patch.stop)
+        patch = unittest.mock.patch.object(identity_ops, "installed", self.installed)
+        patch.start()
+        self.addCleanup(patch.stop)
         self.ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
         self.addCleanup(lambda: self.ops.store.db.close())
 
@@ -77,7 +72,21 @@ class ReadCheckTest(Fixture):
                               user_turn="desk:identity-verdict:test")
         self.assertEqual(answer["outcome"], "blocked")
 
-    def test_a_currency_mismatch_is_refused_until_the_user_confirms_the_line(self):
+    def test_a_currency_difference_is_served_unverified_without_a_repairs_item(self):
+        # The reference's listing currency is not a signed-off fact yet: the read is kept, the line labelled.
+        self.assertEqual(self.check(currency="USD", venue="AMS"), "unverified")
+        quote = self.quote()
+        self.assertEqual((quote["status"], quote["binding_status"], quote["verified_at"], quote["unverified"]),
+                         ("ready", "derived", None, "currency differs"))
+        self.assertEqual((self.open_items(), self.row()["status"]), ([], "candidate"))
+        self.assertEqual(self.identity.claim("yahoo", identity.ProviderRef(**REF))["attributes"]["currency"], "USD")
+        self.assertEqual(self.check(currency="EUR", venue="AMS"), "verified")
+        self.assertEqual(self.quote()["unverified"], None)
+
+    def test_an_enforced_currency_mismatch_is_refused_until_the_user_confirms_the_line(self):
+        patch = unittest.mock.patch.object(self.checks, "ENFORCE_CURRENCY", True)
+        patch.start()
+        self.addCleanup(patch.stop)
         self.assertEqual(self.check(currency="USD"), "refused")
         self.assertEqual(self.quote()["status"], "conflict")
         [item] = self.open_items()
@@ -112,7 +121,7 @@ class ReadCheckTest(Fixture):
             self.assertEqual([self.check(currency="EUR"), self.check(currency="EUR")], ["verified", "verified"])
         self.assertEqual(self.installed.call_count, 1)
         with unittest.mock.patch.object(self.checks.time, "monotonic", return_value=1000.0):
-            self.assertEqual(self.check(currency="USD"), "refused")  # other stated values are checked at once
+            self.assertEqual(self.check(currency="USD"), "unverified")  # other stated values are checked at once
         self.assertEqual(self.installed.call_count, 2)
         with unittest.mock.patch.object(self.checks.time, "monotonic",
                                         return_value=1000.0 + self.checks.CHECK_EVERY + 1):

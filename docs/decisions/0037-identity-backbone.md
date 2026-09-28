@@ -220,26 +220,34 @@ same-ticker company elsewhere, or another currency line. So what a source
 states about itself in a read that already happens (market data describes each
 routed reference before reading it) becomes that plugin's record in `claims`
 and is compared with the subject's reference data, in code, with no extra
-provider call and no job. Clear mismatches are three: another ISIN than the
-security's; another currency than the listing's trading currency (minor units
-such as GBX count as their major currency); a venue, mapped through the
-contract's `venue_codes`, where the security has no line. Names, instrument
-types, unmapped venue codes and anything unstated are never compared, so a
-name variant is not a conflict. A match stamps `verified_at`: on the binding,
-or for a derived address on its own check row (`candidate`), which the page
-shows as the section's `verified_at`. A mismatch on a derived address marks
-that row `conflicting` and opens a `binding` conflict in Repairs, citing the
-subject's evidence; the page and every market-data read (the Desk's and the
-agent's) then refuse that source like any conflict, and a user's `same_listing`
-confirms it. A mismatch on a confirmed binding opens the question once but does
-not unbind it: identifier evidence or a verdict decided it. The rules resolver
-never re-asks a read check (it is no resolve answer). Each subject, reference
-and stated value is checked once per 15 minutes per process. The currency rule
-relies on the listing currency being the trading currency; a reference that
-still carries FIRDS' notional currency on German venues would conflict there.
-Rejected: a background re-verification job and a verification call per page
-open (extra provider traffic), fuzzy name matching (never decisive), and
-refusing a confirmed binding on a content difference.
+provider call and no job. Two mismatches are enforced: another ISIN than the
+security's, and a venue, mapped through the contract's `venue_codes`, where the
+security has no line (the venues its listing rows are keyed on, a direct
+identifier fact). A third, another currency than the listing's (minor units
+such as GBX count as their major currency), is recorded but not enforced: the
+reference's listing currency is not yet a signed-off fact (FIRDS carries the
+notional currency, and the trading-currency rework is open), so the address
+keeps serving, marked `unverified: "currency differs"`, with no Repairs item.
+`ENFORCE_CURRENCY` in `runtime/managed/core/read_checks.py` is the one switch
+that makes it a conflict; turn it on once the listing currency comes from a
+signed-off source. The recorded differences are evidence for that rework:
+`tooling/reference-builder/read_check_audit.py` counts them per venue from a
+device's store. Names, instrument types, unmapped venue codes and anything
+unstated are never compared, so a name variant is not a conflict. A match
+stamps `verified_at`: on the binding, or for a derived address on its own check
+row (`candidate`), which the page shows as the section's `verified_at`. An
+enforced mismatch on a derived address marks that row `conflicting` and opens a
+`binding` conflict in Repairs, citing the subject's evidence; the page and every
+market-data read (the Desk's and the agent's) then refuse that source like any
+conflict, and a user's `same_listing` confirms it. An enforced mismatch on a
+confirmed binding opens the question once but does not unbind it: identifier
+evidence or a verdict decided it. The rules resolver never re-asks a read check
+(it is no resolve answer). Each subject, reference and stated value is checked
+once per 15 minutes per process. Rejected: a background re-verification job and
+a verification call per page open (extra provider traffic), fuzzy name matching
+(never decisive), refusing a confirmed binding on a content difference, and
+enforcing the currency before the reference's currency is signed off (it
+refused correct quotes on German venues and Amsterdam USD ETF lines).
 
 **Search is a local read** of the directory: no provider call, no identity
 write, no reconciliation. Core's `identity-search` builds the directory in

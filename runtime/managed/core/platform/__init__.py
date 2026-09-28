@@ -22,8 +22,9 @@ def check_read(subject_id, native_ref, stated):
     """Check what one read of a subject's routed reference states about itself (core identity, ADR 0037).
 
     `stated` holds what the source's own answer says: `isin`, `currency`, `venue` (its own
-    venue code), `name`. Returns "verified", "refused" (the reference no longer serves the
-    subject; a conflict is open in Repairs), "questioned" or "unchecked". Local only."""
+    venue code), `name`. Returns "verified", "unverified" (served; only the currency
+    differs), "refused" (the reference no longer serves the subject; a conflict is open in
+    Repairs), "questioned" or "unchecked". Local only."""
     from .. import identity_ops
     return identity_ops.check_read(subject_id, native_ref, stated)
 

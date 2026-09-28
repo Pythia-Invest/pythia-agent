@@ -23,6 +23,7 @@ function section(
     request: null,
     alternatives: [],
     reason: null,
+    unverified: null,
     skipped: [],
     ...overrides,
   };

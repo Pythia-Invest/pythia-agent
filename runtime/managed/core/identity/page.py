@@ -183,7 +183,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "provider": info.manifest.provider,
               "label": info.label,
               "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
-              "binding_status": None, "verified_at": None, "request": None, "alternatives": [], "reason": None,
+              "binding_status": None, "verified_at": None, "unverified": None, "request": None, "alternatives": [], "reason": None,
               "authorities": [str(item) for item in entry.authorities]}
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
@@ -225,12 +225,15 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         ref, rule = derived
         state = "confirmed" if rule == CANONICAL_ASSETS_RULE else "derived"
         verified = check["verified_at"] if check is not None else None
+    # A check row that agrees in all it enforces but carries no stamp differs in the currency (not yet enforced).
+    unverified = "currency differs" if check is not None and not verified else None
     request = None
     if section in (Section.PROFILE, Section.FILINGS):
         if operation not in info.operations:  # the contract names it, but no native tool declares it
             return {**answer, "status": "unresolved", "reason": f"{info.label} exposes no {section} operation"}
         request = {"plugin": info.key, "operation": operation, "arguments": {"native_ref": ref.wire()}}
-    return {**answer, "binding": ref.wire(), "binding_status": state, "verified_at": verified, "request": request}
+    return {**answer, "binding": ref.wire(), "binding_status": state, "verified_at": verified,
+            "unverified": unverified, "request": request}
 
 
 def _ref(row: Mapping[str, Any]) -> ProviderRef:

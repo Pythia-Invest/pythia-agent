@@ -17,7 +17,7 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
                 "ambiguous_series": "Several source series match; specify more criteria or pin a descriptor.",
                 "ambiguous_source": "Several sources are eligible; set a source order or pin a descriptor.",
                 "incompatible_series": "The selected source has no compatible series.",
-                "binding_conflict": "The source's own record contradicts this instrument's reference data (its ISIN, currency or venue); it is queued for review in Settings, Repairs, and not used.",
+                "binding_conflict": "The source's own record contradicts this instrument's reference data (its ISIN or venue); it is queued for review in Settings, Repairs, and not used.",
                 "unavailable": "The selected source is unavailable in this native caller context.",
                 "explicit_source_required": "Available broker data requires an explicit native reference, pinned series or saved source preference.",
                 "source_error": "The selected source read failed; alternatives require a separate read.",
