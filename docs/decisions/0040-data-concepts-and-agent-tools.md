@@ -3,9 +3,11 @@
 **Status.** Concepts, the registry, the contract declarations, the selection
 rule and the `live` operation: accepted (2026-09-28) and implemented: the
 contract shape and registry, and selection in page composition with the
-investor's order, coverage, skip reasons and combined filings; the "sources
-work together" amendment (not covered goes to the next source, lists merge,
-single values side by side) is accepted and implemented. Remembering
+investor's order, coverage, skip reasons and combined filings. The "sources
+work together" amendment is accepted; not covered, the combine rules in
+selection and core's news read are implemented, with no bundled news source,
+Desk section or agent tool yet; the single-value reads arrive with their first
+source. Remembering
 "not on your plan" is decided but not built (see below). The licence classes are a recommended default that awaits
 the founder's confirmation. The agent tool surface (`may_run`, the concept
 tools in `pythia-desk` and each data plugin's provider tools in its own
@@ -58,9 +60,9 @@ registry is `identity.concepts.REGISTRY`.
 | `news` | `list` | issuer, security | every eligible, one feed |
 | `market_movers` | `most_active`, `gainers`, `losers` | a market, no subject | first eligible |
 
-`news`, `estimates` and fundamentals' `statements` have core result shapes and
-a core read (see the amendment "Sources work together"); no bundled contract
-declares them yet.
+`news` has a core item and a core read (see the amendment "Sources work
+together"); no bundled contract declares it yet. `estimates` and `fundamentals`
+get their read and row shape with their first source's onboarding.
 
 ### Plugins declare capabilities
 
@@ -397,21 +399,26 @@ later that has useful data. The first-eligible rule made a paid source an
 alternative to a free one, never a complement, and a source that simply does
 not cover a subject blocked the next one.
 
-**Not covered goes to the next source.** A read answer may say "I do not cover
-this subject for this concept": outcome `empty` with an issue coded
-`not_covered` (severity `warning`). That is not an error, so core reads the next
-eligible source in the investor's order, else core's default order; the source
-is listed as skipped (`not_covering`) with its message. Under `per_authority`
-the next source takes over only that source's authorities. A real error or
-outage still never switches source: the page keeps the stale value or shows the
-error with "Also:" alternatives (rule 4). The code is a plugin's explicit
-statement, used only where the source's answer is unambiguous:
-filings.xbrl.org answers it when its repository does not know the entity (the
-entity's filings path is 404). An empty period, an unknown ticker at the SEC
-and other "no data" answers stay what they are. Core applies it in its reads
-that choose sources (the combined reads and market movers); the market-data
-subject read already moves past a source that describes no matching series.
-The Desk's single-source profile section reads its one source directly.
+**Not covered goes to the next source.** A read answer whose whole content is
+"I do not cover this subject for this concept" (outcome `empty`, no data, and
+an issue coded `not_covered`) is not an error, so core reads the next eligible
+source in the investor's order, else core's default order. The source is then
+listed as skipped with the skip code `not_covering` (the code page composition
+already uses for a source whose declared coverage excludes the subject) and its
+message. Data, a `partial` or `ok` outcome, or an error never gives way, so a
+rate-limited or partly answering source is never silently replaced. Under
+`per_authority` the next source takes over only that source's authorities. A
+real error or outage still never switches source: the page keeps the stale
+value or shows the error with "Also:" alternatives (rule 4). The code is a
+plugin's explicit statement, used only where the source's answer is
+unambiguous: filings.xbrl.org answers it when its repository does not know the
+entity (the entity's filings path is 404). An empty period, an unknown ticker
+at the SEC and other "no data" answers stay what they are. Core applies it in
+its reads that choose sources (filings, news and market movers); the
+market-data subject read already moves past a source that describes no
+matching series. The Desk's single-source profile section reads its one source
+directly; no profile source answers `not_covered` today, and the first that
+can will route through core.
 
 **How sources combine follows the data's shape.** The registry's `combine` flag
 names it; it is core's, never a user setting.
@@ -419,56 +426,60 @@ names it; it is core's, never a user setting.
 | Shape | Concepts | `combine` | Rule |
 | --- | --- | --- | --- |
 | List | filings | `per_authority` | one source per filing authority, merged by date (unchanged) |
-| List | news | `merge` | every eligible source, one feed without exact or near-exact duplicates |
-| Single value | estimates, fundamentals (statements) | `side_by_side` | every eligible source, one labelled row each, never blended or averaged |
+| List | news | `merge` | every eligible source, one feed without cross-source duplicates |
+| Single value | estimates, fundamentals | `side_by_side` | every eligible source, one labelled row each, never blended or averaged |
 | Price | market data | none | one source per view (unchanged) |
 
-- **News.** Core's `combined` read (`pythia_concept_combined`, section `news`,
-  hidden in `pythia-core`) reads every eligible source and merges the items
-  newest first. An exact duplicate (the same link, ignoring case of scheme and
-  host, a trailing slash and the fragment) and a near-exact one (the same
-  headline, ignoring case and punctuation, within 24 hours) is dropped, and
-  the item from the higher-ranked source stays. Semantic duplicates (two
-  reports of one event) stay. Every item keeps its source. Core's news item is
-  `{id, title, url, published_at, publisher, language, source, provider,
-  plugin}`; `language` is the one the source states. Where a source states
-  none, a small local language-identification model will supply it (a later
-  change). Grouping stories and ranking their importance with Jev come later.
-- **Estimates and targets.** The same read (sections `estimates` and `targets`)
-  returns one row per source: `{value, date, basis, analysts, source, provider,
-  plugin}`, `value` being the figures as the source gives them and `basis` its
-  definition. This side-by-side view is the default display. Nothing is
-  averaged: sources differ by definition and analyst set.
-- **Statements.** Side by side too (section `financials`), on the report
-  identity of the filings v2 amendment. A source lists each report it read
-  under `data.reports` (`kind`, `period_end`, `authority`, `basis`, `value`);
-  each is one row with that report's `report_key` (issuer, kind, period end,
-  authority) and `report_period`, and `basis` stays a field. Rows of one period
-  sit together, newest first, so parallel reports (ASML's 20-F beside its ESEF
-  report) and two sources' figures for one report stay separate rows. A report
-  that is not a periodic report kind, or names no period end or authority, is
-  left out.
+- **News.** Core's `news` read (`pythia_news_combined`, hidden in
+  `pythia-core`) reads every eligible source and merges the items newest
+  first. An item is dropped only when a higher-ranked *other* source already
+  listed it: the same link (ignoring case of scheme and host, a trailing slash
+  and the fragment), or the same headline (ignoring case and punctuation; a
+  headline without words matches nothing) published less than 24 hours apart.
+  One source's own items are never dropped, so a daily "Transaction in Own
+  Shares" and two announcements under one title all stay. Semantic duplicates
+  (two reports of one event) stay. Every item keeps its source. Under `merge`
+  the order decides which copy stays, not which source is read. Core's news
+  item is `{id, title, url, published_at, publisher, language, source,
+  provider, plugin}`; `language` is the one the source states. Where a source
+  states none, a small local language-identification model will supply it (a
+  later change). Grouping stories and ranking their importance with Jev come
+  later.
+- **Single values.** Estimates, targets and statements are shown side by side,
+  one labelled row per source (value, source, date, basis or definition, and
+  analyst count where given), and are never averaged: sources differ by
+  definition and analyst set. For estimates this is the default display.
+  Statements attach to an explicit report, the report identity of the filings
+  v2 amendment (`report_key`: issuer, kind, period end, authority; basis a
+  field), so parallel reports and two sources' figures stay separate rows.
+  Selection already takes every eligible source for them; the read and its row
+  shape arrive with each concept's first source, defined against that source's
+  real data (estimates are per period, each with its own analyst count).
 - **Unaudited sources.** Under `merge` and `side_by_side` a source not yet signed
   off ([ADR 0042](0042-source-onboarding-standard.md)) contributes only when the
-  investor names it in `source_order` or no audited source is eligible;
-  otherwise it is an alternative labelled "not yet audited". Its items and rows
-  carry `unaudited`.
+  investor names it in `source_order` or no audited source is eligible (which
+  includes every audited source answering not covered); otherwise it is an
+  alternative labelled "not yet audited". Its items carry `unaudited`.
 - A failed source is listed as skipped and the result marked partial, as for
-  filings.
+  filings. A filing row whose period end is not a date is left out, and the
+  list says so (`invalid_rows`) instead of failing the read.
 
 **Adding a source needs no core change.** A plugin declares the concept, its
-operation and coverage in `contract.json`; core selects, reads and combines it.
-Checked: the manifest accepts `news` and `estimates` entries, selection and the
-combined reads are driven by the registry, and core now sends `limit` only to a
+operation and coverage in `contract.json`; core selects, reads and combines it
+for the concepts core reads (filings, news, market data, profile, market
+movers). Checked: the manifest accepts every registered concept, selection and
+the reads are driven by the registry, and core now sends `limit` only to a
 source whose schema takes it, within that schema's maximum. Provider names in
 core remain only as display labels, common aliases and core's default order; a
 source outside the default order follows the listed ones until the investor
-names it. Wiring the bundled Yahoo and EODHD news and estimates into their
-contracts is per-source onboarding work ([ADR 0042](0042-source-onboarding-standard.md)),
+names it. Wiring the bundled Yahoo and EODHD news into their contracts is
+per-source onboarding work ([ADR 0042](0042-source-onboarding-standard.md)),
 not part of this amendment.
 
 **Rejected.** Averaging or blending single values (hides a definition change);
-semantic de-duplication of news now (needs a calibrated judge); one source per
-news publisher, as filings per authority (publishers are not declared and
-aggregators overlap); treating any empty answer as not covered (an empty
-period is not a coverage statement).
+removing near-duplicates within one source (drops recurring and distinct
+announcements); semantic de-duplication of news now (needs a calibrated
+judge); one source per news publisher, as filings per authority (publishers
+are not declared and aggregators overlap); treating any empty or partial answer
+as not covered (an empty period is not a coverage statement); fixing the
+estimates and statements row shapes before a source is onboarded.

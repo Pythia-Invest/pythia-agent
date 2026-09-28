@@ -2,8 +2,8 @@
 
 `filings` reads every source chosen for a subject's filings, one per filing
 authority, and merges them into one date-sorted list of core filing items.
-`combined` reads every eligible source of news (one feed without duplicates) or
-of estimates, targets and statements (side by side). A source that answers `not_covered`
+`news` reads every eligible source of news into one feed without cross-source
+duplicates. A source that answers `not_covered`
 gives way to the next eligible source; one that fails is listed as skipped and
 the result is marked partial, and nothing switches to another source; one still
 to be looked up is listed, not awaited. Each source runs only if Pythia may run
@@ -22,8 +22,8 @@ import sqlite3
 import time
 from typing import Any
 
-from .identity import combined, filings, page
-from .identity.concepts import Combine, FilingKind, not_covered
+from .identity import filings, news, page
+from .identity.concepts import FilingKind, not_covered
 from .identity.page import Section
 from .queue_ops import SUBJECT_ID
 
@@ -57,20 +57,14 @@ FILINGS_SCHEMA = {
                                  "(material events, inside information), ownership, prospectus, other."}},
         "required": ["subject_id"], "additionalProperties": False},
 }
-COMBINED_SCHEMA = {
-    "name": "pythia_concept_combined",
-    "description": "Every connected source's answer for one concept of a subject. news: one feed, newest first, "
-                   "without exact or near-exact duplicates (same link, or same headline within a day), each item "
-                   "with its source. estimates, targets: one row per source side by side (value, date, basis, "
-                   "analyst count), never blended or averaged. financials: statements side by side, one row per source and "
-                   "report (report_key: issuer, kind, period end, authority; basis a field), rows of one period "
-                   "together. A source that failed is listed under skipped and the "
-                   "result is marked partial; one that does not cover the subject is skipped as not_covering.",
-    "parameters": {"type": "object", "properties": {
-        "subject_id": SUBJECT_ID,
-        "section": {"type": "string", "enum": [Section.NEWS.value, Section.ESTIMATES.value,
-                                                     Section.TARGETS.value, Section.FINANCIALS.value]}},
-        "required": ["subject_id", "section"], "additionalProperties": False},
+NEWS_SCHEMA = {
+    "name": "pythia_news_combined",
+    "description": "A subject's news from every connected source in one feed, newest first. An item another source "
+                   "already listed (same link, or same headline less than a day apart) is left out; each item names "
+                   "its source. A source that failed is listed under skipped and the feed is marked partial; one "
+                   "that does not cover the subject is skipped as not_covering.",
+    "parameters": {"type": "object", "properties": {"subject_id": SUBJECT_ID},
+                   "required": ["subject_id"], "additionalProperties": False},
 }
 
 
@@ -118,24 +112,18 @@ class ConceptReads:
         merged = filings.merge_filings(parts, forms, kinds, subject["ids"].get("issuer") or subject["id"])
         return self._finish(merged, subject, chosen, alternatives, skipped, waiting, bool(parts), "filings")
 
-    def combined(self, arguments: dict, **context: Any) -> str:
-        """Every eligible source of a list (news: one feed) or a single value (estimates, targets: side by side)."""
+    def news(self, arguments: dict, **context: Any) -> str:
+        """Every eligible source's news in one feed. Single values (estimates, statements) get their side-by-side
+        read with their first source's onboarding."""
         from . import identity_ops
-        section = Section(arguments.get("section"))
         subject, lookups, issue = self._subject(str(arguments.get("subject_id") or ""))
         if subject is None:
             return _envelope("empty", None, issue)
         chosen, alternatives, skipped, results, waiting = self._select_and_read(
-            subject, identity_ops.installed(), section, lookups, context)
+            subject, identity_ops.installed(), Section.NEWS, lookups, context)
         parts = [(answer, *results[answer["plugin"]]) for answer, _ in chosen if answer["plugin"] in results]
-        if page.REGISTRY[page.SERVES[section][0]].combine is Combine.MERGE:
-            merged, key = combined.merge_news(parts), "news"
-        elif section is Section.FINANCIALS:
-            merged, key = combined.statements(parts, subject["ids"].get("issuer") or subject["id"]), "rows"
-        else:
-            merged, key = combined.side_by_side(parts), "rows"
-        return self._finish({"section": section.value, **merged}, subject, chosen, alternatives, skipped, waiting,
-                            bool(parts), key)
+        return self._finish(news.merge_news(parts), subject, chosen, alternatives, skipped, waiting, bool(parts),
+                            "news")
 
     def _subject(self, subject_id: str) -> tuple[dict | None, dict, str | None]:
         try:
@@ -243,7 +231,7 @@ def register(ctx: Any, identity: Any) -> None:
     reads = ConceptReads(identity)
     # Registered like core's other Desk operations; see the ADR 0040 note on model visibility.
     declare_operation(FILINGS_SCHEMA, plugin=PLUGIN, operation="filings", handler=reads.filings, read_only=True)
-    declare_operation(COMBINED_SCHEMA, plugin=PLUGIN, operation="combined", handler=reads.combined, read_only=True)
-    for schema, handler in ((FILINGS_SCHEMA, reads.filings), (COMBINED_SCHEMA, reads.combined)):
+    declare_operation(NEWS_SCHEMA, plugin=PLUGIN, operation="news", handler=reads.news, read_only=True)
+    for schema, handler in ((FILINGS_SCHEMA, reads.filings), (NEWS_SCHEMA, reads.news)):
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])

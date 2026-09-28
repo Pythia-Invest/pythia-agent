@@ -23,8 +23,8 @@ class Concept(StrEnum):
     MARKET_DATA = "market_data"
     PROFILE = "profile"
     FILINGS = "filings"
-    FUNDAMENTALS = "fundamentals"  # statements side by side per report through core's combined read
-    ESTIMATES = "estimates"        # side by side through core's combined read; no bundled plugin declares it yet
+    FUNDAMENTALS = "fundamentals"  # side by side per report; its core read arrives with its first source
+    ESTIMATES = "estimates"        # side by side; its core read and row shape arrive with its first source
     NEWS = "news"                  # one merged feed through core's combined read; no bundled plugin declares it yet
     MARKET_MOVERS = "market_movers"  # a market's ranked lists (most active, gainers, losers); about no one subject
 
@@ -211,8 +211,9 @@ def ranked(entries: list[dict], order: tuple[str, ...], default_order: tuple[str
 
 
 def not_covered(result: Any) -> str | None:
-    """The source's message when a read answer says it does not cover the subject (`NOT_COVERED`), else None."""
-    if not isinstance(result, dict) or result.get("outcome") == "error":
+    """The source's message when its whole answer is that it does not cover the subject: outcome `empty`, no data
+    and an issue coded `NOT_COVERED`. Anything else (data, `partial`, `ok`, an error) never gives way."""
+    if not isinstance(result, dict) or result.get("outcome") != "empty" or result.get("data"):
         return None
     issue = next((item for item in result.get("issues") or [] if isinstance(item, dict)
                   and item.get("code") == NOT_COVERED), None)

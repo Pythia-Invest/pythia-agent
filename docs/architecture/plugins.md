@@ -253,7 +253,7 @@ keep provider secrets in the Hermes environment instead of Pythia custody.
 ## Declaring data concepts (`contract.json`)
 
 Core owns the data concepts (`market_data`, `profile`, `filings`, `news`,
-`estimates` and `fundamentals`), their operations and the qualities a
+and later `fundamentals` and `estimates`), their operations and the qualities a
 plugin may claim ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md)).
 A plugin that serves one declares it in `contract.json` version 1, beside its
 addressing (the full shape is in the ADR 0038 amendment):
@@ -304,30 +304,27 @@ addressing (the full shape is in the ADR 0038 amendment):
   then passes the requested forms so the source can search beyond its most
   recent filings.
 
-- A source that is asked about a subject it does not cover answers
-  `{"outcome": "empty", "issues": [{"code": "not_covered", "severity":
-  "warning", "message": "…"}]}`. That is not an error: core reads the next
-  eligible source instead. Use it only where the source's answer says so
-  unambiguously (filings.xbrl.org: the entity is not in the repository); a
-  failure, an outage or an empty period stays what it is.
+- A source that is asked about a subject it does not cover answers only
+  `{"outcome": "empty", "data": null, "issues": [{"code": "not_covered",
+  "severity": "warning", "message": "…"}]}`. That is not an error: core reads
+  the next eligible source instead. Only this whole answer counts: data, a
+  `partial` or `ok` outcome, or an error never gives way. Use it only where the
+  source's answer says so unambiguously (filings.xbrl.org: the entity is not in
+  the repository); a failure, an outage or an empty period stays what it is.
 - A `news` `list` operation takes `native_ref` (and `limit` if it pages) and
   lists items under `data.news`, each with `title`, `url`, `published_at`
   (ISO) and, where the source states them, `id`, `publisher` and `language`.
-- An `estimates` operation (`consensus`, `targets`) answers `data.value` (the
-  figures as the source gives them) with `date`, `basis` (its definition) and
-  `analysts` where the source states them.
-- A `fundamentals` `statements` operation lists each report it read under
-  `data.reports`, each with `kind` (a periodic filing kind), `period_end`,
-  `authority`, `basis` where stated, and `value` (the statements as given).
 
 Selection is core's: the investor's one `source_order` (settings.json), then
 core's default order, free sources first; a source whose coverage excludes the
 subject, or that is unconfigured, is skipped with its reason. How sources
 combine follows the data's shape: filings take one source per declared
 authority into core's `filings` read; news from every eligible source merge
-into one feed in core's `combined` read; estimates, targets and statements
-stand side by side there, one row per source (and report, for statements); prices come from one source per view. Adding
-a source needs no core change: declaring the concept is enough.
+into one feed in core's `news` read; single values (estimates, statements)
+stand side by side, one row per source, with a read and row shape that arrive
+with their first source's onboarding; prices come from one source per view.
+Adding a source to a concept core reads needs no core change: declaring the
+concept is enough.
 
 Core validates the file with `identity.validate_manifest`; a contract newer
 than the installed Pythia shows as `needs_update`. A bundled plugin lists

@@ -258,6 +258,13 @@ class FilingsMergeTest(unittest.TestCase):
         self.assertEqual([(item["code"], item["reason"]) for item in merged["skipped"]],
                          [("incomplete", "Older SEC filings could not be searched.")])
 
+    def test_a_row_with_an_unreadable_period_end_is_left_out_with_a_reason(self):
+        sec = self.sec()
+        sec["data"]["filings"][0]["period_end"] = 20251231
+        merged = filings.merge_filings([(self.SEC, ("sec",), sec, None)], issuer="issuer:x")
+        self.assertEqual([item["form"] for item in merged["filings"]], ["6-K"])
+        self.assertEqual([(item["code"], item["plugin"]) for item in merged["skipped"]], [("invalid_rows", "pythia-sec")])
+
     def test_an_authority_another_source_serves_is_left_out(self):
         merged = filings.merge_filings([(self.XBRL, ("oam-nl",), self.xbrl(), None)])
         self.assertEqual([item["form"] for item in merged["filings"]], ["ESEF"])
@@ -387,54 +394,72 @@ class CoreReadsTest(Reference):
         eodhd = news(("Q3 results beat", "https://EXAMPLE.com/asml-q3/", "2026-09-27T08:00:00Z"),  # the same link
                      ("Q3 Results Beat!", "https://other.example/q3", "2026-09-27T10:00:00Z"),  # the same headline
                      ("Chip demand rises", "https://other.example/demand", "2026-09-28T07:00:00Z"))
-        body = self.read({"yahoo_news": yahoo, "eodhd_news": eodhd}, plugins=plugins, handler="combined",
-                         section="news")
+        body = self.read({"yahoo_news": yahoo, "eodhd_news": eodhd}, plugins=plugins, handler="news")
         self.assertEqual(body["outcome"], "ok")
         self.assertEqual([(item["title"], item["plugin"]) for item in body["data"]["news"]],
                          [("Chip demand rises", "pythia-eodhd"), ("Q3 results beat", "pythia-yahoo-discovery"),
                           ("ASML ships", "pythia-yahoo-discovery")])
         self.assertEqual([item["plugin"] for item in body["data"]["sources"]], ["pythia-yahoo-discovery", "pythia-eodhd"])
 
-    def test_estimates_from_two_sources_stand_side_by_side_never_blended(self):
-        operations = {"consensus": "consensus"}
-        plugins = lambda: [provider("pythia-yahoo-discovery", "yahoo", "estimates", operations),
-                           provider("pythia-eodhd", "eodhd", "estimates", operations)]
-        answers = {"yahoo_consensus": estimate({"eps": "5.10"}, 31), "eodhd_consensus": estimate({"eps": "4.90"}, 27)}
-        body = self.read(answers, plugins=plugins, handler="combined", section="estimates")
-        self.assertEqual([(row["source"], row["value"], row["analysts"], row["basis"]) for row in body["data"]["rows"]],
-                         [("Yahoo Finance", {"eps": "5.10"}, 31, "adjusted"), ("EODHD", {"eps": "4.90"}, 27, "adjusted")])
+    def test_one_sources_own_items_are_never_dropped_as_duplicates(self):
+        """A daily recurring headline and two announcements under one title, from one source, all stay; the other
+        source's copy of one of them (same headline, under a day apart) goes."""
+        plugins = lambda: [provider("pythia-yahoo-discovery", "yahoo"), provider("pythia-eodhd", "eodhd")]
+        daily = [("Transaction in Own Shares", f"https://example.com/tios-{day}", f"2026-09-{day}T07:00:00Z")
+                 for day in range(20, 26)]
+        yahoo = news(*daily, ("Director/PDMR Shareholding", "https://example.com/pdmr-1", "2026-09-25T07:00:00Z"),
+                     ("Director/PDMR Shareholding", "https://example.com/pdmr-2", "2026-09-25T15:00:00Z"))
+        eodhd = news(("Transaction in own shares", "https://other.example/tios", "2026-09-25T09:00:00Z"),
+                     ("!!!", "https://other.example/a", "2026-09-25T09:00:00Z"))
+        yahoo["data"]["news"].append({"title": "???", "url": "https://example.com/b", "published_at": "2026-09-25T09:00:00Z"})
+        body = self.read({"yahoo_news": yahoo, "eodhd_news": eodhd}, plugins=plugins, handler="news")
+        titles = [(item["title"], item["plugin"]) for item in body["data"]["news"]]
+        self.assertEqual(titles.count(("Transaction in Own Shares", "pythia-yahoo-discovery")), 6)
+        self.assertEqual(titles.count(("Director/PDMR Shareholding", "pythia-yahoo-discovery")), 2)
+        self.assertNotIn(("Transaction in own shares", "pythia-eodhd"), titles)
+        self.assertIn(("!!!", "pythia-eodhd"), titles)  # a headline without words matches nothing
 
-    def test_statements_stand_side_by_side_per_report_identity(self):
-        operations = {"statements": "statements"}
-        plugins = lambda: [provider("pythia-sec", "sec", "fundamentals", operations),
-                           provider("pythia-xbrl-filings", "xbrl-filings", "fundamentals", operations)]
+    def test_only_a_whole_not_covered_answer_gives_way(self):
+        concepts = identity.concepts
+        issue = {"code": "not_covered", "severity": "warning", "message": "not here"}
+        self.assertEqual(concepts.not_covered({"outcome": "empty", "data": None, "issues": [issue]}), "not here")
+        for answer in ({"outcome": "partial", "data": None, "issues": [{"code": "rate_limit"}, issue]},
+                       {"outcome": "ok", "data": {"news": [{"title": "t"}]}, "issues": [issue]},
+                       {"outcome": "empty", "data": {"news": [{"title": "t"}]}, "issues": [issue]},
+                       {"outcome": "error", "data": None, "issues": [issue]}):
+            with self.subTest(answer=answer):
+                self.assertIsNone(concepts.not_covered(answer))
+        mirror = json.loads((PLUGINS / "sec/contract.json").read_text())
+        mirror.update(plugin="pythia-secmirror", provider="secmirror")
+        plugins = lambda: [*shipped(), page.PluginInfo(key="pythia-secmirror", manifest=identity.validate_manifest(
+            mirror), operations={"filings": "mirror_filings"})]
+        merge = FilingsMergeTest()
+        partial = {**merge.sec(), "outcome": "partial", "issues": [issue]}
+        body = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": partial,
+                          "mirror_filings": merge.sec()}, plugins=plugins)
+        self.assertNotIn("mirror_filings", self.sent)
+        self.assertEqual({item["plugin"] for item in body["data"]["filings"] if item["authority"] == "sec"},
+                         {"pythia-sec"})
 
-        def reports(*items):
-            return {"schema_version": 1, "outcome": "ok", "data": {"reports": [
-                {"kind": "annual", "period_end": end, "authority": authority, "basis": basis, "value": value}
-                for end, authority, basis, value in items]}}
-        answers = {"sec_statements": reports(("2025-12-31", "sec", None, {"revenue": "28.3e9"}),
-                                             ("2024-12-31", "sec", None, {"revenue": "28.2e9"})),
-                   "xbrl-filings_statements": reports(("2025-12-31", "oam-nl", "ifrs", {"revenue": "32.7e9"}))}
-        body = self.read(answers, plugins=plugins, handler="combined", section="financials")
-        issuer = "issuer:lei:724500Y6DUVHQD6OXN27"
-        self.assertEqual([(row["report_key"], row["basis"], row["value"]["revenue"]) for row in body["data"]["rows"]],
-                         [(f"{issuer}|annual|2025-12-31|sec", None, "28.3e9"),
-                          (f"{issuer}|annual|2025-12-31|oam-nl", "ifrs", "32.7e9"),
-                          (f"{issuer}|annual|2024-12-31|sec", None, "28.2e9")])
-        self.assertEqual({row["report_period"] for row in body["data"]["rows"][:2]}, {f"{issuer}|annual|2025-12-31"})
+    def test_single_values_take_every_eligible_source_side_by_side(self):
+        entries = [{"plugin": "a", "provider": "a", "status": "ready"}, {"plugin": "b", "provider": "b", "status": "ready"},
+                   {"plugin": "u", "provider": "u", "status": "ready", "unaudited": True},
+                   {"plugin": "d", "provider": "d", "status": "disabled"}]
+        chosen, alternatives, skipped = identity.concepts.select(entries, combine=identity.Combine.SIDE_BY_SIDE)
+        self.assertEqual(([e["plugin"] for e, _ in chosen], [e["plugin"] for e in alternatives],
+                          [e["plugin"] for e in skipped]), (["a", "b"], ["u"], ["d"]))
 
     def test_an_unaudited_source_is_labelled_and_not_in_the_default_order(self):
         plugins = [provider("pythia-yahoo-discovery", "yahoo"), provider("acme", "acme", signoff="unsigned")]
         answers = {"yahoo_news": news(("A", "https://example.com/a", "2026-09-27T08:00:00Z")),
                    "acme_news": news(("B", "https://example.com/b", "2026-09-27T09:00:00Z"))}
-        body = self.read(answers, plugins=lambda: plugins, handler="combined", section="news")
+        body = self.read(answers, plugins=lambda: plugins, handler="news")
         self.assertEqual([item["plugin"] for item in body["data"]["news"]], ["pythia-yahoo-discovery"])
         self.assertEqual(body["data"]["alternatives"], [{"source": "acme", "provider": "acme", "plugin": "acme",
                                                          "unaudited": True, "status": "ready"}])
         self.reads.identity._load = lambda _id: (None, page.load_subject(self.ref, SUBJECTS["asml_xams"]),
                                                  self.lookups(order=("acme",)), None)
-        named = self.read(answers, plugins=lambda: plugins, handler="combined", section="news")
+        named = self.read(answers, plugins=lambda: plugins, handler="news")
         self.assertEqual([(item["plugin"], item.get("unaudited")) for item in named["data"]["news"]],
                          [("acme", True), ("pythia-yahoo-discovery", None)])
 
@@ -455,11 +480,6 @@ def provider(plugin, name, concept="news", operations=None, signoff="grandfather
 def news(*items):
     return {"schema_version": 1, "outcome": "ok", "data": {"news": [
         {"title": title, "url": url, "published_at": at} for title, url, at in items]}}
-
-
-def estimate(value, analysts):
-    return {"schema_version": 1, "outcome": "ok",
-            "data": {"value": value, "date": "2026-09-28", "basis": "adjusted", "analysts": analysts}}
 
 
 if __name__ == "__main__":
