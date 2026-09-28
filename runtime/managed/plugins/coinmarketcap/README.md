@@ -49,7 +49,7 @@ it. Each row is shaped for the plugin addressing contract (ADR 0038, pending):
   stay unknown; a failed listings read leaves ranks and adds a warning.
 
 Symbols are not unique, and a shared contract address is not proof that two
-providers mean the same asset. Rows are source-asserted evidence; the core
+providers mean the same asset. Rows are source assertions; the core
 decides every join.
 
 CoinMarketCap uses two network namespaces. The map names a token's platform by
@@ -57,8 +57,8 @@ a platform ID (Ethereum is platform 1); info names each deployment's chain by
 that chain's own coin ID (Ethereum is coin 1027). The connector keeps them
 distinct (`coinmarketcap:platform:<id>` and `coinmarketcap:coin:<id>`) with the
 chain's name, slug and symbol. Two chains can share a native coin (BNB Beacon
-Chain and BNB Smart Chain), so `details` evidence keys a deployment's network by
-coin ID plus the platform name as a slug (`coinmarketcap:coin:1839:bnb-smart-chain-bep20`).
+Chain and BNB Smart Chain), so each `details` `platform_contracts` entry keeps the
+deployment's platform name beside its coin ID to tell them apart.
 That is enough for a core CAIP-2 table to derive CAIP-19 later. CoinMarketCap
 lists wrapped representations for some native coins (SOL shows the wrapped-SOL
 mint); the mapping must not treat those addresses as the native asset.
