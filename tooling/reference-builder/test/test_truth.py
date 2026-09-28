@@ -32,7 +32,7 @@ TRUTH = {"version": "test", "venues": VENUES, "entries": [
 
 class TruthSetTest(unittest.TestCase):
     def test_committed_truth_set_is_consistent(self):
-        data = truth.load_truth()
+        data = truth_report.load_truth()
         ids = [entry["id"] for entry in data["entries"]]
         self.assertEqual(len(ids), len(set(ids)))
         for entry in data["entries"]:
@@ -84,7 +84,7 @@ class AuditTest(unittest.TestCase):
         self.assertEqual(truth_report.regressions(report, baseline), [])
         worse = copy.deepcopy(TRUTH)
         worse["entries"][0]["listings"][0]["symbols"]["yahoo"] = "ASML.XX"
-        baseline["results"]["asml:symbols:yahoo:ASML.XX"] = "pass"
+        baseline["passed"].append("asml:symbols:yahoo:ASML.XX")
         old = baseline["ids"]["asml"]["security"]
         baseline["ids"]["asml"]["security"] = "security:figi:BBGOLDKEY001"
         found = truth_report.regressions(truth.audit(self.path, worse, cfi=("ES",)), baseline)

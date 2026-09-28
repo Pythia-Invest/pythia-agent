@@ -60,7 +60,10 @@ class Scope:
 def read_scope(ref: sqlite3.Connection, reference: Path, cfi: tuple[str, ...] | None = None) -> Scope:
     label = (ref.execute("SELECT value FROM release WHERE key = 'scope'").fetchone() or [""])[0]
     tokens = {token.strip().upper() for token in label.split(",") if token.strip()}
-    manifest = reference.parent / "manifest.json"
+    stored = (ref.execute("SELECT value FROM release WHERE key = 'cfi_prefixes'").fetchone() or [None])[0]
+    if cfi is None and stored:
+        cfi = tuple(stored.split(","))
+    manifest = reference.parent / "manifest.json"  # builds before the release carried cfi_prefixes
     if cfi is None and manifest.exists():
         data = json.loads(manifest.read_text(encoding="utf-8"))
         if data.get("snapshot", {}).get("file") == reference.name:
@@ -98,6 +101,7 @@ class Audit:
     results: list[Result] = field(default_factory=list)
     ids: dict[str, dict] = field(default_factory=dict)
     in_scope: int = 0
+    future: list[str] = field(default_factory=list)   # entries of subject kinds core does not have yet (M1)
 
     def add(self, entry: str, check: str, sub: str, ok: bool | None, reason: str = "") -> None:
         status = "na" if ok is None else ("pass" if ok else "fail")
@@ -156,7 +160,7 @@ class Reference:
                 if found:
                     return found[0], scheme
         for listing in entry["listings"]:
-            for scheme in ("figi", "composite_figi"):
+            for scheme in ("figi", "composite_figi", "caip19"):
                 if listing.get(scheme):
                     found = [s for s in map(self.security_of, self.subjects(scheme, listing[scheme])) if s]
                     if found:
@@ -190,6 +194,9 @@ def audit(reference: Path, truth: dict, contracts: dict | None = None, cfi: tupl
         row = security and ref.one("SELECT issuer_id FROM securities WHERE id = ?", security)
         issuers[entry_id] = row[0] if row else None
     for entry_id, entry in entries.items():
+        if entry.get("future_kind"):
+            report.future.append(entry_id)
+            continue
         scoped = [l for l in entry["listings"] if scope.covers(entry, l, venues)]
         if not scoped and entry["status"] == "active":
             continue
@@ -236,10 +243,11 @@ def _check_entry(report, ref, entry, entries, scoped, located, issuers, folded, 
     lines = ref.all("SELECT * FROM listings WHERE security_id = ? AND status <> 'inactive'", security)
     for listing in scoped:
         if "chain" in listing:
-            found = next(iter(lines), None)
-            report.add(eid, "listing", "chain", found is not None and found["chain"] == listing["chain"], "chain")
+            chain = listing.get("caip19") or listing["chain"]
+            found = next((l for l in lines if l["chain"] == listing["chain"]), None)
+            report.add(eid, "listing", chain, found is not None, "missing")
             if found is not None:
-                ids["listings"][listing["chain"]] = found["id"]
+                ids["listings"][chain] = found["id"]
                 _check_symbols(report, ref, entry, listing, found, contracts, crypto=True)
             continue
         label = f"{listing['ticker']}@{listing['mic']}"
@@ -258,7 +266,7 @@ def _check_entry(report, ref, entry, entries, scoped, located, issuers, folded, 
             figis = {r[0] for r in ref.all("SELECT value FROM assertions WHERE subject_id = ? AND scheme = 'figi'", found["id"])}
             reason = "composite_figi_as_listing_figi" if listing.get("composite_figi") in figis else "figi_missing" if not figis else "figi_wrong"
             report.add(eid, "listing", f"{label}:figi", listing["figi"] in figis, reason)
-        wanted = derive("listing", {"isin": isin} if isin else {"figi": listing.get("figi") or ""},
+        wanted = derive("listing", {"isin": isin, "figi": listing.get("figi")},
                                      operating_mic=listing["mic"], currency=listing["currency"])
         if wanted:
             report.add(eid, "subject_key", label, found["id"] == wanted, _keyed(found["id"], wanted))
@@ -381,7 +389,3 @@ def _check_issuer_groups(report, entries, located, issuers) -> None:
             mine = set(entries[member]["issuer"].items())
             if any(not mine & set(entries[other]["issuer"].items()) for other in members if other != member):
                 report.add(member, "issuer", "not_shared", False, "issuer_merged")
-
-
-def load_truth(path: Path | None = None) -> dict:
-    return json.loads((path or TRUTH_DIR / "instruments.json").read_text(encoding="utf-8"))

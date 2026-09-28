@@ -79,13 +79,16 @@ table under `writer_ignored`.
 `truth/instruments.json` holds about 270 hard identity cases: ADRs and New York
 registry shares, dual and cross listings, share classes, preferreds, ETFs and
 fund share classes, redomiciled and re-ISINed companies, renames, mergers,
-spin-offs, delisted names, OTC lines, crypto coins and multi-chain tokens, plus
-a bond and an FX pair. Each entry gives the expected issuer (LEI, CIK), security
+spin-offs, delisted names, OTC lines, crypto coins and multi-chain tokens. A
+bond and an FX pair are kept as `future_kind` entries: they are not scored
+until core has those subject kinds (stress test M1). Each entry gives the expected issuer (LEI, CIK), security
 (ISIN, share-class FIGI, CAIP-19), listings (ticker at operating MIC, trading
 currency, primary), relations, the row it folds into in search, former ISINs
 and tickers, and Yahoo, EODHD, CoinMarketCap and CoinGecko symbols. Only public
 identifiers; `sources` names what each entry was checked against (FIRDS, GLEIF,
-SEC, OpenFIGI, provider symbol conventions) on the version date.
+SEC, OpenFIGI, provider symbol conventions) on the version date. US and other
+CUSIP-area ISINs are included only where ESMA FIRDS publishes them; otherwise the
+entry is located by FIGI.
 
 ```sh
 just reference-audit                          # newest snapshot in .local/reference-builder/out/
@@ -99,7 +102,10 @@ names and former ISINs and tickers stay inactive), `issuer`, `security`,
 `separate` (two entries never share a security), `listing` (ticker, currency,
 FIGI), `primary`, `relation`, `fold` (core's search directory), `symbols`
 (core's page derivation with the installed `contract.json` files) and
-`subject_key` (the ID core would derive from the entry's full identifiers).
+`subject_key` (the ID core's current key rule derives from the entry's
+identifiers). `subject_key` is reported apart from the headline score: a
+difference means the key rule and the build's evidence differ, not a defect, and
+the baseline records the key rule it was taken with.
 Checks outside the build's scope (its venues, SEC, FIRDS CFI prefixes, crypto
 kinds present) are n/a, not failures; an entry with no in-scope line is out of
 scope. A check that passed in `truth/baseline.json` and fails now, or a subject

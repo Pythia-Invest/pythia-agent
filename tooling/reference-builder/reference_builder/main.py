@@ -87,7 +87,8 @@ def run(config: BuildConfig) -> int:
     stamp = config.as_of.strftime("%Y%m%d")
     build_id = f"reference-{stamp}"
     meta = {"build_id": build_id, "schema_version": str(schema.SCHEMA_VERSION), "builder_version": BUILDER_VERSION,
-            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics) + (",SEC" if config.scope.sec else "")}
+            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics) + (",SEC" if config.scope.sec else ""),
+            "cfi_prefixes": ",".join(config.scope.cfi_prefixes)}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)
     truth_audit = truth_report.build_report(snapshot_path, config.scope.cfi_prefixes, log)  # a report, never a gate

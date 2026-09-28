@@ -2,16 +2,33 @@
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 import json
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from .truth import CHECKS, TRUTH_DIR, Audit, Reference, audit, load_truth  # noqa: F401
+from .schema import identity
+from .truth import TRUTH_DIR, Audit, Reference, audit
+
+def key_rule() -> str:
+    """Core's subject-key rule as the audit ran it: its declared version, else a digest of `subject_id`'s source."""
+    declared = getattr(identity, "KEY_RULE", None)
+    if declared:
+        return str(declared)
+    source = inspect.getsource(identity.subject_id).encode()
+    return f"unversioned:{hashlib.sha256(source).hexdigest()[:12]}"
+
+
+def load_truth(path: Path | None = None) -> dict:
+    return json.loads((path or TRUTH_DIR / "instruments.json").read_text(encoding="utf-8"))
+
 
 def baseline_of(report: Audit) -> dict:
     return {"reference": report.reference, "scope": report.scope.label, "truth_version": report.truth_version,
-            "results": {r.key: r.status for r in sorted(report.results, key=lambda r: r.key) if r.status != "na"},
+            "key_rule": key_rule(),
+            "passed": sorted(r.key for r in report.results if r.status == "pass"),
             "ids": dict(sorted(report.ids.items()))}
 
 
@@ -21,8 +38,8 @@ def regressions(report: Audit, baseline: dict | None, aliases: dict[str, str] | 
         return []
     aliases = aliases or {}
     now = {r.key: r for r in report.results}
-    found = [f"{key}: {now[key].reason}" for key, status in baseline.get("results", {}).items()
-             if status == "pass" and key in now and now[key].status == "fail"]
+    found = [f"{key}: {now[key].reason}" for key in baseline.get("passed", [])
+             if key in now and now[key].status == "fail"]
     for entry_id, old in baseline.get("ids", {}).items():
         new = report.ids.get(entry_id)
         if not new:
@@ -42,12 +59,17 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
     total = Counter()
     for check, counts in report.scores().items():
         applicable = counts.get("pass", 0) + counts.get("fail", 0)
-        total.update(counts)
+        if check != "subject_key":
+            total.update(counts)
         score = f"{100 * counts.get('pass', 0) / applicable:.0f}%" if applicable else "-"
         lines.append(f"{check:<12}{counts.get('pass', 0):>6}{counts.get('fail', 0):>6}{counts.get('na', 0):>6}{score:>8}")
     applicable = total["pass"] + total["fail"]
     overall = f"{100 * total['pass'] / applicable:.0f}%" if applicable else "-"
-    lines.append(f"{'all':<12}{total['pass']:>6}{total['fail']:>6}{total['na']:>6}{overall:>8}")
+    lines.append(f"{'all':<12}{total['pass']:>6}{total['fail']:>6}{total['na']:>6}{overall:>8}  (subject_key excluded)")
+    lines.append(f"subject_key compares reference IDs with core's key rule {key_rule()} applied to the truth set's"
+                 " identifiers: a difference means the key rule differs, not a defect.")
+    if report.future:
+        lines.append(f"Not scored, future subject kinds (M1): {', '.join(report.future)}")
     by_tag: dict[str, Counter] = defaultdict(Counter)
     for result in report.results:
         if result.status != "na" and result.check != "subject_key":
@@ -61,6 +83,8 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
         if result.status == "fail":
             # Keep MICs, currencies and kinds in the pattern; drop per-entry values.
             reason = result.reason.split(":")[0] if result.reason.startswith(("folded_into:", "wrong:", "ticker:")) else result.reason
+            if result.check == "subject_key":
+                reason = f"key rule differs ({reason})"
             patterns[(result.check, reason)].append(result.entry)
     lines += ["", "Top failure patterns:"]
     for (check, reason), members in sorted(patterns.items(), key=lambda item: -len(item[1]))[:top]:
@@ -90,13 +114,14 @@ def build_report(reference: Path, cfi: tuple[str, ...], log) -> dict:
         log(f"truth-set audit skipped: {error!r}")
         return {"error": repr(error)}
     scores = report.scores()
-    passed = sum(c.get("pass", 0) for c in scores.values())
-    applicable = passed + sum(c.get("fail", 0) for c in scores.values())
+    headline = [c for check, c in scores.items() if check != "subject_key"]
+    passed = sum(c.get("pass", 0) for c in headline)
+    applicable = passed + sum(c.get("fail", 0) for c in headline)
     log(f"truth-set audit: {passed}/{applicable} checks pass, {len(regressed)} regressions against the baseline"
         " (details: just reference-audit)")
     for item in regressed[:10]:
         log(f"  regression {item}")
-    return {"truth_version": report.truth_version, "entries_in_scope": report.in_scope, "scores": scores,
+    return {"truth_version": report.truth_version, "key_rule": key_rule(), "entries_in_scope": report.in_scope, "scores": scores,
             "regressions": len(regressed)}
 
 
