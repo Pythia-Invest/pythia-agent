@@ -59,18 +59,22 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
         "agent_answer": item["settled"] if item["state"] != "open" and item["settled"] else None,
         "label": label, "question": question, "record": _record(record) if record else None,
         "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
+        "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
+        "evidence": _evidence(ref, item["evidence_ids"]),
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
 
 def listing(store: IdentityStore, ref: sqlite3.Connection, *, subject_id: str | None, kind: str | None,
-            plugins: set[str] | None, limit: int, answered: bool, notice: bool) -> dict:
-    """Open items, newest first; with `answered`, apart and uncounted, the ones only the agent answered. With
+            plugins: set[str] | None, limit: int, answered: bool, notice: bool, settled: bool = False) -> dict:
+    """Open items, newest first; apart and uncounted, with `answered` the ones only the agent answered and with
+    `settled` the ones rules or the user settled. With
     `notice`, says so when this process started a fresh store and kept an incompatible one aside."""
     filters = {"subject_ids": family(ref, subject_id) if subject_id else None, "kind": kind, "plugins": plugins}
     items, size = store.queue_items(**filters), max(1, min(50, limit))
     data: dict[str, Any] = {"items": [summary(store, ref, item) for item in items[:size]], "total": len(items)}
-    if answered:
-        data["answered"] = [summary(store, ref, item) for item in store.queue_items(**filters, answered=True)[:size]]
+    for which, wanted in (("answered", answered), ("settled", settled)):
+        if wanted:
+            data[which] = [summary(store, ref, item) for item in store.queue_items(**filters, which=which)[:size]]
     if notice and store.set_aside:
         data["notice"] = (f"The identity store was reset for a new format; the previous one is kept as "
                           f"{store.set_aside}. Confirmed matches and answers start over.")
@@ -93,13 +97,8 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
     item = store.queue_item(item_id)
     if item is None:
         return None
-    cited = item["evidence_ids"]
-    rows = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({','.join('?' * len(cited))})", cited).fetchall() \
-        if cited else []
     view = {**summary(store, ref, item), "scheme": item["scheme"], "values": item["values"],
             "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
-            "evidence": [{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "authority", "source",
-                                                    "retrieved_at")} for row in rows],
             "history": [{key: entry[key] for key in ("resolver", "authority", "relation", "chosen_id", "confidence",
                                                      "rationale", "outcome", "created_at", "item_state")}
                         for entry in store.history(item)]}
@@ -258,6 +257,14 @@ _MESSAGES = {
     VerdictOutcome.AMBIGUOUS: "Left open: the answers disagree or several candidates fit.",
     VerdictOutcome.NO_MATCH: "Recorded: the record is not this instrument.",
 }
+
+
+def _evidence(ref: sqlite3.Connection, cited: list[str]) -> list[dict]:
+    """The reference assertions an item cites."""
+    rows = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({','.join('?' * len(cited))})", cited).fetchall() \
+        if cited else []
+    return [{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "authority", "source",
+                                       "retrieved_at")} for row in rows]
 
 
 def _raw(store: IdentityStore, item: dict) -> dict | None:

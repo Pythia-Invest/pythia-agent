@@ -217,11 +217,14 @@ class IdentityStore:
 
     @_locked
     def queue_items(self, *, subject_ids: Iterable[str] | None = None, plugins: Iterable[str] | None = None,
-                    kind: str | None = None, answered: bool = False) -> list[dict]:
-        """Open items, newest first; with `answered`, instead the ones only the agent answered, which route
-        provisionally until the user confirms or overrides them. Subjects match an item's subjects or candidates."""
+                    kind: str | None = None, which: str = "open") -> list[dict]:
+        """Items newest first: `open`; `answered`, the ones only the agent answered, which route provisionally
+        until the user confirms or overrides them; or `settled` by rules or the user. Subjects match an item's
+        subjects or candidates."""
         subjects, names = (set(subject_ids) if subject_ids is not None else None), (set(plugins) if plugins is not None else None)
-        where = "q.state IN ('resolved', 'dismissed') AND v.resolver = 'agent'" if answered else "q.state = 'open'"
+        where = {"open": "q.state = 'open'",
+                 "answered": "q.state IN ('resolved', 'dismissed') AND v.resolver = 'agent'",
+                 "settled": "q.state IN ('resolved', 'dismissed') AND (v.resolver IS NULL OR v.resolver <> 'agent')"}[which]
         rows = self.db.execute(f"{_ITEMS} WHERE {where} ORDER BY q.opened_at DESC, q.id").fetchall()
         items = [_item(row) for row in rows]
         return [item for item in items if (kind is None or item["kind"] == kind)

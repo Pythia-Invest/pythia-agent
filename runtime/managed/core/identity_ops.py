@@ -66,7 +66,8 @@ QUEUE_SCHEMA = {
                    "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
                    "subject, plugin or kind. With answered, also lists the questions the agent already answered "
                    "(agent_answer): they route provisionally until the user confirms or overrides them and are no "
-                   "longer open. With item_id, returns one question in full: "
+                   "longer open. With settled, also lists questions rules or the user settled (history). With "
+                   "item_id, returns one question in full: "
                    "the provider record, the candidate subjects, the cited reference evidence and earlier verdicts. "
                    "Local only.",
     "parameters": {"type": "object", "properties": {
@@ -75,6 +76,7 @@ QUEUE_SCHEMA = {
         "plugin": {"type": "string", "minLength": 1, "maxLength": 128},
         "kind": {"type": "string", "enum": ["residual", "conflict"]},
         "answered": {"type": "boolean"},
+        "settled": {"type": "boolean"},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
         "additionalProperties": False},
 }
@@ -190,15 +192,15 @@ class Identity:
                 plugin = arguments.get("plugin")
                 data = queue.listing(self.store, ref, subject_id=arguments.get("subject_id"), kind=arguments.get("kind"),
                                      plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
-                                     if plugin else None, limit=limit, answered=arguments.get("answered") is True,
-                                     notice=not self._told)
+                                     if plugin else None, limit=limit, notice=not self._told,
+                                     **{name: arguments.get(name) is True for name in ("answered", "settled")})
                 self._told = self._told or "notice" in data
             finally:
                 ref.close()
         except (sqlite3.Error, OSError):
             logger.warning("identity queue unavailable", exc_info=True)
             return _envelope("empty", None, issue="The identity store could not be read.")
-        return _envelope("ok" if data["items"] or data.get("answered") or data.get("notice") else "empty", data)
+        return _envelope("ok" if any(data.get(name) for name in ("items", "answered", "settled", "notice")) else "empty", data)
 
     def verdict(self, arguments: dict, **_context: Any) -> str:
         from .platform.request_context import usage
