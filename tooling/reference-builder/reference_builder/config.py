@@ -91,6 +91,14 @@ def load_openfigi_key(env: dict[str, str] | None = None) -> str | None:
     return _stored(config_dir(env) / "secrets.json", "openfigi_api_key")
 
 
+def load_coinmarketcap_key(env: dict[str, str] | None = None) -> str | None:
+    """Return the CoinMarketCap plugin's key from the device secrets file, for the canonical-asset drift check.
+
+    The value is kept in-process only: callers must never log, print or persist it.
+    """
+    return _stored(config_dir(env) / "secrets.json", "coinmarketcap_api_key")
+
+
 def load_sec_identity(env: dict[str, str] | None = None) -> str | None:
     """Return the SEC plugin's configured contact, `sec_identity` in the device settings file.
 

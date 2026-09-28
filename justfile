@@ -64,9 +64,21 @@ test-e2e desk_url:
 reference-snapshot *args:
     python3 tooling/reference-builder/run.py {{args}}
 
+# Verify a reference package (directory or package.json) and install it for this worktree's stack.
+reference-install package:
+    node scripts/dev/cli.mjs reference-install "{{package}}"
+
+# Show the reference package installed for this worktree's stack.
+reference-status:
+    node scripts/dev/cli.mjs reference-status
+
 # Score a reference snapshot against the identity truth set; fails on regressions against the committed baseline.
 reference-audit *args:
     python3 tooling/reference-builder/audit.py {{args}}
+
+# Check core's curated crypto assets against CoinGecko and CoinMarketCap (network; fails on drift).
+canonical-assets-drift *args:
+    PYTHONPATH=tooling/reference-builder python3 -m reference_builder.drift {{args}}
 
 # The only registry/network dependency check.
 audit:

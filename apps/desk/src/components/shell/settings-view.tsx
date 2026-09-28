@@ -22,6 +22,7 @@ import { useRepairs } from "@/client/repairs";
 import {
   CapabilitySettings,
   ModelSettings,
+  ReferenceSettings,
   SettingRow,
   UpdateSettings,
 } from "./settings-controls";
@@ -41,6 +42,12 @@ const sections = [
     id: "capabilities",
     label: "Skills and tools",
     description: "Manage the native Hermes capabilities available to Pythia.",
+  },
+  {
+    id: "reference",
+    label: "Reference data",
+    description:
+      "The open reference catalogue that search and instrument pages read on this device.",
   },
   {
     id: "updates",
@@ -174,6 +181,7 @@ export function SettingsView() {
                 ) : null}
                 {item.id === "models" ? <ModelSettings /> : null}
                 {item.id === "capabilities" ? <CapabilitySettings /> : null}
+                {item.id === "reference" ? <ReferenceSettings /> : null}
                 {item.id === "updates" ? <UpdateSettings /> : null}
                 {item.id === "repairs" ? (
                   <SettingRow

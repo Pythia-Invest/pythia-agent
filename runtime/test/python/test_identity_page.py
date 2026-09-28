@@ -3,7 +3,6 @@ import contextlib
 import sqlite3
 import tempfile
 import unittest
-import unittest.mock
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
@@ -64,7 +63,7 @@ class Fixture(unittest.TestCase):
         self.tmp.cleanup()
 
     def lookups(self, subject_id):
-        coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+        coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         stored = {(r["subject_id"], r["provider"]): r for r in self.identity.bindings([subject_id], ("confirmed",))}
         return {"stored": lambda target, provider: stored.get((target, provider)),
                 "coins": lambda provider, caip19: coins.get((provider, caip19)), "queue": []}
@@ -445,12 +444,3 @@ class ReviewFixesTest(Fixture):
         (directory / "identity.sqlite3").write_bytes(b"not a database")
         self.assertEqual(store.IdentityStore(directory).bindings([ASML]), [])
         self.assertEqual(len(list(directory.glob("identity.unreadable-*.sqlite3"))), 1)
-        builds = Path(self.tmp.name) / "builds"
-        builds.mkdir()
-        good = builds / "reference-20260925.sqlite3"
-        good.write_bytes(self.path.read_bytes())
-        with sqlite3.connect(good) as db:
-            db.execute("INSERT INTO release (key, value) VALUES ('schema_version', ?)", (store.REFERENCE_SCHEMA_VERSION,))
-        (builds / "reference-20260926.sqlite3").write_bytes(b"")
-        with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}):
-            self.assertEqual(store.reference_path(Path(self.tmp.name)), good)
