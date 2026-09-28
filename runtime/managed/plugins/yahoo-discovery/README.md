@@ -30,10 +30,30 @@ that as follows:
 
 Yahoo returns no ISIN, FIGI, LEI or CIK. A Yahoo symbol is a mutable listing
 reference, not an identifier. `details` preserves Yahoo's venue and currency
-qualifiers and asserts no identity evidence, so a saved Yahoo reference stays an
-unresolved candidate under [ADR 0012](../../../../docs/decisions/0012-investment-identity-and-repair.md).
+qualifiers and asserts no identity evidence. Core addresses a Yahoo listing from
+open identifiers through this plugin's MIC suffix table
+([ADR 0038](../../../../docs/decisions/0038-plugin-addressing-contract.md)); that
+derived symbol is an address, never evidence.
 Yahoo `EQUITY` is not promoted to Common Stock or proof of an issuer. Name or
 ticker similarity never creates a canonical relationship.
+
+## Price series
+
+`series` declares one quote series and bar series, each with the longest window
+Yahoo serves for its interval: daily OHLC and dividend-adjusted daily closes and
+weekly OHLC (full history), hourly bars (730 days), 5- and 30-minute bars (60
+days) and 1-minute bars (7 days) of the regular session, and
+`two_minute_extended` (60 days) including Yahoo's pre- and post-market trades
+where the venue has them. Adding the bar `volume` field changed the ids of the
+OHLC series; a view pinned to an older Yahoo OHLC id must be pinned again. Intraday
+equity and fund reads carry `price_context.session_window`: the current or last
+started session's regular and extended bounds from Yahoo's trading periods,
+never assumed hours. Continuous markets carry none and keep elapsed time. Quotes
+carry the previous close their change is measured against, and bars keep the
+reported volume (shares for equities and funds). Stocks and funds report
+PRE/POST as pre/post sessions with the latest pre/post trade when it follows
+the regular observation; a post-market result stays after the close until a
+new session supersedes it. Cash indexes keep their regular interpretation.
 
 ## No provider search
 

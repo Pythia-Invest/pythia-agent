@@ -1,101 +1,13 @@
 import { record, symbol, symbols, type Client } from "./yahoo.js";
 import { failedChart } from "./provider-errors.js";
-const number = (v: unknown) =>
-  typeof v === "number" && Number.isFinite(v) ? v : null;
-const stamp = (v: unknown) =>
-  v instanceof Date && Number.isFinite(v.getTime()) ? v.getTime() : null;
-const object = (v: unknown): Record<string, unknown> =>
-  v && typeof v === "object" ? (v as Record<string, unknown>) : {};
-const bounds = (v: unknown) => {
-  const p = object(v);
-  const epoch = (v: unknown) =>
-    stamp(v) ?? (typeof v === "number" ? v * 1000 : NaN);
-  const start = epoch(p.start),
-    end = epoch(p.end);
-  return Number.isFinite(start) && Number.isFinite(end) && end > start
-    ? { start, end }
-    : null;
-};
-/** Pair pre/regular/post by their actual boundaries, never by array position or
- * assumed US hours. The newest started schedule wins, even before its first bar. */
-function equitySession(meta: Record<string, unknown>, now: number) {
-  const historical = object(meta.tradingPeriods),
-    currentPeriods = object(meta.currentTradingPeriod);
-  const periods = (kind: string) =>
-    [
-      ...(Array.isArray(historical[kind])
-        ? (historical[kind] as unknown[]).flat()
-        : []),
-      currentPeriods[kind],
-    ]
-      .map(bounds)
-      .filter((p): p is { start: number; end: number } => p !== null);
-  const pre = periods("pre"),
-    post = periods("post");
-  const schedules = periods("regular")
-    .map((regular) => ({
-      regular,
-      start: pre.find((p) => p.end === regular.start)?.start ?? regular.start,
-      end: post.find((p) => p.start === regular.end)?.end ?? regular.end,
-    }))
-    .filter((p) => p.start <= now)
-    .sort((a, b) => b.start - a.start);
-  const current = schedules[0];
-  if (!current) return undefined;
-  if (now < current.regular.start) {
-    const previous = schedules.find((p) => p.regular.end < current.start);
-    if (!previous) return undefined;
-    return {
-      regular: previous.regular,
-      start: previous.regular.start,
-      end: current.regular.start,
-      sessionDate: current.regular.start,
-      gap: { start: previous.regular.end, end: current.start },
-    };
-  }
-  return {
-    regular: current.regular,
-    start: current.regular.start,
-    end: now < current.regular.end ? current.regular.end : current.end,
-    sessionDate: current.regular.start,
-    gap: undefined,
-  };
-}
-/** The SDK converts currentTradingPeriod to Dates, but historical tradingPeriods
- * still arrive as epoch seconds in 4.0.2. Use the returned schedule, not inferred
- * hours or the first/last price. Each historical group describes one session. */
-function sessionWindow(meta: Record<string, unknown>, points: { t: number }[]) {
-  const first = points[0]?.t,
-    last = points.at(-1)?.t;
-  if (first === undefined || last === undefined) return null;
-  const periods = meta.tradingPeriods;
-  const groups = Array.isArray(periods) ? periods : record(periods).regular;
-  const candidates = Array.isArray(groups) ? [...groups] : [];
-  candidates.push([record(meta.currentTradingPeriod).regular]);
-  for (const group of candidates) {
-    if (!Array.isArray(group) || !group.length) continue;
-    const bounds = group.map((raw: unknown) => {
-      const p = record(raw);
-      const epoch = (v: unknown) =>
-        stamp(v) ??
-        (typeof v === "number" && Number.isFinite(v) ? v * 1000 : NaN);
-      return { start: epoch(p.start), end: epoch(p.end) };
-    });
-    if (
-      bounds.some(
-        (p) =>
-          !Number.isFinite(p.start) ||
-          !Number.isFinite(p.end) ||
-          p.end <= p.start,
-      )
-    )
-      continue;
-    const start = Math.min(...bounds.map((p) => p.start));
-    const end = Math.max(...bounds.map((p) => p.end));
-    if (points.some((p) => p.t >= start && p.t <= end)) return { start, end };
-  }
-  return null;
-}
+import {
+  equitySession,
+  extendedQuote,
+  lastSession,
+  number,
+  sessionWindow,
+  stamp,
+} from "./yahoo-sessions.js";
 function metadata(raw: unknown, expected: string) {
   const q = record(raw);
   if (q.symbol !== expected) throw Error("binding_mismatch");
@@ -179,6 +91,9 @@ export async function yahooPrices(
       absolute: number(q.regularMarketChange),
       percent: number(q.regularMarketChangePercent),
     },
+    // The close the regular change is measured against.
+    previous_close: number(q.regularMarketPreviousClose),
+    extended: extendedQuote(q),
   });
   // Every quote read (metadata, latest, batches, quote dashboards) shares one
   // coalesced native quote call through quote_bundle.
@@ -313,31 +228,36 @@ export async function yahooPrices(
   if (operation !== "price_read") throw Error("invalid_request");
   const s = symbol(args.symbol),
     mode = String(args.mode);
+  // Yahoo interval and the longest window it serves that interval for, in days.
   const intervals = {
-    daily: "1d",
-    adjusted: "1d",
-    minute: "1m",
-    five_minute: "5m",
-    hour: "1h",
+    daily: ["1d", 36600],
+    adjusted: ["1d", 36600],
+    weekly: ["1wk", 36600],
+    minute: ["1m", 7],
+    two_minute_extended: ["2m", 60],
+    five_minute: ["5m", 60],
+    thirty_minute: ["30m", 60],
+    hour: ["1h", 730],
   } as const;
   if (!(mode in intervals)) throw Error("invalid_request");
-  const interval = intervals[mode as keyof typeof intervals];
+  const [interval, days] = intervals[mode as keyof typeof intervals];
+  const dated = interval === "1d" || interval === "1wk";
   const start = Date.parse(String(args.start)),
     end = Date.parse(String(args.end));
   if (
     !Number.isFinite(start) ||
     !Number.isFinite(end) ||
     end < start ||
-    end - start > (interval === "1d" ? 3660 : 7) * 86400000
+    end - start > days * 86400000
   )
     throw Error("invalid_window");
   const d = await sdk.chart(s, {
     // Date-only windows are exchange-local. Pad the transport window and let
     // the shared reader filter session dates, including sessions east of UTC.
-    period1: new Date(start - (interval === "1d" ? 86400000 : 0)),
-    period2: new Date(end + (interval === "1d" ? 86400000 : 1000)),
+    period1: new Date(start - (dated ? 86400000 : 0)),
+    period2: new Date(end + (dated ? 86400000 : 1000)),
     interval,
-    includePrePost: false,
+    includePrePost: mode.endsWith("_extended"),
     events: "div,splits",
   });
   const meta = metadata(d.meta, s);
@@ -348,8 +268,15 @@ export async function yahooPrices(
   return {
     metadata: meta,
     retrieved_at,
+    // Intraday equity reads carry the schedule of the current or last session;
+    // continuous markets keep elapsed time, not Yahoo's UTC daily bucket.
+    session:
+      !dated &&
+      (d.meta.instrumentType === "EQUITY" || d.meta.instrumentType === "ETF")
+        ? lastSession(record(d.meta), Date.parse(retrieved_at))
+        : null,
     rows: d.quotes.map((q) => ({
-      time: interval === "1d" ? day(q.date) : q.date,
+      time: dated ? day(q.date) : q.date,
       open: q.open,
       high: q.high,
       low: q.low,

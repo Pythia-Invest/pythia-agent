@@ -223,10 +223,12 @@ export function InstrumentChange({
   item,
   mode = "percent",
   wrap = false,
+  className,
 }: {
   item: InstrumentDisplay;
   mode?: InstrumentWidgetOptions["change"];
   wrap?: boolean;
+  className?: string | undefined;
 }) {
   const activity = instrumentActivity(item);
   const unavailable = activity.data === "unavailable";
@@ -298,6 +300,7 @@ export function InstrumentChange({
           : direction > 0
             ? "text-market-up"
             : "text-market-down",
+        className,
       )}
     >
       <span

@@ -9,10 +9,11 @@ from datetime import date
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import firds, gleif, linking, manifest, mic, sec, writer
+from reference_builder import firds, gleif, linking, manifest, mic, schema, sec, writer
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
-from reference_builder.model import SecTicker, Snapshot
+from reference_builder.linking import link_receipts
+from reference_builder.model import Relationship, SecFund, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
 
 from .fixtures import (
@@ -93,7 +94,8 @@ class PipelineTest(unittest.TestCase):
         self.snap = build_snapshot(inputs(), gleif_fetch, FakeOpenFigi(OPENFIGI))
 
     def test_asml_resolves_on_xams_with_its_nasdaq_line_under_the_same_issuer(self):
-        results = manifest.check_canaries(self.snap, manifest.default_canaries(Scope()))
+        canaries = [c for c in manifest.default_canaries(Scope(mics=("XAMS",))) if c.get("ticker") != "TSLL"]  # no ETF in this fixture
+        results = manifest.check_canaries(self.snap, canaries)
         self.assertTrue(all(r["ok"] for r in results), results)
         xams = self.snap.listings[f"XAMS:{ASML_ISIN}"]
         issuer = self.snap.issuers[xams.issuer_id]
@@ -103,6 +105,33 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.snap.listings["OTCM:ASMLF"].security_id, f"isin:{ASML_ISIN}")
         self.assertNotIn(f"XAMC:{ASML_ISIN}", self.snap.listings)
         self.assertNotIn(f"XETA:{ASML_ISIN}", self.snap.listings)
+
+    def test_a_receipt_no_source_links_is_the_receipt_of_its_issuers_one_share(self):
+        edges = {(item.from_id, item.relation, item.to_id, item.rule_id) for item in self.snap.relationships}
+        receipt = self.snap.listings["XNAS:ASML"].security_id
+        self.assertIn((receipt, "depositary_receipt_of", f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
+        self.snap.securities["preferred"] = Security("preferred", "preferred", "sec", issuer_id=self.snap.securities[receipt].issuer_id)
+        self.snap.relationships.clear()
+        self.snap.audit.clear()
+        link_receipts(self.snap)  # a receipt might be of the preferred: never guessed
+        self.assertNotIn(receipt, {item.from_id for item in self.snap.relationships})
+
+    def test_a_stated_underlying_outside_the_build_or_inactive_yields_to_the_issuer_rule_and_is_counted(self):
+        receipt = self.snap.listings["XNAS:ASML"].security_id
+        issuer = self.snap.securities[receipt].issuer_id
+        self.snap.securities["isin:NL9999999998"] = Security("isin:NL9999999998", "share", "esma_firds", issuer_id=issuer,
+                                                             isin="NL9999999998", activity="inactive")  # superseded
+        for stated, reason in (("isin:NL9999999999", "firds_underlying_outside_build"),
+                               ("isin:NL9999999998", "firds_underlying_inactive")):
+            with self.subTest(reason=reason):
+                self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", stated, "esma_firds",
+                                                           "firds_underlying_isin")]
+                self.snap.audit.clear()
+                link_receipts(self.snap)
+                edges = {(item.from_id, item.to_id, item.rule_id) for item in self.snap.relationships}
+                self.assertIn((receipt, f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
+                self.assertEqual(self.snap.audit["relations"][reason], 1)
+                self.assertIn((receipt, reason, stated), {(f.subject_id, f.flag, f.detail) for f in self.snap.flags})
 
     def test_similar_names_do_not_link_different_companies(self):
         self.assertIsNone(self.snap.issuers[f"lei:{NN_LEI}"].cik)
@@ -136,12 +165,15 @@ class PipelineTest(unittest.TestCase):
                 release = dict(db.execute("select key, value from release"))
                 asml = db.execute("select security_id, is_primary from listings where id=?",
                                   (f"listing:isin:{ASML_ISIN}:XAMS:EUR",)).fetchone()
+                receipts = db.execute("select count(*) from relations where type='depositary_receipt_of'"
+                                      " and to_id=?", (f"security:isin:{ASML_ISIN}",)).fetchone()
                 btc = db.execute("select native_id from native_coins where provider='coinmarketcap' and caip19 like 'bip122:%/slip44:0'").fetchone()
             self.assertEqual(asml, (f"security:isin:{ASML_ISIN}", 1))
             self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM", "XCBO"})
             self.assertEqual(cik, ("share_class_figi", "snapshot"))
             self.assertEqual({s["source"]: s["licence"] for s in json.loads(release["sources"])}, {"esma_firds": "x", "openfigi": "y"})
             self.assertEqual(btc, ("1",))
+            self.assertEqual(receipts, (1,))
             self.assertGreater(counts["assertions"], counts["listings"])
             written = counts["listings"] + self.snap.audit["writer_ignored"].get("listings", 0)
             dropped = sum(n for key, n in self.snap.audit["schema"].items() if key.startswith("lines_without_"))
@@ -154,6 +186,152 @@ class PipelineTest(unittest.TestCase):
         self.assertFalse(any(job["idType"] == "TICKER" for job in figi.jobs))
         self.assertFalse(any(l.source == "sec" for l in snap.listings.values()))
 
+
+
+APPLE_ISIN, APPLE_LEI = "US0378331005", "HWUPKR0MPOU8FGXBT394"
+ETF_ISIN, ETF_LEI = "IE00B5BMR087", "549300AAAAAAAAAAAA03"
+DARK_ISIN = "NL0000000077"  # trades only on a trading-only venue
+UNKNOWN_US_ISIN = "US5949181045"
+WIDE_FIRDS = fulins([
+    firds_record(ASML_ISIN, "XAMS", ASML_LEI, name="ASML HOLDING"),
+    firds_record(ASML_ISIN, "XETB", ASML_LEI, name="ASML HOLDING"),  # two Xetra segments: one Xetra line
+    firds_record(ASML_ISIN, "XETA", ASML_LEI, name="ASML HOLDING"),
+    firds_record(ASML_ISIN, "CEUX", ASML_LEI, name="ASML HOLDING"),  # Cboe Europe trades it; it lists on XAMS
+    firds_record(APPLE_ISIN, "FRAB", APPLE_LEI, name="APPLE INC", relevant="XFRA"),
+    firds_record(ETF_ISIN, "XETA", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
+    firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
+    firds_record(DARK_ISIN, "CEUX", NN_LEI, name="DARK ONLY", relevant="CEUX"),
+    firds_record(UNKNOWN_US_ISIN, "FRAB", APPLE_LEI, name="NO FIGI YET", relevant="XFRA"),  # OpenFIGI has no line
+])
+WIDE_SEC = sec_json([
+    (320193, "Apple Inc.", "AAPL", "Nasdaq"),
+    (937966, "ASML HOLDING NV", "ASML", "Nasdaq"),
+    (884394, "SPDR S&P 500 ETF TRUST", "SPY", "NYSE"),
+])
+WIDE_FUNDS = [SecFund("TSLL"), SecFund("VOO"), SecFund("LACAX")]
+WIDE_OPENFIGI = OPENFIGI | {
+    ("ID_ISIN", ASML_ISIN, "XETA"): [figi_row("ASME", "GY", "BBGASMLGY001", "BBGASMLSC001")],
+    # Real Apple share-class and US FIGIs (valid check digits): core keys a US security by them.
+    ("ID_ISIN", APPLE_ISIN, "FRAB"): [figi_row("APC", "GF", "BBG000BPCGF6", "BBG001S5N8V8")],
+    ("ID_ISIN", APPLE_ISIN, "US"): [figi_row("AAPL", "US", "BBG000B9XRY4", "BBG001S5N8V8")],
+    ("TICKER", "AAPL", "US"): [figi_row("AAPL", "US", "BBG000B9XRY4", "BBG001S5N8V8")],
+    ("TICKER", "AAPL", "UW"): [figi_row("AAPL", "UW", "BBG000B9Y5X2", "BBG001S5N8V8", composite="BBG000B9XRY4")],
+    ("ID_ISIN", ETF_ISIN, "XETA"): [figi_row("SXR8", "GY", "BBGETFGY0001", "BBGETFSC0001", sec_type="ETP")],
+    ("TICKER", "SPY", "US"): [figi_row("SPY", "US", "BBGSPY000001", "BBGSPYSC0001", sec_type="ETP")],
+    ("TICKER", "TSLL", "US"): [figi_row("TSLL", "US", "BBGTSLL00001", "BBGTSLLSC001", sec_type="ETP", name="DIRX DLY TSLA BUL 2X ETF")],
+    ("TICKER", "TSLL", "UQ"): [figi_row("TSLL", "UQ", "BBGTSLLUQ001", "BBGTSLLSC001", sec_type="ETP")],
+    ("TICKER", "VOO", "US"): [figi_row("VOO", "US", "BBGVOO000001", "BBGVOOSC0001", sec_type="ETP")],  # NYSE Arca: no UQ line
+    ("TICKER", "LACAX", "US"): [figi_row("LACAX", "US", "BBGLACAX0001", "BBGLACAXSC01", sec_type="Open-End Fund")],
+}
+
+
+class AllVenuesTest(unittest.TestCase):
+    """The default scope: every FIRDS venue under the venue policy, ETFs, and SEC fund ETFs."""
+
+    def setUp(self):
+        patcher = mock.patch("urllib.request.urlopen", side_effect=AssertionError("network access in a test"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(WIDE_FIRDS), Scope().cfi_prefixes), Counter())
+        turnover = firds.select_transparency(firds.transparency_records(stream(fitrs([(ASML_ISIN, "2026-04-01", 5e8), (APPLE_ISIN, "2026-04-01", 1e6)]))), date(2026, 9, 25))
+        self.snap = build_snapshot(
+            Inputs(date(2026, 9, 25), Scope(), mic.parse(MIC_CSV.encode()), admissions, turnover, sec.parse(WIDE_SEC),
+                   {"XAMS", "XETA", "FRAB"}, WIDE_FUNDS),
+            gleif_fetch, FakeOpenFigi(WIDE_OPENFIGI))
+
+    def lines(self, isin):
+        return sorted(l.mic for l in self.snap.listings.values() if l.security_id == f"isin:{isin}" and l.source == "esma_firds")
+
+    def test_one_line_per_listing_venue_operator(self):
+        self.assertEqual(self.lines(ASML_ISIN), ["XAMS", "XETA"], "one Xetra line; no Cboe Europe line")
+
+    def test_trading_only_venue_is_kept_only_as_the_only_market(self):
+        self.assertEqual(self.lines(DARK_ISIN), ["CEUX"])
+        etf = self.snap.securities[f"isin:{ETF_ISIN}"]
+        self.assertEqual((self.lines(ETF_ISIN), etf.primary_mic, etf.primary_rule, etf.kind),
+                         (["XETA"], "XETR", "trading_venue_to_listing_venue", "etf"))
+        self.assertTrue(self.snap.listings[f"XETA:{ETF_ISIN}"].is_primary)
+
+    def test_us_share_traded_in_europe_keeps_its_us_home_line_and_rank(self):
+        apple = self.snap.securities[f"isin:{APPLE_ISIN}"]
+        self.assertEqual((apple.primary_mic, apple.primary_rule, apple.rank), ("XNAS", "us_exchange_listing", 1))
+        self.assertTrue(self.snap.listings["XNAS:AAPL"].is_primary)
+        self.assertFalse(self.snap.listings[f"FRAB:{APPLE_ISIN}"].is_primary)
+
+    def test_fund_etfs_are_placed_only_when_openfigi_shows_the_nasdaq_line(self):
+        tsll = self.snap.listings["XNAS:TSLL"]
+        security = self.snap.securities[tsll.security_id]
+        self.assertEqual((security.kind, security.issuer_id, security.name, tsll.is_primary), ("etf", None, "DIRX DLY TSLA BUL 2X ETF", True))
+        self.assertFalse(any(l.ticker in ("VOO", "LACAX") for l in self.snap.listings.values()))
+        audit = self.snap.audit["us_etfs"]
+        self.assertEqual((audit["placed_nasdaq"], audit["unplaced_not_nasdaq"]), (1, 1))
+        self.assertEqual(self.snap.listings["XNYS:SPY"].row_class, "etf")
+
+    def test_eu_and_us_etf_canaries_apply_to_the_default_scope(self):
+        names = {c["name"] for c in manifest.default_canaries(Scope())}
+        self.assertTrue({"SAP on Xetra", "LVMH on Euronext Paris", "Nokia on Nasdaq Helsinki", "Direxion Daily TSLA Bull 2X ETF"} <= names)
+        results = {r["name"]: r["ok"] for r in manifest.check_canaries(self.snap, manifest.default_canaries(Scope()))}
+        self.assertTrue(results["Direxion Daily TSLA Bull 2X ETF"])
+        offline = {c["name"] for c in manifest.default_canaries(Scope(), funds=False)}  # --sec-file loads no fund file
+        self.assertNotIn("Direxion Daily TSLA Bull 2X ETF", offline)
+
+    def test_us_security_is_keyed_by_share_class_figi_with_aliases_from_its_isin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(self.snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                rule = db.execute("select value from release where key = 'subject_key'").fetchone()
+                isin = db.execute("select subject_id from assertions where scheme = 'isin' and value = ?", (APPLE_ISIN,)).fetchone()
+                aliases = dict(db.execute("select old_id, new_id from id_aliases"))
+                ids = {row[0] for row in db.execute("select id from securities union select id from listings")}
+        self.assertEqual((rule, isin), (("subject_key@1",), ("security:figi:BBG001S5N8V8",)))
+        self.assertEqual(aliases[f"security:isin:{APPLE_ISIN}"], "security:figi:BBG001S5N8V8")
+        self.assertEqual(aliases[f"listing:isin:{APPLE_ISIN}:XNAS:USD"], "listing:figi:BBG000B9Y5X2", "the Nasdaq line's FIGI, not the composite's")
+        self.assertEqual(aliases["listing:figi:BBG000B9XRY4"], "listing:figi:BBG000B9Y5X2", "the old composite-keyed ID")
+        self.assertFalse(set(aliases) & ids, "an alias never shadows a subject")
+        # A US-area security with no share-class FIGI keeps its lines under a local, non-portable ID,
+        # which a later build that finds the FIGI aliases to the FIGI key.
+        local = schema.local_security(UNKNOWN_US_ISIN)
+        self.assertEqual(local, f"security:provisional:esma_firds:isin:{UNKNOWN_US_ISIN}")
+        self.assertIn(local, ids)
+        self.assertIn(local, schema.aliases("security", "security:figi:BBG001S5N8V8", {"isin": UNKNOWN_US_ISIN, "share_class_figi": "BBG001S5N8V8"}))
+        self.assertTrue(all(new in ids or new.startswith(("issuer:", "composite:")) for new in aliases.values()))
+
+    def test_segment_venues_take_their_operator_label(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(self.snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                venues = dict(db.execute("select mic, name from venues"))
+        self.assertEqual((venues["FRAB"], venues["XETA"], venues["CEUX"]), ("Frankfurt", "Xetra", "Cboe Europe"))
+
+
+SAP_ISIN, SAP_LEI = "DE0007164600", "529900D6BF99LW9R2E68"
+WORLD_ISIN, WORLD_LEI = "IE00B4L5Y983", "549300AAAAAAAAAAAA04"  # iShares Core MSCI World UCITS ETF
+
+
+class FallbackPrimaryTest(unittest.TestCase):
+    """Truth set: when FIRDS names a trading-only venue, the primary is the venue an investor knows."""
+
+    def primaries(self, records):
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        inputs = Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [], set())
+        snap = build_snapshot(inputs, gleif_fetch, FakeOpenFigi({}))
+        return {s.isin: (s.primary_mic, next((l.mic for l in snap.listings.values() if l.security_id == s.security_id and l.is_primary), None))
+                for s in snap.securities.values() if s.isin}
+
+    def test_sap_goes_to_xetra_and_a_ucits_etf_to_frankfurt_not_the_first_regional_by_mic(self):
+        german = (("DUSB", "2003-01-02"), ("HAMB", "2001-01-02"), ("XGAT", "2010-01-04"), ("FRAB", "2005-01-03"), ("CEUX", "2009-01-02"))
+        records = [firds_record(SAP_ISIN, segment, SAP_LEI, name="SAP SE", relevant="CEUX", first=first) for segment, first in (*german, ("XETB", "2008-01-02"))]
+        records += [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first) for segment, first in german]
+        self.assertEqual(self.primaries(records), {SAP_ISIN: ("XETR", "XETB"), WORLD_ISIN: ("XFRA", "FRAB")})
+
+    def test_without_a_preferred_venue_the_earliest_listing_wins(self):
+        records = [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first)
+                   for segment, first in (("DUSB", "2012-01-02"), ("HAMB", "2011-01-03"), ("CEUX", "2009-01-02"))]
+        self.assertEqual(self.primaries(records), {WORLD_ISIN: ("XHAM", "HAMB")})
 
 
 class CikLinkTest(unittest.TestCase):

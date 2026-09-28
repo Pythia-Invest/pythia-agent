@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import firds, manifest, mic, schema, sec, writer
+from . import firds, manifest, mic, schema, sec, truth_report, writer
 from .assemble import Inputs
 from .config import BUILDER_VERSION, USER_AGENT, BuildConfig, Scope, load_openfigi_key, load_sec_identity, parse_mics
 from .fetch import Downloader, log, utc_now
@@ -20,8 +20,8 @@ from .pipeline import build_snapshot
 
 def parse_args(argv: list[str]) -> BuildConfig:
     parser = argparse.ArgumentParser(prog="reference-builder", description="Build the open reference snapshot.")
-    parser.add_argument("--mics", default="XAMS", help="comma-separated operating MICs (default XAMS)")
-    parser.add_argument("--no-sec", action="store_true", help="skip SEC ticker lines")
+    parser.add_argument("--mics", default="ALL", help="comma-separated operating MICs (default ALL: every EU/EEA venue in FIRDS)")
+    parser.add_argument("--no-sec", action="store_true", help="skip US lines (SEC company and fund tickers)")
     parser.add_argument("--as-of", type=date.fromisoformat, default=datetime.now(timezone.utc).date())
     parser.add_argument("--out", type=Path, help="output directory")
     parser.add_argument("--cache", type=Path, help="download cache directory")
@@ -50,25 +50,31 @@ def run(config: BuildConfig) -> int:
     day = timedelta(days=config.listing_file_max_age_days)
     venues = mic.parse(mic.fetch(downloads, day))
 
-    full_docs, delta_docs = firds.firds_files(USER_AGENT, config.as_of, config.deltas)
+    full_docs, delta_docs = firds.firds_files(USER_AGENT, config.as_of, config.deltas, config.scope.cfi_prefixes)
     full = [firds.download(downloads, "esma_firds", d) for d in full_docs]
     deltas = [firds.download(downloads, "esma_firds", d) for d in delta_docs]
     admissions, record_counts = firds.load_admissions(full, deltas, config.scope.cfi_prefixes)
     transparency = None
     if config.fitrs:
-        transparency = firds.load_transparency([firds.download(downloads, "esma_fitrs", d) for d in firds.fitrs_files(USER_AGENT, config.as_of)], config.as_of)
+        transparency = firds.load_transparency([firds.download(downloads, "esma_fitrs", d) for d in firds.fitrs_files(USER_AGENT, config.as_of, config.scope.cfi_prefixes)], config.as_of)
 
     sec_rows = sec.parse(sec.fetch(downloads, config.contact, config.sec_file, day)) if config.scope.sec else []
+    funds = sec.parse_funds(sec.fetch_funds(downloads, config.contact, day)) if config.scope.sec and not config.sec_file else []
     figi = OpenFigi(config.cache_dir, USER_AGENT, load_openfigi_key(), timedelta(days=config.openfigi_max_age_days))
     log(f"OpenFIGI: {'keyed' if figi.keyed else 'keyless (slower rate limits)'}")
     gleif = GleifClient(config.cache_dir, USER_AGENT, timedelta(days=config.gleif_max_age_days))
 
-    inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes())
+    inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes(), funds)
     snap = build_snapshot(inputs, gleif.fetch, figi.map)
+    dropped = [f"{f.subject_id} ({f.flag.removeprefix('firds_underlying_')})" for f in snap.flags
+               if f.flag in ("firds_underlying_inactive", "firds_underlying_outside_build")]
+    if dropped:
+        log(f"receipts whose FIRDS underlying is inactive or outside the build: {len(dropped)}: {', '.join(dropped[:10])}"
+            f"{', ...' if len(dropped) > 10 else ''}")
     snap.audit["firds_records"] = dict(sorted(record_counts.items()))
     snap.audit["fitrs_isins"] = len(transparency) if transparency is not None else None
 
-    canaries = manifest.check_canaries(snap, manifest.default_canaries(config.scope))
+    canaries = manifest.check_canaries(snap, manifest.default_canaries(config.scope, funds=bool(funds)))
     for result in canaries:
         log(f"canary {'ok' if result['ok'] else 'FAILED'}: {result['name']} {result['missing'] or ''}")
     failed = [c for c in canaries if not c["ok"]]
@@ -87,9 +93,11 @@ def run(config: BuildConfig) -> int:
     stamp = config.as_of.strftime("%Y%m%d")
     build_id = f"reference-{stamp}"
     meta = {"build_id": build_id, "schema_version": str(schema.SCHEMA_VERSION), "builder_version": BUILDER_VERSION,
-            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics) + (",SEC" if config.scope.sec else "")}
+            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics or ["EEA"]) + (",US" if config.scope.sec else ""),
+            "cfi_prefixes": ",".join(config.scope.cfi_prefixes)}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)
+    truth_audit = truth_report.build_report(snapshot_path, config.scope.cfi_prefixes, log)  # a report, never a gate
     manifest.write_manifest(config.out_dir / "manifest.json", {
         "build_id": build_id,
         "schema_version": schema.SCHEMA_VERSION,
@@ -106,6 +114,7 @@ def run(config: BuildConfig) -> int:
         "gleif_api_calls": gleif.calls,
         "audit": snap.audit,
         "canaries": canaries,
+        "truth_audit": truth_audit,
     })
     log(f"wrote {snapshot_path} ({counts.get('listings', 0)} listings) in {time.monotonic() - clock:.0f}s")
     return 1 if failed else 0

@@ -31,14 +31,29 @@ an operating MIC with a currency, a FIGI and, where known, a ticker (FIRDS lines
 carry none), or a crypto chain deployment. Each scheme identifies exactly one
 level, enforced by the types and the SQL: an ISIN never identifies a listing.
 
-**Subject IDs are derived from open identifiers** (`subject_id`), never random:
+**Subject IDs are derived from open identifiers** (`subject_id`), never random,
+by a versioned key rule, `subject_key@1` (`KEY_RULE`, recorded in the
+reference `release` table):
 
 | Level | ID, first available key wins |
 | --- | --- |
 | Issuer | `issuer:lei:<LEI>`, else `issuer:cik:<CIK>` |
 | Security | `security:isin:<ISIN>`, else `security:figi:<share-class FIGI>`, else `security:caip19:<home deployment>` |
-| Composite | the security key plus country, e.g. `composite:isin:USN070592100:US` |
+| Composite | the security key plus country, e.g. `composite:figi:BBG001SCG0R3:US` |
 | Listing | `listing:isin:<ISIN>:<operating MIC>:<currency>`, else `listing:figi:<FIGI>`, else `listing:caip19:<deployment>` |
+
+A key uses only identifiers every build path has and may host. ISINs from
+CUSIP Global Services (`CGS_AREA`: US, Canada, US territories and the offshore
+centres whose ISINs carry a CUSIP/CINS number) are licensed, local-only
+evidence, so they never key a subject: such securities are keyed by share-class
+FIGI and listings by FIGI, and the ISIN stays an assertion; until a
+share-class FIGI is known, such a security has a provisional, non-portable ID
+that is aliased once the FIGI appears. New evidence
+therefore never re-keys a subject. The builder writes deterministic aliases,
+every other key a subject could have had (for example `security:isin:US…` and
+`listing:figi:…` for an ISIN-keyed EU line), into `id_aliases`, so an old or
+foreign ID resolves without the previous build. A changed rule is a new
+version (`subject_key@2`) with aliases from the old IDs.
 
 Installs and rebuilds agree on every ID. Venue lines with
 the same ISIN, operating MIC and currency are one listing; segment MICs and
@@ -88,6 +103,7 @@ authority.
 | T0 identifier | `source_asserted`, `snapshot` | Yes |
 | T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`) | Yes |
 | T3 model verdict | `model_confirmed` at or above the threshold; `model_suggested` below | Only `model_confirmed` |
+| T3 agent answer | `agent_confirmed` (the Hermes agent) | Provisionally |
 | T4 attestation | `user_attested`, `curated` | Yes |
 
 A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
@@ -110,15 +126,57 @@ A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
    evidence of an end sets `valid_to`.
 
 Rules give `rule_confirmed`, the user gives `user_attested` and must cite the
-Desk action behind it, and the Hermes agent or a resolver plugin (such as Jev,
-off by default) give `model_*` verdicts. The agent cannot cite a user action, so
-it cannot attest.
+Desk action behind it, a resolver plugin (such as Jev, off by default) gives
+calibrated `model_*` verdicts, and the Hermes agent gives `agent_confirmed`. The
+agent cannot cite a user action, so it cannot attest.
 
 **Resolution queue.** Core owns one queue of residuals (records the join could
 not place) and conflicts (contradicting evidence). Each item names the plugins
 involved and has a dedupe key, so re-ingest never duplicates an open question.
 Manual resolution is allowed and never required; resolution never runs on the
 search or page path.
+
+**Working the queue.** Core exposes two operations, which are also native agent
+tools: `identity-queue` lists open items (filtered by subject, plugin or kind),
+on request apart from them the items only the agent answered (no longer open;
+they route provisionally until the user confirms or overrides them), or reads
+one item in full with the
+provider record, candidates, cited evidence and every verdict so far;
+`identity-verdict` answers one item. The transport decides the resolver, never
+an argument: a Desk HTTP call is the user (`user_attested`, citing that Desk
+action), a model tool call is the Hermes agent. An agent answer does not rest on
+the model's self-stated confidence: it is `agent_confirmed`, its own tier, which
+confirms provisionally and records the digest of the item view it answered. A
+user verdict on the same item, or stronger identifier evidence from a rule or
+the join, supersedes it and may re-point or withdraw its binding; every other
+confirmed binding is never re-pointed. Every verdict goes through `decide` and
+is recorded with its outcome; a confirmed one writes its binding, citing the
+verdict, in the same transaction. "Not a match" (`unrelated`, `none`) is refused
+when the record's own identifier at the question's level equals the candidate's
+T0 evidence (for a listing, its FIGI, or its security's ISIN on the same venue),
+so an identifier-backed contradiction stays open; an issuer LEI alone does not
+block it. A dismissal holds for the evidence
+it was given: re-asking the question with different identifier evidence reopens
+it. A question without a provider record takes no verdict until its answer has
+an effect. The rules resolver re-asks the join (`resolve_answer@1`) for open
+items with the evidence the device has now: after each `identity-resolve` for
+that subject's items, and for every open item on the first write after the
+reference build changed. It runs inside write operations only, with no
+scheduler, and nothing triggers the agent: it works the queue when asked. While
+a plugin has an open conflict for a subject, its section shows the conflict and
+a ready plugin serves the section instead. The instrument page shows no queue
+note; the Desk lists issues on one generic page, Settings → Repairs (modelled on
+Home Assistant's Repairs), outside the main navigation and counted in Settings
+only while issues are open. It uses the back-office table (docs/design.md): each
+question is a row (kind, instrument, provider, status, created, resolved) whose
+context shows the provider record beside our instrument and the evidence, and
+whose actions record the user's verdict with an optional note (`rationale`).
+The agent's answers and settled questions are reached through the Status filter
+(`identity-queue` with `answered` and `settled`).
+Rejected: attesting through an
+argument (the agent could supply it), a confidence threshold on the agent's own
+number (uncalibrated), a separate agent-only path (two write paths to audit),
+and a background drain (events and jobs are undecided).
 
 **Stores.** Two embedded SQLite files in portable SQL, reached through a thin
 store module: `reference.sqlite3` (open reference data, built on the device and
@@ -170,8 +228,10 @@ auditable: swapping a resolver changes who answers, not what an answer may do.
 
 ## Consequences
 
-- The market-data identity modules and `packages/market-data/IDENTITY.md` stay
-  until a later piece migrates their mappings to bindings.
+- The market-data identity layer is retired: market data routes subject reads
+  through core's bindings and keeps no mappings of its own. Old mappings are
+  kept aside, not migrated; core derives or resolves addresses again (ADR 0012,
+  retirement amendment).
 - The core payload gains the standard-library-only `identity` package and DDL.
 - The reference builder and search bar adopt these contracts (table names,
   `ev:` evidence IDs, authority names, subject ID forms).
@@ -187,3 +247,85 @@ auditable: swapping a resolver changes who answers, not what an answer may do.
 - **Random or sequential IDs:** installs and rebuilds would disagree.
 - **A cloud master or server database:** a service dependency the product does
   not need.
+
+## Amendment (2026-09-28): subject kinds and relation behaviour
+
+FX, indices, rate series and DeFi protocols and markets are not instruments,
+and search and pages need one general rule for what belongs together. Under the
+text above, each new asset class would need a closed-level change, a rebuild of
+the persistent store's CHECKs and a per-case grouping rule. This amendment
+settles both points while no investor state depends on the old form. It
+supersedes three passages:
+
+- "Four levels" as a closed set "enforced by the types and the SQL";
+- the provisional example `security:provisional:eodhd:catalogue:GSPC.INDX`;
+- the fixed list under "Typed relations".
+
+### Subject kinds are separate from levels
+
+A subject ID is `<kind>:<key-scheme>:<key>`, and its first segment is the
+**kind**. Kinds form an open vocabulary registered in core's identity package.
+
+- `issuer`, `security`, `composite` and `listing` keep the hierarchy above.
+  They are the only kinds with a level, and level walks, `via` and depth rules
+  apply only within that hierarchy.
+- `currency`, `fx`, `index`, `series`, `protocol` and `market` sit outside the
+  hierarchy and connect only through typed relations.
+  - A rate series is a `series`, not a fifth level.
+  - An index is an `index`, not a security, so "security" keeps meaning
+    something one can hold.
+- A provisional ID is minted in its own kind, for example
+  `index:provisional:eodhd:catalogue:GSPC.INDX`.
+- Readers, including the queue tool and the market-data wire, pass an unknown
+  kind through unchanged. Stores and instrument code accept only registered
+  kinds with their registered key schemes, so `security:bogus:x` is rejected.
+- Kinds, relation types and each relation's allowed kinds live in Python.
+  - The persistent `identity.sqlite3` checks only the ID format (schema 4, which
+    migrates schema 3 in place).
+  - The rebuilt `reference.sqlite3` keeps its instrument CHECKs but not
+    relation-type ones.
+
+### Relations declare fold or related
+
+Relations never merge subjects. Each relation type declares one behaviour:
+
+| Behaviour | Meaning | Types |
+| --- | --- | --- |
+| `fold` | Sameness across distinct securities, which must be shown together | `depositary_receipt_of`, `native_deployment_of` |
+| `related` | Different things, shown nearby as links and never folded | `share_class_of`, `wraps`, `bridged_from`, `staked_as`, `tracks`, `derivative_on`, `tokenized_from`, `successor_of` |
+
+- **Instrument.** An instrument is a security plus every security folded into
+  it: its depositary receipts and registry lines, and later a chain's native
+  issuance of a curated crypto asset (M2 settles which deployments are
+  separate securities). An equity page's listing selector lists the
+  instrument's lines.
+- **Search group.** A search group is the investable entity:
+  - the company, for its equity securities (share classes and preferreds
+    included, as distinct instruments);
+  - the product itself, for a fund, ETF, ETN or ETC, so that a product is never
+    buried under its issuer;
+  - the asset, for crypto.
+- **Other securities.** The page shows the company's other securities, such as
+  share classes and preferreds, as "other securities" of that company. Other
+  `related` subjects appear as links.
+- A new relation type states its behaviour when it is added, so an unforeseen
+  case groups without new code.
+- Odd fold data is never resolved silently. A second fold target or a fold
+  cycle keeps its subjects apart, and the builder's report and
+  `just reference-audit` list it.
+
+### Rationale and rejected alternatives
+
+An open kind vocabulary keeps each new asset class additive. SQLite cannot
+change a CHECK without rebuilding the table, which a device-local store would
+need at every addition. Declared relation behaviour plus the investable-entity
+rule replaces grouping cases per asset class.
+
+- **`series` or `index` as extra levels:** rejected, because they are not
+  tradable lines of an issuer.
+- **Share classes as `fold`:** rejected. Share classes are economically
+  different, and they already group under their company.
+- **Grouping every security under its issuer:** rejected, because it would bury
+  funds and notes under their issuer (one bank issues 44 ETNs).
+- **Enumerations in persistent SQL CHECKs:** rejected, because each addition
+  would need a table rebuild on every device.

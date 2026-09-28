@@ -8,7 +8,7 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from test_market_data_identity import PACKAGE
+from market_data_fixture import PACKAGE
 
 governor = importlib.import_module(PACKAGE + '.governor')
 process = importlib.import_module(PACKAGE + '.process')

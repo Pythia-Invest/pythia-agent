@@ -107,12 +107,6 @@ def _semantics(kind, value, path):
         allowed = {"isin": {"instrument"}, "cusip": {"instrument"}, "lei": {"company"}, "cik": {"company"}, "contract_address": {"crypto"}}
         require(value["scope"] in allowed.get(value["scheme"], {value["scope"]}), path, "identifier scheme scope differs")
         require(value["scheme"] != "contract_address" or "network" in value["qualifiers"], path, "contract address needs network")
-    elif kind == "mapping":
-        require(value["status"] != "confirmed" or bool(value["evidence_ids"]), path, "confirmation needs evidence references")
-        override = value["active_override"]
-        if override:
-            require(set(override["evidence_ids"]) <= set(value["evidence_ids"]), path, "override evidence absent from mapping")
-            require(not (override["effect"] == "negative" and value["status"] == "confirmed"), path, "negative override cannot confirm")
     elif kind == "series":
         _series(value, path)
     elif kind == "completion":
@@ -144,6 +138,12 @@ def _semantics(kind, value, path):
             times = [datetime.fromisoformat(session[part][edge].replace('Z', '+00:00'))
                      for part, edge in [('extended', 'start'), ('regular', 'start'), ('regular', 'end'), ('extended', 'end')]]
             require(times[0] <= times[1] < times[2] <= times[3], path, "invalid session boundaries")
+            if "previous" in session:
+                previous = [datetime.fromisoformat(session['previous'][part][edge].replace('Z', '+00:00'))
+                            for part, edge in [('extended', 'start'), ('regular', 'start'), ('regular', 'end'), ('extended', 'end')]]
+                require(previous[0] <= previous[1] < previous[2] <= previous[3] <= times[0], path, "previous session must precede this session")
+        if "extended" in value:
+            require(Decimal(value['extended']['value']) > 0, path, "invalid extended price")
         if "reference_close" in value:
             require(Decimal(value['reference_close']['value']) > 0, path, "invalid reference close")
         if "top_of_book" in value:
@@ -185,7 +185,7 @@ def _series(value, path):
     if value["shape"] == "ohlc":
         require(all(fields[name] == fields["close"] for name in ("open", "high", "low")), path, "OHLC fields have incompatible semantics")
     binding = value["subject"]
-    require(not price or binding.get("kind") != "company", path, "company is not a price instrument")
+    require(not price or binding.get("kind") != "issuer", path, "an issuer is not a price instrument")
     require("provider" not in binding or binding == value["provider_ref"], path, "native subject binding differs")
     _source_detail(value, value["provider_ref"]["provider"], path)
 
@@ -194,6 +194,12 @@ def validate_observation(value, series):
     """Validate an observation in its series context; returns an independent value."""
     validate("series", series)
     result = validate("observation", value)
+    _observation_in_series(value, series)
+    return result
+
+
+def _observation_in_series(value, series):
+    """Series-context rules for an already validated observation and series."""
     require(value["shape"] == series["shape"], "observation", "series shape differs")
     require("volume" not in value or "volume" in series["fields"], "observation", "volume field not defined")
     time = value["time"]
@@ -203,7 +209,6 @@ def validate_observation(value, series):
     if anchor in ("interval_start", "interval_end") and value["interval"]:
         bound = value["interval"]["start" if anchor == "interval_start" else "end"]
         require(_time_value(time) == _time_value(bound), "observation", "interval anchor differs")
-    return result
 
 
 def _read(value, path):
@@ -227,8 +232,10 @@ def _read(value, path):
                 requested = {**requested, "qualifiers": {**actual.get("qualifiers", {}), **requested.get("qualifiers", {})}}
                 actual = {**actual, "qualifiers": actual.get("qualifiers", {})}
             require(requested == actual, path, "selected subject differs from requested intent")
+        # The read result's own pass has validated the series and each
+        # observation; only their relation remains to check here.
         for observation in observations:
-            validate_observation(observation, series)
+            _observation_in_series(observation, series)
             time = observation["time"]
             if time["kind"] != "unknown":
                 for window in (value["returned_window"], request["window"]):

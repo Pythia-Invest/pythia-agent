@@ -135,3 +135,25 @@ ADR 0037 owns the authority vocabulary and the edge cases:
 - repair dependencies.
 
 It also owns the matching change to the ADR 0011 wire authority enum.
+
+## Amendment (2026-09, retirement)
+
+The implementation this ADR describes is removed. Market data keeps no identity
+store: its `IdentityStore`, source-pair matching rules, overrides and repair
+code are gone, and so are the `search`, `resolve_save`, `inspect_identity`,
+`inspect_subject`, `refresh_identity`, `inspect_repair`, `apply_override` and
+`revoke_override` actions. A subject read now names a backbone subject id and
+routes through core's bindings and source order
+([ADR 0037](0037-identity-backbone.md)); explicit provider references and
+pinned source reads are unchanged.
+
+Source preferences move to the feature's `preferences.sqlite3`. Global orders
+are copied as they are; scoped choices for the retired subject kinds become
+asset-class scopes, and company-scoped choices, which never applied to prices,
+are dropped. After a successful copy the old identity file is renamed
+`identity-retired.sqlite3` and left in place; a failed copy leaves it untouched
+for the next start. Its mappings are not migrated, because core derives or
+resolves addresses again from open identifiers. A retained reference to a
+retired subject fails visibly instead of being rewritten.
+[Market data and identity](../../packages/market-data/IDENTITY.md) has the
+details. The principles in the first amendment still hold, now enforced by core.

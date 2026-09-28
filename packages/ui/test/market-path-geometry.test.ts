@@ -149,3 +149,17 @@ test("a partial session retains its time position as observations arrive, includ
     instrumentPathGeometry({ ...path, session: { start: 600, end: 0 } }),
   ).toBeNull();
 });
+test("joined sessions draw one line; a missing bar inside a session still breaks it", () => {
+  const minute = 60_000;
+  const at = (m: number, value = 100) => ({ time: m * minute, value });
+  const g = instrumentPathGeometry({
+    label: "Two sessions, closed night omitted",
+    intervalMs: minute,
+    // Session one 0–3 min, closed 4–599, session two 600–603 with 602 missing.
+    points: [at(0), at(1), at(2), at(3), at(600, 110), at(601), at(603)],
+    session: { start: 0, end: 604 * minute },
+    sessionGaps: [{ start: 4 * minute, end: 600 * minute }],
+  });
+  expect(g?.segments).toHaveLength(2);
+  expect(g?.segments[0]?.path.split("L")).toHaveLength(6);
+});

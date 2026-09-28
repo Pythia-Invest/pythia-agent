@@ -1,6 +1,6 @@
 """Pythia identity backbone contracts (ADR 0037, ADR 0038).
 
-Core-owned meaning shared by every plugin: subject levels, identifier schemes,
+Core-owned meaning shared by every plugin: subject kinds and levels, identifier schemes,
 evidence tiers, typed claims, the resolution queue and its authority rule, the
 store schemas and the plugin contract manifest. Plugins reach
 it through the loaded core module's `identity` attribute. Pure standard
@@ -19,19 +19,20 @@ from .claims import (
 from .manifest import MANIFEST_FILE, CatalogueMode, Manifest, ManifestError, Section, validate_manifest
 from .model import (
     Binding, Composite, IdentifierAssertion, Issuer, Listing, Provenance, ProviderRef, Relation, Security,
-    Subject, Validity, evidence_id,
+    Subject, Validity, evidence_id, fold_roots,
 )
 from .resolution import (
-    QueueItem, QueueItemKind, QueueReason, QueueState, ResolverKind, Verdict, VerdictOutcome, contradicts, decide,
+    QueueItem, QueueItemKind, QueueReason, QueueState, ResolverKind, Verdict, VerdictOutcome, contradicts, corroborates,
+    decide,
     guarded,
 )
 from .schemes import (
-    SCHEME_LEVEL, IdentifierError, Level, Scheme, normalize_identifier, provisional_id, subject_id, subject_level,
-    ticker_mic,
+    CGS_AREA, INSTRUMENT_KINDS, KEY_RULE, SCHEME_LEVEL, IdentifierError, Kind, Level, Scheme, normalize_identifier,
+    provisional_id, registered_kind, subject_id, subject_kind, subject_level, ticker_mic,
 )
 from .vocabulary import (
-    AUTHORITY_TIER, AssetClass, Authority, BindingStatus, EvidenceTier, IdentifierRole, InstrumentKind, RelationType,
-    SubjectStatus, VerdictRelation,
+    AUTHORITY_TIER, RELATIONS, AssetClass, Authority, BindingStatus, EvidenceTier, Grouping, IdentifierRole,
+    InstrumentKind, RelationRule, RelationType, SubjectStatus, VerdictRelation,
 )
 
 class Store(StrEnum):

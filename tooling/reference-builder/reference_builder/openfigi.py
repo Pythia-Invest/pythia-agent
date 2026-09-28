@@ -1,5 +1,8 @@
 """OpenFIGI `/v3/mapping` client with a job-level answer cache.
 
+Answers live in a SQLite file and are read per job, so a full build does not
+hold several hundred megabytes of answers in memory.
+
 With a key: 100 jobs per request, 25 requests per 6 s. Without one: 10 jobs per
 request, 25 requests per minute. The key travels only in the request header.
 """
@@ -7,6 +10,7 @@ request, 25 requests per minute. The key travels only in the request header.
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -25,18 +29,26 @@ class OpenFigi:
         self.max_age = max_age
         self.per_request = 100 if api_key else 10
         self.min_interval = 0.25 if api_key else 2.5
-        self.path = cache_dir / "openfigi-answers.jsonl"
+        self.path = cache_dir / "openfigi-answers.sqlite3"
         self.stats: Counter = Counter()
         self.first_answer: str | None = None
         self.last_answer: str | None = None
         self._last_call = 0.0
-        self._cache: dict[str, dict] = {}
-        if self.path.exists():
-            for line in self.path.read_text(encoding="utf-8").splitlines():
-                key, entry = json.loads(line)
-                current = self._cache.get(key)
-                if current is None or entry["at"] > current["at"]:
-                    self._cache[key] = entry
+        self._db = sqlite3.connect(self.path)
+        self._db.execute("CREATE TABLE IF NOT EXISTS answers (job TEXT PRIMARY KEY, at TEXT NOT NULL, answer TEXT NOT NULL)")
+        self._import_jsonl(cache_dir / "openfigi-answers.jsonl")
+
+    def _import_jsonl(self, old: Path) -> None:
+        """Carry answers from the earlier line-per-answer cache into the database once, newest answer per job."""
+        if not old.exists() or self._db.execute("SELECT 1 FROM answers LIMIT 1").fetchone():
+            return
+        with old.open(encoding="utf-8") as lines, self._db:
+            for line in lines:
+                job, entry = json.loads(line)
+                self._db.execute("INSERT INTO answers VALUES (?, ?, ?) ON CONFLICT (job) DO UPDATE SET at = excluded.at,"
+                                 " answer = excluded.answer WHERE excluded.at > answers.at",
+                                 (job, entry["at"], json.dumps(entry["answer"])))
+        log(f"OpenFIGI: imported {old.name} into {self.path.name}; the old file can be deleted")
 
     @property
     def keyed(self) -> bool:
@@ -56,29 +68,28 @@ class OpenFigi:
         pending: dict[str, list[int]] = {}
         for index, job in enumerate(jobs):
             key = json.dumps(job, sort_keys=True)
-            entry = self._cache.get(key)
-            if entry and self._fresh(entry):
-                answers[index] = entry["answer"]
-                self._seen(entry["at"])
+            entry = self._db.execute("SELECT at, answer FROM answers WHERE job = ?", (key,)).fetchone()
+            if entry and self._fresh({"at": entry[0]}):
+                answers[index] = json.loads(entry[1])
+                self._seen(entry[0])
                 self.stats["cache_hits"] += 1
             else:
                 pending.setdefault(key, []).append(index)
         keys = list(pending)
         if keys:
             log(f"OpenFIGI: {len(keys)} jobs to send ({'keyed' if self.keyed else 'keyless'}, {len(jobs) - sum(map(len, pending.values()))} cached)")
-        with self.path.open("a", encoding="utf-8") as sink:
-            for start in range(0, len(keys), self.per_request):
-                batch = keys[start : start + self.per_request]
-                results = self._post([json.loads(k) for k in batch])
-                now = utc_now()
-                for key, answer in zip(batch, results):
-                    self._cache[key] = {"at": now, "answer": answer}
-                    sink.write(json.dumps([key, {"at": now, "answer": answer}]) + "\n")
-                    for index in pending[key]:
-                        answers[index] = answer
-                    self._seen(now)
-                if start and start % (self.per_request * 20) == 0:
-                    log(f"OpenFIGI: {start}/{len(keys)} jobs sent")
+        for start in range(0, len(keys), self.per_request):
+            batch = keys[start : start + self.per_request]
+            results = self._post([json.loads(k) for k in batch])
+            now = utc_now()
+            with self._db:
+                self._db.executemany("INSERT OR REPLACE INTO answers VALUES (?, ?, ?)", [(k, now, json.dumps(a)) for k, a in zip(batch, results)])
+            for key, answer in zip(batch, results):
+                for index in pending[key]:
+                    answers[index] = answer
+                self._seen(now)
+            if start and start % (self.per_request * 20) == 0:
+                log(f"OpenFIGI: {start}/{len(keys)} jobs sent")
         return [a if a is not None else {"error": "no answer"} for a in answers]
 
     def _seen(self, at: str) -> None:

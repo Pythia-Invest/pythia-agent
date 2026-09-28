@@ -57,19 +57,22 @@ class Fixture(unittest.TestCase):
         self.ref.close()
         self.tmp.cleanup()
 
-    def compose(self, subject_id, plugins):
-        subject = page.load_subject(self.ref, subject_id)
+    def lookups(self, subject_id):
         coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
         stored = {(r["subject_id"], r["provider"]): r for r in self.identity.bindings([subject_id], ("confirmed",))}
+        return {"stored": lambda target, provider: stored.get((target, provider)),
+                "coins": lambda provider, caip19: coins.get((provider, caip19)), "queue": []}
+
+    def compose(self, subject_id, plugins):
+        subject = page.load_subject(self.ref, subject_id)
         return subject, {section["section"]: section for section in page.compose(
-            subject, plugins, stored=lambda target, provider: stored.get((target, provider)),
-            coins=lambda provider, caip19: coins.get((provider, caip19)), queue=[])}
+            subject, plugins, **self.lookups(subject_id))}
 
 
 SHELL, SHEL = "listing:isin:GB00BP6MXD84:XAMS:EUR", "listing:figi:BBG0147BN6G2"
 SHELL_OTC = "listing:isin:GB00BP6MXD84:OTCM:USD"
 BANK = [("common", "ordinary", "BNK"), ("preferred", "preferred", "BNK-PA"), ("note1", "other", "BNKN"),
-        ("note2", "other", "BNKO")]
+        ("note2", "other", "BNKO"), ("etn", "fund", "BNKX")]
 
 
 class SearchTest(Fixture):
@@ -95,6 +98,9 @@ class SearchTest(Fixture):
                           for key, _, ticker in BANK)]
             db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
                            " VALUES (?, ?, ?, ?3, ?, ?, ?)", listings)
+            db.execute("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
+                       " retrieved_at) VALUES ('ev:shel', 'depositary_receipt_of', 'security:figi:BBG0147BN6H1',"
+                       " 'security:isin:GB00BP6MXD84', 'snapshot', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')")
         self.directory = search.Directory(self.ref)
 
     def rows(self, query, **options):
@@ -103,7 +109,7 @@ class SearchTest(Fixture):
 
     def test_a_company_groups_its_listings_receipts_included(self):
         group, = self.directory.search("asml", limit=5)["groups"]
-        us = "listing:isin:USN070592100:XNAS:USD"
+        us = "listing:figi:BBG000K6N6G7"
         self.assertEqual({key: group[key] for key in ("name", "kind", "shown")},
                          {"name": "ASML Holding N.V.", "kind": "ordinary", "shown": 2})
         self.assertEqual(group["rows"][0], {"id": ASML, "ticker": "ASML", "name": "ASML Holding N.V.",
@@ -113,7 +119,7 @@ class SearchTest(Fixture):
         self.assertEqual((group["rows"][1]["id"], group["rows"][1]["kind"]), (us, "depositary_receipt"))
 
     def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
-        us = "listing:isin:USN070592100:XNAS:USD"
+        us = "listing:figi:BBG000K6N6G7"
         self.assertEqual(self.rows("asml", prefer="US"), [us])
         self.assertEqual(self.rows("asml", prefer="EU"), [ASML])
         self.assertEqual(self.rows("ASML.AS", prefer="US", suffixes=lambda: {".AS": {"XAMS"}}), [ASML])
@@ -138,6 +144,29 @@ class SearchTest(Fixture):
         # The page groups lines by these: the venue's country, OTC and the issuer's home country.
         self.assertEqual([(item["country"], item["otc"], item["home"]) for item in listings], [("NL", False, False), (None, True, False), ("US", False, False)])
 
+    def test_only_a_fold_relation_folds_a_receipt_and_the_issuer_still_groups_it(self):
+        with sqlite3.connect(self.path) as db:
+            db.execute("DELETE FROM relations WHERE evidence_id = 'ev:shel'")
+        directory = search.Directory(self.ref)
+        self.assertEqual([item["id"] for item in directory.instrument_listings("security:figi:BBG0147BN6H1")], [SHEL])
+        self.assertEqual(self.rows("shell")[:1], [SHELL])
+        groups = dict(directory.db.execute("SELECT security, grp FROM doc WHERE ticker IN ('SHELL', 'SHEL')"))
+        self.assertEqual(set(groups.values()), {"issuer:lei:21380068P1DRHMJ8KU70"})
+
+    def test_the_search_group_is_the_company_for_its_equity_and_the_product_for_a_fund(self):
+        groups = dict(self.directory.db.execute("SELECT security, grp FROM doc WHERE security LIKE 'security:bank:%'"))
+        self.assertEqual(groups.pop("security:bank:etn"), "security:bank:etn")  # an ETN is its own group
+        self.assertEqual(set(groups.values()), {"issuer:cik:1"})
+
+    def test_other_securities_are_the_groups_other_instruments_each_with_a_line(self):
+        others = self.directory.other_instruments("security:bank:common")
+        self.assertEqual([(item["id"], item["ticker"], item["kind"]) for item in others],
+                         [("security:bank:note1", "BNKN", "other"), ("security:bank:note2", "BNKO", "other"),
+                          ("security:bank:preferred", "BNK-PA", "preferred")])
+        # A receipt folds into its share, so the share's other securities never list it, and a fund lists none.
+        self.assertEqual(self.directory.other_instruments("security:figi:BBG0147BN6H1"), [])
+        self.assertEqual(self.directory.other_instruments("security:bank:etn"), [])
+
     def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):
         bound = {BTC: [{"plugin": "coinmarketcap", "ref": "1"}]}
         group = self.directory.search("BTC", limit=5, bindings=lambda ids: bound)["groups"][0]
@@ -147,8 +176,10 @@ class SearchTest(Fixture):
                          {"id": BTC, "mic": None, "country": None, "bindings": bound[BTC]})
 
     def test_an_issuers_main_share_and_preferred_come_before_its_notes(self):
-        group, = self.directory.search("bank corp", limit=5)["groups"]
-        self.assertEqual([row["id"] for row in group["rows"]][:2], ["listing:bank:common", "listing:bank:preferred"])
+        # The bank's ETN is a product: its own group, after the company's.
+        company, etn = self.directory.search("bank corp", limit=5)["groups"]
+        self.assertEqual([row["id"] for row in company["rows"]][:2], ["listing:bank:common", "listing:bank:preferred"])
+        self.assertEqual([row["id"] for row in etn["rows"]], ["listing:bank:etn"])
 
 
 class PageTest(Fixture):
@@ -162,6 +193,16 @@ class PageTest(Fixture):
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "gleif-profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
 
+    def test_an_old_us_id_resolves_through_its_alias(self):
+        old, current = "listing:isin:USN070592100:XNAS:USD", "listing:figi:BBG000K6N6G7"  # before subject_key@1
+        self.assertIsNone(page.load_subject(self.ref, old))
+        with sqlite3.connect(self.path) as db:  # the builder writes aliases; the reference opens read-only
+            db.execute("INSERT INTO id_aliases VALUES (?, ?, 'test')", (old, current))
+        ref = store.open_reference(self.path)
+        self.addCleanup(ref.close)
+        subject = page.load_subject(ref, old)
+        self.assertEqual((subject["id"], subject["listing"]["ticker"]), (current, "ASML"))
+
     def test_an_unusable_plugin_yields_to_the_next_and_says_why(self):
         missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)
         _subject, sections = self.compose(BTC, [plugin("coinmarketcap", missing=missing), plugin("coingecko"),
@@ -171,6 +212,16 @@ class PageTest(Fixture):
                          ("pythia-coingecko", "bitcoin", "confirmed"))
         self.assertEqual(quote["alternatives"], [{"plugin": "pythia-coinmarketcap", "label": "CoinMarketCap",
                                                   "status": "needs_configuration"}])
+
+    def test_market_data_reads_a_subject_through_its_ready_references_in_core_order(self):
+        missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)
+        btc = page.load_subject(self.ref, BTC)
+        self.assertEqual(page.price_sources(btc, [plugin("coinmarketcap", missing=missing), plugin("coingecko")],
+                                            **self.lookups(BTC)),
+                         [{"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}])
+        asml = page.load_subject(self.ref, ASML)  # EODHD still needs a resolve, so it serves nothing yet
+        self.assertEqual(page.price_sources(asml, [plugin("eodhd"), plugin("yahoo")], **self.lookups(ASML)),
+                         [{"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol"}])
 
     def test_resolve_binds_unless_identifier_evidence_contradicts(self):
         subject, _ = self.compose(ASML, [])

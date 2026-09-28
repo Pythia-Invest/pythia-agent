@@ -3,7 +3,8 @@
 `identity-search` and `identity-subject` are local reads of the reference file,
 identity.sqlite3 and the installed plugins' contracts; neither calls a provider.
 `identity-resolve` runs one plugin's declared resolve tool, bounded by a short
-timeout, and stores the decided binding or queue item.
+timeout, and stores the decided binding or queue item. The resolution-queue
+operations live in `queue_ops`.
 """
 from __future__ import annotations
 
@@ -13,21 +14,22 @@ import json
 import logging
 import sqlite3
 import threading
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 from .identity import MANIFEST_FILE, ClaimError, Level, ManifestError, check_batch, validate_manifest
+from . import queue_ops
+from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, page, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
 TOOLSET = "pythia-desk"
 PLUGIN = "pythia"  # the core plugin (plugin.yaml)
-NO_REFERENCE = "No reference data on this device yet."
 NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
 MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes
 PREFERENCE = "search_listing_preference"  # declared in configuration.json
-SUBJECT_ID = {"type": "string", "minLength": 4, "maxLength": 320, "pattern": "^(issuer|security|composite|listing):"}
 
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
@@ -62,6 +64,7 @@ class Identity:
     def __init__(self, ctx: Any):
         self.ctx = ctx
         self._store: store.IdentityStore | None = None
+        self.reset_told = False  # whether a set-aside store was reported (once per process)
         self._lock = threading.Lock()
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="pythia-resolve")
 
@@ -127,6 +130,7 @@ class Identity:
         reason, transient = self._resolve(info, subject) if info.enabled and not info.missing else (None, False)
         if reason:  # remember the miss so reopening the page does not call the provider again
             self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
+        queue_ops.settle(self, [value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
         sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
         for section in sections:
@@ -157,30 +161,58 @@ class Identity:
 
     # ---- internals -----------------------------------------------------------------------------------------------
 
+    def price_sources(self, subject_id: str) -> dict:
+        """Where market data for a subject comes from: its asset class and the native references
+        that serve its quote and chart, in core's order, or the reason there are none. Local only."""
+        try:
+            path, subject, lookups, _issue = self._load(subject_id)
+        except ValueError:  # a malformed subject id
+            return unrouted("unknown_subject")
+        except (sqlite3.Error, OSError):
+            logger.warning("identity unreadable for a market-data read", exc_info=True)
+            return unrouted("no_reference_data")
+        if subject is None:
+            return unrouted("unknown_subject" if path else "no_reference_data")
+        return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, installed(), **lookups),
+                "reason": None}
+
     def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
+        path, subject, lookups, issue = self._load(subject_id)
+        if subject is None:
+            return None, issue
+        security = subject["ids"].get(Level.SECURITY)
+        view = subject["view"]
+        view["other_securities"] = []
+        if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
+            directory = search.directory(path, store.open_reference)
+            view["listings"] = directory.instrument_listings(security) or view["listings"]
+            # The company's other instruments; a share class listed there is not repeated under `related`.
+            view["other_securities"] = directory.other_instruments(security)
+            others = {item["id"] for item in view["other_securities"]}
+            view["related"] = [item for item in view["related"] if item["id"] not in others]
+        sections = page.compose(subject, installed(), **lookups)
+        return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
+
+    def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
+        """The reference path and the subject from it, with the store lookups page composition reads."""
         path, ref = self.reference()
         if ref is None:
-            return None, NO_REFERENCE
+            return None, None, {}, NO_REFERENCE
         try:
             subject = page.load_subject(ref, subject_id)
             if subject is None:
-                return None, "Unknown subject."
+                return path, None, {}, "Unknown subject."
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
         finally:
             ref.close()
-        security = subject["ids"].get(Level.SECURITY)
-        if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
-            listings = search.directory(path, store.open_reference).instrument_listings(security)
-            subject["view"]["listings"] = listings or subject["view"]["listings"]
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
-        queue = identity_store.open_queue(subject_ids)
-        sections = page.compose(subject, installed(), stored=lambda target, provider: stored.get((target, provider)),
-                                coins=lambda provider, caip19: coins.get((provider, caip19)), queue=queue,
-                                misses=identity_store.misses(subject_id))
-        return {**subject["view"], "sections": sections, "queue": queue}, None
+        lookups = {"stored": lambda target, provider: stored.get((target, provider)),
+                   "coins": lambda provider, caip19: coins.get((provider, caip19)),
+                   "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id)}
+        return path, subject, lookups, None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
         """Run the plugin's resolve once; store what the authority rule decides.
@@ -213,16 +245,15 @@ class Identity:
         for claim in batch_to_json(batch)["claims"]:
             self.store.put_claim(batch.plugin, batch.provider, claim)
 
-        def bound_to(ref):
-            row = self.store.binding_for(ref)
-            return row["subject_id"] if row is not None and row["status"] == "confirmed" else None
-
         for level in sorted(levels, key=lambda item: item != Level.LISTING):
-            binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now, bound_to=bound_to)
+            binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now,
+                                                         bound_to=self.store.bound_subject)
             if binding is not None:
                 if self.store.put_binding(binding):
                     return None, False
                 return f"{info.label}'s reference is already bound to another subject", False
+            if item is not None and self.store.dismissed(item.key, item.evidence_ids):
+                return f"{info.label}'s record was reviewed: it is not this instrument", False
             if item is not None:
                 self.store.put_queue_item(item)
                 return f"{info.label}'s answer is queued for review ({item.reason})", False
@@ -275,12 +306,29 @@ def installed() -> list[page.PluginInfo]:
     return found
 
 
+def unrouted(reason: str) -> dict:
+    return {"asset_class": None, "refs": [], "reason": reason}
+
+
+def price_sources(subject_id: str) -> dict:
+    """Market-data routing for one subject through the registered core (exported as `platform.price_sources`)."""
+    return CURRENT.price_sources(subject_id) if CURRENT is not None else unrouted("core_unavailable")
+
+
+CURRENT: Identity | None = None  # the one registered core identity of this process
+
+
 def register(ctx: Any) -> None:
+    global CURRENT
     from .platform import declare_operation
-    identity = Identity(ctx)
+    identity = CURRENT = Identity(ctx)
     for schema, handler, operation, read_only in ((SEARCH_SCHEMA, identity.search, "identity-search", True),
                                                   (SUBJECT_SCHEMA, identity.subject, "identity-subject", True),
-                                                  (RESOLVE_SCHEMA, identity.resolve, "identity-resolve", False)):
+                                                  (RESOLVE_SCHEMA, identity.resolve, "identity-resolve", False),
+                                                  (queue_ops.QUEUE_SCHEMA, partial(queue_ops.read_queue, identity),
+                                                   "identity-queue", True),
+                                                  (queue_ops.VERDICT_SCHEMA, partial(queue_ops.submit_verdict, identity),
+                                                   "identity-verdict", False)):
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])

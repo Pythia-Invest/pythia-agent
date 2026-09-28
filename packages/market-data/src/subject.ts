@@ -72,9 +72,24 @@ export const subjectListingSchema = z.object({
 });
 export type SubjectListing = z.infer<typeof subjectListingSchema>;
 
+/** A subject linked to this one by a `related` relation (a wrapped token, the
+ * index a fund tracks, a successor): its own subject, never folded into the
+ * page. `kind` is the subject's kind (the ID's first segment), passed through
+ * as text so kinds this client does not know still render. */
+export const relatedSubjectSchema = z.object({
+  id: text,
+  type: text,
+  /** "to": this subject is the relation's source (a wrapped token's page, "to" the asset it wraps). */
+  direction: z.enum(["to", "from"]).nullish().catch(null),
+  kind: text,
+  name: optionalText,
+});
+export type RelatedSubject = z.infer<typeof relatedSubjectSchema>;
+
 export const subjectPageSchema = z.object({
   subject: z.object({
     id: text,
+    /** The subject's kind: an instrument level or any other kind, opaque. */
     level: text,
     name: text,
     kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
@@ -90,6 +105,24 @@ export const subjectPageSchema = z.object({
     .nullish(),
   security: z.object({ id: text, name: text, isin: optionalText }).nullish(),
   listings: z.array(subjectListingSchema).default([]),
+  related: z.array(relatedSubjectSchema).default([]),
+  /** The company's other instruments (share classes, preferreds): its search
+   * group less this instrument, each with its representative listing. Empty
+   * for a fund, note or crypto asset. */
+  other_securities: z
+    .array(
+      z.object({
+        id: text,
+        name: optionalText,
+        kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
+        listing: optionalText,
+        ticker: optionalText,
+        mic: optionalText,
+        venue: optionalText,
+        currency: optionalText,
+      }),
+    )
+    .default([]),
   sections: z.array(subjectSectionSchema).default([]),
   /** Open conflict/residual items; the page only counts them. */
   queue: z.array(z.unknown()).default([]),

@@ -75,6 +75,8 @@ class GleifClient:
         wanted = sorted({lei for lei in leis if lei})
         missing = [lei for lei in wanted if lei not in self.cache or not self._fresh(self.cache[lei])]
         for start in range(0, len(missing), BATCH):
+            if start and start % (BATCH * 25) == 0:
+                log(f"GLEIF: {start}/{len(missing)} LEIs fetched")
             self._fetch_batch(missing[start : start + BATCH])
         if missing:
             self.path.write_text(json.dumps(self.cache, ensure_ascii=False), encoding="utf-8")

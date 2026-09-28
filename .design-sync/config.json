@@ -9,6 +9,7 @@
   "buildCmd": "pnpm -F \"@pythia/ui...\" build && ./.ds-sync/node_modules/.bin/tailwindcss -i .design-sync/tailwind-entry.css -o packages/ui/dist/design-sync.css && mkdir -p packages/ui/dist/assets && cp packages/ui/src/assets/*.woff2 packages/ui/dist/assets/",
   "componentSrcMap": {
     "ActivityIndicator": "src/feedback/activity.tsx",
+    "ActionDialog": "src/overlays/action-dialog.tsx",
     "AlertDialog": "src/overlays/dialog.tsx",
     "BreadcrumbEllipsis": null,
     "BreadcrumbItem": null,
@@ -39,6 +40,7 @@
     "CommandLoading": null,
     "CommandSeparator": null,
     "Container": "src/layout/layout.tsx",
+    "DataTable": "src/data-display/data-table.tsx",
     "DropdownMenu": "src/overlays/menu.tsx",
     "EpistemicLabel": "src/semantics/research.tsx",
     "FinancialValue": "src/semantics/finance.tsx",

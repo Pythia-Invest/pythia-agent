@@ -1,0 +1,176 @@
+"""The truth-set audit's baseline, regression gate, report and command line (see `truth.py` for the checks)."""
+
+from __future__ import annotations
+
+import hashlib
+import inspect
+import json
+import re
+from collections import Counter, defaultdict
+from pathlib import Path
+
+from .schema import identity
+from .truth import TRUTH_DIR, Audit, Reference, audit
+
+def key_rule() -> str:
+    """Core's subject-key rule as the audit ran it: its declared version, else a digest of `subject_id`'s source."""
+    declared = getattr(identity, "KEY_RULE", None)
+    if declared:
+        return str(declared)
+    source = inspect.getsource(identity.subject_id).encode()
+    return f"unversioned:{hashlib.sha256(source).hexdigest()[:12]}"
+
+
+def load_truth(path: Path | None = None) -> dict:
+    return json.loads((path or TRUTH_DIR / "instruments.json").read_text(encoding="utf-8"))
+
+
+def baseline_of(report: Audit) -> dict:
+    return {"reference": report.reference, "scope": report.scope.label, "truth_version": report.truth_version,
+            "key_rule": key_rule(),
+            "passed": sorted(r.key for r in report.results if r.status == "pass"),
+            "ids": dict(sorted(report.ids.items()))}
+
+
+def regressions(report: Audit, baseline: dict | None, aliases: dict[str, str] | None = None) -> list[str]:
+    """Checks that passed in the baseline and fail now, and subject IDs that changed without an alias."""
+    if not baseline:
+        return []
+    aliases = aliases or {}
+    now = {r.key: r for r in report.results}
+    found = [f"{key}: {now[key].reason}" for key in baseline.get("passed", [])
+             if key in now and now[key].status == "fail"]
+    for entry_id, old in baseline.get("ids", {}).items():
+        new = report.ids.get(entry_id)
+        if not new:
+            continue
+        pairs = [("security", old.get("security"), new.get("security")), ("issuer", old.get("issuer"), new.get("issuer"))]
+        pairs += [(f"listing {label}", value, new["listings"].get(label)) for label, value in old.get("listings", {}).items()]
+        for what, before, after in pairs:
+            if before and after and before != after and aliases.get(before) != after:
+                found.append(f"{entry_id}:subject_id: {what} changed {before} -> {after} without an alias")
+    return found
+
+
+def format_report(report: Audit, regressed: list[str], *, top: int = 12, baseline: dict | None = None) -> str:
+    lines = [f"Identity truth-set audit: {report.reference} (scope {report.scope.label or 'unknown'}) against truth set "
+             f"{report.truth_version}: {report.in_scope} of {len(report.tags)} entries in scope",
+             "", f"{'check':<12}{'pass':>6}{'fail':>6}{'n/a':>6}{'score':>8}"]
+    total = Counter()
+    for check, counts in report.scores().items():
+        applicable = counts.get("pass", 0) + counts.get("fail", 0)
+        if check != "subject_key":
+            total.update(counts)
+        score = f"{100 * counts.get('pass', 0) / applicable:.0f}%" if applicable else "-"
+        lines.append(f"{check:<12}{counts.get('pass', 0):>6}{counts.get('fail', 0):>6}{counts.get('na', 0):>6}{score:>8}")
+    applicable = total["pass"] + total["fail"]
+    overall = f"{100 * total['pass'] / applicable:.0f}%" if applicable else "-"
+    lines.append(f"{'all':<12}{total['pass']:>6}{total['fail']:>6}{total['na']:>6}{overall:>8}  (subject_key excluded)")
+    lines.append(f"subject_key compares reference IDs with core's key rule {key_rule()} applied to the truth set's"
+                 " identifiers: a difference means the key rule differs, not a defect.")
+    if report.future:
+        lines.append(f"Not scored, future subject kinds (M1): {', '.join(report.future)}")
+    by_tag: dict[str, Counter] = defaultdict(Counter)
+    for result in report.results:
+        if result.status != "na" and result.check != "subject_key":
+            for tag in report.tags.get(result.entry, []):
+                by_tag[tag][result.status] += 1
+    lines += ["", "Checks passing by instrument tag (subject_key excluded):"]
+    lines += [f"  {tag:<20}{c['pass']:>5}/{c['pass'] + c['fail']:<5}{100 * c['pass'] / (c['pass'] + c['fail']):>4.0f}%"
+              for tag, c in sorted(by_tag.items(), key=lambda item: item[1]["pass"] / (item[1]["pass"] + item[1]["fail"]))]
+    patterns: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for result in report.results:
+        if result.status == "fail":
+            # Keep MICs, currencies and kinds in the pattern; drop per-entry values.
+            reason = result.reason.split(":")[0] if result.reason.startswith(("folded_into:", "wrong:", "ticker:")) else result.reason
+            if result.check == "subject_key":
+                reason = f"key rule differs ({reason})"
+            patterns[(result.check, reason)].append(result.entry)
+    lines += ["", "Top failure patterns:"]
+    for (check, reason), members in sorted(patterns.items(), key=lambda item: -len(item[1]))[:top]:
+        examples = ", ".join(dict.fromkeys(members))
+        lines.append(f"  {len(members):>4}  {check} / {reason}: {examples[:110]}{'...' if len(examples) > 110 else ''}")
+    lines += ["", fold_odd(report.fold_odd)]
+    if baseline is not None:
+        lines += ["", f"Regressions against the baseline ({baseline.get('reference', '?')}): {len(regressed) or 'none'}"]
+        lines += [f"  {item}" for item in regressed]
+    return "\n".join(lines)
+
+
+def fold_odd(odd: list[tuple[str, str]], limit: int = 20) -> str:
+    """Fold relations core kept apart (a second target, a cycle): surfaced, never silently resolved."""
+    if not odd:
+        return "Fold relations: no second targets or cycles."
+    listed = ", ".join(f"{subject} ({kind})" for kind, subject in odd[:limit])
+    return f"Fold relations kept apart: {len(odd)}: {listed}{', ...' if len(odd) > limit else ''}"
+
+
+def load_baseline(path: Path | None = None) -> dict | None:
+    path = path or TRUTH_DIR / "baseline.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def aliases_of(reference: Path) -> dict[str, str]:
+    return {row[0]: row[1] for row in Reference(reference).all("SELECT old_id, new_id FROM id_aliases")}
+
+
+def build_report(reference: Path, cfi: tuple[str, ...], log) -> dict:
+    """The builder's non-blocking report: scores and regressions for the manifest, a summary in the log."""
+    try:
+        report = audit(reference, load_truth(), cfi=cfi)
+        regressed = regressions(report, load_baseline(), aliases_of(reference))
+    except Exception as error:  # the report never fails a build
+        log(f"truth-set audit skipped: {error!r}")
+        return {"error": repr(error)}
+    scores = report.scores()
+    headline = [c for check, c in scores.items() if check != "subject_key"]
+    passed = sum(c.get("pass", 0) for c in headline)
+    applicable = passed + sum(c.get("fail", 0) for c in headline)
+    log(f"truth-set audit: {passed}/{applicable} checks pass, {len(regressed)} regressions against the baseline"
+        " (details: just reference-audit)")
+    for item in regressed[:10]:
+        log(f"  regression {item}")
+    if report.fold_odd:
+        log(fold_odd(report.fold_odd, limit=10))
+    return {"truth_version": report.truth_version, "key_rule": key_rule(), "entries_in_scope": report.in_scope, "scores": scores,
+            "regressions": len(regressed), "fold_odd": dict(Counter(kind for kind, _ in report.fold_odd))}
+
+
+def newest_reference(out_dir: Path) -> Path | None:
+    found = sorted(out_dir.glob("reference-*.sqlite3"))
+    return found[-1] if found else None
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys
+
+    from .config import WORK_DIR
+
+    parser = argparse.ArgumentParser(prog="reference-audit", description="Audit a reference snapshot against the identity truth set.")
+    parser.add_argument("--reference", type=Path, help="reference-*.sqlite3 (default: newest in the builder's output directory)")
+    parser.add_argument("--truth", type=Path, help="truth set JSON (default truth/instruments.json)")
+    parser.add_argument("--baseline", type=Path, help="baseline JSON (default truth/baseline.json)")
+    parser.add_argument("--write-baseline", action="store_true", help="record this run as the baseline")
+    parser.add_argument("--failures", action="store_true", help="list every failing check")
+    parser.add_argument("--json", type=Path, help="also write the full results as JSON")
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    reference = args.reference or newest_reference(WORK_DIR / "out")
+    if reference is None or not reference.exists():
+        print("no reference snapshot found: build one with `just reference-snapshot` or pass --reference", file=sys.stderr)
+        return 2
+    report = audit(reference, load_truth(args.truth))
+    baseline_path = args.baseline or TRUTH_DIR / "baseline.json"
+    baseline = None if args.write_baseline else load_baseline(baseline_path)
+    regressed = regressions(report, baseline, aliases_of(reference))
+    print(format_report(report, regressed, baseline=baseline))
+    if args.failures:
+        print("\nFailing checks:")
+        print("\n".join(f"  {r.key}: {r.reason}" for r in report.results if r.status == "fail"))
+    if args.json:
+        args.json.write_text(json.dumps({"scores": report.scores(), "regressions": regressed,
+                                         "results": [r.__dict__ for r in report.results]}, indent=1) + "\n", encoding="utf-8")
+    if args.write_baseline:
+        baseline_path.write_text(json.dumps(baseline_of(report), indent=2) + "\n", encoding="utf-8")
+        print(f"\nwrote {baseline_path}")
+    return 1 if regressed else 0

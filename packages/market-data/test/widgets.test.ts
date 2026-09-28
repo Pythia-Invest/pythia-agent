@@ -12,7 +12,10 @@ const input: FinancialWidgetInput = {
     feed: "prices",
     subjects: [
       {
-        subject: { kind: "listing", id: "listing:fixture" },
+        subject: {
+          kind: "listing",
+          id: "listing:provisional:synthetic:symbol:fixture",
+        },
         symbol: "FIX",
         name: "Fixture",
         price: { mode: "preferred", criteria: { currency: "USD" } },
@@ -109,7 +112,7 @@ describe("feature-owned widget binding", () => {
     );
     expect(result.state).toBe("loading");
     expect(result.data.rows[0]).toMatchObject({
-      id: "listing:fixture",
+      id: "listing:provisional:synthetic:symbol:fixture",
       name: "Fixture",
       price: null,
       status: "unknown",

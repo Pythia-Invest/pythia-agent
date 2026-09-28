@@ -81,6 +81,13 @@ export const secondaryCatalog = [
     profiles: sharedProfiles,
   },
   {
+    name: "Data table",
+    category: "data-display",
+    route: "/components/data-table",
+    search: ["data display", "back office", "filters", "expand", "actions"],
+    profiles: ["product"],
+  },
+  {
     name: "Avatar",
     category: "data-display",
     route: "/components/avatar",

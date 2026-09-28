@@ -16,7 +16,7 @@
       "kind": "ordinary"
     },
     {
-      "id": "security:isin:USN070592100",
+      "id": "security:figi:BBG001SCG0R3",
       "issuer_id": "issuer:lei:724500Y6DUVHQD6OXN27",
       "name": "ASML Holding N.V. New York Registry Shares",
       "asset_class": "equity",
@@ -30,8 +30,8 @@
       "country": "NL"
     },
     {
-      "id": "composite:isin:USN070592100:US",
-      "security_id": "security:isin:USN070592100",
+      "id": "composite:figi:BBG001SCG0R3:US",
+      "security_id": "security:figi:BBG001SCG0R3",
       "country": "US"
     }
   ],
@@ -47,9 +47,9 @@
       "primary": true
     },
     {
-      "id": "listing:isin:USN070592100:XNAS:USD",
-      "security_id": "security:isin:USN070592100",
-      "composite_id": "composite:isin:USN070592100:US",
+      "id": "listing:figi:BBG000K6N6G7",
+      "security_id": "security:figi:BBG001SCG0R3",
+      "composite_id": "composite:figi:BBG001SCG0R3:US",
       "ticker": "ASML",
       "mic": "XNGS",
       "operating_mic": "XNAS",
@@ -152,7 +152,7 @@
       }
     },
     {
-      "subject_id": "security:isin:USN070592100",
+      "subject_id": "security:figi:BBG001SCG0R3",
       "scheme": "isin",
       "value": "USN070592100",
       "authority": "snapshot",
@@ -166,7 +166,7 @@
       }
     },
     {
-      "subject_id": "security:isin:USN070592100",
+      "subject_id": "security:figi:BBG001SCG0R3",
       "scheme": "share_class_figi",
       "value": "BBG001SCG0R3",
       "authority": "snapshot",
@@ -179,7 +179,7 @@
       }
     },
     {
-      "subject_id": "composite:isin:USN070592100:US",
+      "subject_id": "composite:figi:BBG001SCG0R3:US",
       "scheme": "composite_figi",
       "value": "BBG000K6MRN4",
       "authority": "snapshot",
@@ -192,7 +192,7 @@
       }
     },
     {
-      "subject_id": "listing:isin:USN070592100:XNAS:USD",
+      "subject_id": "listing:figi:BBG000K6N6G7",
       "scheme": "figi",
       "value": "BBG000K6N6G7",
       "authority": "snapshot",
@@ -205,7 +205,7 @@
       }
     },
     {
-      "subject_id": "listing:isin:USN070592100:XNAS:USD",
+      "subject_id": "listing:figi:BBG000K6N6G7",
       "scheme": "ticker_mic",
       "value": "ASML@XNAS",
       "authority": "snapshot",
@@ -221,7 +221,7 @@
   "relations": [
     {
       "type": "depositary_receipt_of",
-      "from_id": "security:isin:USN070592100",
+      "from_id": "security:figi:BBG001SCG0R3",
       "to_id": "security:isin:NL0010273215",
       "ratio": "1",
       "authority": "curated",
@@ -273,11 +273,11 @@
         "native_scope": "symbol"
       },
       "plugin": "yahoo",
-      "subject_id": "listing:isin:USN070592100:XNAS:USD",
+      "subject_id": "listing:figi:BBG000K6N6G7",
       "status": "confirmed",
       "authority": "rule_confirmed",
       "rule_id": "yahoo.mic_table@1",
-      "evidence_refs": [["listing:isin:USN070592100:XNAS:USD", "ticker_mic"]],
+      "evidence_refs": [["listing:figi:BBG000K6N6G7", "ticker_mic"]],
       "note": "US venues carry no Yahoo suffix."
     },
     {
@@ -287,13 +287,13 @@
         "native_scope": "catalogue"
       },
       "plugin": "eodhd",
-      "subject_id": "composite:isin:USN070592100:US",
+      "subject_id": "composite:figi:BBG001SCG0R3:US",
       "status": "confirmed",
       "authority": "rule_confirmed",
       "rule_id": "isin_mic@1",
       "evidence_refs": [
-        ["security:isin:USN070592100", "isin"],
-        ["composite:isin:USN070592100:US", "composite_figi"]
+        ["security:figi:BBG001SCG0R3", "isin"],
+        ["composite:figi:BBG001SCG0R3:US", "composite_figi"]
       ],
       "note": "EODHD's .US suffix is the US composite, not a venue, so the binding is at composite level; rule isin_mic@1 places it through the open composite FIGI."
     }

@@ -52,7 +52,12 @@ export type InstrumentPath = {
   /** Omitted closed interval between a regular session and its continuation.
    * Observation timestamps remain unchanged; the axis skips this interval. */
   sessionGap?: { start: number; end: number } | undefined;
+  /** Several omitted closed intervals, such as nights in a multi-day view.
+   * The same rules as sessionGap apply to each. */
+  sessionGaps?: readonly { start: number; end: number }[] | undefined;
   period?: string | undefined;
+  /** Coordinates are session dates drawn at UTC midnight, not instants. */
+  dates?: boolean | undefined;
 };
 export type InstrumentDisplay = {
   id: string;
