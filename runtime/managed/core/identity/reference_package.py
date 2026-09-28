@@ -31,6 +31,12 @@ _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _DATABASE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.sqlite3")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _STAGING = ".staging-"
+STATUS_SCHEMA = {  # core's read-only `reference-status` operation (identity_ops)
+    "name": "pythia_reference_status",
+    "description": "Describe the reference data installed on this device: its build, as-of date, and each source "
+                   "with its as-of date, licence and the notice to show when citing it. Local only.",
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+}
 
 
 class PackageError(ValueError):

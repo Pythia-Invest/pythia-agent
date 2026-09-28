@@ -63,12 +63,6 @@ RESOLVE_SCHEMA = {
         "subject_id": SUBJECT_ID, "plugin": {"type": "string", "minLength": 1, "maxLength": 128}},
         "required": ["subject_id", "plugin"], "additionalProperties": False},
 }
-REFERENCE_STATUS_SCHEMA = {
-    "name": "pythia_reference_status",
-    "description": "Describe the reference data installed on this device: its build, as-of date, and each source "
-                   "with its as-of date, licence and the notice to show when citing it. Local only.",
-    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
-}
 
 
 class Identity:
@@ -118,14 +112,8 @@ class Identity:
         return _envelope("ok" if data["groups"] else "empty", data)
 
     def reference_status(self, _arguments: dict, **_context: Any) -> str:
-        try:
-            installed_package = reference_package.status(self.data_dir)
-        except OSError:
-            logger.warning("reference package status unavailable", exc_info=True)
-            return _envelope("empty", None, issue="The installed reference data could not be read.")
-        if installed_package is None:
-            return _envelope("empty", None, issue=NO_REFERENCE)
-        return _envelope("ok", installed_package)
+        installed_package = reference_package.status(self.data_dir)  # an unreadable package reads as none
+        return _envelope("ok", installed_package) if installed_package else _envelope("empty", None, issue=NO_REFERENCE)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -405,7 +393,7 @@ def register(ctx: Any) -> None:
                                                    "identity-queue", True),
                                                   (queue_ops.VERDICT_SCHEMA, partial(queue_ops.submit_verdict, identity),
                                                    "identity-verdict", False),
-                                                  (REFERENCE_STATUS_SCHEMA, identity.reference_status,
+                                                  (reference_package.STATUS_SCHEMA, identity.reference_status,
                                                    "reference-status", True)):
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
