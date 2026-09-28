@@ -81,11 +81,8 @@ class SecTicker:
 
 @dataclass(frozen=True)
 class SecFund:
-    """One share class in the SEC fund file: the trust's CIK, series, class and ticker."""
+    """One share-class ticker in the SEC fund file (which also carries the trust CIK, series and class)."""
 
-    cik: str
-    series: str
-    share_class: str
     ticker: str
 
 

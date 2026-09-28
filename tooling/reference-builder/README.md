@@ -55,8 +55,10 @@ table under `writer_ignored`.
   Bloomberg MTF, MarketAxess, systematic internalisers and OTFs). Their lines
   are left out unless one is the security's only market. When FIRDS names such
   a venue as the relevant venue of a security with other lines, the primary
-  moves to the home-country line, then a regulated-market line, then the
-  first MIC. Regulated markets, growth markets, the German regional exchanges
+  moves to one of those lines: lines in the ISIN's country first, then the
+  order of `rules.PRIMARY_FALLBACK` (Xetra, Euronext Paris, Euronext
+  Amsterdam, Euronext Milan, Frankfurt, Tradegate), then the earliest
+  listing. Regulated markets, growth markets, the German regional exchanges
   and Tradegate all stay.
 - **One line per venue operator.** A venue's segments (lit, off-book,
   midpoint, auction, a second retail book) are one listing, as core keys a
@@ -113,7 +115,7 @@ table under `writer_ignored`.
 | --- | --- |
 | `sec_identity` in `${XDG_CONFIG_HOME:-~/.config}/pythia/settings.json` | The SEC plugin's configured contact, required for the SEC download: SEC fair-access rules require a name and email in the User-Agent. It is sent only to SEC and never written to the outputs. |
 | `--sec-file` | Use an already downloaded `company_tickers_exchange.json` instead. |
-| `OPENFIGI_API_KEY` | OpenFIGI key. Otherwise `openfigi_api_key` from `${XDG_CONFIG_HOME:-~/.config}/pythia/secrets.json`. Without a key the build still works under keyless rate limits: about 45 minutes for the SEC tickers instead of about 1 minute. The key is sent only in the OpenFIGI request header. |
+| `OPENFIGI_API_KEY` | OpenFIGI key. Otherwise `openfigi_api_key` from `${XDG_CONFIG_HOME:-~/.config}/pythia/secrets.json`. Get one: it is free. A keyed first build takes about 40 minutes (about 230k mapping jobs); keyless rate limits (10 jobs per 2.5 s) stretch that to about 16 hours. Answers are cached, so later builds only send new jobs. The key is sent only in the OpenFIGI request header. |
 
 ## Outputs
 
@@ -122,8 +124,9 @@ table under `writer_ignored`.
 times and versions, row counts, audit counts, canary results and SHA-256
 checksums).
 `.local/reference-builder/downloads/` (override with `--cache`) caches source
-files and API answers: OpenFIGI answers for 30 days, GLEIF records and the SEC
-MIC files for one day. `--sec-file` builds offline without the fund file.
+files and API answers: OpenFIGI answers (in `openfigi-answers.sqlite3`) for 30
+days, GLEIF records and the SEC and MIC files for one day. `--sec-file` builds
+offline without the SEC fund file, and so without US fund ETFs.
 
 ## Rights
 

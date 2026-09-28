@@ -72,10 +72,6 @@ def parse(data: bytes) -> list[SecTicker]:
 
 def parse_funds(data: bytes) -> list[SecFund]:
     payload = json.loads(data)
-    index = {name: payload["fields"].index(name) for name in ("cik", "seriesId", "classId", "symbol")}
-    funds: dict[str, SecFund] = {}
-    for values in payload["data"]:
-        ticker = str(values[index["symbol"]] or "").strip().upper()
-        if ticker:
-            funds.setdefault(ticker, SecFund(str(int(values[index["cik"]])), values[index["seriesId"]], values[index["classId"]], ticker))
-    return list(funds.values())
+    symbol = payload["fields"].index("symbol")
+    tickers = dict.fromkeys(str(values[symbol] or "").strip().upper() for values in payload["data"])
+    return [SecFund(ticker) for ticker in tickers if ticker]

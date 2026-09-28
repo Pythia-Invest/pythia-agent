@@ -69,7 +69,7 @@ def run(config: BuildConfig) -> int:
     snap.audit["firds_records"] = dict(sorted(record_counts.items()))
     snap.audit["fitrs_isins"] = len(transparency) if transparency is not None else None
 
-    canaries = manifest.check_canaries(snap, manifest.default_canaries(config.scope))
+    canaries = manifest.check_canaries(snap, manifest.default_canaries(config.scope, funds=bool(funds)))
     for result in canaries:
         log(f"canary {'ok' if result['ok'] else 'FAILED'}: {result['name']} {result['missing'] or ''}")
     failed = [c for c in canaries if not c["ok"]]

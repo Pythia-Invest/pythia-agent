@@ -175,7 +175,7 @@ WIDE_SEC = sec_json([
     (937966, "ASML HOLDING NV", "ASML", "Nasdaq"),
     (884394, "SPDR S&P 500 ETF TRUST", "SPY", "NYSE"),
 ])
-WIDE_FUNDS = [SecFund("1424958", "S1", "C1", "TSLL"), SecFund("36405", "S2", "C2", "VOO"), SecFund("2110", "S3", "C3", "LACAX")]
+WIDE_FUNDS = [SecFund("TSLL"), SecFund("VOO"), SecFund("LACAX")]
 WIDE_OPENFIGI = OPENFIGI | {
     ("ID_ISIN", ASML_ISIN, "XETA"): [figi_row("ASME", "GY", "BBGASMLGY001", "BBGASMLSC001")],
     ("ID_ISIN", APPLE_ISIN, "FRAB"): [figi_row("APC", "GF", "BBGAAPLGF001", "BBGAAPLSC001")],
@@ -228,7 +228,8 @@ class AllVenuesTest(unittest.TestCase):
         security = self.snap.securities[tsll.security_id]
         self.assertEqual((security.kind, security.issuer_id, security.name, tsll.is_primary), ("etf", None, "DIRX DLY TSLA BUL 2X ETF", True))
         self.assertFalse(any(l.ticker in ("VOO", "LACAX") for l in self.snap.listings.values()))
-        self.assertEqual(dict(self.snap.audit["us_etfs"]), {"fund_tickers": 3, "exchange_traded": 2, "placed_nasdaq": 1, "unplaced_not_nasdaq": 1})
+        audit = self.snap.audit["us_etfs"]
+        self.assertEqual((audit["placed_nasdaq"], audit["unplaced_not_nasdaq"]), (1, 1))
         self.assertEqual(self.snap.listings["XNYS:SPY"].row_class, "etf")
 
     def test_eu_and_us_etf_canaries_apply_to_the_default_scope(self):
@@ -236,6 +237,8 @@ class AllVenuesTest(unittest.TestCase):
         self.assertTrue({"SAP on Xetra", "LVMH on Euronext Paris", "Nokia on Nasdaq Helsinki", "Direxion Daily TSLA Bull 2X ETF"} <= names)
         results = {r["name"]: r["ok"] for r in manifest.check_canaries(self.snap, manifest.default_canaries(Scope()))}
         self.assertTrue(results["Direxion Daily TSLA Bull 2X ETF"])
+        offline = {c["name"] for c in manifest.default_canaries(Scope(), funds=False)}  # --sec-file loads no fund file
+        self.assertNotIn("Direxion Daily TSLA Bull 2X ETF", offline)
 
     def test_segment_venues_take_their_operator_label(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,6 +247,33 @@ class AllVenuesTest(unittest.TestCase):
             with sqlite3.connect(path) as db:
                 venues = dict(db.execute("select mic, name from venues"))
         self.assertEqual((venues["FRAB"], venues["XETA"], venues["CEUX"]), ("Frankfurt", "Xetra", "Cboe Europe"))
+
+
+SAP_ISIN, SAP_LEI = "DE0007164600", "529900D6BF99LW9R2E68"
+WORLD_ISIN, WORLD_LEI = "IE00B4L5Y983", "549300AAAAAAAAAAAA04"  # iShares Core MSCI World UCITS ETF
+
+
+class FallbackPrimaryTest(unittest.TestCase):
+    """Truth set: when FIRDS names a trading-only venue, the primary is the venue an investor knows."""
+
+    def primaries(self, records):
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        inputs = Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [], set())
+        snap = build_snapshot(inputs, gleif_fetch, FakeOpenFigi({}))
+        return {s.isin: (s.primary_mic, next((l.mic for l in snap.listings.values() if l.security_id == s.security_id and l.is_primary), None))
+                for s in snap.securities.values() if s.isin}
+
+    def test_sap_goes_to_xetra_and_a_ucits_etf_to_frankfurt_not_the_first_regional_by_mic(self):
+        german = (("DUSB", "2003-01-02"), ("HAMB", "2001-01-02"), ("XGAT", "2010-01-04"), ("FRAB", "2005-01-03"), ("CEUX", "2009-01-02"))
+        records = [firds_record(SAP_ISIN, segment, SAP_LEI, name="SAP SE", relevant="CEUX", first=first) for segment, first in (*german, ("XETB", "2008-01-02"))]
+        records += [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first) for segment, first in german]
+        self.assertEqual(self.primaries(records), {SAP_ISIN: ("XETR", "XETB"), WORLD_ISIN: ("XFRA", "FRAB")})
+
+    def test_without_a_preferred_venue_the_earliest_listing_wins(self):
+        records = [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first)
+                   for segment, first in (("DUSB", "2012-01-02"), ("HAMB", "2011-01-03"), ("CEUX", "2009-01-02"))]
+        self.assertEqual(self.primaries(records), {WORLD_ISIN: ("XHAM", "HAMB")})
 
 
 class CikLinkTest(unittest.TestCase):

@@ -74,8 +74,7 @@ VENUE_NAMES = {
     # United Kingdom, Switzerland, United States
     "XLON": "London Stock Exchange", "XSWX": "SIX Swiss Exchange",
     "XNAS": "Nasdaq", "XNGS": "Nasdaq", "XNMS": "Nasdaq", "XNCM": "Nasdaq", "XNYS": "NYSE", "XASE": "NYSE American",
-    "ARCX": "NYSE Arca", "XCHI": "NYSE Texas", "BATS": "Cboe BZX", "XCBO": "Cboe", "IEXG": "IEX",
-    "TXSE": "Texas Stock Exchange", "OTCM": "OTC Markets",
+    "ARCX": "NYSE Arca", "BATS": "Cboe BZX", "XCBO": "Cboe", "OTCM": "OTC Markets",
 }
 KIND = {"share": "ordinary", "dr": "depositary_receipt", "etf": "etf", "preferred": "preferred", "fund": "fund"}
 STATUS = {"active": "active", "suspect": "unknown", "inactive": "inactive"}

@@ -110,7 +110,7 @@ class SecAndMicTest(unittest.TestCase):
     def test_fund_file_keeps_one_row_per_ticker(self):
         data = json.dumps({"fields": ["cik", "seriesId", "classId", "symbol"],
                            "data": [[1424958, "S01", "C01", "tsll"], [1424958, "S01", "C02", "TSLL"], [2110, "S02", "C03", "LACAX"]]}).encode()
-        self.assertEqual([(f.cik, f.ticker) for f in sec.parse_funds(data)], [("1424958", "TSLL"), ("2110", "LACAX")])
+        self.assertEqual([f.ticker for f in sec.parse_funds(data)], ["TSLL", "LACAX"])
 
     def test_mic_rows_map_segments_to_operating_mic(self):
         venues = mic.parse(MIC_CSV.encode())

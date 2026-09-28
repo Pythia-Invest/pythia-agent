@@ -50,6 +50,11 @@ TRADING_ONLY_VENUES = frozenset({
     "UBSL", "CREM", "XDNB", "AACA",  # systematic internalisers: UBS, Credem, DNB, Crédit Agricole CIB
     "TSAF", "AURB",  # OTFs: TSAF, Aurel
 })
+# When FIRDS names a trading-only venue as a security's relevant venue, its primary moves
+# to another of its lines: lines in the ISIN's country first, then this order (the largest
+# EEA equity and ETF markets, then the German floor and retail venue that list most foreign
+# shares), then the earliest listing.
+PRIMARY_FALLBACK = ("XETR", "XPAR", "XAMS", "XMIL", "XFRA", "TGAT")
 # Auxiliary segments (midpoint, off-book, auction) collapse onto the operator's lit segment.
 LIT_SEGMENT = {
     "DSTO": "XSTO", "MSTO": "XSTO", "PSTO": "XSTO", "DHEL": "XHEL", "MHEL": "XHEL", "PHEL": "XHEL",

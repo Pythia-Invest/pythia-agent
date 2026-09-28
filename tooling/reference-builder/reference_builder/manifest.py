@@ -23,26 +23,31 @@ def licence(source: str) -> str:
 
 
 # EU home lines that must resolve when the build covers their venue: (name, ISIN, operating MIC).
+ASML_ISIN = "NL0010273215"
 EU_CANARIES = (
-    ("ASML on Euronext Amsterdam", "NL0010273215", "XAMS"),
+    ("ASML on Euronext Amsterdam", ASML_ISIN, "XAMS"),
     ("SAP on Xetra", "DE0007164600", "XETR"),
     ("LVMH on Euronext Paris", "FR0000121014", "XPAR"),
     ("Nokia on Nasdaq Helsinki", "FI0009000681", "XHEL"),
 )
 
 
-def default_canaries(scope) -> list[dict]:
-    """Must-resolve subjects per scope; a failing canary fails the build."""
+def default_canaries(scope, funds: bool = True) -> list[dict]:
+    """Must-resolve subjects per scope; a failing canary fails the build.
+
+    `funds` says whether the SEC fund file was loaded (an offline `--sec-file` build has none).
+    """
     canaries = [
-        {"name": name, "isin": isin, "mic": mic, "require": ["ticker", "figi", "lei", "primary"]}
+        {"name": name, "isin": isin, "mic": mic,
+         "require": ["ticker", "figi", "lei", "primary"] + (["cik"] if scope.sec and isin == ASML_ISIN else [])}
         for name, isin, mic in EU_CANARIES if scope.covers(mic)
     ]
     if scope.sec:
         if scope.covers("XAMS"):
-            canaries[0]["require"].append("cik")
-            canaries.append({"name": "ASML Nasdaq line under the same issuer", "ticker": "ASML", "mic": "XNAS", "same_issuer_as_isin": "NL0010273215", "require": ["figi", "cik"]})
+            canaries.append({"name": "ASML Nasdaq line under the same issuer", "ticker": "ASML", "mic": "XNAS", "same_issuer_as_isin": ASML_ISIN, "require": ["figi", "cik"]})
         canaries.append({"name": "Apple on Nasdaq", "ticker": "AAPL", "mic": "XNAS", "require": ["figi", "cik", "primary"]})
-        canaries.append({"name": "Direxion Daily TSLA Bull 2X ETF", "ticker": "TSLL", "mic": "XNAS", "require": ["figi", "primary"]})
+        if funds:
+            canaries.append({"name": "Direxion Daily TSLA Bull 2X ETF", "ticker": "TSLL", "mic": "XNAS", "require": ["figi", "primary"]})
     return canaries
 
 

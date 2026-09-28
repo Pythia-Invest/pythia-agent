@@ -184,7 +184,7 @@ def _apply_figi(listing: Listing, row: dict, fisn: str | None) -> None:
 def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     head = next((r for r in records if r.mic == r.relevant_mic), records[0])
     relevant = next((r.relevant_mic for r in records if r.relevant_mic), None)
-    moved = operating(inputs.venues, relevant) in rules.TRADING_ONLY_VENUES and _listing_venue(inputs, isin, listings)
+    moved = operating(inputs.venues, relevant) in rules.TRADING_ONLY_VENUES and _listing_venue(isin, listings)
     if moved:
         relevant = moved.mic
     share_class = next((l.share_class_figi for l in listings if l.share_class_figi), None)
@@ -210,11 +210,11 @@ def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     security.activity = "active" if "active" in states else ("suspect" if "suspect" in states else ("inactive" if states else "active"))
 
 
-def _listing_venue(inputs: Inputs, isin: str, listings: list[Listing]) -> Listing | None:
-    """The primary line when FIRDS names a trading-only venue: home country, then regulated market, then MIC."""
+def _listing_venue(isin: str, listings: list[Listing]) -> Listing | None:
+    """The primary line when FIRDS names a trading-only venue (see `rules.PRIMARY_FALLBACK`)."""
     def order(line: Listing) -> tuple:
-        venue = inputs.venues.get(line.mic or "")
-        return (line.country != isin[:2], (venue.category if venue else None) != "RMKT", line.mic or "")
+        preferred = rules.PRIMARY_FALLBACK.index(line.operating_mic) if line.operating_mic in rules.PRIMARY_FALLBACK else len(rules.PRIMARY_FALLBACK)
+        return (line.country != isin[:2], preferred, line.valid_from or "9999", line.mic or "")
 
     return min((l for l in listings if l.operating_mic not in rules.TRADING_ONLY_VENUES), key=order, default=None)
 
