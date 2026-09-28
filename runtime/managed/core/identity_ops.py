@@ -19,11 +19,12 @@ from pathlib import Path
 from typing import Any
 
 from .identity import (
-    MANIFEST_FILE, ClaimError, Level, ManifestError, ManifestNeedsUpdate, check_batch, validate_manifest,
+    MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch, subject_kind,
+    validate_manifest,
 )
 from . import queue_ops
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import batch_from_json, batch_to_json, page, search, store
+from .identity import batch_from_json, batch_to_json, markets, page, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -45,7 +46,8 @@ SEARCH_SCHEMA = {
 }
 SUBJECT_SCHEMA = {
     "name": "pythia_identity_subject",
-    "description": "Describe one subject (listing, security, issuer or crypto asset) by its subject id: identifiers, "
+    "description": "Describe one subject (listing, security, issuer, crypto asset or market such as a perp) by its "
+                   "subject id: identifiers, "
                    "sibling listings, and which plugin serves each page section. Local only.",
     "parameters": {"type": "object", "properties": {"subject_id": SUBJECT_ID},
                    "required": ["subject_id"], "additionalProperties": False},
@@ -185,6 +187,8 @@ class Identity:
         security = subject["ids"].get(Level.SECURITY)
         view = subject["view"]
         view["other_securities"] = []
+        if subject["level"] is not Kind.MARKET:  # the curated markets that are derivatives on it, as links
+            view["related"] += markets.markets_on(markets.curated(), [value for value in subject["ids"].values() if value])
         if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
             directory = search.directory(path, store.open_reference)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
@@ -196,17 +200,23 @@ class Identity:
         return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
-        """The reference path and the subject from it, with the store lookups page composition reads."""
-        path, ref = self.reference()
-        if ref is None:
-            return None, None, {}, NO_REFERENCE
-        try:
-            subject = page.load_subject(ref, subject_id)
+        """The reference path and the subject from it, with the store lookups page composition reads.
+        A curated market needs no reference file."""
+        if subject_kind(subject_id) == Kind.MARKET:
+            path, subject, coins = None, markets.load_market(markets.curated(), subject_id), {}
             if subject is None:
-                return path, None, {}, "Unknown subject."
-            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
-        finally:
-            ref.close()
+                return None, None, {}, "Unknown subject."
+        else:
+            path, ref = self.reference()
+            if ref is None:
+                return None, None, {}, NO_REFERENCE
+            try:
+                subject = page.load_subject(ref, subject_id)
+                if subject is None:
+                    return path, None, {}, "Unknown subject."
+                coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+            finally:
+                ref.close()
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row

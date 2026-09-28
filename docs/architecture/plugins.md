@@ -259,6 +259,10 @@ addressing (the full shape is in the ADR 0038 amendment):
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
   (`identity.validate_live_market`).
+- A subject kind outside the instrument hierarchy, such as a `market` (a perp),
+  is addressed as itself: `level` and `via` are both `market`, with a native
+  scope at level `market`. Core's curated table (`identity/markets.json`)
+  supplies each plugin's reference ([ADR 0048](../decisions/0048-live-market-view.md)).
 
 Core validates the file with `identity.validate_manifest`; a contract newer
 than the installed Pythia shows as `needs_update`. A bundled plugin lists
