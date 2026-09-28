@@ -51,7 +51,10 @@ export type IdentityQuestion = z.infer<typeof identityQuestionSchema>;
 
 const listSchema = z.object({
   data: z
-    .object({ items: z.array(identityQuestionSchema).default([]) })
+    .object({
+      items: z.array(identityQuestionSchema).default([]),
+      answered: z.array(identityQuestionSchema).default([]),
+    })
     .nullish(),
 });
 
@@ -69,7 +72,7 @@ function questionsKey(subjectId: string) {
 }
 
 /** Open identity questions about one subject and its listing, security and
- * issuer, with those only the agent answered. */
+ * issuer; apart from them, those only the agent answered (provisional). */
 export function useIdentityQuestions(subjectId: string) {
   const api = useDeskApi();
   return useQuery({
@@ -79,9 +82,9 @@ export function useIdentityQuestions(subjectId: string) {
         await api.pluginRead({
           plugin: SUBJECT_PLUGIN,
           operation: "identity-queue",
-          arguments: { subject_id: subjectId },
+          arguments: { subject_id: subjectId, answered: true },
         }),
-      ).data?.items ?? [],
+      ).data ?? { items: [], answered: [] },
     ...busyRetry,
   });
 }

@@ -21,8 +21,9 @@ export function IdentityIssues({ page }: { page: SubjectPage }) {
   const subjectId = page.subject.id;
   const questions = useIdentityQuestions(subjectId);
   const answer = useAnswerQuestion(subjectId);
-  const items = questions.data ?? [];
-  if (!items.length && !questions.isError) return null;
+  const items = questions.data?.items ?? [];
+  const answered = questions.data?.answered ?? [];
+  if (!items.length && !answered.length && !questions.isError) return null;
   return (
     <details
       data-slot="identity-issues"
@@ -30,6 +31,12 @@ export function IdentityIssues({ page }: { page: SubjectPage }) {
     >
       <summary className="cursor-pointer font-semibold text-body text-foreground">
         Identity questions ({items.length})
+        {answered.length ? (
+          <span className="font-normal text-foreground-secondary text-xs">
+            {" "}
+            · {answered.length} answered by the agent
+          </span>
+        ) : null}
       </summary>
       <p className="mt-1 text-foreground-secondary">
         Source records that disagree with the reference data, or that could not
@@ -40,18 +47,34 @@ export function IdentityIssues({ page }: { page: SubjectPage }) {
           The questions could not be read. {questions.error.message}
         </p>
       ) : null}
-      <ul className="mt-2 flex flex-col gap-2">
-        {items.map((item) => (
-          <Question
-            key={item.id}
-            item={item}
-            busy={answer.isPending}
-            onAnswer={(relation, chosenId) =>
-              answer.mutate({ itemId: item.id, relation, chosenId })
-            }
-          />
-        ))}
-      </ul>
+      {[
+        { key: "open", title: null, list: items },
+        {
+          key: "answered",
+          title: "Answered by the agent: confirm or override",
+          list: answered,
+        },
+      ].map(({ key, title, list }) =>
+        list.length ? (
+          <section key={key} className="mt-2">
+            {title ? (
+              <h3 className="font-semibold text-foreground">{title}</h3>
+            ) : null}
+            <ul className="mt-1 flex flex-col gap-2">
+              {list.map((item) => (
+                <Question
+                  key={item.id}
+                  item={item}
+                  busy={answer.isPending}
+                  onAnswer={(relation, chosenId) =>
+                    answer.mutate({ itemId: item.id, relation, chosenId })
+                  }
+                />
+              ))}
+            </ul>
+          </section>
+        ) : null,
+      )}
       {answer.data || answer.error ? (
         <p role="status" className="mt-2 text-foreground-secondary">
           {answer.data?.message ?? answer.error?.message}

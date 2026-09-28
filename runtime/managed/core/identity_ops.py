@@ -64,8 +64,9 @@ QUEUE_SCHEMA = {
     "name": "pythia_identity_queue",
     "description": "List open identity questions: provider records the device could not place on a subject "
                    "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
-                   "subject, plugin or kind. Questions the agent already answered are listed with that answer "
-                   "(agent_answer), which the user may still override. With item_id, returns one question in full: "
+                   "subject, plugin or kind. With answered, also lists the questions the agent already answered "
+                   "(agent_answer): they route provisionally until the user confirms or overrides them and are no "
+                   "longer open. With item_id, returns one question in full: "
                    "the provider record, the candidate subjects, the cited reference evidence and earlier verdicts. "
                    "Local only.",
     "parameters": {"type": "object", "properties": {
@@ -73,6 +74,7 @@ QUEUE_SCHEMA = {
         "subject_id": SUBJECT_ID,
         "plugin": {"type": "string", "minLength": 1, "maxLength": 128},
         "kind": {"type": "string", "enum": ["residual", "conflict"]},
+        "answered": {"type": "boolean"},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
         "additionalProperties": False},
 }
@@ -185,12 +187,14 @@ class Identity:
                     view = queue.inspect(self.store, ref, str(arguments["item_id"]))
                     return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown queue item.")
                 subject, plugin = arguments.get("subject_id"), arguments.get("plugin")
-                items = self.store.queue_items(
-                    subject_ids=queue.family(ref, str(subject)) if subject else None, kind=arguments.get("kind"),
-                    provisional=True,
-                    plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)} if plugin else None)
-                data = {"items": [queue.summary(self.store, ref, item) for item in items[:max(1, min(50, limit))]],
-                        "total": len(items)}
+                filters = {"subject_ids": queue.family(ref, str(subject)) if subject else None, "kind": arguments.get("kind"),
+                           "plugins": {plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
+                           if plugin else None}
+                items, size = self.store.queue_items(**filters), max(1, min(50, limit))
+                data = {"items": [queue.summary(self.store, ref, item) for item in items[:size]], "total": len(items)}
+                if arguments.get("answered") is True:
+                    data["answered"] = [queue.summary(self.store, ref, item)
+                                        for item in self.store.queue_items(**filters, answered=True)[:size]]
             finally:
                 ref.close()
         except (sqlite3.Error, OSError):

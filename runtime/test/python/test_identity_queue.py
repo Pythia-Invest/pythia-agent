@@ -103,13 +103,14 @@ class VerdictTest(QueueFixture):
         with self.assertRaises(queue.Refused):  # the agent does not answer a settled question again
             self.submit(item, "agent")
 
-        # The agent's answer is provisional: the question stays listed with it, and the user overrides it.
-        [listed] = [queue.summary(self.identity, self.ref, entry) for entry in self.identity.queue_items(subject_ids=[ASML], provisional=True)]
+        # The agent's answer is provisional: no longer open, listed apart with its answer, and the user overrides it.
+        self.assertEqual(self.identity.queue_items(subject_ids=[ASML]), [])
+        [listed] = [queue.summary(self.identity, self.ref, entry) for entry in self.identity.queue_items(subject_ids=[ASML], answered=True)]
         self.assertEqual(listed["agent_answer"], {"by": "agent", "relation": "same_listing", "chosen_id": ASML})
         user = self.submit(item, "user", relation="unrelated", user_turn="desk:identity-verdict:test")
         self.assertEqual((user["outcome"], user["state"]), ("no_match", "dismissed"))
         self.assertEqual(self.identity.binding_for(item.provider_ref)["status"], "rejected")
-        self.assertEqual(self.identity.queue_items(subject_ids=[ASML], provisional=True), [])
+        self.assertEqual(self.identity.queue_items(subject_ids=[ASML], answered=True), [])
         history = queue.inspect(self.identity, self.ref, item.id)["history"]
         self.assertEqual([(entry["resolver"], entry["outcome"]) for entry in history], [("agent", "confirmed"), ("user", "no_match")])
 
@@ -216,12 +217,14 @@ class TransportTest(QueueFixture):
         with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}), \
                 unittest.mock.patch.object(identity_ops, "installed", lambda: []):
             agent = json.loads(ops.verdict(arguments))["data"]
+            waiting = json.loads(ops.queue({"subject_id": ASML, "answered": True}))["data"]
             desk = contextvars.copy_context()
             desk.run(request_context.usage.set, "dashboard")
             user = json.loads(desk.run(ops.verdict, arguments))["data"]
             listed = json.loads(ops.queue({"subject_id": ASML}))
         ops.store.db.close()
         self.assertEqual((agent["authority"], agent["outcome"]), ("agent_confirmed", "confirmed"))
+        self.assertEqual((waiting["total"], [row["id"] for row in waiting["answered"]]), (0, [item.id]))
         self.assertEqual((user["authority"], user["outcome"], user["state"]), ("user_attested", "confirmed", "resolved"))
         self.assertEqual((listed["outcome"], listed["data"]["items"]), ("empty", []))
         del core

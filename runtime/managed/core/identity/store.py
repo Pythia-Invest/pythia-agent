@@ -204,12 +204,12 @@ class IdentityStore:
 
     @_locked
     def queue_items(self, *, subject_ids: Iterable[str] | None = None, plugins: Iterable[str] | None = None,
-                    kind: str | None = None, provisional: bool = False) -> list[dict]:
-        """Open items, newest first, and with `provisional` the ones only the agent answered (the user may still);
-        subjects match an item's subjects or candidates."""
+                    kind: str | None = None, answered: bool = False) -> list[dict]:
+        """Open items, newest first; with `answered`, instead the ones only the agent answered, which route
+        provisionally until the user confirms or overrides them. Subjects match an item's subjects or candidates."""
         subjects, names = (set(subject_ids) if subject_ids is not None else None), (set(plugins) if plugins is not None else None)
-        rows = self.db.execute(f"{_ITEMS} WHERE q.state = 'open' OR (? AND q.state IN ('resolved', 'dismissed')"
-                               " AND v.resolver = 'agent') ORDER BY q.opened_at DESC, q.id", (provisional,)).fetchall()
+        where = "q.state IN ('resolved', 'dismissed') AND v.resolver = 'agent'" if answered else "q.state = 'open'"
+        rows = self.db.execute(f"{_ITEMS} WHERE {where} ORDER BY q.opened_at DESC, q.id").fetchall()
         items = [_item(row) for row in rows]
         return [item for item in items if (kind is None or item["kind"] == kind)
                 and (names is None or names & set(item["plugins"]))

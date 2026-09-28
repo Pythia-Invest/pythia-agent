@@ -122,8 +122,10 @@ Manual resolution is allowed and never required; resolution never runs on the
 search or page path.
 
 **Working the queue.** Core exposes two operations, which are also native agent
-tools: `identity-queue` lists open items (filtered by subject, plugin or kind)
-and the items only the agent answered, or reads one item in full with the
+tools: `identity-queue` lists open items (filtered by subject, plugin or kind),
+on request apart from them the items only the agent answered (no longer open;
+they route provisionally until the user confirms or overrides them), or reads
+one item in full with the
 provider record, candidates, cited evidence and every verdict so far;
 `identity-verdict` answers one item. The transport decides the resolver, never
 an argument: a Desk HTTP call is the user (`user_attested`, citing that Desk
@@ -135,8 +137,10 @@ the join, supersedes it and may re-point or withdraw its binding; every other
 confirmed binding is never re-pointed. Every verdict goes through `decide` and
 is recorded with its outcome; a confirmed one writes its binding, citing the
 verdict, in the same transaction. "Not a match" (`unrelated`, `none`) is refused
-when the record's own identifier equals the candidate's T0 evidence, so an
-identifier-backed contradiction stays open. A dismissal holds for the evidence
+when the record's own identifier at the question's level equals the candidate's
+T0 evidence (for a listing, its FIGI, or its security's ISIN on the same venue),
+so an identifier-backed contradiction stays open; an issuer LEI alone does not
+block it. A dismissal holds for the evidence
 it was given: re-asking the question with different identifier evidence reopens
 it. A question without a provider record takes no verdict until its answer has
 an effect. The rules resolver re-asks the join (`resolve_answer@1`) for open
