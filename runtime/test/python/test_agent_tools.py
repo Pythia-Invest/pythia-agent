@@ -344,12 +344,11 @@ class ConceptToolTest(AgentToolFixture):
         return json.loads(handler(self.ctx, arguments) if handler in (agent_reads.prices, agent_reads.filings)
                           else handler(arguments))
 
-    def test_find_rows_hand_over_identifiers_and_the_next_step(self):
+    def test_find_groups_hand_over_subject_ids_and_the_next_step(self):
         result = self.call(agent_tools.find, query="asml")
-        row = result["data"]["rows"][0]
-        self.assertEqual((row["id"], row["isin"], row["lei"], row["cik"]),
-                         (ASML, "NL0010273215", "724500Y6DUVHQD6OXN27", "937966"))
-        self.assertNotIn("bindings", row)
+        group, = result["data"]["groups"]
+        self.assertEqual(group["rows"][0]["id"], ASML)
+        self.assertNotIn("lookup", result["data"])
         self.assertIn("pythia_instrument", result["next"])
 
     def test_instrument_names_the_source_of_each_concept(self):

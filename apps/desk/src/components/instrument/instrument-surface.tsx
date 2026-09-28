@@ -13,6 +13,7 @@ import {
   type FinancialWidgetInput,
 } from "@pythia/market-data/widgets";
 import { Button, cn, InstrumentPeriodSelector } from "@pythia/ui";
+import { useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import {
   useResolvedSections,
@@ -22,11 +23,7 @@ import {
 } from "@/client/instrument-queries";
 import { BoundWidget } from "@/components/widgets/bound-widget";
 import { type PageBlock, pageBlocks, usingSource } from "./blocks";
-import {
-  InstrumentHeader,
-  InstrumentPageSkeleton,
-  ListingSwitcher,
-} from "./instrument-header";
+import { InstrumentHeader, InstrumentPageSkeleton } from "./instrument-header";
 import {
   SectionFailure,
   SectionLoading,
@@ -40,6 +37,9 @@ import { FilingsView, ProfileView } from "./section-views";
 const MARKET_PLUGIN = "pythia-market-data";
 const MARKET_PRESENTATION = "instrument-panel";
 const CHART_PRESENTATION = "instrument-chart";
+
+/** Blocks that show the chosen listing's price. */
+const PRICE_BLOCKS = new Set<PageBlock["type"]>(["market", "quote", "chart"]);
 
 /** Grid placement by block type: prices lead, the profile sits beside them on
  * wide screens and filings span the page. One column on narrow screens. */
@@ -89,8 +89,36 @@ function SectionCard({
  * prefetched by search, so header and card frames render at once; each card's
  * content then loads on its own. */
 export function InstrumentSurface({ subjectId }: { subjectId: string }) {
-  const page = useSubjectPage(subjectId);
-  const resolved = useResolvedSections(subjectId, page.data?.sections ?? []);
+  // `?listing=` names the listing whose quote and chart the page shows; the
+  // selector changes it in place (history.replaceState), so the page and the
+  // issuer's profile and filings stay mounted with their reads. Only a listing
+  // of this instrument is honoured: an unknown or foreign id shows the route
+  // subject instead of failing or showing another instrument.
+  const requested = useSearchParams().get("listing");
+  const instrument = useSubjectPage(subjectId);
+  const listingId =
+    requested &&
+    instrument.data?.listings.some((listing) => listing.id === requested)
+      ? requested
+      : null;
+  const listing = useSubjectPage(listingId ?? subjectId);
+  // A chosen listing that cannot be read fails in its price card only; the
+  // instrument's own composition carries the rest of the page.
+  const listingFailed = Boolean(
+    listingId && listing.isError && instrument.data,
+  );
+  const page = listingFailed ? instrument : listing;
+  // Until the chosen listing's own composition arrives, its price blocks wait
+  // instead of mounting on the previous or the route's line.
+  const awaitingListing = Boolean(listingId && listing.isPlaceholderData);
+  // Resolution follows the composition on screen: while another listing's
+  // composition loads, the previous one (a placeholder) keeps its cached
+  // resolutions and nothing is resolved on its behalf.
+  const resolved = useResolvedSections(
+    page.data?.subject.id ?? listingId ?? subjectId,
+    subjectId,
+    page.data?.sections ?? [],
+  );
   if (page.isPending) return <InstrumentPageSkeleton />;
   if (page.isError)
     return (
@@ -111,14 +139,16 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
       </div>
     );
   const view = { ...page.data, sections: resolved.sections };
+  // The header is the instrument's (the route subject's kind, name and
+  // identifiers); only the price and chart follow the chosen listing.
+  const header = instrument.data ?? view;
   return (
     <article
       data-slot="instrument-page"
-      aria-label={view.subject.name}
+      aria-label={header.subject.name}
       className="@container mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-5 min-[600px]:px-6"
     >
-      <InstrumentHeader page={view} />
-      <ListingSwitcher page={view} />
+      <InstrumentHeader page={header} subjectId={subjectId} />
       <div className="grid @3xl:grid-cols-3 grid-cols-1 gap-3">
         {pageBlocks(view.sections).map((block) => (
           <PageCard
@@ -128,6 +158,19 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
             retry={block.sections
               .map((section) => resolved.failed.get(section))
               .find(Boolean)}
+            price={
+              !PRICE_BLOCKS.has(block.type) ? null : listingFailed ? (
+                <SectionFailure
+                  message={`This listing's price could not be read. ${listing.error?.message ?? ""}`}
+                  onRetry={() => void listing.refetch()}
+                />
+              ) : awaitingListing ? (
+                <SectionLoading
+                  label="Loading this listing's price…"
+                  lines={4}
+                />
+              ) : null
+            }
           />
         ))}
       </div>
@@ -146,10 +189,13 @@ function PageCard({
   block: original,
   page,
   retry,
+  price,
 }: {
   block: PageBlock;
   page: SubjectPage;
   retry: (() => void) | undefined;
+  /** The chosen listing's price state, when it replaces a price block. */
+  price: ReactNode;
 }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const block = usingSource(original, chosen);
@@ -166,7 +212,9 @@ function PageCard({
       chosen={chosen}
       onUse={(plugin) => setChosen(plugin)}
     >
-      {servable ? (
+      {price ? (
+        price
+      ) : servable ? (
         <BlockContent
           block={block}
           page={page}

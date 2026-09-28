@@ -33,9 +33,10 @@ FIND = {
     "name": "pythia_find",
     "description": "Find a stock, fund or crypto asset by name, ticker or ISIN. Searches the investor's local "
                    "reference of companies, securities, listings and crypto assets by name, ticker, ISIN, LEI, CIK or "
-                   "FIGI. Start here for any investment the user names. Each row carries "
-                   "its subject id (pass it to the other pythia tools), ticker, venue and key identifiers. Local only; "
-                   "no provider is called. A row is a candidate: check name and venue before relying on it.",
+                   "FIGI. Start here for any investment the user names. Results are grouped per company or "
+                   "instrument; each row is a listing with its subject id (pass it to the other tools), ticker, "
+                   "venue and currency. Local only; no provider is called. A row is a candidate: check name and "
+                   "venue before relying on it.",
     "parameters": {"type": "object", "properties": {
         "query": {"type": "string", "minLength": 1, "maxLength": 128},
         "kinds": {"type": "array", "maxItems": 16, "items": {"type": "string"},
@@ -248,9 +249,7 @@ def choose(ready: list, skipped: list, wanted: str | None, concept: str, infos: 
 def find(arguments: dict, **_context: Any) -> str:
     arguments = {**arguments, "limit": min(int(arguments.get("limit") or 10), 25)}
     result = json.loads(identity().search(arguments))
-    for row in (result.get("data") or {}).get("rows", []):
-        row.pop("bindings", None)  # Desk's confirmed provider bindings; the agent reads through subject ids
-    (result.get("data") or {}).pop("lookup", None)
+    (result.get("data") or {}).pop("lookup", None)  # Desk's single-provider lookup offer
     if result.get("outcome") == "ok":
         result["next"] = ("pythia_instrument for a row's identifiers, listings and sources; pythia_prices, "
                           "pythia_filings and the provider tools it lists take its subject id.")

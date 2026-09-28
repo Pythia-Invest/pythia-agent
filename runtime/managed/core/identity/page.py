@@ -156,7 +156,8 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         return None
     entry, concept_operation, operation = served
     concept = SERVES[section][0]
-    answer = {"section": str(section), "plugin": info.key, "provider": info.manifest.provider, "label": info.label,
+    answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "provider": info.manifest.provider,
+              "label": info.label,
               "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
               "binding_status": None, "request": None, "alternatives": [], "reason": None,
               "authorities": [str(item) for item in entry.authorities]}

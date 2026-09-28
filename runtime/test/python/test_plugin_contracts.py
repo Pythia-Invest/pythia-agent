@@ -90,7 +90,7 @@ class ShippedContracts(unittest.TestCase):
                    'a_resolve': marked(pythia_http_operation={'plugin': 'a', 'operation': 'resolve'}),
                    'foreign': marked(pythia_http_operation={'plugin': 'a', 'operation': 'filings'})}
         owners = {'a_profile': 'a', 'b_profile': 'a', 'a_resolve': 'a', 'foreign': 'other'}
-        with self.assertLogs(ops.logger, 'WARNING'):
+        with self.assertLogs("pythia_core_queue_fixture.native_ops", "WARNING"):
             self.assertEqual(ops.operation_tools(owners, schemas), {'a': {'resolve': 'a_resolve'},
                                                                     'other': {'filings': 'foreign'}})
 

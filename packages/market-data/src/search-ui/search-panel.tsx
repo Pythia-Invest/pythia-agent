@@ -1,13 +1,13 @@
 import { Button, ComboboxList, EmptyState, Skeleton } from "@pythia/widget-sdk";
 import { LoaderCircle } from "lucide-react";
-import { type MouseEvent, useEffect, useRef } from "react";
-import type { LookupOffer, SearchRow } from "../search";
+import { Fragment, type MouseEvent, useEffect, useRef } from "react";
+import type { LookupOffer, SearchGroup } from "../search";
 import {
   type SearchOption,
   TYPE_FILTERS,
   type TypeFilter,
 } from "./search-model";
-import { ConnectorMark, SearchRowOption } from "./search-row";
+import { ConnectorMark, SearchRowOption, ToggleOption } from "./search-row";
 import { TypePills } from "./type-pills";
 
 export type PanelStatus = "prompt" | "loading" | "error" | "ready";
@@ -17,7 +17,7 @@ export type LookupState = {
   label: string;
   query: string;
   status: "running" | "done" | "error";
-  rows: SearchRow[];
+  groups: SearchGroup[];
 };
 
 export type SearchPanelProps = {
@@ -36,6 +36,13 @@ export type SearchPanelProps = {
   onLookup(offer: LookupOffer): void;
   /** A row was chosen by pointer or Enter. */
   onChoose(option: SearchOption): void;
+  /** Groups showing all their listings, by group id. */
+  expanded?: ReadonlySet<string> | undefined;
+  /** An expanded group's read of all its listings, when it is not shown yet
+   * ("loading") or failed ("error"); expanded groups not named here show all. */
+  pending?: ReadonlyMap<string, "loading" | "error"> | undefined;
+  /** A group's toggle was chosen by pointer or Enter. */
+  onToggle?: ((groupId: string) => void) | undefined;
 };
 
 const keepInputFocus = (event: MouseEvent) => event.preventDefault();
@@ -56,20 +63,41 @@ export function SearchPanel(props: SearchPanelProps) {
   const shown = status === "ready" ? props.options : [];
   const directory = shown.filter((option) => option.source === "directory");
   const found = shown.filter((option) => option.source === "lookup");
-  const renderRow = (option: SearchOption) => (
-    <SearchRowOption
-      key={option.key}
-      option={option}
-      onChoose={() => props.onChoose(option)}
-    />
+  // A group's first listing carries its heading in the same option; the
+  // toggle closes the group.
+  const renderRow = (
+    option: SearchOption,
+    index: number,
+    list: SearchOption[],
+  ) => (
+    <Fragment key={option.key}>
+      {option.row ? (
+        <SearchRowOption
+          option={option}
+          heading={list[index - 1]?.group.id !== option.group.id}
+          onChoose={() => props.onChoose(option)}
+        />
+      ) : (
+        <ToggleOption
+          option={option}
+          state={
+            props.expanded?.has(option.group.id)
+              ? (props.pending?.get(option.group.id) ?? "expanded")
+              : "collapsed"
+          }
+          onToggle={() => props.onToggle?.(option.group.id)}
+        />
+      )}
+    </Fragment>
   );
+  const companies = new Set(directory.map((option) => option.group.id)).size;
   const filterLabel = TYPE_FILTERS.find((type) => type.value === filter)?.label;
   const announcement =
     status === "loading"
       ? "Searching"
       : status === "ready" && fresh
-        ? directory.length
-          ? `${directory.length} result${directory.length === 1 ? "" : "s"}`
+        ? companies
+          ? `${companies} result${companies === 1 ? "" : "s"}`
           : "No matches"
         : "";
   return (
@@ -145,7 +173,9 @@ export function SearchPanel(props: SearchPanelProps) {
           aria-label="Investments"
           aria-busy={status === "ready" && !fresh}
           hidden={!shown.length}
-          className="grid max-h-none overflow-visible"
+          // One shrinkable column: a long listing detail truncates instead of
+          // widening every row past the panel.
+          className="grid max-h-none grid-cols-1 overflow-visible"
         >
           {directory.map(renderRow)}
           {found.length && lookup ? (

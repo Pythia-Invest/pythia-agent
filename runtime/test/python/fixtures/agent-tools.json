@@ -1,7 +1,7 @@
 [
   {
     "name": "pythia_find",
-    "description": "Find a stock, fund or crypto asset by name, ticker or ISIN. Searches the investor's local reference of companies, securities, listings and crypto assets by name, ticker, ISIN, LEI, CIK or FIGI. Start here for any investment the user names. Each row carries its subject id (pass it to the other pythia tools), ticker, venue and key identifiers. Local only; no provider is called. A row is a candidate: check name and venue before relying on it.",
+    "description": "Find a stock, fund or crypto asset by name, ticker or ISIN. Searches the investor's local reference of companies, securities, listings and crypto assets by name, ticker, ISIN, LEI, CIK or FIGI. Start here for any investment the user names. Results are grouped per company or instrument; each row is a listing with its subject id (pass it to the other tools), ticker, venue and currency. Local only; no provider is called. A row is a candidate: check name and venue before relying on it.",
     "parameters": {
       "type": "object",
       "properties": {
