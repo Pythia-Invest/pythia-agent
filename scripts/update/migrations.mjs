@@ -40,6 +40,14 @@ const MIGRATIONS = [
         ]);
       }
       hermes([...profile, "config", "set", "tools.tool_search.enabled", "off"]);
+      // Automatic skill writing stays a native setting the investor can turn back on.
+      hermes([
+        ...profile,
+        "config",
+        "set",
+        "skills.creation_nudge_interval",
+        "0",
+      ]);
       // `tools disable` exits 0 on a toolset it does not know; require the result, not the exit code.
       const read = (key) =>
         JSON.parse(
@@ -66,6 +74,9 @@ const MIGRATIONS = [
       }
       if (search !== "off" && search !== "false") {
         throw new Error("Hermes did not turn Tool Search off.");
+      }
+      if (Number(read("skills.creation_nudge_interval")) !== 0) {
+        throw new Error("Hermes did not turn automatic skill writing off.");
       }
     },
   },

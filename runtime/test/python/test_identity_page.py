@@ -11,28 +11,33 @@ from pythia_identity_fixture import page, search, store  # noqa: E402
 ASML = "listing:isin:NL0010273215:XAMS:EUR"
 BTC = "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
 LEI = "724500Y6DUVHQD6OXN27"
+OPEN = {"licence": "open", "cache": "unlimited", "hostable": False}
+QUOTE = {"level": "listing", "via": "listing", "operations": {"quote": "latest"}}
 CONTRACTS = {
-    "yahoo": {"plugin": "yahoo", "provider": "yahoo",
+    "yahoo": {"contract_version": 1, "plugin": "yahoo", "provider": "yahoo",
               "addressing": {"native": [{"native_scope": "symbol", "level": "listing", "asset_classes": ["equity"]}],
                              "schemes": {"listing": ["ticker_mic"]}, "mic_table": {"XAMS": ".AS", "XNAS": ""}},
-              "content": {"quote": {"level": "listing", "via": "listing", "tool": "yahoo_latest"}}},
-    "eodhd": {"plugin": "eodhd", "provider": "eodhd",
+              "concepts": {"market_data": QUOTE}, "rights": {**OPEN, "licence": "personal", "cache": "none"}},
+    "eodhd": {"contract_version": 1, "plugin": "eodhd", "provider": "eodhd",
               "addressing": {"native": [{"native_scope": "catalogue", "level": "listing", "asset_classes": ["equity"]}],
                              "schemes": {"security": ["isin"]}},
-              "content": {"quote": {"level": "listing", "via": "listing", "tool": "eodhd_latest"}},
-              "resolve": {"tool": "eodhd_resolve", "input_schemes": ["isin"], "echoes": ["isin"]}},
-    "gleif": {"plugin": "gleif", "provider": "gleif",
+              "concepts": {"market_data": QUOTE},
+              "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": ["isin"]},
+              "rights": {**OPEN, "licence": "personal"}},
+    "gleif": {"contract_version": 1, "plugin": "gleif", "provider": "gleif",
               "addressing": {"native": [{"native_scope": "lei", "level": "issuer"}], "schemes": {"issuer": ["lei"]}},
-              "content": {"profile": {"level": "issuer", "via": "issuer", "tool": "gleif_profile"}},
-              "resolve": {"tool": "gleif_resolve", "input_schemes": ["lei"], "echoes": ["lei"]}},
-    "coinmarketcap": {"plugin": "coinmarketcap", "provider": "coinmarketcap",
+              "concepts": {"profile": {"level": "issuer", "via": "issuer", "operations": {"fields": "profile"}}},
+              "resolve": {"operation": "resolve", "input_schemes": ["lei"], "echoes": ["lei"]}, "rights": OPEN},
+    "coinmarketcap": {"contract_version": 1, "plugin": "coinmarketcap", "provider": "coinmarketcap",
                       "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}]},
-                      "catalogue": {"mode": "bulk", "tool": "cmc_catalogue", "scopes": ["coins"]},
-                      "content": {"quote": {"level": "security", "via": "security", "tool": "cmc_latest"}}},
-    "coingecko": {"plugin": "coingecko", "provider": "coingecko",
+                      "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
+                      "concepts": {"market_data": {**QUOTE, "level": "security", "via": "security"}},
+                      "rights": {**OPEN, "licence": "business"}},
+    "coingecko": {"contract_version": 1, "plugin": "coingecko", "provider": "coingecko",
                   "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}]},
-                  "catalogue": {"mode": "bulk", "tool": "cg_catalogue", "scopes": ["coins"]},
-                  "content": {"quote": {"level": "security", "via": "security", "tool": "cg_latest"}}},
+                  "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
+                  "concepts": {"market_data": {**QUOTE, "level": "security", "via": "security"}},
+                  "rights": {**OPEN, "licence": "business"}},
 }
 
 
@@ -169,13 +174,17 @@ class SearchTest(Fixture):
 
 class PageTest(Fixture):
     def test_sections_use_derived_addresses_without_a_call(self):
-        _subject, sections = self.compose(ASML, [plugin("gleif", operations={"gleif_profile": "gleif-profile"}),
-                                                 plugin("eodhd"), plugin("yahoo")])
+        _subject, sections = self.compose(ASML, [plugin("gleif", operations={"profile": "pythia_gleif_profile"}),
+                                                 plugin("yahoo")])
         quote, profile = sections["quote"], sections["profile"]
         self.assertEqual((quote["plugin"], quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-yahoo", "ready", "ASML.AS", "derived"))
-        self.assertEqual(quote["alternatives"], [{"plugin": "pythia-eodhd", "label": "EODHD", "status": "resolving"}])
-        self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "gleif-profile", "arguments": {
+        # Free sources come first in core's default order: Yahoo serves; EODHD, still needing its lookup, is listed.
+        _subject, sections = self.compose(ASML, [plugin("eodhd"), plugin("yahoo")])
+        self.assertEqual((sections["quote"]["plugin"], sections["quote"]["status"]), ("pythia-yahoo", "ready"))
+        [also] = sections["quote"]["alternatives"]
+        self.assertEqual((also["plugin"], also["source"], also["status"]), ("pythia-eodhd", "EODHD", "resolving"))
+        self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
 
     def test_an_old_us_id_resolves_through_its_alias(self):
@@ -195,8 +204,10 @@ class PageTest(Fixture):
         quote = sections["quote"]
         self.assertEqual((quote["plugin"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-coingecko", "bitcoin", "confirmed"))
-        self.assertEqual(quote["alternatives"], [{"plugin": "pythia-coinmarketcap", "label": "CoinMarketCap",
-                                                  "status": "needs_configuration"}])
+        self.assertEqual(quote["alternatives"], [])
+        self.assertEqual([(item["plugin"], item["code"]) for item in quote["skipped"]],
+                         [("pythia-yahoo", "not_addressable"), ("pythia-coinmarketcap", "needs_configuration")])
+        self.assertIsNone(quote["notice"])  # a source the investor has not set up is not a warning
 
     def test_market_data_reads_a_subject_through_its_ready_references_in_core_order(self):
         missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)
@@ -275,7 +286,8 @@ class ReviewFixesTest(Fixture):
         sections = {s["section"]: s for s in page.compose(subject, [plugin("eodhd"), plugin("yahoo")], queue=queue,
                                                         stored=lambda *_: None, coins=lambda *_: None)}
         self.assertEqual(sections["quote"]["plugin"], "pythia-yahoo")
-        self.assertEqual(sections["quote"]["alternatives"][0]["status"], "conflict")
+        self.assertEqual(sections["quote"]["skipped"][0]["code"], "conflict")
+        self.assertIsNone(sections["quote"]["notice"])  # EODHD ranks after the free Yahoo: not a passed-over choice
         binding, _item, _ = self.resolve(asml, self.answer("NL0010273215"))
         self.identity.put_binding(binding)
         _subject, sections = self.compose(ASML, [plugin("eodhd")])

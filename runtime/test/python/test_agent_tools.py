@@ -41,6 +41,7 @@ page = importlib.import_module("pythia_core_fixture.identity.page")
 manifest = importlib.import_module("pythia_core_fixture.identity.manifest")
 access = importlib.import_module("pythia_core_fixture.platform.access")
 operations = importlib.import_module("pythia_core_fixture.platform.operations")
+concept_ops = importlib.import_module("pythia_core_fixture.concept_ops")
 
 ASML = "listing:isin:NL0010273215:XAMS:EUR"
 ASML_ISSUER = "issuer:lei:724500Y6DUVHQD6OXN27"
@@ -54,12 +55,12 @@ def definitions(plugin):
     return module.schemas(wire)
 
 
-def contract(plugin, **state):
-    """A plugin as `identity_ops.installed()` reports it; `operations` are its declared content exports."""
+def contract(plugin, schemas=None, **state):
+    """A plugin as `identity_ops.installed()` reports it: `operations` maps each operation its tools declare to the tool."""
     raw = json.loads((MANAGED / "plugins" / plugin / "contract.json").read_text())
-    parsed = manifest.validate_manifest(raw)
-    operations = {entry.tool: str(section) for section, entry in parsed.content.items()}
-    return page.PluginInfo(key=raw["plugin"], manifest=parsed, operations=operations, **state)
+    declared = {name: operations.declaration(schema) or {} for name, schema in (schemas or {}).items()}
+    found = {meta["operation"]: name for name, meta in declared.items() if meta.get("plugin") == raw["plugin"]}
+    return page.PluginInfo(key=raw["plugin"], manifest=manifest.validate_manifest(raw), operations=found, **state)
 
 
 def envelope(data, issues=()):
@@ -148,7 +149,6 @@ class AgentToolFixture(unittest.TestCase):
         db.execute("INSERT INTO venues VALUES ('XAMS', 'XAMS', 'Euronext Amsterdam', 'NL')")
         db.commit()
         db.close()
-        self.plugins = {name: contract(name) for name in ("sec", "xbrl-filings", "gleif", "yahoo-discovery", "eodhd")}
         self.schemas = {}
         for plugin in ("sec", "xbrl-filings", "gleif", "yahoo-discovery"):
             self.schemas.update({schema["name"]: schema for schema in definitions(plugin).values()})
@@ -161,13 +161,15 @@ class AgentToolFixture(unittest.TestCase):
         self.owners = {name: (owner, SimpleNamespace(manifest=SimpleNamespace(name=owner)))
                        for name, schema in self.schemas.items()
                        if (owner := (operations.declaration(schema) or {}).get("plugin"))}
+        self.plugins = {name: self.contract(name) for name in ("sec", "xbrl-filings", "gleif", "yahoo-discovery", "eodhd")}
         self.eligible = set(self.schemas) | {agent_reads.MARKET_DATA_TOOL}
         self.handlers = {}
         self.ctx = Context(self.handlers)
         self.ctx.state = SimpleNamespace(data_dir=self.tmp.name)
         registry = ModuleType("tools.registry")
         registry.registry = SimpleNamespace(get_all_tool_names=lambda: list(self.schemas),
-                                            get_schema=lambda name: self.schemas.get(name))
+                                            get_schema=lambda name: self.schemas.get(name),
+                                            dispatch=lambda name, args, **_: self.ctx.dispatch_tool(name, args))
         self.enterContext(mock.patch.dict(sys.modules, {"tools": ModuleType("tools"), "tools.registry": registry,
                                                         **validator_module()}))
         self.enterContext(mock.patch.dict(os.environ, {"PYTHIA_REFERENCE_DIR": str(reference)}))
@@ -175,6 +177,10 @@ class AgentToolFixture(unittest.TestCase):
         self.enterContext(mock.patch.object(access, "eligible_tools", lambda: set(self.eligible)))
         self.enterContext(mock.patch.object(access, "native_tool_owners", lambda: dict(self.owners)))
         self.enterContext(mock.patch.object(identity_ops, "CURRENT", identity_ops.Identity(self.ctx)))
+        self.enterContext(mock.patch.object(concept_ops, "CURRENT", concept_ops.ConceptReads(identity_ops.CURRENT)))
+
+    def contract(self, name, **state):
+        return contract(name, self.schemas, **state)
 
     def registered(self):
         """The tools core registers, leaving this fixture's identity in place."""
@@ -250,6 +256,7 @@ class PythiaCommandTest(AgentToolFixture):
         self.assertEqual(self.ctx.calls, [])
 
     def test_d_unknown_source_or_function_suggests_the_close_ones(self):
+        self.assertEqual(self.pythia("esef")["source"], "xbrl-filings")  # a common name for a source
         source = self.pythia("secc facts")
         self.assertEqual(source["issues"][0]["code"], "unknown_source")
         self.assertIn("Did you mean sec?", source["issues"][0]["message"])
@@ -263,15 +270,15 @@ class PythiaCommandTest(AgentToolFixture):
         # Even if a contract listed it, a tool core runs for a concept tool is not a function.
         raw = json.loads((MANAGED / "plugins/sec/contract.json").read_text())
         self.plugins["sec"] = page.PluginInfo(key="pythia-sec", manifest=manifest.validate_manifest(
-            {**raw, "functions": ["filings"]}))
+            {**raw, "functions": ["filings"]}), operations=self.plugins["sec"].operations)
         self.assertEqual(self.pythia("sec filings", {"subject_id": ASML})["issues"][0]["code"], "unknown_function")
         self.assertNotIn("filings", self.pythia("help")["sources"][3]["functions"])
         self.assertEqual(self.ctx.calls, [])
 
     def test_e_disabled_or_unconfigured_sources_say_why_without_a_call(self):
-        self.plugins["sec"] = contract("sec", missing=({"key": "sec_identity", "label": "SEC contact",
+        self.plugins["sec"] = self.contract("sec", missing=({"key": "sec_identity", "label": "SEC contact",
                                                         "file": "settings.json", "status": "missing"},))
-        self.plugins["gleif"] = contract("gleif", enabled=False)
+        self.plugins["gleif"] = self.contract("gleif", enabled=False)
         unconfigured = self.pythia("sec facts", {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]})
         self.assertEqual(unconfigured["issues"][0]["code"], "needs_configuration")
         self.assertIn("SEC contact (sec_identity in settings.json, missing)", unconfigured["issues"][0]["message"])
@@ -280,7 +287,7 @@ class PythiaCommandTest(AgentToolFixture):
         self.assertIn("disabled", self.pythia("help")["sources"][1]["unavailable"])
         self.assertEqual(self.ctx.calls, [])
         # A plugin's own needs_configuration result passes through unchanged.
-        self.plugins["sec"] = contract("sec")
+        self.plugins["sec"] = self.contract("sec")
         blocked = {"schema_version": 1, "outcome": "error", "data": None, "issues": [{
             "code": "needs_configuration", "severity": "error", "fields": [], "message": "Add the SEC contact."}]}
         self.handlers["pythia_sec_fundamentals"] = lambda *_args, **_kw: json.dumps(blocked)
@@ -345,7 +352,7 @@ class PythiaCommandTest(AgentToolFixture):
             return json.dumps([tools[name]["schema"] for name in sorted(tools)
                                if tools[name]["toolset"] == agent_tools.TOOLSET], separators=(",", ":"))
         first = visible()
-        self.plugins["sec"] = contract("sec", enabled=False)
+        self.plugins["sec"] = self.contract("sec", enabled=False)
         self.plugins.pop("eodhd")
         self.assertEqual(visible(), first)  # plugin state reaches results (help), never the schemas
         self.assertEqual(self.pythia("help"), self.pythia("help"))
@@ -381,8 +388,11 @@ class ConceptToolTest(AgentToolFixture):
         result = self.call(agent_tools.instrument, subject_id=ASML)
         sources = {row["concept"]: row for row in result["data"]["sources"]}
         self.assertEqual(sources["quote"]["source"], "Yahoo Finance")
-        self.assertEqual(sources["filings"]["source"], "filings.xbrl.org")
-        self.assertEqual([item["source"] for item in sources["filings"]["alternatives"]], ["SEC EDGAR"])
+        self.assertEqual([item["source"] for item in sources["filings"]["sources"]], ["filings.xbrl.org", "SEC EDGAR"])
+        commands = [row["command"] for row in result["data"]["functions"]]
+        self.assertIn("pythia gleif profile", commands)
+        self.assertIn("pythia xbrl-filings fundamentals", commands)
+        self.assertNotIn("pythia identity queue", commands)  # no open questions for this subject
         self.assertNotIn("request", json.dumps(result))  # Desk's operation requests stay out of the agent's view
         self.assertEqual(result["data"]["identifiers"]["lei"], "724500Y6DUVHQD6OXN27")
 
@@ -400,7 +410,7 @@ class ConceptToolTest(AgentToolFixture):
             return json.dumps(self.read_result(args["request"], observations=bars))
 
         self.handlers[agent_reads.MARKET_DATA_TOOL] = market_data
-        self.plugins["eodhd"] = contract("eodhd", enabled=False)
+        self.plugins["eodhd"] = self.contract("eodhd", enabled=False)
         result = self.call(agent_reads.prices, subject_id=ASML, start="2026-01-01", points=2)
         yahoo = {"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol"}
         self.assertEqual(seen[0]["request"]["view"]["subject"], yahoo)  # the source core chose, and labels
@@ -439,24 +449,43 @@ class ConceptToolTest(AgentToolFixture):
         self.assertIn("Name one of the alternatives", failed["next"])
         self.assertEqual(len(self.ctx.calls), 3)
 
-    def test_filings_use_the_first_filings_source_and_filter_by_form(self):
-        xbrl = {"dataset": "filings", "provider": "xbrl-filings", "observed_at": "2026-09-26T10:00:00Z",
-                "filings": filing_rows(["AFR", "IR", "AFR"]), "coverage": {"scope": "indexed_reports", "total_available": 3}}
-        sec = {"dataset": "filings", "provider": "sec", "observed_at": "2026-09-26T10:00:00Z",
-               "filings": filing_rows(["6-K", "20-F/A", "20-F", "6-K"]), "coverage": {"scope": "recent_submissions",
-                                                                                   "total_available": 400}}
+    def test_filings_front_core_combined_read_and_filter_by_form(self):
+        xbrl = {"dataset": "filings", "provider": "xbrl-filings", "filings": filing_rows(["AFR", "IR", "AFR"])}
+        sec = {"dataset": "filings", "provider": "sec", "filings": filing_rows(["6-K", "20-F/A", "20-F", "6-K"])}
         self.handlers["pythia_xbrl_filings_filings"] = lambda args, **_: envelope(xbrl)
         self.handlers["pythia_sec_filings"] = lambda args, **_: envelope(sec)
-        result = self.call(agent_reads.filings, subject_id=ASML, forms=["afr"])
-        self.assertEqual(result["source"]["source"], "filings.xbrl.org")
-        self.assertEqual([row["form"] for row in result["filings"]], ["AFR", "AFR"])
-        self.assertEqual(self.ctx.calls[-1][1]["native_ref"]["native_id"], "724500Y6DUVHQD6OXN27")
-        self.assertEqual([row["source"] for row in result["alternatives"]], ["SEC EDGAR"])
-        named = self.call(agent_reads.filings, subject_id=ASML, forms=["20-F"], source="sec", limit=1)
-        self.assertEqual((named["filings"][0]["form"], named["coverage"]["matched"]), ("20-F/A", 2))
-        missing = self.call(agent_reads.filings, subject_id=ASML, forms=["10-K"], source="sec")
+        result = self.call(agent_reads.filings, subject_id=ASML, forms=["afr", "20-f"])
+        self.assertEqual([source["source"] for source in result["sources"]], ["filings.xbrl.org", "SEC EDGAR"])
+        self.assertEqual([(row["form"], row["source"]) for row in result["filings"]],
+                         [("AFR", "filings.xbrl.org"), ("20-F/A", "SEC EDGAR"), ("AFR", "filings.xbrl.org"),
+                          ("20-F", "SEC EDGAR")])
+        self.assertEqual(result["coverage"], {"matched": 4, "scanned": 7})
+        # A common name reads that source first for its authorities; an unknown one says which exist.
+        self.call(agent_reads.filings, subject_id=ASML, source="esef")
+        self.assertIn("pythia_xbrl_filings_filings", [call[0] for call in self.ctx.calls[-2:]])
+        unknown = self.call(agent_reads.filings, subject_id=ASML, source="bloomberg")
+        self.assertEqual(unknown["issues"][0]["code"], "unknown_source")
+        missing = self.call(agent_reads.filings, subject_id=ASML, forms=["10-K"])
         self.assertEqual(missing["outcome"], "empty")
-        self.assertIn("Only the 4 most recent filings were searched", missing["next"])
+        self.assertIn("most recent filings", missing["next"])
+
+    def test_prices_period_returns_follow_the_chart_rule(self):
+        today = agent_reads.date(2026, 9, 26)
+        self.assertEqual(agent_reads.period_start("1Y", today), agent_reads.date(2025, 9, 26))
+        self.assertEqual(agent_reads.period_start("YTD", today), agent_reads.date(2026, 1, 1))
+        self.assertEqual(agent_reads.period_start("1M", agent_reads.date(2026, 3, 31)), agent_reads.date(2026, 3, 3))
+        bars = [{"shape": "ohlc", "time": {"kind": "session_date", "value": day}, "close": close}
+                for day, close in (("2025-09-24", "100"), ("2025-09-25", "110"), ("2025-09-26", "120"),
+                                   ("2026-09-25", "132"))]
+        result = agent_reads._period_return("1Y", bars, agent_reads.date(2025, 9, 26))
+        self.assertEqual((result["from"], result["change_pct"]), ({"t": "2025-09-25", "close": "110"}, "20.00"))
+        self.handlers[agent_reads.MARKET_DATA_TOOL] = lambda args, **_: json.dumps(
+            self.read_result(args["request"], observations=bars))
+        read = self.call(agent_reads.prices, subject_id=ASML, period="1Y")
+        self.assertEqual(read["period_return"]["period"], "1Y")
+        self.assertEqual(self.ctx.calls[-1][1]["request"]["operation"], "history")
+        refused = self.call(agent_reads.prices, subject_id=ASML, period="1Y", start="2026-01-01")
+        self.assertEqual(refused["issues"][0]["code"], "invalid_request")
 
     def test_the_identity_answer_is_recorded_as_the_agent(self):
         with mock.patch.object(queue_ops.questions, "submit", return_value={"outcome": "refused"}) as submit:

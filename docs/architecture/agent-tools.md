@@ -19,15 +19,17 @@ that scheduled jobs cannot read Pythia's data yet.
 | Tool | Answers | Effect |
 | --- | --- | --- |
 | `pythia_find` | Which investment is this name, ticker, ISIN, LEI, CIK or FIGI? Rows carry the subject id and key identifiers. | local read |
-| `pythia_instrument` | Identifiers, issuer, listings, related instruments and which source serves each concept. | local read |
-| `pythia_prices` | Latest quote, or daily or intraday bars with a first/last/change summary, with source, as-of and delay. | external read |
-| `pythia_filings` | A company's filings from its filings source, filtered by form and date. | external read |
+| `pythia_instrument` | Identifiers, issuer, listings, related instruments, which source serves each concept, and the `pythia` functions that can serve this instrument. | local read |
+| `pythia_prices` | Latest quote, daily or intraday bars with a first/last/change summary, or a standard period's return (1D to 5Y, the Desk chart's rule), with source, as-of and delay. | external read |
+| `pythia_filings` | A company's filings from one source per filing authority (core's combined filings read), filtered by form and date. | external read |
 | `pythia` | Provider depth: reported facts, fundamentals, profiles, news, identity questions. | external read |
 | `pythia_desk_view` | The Desk page the investor is looking at. | local read |
 | `pythia_answer_identity_question` | Records the agent's provisional answer to one identity question. | local write |
 
-`pythia_prices` and `pythia_filings` read the first source in core's order that
-serves the subject, and name that source. `source` names one source and reads only that one.
+`pythia_prices` and `pythia_filings` read the first source in the investor's
+order, then core's, that serves the subject, and name that source. `source`
+names one source by its provider, label or a common name (`esef`, `edgar`) and
+reads only that one; for filings it goes first for the authorities it serves.
 Nothing falls back on its own: a failed read returns its error, the eligible
 `alternatives` and every `skipped` source with its reason.
 
@@ -158,10 +160,18 @@ and records `pythia-core` as known and off for `api_server`, `cli` and `cron`, a
 (`scripts/update/migrations.mjs`) applies the same choices to an existing
 installed profile with native commands: `hermes -p <profile> tools disable
 pythia-core --platform <platform>` for each platform, `tools disable pythia-desk`
-for `cli` and `cron`, and `config set tools.tool_search.enabled off`, then reads
+for `cli` and `cron`, `config set tools.tool_search.enabled off` and `config set
+skills.creation_nudge_interval 0`, then reads
 the configuration back and fails unless Hermes recorded each choice (`tools
 disable` exits 0 even for a toolset it does not know). A development profile
 takes the same commands by hand.
+
+Automatic skill writing is off: Hermes would otherwise write its own skills
+from past turns, and during the agent evaluation two such skills steered the
+agent to the web. The seed and the migration set the native
+`skills.creation_nudge_interval` to 0; the investor turns it back on with
+`hermes config set skills.creation_nudge_interval 10`. Skills the investor asks
+for are still written.
 
 A data source is turned off by disabling its plugin (`hermes plugins disable
 <plugin>`): that stops Desk pages, the agent tools and `pythia` alike. A toolset

@@ -2,6 +2,9 @@ skills:
   external_dirs:
     - "${PYTHIA_MANAGED_SKILLS_DIR}"
   disabled: []
+  # Hermes writes its own skills from past turns every N tool iterations; off until it is mature enough. The
+  # investor turns it back on with `hermes config set skills.creation_nudge_interval 10`.
+  creation_nudge_interval: 0
 plugins:
   enabled:
     - pythia

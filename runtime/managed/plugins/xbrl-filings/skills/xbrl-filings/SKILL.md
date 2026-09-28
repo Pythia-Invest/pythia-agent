@@ -17,9 +17,9 @@ filings.xbrl.org addresses a company by its LEI; Pythia fills it in from any
 subject of the company. The repository is incomplete, so a company it does not
 index may still publish reports.
 
-`pythia_filings` lists report links (viewer, report, package and xBRL-JSON) and
-`report_id` values from this source when it serves the company.
-`pythia xbrl-filings fundamentals` reads supported reported IFRS facts. When
+`pythia_filings` lists this source's reports (ESEF and UK) with a viewer link
+and the reporting period. `pythia xbrl-filings fundamentals` reads supported
+reported IFRS facts of the latest report and names its `report_id`. When
 several reports share the latest period it returns the candidates instead of
 choosing; inspect them and retry with an explicit `report_id`. Repository
 ordering does not prove which report amended another.

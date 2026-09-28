@@ -10,6 +10,7 @@ and choose storage according to what should persist:
   native file/search/terminal tools and read them as needed; do not preload the
   whole workspace or every strategy. The investment-memory skill covers durable
   research habits when useful. Save reusable work when it helps, not every reply.
+  Change the investor's existing notes only when they ask.
 - Native sessions preserve conversations and their historical reasoning. Use
   session_search for selective recall; an old discussion is not current truth.
 - Skills hold reusable procedures, distinct from investor facts and research.

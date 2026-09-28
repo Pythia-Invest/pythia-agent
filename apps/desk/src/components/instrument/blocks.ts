@@ -49,3 +49,30 @@ export function pageBlocks(sections: readonly SubjectSection[]): PageBlock[] {
   }
   return blocks.sort((a, b) => ORDER.indexOf(a.type) - ORDER.indexOf(b.type));
 }
+
+/** A block's sections read from one alternative source instead, for this
+ * view only: core's choice is not changed. */
+export function usingSource(
+  block: PageBlock,
+  plugin: string | null,
+): PageBlock {
+  if (!plugin) return block;
+  const sections = block.sections.map((section) => {
+    const alternative = section.alternatives.find(
+      (item) => item.plugin === plugin,
+    );
+    if (!alternative) return section;
+    return {
+      ...section,
+      plugin: alternative.plugin,
+      label: alternative.label,
+      status: alternative.status,
+      binding: alternative.binding ?? null,
+      request: alternative.request ?? null,
+      reason: null,
+      sources: null,
+      notice: null,
+    };
+  });
+  return { ...block, key: `${block.key}:${plugin}`, sections };
+}

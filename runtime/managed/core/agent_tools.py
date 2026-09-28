@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 from . import identity_ops, queue_ops
 from .identity import page
-from .identity.manifest import Section
+from .identity.page import Section
 
 logger = logging.getLogger(__name__)
 TOOLSET = "pythia-desk"  # the only Pythia toolset the model sees; plugin and core operation toolsets stay hidden
@@ -134,6 +134,26 @@ def identity() -> identity_ops.Identity:
     return identity_ops.CURRENT
 
 
+# Common names for a source, as an investor or the model says them, mapped to its contract provider.
+ALIASES = {"esef": "xbrl-filings", "xbrl": "xbrl-filings", "filings.xbrl.org": "xbrl-filings", "edgar": "sec",
+           "sec edgar": "sec", "cmc": "coinmarketcap", "yahoo finance": "yahoo", "eod": "eodhd"}
+
+
+def source_key(name: Any, infos: dict[str, Any]) -> str | None:
+    """The plugin key a source name means: its key, its key without `pythia-`, its provider, its label or an alias."""
+    wanted = str(name or "").strip().lower()
+    wanted = ALIASES.get(wanted, wanted)
+    for key, info in infos.items():
+        if wanted in (key.lower(), key.lower().removeprefix("pythia-"), info.manifest.provider, info.label.lower()):
+            return key
+    return None
+
+
+def unknown_source(name: Any, infos: dict[str, Any]) -> dict:
+    known = sorted({info.manifest.provider for info in infos.values()})
+    return failure("unknown_source", f"No source named '{name}'. Sources: {', '.join(known)}.")
+
+
 def plugins() -> dict[str, Any]:
     """The installed contracts by plugin key, read once per tool call."""
     return {info.key: info for info in identity_ops.installed()}
@@ -158,8 +178,9 @@ def concept_sources(subject_id: str, section: Section, wanted: str | None, infos
     if subject is None:
         return None, [], [], issue or "Unknown subject id; find the investment with pythia_find."
     answers = page.answers(subject, list(infos.values()), section, **lookups)
-    named = [answer for answer in answers if wanted in (answer["plugin"], label(answer["plugin"], infos)["provider"])]
-    first = (named or [answer for answer in answers if answer["status"] in ("ready", "resolving")] or [None])[0]
+    named = [answer for answer in answers if answer["plugin"] == wanted]
+    usable = [answer for answer in answers if answer["status"] in ("ready", "resolving")]
+    first = (named or ([] if wanted else usable) or [None])[0]
     if first is not None and first["status"] == "resolving":
         core.resolve({"subject_id": subject["id"], "plugin": first["plugin"]})
         _path, subject, lookups, _issue = core._load(subject_id)
@@ -174,11 +195,11 @@ def choose(ready: list, skipped: list, wanted: str | None, concept: str, infos: 
            ) -> tuple[dict | None, dict | None]:
     """(chosen answer, error envelope): the named source, or the first usable one. Never a silent substitute."""
     if wanted:
-        chosen = next((answer for answer in ready
-                       if wanted in (answer["plugin"], label(answer["plugin"], infos)["provider"])), None)
+        chosen = next((answer for answer in ready if answer["plugin"] == wanted), None)
         if chosen is None:
-            why = next((row["reason"] for row in skipped if wanted in (row["plugin"], row["provider"])), None)
-            return None, failure("source_unavailable", f"{wanted} cannot serve {concept} for this subject"
+            why = next((row["reason"] for row in skipped if row["plugin"] == wanted), None)
+            name = label(wanted, infos)["source"]
+            return None, failure("source_unavailable", f"{name} cannot serve {concept} for this subject"
                                  + (f": {why}." if why else ".") + " The alternatives below can; name one to use it.",
                                  alternatives=[label(answer["plugin"], infos) for answer in ready], skipped=skipped)
         return chosen, None
@@ -207,20 +228,38 @@ def instrument(arguments: dict, **_context: Any) -> str:
     view = result.get("data")
     if not isinstance(view, dict):
         return encode(result)
-    infos = plugins()
-    sources = [{"concept": section["section"], **label(section["plugin"], infos), "status": section["status"],
-                **({"reason": section["reason"]} if section["reason"] else {}),
-                **({"reference": section["binding"]} if section["binding"] else {}),
-                "alternatives": [{**label(item["plugin"], infos), "status": item["status"]}
-                                 for item in section["alternatives"]]}
-               for section in view.pop("sections", [])]
+    view["sources"] = [{"concept": section["section"], **section.get("source", {}), "status": section["status"],
+                        **{key: section[key] for key in ("reason", "sources", "skipped") if section.get(key)},
+                        **({"reference": section["binding"]} if section.get("binding") else {}),
+                        "alternatives": [{key: item.get(key) for key in ("source", "provider", "plugin", "status")}
+                                         for item in section.get("alternatives", [])]}
+                       for section in view.pop("sections", [])]
     queue = view.pop("queue", [])
-    view["sources"] = sources
+    view["functions"] = functions_for(str(arguments.get("subject_id") or ""), bool(queue))
     if queue:
         view["open_identity_questions"] = len(queue)
-    result["next"] = ("pythia_prices for quote and chart, pythia_filings for filings; `pythia help` lists provider "
-                      "depth (reported facts, fundamentals, profiles, news) by source.")
+    result["next"] = ("pythia_prices for quote and chart, pythia_filings for filings; run a listed function with "
+                      "`pythia` and args {subject_id} for provider depth.")
     return encode(result)
+
+
+def functions_for(subject_id: str, questions: bool) -> list[dict]:
+    """The `pythia` functions that can serve this subject now: enabled, configured sources that address it."""
+    from .pythia_command import catalog, status, summary
+    _path, subject, _lookups, _issue = identity()._load(subject_id)
+    if subject is None:
+        return []
+    found = []
+    for source, (_text, info, functions) in catalog().items():
+        if info is None:
+            reachable = questions  # core's identity queue, when this subject has open questions
+        else:
+            reachable = status(info) is None and any(
+                subject["ids"].get(scope.level) and (not scope.asset_classes or subject["asset_class"] in scope.asset_classes)
+                for scope in info.manifest.native)
+        found += [{"command": f"pythia {source} {name}", "purpose": summary(tool)}
+                  for name, tool in functions.items() if reachable and tool]
+    return found
 
 
 # ---- the identity answer (a narrow, provisional write) --------------------------------------------------------------

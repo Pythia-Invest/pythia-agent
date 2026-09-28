@@ -406,6 +406,8 @@ describe("installed readiness and recovery", () => {
         });
       if (args.includes("get") && key === "platform_toolsets")
         return JSON.stringify({ api_server: ["pythia-desk", "web"] });
+      if (args.includes("get") && key === "skills.creation_nudge_interval")
+        return "0";
       if (args.includes("get")) return JSON.stringify("off");
       return "";
     };
@@ -434,7 +436,15 @@ describe("installed readiness and recovery", () => {
       "tools.tool_search.enabled",
       "off",
     ]);
-    expect(commands).toHaveLength(9);
+    expect(commands).toContainEqual([
+      "-p",
+      paths.profile,
+      "config",
+      "set",
+      "skills.creation_nudge_interval",
+      "0",
+    ]);
+    expect(commands).toHaveLength(11);
     // A readback that shows the toolset still visible fails the migration.
     const { paths: other } = fixture();
     for (const path of [other.configRoot, other.stateRoot, other.dataRoot]) {

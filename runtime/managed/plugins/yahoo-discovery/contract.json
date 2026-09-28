@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "plugin": "pythia-yahoo-discovery",
   "provider": "yahoo",
   "addressing": {
@@ -38,17 +39,36 @@
       "OTCM": ""
     }
   },
-  "content": {
-    "quote": {
+  "concepts": {
+    "market_data": {
       "level": "listing",
       "via": "listing",
-      "tool": "pythia_yahoo_latest"
-    },
-    "chart": {
-      "level": "listing",
-      "via": "listing",
-      "tool": "pythia_yahoo_history"
+      "operations": {
+        "quote": "latest",
+        "intraday": "history",
+        "daily": "history"
+      },
+      "coverage": {
+        "asset_classes": [
+          "equity"
+        ]
+      },
+      "qualities": {
+        "intraday": {
+          "extended_hours": true
+        },
+        "daily": {
+          "adjustment": [
+            "split_dividend"
+          ]
+        }
+      }
     }
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "none",
+    "hostable": false
   },
   "functions": [
     "yahoo-finance"

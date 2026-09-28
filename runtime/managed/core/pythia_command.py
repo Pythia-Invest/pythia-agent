@@ -15,10 +15,10 @@ import re
 from typing import Any
 
 from . import identity_ops
-from .agent_tools import encode, failure, identity, run_tool
+from .agent_tools import ALIASES, encode, failure, identity, run_tool
 from .identity import page
-from .identity.manifest import Section
 from .identity.model import ProviderRef
+from .identity.page import Section
 
 CORE = ("pythia", "identity", "Pythia identity questions", ("identity-queue",))  # core's own read operations
 HELP = {"help", "--help", "-h"}
@@ -73,8 +73,8 @@ def catalog() -> dict[str, tuple[str, Any, dict[str, str | None]]]:
         named.append((info.manifest.provider, info.label, info, info.key, info.manifest.functions))
     entries = {}
     for source, text, info, key, operations in sorted(named, key=lambda entry: entry[0]):
-        functions = {operation.removeprefix(source + "-"): tools.get(key, {}).get(operation) for operation in operations}
-        entries[source] = (text, info, {name: tool for name, tool in functions.items() if not internal(info, tool)})
+        entries[source] = (text, info, {operation.removeprefix(source + "-"): tools.get(key, {}).get(operation)
+                                        for operation in operations if not internal(info, operation)})
     return entries
 
 
@@ -96,14 +96,14 @@ def native_schema(tool: str | None) -> dict | None:
     return schema if isinstance(schema, dict) else None
 
 
-def internal(info: Any, tool: str | None) -> bool:
-    """A tool core runs itself (for a concept tool, a resolve or a catalogue) is never also a `pythia` function.
-    Profile has no concept tool yet, so a profile read stays a function."""
-    if info is None or tool is None:
+def internal(info: Any, operation: str) -> bool:
+    """An operation core runs itself (for a concept tool, a resolve or a catalogue) is never also a `pythia`
+    function. Profile has no concept tool yet, so a profile read stays a function."""
+    if info is None:
         return False
     manifest = info.manifest
-    served = {entry.tool for section, entry in manifest.content.items() if section in SERVED}
-    return tool in served | {manifest.resolve.tool if manifest.resolve else None, manifest.catalogue_tool}
+    served = {found[1] for section in SERVED if (found := page.serving(manifest, section))}
+    return operation in served | {manifest.resolve.operation if manifest.resolve else None, manifest.catalogue_operation}
 
 
 def summary(tool: str | None) -> str:
@@ -217,7 +217,7 @@ def run_command(ctx: Any, arguments: dict, context: dict) -> str:
     entries = catalog()
     if not tokens:
         return encode(overview(entries))
-    source = tokens[0].lower()
+    source = ALIASES.get(tokens[0].lower(), tokens[0].lower())
     if source not in entries:
         return unknown("source", source, list(entries))
     text, info, functions = entries[source]
@@ -240,7 +240,7 @@ def run_command(ctx: Any, arguments: dict, context: dict) -> str:
                        "subject_id": "Pass subject_id instead of the source reference; Pythia fills it in."})
     if why:
         return encode(failure("needs_configuration" if info.enabled else "unavailable", why))
-    if schema is None or not read_only(schema) or internal(info, tool):
+    if schema is None or not read_only(schema):
         return encode(failure("unavailable", f"{name} is not available as a read-only function in this profile."))
     args = dict(args)
     problem = fill_subject(info, parameters(schema), args) or check_arguments(parameters(schema), args)

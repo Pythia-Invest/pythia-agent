@@ -220,6 +220,8 @@ function hermes(args: string[]) {
       cron: ["pythia-core", "pythia-desk"],
     });
   if (args.includes("get") && key === "platform_toolsets") return "{}";
+  if (args.includes("get") && key === "skills.creation_nudge_interval")
+    return "0";
   return args.includes("get") ? JSON.stringify("off") : "";
 }
 

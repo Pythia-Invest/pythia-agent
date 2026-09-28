@@ -101,6 +101,7 @@ print(json.dumps({
     "bad_argument": (bad.get("issues") or [{}])[0].get("message", ""),
     "pythia_tools_on": elsewhere,
     "routing_prompt_on": routing,
+    "skill_writing_interval": (load_config_readonly().get("skills") or {}).get("creation_nudge_interval"),
 }))
 '''
 
@@ -163,6 +164,7 @@ def main() -> int:
         (report["identity_verdict_tool"] != "pythia_identity_verdict", "Desk's identity-verdict no longer resolves"),
         (not report["bad_argument"].startswith("args.limit:"), "a bad argument is not named"),
         (any(report["pythia_tools_on"].values()), "cli or cron sees Pythia tools"),
+        (report["skill_writing_interval"] != 0, "automatic skill writing is not off in the seeded profile"),
         (report["routing_prompt_on"] != {"api_server": True, "cli": False, "cron": False},
          "the data-routing paragraph reaches a platform without the data tools, or misses Desk chat"),
     ) if failed]
