@@ -202,7 +202,7 @@ describe("worktree identity and native command construction", () => {
         };
         return "saved";
       }
-      return JSON.stringify(current);
+      return JSON.stringify(args[4] === "model" ? current : null);
     };
     expect(inheritModelDefaults(paths, "fixture-key", { execute })).toBe(true);
     expect(current).toEqual({

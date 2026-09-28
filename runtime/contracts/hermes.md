@@ -171,11 +171,14 @@ use dotted setters and verify the resulting object. Only `provider`, `default`,
 is user-owned. Before selecting a custom provider, preparation copies its one
 matching non-secret definition through native `config set providers.<key>`
 and verifies readback. Native escaped dots preserve literal provider keys.
-Legacy `custom_providers` entries use the compatible keyed form: this pin's
-indexed setters replace list entries but cannot append them. Existing local
-definitions win; ambiguous matches and unsupported or secret-bearing fields
-fail without copying credentials or other provider rows. No `.env` inheritance
-is implied. See [development](../../docs/development.md) for apply semantics.
+Legacy `custom_providers` entries are written in Hermes's own keyed translation
+(`config.py:_custom_provider_entry_to_provider_config`): this pin's indexed
+setters replace list entries but cannot append them. Only entries with an
+endpoint count, since built-in providers' `providers.<id>` settings never shadow
+the built-in, and disabled entries are skipped. Existing local definitions win;
+ambiguous matches and unsupported or secret-bearing fields fail without copying
+credentials or other provider rows. `config get` returns `${VAR}` references
+already expanded, so templated fields are copied with their current values. See [development](../../docs/development.md) for apply semantics.
 
 Run and request failures retain the error message Hermes supplies. Desk does
 not classify provider failures or substitute onboarding guidance. The local
@@ -668,6 +671,7 @@ test data, which guards Pythia behavior but cannot detect Hermes drift.
 | `scripts/dev/runtime-config.mjs`, `scripts/dev/runtime-prepare.mjs` | `profile create --no-alias --no-skills`; `.no-bundled-skills` marker (`hermes_cli/skills_hub.py`) | Loud | probe |
 | `scripts/dev/runtime-config.mjs`, `server/device-settings.ts`, `server/model-initialization.ts`, `scripts/update/workspace-transition-state.mjs` | `config get <key> --json`, `config set` (`hermes_cli/config.py:get_config_value`, `set_config_value`) | Mostly loud through readback | probe (`terminal.cwd`, `skills.external_dirs`); fixture for other keys |
 | `scripts/dev/runtime-config.mjs`, `scripts/update/workspace-transition-state.mjs` | stderr `Config key not set: <key>` (`get_config_value`) | Loud: wrong error raised | fixture `test/unit/dev-provider-defaults.test.ts`; wire capture golden (not yet asserted) |
+| `scripts/dev/runtime-provider-defaults.mjs` | custom-provider aliases (`hermes_cli/providers.py:custom_provider_aliases`); definition fields (`config.py:_normalize_custom_provider_entry`); legacy translation (`_custom_provider_entry_to_provider_config`); keyed lookup, endpoint and `enabled` rules (`runtime_provider.py:_get_named_custom_provider`); JSON mapping values and escaped-dot keys in `config set` (`config.py:_looks_structured_value`, `_split_key_path`); `${VAR}` expansion in `config get` | Silent: a new profile names a provider it cannot resolve, or setup refuses a valid definition | fixture `test/unit/dev-provider-defaults.test.ts` |
 | `server/device-settings.ts` | first line `<provider>: logged in` or `: logged out` (`hermes_cli/auth_commands.py:auth_status_command`) | Silent: status shows unavailable | probe (logged-out shape); wire capture |
 | `scripts/dev/runtime-auth.mjs`, `scripts/install/cli.mjs` | copied OAuth provider set (`auth_commands.py:_OAUTH_CAPABLE_PROVIDERS`) | Silent: stale provider list | none |
 | `scripts/dev/runtime-auth.mjs`, `scripts/install/cli.mjs` | `-p default auth add --type`, `auth logout`, `-p default model` (`auth_commands.py`, `hermes_cli/subcommands/auth.py`) | Loud | none (interactive) |

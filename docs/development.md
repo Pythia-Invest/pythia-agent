@@ -184,11 +184,22 @@ If that selection names a custom provider, preparation first inherits its
 matching native `providers` or `custom_providers` definition. It copies only
 the selected definition's supported non-secret fields (endpoint, transport,
 model metadata and environment-variable names), through native config setters
-with readback. Legacy list entries use Hermes's compatible keyed form; an
-existing profile definition takes precedence. Inline keys, headers, credential
-commands and arbitrary request bodies are rejected with guidance to configure
-the profile through Hermes. Unrelated providers and general configuration are
-never merged.
+with readback. Legacy list entries are translated as Hermes translates them
+(the endpoint becomes `api`, `model` becomes `default_model`, `api_mode`
+becomes `transport`); an existing profile definition takes precedence. A
+`providers.<id>` block for a built-in provider (timeouts, per-model options)
+is settings, not a definition, and is left alone, as is a disabled entry.
+Inline keys, headers, credential commands and arbitrary request bodies are
+rejected with guidance to configure the profile through Hermes. Unrelated
+providers and general configuration are never merged. If a provider write
+succeeds but its readback does not match, preparation stops; the written row
+then belongs to the profile, and a later run leaves it in place.
+
+Hermes expands `${VAR}` references when it reads configuration, so a root
+definition whose fields reference environment variables is copied with the
+values they had at that moment, including values from the root `.env`. Keep
+secrets out of templated provider fields; credentials belong in `key_env`
+names or the native credential pool.
 
 An environment-variable name is not a credential: Hermes does not inherit the
 root `.env` into named profiles. Shared authentication belongs in Hermes's
