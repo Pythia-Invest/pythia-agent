@@ -33,8 +33,8 @@ including bundled native skills and explicitly owned operation exports.
 Pythia owns canonical identity, matching and source selection. Connectors return
 native references and qualified evidence; tickers, names and catalogue membership
 do not prove cross-provider equivalence. Keep issuer, instrument, listing and
-source-series identity distinct. Follow the [identity owner](../../packages/market-data/IDENTITY.md)
-for evidence-backed repair; unresolved associations stay unresolved.
+source-series identity distinct. Core owns identity ([ADR 0037](../../docs/decisions/0037-identity-backbone.md),
+[ADR 0038](../../docs/decisions/0038-plugin-addressing-contract.md)); unresolved associations stay unresolved.
 
 Register through Hermes and declare implemented common operations on the native
 tool schemas. Discovery/enablement remain native, not a second inventory. Declare

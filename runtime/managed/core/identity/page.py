@@ -204,18 +204,37 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     return {**answer, "binding": ref.wire(), "binding_status": state, "request": request}
 
 
+def answers(subject: dict, plugins: list[PluginInfo], section: Section, **lookups: Any) -> list[dict]:
+    """Every plugin's answer for one section, in the default order."""
+    return [answer for info in ordered(plugins, section)
+            if (answer := evaluate(info, section, subject, **lookups)) is not None]
+
+
+def price_sources(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[dict]:
+    """The native references that serve the subject's quote and chart now, in the default order.
+
+    Market-data reads of a subject route through these: confirmed bindings and addresses core
+    derives. A plugin that is disabled, unconfigured, contradicted or still needs a resolve
+    contributes none."""
+    refs: list[dict] = []
+    for section in (Section.QUOTE, Section.CHART):
+        for answer in answers(subject, plugins, section, **lookups):
+            if answer["status"] == "ready" and answer["binding"] and answer["binding"] not in refs:
+                refs.append(answer["binding"])
+    return refs
+
+
 def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[dict]:
     """One chosen plugin per section (the first usable one in the default order), with the others as alternatives."""
     sections = []
     for section in SECTIONS:
-        answers = [answer for info in ordered(plugins, section)
-                   if (answer := evaluate(info, section, subject, **lookups)) is not None]
-        if not answers:
+        found = answers(subject, plugins, section, **lookups)
+        if not found:
             continue
-        usable = [answer for answer in answers if answer["status"] in ("ready", "resolving")]
-        chosen = (usable or answers)[0]
+        usable = [answer for answer in found if answer["status"] in ("ready", "resolving")]
+        chosen = (usable or found)[0]
         chosen["alternatives"] = [{"plugin": answer["plugin"], "label": answer["label"], "status": answer["status"]}
-                                  for answer in answers if answer is not chosen]
+                                  for answer in found if answer is not chosen]
         sections.append(chosen)
     return sections
 

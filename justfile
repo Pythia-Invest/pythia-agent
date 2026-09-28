@@ -64,6 +64,10 @@ test-e2e desk_url:
 reference-snapshot *args:
     python3 tooling/reference-builder/run.py {{args}}
 
+# Score a reference snapshot against the identity truth set; fails on regressions against the committed baseline.
+reference-audit *args:
+    python3 tooling/reference-builder/audit.py {{args}}
+
 # The only registry/network dependency check.
 audit:
     pnpm audit --prod --audit-level high

@@ -1,14 +1,14 @@
 # Shared financial backend
 
-Pythia owns canonical investment identity, evidence-backed matching and the
-meaning of financial reads. Connectors supply native references, source evidence,
-implemented capabilities and normalized results. Hermes owns discovery,
+Pythia owns investment identity (core, [ADR 0037](../decisions/0037-identity-backbone.md))
+and the meaning of financial reads. Connectors supply native references, source
+evidence, implemented capabilities and normalized results. Hermes owns discovery,
 enablement, tool execution and profile lifetime.
 
 The `pythia-market-data` native plugin provides one lazy backend per loaded
 profile context. Its financial tool and protected HTTP/SSE handlers share that
 instance inside the existing gateway. Standalone CLI operations use the same
-implementation and durable identity/preferences with their own disposable cache.
+implementation and durable source preferences with their own disposable cache.
 Ordinary dashboard consumers must use the resident endpoint, without model calls
 or per-request Hermes startup.
 
@@ -39,8 +39,9 @@ provider search, and both return evidence rather than identity decisions.
 
 - [Wire contracts](../../packages/market-data/README.md): subject, series,
   observation and read result, with provenance and financial semantics.
-- [Identity](../../packages/market-data/IDENTITY.md): narrow source-specific
-  evidence rules, retained intent and revision-aware repair.
+- [Identity](../../packages/market-data/IDENTITY.md): how subject reads route
+  through core's bindings ([ADR 0037](../decisions/0037-identity-backbone.md)),
+  and the retired pre-backbone identity file.
 - [Backend operations](../../packages/market-data/BACKEND.md): preferred and
   pinned reads, compatibility selection, cache authorization and native actions.
 - [Connector support](connector-support.md): reusable execution, batching,
@@ -54,22 +55,22 @@ LEI or ISIN to legal-entity references and reads the legal profile, and
 report links and reported facts. Both are addressed by LEI and contribute no
 market-data series or search.
 
-The identity direction has changed. ADR 0037 replaces the provider-bound rules in
-the identity document with a core-owned backbone of issuer, security, listing
-and crypto subjects. Provider symbols become bindings, joined at ingest by
-identifier agreement. The [ADR 0012 amendment](../decisions/0012-investment-identity-and-repair.md#amendment-2026-09)
-records which parts of the provider-bound model are superseded. Reference data
-will be built on the device directly from open sources
-([ADR 0039](../decisions/0039-local-first-reference-data-and-rights.md)).
-Investment search will read a local directory and will call no provider while
-the user types. Provider data is used under the investor's own agreement with
+Identity is core's. ADR 0037 replaced the provider-bound rules of ADR 0012 with
+a core-owned backbone of issuer, security, composite and listing subjects, crypto
+assets included. Provider symbols are bindings, joined by identifier agreement,
+and this feature keeps no identity store: a subject read routes through core's
+bindings ([identity](../../packages/market-data/IDENTITY.md)). The
+[ADR 0012 amendments](../decisions/0012-investment-identity-and-repair.md#amendment-2026-09)
+record what is superseded. Reference data is built on the device directly from
+open sources ([ADR 0039](../decisions/0039-local-first-reference-data-and-rights.md)).
+Investment search reads a local directory and calls no provider while the user
+types. Provider data is used under the investor's own agreement with
 each provider; each plugin carries and enforces its provider's terms, and Pythia
-itself never publishes, pools or redistributes provider data. The identity
-document describes the implemented rules until identity v2 replaces them.
+itself never publishes, pools or redistributes provider data.
 
-Provider preferences are deterministic application logic. Only confirmed identities,
-compatible series and eligible operations participate. Failure after selecting a
-source never authorizes fallback or history stitching. A preference change does
+Provider preferences are deterministic application logic. Only core's current
+references, compatible series and eligible operations participate. Failure after
+selecting a source never authorizes fallback or history stitching. A preference change does
 not rewrite retained research or source pins. Unknown units, times, completion,
 coverage and entitlements remain explicit.
 

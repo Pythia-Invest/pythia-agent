@@ -74,6 +74,52 @@ table under `writer_ignored`.
   under the same issuer, and Apple on Nasdaq must resolve, or no snapshot is
   written (`--no-gates` writes it anyway for inspection).
 
+## Identity truth set and audit
+
+`truth/instruments.json` holds about 270 hard identity cases: ADRs and New York
+registry shares, dual and cross listings, share classes, preferreds, ETFs and
+fund share classes, redomiciled and re-ISINed companies, renames, mergers,
+spin-offs, delisted names, OTC lines, crypto coins and multi-chain tokens. A
+bond and an FX pair are kept as `future_kind` entries: they are not scored
+until core has those subject kinds (stress test M1). Each entry gives the expected issuer (LEI, CIK), security
+(ISIN, share-class FIGI, CAIP-19), listings (ticker at operating MIC, trading
+currency, primary), relations, the row it folds into in search, former ISINs
+and tickers, and Yahoo, EODHD, CoinMarketCap and CoinGecko symbols. Only public
+identifiers; `sources` names what each entry was checked against (FIRDS, GLEIF,
+SEC, OpenFIGI, provider symbol conventions) on the version date. US and other
+CUSIP-area ISINs are included only where ESMA FIRDS publishes them; otherwise the
+entry is located by FIGI.
+
+```sh
+just reference-audit                          # newest snapshot in .local/reference-builder/out/
+just reference-audit --reference <file> --failures
+just reference-audit --write-baseline         # accept the current results as the baseline
+```
+
+The audit locates each entry (ISIN, share-class FIGI, CAIP-19, FIGI, then
+ticker at MIC) and scores checks by category: `coverage`, `lifecycle` (delisted
+names and former ISINs and tickers stay inactive), `issuer`, `security`,
+`separate` (two entries never share a security), `listing` (ticker, currency,
+FIGI), `primary`, `relation`, `fold` (core's search directory), `symbols`
+(core's page derivation with the installed `contract.json` files) and
+`subject_key` (the ID core's current key rule derives from the entry's
+identifiers). `subject_key` is reported apart from the headline score: a
+difference means the key rule and the build's evidence differ, not a defect, and
+the baseline records the key rule it was taken with.
+Checks outside the build's scope (its venues, SEC, FIRDS CFI prefixes, crypto
+kinds present) are n/a, not failures; an entry with no in-scope line is out of
+scope. A check that passed in `truth/baseline.json` and fails now, or a subject
+ID that changed without an `id_aliases` row, is a regression and fails the
+command. The builder runs the same audit after writing a snapshot and records
+the scores under `truth_audit` in the manifest; it never blocks a build.
+
+Conventions: US tickers use the SEC's `-` class separator (`BRK-B`); Nordic
+tickers keep the exchange's space (`VOLV B`, Yahoo `VOLV-B.ST`); the listing
+currency is the venue's trading currency, not FIRDS' notional currency; an
+OTC-only receipt has no primary expectation. To add an entry, check it against
+the primary sources, add it with its sources, run the audit and update the
+baseline in the same change.
+
 ## Configuration
 
 | Setting | Purpose |

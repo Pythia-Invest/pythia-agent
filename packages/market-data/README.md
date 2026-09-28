@@ -71,27 +71,27 @@ both as exact files beside the feature plugin. Package examples/tests and this
 README are not runtime/plugin scan inputs. No JSON Schema dependency is needed
 at runtime.
 
-Subject IDs are opaque scoped references (`company:…`, `instrument:…`,
-`listing:…`, `crypto:…`). A provider reference instead has `provider`,
-`native_id`, and source-owned `native_scope` (for example `contract`, `coin`,
-`catalogue`, or `unknown`). It is usable without a confirmed canonical mapping.
-Names and tickers are evidence assertions, never proof of equivalence. Evidence
-records separately assert canonical scope and authority. Mapping validation
-requires evidence references but does not establish the truth or sufficiency
-of those records; the identity owner must validate them and the matching rule.
-A positive override cannot be authorized by wire validation alone.
+A subject is a backbone subject ([ADR 0037](../../docs/decisions/0037-identity-backbone.md)):
+its deterministic subject id (`listing:isin:…`, `security:caip19:…`,
+`issuer:lei:…`, `composite:…` or `…:provisional:…`) and the level that id
+names. A provider reference instead has `provider`, `native_id`, and
+source-owned `native_scope` (for example `contract`, `coin`, `catalogue`, or
+`unknown`). It is usable without any binding. Names and tickers are evidence
+assertions, never proof of equivalence. Connector detail evidence records keep
+their own coverage scope and authority; they inform core's decisions and are
+not identity decisions themselves.
 
 A `series:…` ID identifies one source's measurement semantics, not an investment.
 The series owner must assign a new ID when the actual native binding, dataset,
 venue/route, measurement, interval/session/time anchor, field units/scale,
 adjustments/anchor or transformation methodology changes. Read windows,
 retrieval times, adapter releases unrelated to semantics and current capability
-lists are excluded. After proving a current identity mapping, the shared owner
-may project `series.subject` to the requested canonical subject while retaining
-the native series ID and `provider_ref`, and report `provenance.mapping_revision`.
-This proven canonical projection does not change the underlying native series
-identity. The shared owner first executes and validates a source-pinned native
-request, then projects its request/selection/subject after a generation recheck.
+lists are excluded. When a subject read selects a source through core's
+bindings, the shared owner projects `series.subject` to the requested subject
+while retaining the native series ID and `provider_ref`;
+`provenance.mapping_revision` stays `null`. This projection does not change the
+underlying native series identity. The shared owner first executes and validates
+a source-pinned native request, then projects its request/selection/subject.
 A provider's unknown/current adjustment vintage is read
 provenance, not a claim of historical reproducibility. Source details are bounded
 flat facts under the actual source namespace; they are not arbitrary endpoint
@@ -129,7 +129,7 @@ These checks do not prove actual provider coverage, freshness or identity.
 
 Synthetic shared JSON examples cover equity OHLC(V), aggregate crypto scalar
 samples, a non-price count, useful partial bars, missing source time, empty and
-unavailable results, evidence/mapping and native contribution descriptions.
+unavailable results, evidence and native contribution descriptions.
 Their descriptions identify the contract/source version that shaped them;
 none are recorded provider responses. Verification from the repository root:
 
@@ -147,8 +147,8 @@ acceptance/rejection with the independent JSON Schema implementation. Semantic
 negative fixtures remain structurally valid by design. This qualifies the
 contract, not a provider, matching algorithm or copied native integration.
 
-See [the backend action API](BACKEND.md) and [identity API](IDENTITY.md) for
-the separate native feature implementation that consumes these contracts.
+See [the backend action API](BACKEND.md) and [how reads use core identity](IDENTITY.md)
+for the separate native feature implementation that consumes these contracts.
 
 Optional `ReadResult.price_context` carries source display labels, known delay,
 evidenced session state and change values with an explicit previous-close or
