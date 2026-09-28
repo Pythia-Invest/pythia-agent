@@ -69,9 +69,5 @@
     "licence": "personal",
     "cache": "unlimited",
     "hostable": false
-  },
-  "functions": [
-    "eodhd-fundamentals",
-    "eodhd-news"
-  ]
+  }
 }

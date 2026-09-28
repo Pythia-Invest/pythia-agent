@@ -249,7 +249,7 @@ class ManifestTest(unittest.TestCase):
             "concepts.news.tool": lambda value: value["concepts"]["news"].update(tool="yahoo_news"),
             "rights.licence": lambda value: value["rights"].update(licence="professional"),
             "rights.attribution.url": lambda value: value["rights"].update(attribution={"text": "Yahoo", "url": "http://x"}),
-            "functions": lambda value: value.update(functions=["Not An Operation"]),  # declared operation names
+            "manifest.functions": lambda value: value.update(functions=[]),
             "addressing.native[0]": lambda value: (value.pop("resolve"), value["addressing"].pop("mic_table")),
             "catalogue": lambda value: value.update(catalogue={"mode": "resolve_only", "scopes": ["all"]}),
             "addressing.native": lambda value: value["addressing"].update(native=5),

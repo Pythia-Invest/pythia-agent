@@ -150,3 +150,8 @@ def register(ctx):
         ctx.register_tool(name=TOOLS[operation], toolset=TOOLSET, schema=schema, handler=handler, check_fn=ready)
     specialist.register_read_command(ctx, 'yahoo-finance', TOOLS['research'], 'Read public Yahoo Finance research', schema=definitions['research'], plugin='pythia-yahoo-discovery')
     specialist.register_read_command(ctx, 'yahoo-dashboard', TOOLS['dashboard'], 'Read Yahoo quotes or intraday charts', cache_seconds=60, schema=definitions['dashboard'], plugin='pythia-yahoo-discovery')
+    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+    agent(ctx, 'yahoo_finance', TOOLS['research'], 'Company profile, financials, dividends and news from Yahoo. Yahoo '
+          'Finance research for a listing: quoteSummary (profile, valuation, dividends, analyst ratings, fund '
+          'holdings; options_json modules), fundamentalsTimeSeries (income, balance-sheet and cash-flow statements), '
+          'news, recommendationsBySymbol and options. Personal use; source content, not advice.', check_fn=ready)

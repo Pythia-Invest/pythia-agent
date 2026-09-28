@@ -39,14 +39,23 @@ const MIGRATIONS = [
           platform,
         ]);
       }
-      // Automatic skill writing stays a native setting the investor can turn back on.
-      hermes([
-        ...profile,
-        "config",
-        "set",
-        "skills.creation_nudge_interval",
-        "0",
-      ]);
+      // Automatic skill writing: off unless the investor already chose a value, which is kept. At the pin
+      // `config get` exits non-zero for an unset key.
+      const get = (key) =>
+        JSON.parse(hermes([...profile, "config", "get", key, "--json"]));
+      const skills = "skills.creation_nudge_interval";
+      let chosen = true;
+      try {
+        get(skills);
+      } catch {
+        chosen = false;
+      }
+      if (!chosen) {
+        hermes([...profile, "config", "set", skills, "0"]);
+        if (get(skills) !== 0) {
+          throw new Error("Hermes did not turn automatic skill writing off.");
+        }
+      }
       // `tools disable` exits 0 on a toolset it does not know; require the result, not the exit code.
       const read = (key) =>
         JSON.parse(
@@ -69,9 +78,6 @@ const MIGRATIONS = [
             );
           }
         }
-      }
-      if (Number(read("skills.creation_nudge_interval")) !== 0) {
-        throw new Error("Hermes did not turn automatic skill writing off.");
       }
     },
   },

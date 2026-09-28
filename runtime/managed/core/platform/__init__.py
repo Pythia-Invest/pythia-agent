@@ -18,6 +18,15 @@ def price_sources(subject_id):
     return identity_ops.price_sources(subject_id)
 
 
+def register_agent_tool(ctx, name, tool, description, check_fn=None):
+    """Expose one of the calling plugin's operation tools to the agent as a native tool (docs/architecture/agent-tools.md)."""
+    try:
+        from ..agent_depth import register_agent_tool as register
+    except ImportError:  # this package loaded without its core (provider-free plugin tests): no agent tools
+        return None
+    return register(ctx, name, tool, description, check_fn)
+
+
 def register(ctx):
     from .http import register as register_http
     register_http(ctx)

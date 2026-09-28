@@ -13,7 +13,7 @@ depositary bank. Names never prove that two investments share an issuer, and
 Pythia's core owns association decisions.
 
 An LEI identifies a legal entity, not a tradable security or listing. Use
-`pythia gleif profile` with the company's subject id for legal names and their types, registration metadata, declared
+`gleif_legal_entity` with the company's subject id for legal names and their types, registration metadata, declared
 successors, accounting parents and a branch's head office. A head-office or
 successor link relates distinct entities; it does not authorize replacing one
 entity's data with another's. Entity status and LEI registration status mean

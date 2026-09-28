@@ -154,29 +154,28 @@ handler-bound coordination hooks; neither mechanism creates another inventory.
 
 ## Reaching the agent
 
-The agent does not see plugin tools. Core's visible tools read a plugin's
-contract concepts (quote, chart, filings), and one `pythia` tool reaches provider
-depth. To offer a read to the agent, list the operation names your tools already
-declare in `contract.json`:
+Core's tools read a plugin's contract concepts (quote, chart, filings) for the
+agent. For provider depth, such as reported figures, profiles or news, a data
+plugin offers its own provider tools. Register the operation tool as usual in
+core's hidden `pythia-core` toolset, then expose it:
 
-```json
-{"plugin": "example-research", "provider": "example", "addressing": {},
- "functions": ["summary"]}
+```python
+platform.register_agent_tool(ctx, "example_summary", "example_research_summary",
+    "Research summary of a company from Example. Use it for Example's own view; "
+    "pythia_instrument lists what other sources hold.")
 ```
 
-`pythia help` then lists `example summary` with the first sentence of the tool's
-description, and `pythia help example summary` prints its parameter schema.
-Only read-only declarations run; a tool core runs for a concept, resolve or
-catalogue is never a function, and a write is never one. A `native_ref`
-parameter, or one named after your native scope, is filled from the agent's
-`subject_id`. Nothing else is declared, and your schema, description and handler
-stay your own. [Agent tools](agent-tools.md) owns the placement rule and the
-table of every tool.
-
-Register your tools in core's `pythia-core` toolset. Pythia keeps it out of the
-model's view on every profile; a toolset of your own is visible until the
-investor turns it off in `hermes tools`. The investor turns your source off by
-disabling your plugin.
+The agent tool lands in a toolset named after your plugin, so Hermes offers it
+directly or behind Tool Search like any plugin or MCP tool. Its schema is your
+operation's parameters without Pythia's markers. `native_ref`, or the parameter
+named after your native scope, becomes `subject_id`, and core fills it with the
+reference the Desk page uses. Only an operation declared `read_only: true`
+runs, through `may_run`, and the result is bounded. Name the tool
+`<source>_<what>`, and start its description with what the investor gets and
+from which provider, in at most 60 characters.
+[Agent tools](agent-tools.md) owns the placement rule and the naming
+convention. The [source onboarding standard](source-onboarding.md) covers how a
+new source earns its place.
 
 ## Plugin configuration
 

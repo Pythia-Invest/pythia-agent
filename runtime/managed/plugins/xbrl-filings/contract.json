@@ -41,9 +41,5 @@
     "licence": "open",
     "cache": "unlimited",
     "hostable": false
-  },
-  "functions": [
-    "facts",
-    "fundamentals"
-  ]
+  }
 }

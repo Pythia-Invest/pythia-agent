@@ -141,3 +141,10 @@ def register(ctx):
                     'message': 'Native access changed during the XBRL repository read.'}]))
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler)
+    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+    agent(ctx, 'esef_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings and balance sheet from ESEF '
+          'reports. IFRS figures of an EU or UK company\'s latest annual report on filings.xbrl.org, or an explicit '
+          'report_id, with exact periods, units and precision; several reports for one period come back as '
+          'candidates to choose from.')
+    agent(ctx, 'esef_company_facts', TOOLS['facts'], 'Reported IFRS facts from one ESEF annual report. Named concepts '
+          'of an explicit report_id (esef_fundamentals names it), with dimensions, periods and precision.')

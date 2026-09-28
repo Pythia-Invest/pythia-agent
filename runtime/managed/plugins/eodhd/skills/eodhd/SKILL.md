@@ -15,8 +15,8 @@ metadata:
 
 Find investments with `pythia_find` and read EODHD prices with `pythia_prices`
 (name `source: eodhd` to read only EODHD). News and fundamentals are
-`pythia eodhd news` and `pythia eodhd fundamentals`; pass the subject id and
-Pythia fills in the exact `SYMBOL.EXCHANGE` reference.
+`eodhd_news` and `eodhd_fundamentals`; pass the subject id and Pythia fills in
+the exact `SYMBOL.EXCHANGE` reference.
 
 EODHD rows carry source-asserted identifiers. Every
 identifier is a claim for Pythia to compare, not proof: a catalogue ISIN can

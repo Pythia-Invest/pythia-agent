@@ -1,22 +1,20 @@
 """Provider-free qualification of the agent's tool surface against the pinned native Hermes.
 
 It copies the managed core and plugins into a disposable profile seeded from runtime/seeds/profile/config.yaml,
-then asks Hermes itself what an api_server turn delivers and how calls flow:
+then asks Hermes itself what an api_server turn delivers and how calls flow, in both Tool Search modes (the
+investor's own setting; Pythia never changes it):
 
-- with Tool Search off, the assembled tool list: only the pythia-desk tools and the kept Hermes built-ins,
-  byte-identical when assembled twice, equal to the reviewed snapshot and free of `$comment` markers, with
-  core registered in production order;
-- with Tool Search on (the investor's choice either way), the catalogue lists exactly the pythia-desk tools,
-  tool_search finds them for investor phrasing, and tool_call reaches `pythia`'s hidden functions;
+- off: the tools array holds core's pythia-desk tools and the plugins' provider tools, never their operation
+  tools; the core schemas equal the reviewed snapshot; no `$comment` marker reaches the model; byte-stable;
+- on: the same tools are the deferred catalogue, `tool_search` finds the right one for investor phrasing, and
+  `tool_call` reaches a provider tool;
+- a hidden operation tool still runs for Desk HTTP and through `may_run`, while the model never sees it;
 - every declared Desk HTTP operation has exactly one tool, and `identity-verdict` still resolves;
-- cli and cron sessions see no Pythia tool, and a bad argument is named by the real JSON-Schema validator;
-- `may_run` still admits hidden plugin tools;
-- `pythia` runs a hidden tool through `ctx.dispatch_tool` while `pre_tool_call` sees only `pythia`;
-- the visible identity answer runs as a provisional write;
-- a plugin `approve` directive on api_server is an instant deny at this release, with no human round-trip,
-  which is why Pythia registers no approval hook yet.
+- cli and cron see no Pythia tool; the data-routing paragraph reaches Desk chat only; skill writing is off;
+- a bad argument is named by the real JSON-Schema validator before any provider is asked;
+- a plugin `approve` directive on api_server is an instant deny at this release (no human round-trip).
 
-No model, provider or network is used: the one hidden tool run is core's local identity queue.
+No model, provider or network is used.
 Usage: <hermes venv python> agent_tools_native.py --hermes-source <dir> --repository <dir>
 """
 from __future__ import annotations
@@ -30,92 +28,85 @@ import sys
 import tempfile
 from pathlib import Path
 
+CORE = ["pythia_answer_identity_question", "pythia_desk_view", "pythia_filings", "pythia_find",
+        "pythia_identity_questions", "pythia_instrument", "pythia_prices"]
+PROVIDERS = {"sec_company_facts", "sec_fundamentals", "esef_fundamentals", "esef_company_facts", "gleif_legal_entity",
+             "eodhd_news", "eodhd_fundamentals", "yahoo_finance", "coinmarketcap_coin_info", "openfigi_identifiers"}
+FIGURES = {"sec_company_facts", "sec_fundamentals", "esef_fundamentals", "esef_company_facts", "eodhd_fundamentals",
+           "yahoo_finance"}
+QUERIES = {"price of ASML": {"pythia_prices"}, "10-K annual report": {"pythia_filings"}, "ISIN lookup": {"pythia_find"},
+           "revenue": FIGURES, "earnings": FIGURES, "balance sheet": FIGURES, "dividend": {"yahoo_finance"},
+           "news": {"eodhd_news", "yahoo_finance"}, "legal entity": {"gleif_legal_entity"}}
+
 CHILD = r'''
-import json, os, re, sys
+import json, os, sys
 sys.path.insert(0, os.environ["HERMES_SOURCE"])
 from hermes_cli.plugins import discover_plugins, get_plugin_manager
 discover_plugins()
 manager = get_plugin_manager()
-failed = {key: str(getattr(plugin, "error", "") or "") for key, plugin in manager._plugins.items()
-          if not getattr(plugin, "enabled", False) or getattr(plugin, "error", None)}
 from gateway.session_context import set_session_vars
 set_session_vars(platform="api_server")
 from hermes_cli.config import load_config_readonly
 from hermes_cli.tools_config import _get_platform_tools
 import model_tools
+from tools.registry import registry
 from tools.tool_search import ToolSearchConfig, assemble_tool_defs
 enabled = sorted(_get_platform_tools(load_config_readonly(), "api_server", include_default_mcp_servers=False))
+queries = json.loads(os.environ["PROBE_QUERIES"])
 
-def assembled(mode):
+def assembled(mode, platform_enabled=enabled):
     model_tools._clear_tool_defs_cache()
-    raw = model_tools.get_tool_definitions(enabled_toolsets=enabled, quiet_mode=True, skip_tool_search_assembly=True)
+    raw = model_tools.get_tool_definitions(enabled_toolsets=platform_enabled, quiet_mode=True,
+                                           skip_tool_search_assembly=True)
     return assemble_tool_defs(raw, context_length=272000, config=ToolSearchConfig.from_raw({"enabled": mode})).tool_defs
 
-# Tool Search is the investor's choice: both modes must work. "off" loads every schema; "on" defers plugin tools.
-first, second = assembled("off"), assembled("off")
+names = lambda defs: [item["function"]["name"] for item in defs]
+loaded, loaded_again = assembled("off"), assembled("off")
 deferred, deferred_again = assembled("on"), assembled("on")
 listing = next((item["function"]["description"] for item in deferred if item["function"]["name"] == "tool_search"), "")
 searches = {}
-for query in ("price of ASML", "10-K annual report", "ISIN lookup", "company revenue fundamentals"):
+for query in queries:
     found = json.loads(model_tools.handle_function_call("tool_search", {"queries": [query]}, enabled_toolsets=enabled))
     searches[query] = (found.get("results") or [{}])[0].get("matches", [])[:3]
-bridged = json.loads(model_tools.handle_function_call("tool_call", {"name": "pythia", "arguments": {
-    "command": "identity queue"}}, enabled_toolsets=enabled, session_id="probe", task_id="probe"))
-core = manager._plugins["pythia"].module
 seen = []
 manager._hooks.setdefault("pre_tool_call", []).append(lambda tool_name="", **_: seen.append(tool_name))
-help_result = json.loads(model_tools.handle_function_call("pythia", {"command": "help"}, session_id="probe", task_id="probe"))
-sec = json.loads(model_tools.handle_function_call("pythia", {"command": "sec facts", "args": {
-    "native_ref": {"provider": "sec", "native_id": "0000000001", "native_scope": "cik"},
-    "taxonomy": "us-gaap", "concepts": ["Revenues"]}}, session_id="probe", task_id="probe"))
+bridged = json.loads(model_tools.handle_function_call("tool_call", {"name": "gleif_legal_entity", "arguments": {
+    "subject_id": "issuer:lei:724500Y6DUVHQD6OXN27"}}, enabled_toolsets=enabled, session_id="probe", task_id="probe"))
+bad = json.loads(model_tools.handle_function_call("gleif_legal_entity", {"subject_id": 12},
+                                                  session_id="probe", task_id="probe"))
 answer = json.loads(model_tools.handle_function_call("pythia_answer_identity_question",
     {"item_id": "probe", "relation": "none"}, session_id="probe", task_id="probe"))
 manager._hooks["pre_tool_call"].append(lambda tool_name="", **_: {"action": "approve", "message": "probe"}
                                        if tool_name == "skills_list" else None)
 asked = json.loads(model_tools.handle_function_call("skills_list", {}, session_id="probe", task_id="probe"))
-queue = json.loads(model_tools.handle_function_call("pythia", {"command": "identity queue", "args": {}},
-                                                  session_id="probe", task_id="probe"))
-bad = json.loads(model_tools.handle_function_call("pythia", {"command": "identity queue", "args": {"limit": "many"}},
-                                                session_id="probe", task_id="probe"))
-from tools.registry import registry
+core = manager._plugins["pythia"].module
+agent_tools = sys.modules[core.__name__ + ".agent_tools"]
+http = json.loads(core.platform.http.execute("pythia", "identity-queue", {}, None, lambda: False))
+set_session_vars(platform="api_server")  # the HTTP path binds and clears its own caller context
 declared = {}
 for name, (key, _plugin) in core.platform.access.native_tool_owners().items():
     meta = core.platform.operations.declaration(registry.get_schema(name) or {})
     if isinstance(meta, dict):
         declared.setdefault((key, meta.get("operation")), []).append(name)
 verdict = core.platform.operations.resolve("pythia", "identity-verdict", {"item_id": "probe", "relation": "none"})[0]
+elsewhere = {platform: [name for name in names(assembled("off", sorted(_get_platform_tools(
+    load_config_readonly(), platform, include_default_mcp_servers=False)))) if name.startswith("pythia")
+    or name.split("_")[0] in ("sec", "esef", "gleif", "eodhd", "yahoo", "coinmarketcap", "openfigi")]
+    for platform in ("cli", "cron")}
 routing = {platform: "pythia_find" in "".join(section.content for section in manager.render_system_prompt_sections(
     {"platform": platform}) if section.id == "pythia.operating") for platform in ("api_server", "cli", "cron")}
-elsewhere = {}
-for platform in ("cli", "cron"):
-    model_tools._clear_tool_defs_cache()
-    names = [item["function"]["name"] for item in model_tools.get_tool_definitions(
-        enabled_toolsets=sorted(_get_platform_tools(load_config_readonly(), platform, include_default_mcp_servers=False)),
-        quiet_mode=True, skip_tool_search_assembly=True)]
-    elsewhere[platform] = [name for name in names if name.startswith("pythia")]
 print(json.dumps({
-    "failed_plugins": failed,
-    "enabled_toolsets": enabled,
-    "visible": [(item["function"]["name"], len(json.dumps(item, separators=(",", ":")))) for item in first],
-    "byte_stable": json.dumps(first) == json.dumps(second) and json.dumps(deferred) == json.dumps(deferred_again),
-    "visible_with_tool_search": [item["function"]["name"] for item in deferred],
-    "catalog_pythia": sorted(set(re.findall(r"\b(pythia(?:_[a-z_]+)?):", listing))),
-    "searches": searches,
-    "tool_call_reaches": bridged.get("function"),
-    "may_run_hidden": sorted(name for name in core.platform.access.eligible_tools() if name.startswith("pythia_sec")),
-    "help_sources": [row["source"] for row in help_result.get("sources", [])],
-    "sec_issue": (sec.get("issues") or [{}])[0].get("code"),
-    "queue_via_pythia": queue,
-    "hook_saw": seen,
-    "answer": answer,
-    "approve_on_api_server": asked,
-    "pythia_schemas": [item["function"] for item in first if item["function"]["name"].startswith("pythia")],
-    "with_comment": [item["function"]["name"] for item in first + deferred if "$comment" in json.dumps(item)],
-    "duplicate_operations": {f"{key}/{operation}": names for (key, operation), names in declared.items() if len(names) > 1},
-    "identity_verdict_tool": verdict,
-    "bad_argument": (bad.get("issues") or [{}])[0].get("message", ""),
-    "pythia_tools_on": elsewhere,
-    "routing_prompt_on": routing,
+    "loaded": names(loaded), "deferred_visible": names(deferred),
+    "catalog": sorted({line.split(":", 1)[0].strip().lstrip("- ") for line in listing.splitlines()
+                       if ":" in line and not line.strip().endswith(":")}),
+    "byte_stable": json.dumps(loaded) == json.dumps(loaded_again) and json.dumps(deferred) == json.dumps(deferred_again),
+    "core_schemas": [item["function"] for item in loaded if item["function"]["name"].startswith("pythia")],
+    "with_comment": [item["function"]["name"] for item in loaded + deferred if "$comment" in json.dumps(item)],
+    "searches": searches, "tool_call": bridged, "hook_saw": seen, "bad_argument": bad, "answer": answer,
+    "approve_on_api_server": asked, "http_hidden_run": http.get("schema_version"),
+    "may_run_hidden": agent_tools.may_run("pythia-sec", "facts"),
+    "duplicate_operations": {f"{key}/{operation}": tools for (key, operation), tools in declared.items() if len(tools) > 1},
+    "identity_verdict_tool": verdict, "pythia_tools_on": elsewhere, "routing_prompt_on": routing,
     "skill_writing_interval": (load_config_readonly().get("skills") or {}).get("creation_nudge_interval"),
 }))
 '''
@@ -148,47 +139,51 @@ def main() -> int:
         seed = seed.replace("plugins:\n  enabled:\n    - pythia\n",
                             "plugins:\n  enabled:\n" + "".join(f"    - {name}\n" for name in names))
         (home / "config.yaml").write_text(seed)
+        # The Yahoo worker's availability check only needs its built file and a node path; nothing runs it here.
         environment = {"PATH": os.environ.get("PATH", ""), "HOME": str(root), "HERMES_HOME": str(home),
-                       "PYTHIA_CONFIG_ROOT": str(config), "HERMES_SOURCE": str(options.hermes_source)}
+                       "PYTHIA_CONFIG_ROOT": str(config), "HERMES_SOURCE": str(options.hermes_source),
+                       "PYTHIA_MANAGED_ROOT": str(managed), "PYTHIA_NODE": shutil.which("node") or "",
+                       "PROBE_QUERIES": json.dumps(list(QUERIES))}
         completed = subprocess.run([sys.executable, "-c", CHILD], cwd=options.hermes_source, env=environment,
-                                   capture_output=True, text=True, timeout=120, check=False)
+                                   capture_output=True, text=True, timeout=180, check=False)
         if completed.returncode:
             print(completed.stderr[-4000:], file=sys.stderr)
             return completed.returncode
         report = json.loads(completed.stdout.strip().splitlines()[-1])
-    print(json.dumps(report, indent=1))
-    names = [name for name, _size in report["visible"]]
+    print(json.dumps({key: value for key, value in report.items() if key != "core_schemas"}, indent=1))
     snapshot = json.loads((options.repository / "runtime/test/python/fixtures/agent-tools.json").read_text())
-    pythia = sorted(name for name in names if name.startswith("pythia"))
+    offered = set(CORE) | PROVIDERS
+    loaded = set(report["loaded"])
+    pythia_loaded = {name for name in loaded if name in offered or name.startswith("pythia")}
+    bridge = {"tool_search", "tool_describe", "tool_call"}
     problems = [message for failed, message in (
-        (pythia != ["pythia", "pythia_answer_identity_question", "pythia_desk_view", "pythia_filings", "pythia_find",
-                    "pythia_instrument", "pythia_prices"], "visible Pythia tools differ from the pythia-desk set"),
-        (any(name in names for name in ("tool_search", "tool_describe", "tool_call")), "Tool Search off still bridged"),
-        (not {"tool_search", "tool_describe", "tool_call"} <= set(report["visible_with_tool_search"])
-         or any(name.startswith("pythia") for name in report["visible_with_tool_search"]),
-         "with Tool Search on, Pythia's tools are not deferred behind the bridge"),
-        (report["catalog_pythia"] != ["pythia", "pythia_answer_identity_question", "pythia_desk_view", "pythia_filings",
-                                      "pythia_find", "pythia_instrument", "pythia_prices"],
-         "the Tool Search catalogue differs from the pythia-desk tools (plumbing leaked or a tool is missing)"),
-        (any(expected not in report["searches"][query] for query, expected in (
-            ("price of ASML", "pythia_prices"), ("10-K annual report", "pythia_filings"),
-            ("ISIN lookup", "pythia_find"), ("company revenue fundamentals", "pythia"))),
-         "tool_search does not find the Pythia tool for investor phrasing"),
-        (report["tool_call_reaches"] != "identity queue", "tool_call cannot reach pythia's hidden functions"),
+        (not set(CORE) <= loaded, "Tool Search off: a core Pythia tool is missing"),
+        (not {"sec_company_facts", "esef_fundamentals", "gleif_legal_entity", "yahoo_finance"} <= loaded,
+         "Tool Search off: provider tools are missing"),
+        (pythia_loaded - offered, "Tool Search off: an operation tool reaches the model"),
+        (bool(loaded & bridge), "Tool Search off: the bridge is still there"),
+        (not bridge <= set(report["deferred_visible"]) or set(report["deferred_visible"]) & offered,
+         "Tool Search on: Pythia's tools are not deferred behind the bridge"),
+        (set(report["catalog"]) & offered != pythia_loaded,
+         "Tool Search on: the catalogue differs from the offered tools (an operation leaked or a tool is missing)"),
+        (any(not set(report["searches"][query]) & wanted for query, wanted in QUERIES.items()),
+         "tool_search does not find the right tool for investor phrasing"),
+        ("unknown" in json.dumps(report["tool_call"]).lower() or "error" in report["tool_call"],
+         "tool_call does not reach a provider tool"),
         (not report["byte_stable"], "the tool list changed between two assemblies"),
-        ("pythia_sec_facts" not in report["may_run_hidden"], "may_run lost a hidden plugin tool"),
-        (report["sec_issue"] != "needs_configuration", "pythia did not report SEC's missing contact"),
-        (report["queue_via_pythia"].get("function") != "identity queue", "pythia did not run a hidden core tool"),
-        (report["hook_saw"][:2] != ["pythia", "pythia"], "pre_tool_call saw a nested plugin call"),
+        (report["with_comment"], "an operation marker reaches the model"),
+        (sorted(report["core_schemas"], key=lambda item: item["name"]) != sorted(snapshot, key=lambda item: item["name"]),
+         "the delivered core schemas differ from runtime/test/python/fixtures/agent-tools.json"),
+        (report["may_run_hidden"] != "pythia_sec_facts", "may_run lost a hidden operation tool"),
+        (report["http_hidden_run"] != 1, "Desk HTTP cannot run a hidden operation tool"),
+        ("pythia_gleif_profile" in report["hook_saw"], "pre_tool_call saw a nested operation call"),
         ("error" in report["answer"], "the identity answer did not run"),
         ("unattended platform" not in report["approve_on_api_server"].get("error", ""),
-         "api_server approvals now round-trip: revisit the effect policy"),
-        (report["with_comment"], "an operation marker reaches the model"),
-        (sorted(report["pythia_schemas"], key=lambda item: item["name"]) != sorted(snapshot, key=lambda item: item["name"]),
-         "the delivered Pythia schemas differ from runtime/test/python/fixtures/agent-tools.json"),
+         "api_server approvals now round-trip: revisit the permission design"),
         (report["duplicate_operations"], "an operation is declared by more than one tool"),
         (report["identity_verdict_tool"] != "pythia_identity_verdict", "Desk's identity-verdict no longer resolves"),
-        (not report["bad_argument"].startswith("args.limit:"), "a bad argument is not named"),
+        (not str((report["bad_argument"].get("issues") or [{}])[0].get("message", "")).startswith("args.subject_id:"),
+         "a bad argument is not named"),
         (any(report["pythia_tools_on"].values()), "cli or cron sees Pythia tools"),
         (report["skill_writing_interval"] != 0, "automatic skill writing is not off in the seeded profile"),
         (report["routing_prompt_on"] != {"api_server": True, "cli": False, "cron": False},

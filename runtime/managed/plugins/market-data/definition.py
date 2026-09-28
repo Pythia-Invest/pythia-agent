@@ -4,7 +4,7 @@ from .preferences import SCOPE_SCHEMA
 from .wire import parameter_schema
 
 TOOL_NAME = "pythia_market_data"
-TOOLSET = "pythia-core"  # core"s one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
+TOOLSET = "pythia-core"  # core's one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
 ACTIONS = ["describe", "call", "details", "series", "read", "read_many", "get_preferences", "set_preferences"]
 TEXT = {"type": "string", "minLength": 1, "maxLength": 512}
 SCHEMA = {

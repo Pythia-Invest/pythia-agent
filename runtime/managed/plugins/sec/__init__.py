@@ -164,3 +164,11 @@ def register(ctx):
     for operation, schema in reader.definitions.items():
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation),
                           check_fn=available)
+    agent = platform.platform().register_agent_tool
+    agent(ctx, 'sec_company_facts', TOOLS['facts'], 'Reported financial facts (revenue, net income) from SEC. Named '
+          'XBRL concepts of one taxonomy (us-gaap, ifrs-full, dei, srt) for a US-listed or foreign SEC filer, such as '
+          'Revenues, NetIncomeLoss or Assets, keeping periods, filing revisions and units. Use sec_fundamentals for '
+          'the standard annual set; pythia_filings lists the filings.', check_fn=available)
+    agent(ctx, 'sec_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings and balance sheet from SEC EDGAR. '
+          'Supported reported annual income, cash-flow and balance-sheet facts of a US GAAP or IFRS filer, with actual '
+          'annual periods; no TTM, quarterly subtraction or conversion.', check_fn=available)

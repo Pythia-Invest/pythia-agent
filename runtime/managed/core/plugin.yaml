@@ -13,6 +13,6 @@ provides_tools:
   - pythia_instrument
   - pythia_prices
   - pythia_filings
-  - pythia
+  - pythia_identity_questions
   - pythia_answer_identity_question
   - pythia_filings_combined

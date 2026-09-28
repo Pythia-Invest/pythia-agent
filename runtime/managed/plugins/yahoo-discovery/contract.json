@@ -69,8 +69,5 @@
     "licence": "personal",
     "cache": "none",
     "hostable": false
-  },
-  "functions": [
-    "yahoo-finance"
-  ]
+  }
 }

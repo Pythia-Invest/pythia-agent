@@ -199,7 +199,11 @@ def register(ctx):
             code = 'invalid_response'
         return read_result(request, issues=[issue(code)]) if request else envelope(None, [issue(code)])
 
+    platform.declare_operation(definitions['profile'], plugin=ctx.plugin_id, operation='profile', read_only=True)
     for operation, schema in definitions.items():
         def handler(arguments, _operation=operation, **context):
             return json.dumps(invoke(_operation, arguments, context.get('cancelled')), allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset=TOOLSET, schema=schema, handler=handler, check_fn=ready)
+    platform.register_agent_tool(ctx, 'coinmarketcap_coin_info', TOOLS['profile'], 'Crypto project profile, links and '
+                                 'tags from CoinMarketCap. Description, logo, website and social links, tags and launch '
+                                 'date of one coin.', check_fn=ready)

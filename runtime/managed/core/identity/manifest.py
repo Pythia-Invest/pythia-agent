@@ -110,8 +110,6 @@ class Manifest:
     rights: Rights
     limits: Limits | None = None
     contract_version: int = CONTRACT_VERSION
-    # The plugin's own declared read-only operations the agent reaches through the `pythia` tool.
-    functions: tuple[str, ...] = ()
 
     def native_scope(self, native_scope: str) -> NativeScope | None:
         return next((item for item in self.native if item.native_scope == native_scope), None)
@@ -157,15 +155,6 @@ def _enum(kind: type[StrEnum], value: Any, path: str) -> Any:
         return kind(value)
     except (ValueError, TypeError):
         raise ManifestError(f"{path}: expected one of {', '.join(kind)}") from None
-
-
-def _names(value: Any, path: str) -> tuple[str, ...]:
-    if not isinstance(value, list):
-        raise ManifestError(f"{path}: list required")
-    names = tuple(_match(OPERATION, item, path) for item in value)
-    if len(set(names)) != len(names):
-        raise ManifestError(f"{path}: duplicate values")
-    return names
 
 
 def _enums(kind: type[StrEnum], value: Any, path: str) -> tuple[Any, ...]:
@@ -286,7 +275,7 @@ def validate_manifest(document: Any) -> Manifest:
     if version > CONTRACT_VERSION:
         raise ManifestNeedsUpdate(version)
     body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights"},
-                   {"concepts", "catalogue", "resolve", "limits", "functions"})
+                   {"concepts", "catalogue", "resolve", "limits"})
     addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table"})
     native = []
     if not isinstance(addressing.get("native", []), list):
@@ -336,5 +325,4 @@ def validate_manifest(document: Any) -> Manifest:
     return Manifest(_match(NAMESPACE, body["plugin"], "manifest.plugin"),
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
                     tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
-                    _rights(body["rights"]), _limits(body["limits"]) if "limits" in body else None, version,
-                    _names(body.get("functions", []), "functions"))
+                    _rights(body["rights"]), _limits(body["limits"]) if "limits" in body else None, version)

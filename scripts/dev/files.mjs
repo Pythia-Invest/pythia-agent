@@ -41,7 +41,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "queue_ops.py",
   "agent_tools.py",
   "agent_reads.py",
-  "pythia_command.py",
+  "agent_depth.py",
   "concept_ops.py",
   "operating.py",
   "platform/__init__.py",

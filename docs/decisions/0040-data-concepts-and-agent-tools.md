@@ -5,9 +5,11 @@ rule and the `live` operation: accepted (2026-09-28) and implemented: the
 contract shape and registry, and selection in page composition with the
 investor's order, coverage, skip reasons and combined filings. Remembering
 "not on your plan" is decided but not built (see below). The licence classes are a recommended default that awaits
-the founder's confirmation. The agent tool surface, the market-data
-split and the result envelope are **out of scope of this revision**; they
-remain a proposal (pull request #42).
+the founder's confirmation. The agent tool surface (`may_run`, the concept
+tools and the `pythia` tool) is decided in
+[agent tools](../architecture/agent-tools.md). The market-data split and the
+result envelope are **out of scope of this revision**; they remain a proposal
+(pull request #42).
 
 ## Context
 
@@ -218,10 +220,10 @@ because adding it later would change every contract; a team mode that refuses
 ## Out of scope of this revision
 
 Proposed in #42 and not decided here: the market-data feature split and the
-markets UI plugin, the result envelope, `may_run`, the always-visible concept
-tools, the `pythia` CLI-like tool and code mode, provider tools leaving the
-model's view, secrets isolation for the agent's code tools, and the evaluation
-set. Also later: the quota ledger with per-operation cost, entitlement checks
+markets UI plugin, the result envelope, code mode, secrets isolation for the
+agent's code tools, and the evaluation set. `may_run`, the always-visible
+concept tools, the `pythia` CLI-like tool and provider tools leaving the model's
+view are decided in [agent tools](../architecture/agent-tools.md). Also later: the quota ledger with per-operation cost, entitlement checks
 at connect time, cache-lifetime enforcement, rendering attribution, a Settings
 surface for plugins that need a newer Pythia, and team mode.
 

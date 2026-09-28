@@ -37,8 +37,5 @@
     "licence": "open",
     "cache": "unlimited",
     "hostable": false
-  },
-  "functions": [
-    "profile"
-  ]
+  }
 }

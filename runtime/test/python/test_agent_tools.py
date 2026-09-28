@@ -1,4 +1,4 @@
-"""The agent's visible Pythia tools and the `pythia` depth command, over fakes: no model, no provider, no Hermes.
+"""The agent's Pythia tools and the plugins' provider tools, over fakes: no model, no provider, no Hermes.
 
 The reference is the hand-written ASML fixture; plugin contracts are the shipped contract.json files; the SEC,
 xbrl-filings, GLEIF and Yahoo tool schemas come from their own definition modules. Plugin handlers are fakes
@@ -34,7 +34,8 @@ if "pythia_core_fixture" not in sys.modules:
 core = sys.modules["pythia_core_fixture"]
 agent_tools = importlib.import_module("pythia_core_fixture.agent_tools")
 agent_reads = importlib.import_module("pythia_core_fixture.agent_reads")
-command_module = importlib.import_module("pythia_core_fixture.pythia_command")
+agent_depth = importlib.import_module("pythia_core_fixture.agent_depth")
+platform_module = importlib.import_module("pythia_core_fixture.platform")
 identity_ops = importlib.import_module("pythia_core_fixture.identity_ops")
 queue_ops = importlib.import_module("pythia_core_fixture.queue_ops")
 page = importlib.import_module("pythia_core_fixture.identity.page")
@@ -162,13 +163,15 @@ class AgentToolFixture(unittest.TestCase):
                        for name, schema in self.schemas.items()
                        if (owner := (operations.declaration(schema) or {}).get("plugin"))}
         self.plugins = {name: self.contract(name) for name in ("sec", "xbrl-filings", "gleif", "yahoo-discovery", "eodhd")}
-        self.eligible = set(self.schemas) | {agent_reads.MARKET_DATA_TOOL}
+        self.eligible = set(self.schemas) | {agent_reads.MARKET_DATA_TOOL, agent_reads.COMBINED_FILINGS}
+        self.entries = {}
         self.handlers = {}
         self.ctx = Context(self.handlers)
         self.ctx.state = SimpleNamespace(data_dir=self.tmp.name)
         registry = ModuleType("tools.registry")
         registry.registry = SimpleNamespace(get_all_tool_names=lambda: list(self.schemas),
                                             get_schema=lambda name: self.schemas.get(name),
+                                            get_entry=lambda name: self.entries.get(name),
                                             dispatch=lambda name, args, **_: self.ctx.dispatch_tool(name, args))
         self.enterContext(mock.patch.dict(sys.modules, {"tools": ModuleType("tools"), "tools.registry": registry,
                                                         **validator_module()}))
@@ -177,7 +180,7 @@ class AgentToolFixture(unittest.TestCase):
         self.enterContext(mock.patch.object(access, "eligible_tools", lambda: set(self.eligible)))
         self.enterContext(mock.patch.object(access, "native_tool_owners", lambda: dict(self.owners)))
         self.enterContext(mock.patch.object(identity_ops, "CURRENT", identity_ops.Identity(self.ctx)))
-        self.enterContext(mock.patch.object(concept_ops, "CURRENT", concept_ops.ConceptReads(identity_ops.CURRENT)))
+        self.handlers[agent_reads.COMBINED_FILINGS] = concept_ops.ConceptReads(identity_ops.CURRENT).filings
 
     def contract(self, name, **state):
         return contract(name, self.schemas, **state)
@@ -189,173 +192,138 @@ class AgentToolFixture(unittest.TestCase):
             core.register(ctx)
         return ctx.tools
 
-    def pythia(self, command, args=None, **context):
-        return json.loads(command_module.command(self.ctx, {"command": command, **({"args": args} if args is not None else {})},
-                                                 **context))
+    def agent(self, plugin_key, name, tool, description="Test tool from a provider. Body."):
+        """Register a plugin's agent tool as the plugin does, through core's platform helper."""
+        ctx = Context(self.handlers)
+        package = MANAGED / "plugins" / plugin_key.removeprefix("pythia-")
+        ctx.plugin_id, ctx.dispatch_tool = plugin_key, self.ctx.dispatch_tool
+        ctx.manifest = SimpleNamespace(name=plugin_key, path=str(package))
+        platform_module.register_agent_tool(ctx, name, tool, description)
+        entry = ctx.tools[name]
+        self.schemas[name] = entry["schema"]
+        self.entries[name] = SimpleNamespace(handler=entry["handler"], toolset=entry["toolset"])
+        self.owners[name] = (plugin_key, SimpleNamespace(manifest=SimpleNamespace(name=plugin_key)))
+        return entry
+
+    def call_instrument(self):
+        return json.loads(agent_tools.instrument({"subject_id": ASML}))
+
+    def call(self, name, **arguments):
+        return json.loads(self.entries[name].handler(arguments, **arguments.pop("_context", {})))
 
 
-class PythiaCommandTest(AgentToolFixture):
-    def test_a_runs_a_declared_function_with_the_subject_filled_in(self):
+class ProviderToolTest(AgentToolFixture):
+    """Provider depth as real tools in each plugin's own toolset, addressed by subject id through core."""
+
+    def setUp(self):
+        super().setUp()
+        self.facts = self.agent("pythia-sec", "sec_company_facts", "pythia_sec_facts",
+                                "Reported financial facts (revenue, net income) from SEC. Named XBRL concepts.")
+        self.agent("pythia-yahoo-discovery", "yahoo_finance", "pythia_yahoo_research")
+        self.agent("pythia-gleif", "gleif_legal_entity", "pythia_gleif_profile")
+
+    def test_a_a_provider_tool_is_a_native_tool_addressed_by_subject(self):
+        self.assertEqual(self.facts["toolset"], "pythia-sec")  # the plugin's own toolset, not core's hidden one
+        schema = self.facts["schema"]
+        self.assertEqual(schema["parameters"]["required"], ["subject_id", "taxonomy", "concepts"])
+        self.assertNotIn("native_ref", schema["parameters"]["properties"])
+        self.assertNotIn("$comment", json.dumps(schema))
         self.handlers["pythia_sec_facts"] = lambda args, **_: envelope({"facts": [{"concept": args["concepts"][0]}]})
-        result = self.pythia("sec facts", {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]},
-                             session_id="session-1", task_id="task-1", user_task="ignored")
-        self.assertEqual((result["outcome"], result["function"]), ("ok", "sec facts"))
+        result = json.loads(self.entries["sec_company_facts"].handler(
+            {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]},
+            session_id="session-1", task_id="task-1", user_task="ignored"))
+        self.assertEqual(result["outcome"], "ok")
         name, args, context = self.ctx.calls[-1]
-        self.assertEqual(name, "pythia_sec_facts")
-        self.assertEqual(args["native_ref"], {"provider": "sec", "native_id": "0000937966", "native_scope": "cik"})
-        self.assertNotIn("subject_id", args)
+        self.assertEqual((name, args["native_ref"]), ("pythia_sec_facts", {"provider": "sec", "native_id": "0000937966",
+                                                                           "native_scope": "cik"}))
         self.assertEqual(context, {"session_id": "session-1", "task_id": "task-1"})
-        # A leading `pythia` and a Yahoo symbol filled from the listing's MIC suffix work the same way.
+        # Yahoo's native scope is its symbol: both symbol and the one-item symbols are filled (quote reads symbols).
         self.handlers["pythia_yahoo_research"] = lambda args, **_: envelope({"symbol": args["symbol"],
                                                                              "symbols": args["symbols"]})
-        result = self.pythia("pythia yahoo finance", {"subject_id": ASML, "operation": "quote"})
-        self.assertEqual(result["data"], {"symbol": "ASML.AS", "symbols": ["ASML.AS"]})  # quote reads `symbols`
-        # A profile read is a function: core serves no profile concept yet (quote, chart and filings it does).
+        self.assertEqual(self.call("yahoo_finance", subject_id=ASML, operation="quote")["data"],
+                         {"symbol": "ASML.AS", "symbols": ["ASML.AS"]})
+        # A profile read is a provider tool: core serves no profile concept of its own.
         self.handlers["pythia_gleif_profile"] = lambda args, **_: envelope({"lei": args["native_ref"]["native_id"]})
-        self.assertEqual(self.pythia("gleif profile", {"subject_id": ASML})["data"], {"lei": "724500Y6DUVHQD6OXN27"})
-        # Core's own read function passes its own subject_id through.
-        self.handlers["pythia_identity_queue"] = lambda args, **_: envelope({"items": [args]})
-        self.assertEqual(self.pythia("identity queue", {"subject_id": ASML})["data"]["items"], [{"subject_id": ASML}])
+        self.assertEqual(self.call("gleif_legal_entity", subject_id=ASML)["data"], {"lei": "724500Y6DUVHQD6OXN27"})
 
-    def test_b_help_lists_sources_and_prints_one_functions_arguments(self):
-        overview = self.pythia("help")
-        sources = {row["source"]: row for row in overview["sources"]}
-        self.assertEqual(list(sources), ["eodhd", "gleif", "identity", "sec", "xbrl-filings", "yahoo"])
-        self.assertEqual(list(sources["eodhd"]["functions"]), ["fundamentals", "news"])  # eodhd-news is `eodhd news`
-        self.assertEqual(list(sources["identity"]["functions"]), ["queue"])
-        self.assertTrue(sources["sec"]["functions"]["facts"].startswith("Read bounded native XBRL facts"))
-        self.assertEqual(sources["eodhd"]["functions"]["news"], "Not loaded in this profile.")
-        self.assertEqual(self.pythia("sec")["functions"].keys(), {"facts", "fundamentals"})
-        for form in ("help sec facts", "sec facts --help", "pythia sec facts help"):
-            one = self.pythia(form)
-            self.assertEqual(one["function"], "sec facts")
-            self.assertEqual(one["arguments"]["required"], ["native_ref", "taxonomy", "concepts"])
-            self.assertNotIn("$comment", json.dumps(one))
+    def test_b_a_record_under_review_is_refused_as_on_the_page(self):
+        original = identity_ops.Identity._load
+
+        def load(identity, subject_id):  # Yahoo's stored record for this listing contradicts the reference
+            path, subject, lookups, issue = original(identity, subject_id)
+            stored = lookups.get("stored")
+            conflicting = {"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol", "status": "conflicting"}
+            lookups = {**lookups, "stored": lambda target, provider: conflicting if provider == "yahoo"
+                       else stored(target, provider)}
+            return path, subject, lookups, issue
+        self.enterContext(mock.patch.object(identity_ops.Identity, "_load", load))
+        refused = self.call("yahoo_finance", subject_id=ASML, operation="quote")
+        self.assertEqual(refused["issues"][0]["code"], "source_unavailable")
+        self.assertIn("contradicts the reference", refused["issues"][0]["message"])
+        tools = [row["tool"] for row in json.loads(agent_tools.instrument({"subject_id": ASML}))["data"]["provider_tools"]]
+        self.assertNotIn("yahoo_finance", tools)
+        self.assertIn("sec_company_facts", tools)
         self.assertEqual(self.ctx.calls, [])
 
     def test_c_bad_arguments_name_the_parameter_before_any_call(self):
-        cases = [({"subject_id": ASML, "taxonomy": "ifrs-full"}, ("args:", "'concepts'")),
-                 ({"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"], "limit": "5"},
-                  ("args.limit:", "integer")),
-                 ({"subject_id": ASML, "taxonomy": "gaap", "concepts": ["Revenue"]}, ("args.taxonomy:", "gaap")),
-                 ({"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"], "form": "10-K"},
-                  ("args:", "'form' was unexpected")),
-                 ({"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"] * 9},
-                  ("args.concepts:", "too long"))]
-        for args, words in cases:
+        for args, words in (({"subject_id": ASML, "taxonomy": "ifrs-full"}, ("args:", "'concepts'")),
+                            ({"subject_id": ASML, "taxonomy": "gaap", "concepts": ["Revenue"]}, ("args.taxonomy:", "gaap")),
+                            ({"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"] * 9},
+                             ("args.concepts:", "too long"))):
             with self.subTest(words=words):
-                result = self.pythia("sec facts", args)
+                result = self.call("sec_company_facts", **args)
                 self.assertEqual(result["issues"][0]["code"], "invalid_arguments")
                 for word in words:
                     self.assertIn(word, result["issues"][0]["message"])
-                self.assertEqual(result["usage"], "help sec facts")
-        self.assertEqual(self.pythia("sec facts", ["x"])["issues"][0]["code"], "invalid_command")
-        unknown = self.pythia("sec facts", {"subject_id": "listing:isin:XX0000000000:XAMS:EUR", "taxonomy": "ifrs-full",
-                                            "concepts": ["Revenue"]})
+        unknown = self.call("sec_company_facts", subject_id="listing:isin:XX0000000000:XAMS:EUR",
+                            taxonomy="ifrs-full", concepts=["Revenue"])
         self.assertIn("Unknown subject", unknown["issues"][0]["message"])
-        self.assertEqual(self.ctx.calls, [])
-
-    def test_d_unknown_source_or_function_suggests_the_close_ones(self):
-        self.assertEqual(self.pythia("esef")["source"], "xbrl-filings")  # a common name for a source
-        source = self.pythia("secc facts")
-        self.assertEqual(source["issues"][0]["code"], "unknown_source")
-        self.assertIn("Did you mean sec?", source["issues"][0]["message"])
-        function = self.pythia("sec fact")
-        self.assertIn("Did you mean facts?", function["issues"][0]["message"])
-        elsewhere = self.pythia("sec news")
-        self.assertIn("Sources with a news function: eodhd", elsewhere["issues"][0]["message"])
-        # Internal plumbing is not a function: the concept tools own quotes and filings.
-        self.assertEqual(self.pythia("yahoo latest")["issues"][0]["code"], "unknown_function")
-        self.assertEqual(self.pythia("sec filings")["issues"][0]["code"], "unknown_function")
-        # Even if a contract listed it, a tool core runs for a concept tool is not a function.
-        raw = json.loads((MANAGED / "plugins/sec/contract.json").read_text())
-        self.plugins["sec"] = page.PluginInfo(key="pythia-sec", manifest=manifest.validate_manifest(
-            {**raw, "functions": ["filings"]}), operations=self.plugins["sec"].operations)
-        self.assertEqual(self.pythia("sec filings", {"subject_id": ASML})["issues"][0]["code"], "unknown_function")
-        self.assertNotIn("filings", self.pythia("help")["sources"][3]["functions"])
         self.assertEqual(self.ctx.calls, [])
 
     def test_e_disabled_or_unconfigured_sources_say_why_without_a_call(self):
         self.plugins["sec"] = self.contract("sec", missing=({"key": "sec_identity", "label": "SEC contact",
-                                                        "file": "settings.json", "status": "missing"},))
-        self.plugins["gleif"] = self.contract("gleif", enabled=False)
-        unconfigured = self.pythia("sec facts", {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]})
+                                                                    "file": "settings.json", "status": "missing"},))
+        unconfigured = self.call("sec_company_facts", subject_id=ASML, taxonomy="ifrs-full", concepts=["Revenue"])
         self.assertEqual(unconfigured["issues"][0]["code"], "needs_configuration")
         self.assertIn("SEC contact (sec_identity in settings.json, missing)", unconfigured["issues"][0]["message"])
-        disabled = self.pythia("gleif profile", {"subject_id": ASML})
-        self.assertEqual(disabled["issues"][0]["code"], "unavailable")
-        self.assertIn("disabled", self.pythia("help")["sources"][1]["unavailable"])
+        self.plugins["gleif"] = self.contract("gleif", enabled=False)
+        disabled = self.call("gleif_legal_entity", subject_id=ASML)
+        self.assertIn("disabled", disabled["issues"][0]["message"])
         self.assertEqual(self.ctx.calls, [])
-        # A plugin's own needs_configuration result passes through unchanged.
-        self.plugins["sec"] = self.contract("sec")
-        blocked = {"schema_version": 1, "outcome": "error", "data": None, "issues": [{
-            "code": "needs_configuration", "severity": "error", "fields": [], "message": "Add the SEC contact."}]}
-        self.handlers["pythia_sec_fundamentals"] = lambda *_args, **_kw: json.dumps(blocked)
-        self.assertEqual(self.pythia("sec fundamentals", {"subject_id": ASML})["issues"], blocked["issues"])
 
-    def test_f_a_function_declared_as_a_write_is_refused_before_dispatch(self):
-        verdict = copy.deepcopy(queue_ops.VERDICT_SCHEMA)
-        operations.declare_operation(verdict, plugin="pythia", operation="identity-verdict", read_only=False)
-        self.schemas["pythia_identity_verdict"] = verdict
-        self.owners["pythia_identity_verdict"] = self.owners["pythia_identity_queue"]
-        with mock.patch.object(command_module, "CORE", ("pythia", "identity", "identity",
-                                                        ("identity-queue", "identity-verdict"))):
-            refused = self.pythia("identity verdict", {"item_id": "q1", "relation": "none"})
-        self.assertIn("not available as a read-only function", refused["issues"][0]["message"])
+    def test_f_an_operation_not_declared_read_only_never_runs(self):
         comment = json.loads(self.schemas["pythia_sec_facts"]["parameters"]["$comment"])
         del comment["pythia_http_operation"]["read_only"]  # a hand-written marker that omits the key
         self.schemas["pythia_sec_facts"]["parameters"]["$comment"] = json.dumps(comment)
-        unmarked = self.pythia("sec facts", {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]})
-        self.assertIn("not available as a read-only function", unmarked["issues"][0]["message"])
+        refused = self.call("sec_company_facts", subject_id=ASML, taxonomy="ifrs-full", concepts=["Revenue"])
+        self.assertIn("not available", refused["issues"][0]["message"])
         self.assertEqual(self.ctx.calls, [])
 
     def test_g_an_oversized_result_is_shortened_and_says_so(self):
         rows = [{"concept": "Revenue", "value": str(index), "period": "2025"} for index in range(5000)]
         self.handlers["pythia_sec_facts"] = lambda *_args, **_kw: envelope({"facts": rows})
-        text = command_module.command(self.ctx, {"command": "sec facts", "args": {
-            "subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]}})
+        text = self.entries["sec_company_facts"].handler({"subject_id": ASML, "taxonomy": "ifrs-full",
+                                                          "concepts": ["Revenue"]})
         self.assertLessEqual(len(text), agent_tools.MAX_CHARS)
-        result = json.loads(text)
-        self.assertEqual(result["truncated"]["field"], "data.facts")
-        self.assertEqual(result["truncated"]["total"], 5000)
-        self.assertEqual(len(result["data"]["facts"]), result["truncated"]["returned"])
-        self.handlers["pythia_sec_facts"] = lambda *_args, **_kw: envelope({"note": "x" * 40000})
-        too_large = self.pythia("sec facts", {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]})
-        self.assertEqual(too_large["issues"][0]["code"], "result_too_large")
+        self.assertEqual(json.loads(text)["truncated"]["total"], 5000)
 
-    def test_h_hidden_tools_run_only_through_may_run(self):
-        self.handlers["pythia_yahoo_research"] = lambda *_args, **_kw: envelope({"ok": True})
+    def test_h_the_operation_tool_runs_only_through_may_run(self):
+        self.handlers["pythia_gleif_profile"] = lambda *_args, **_kw: envelope({"ok": True})
         visible = {name for name, entry in self.registered().items() if entry["toolset"] == agent_tools.TOOLSET}
-        self.assertNotIn("pythia_yahoo_research", visible)
-        self.assertNotIn("pythia_identity_queue", visible)
-        self.assertEqual(self.pythia("yahoo finance", {"subject_id": ASML, "operation": "quote"})["data"], {"ok": True})
-        self.eligible.discard("pythia_yahoo_research")  # may_run: plugin disabled or its availability check fails
-        denied = self.pythia("yahoo finance", {"subject_id": ASML, "operation": "quote"})
-        self.assertEqual(denied["issues"][0]["code"], "unavailable")
-        self.assertEqual([call[0] for call in self.ctx.calls], ["pythia_yahoo_research"])
+        self.assertNotIn("pythia_gleif_profile", visible)
+        self.assertEqual(self.call("gleif_legal_entity", subject_id=ASML)["data"], {"ok": True})
+        self.eligible.discard("pythia_gleif_profile")  # may_run: plugin disabled or its availability check fails
+        self.assertEqual(self.call("gleif_legal_entity", subject_id=ASML)["issues"][0]["code"], "unavailable")
+        self.assertEqual([call[0] for call in self.ctx.calls], ["pythia_gleif_profile"])
 
     def test_i_a_raising_handler_becomes_a_source_error_without_its_text(self):
         def broken(*_args, **_kwargs):
             raise RuntimeError("secret-token-in-exception")
         self.handlers["pythia_sec_facts"] = broken
         with self.assertLogs(agent_tools.logger, "WARNING"):
-            result = self.pythia("sec facts", {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]})
+            result = self.call("sec_company_facts", subject_id=ASML, taxonomy="ifrs-full", concepts=["Revenue"])
         self.assertEqual(result["issues"][0]["code"], "source_error")
         self.assertNotIn("secret-token", json.dumps(result))
-        self.handlers["pythia_sec_facts"] = lambda *_args, **_kw: "not json"
-        self.assertEqual(self.pythia("sec facts", {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]})
-                         ["issues"][0]["code"], "invalid_response")
-
-    def test_j_the_visible_tool_list_is_byte_stable_while_plugins_change(self):
-        def visible():
-            tools = self.registered()
-            return json.dumps([tools[name]["schema"] for name in sorted(tools)
-                               if tools[name]["toolset"] == agent_tools.TOOLSET], separators=(",", ":"))
-        first = visible()
-        self.plugins["sec"] = self.contract("sec", enabled=False)
-        self.plugins.pop("eodhd")
-        self.assertEqual(visible(), first)  # plugin state reaches results (help), never the schemas
-        self.assertEqual(self.pythia("help"), self.pythia("help"))
 
 
 class ConceptToolTest(AgentToolFixture):
@@ -389,10 +357,9 @@ class ConceptToolTest(AgentToolFixture):
         sources = {row["concept"]: row for row in result["data"]["sources"]}
         self.assertEqual(sources["quote"]["source"], "Yahoo Finance")
         self.assertEqual([item["source"] for item in sources["filings"]["sources"]], ["filings.xbrl.org", "SEC EDGAR"])
-        commands = [row["command"] for row in result["data"]["functions"]]
-        self.assertIn("pythia gleif profile", commands)
-        self.assertIn("pythia xbrl-filings fundamentals", commands)
-        self.assertNotIn("pythia identity queue", commands)  # no open questions for this subject
+        self.agent("pythia-gleif", "gleif_legal_entity", "pythia_gleif_profile")
+        result = self.call_instrument()
+        self.assertEqual([row["tool"] for row in result["data"]["provider_tools"]], ["gleif_legal_entity"])
         self.assertNotIn("request", json.dumps(result))  # Desk's operation requests stay out of the agent's view
         self.assertEqual(result["data"]["identifiers"]["lei"], "724500Y6DUVHQD6OXN27")
 
@@ -459,7 +426,7 @@ class ConceptToolTest(AgentToolFixture):
         self.assertEqual([(row["form"], row["source"]) for row in result["filings"]],
                          [("AFR", "filings.xbrl.org"), ("20-F/A", "SEC EDGAR"), ("AFR", "filings.xbrl.org"),
                           ("20-F", "SEC EDGAR")])
-        self.assertEqual(result["coverage"], {"matched": 4, "scanned": 7})
+        self.assertEqual(result["coverage"], {"matched": 4, "listed": 4})  # core searches by form
         # A common name reads that source first for its authorities; an unknown one says which exist.
         self.call(agent_reads.filings, subject_id=ASML, source="esef")
         self.assertIn("pythia_xbrl_filings_filings", [call[0] for call in self.ctx.calls[-2:]])
@@ -467,7 +434,7 @@ class ConceptToolTest(AgentToolFixture):
         self.assertEqual(unknown["issues"][0]["code"], "unknown_source")
         missing = self.call(agent_reads.filings, subject_id=ASML, forms=["10-K"])
         self.assertEqual(missing["outcome"], "empty")
-        self.assertIn("most recent filings", missing["next"])
+        self.assertIn("None of the listed filings match", missing["next"])
 
     def test_prices_period_returns_follow_the_chart_rule(self):
         today = agent_reads.date(2026, 9, 26)
@@ -524,8 +491,9 @@ class DeliveredViewTest(unittest.TestCase):
     def test_budgets_and_no_operation_markers(self):
         schemas = self.visible()
         sizes = {schema["name"]: len(json.dumps(schema, separators=(",", ":"))) for schema in schemas}
-        self.assertEqual(sorted(sizes), ["pythia", "pythia_answer_identity_question", "pythia_desk_view",
-                                         "pythia_filings", "pythia_find", "pythia_instrument", "pythia_prices"])
+        self.assertEqual(sorted(sizes), ["pythia_answer_identity_question", "pythia_desk_view",
+                                         "pythia_filings", "pythia_find", "pythia_identity_questions",
+                                         "pythia_instrument", "pythia_prices"])
         for name, size in sizes.items():
             self.assertLessEqual(size, 2000, name)
         self.assertLessEqual(sum(sizes.values()), 9200)  # about 2,300 tokens by Hermes's chars/4
@@ -540,9 +508,11 @@ class DeliveredViewTest(unittest.TestCase):
         block = text.split("known_plugin_toolsets:\n", 1)[1].split("\ntools:", 1)[0]
         hidden = {platform: re.findall(r"^    - (\S+)$", body, re.M)
                   for platform, body in re.findall(r"^  (\w+):\n((?:    - \S+\n)+)", block + "\n", re.M)}
-        # One hidden toolset for every plugin operation; the agent's tools serve Desk chat only.
-        self.assertEqual(hidden, {"api_server": [identity_ops.TOOLSET], "cli": [identity_ops.TOOLSET, agent_tools.TOOLSET],
-                                  "cron": [identity_ops.TOOLSET, agent_tools.TOOLSET]})
+        # Plugin operations share core's hidden toolset; Pythia's and the plugins' agent tools serve Desk chat only.
+        providers = ["pythia-sec", "pythia-xbrl-filings", "pythia-gleif", "pythia-eodhd", "pythia-yahoo-discovery",
+                     "pythia-coinmarketcap", "pythia-openfigi"]
+        elsewhere = [identity_ops.TOOLSET, agent_tools.TOOLSET, *providers]
+        self.assertEqual(hidden, {"api_server": [identity_ops.TOOLSET], "cli": elsewhere, "cron": elsewhere})
         for plugin in (MANAGED / "plugins").iterdir():
             sources = "".join(path.read_text() for path in plugin.glob("*.py"))
             self.assertNotRegex(sources, r"toolset=['\"](?!pythia-core)|TOOLSET = ['\"](?!pythia-core)", plugin.name)

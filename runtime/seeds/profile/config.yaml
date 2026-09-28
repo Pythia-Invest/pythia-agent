@@ -43,15 +43,30 @@ platform_toolsets:
     - todo
     - vision
     - web
-# Every Pythia plugin operation is registered in core's pythia-core toolset: runnable by Pythia, never shown to
-# the model. The agent's tools (pythia-desk) serve Desk chat only (docs/architecture/agent-tools.md).
+# Plugin operations live in core's hidden pythia-core toolset: runnable by Pythia, never offered to the model. The
+# agent's Pythia tools (pythia-desk) and the plugins' provider tools (a toolset per plugin) serve Desk chat
+# (api_server); cli and cron sessions have no trusted caller for them yet (docs/architecture/agent-tools.md).
 known_plugin_toolsets:
   cli:
     - pythia-core
     - pythia-desk
+    - pythia-sec
+    - pythia-xbrl-filings
+    - pythia-gleif
+    - pythia-eodhd
+    - pythia-yahoo-discovery
+    - pythia-coinmarketcap
+    - pythia-openfigi
   cron:
     - pythia-core
     - pythia-desk
+    - pythia-sec
+    - pythia-xbrl-filings
+    - pythia-gleif
+    - pythia-eodhd
+    - pythia-yahoo-discovery
+    - pythia-coinmarketcap
+    - pythia-openfigi
   api_server:
     - pythia-core
 auxiliary:

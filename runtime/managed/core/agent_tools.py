@@ -63,8 +63,19 @@ def answer_schema() -> dict:
     parameters["properties"]["chosen_id"] = {"type": "string", "minLength": 5, "maxLength": 370}
     return {"name": "pythia_answer_identity_question", "parameters": parameters,
             "description": "Answer an open identity question in Repairs. Read it in full first with "
-                           "`pythia identity queue`. "
+                           "pythia_identity_questions. "
                            + queue_ops.VERDICT_SCHEMA["description"].split(". ", 1)[1]}
+
+
+def questions_schema() -> dict:
+    """The Desk identity-queue arguments without its HTTP operation marker (see answer_schema)."""
+    parameters = {key: value for key, value in copy.deepcopy(queue_ops.QUEUE_SCHEMA["parameters"]).items()
+                  if key != "$comment"}
+    parameters["properties"]["subject_id"] = {"type": "string", "minLength": 5, "maxLength": 370}
+    return {"name": "pythia_identity_questions", "parameters": parameters,
+            "description": "Open identity questions in Repairs, for review. "
+                           + queue_ops.QUEUE_SCHEMA["description"].split(": ", 1)[1][0].upper()
+                           + queue_ops.QUEUE_SCHEMA["description"].split(": ", 1)[1][1:]}
 
 
 
@@ -107,6 +118,27 @@ def encode(result: dict, limit: int = MAX_CHARS) -> str:
 
 def forward(context: dict) -> dict:
     return {key: context[key] for key in CONTEXT if context.get(key)}
+
+
+def may_run(plugin_key: str, operation: str | None) -> str | None:
+    """ADR 0040's `may_run(plugin, operation)`: the native tool Pythia may run for it, or None. The plugin is natively
+    enabled and the tool's availability check passes (`eligible_tools`, never model visibility), one tool the plugin
+    owns declares the operation, and the plugin names it: in its contract, or by exposing it as an agent tool."""
+    from tools.registry import registry
+    from .agent_depth import native_operations
+    from .platform.access import ContextUnavailable, eligible_tools, native_tool_owners
+    tool = native_operations().get(plugin_key, {}).get(operation) if operation else None
+    if tool is None:
+        return None
+    info = plugins().get(plugin_key)
+    exposed = any(getattr(getattr(registry.get_entry(name), "handler", None), "pythia_agent_tool", None) == tool
+                  for name, (key, _plugin) in native_tool_owners().items() if key == plugin_key)
+    if info is not None and operation not in info.manifest.plugin_operations and not exposed:
+        return None
+    try:
+        return tool if tool in eligible_tools() else None
+    except ContextUnavailable:
+        return None
 
 
 def run_tool(ctx: Any, name: str, arguments: dict, context: dict) -> dict:
@@ -221,7 +253,7 @@ def find(arguments: dict, **_context: Any) -> str:
     (result.get("data") or {}).pop("lookup", None)
     if result.get("outcome") == "ok":
         result["next"] = ("pythia_instrument for a row's identifiers, listings and sources; pythia_prices, "
-                          "pythia_filings and `pythia help` take its subject id.")
+                          "pythia_filings and the provider tools it lists take its subject id.")
     return encode(result)
 
 
@@ -237,30 +269,34 @@ def instrument(arguments: dict, **_context: Any) -> str:
                                          for item in section.get("alternatives", [])]}
                        for section in view.pop("sections", [])]
     queue = view.pop("queue", [])
-    view["functions"] = functions_for(str(arguments.get("subject_id") or ""), bool(queue))
+    view["provider_tools"] = provider_tools_for(str(arguments.get("subject_id") or ""))
     if queue:
         view["open_identity_questions"] = len(queue)
-    result["next"] = ("pythia_prices for quote and chart, pythia_filings for filings; run a listed function with "
-                      "`pythia` and args {subject_id} for provider depth.")
+    result["next"] = ("pythia_prices for quote and chart, pythia_filings for filings; a listed provider tool with "
+                      "subject_id for provider depth (reported facts, fundamentals, profiles, news).")
     return encode(result)
 
 
-def functions_for(subject_id: str, questions: bool) -> list[dict]:
-    """The `pythia` functions that can serve this subject now: enabled, configured sources that address it."""
-    from .pythia_command import catalog, status, summary
-    _path, subject, _lookups, _issue = identity()._load(subject_id)
+def provider_tools_for(subject_id: str) -> list[dict]:
+    """The plugins' agent tools that can serve this subject now: sources Desk's page would read for it (ready, or a
+    lookup still pending), never one that is disabled, unconfigured, not covering it or in conflict."""
+    from tools.registry import registry
+    from .agent_depth import plugin_answer
+    from .platform.access import native_tool_owners
+    _path, subject, lookups, _issue = identity()._load(subject_id)
     if subject is None:
         return []
-    found = []
-    for source, (_text, info, functions) in catalog().items():
-        if info is None:
-            reachable = questions  # core's identity queue, when this subject has open questions
-        else:
-            reachable = status(info) is None and any(
-                subject["ids"].get(scope.level) and (not scope.asset_classes or subject["asset_class"] in scope.asset_classes)
-                for scope in info.manifest.native)
-        found += [{"command": f"pythia {source} {name}", "purpose": summary(tool)}
-                  for name, tool in functions.items() if reachable and tool]
+    infos, found = plugins(), []
+    for name, (key, _plugin) in sorted(native_tool_owners().items()):
+        entry = registry.get_entry(name)
+        if not getattr(getattr(entry, "handler", None), "pythia_agent_tool", None):
+            continue
+        info = infos.get(key)
+        answer = plugin_answer(info, subject, lookups) if info is not None else None
+        if info is not None and (answer is None or answer["status"] not in ("ready", "resolving")):
+            continue
+        text = (registry.get_schema(name) or {}).get("description") or ""
+        found.append({"tool": name, "purpose": text.split(". ")[0].rstrip(".") + "."})
     return found
 
 
@@ -268,6 +304,10 @@ def functions_for(subject_id: str, questions: bool) -> list[dict]:
 
 def answer(arguments: dict, **context: Any) -> str:
     return encode(json.loads(queue_ops.submit_verdict(identity(), arguments, **context)))
+
+
+def questions(arguments: dict, **context: Any) -> str:
+    return encode(json.loads(queue_ops.read_queue(identity(), arguments, **context)))
 
 
 def guarded(handler: Callable[..., str]) -> Callable[..., str]:
@@ -283,10 +323,10 @@ def guarded(handler: Callable[..., str]) -> Callable[..., str]:
 
 def register(ctx: Any) -> None:
     from .agent_reads import FILINGS, PRICES, filings, prices
-    from .pythia_command import SCHEMA as PYTHIA, command
     tools: list[tuple[dict, Callable[..., str]]] = [
         (FIND, guarded(find)), (INSTRUMENT, guarded(instrument)), (PRICES, guarded(partial(prices, ctx))),
-        (FILINGS, guarded(partial(filings, ctx))), (PYTHIA, partial(command, ctx)), (answer_schema(), guarded(answer))]
+        (FILINGS, guarded(partial(filings, ctx))), (questions_schema(), guarded(questions)),
+        (answer_schema(), guarded(answer))]
     for schema, handler in tools:
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"].split(". ")[0])

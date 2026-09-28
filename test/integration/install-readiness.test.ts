@@ -395,9 +395,19 @@ describe("installed readiness and recovery", () => {
       mkdirSync(path, { recursive: true, mode: 0o700 });
     }
     const commands: string[][] = [];
+    let skillWriting: string | undefined; // unset until the migration sets it
     const hermes = (args: string[]) => {
       commands.push(args);
       const key = args.at(-2);
+      if (
+        args.includes("set") &&
+        args.includes("skills.creation_nudge_interval")
+      )
+        skillWriting = args.at(-1);
+      if (args.includes("get") && key === "skills.creation_nudge_interval") {
+        if (skillWriting === undefined) throw new Error("unset");
+        return skillWriting;
+      }
       if (args.includes("get") && key === "known_plugin_toolsets")
         return JSON.stringify({
           api_server: ["pythia-core"],
@@ -406,9 +416,6 @@ describe("installed readiness and recovery", () => {
         });
       if (args.includes("get") && key === "platform_toolsets")
         return JSON.stringify({ api_server: ["pythia-desk", "web"] });
-      if (args.includes("get") && key === "skills.creation_nudge_interval")
-        return "0";
-      if (args.includes("get")) return JSON.stringify("off");
       return "";
     };
     const applied = ["0001-device-state-v1", "0002-agent-tool-surface"];
@@ -439,7 +446,17 @@ describe("installed readiness and recovery", () => {
     expect(
       commands.some((args) => args.includes("tools.tool_search.enabled")),
     ).toBe(false); // the investor's choice
-    expect(commands).toHaveLength(9);
+    expect(commands).toHaveLength(10);
+    // An investor's own skill-writing choice is kept, not overwritten.
+    const { paths: chosen } = fixture();
+    for (const path of [chosen.configRoot, chosen.stateRoot, chosen.dataRoot]) {
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+    }
+    commands.length = 0;
+    skillWriting = "5";
+    applyMigrations(chosen, { hermes });
+    expect(commands.some((args) => args.includes("set"))).toBe(false);
+    expect(skillWriting).toBe("5");
     // A readback that shows the toolset still visible fails the migration.
     const { paths: other } = fixture();
     for (const path of [other.configRoot, other.stateRoot, other.dataRoot]) {

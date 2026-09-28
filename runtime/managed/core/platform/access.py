@@ -88,19 +88,18 @@ def owns_tool(tool, declared_plugin):
 def eligible_tools():
     """Plugin tools Pythia may run for a trusted caller (``may_run``), whether or not the model sees them.
 
-    Authority is native: the owning plugin is enabled, the tool's availability check passes and its
-    toolset is not disabled for the profile. A toolset left off a platform only hides the tool from
-    the model there; Desk, core's agent tools and `pythia` still run it (docs/architecture/agent-tools.md)."""
+    Authority is native: the owning plugin is enabled and the tool's availability check passes. Toolset
+    choices (a platform's list, `agent.disabled_toolsets`) only decide what the model sees; Desk, core's agent
+    tools and `pythia` still run the tool. The investor turns a source off by disabling its plugin
+    (docs/architecture/agent-tools.md)."""
     from gateway.session_context import get_session_env
     from hermes_cli.config import load_config_readonly
     from model_tools import get_tool_definitions, _clear_tool_defs_cache
     from tools.registry import registry, invalidate_check_fn_cache
-    from agent.skill_utils import parse_config_string_list
     platform = get_session_env('HERMES_SESSION_PLATFORM', '')
     if not platform:
         raise ContextUnavailable('execution: trusted platform is required')
     config = load_config_readonly()
-    disabled = parse_config_string_list((config.get('agent') or {}).get('disabled_toolsets', []))
     owners = native_tool_owners()
     enabled = {getattr(registry.get_entry(name), 'toolset', None) for name, (owner, plugin) in owners.items()
                if native_plugin_enabled(owner, plugin, config)} - {None}
@@ -113,8 +112,8 @@ def eligible_tools():
             return set(cached[1])
         invalidate_check_fn_cache()
         _clear_tool_defs_cache()
-        definitions = get_tool_definitions(enabled_toolsets=sorted(enabled), disabled_toolsets=disabled,
-            quiet_mode=True, skip_tool_search_assembly=True)
+        definitions = get_tool_definitions(enabled_toolsets=sorted(enabled), quiet_mode=True,
+            skip_tool_search_assembly=True)
         result = {entry['function']['name'] for entry in definitions}
         result.difference_update(name for name, (owner, plugin) in owners.items()
                                 if not native_plugin_enabled(owner, plugin, config))

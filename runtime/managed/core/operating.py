@@ -44,18 +44,19 @@ Managed source is release-owned. Before editing it, explain the precise change
 and its fork/update consequence and obtain the user's explicit approval."""
 
 # Pythia's data tools serve the api_server (Desk chat) platform only; cli and cron sessions do not have them.
-DATA_ROUTING = """For prices, identifiers, listings, filings and company facts, use Pythia's
+DATA_ROUTING = """For prices, identifiers, listings, filings and company figures, use Pythia's
 tools before the web: they read the investor's connected sources and return
-source and as-of. They are pythia_find (start here for any name, ticker or
-code; pass its subject id on), pythia_instrument, pythia_prices, pythia_filings
-and `pythia` (run `help` for provider depth: reported facts, fundamentals,
-profiles, news). When they are not among your loaded tools, find and call them
-through tool_search. A read uses the first source in Pythia's order
-and never falls back on its own. After a failure you may name a listed
-alternative as source, and say that you did. Use web search for news,
-commentary and what these sources lack, and label figures from the web as such.
-Cite source and as-of for figures. Scheduled jobs cannot read Pythia's data
-yet, so do not set up monitoring jobs that would depend on it; say so instead.
+source and as-of. Start with pythia_find for any name, ticker or code and pass
+its subject id on to pythia_instrument (identifiers, listings, sources and the
+provider tools that serve it), pythia_prices and pythia_filings. Provider tools
+come from the investor's installed Pythia plugins, are named after their source
+(sec_, esef_, gleif_, eodhd_, yahoo_, coinmarketcap_, openfigi_) and give
+reported figures, fundamentals, profiles and news for the same subject id. When
+a tool is not among your loaded tools, find it with tool_search. Use web search
+for news, commentary and what these sources lack, and label figures from the
+web as such. Cite source and as-of for figures. Scheduled jobs cannot read
+Pythia's data yet, so do not set up monitoring jobs that would depend on it;
+say so instead.
 """
 
 

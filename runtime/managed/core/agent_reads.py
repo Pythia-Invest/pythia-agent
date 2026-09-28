@@ -24,7 +24,7 @@ PRICES = {
                    "source, as-of time and delay. Without start it returns the latest "
                    "quote; with start (and optional end) it returns daily bars, or intraday bars with interval, plus a "
                    "summary with the first and last close and the percentage change over the returned bars. For a "
-                   "period's return (1D to 5Y) pass period, which gives the same number every time. "
+                   "period's return (1D to 5Y) pass period. "
                    "For a company (issuer) it reads the primary listing.",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT,
@@ -32,8 +32,10 @@ PRICES = {
         "end": {"type": "string", "format": "date", "description": "Last date (YYYY-MM-DD); default today."},
         "interval": {"type": "string", "enum": ["1d", "1h", "30m", "5m", "1m"], "description": "Bar size; default 1d."},
         "period": {"type": "string", "enum": ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y"],
-                   "description": "Return over a standard period instead of start/end: from the close before the "
-                                  "period's start to the latest close, the rule the Desk chart uses."},
+                   "description": "Return over a standard period instead of start/end: from the daily close "
+                                  "before the period's start to the latest daily close (5D: five daily bars; 1D: "
+                                  "the source's change). The Desk chart may draw 5D and 1M from intraday and 5Y "
+                                  "from weekly bars, so those can differ slightly."},
         "points": {"type": "integer", "minimum": 0, "maximum": 400,
                    "description": "How many of the most recent bars to list (default 10); the summary covers all."},
         "source": SOURCE},
@@ -45,12 +47,13 @@ FILINGS = {
                    "from one connected source per filing authority "
                    "(SEC EDGAR; ESEF reports on filings.xbrl.org), with form, filing date, period end, document link "
                    "and source. Filter by form (10-K, 20-F, AFR…) and date. Pass any subject of the company. For "
-                   "reported numbers inside a filing, run `pythia help` and use that source's facts or fundamentals.",
+                   "reported numbers inside a filing, use that source's provider tool (sec_fundamentals, esef_fundamentals).",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT,
         "forms": {"type": "array", "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 16},
-                  "description": "Only these forms; an amendment (10-K/A) matches its form."},
-        "since": {"type": "string", "format": "date", "description": "Only filings filed or ending on or after this date."},
+                  "description": "Only these forms (10-K, 20-F, ESEF; AFR or annual for annual reports); an "
+                                 "amendment matches its form. Sources search beyond their most recent filings."},
+        "since": {"type": "string", "format": "date", "description": "Only filings dated on or after this date."},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50},
         "source": SOURCE},
         "required": ["subject_id"], "additionalProperties": False},
@@ -232,41 +235,34 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
 
 # ---- pythia_filings ------------------------------------------------------------------------------------------------
 
-def _matches(row: dict, forms: set[str], since: str | None) -> bool:
-    form = str(row.get("form") or "").upper()
-    if forms and not any(form == wanted or form.startswith(wanted + "/") for wanted in forms):
-        return False
-    when = row.get("filed_at") or row.get("period_end")
-    return not since or (isinstance(when, str) and when >= since)
+COMBINED_FILINGS = "pythia_filings_combined"  # core's combined filings read (hidden, in pythia-core)
 
 
 def filings(ctx: Any, arguments: dict, **context: Any) -> str:
-    """A thin front end over core's combined filings read: this tool adds the form/date filter and the bound."""
-    from . import concept_ops
+    """A thin front end over core's combined filings read, which searches by form: this tool adds the date filter,
+    the projection and the bound."""
     subject_id, wanted = str(arguments.get("subject_id") or ""), arguments.get("source")
-    forms = {str(item).upper() for item in arguments.get("forms") or []}
+    forms = [str(item) for item in arguments.get("forms") or []][:8]
     since, limit = arguments.get("since"), max(1, min(int(arguments.get("limit") or 20), 50))
     infos = plugins()
     use = source_key(wanted, infos) if wanted is not None else None
     if wanted is not None and use is None:
         return encode(unknown_source(wanted, infos))
-    if concept_ops.CURRENT is None:
-        return encode(failure("unavailable", "Pythia's filings read is not loaded."))
-    result = json.loads(concept_ops.CURRENT.filings({"subject_id": subject_id, **({"use": use} if use else {})}))
+    result = run_tool(ctx, COMBINED_FILINGS, {"subject_id": subject_id, **({"use": use} if use else {}),
+                                              **({"forms": forms} if forms else {})}, context)
     data = result.get("data")
     if not isinstance(data, dict) or not isinstance(data.get("filings"), list):
         return encode(result)
     rows = [row for row in data["filings"] if isinstance(row, dict)]
-    matched = [row for row in rows if _matches(row, forms, since)]
-    keep = ("form", "filed_at", "period_end", "title", "url", "id", "authority", "source")
+    matched = [row for row in rows if not since or str(row.get("date") or row.get("period_end") or "") >= since]
+    keep = ("form", "date", "date_basis", "period_end", "title", "url", "id", "authority", "source")
     outcome = result.get("outcome", "error")
     out = {"schema_version": 1, "outcome": "empty" if rows and not matched else outcome,
            "subject_id": data.get("subject_id", subject_id), "sources": data.get("sources", []),
            "filings": [{key: row[key] for key in keep if row.get(key) is not None} for row in matched[:limit]],
-           "coverage": {"matched": len(matched), "scanned": len(rows)}, "partial": bool(data.get("partial")),
+           "coverage": {"matched": len(matched), "listed": len(rows)}, "partial": bool(data.get("partial")),
            "alternatives": data.get("alternatives", []), "skipped": data.get("skipped", []),
            "issues": result.get("issues", [])}
-    out["next"] = ("Only the most recent filings of each source were searched; a named source (source) may list "
-                   "others." if rows and not matched else
-                   "Read a document through its url with web_extract; `pythia help` lists reported facts by source.")
+    out["next"] = ("None of the listed filings match; a named source (source) may list others." if not matched else
+                   "Read a document through its url with web_extract; sec_ and esef_ provider tools give its figures.")
     return encode(out)

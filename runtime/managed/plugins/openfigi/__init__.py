@@ -101,3 +101,6 @@ def register(ctx):
 
     ctx.register_tool(name=TOOL, toolset='pythia-core', schema=resolver.definition,
                       handler=handler, check_fn=available)
+    platform.platform().register_agent_tool(ctx, 'openfigi_identifiers', TOOL, 'FIGI identifiers for an ISIN or ticker '
+        'from OpenFIGI. Every venue\'s FIGI and share-class FIGI; pythia_find already knows the investor\'s own '
+        'reference, so use this only for identifiers it lacks.', check_fn=available)
