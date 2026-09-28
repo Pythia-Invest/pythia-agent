@@ -53,14 +53,14 @@ MIC_CSV = (
 
 
 def firds_record(isin, mic, lei, cfi="ESVUFR", name="SHARES", relevant="XAMS", first="2012-11-26", term=None, underlying=None,
-                 short=None):
+                 short=None, currency="EUR"):
     venue = f"<Id>{mic}</Id><IssrReq>true</IssrReq><FrstTradDt>{first}T08:00:00Z</FrstTradDt>"
     if term:
         venue += f"<TermntnDt>{term}T23:59:59Z</TermntnDt>"
     deriv = f"<DerivInstrmAttrbts><UndrlygInstrm><Sngl><ISIN>{underlying}</ISIN></Sngl></UndrlygInstrm></DerivInstrmAttrbts>" if underlying else ""
     return (
         f"<FinInstrmGnlAttrbts><Id>{isin}</Id><FullNm>{name}</FullNm><ShrtNm>{short or name[:10] + "/SH"}</ShrtNm>"
-        f"<ClssfctnTp>{cfi}</ClssfctnTp><NtnlCcy>EUR</NtnlCcy><CmmdtyDerivInd>false</CmmdtyDerivInd></FinInstrmGnlAttrbts>"
+        f"<ClssfctnTp>{cfi}</ClssfctnTp><NtnlCcy>{currency}</NtnlCcy><CmmdtyDerivInd>false</CmmdtyDerivInd></FinInstrmGnlAttrbts>"
         f"<Issr>{lei}</Issr><TradgVnRltdAttrbts>{venue}</TradgVnRltdAttrbts>{deriv}"
         f"<TechAttrbts><RlvntCmptntAuthrty>NL</RlvntCmptntAuthrty><RlvntTradgVn>{relevant}</RlvntTradgVn></TechAttrbts>"
     )

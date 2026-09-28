@@ -124,9 +124,13 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
         listing = Listing(
             listing_id=f"{segment}:{isin}", source="esma_firds", row_class=rules.firds_kind(record.cfi),
             security_id=f"isin:{isin}", issuer_id=issuer.issuer_id, mic=segment, operating_mic=op,
-            country=venue.country if venue else None, currency=record.currency, name=record.full_name,
+            country=venue.country if venue else None, name=record.full_name,
+            currency=rules.trading_currency(op, venue.country if venue else None, venue.category if venue else None, record.currency),
             valid_from=record.first_trade, valid_to=record.termination,
         )
+        if listing.currency != record.currency:
+            listing.notional_currency = record.currency
+            audit["currency_from_venue"] += 1
         if row:
             _apply_figi(listing, row, record.short_name)
         listing.status, listing.status_reasons = rules.admission_status(

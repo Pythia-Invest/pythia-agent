@@ -359,6 +359,43 @@ LINDE_ISIN, LINDE_LEI = "IE000S9YS762", "5299003QR1WT0EF88V51"
 STLA_ISIN, STLA_LEI = "NL00150001Q9", "549300LKT9PW7ZIBDF31"
 
 
+class TradingCurrencyTest(unittest.TestCase):
+    def test_a_line_trades_in_its_exchanges_currency_and_keeps_its_notional_id_as_an_alias(self):
+        records = [firds_record(ASML_ISIN, "XETB", ASML_LEI, name="ASML HOLDING", relevant="XETB", currency="USD"),
+                   firds_record(DARK_ISIN, "CEUX", NN_LEI, name="DARK ONLY", relevant="CEUX", currency="USD")]
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [],
+                                     set()), gleif_fetch, FakeOpenFigi({}))
+        xetra, dark = snap.listings[f"XETB:{ASML_ISIN}"], snap.listings[f"CEUX:{DARK_ISIN}"]
+        self.assertEqual((xetra.currency, xetra.notional_currency), ("EUR", "USD"))
+        self.assertEqual(dark.currency, "USD", "a multi-currency trading-only venue keeps the notional currency")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                aliases = dict(db.execute("select old_id, new_id from id_aliases"))
+        self.assertEqual(aliases[f"listing:isin:{ASML_ISIN}:XETR:USD"], f"listing:isin:{ASML_ISIN}:XETR:EUR")
+
+    def test_a_second_line_with_a_venues_ticker_is_written_without_it(self):
+        other = "FR0000130395"
+        records = [firds_record(ASML_ISIN, "XETB", ASML_LEI, name="ASML HOLDING", relevant="XETB", currency="USD"),
+                   firds_record(other, "XETB", NN_LEI, name="OTHER", relevant="XETB")]
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        answers = {("ID_ISIN", ASML_ISIN, "XETB"): [figi_row("ASME", "GY", "BBGASMLGY001", "BBGASMLSC001")],
+                   ("ID_ISIN", other, "XETB"): [figi_row("ASME", "GY", "BBGOTHERGY01", "BBGOTHERSC01")]}
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [],
+                                     {"XETB"}), gleif_fetch, FakeOpenFigi(answers))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                lines = sorted(db.execute("select security_id, ticker from listings where mic = 'XETB'"))
+        self.assertEqual([ticker for _security, ticker in lines], ["ASME", None])  # both lines kept, one ticker
+        self.assertEqual(snap.audit["schema"]["ticker_collisions"], 1)
+
+
 class UsHomeTest(unittest.TestCase):
     """A non-US share whose only lines are European secondary ones and a US exchange line is at home in the US."""
 

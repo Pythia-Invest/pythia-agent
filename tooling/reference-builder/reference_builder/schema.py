@@ -249,6 +249,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         if security.share_class_figi:
             assert_(subject, "share_class_figi", security.share_class_figi, "openfigi")
     with_primary: set[str] = set()
+    active_lines: dict[tuple, str] = {}  # (segment, ticker, currency) of active lines: core allows one listing each
     for listing in sorted(snap.listings.values(), key=lambda l: (not l.is_primary, l.status != "active", l.listing_id)):
         subject = ids.listing(listing)
         security_id = ids.securities.get(listing.security_id or "")
@@ -256,10 +257,17 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             audit["lines_without_venue" if not listing.mic else "lines_without_currency"] += 1
             continue
         security = snap.securities[listing.security_id]
+        ticker = listing.ticker
+        if ticker and STATUS.get(listing.status) == "active":  # a second line with a venue's ticker keeps its line, not the ticker
+            if active_lines.setdefault((listing.mic, ticker, listing.currency), subject) != subject:
+                audit["ticker_collisions"] += 1
+                ticker = None
         keys = {"isin": security.isin, "figi": listing.figi, "composite_figi": listing.composite_figi}
-        for alias in aliases("listing", subject, keys, operating_mic=listing.operating_mic or listing.mic, currency=listing.currency,
-                             country=listing.country):
-            candidates[alias].add(subject)
+        # A line whose currency moved from FIRDS' notional to the trading one keeps its old ID as an alias.
+        for currency in dict.fromkeys(filter(None, (listing.currency, listing.notional_currency))):
+            for alias in aliases("listing", subject, keys, operating_mic=listing.operating_mic or listing.mic, currency=currency,
+                                 country=listing.country):
+                candidates[alias].add(subject)
         composite = None
         if listing.composite_figi and listing.country:
             composite = derive("composite", {"isin": security.isin, "share_class_figi": security.share_class_figi},
@@ -274,13 +282,13 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             with_primary.add(listing.security_id)
         tables["listings"].append({
             "id": subject, "security_id": security_id, "composite_id": composite, "mic": listing.mic,
-            "operating_mic": listing.operating_mic, "ticker": listing.ticker, "currency": listing.currency,
+            "operating_mic": listing.operating_mic, "ticker": ticker, "currency": listing.currency,
             "chain": None, "is_primary": int(listing.is_primary), "status": STATUS.get(listing.status, "unknown")})
         span = {"start": listing.valid_from, "end": listing.valid_to}
         if listing.figi:
             assert_(subject, "figi", listing.figi, "openfigi", **span)
-        if listing.ticker:
-            assert_(subject, "ticker_mic", f"{listing.ticker}@{listing.operating_mic or listing.mic}",
+        if ticker:
+            assert_(subject, "ticker_mic", f"{ticker}@{listing.operating_mic or listing.mic}",
                     listing.ticker_source or listing.source, **span)
         if listing.name != titles.get(listing.security_id):  # the security row already carries its title
             name(subject, listing.name, listing.source)

@@ -126,6 +126,7 @@ CREATE TABLE id_aliases (
   release TEXT NOT NULL,
   CHECK (old_id <> new_id)
 );
+CREATE INDEX id_aliases_new ON id_aliases (new_id);  -- the former IDs of a subject, for state stored under them
 
 -- Pythia-authored or open vocabularies the joins and rows need.
 CREATE TABLE venues (

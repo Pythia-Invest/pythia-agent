@@ -141,6 +141,7 @@ class Listing:
     ticker_class: str | None = None
     ticker_source: str | None = None
     currency: str | None = None
+    notional_currency: str | None = None  # FIRDS' instrument currency, when the line trades in another
     figi: str | None = None
     composite_figi: str | None = None
     share_class_figi: str | None = None

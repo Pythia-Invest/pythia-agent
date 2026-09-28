@@ -33,6 +33,21 @@ SPACED_CLASS_VENUES = frozenset({"XSTO", "XCSE"})
 # carries a currency, OpenFIGI's line does not). London quotes in pence; the listing's currency is GBP.
 HOME_CURRENCY = {"XLON": "GBP", "XSWX": "CHF", "XTSE": "CAD", "XASX": "AUD", "XSES": "SGD", "XTAE": "ILS",
                  "XTKS": "JPY", "XHKG": "HKD", "XJSE": "ZAR", "XNYS": "USD", "XNAS": "USD", "XASE": "USD", "ARCX": "USD"}
+# The currency lines trade in on an EEA exchange: its country's. FIRDS gives each admission the instrument's
+# notional currency (Apple is USD on Xetra, where it trades in EUR). Venues that trade several currencies
+# (the pan-European trading-only venues, systematic internalisers, OTFs) keep the notional one.
+NATIONAL_CURRENCY = dict.fromkeys("AT BE BG HR CY EE FI FR DE GR IE IT LV LT LU MT NL PT SK SI ES".split(), "EUR") | {
+    "SE": "SEK", "DK": "DKK", "NO": "NOK", "PL": "PLN", "CZ": "CZK", "HU": "HUF", "RO": "RON", "IS": "ISK", "LI": "CHF"}
+MULTI_CURRENCY_CATEGORIES = frozenset({"SINT", "OTFS"})
+
+
+def trading_currency(operating_mic: str | None, country: str | None, category: str | None, notional: str | None) -> str | None:
+    """The currency a FIRDS line trades in: the exchange country's, else (a multi-currency venue) the notional one."""
+    if operating_mic in TRADING_ONLY_VENUES or category in MULTI_CURRENCY_CATEGORIES:
+        return notional
+    return NATIONAL_CURRENCY.get(country or "", notional)
+
+
 US_EXCHANGE_MIC = {"UN": "XNYS", "UW": "XNAS", "UQ": "XNAS", "UR": "XNAS", "UA": "XASE", "UP": "ARCX"}
 # Main OpenFIGI exchange code per operating MIC (derived from micCode-qualified answers).
 MAIN_EXCH_CODE = {

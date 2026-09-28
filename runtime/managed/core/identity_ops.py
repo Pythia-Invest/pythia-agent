@@ -198,12 +198,18 @@ class Identity:
             if subject is None:
                 return path, None, {}, "Unknown subject."
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+            subject_ids = [value for value in subject["ids"].values() if value]
+            # A binding stored under an ID the subject had before a re-key (id_aliases) still serves it.
+            former = dict(ref.execute(f"SELECT old_id, new_id FROM id_aliases WHERE new_id IN ({','.join('?' * len(subject_ids))})",
+                                      subject_ids).fetchall())
         finally:
             ref.close()
         identity_store = self.store
-        subject_ids = [value for value in subject["ids"].values() if value]
-        stored = {(row["subject_id"], row["provider"]): row
-                  for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
+        stored: dict = {}
+        for row in identity_store.bindings([*subject_ids, *former], ("confirmed", "conflicting")):
+            key = (former.get(row["subject_id"], row["subject_id"]), row["provider"])
+            if row["subject_id"] not in former or key not in stored:  # one under the current ID wins
+                stored[key] = row
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id)}

@@ -253,5 +253,25 @@ class TransportTest(QueueFixture):
         del core
 
 
+    def test_a_binding_stored_under_a_former_id_still_serves_the_subject(self):
+        load_core()
+        from pythia_core_queue_fixture import identity_ops
+        builds = Path(self.tmp.name) / "builds"
+        builds.mkdir()
+        (builds / self.path.name).write_bytes(self.path.read_bytes())
+        former = "listing:isin:NL0010273215:XAMS:USD"  # the ID before the line took its trading currency
+        with sqlite3.connect(builds / self.path.name) as db:
+            db.execute("INSERT INTO release (key, value) VALUES ('schema_version', ?)", (store.REFERENCE_SCHEMA_VERSION,))
+            db.execute("INSERT INTO id_aliases VALUES (?, ?, 'test')", (former, ASML))
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        ops.store.put_binding(identity.Binding(provider_ref=identity.ProviderRef("eodhd", "ASML.AS", "catalogue"),
+                                               subject_id=former, status="confirmed", authority="rule_confirmed",
+                                               evidence_ids=("ev:test",), plugin="eodhd", rule_id="resolve_answer@1"))
+        with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}):
+            _path, _subject, lookups, _issue = ops._load(ASML)
+        ops.store.db.close()
+        self.assertEqual(lookups["stored"](ASML, "eodhd")["native_id"], "ASML.AS")
+
+
 if __name__ == "__main__":
     unittest.main()

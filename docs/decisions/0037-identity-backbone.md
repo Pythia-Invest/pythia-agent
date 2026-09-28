@@ -52,7 +52,8 @@ that is aliased once the FIGI appears. New evidence
 therefore never re-keys a subject. The builder writes deterministic aliases,
 every other key a subject could have had (for example `security:isin:US…` and
 `listing:figi:…` for an ISIN-keyed EU line), into `id_aliases`, so an old or
-foreign ID resolves without the previous build. A changed rule is a new
+foreign ID resolves without the previous build, and a binding stored under an
+old ID still serves the subject. A changed rule is a new
 version (`subject_key@2`) with aliases from the old IDs.
 
 Installs and rebuilds agree on every ID. Venue lines with

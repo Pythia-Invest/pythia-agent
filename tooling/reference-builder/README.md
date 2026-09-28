@@ -73,6 +73,16 @@ table under `writer_ignored`.
   Amsterdam, Euronext Milan, Frankfurt, Tradegate), then the earliest
   listing. Regulated markets, growth markets, the German regional exchanges
   and Tradegate all stay.
+- **Trading currency.** FIRDS gives each admission the instrument's notional
+  currency (Apple is USD on Xetra). A line on an EEA exchange trades in its
+  country's currency (`rules.NATIONAL_CURRENCY`: EUR in the euro area, SEK,
+  DKK, NOK, PLN, CZK, HUF, RON, ISK); the pan-European trading-only venues,
+  systematic internalisers and OTFs trade several currencies and keep the
+  notional one. Listing IDs carry the currency, so a line whose currency moved
+  keeps its notional-currency ID as an alias. Home and ETF lines outside FIRDS
+  take theirs from `rules.HOME_CURRENCY` and OpenFIGI's currency filter. A
+  second active line with a venue's ticker in one currency is written without
+  that ticker (`ticker_collisions`), never dropped.
 - **One line per venue operator.** A venue's segments (lit, off-book,
   midpoint, auction, a second retail book) are one listing, as core keys a
   listing by operating MIC and currency: the operator's own MIC wins, then a
