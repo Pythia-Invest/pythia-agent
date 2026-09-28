@@ -449,8 +449,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "crypto",
-            "id": "crypto:fictional"
+            "kind": "security",
+            "id": "security:provisional:fictional:coin:fictional-coin"
           }
         },
         "window": {
@@ -474,8 +474,8 @@
         "schema_version": 1,
         "id": "series:synthetic-crypto-sample",
         "subject": {
-          "kind": "crypto",
-          "id": "crypto:fictional"
+          "kind": "security",
+          "id": "security:provisional:fictional:coin:fictional-coin"
         },
         "provider_ref": {
           "provider": "synthetic_crypto",
@@ -531,8 +531,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "crypto",
-            "id": "crypto:fictional"
+            "kind": "security",
+            "id": "security:provisional:fictional:coin:fictional-coin"
           }
         },
         "reason": "preference",
@@ -593,8 +593,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "crypto",
-            "id": "crypto:fictional"
+            "kind": "security",
+            "id": "security:provisional:fictional:coin:fictional-coin"
           }
         },
         "window": {
@@ -618,8 +618,8 @@
         "schema_version": 1,
         "id": "series:synthetic-crypto-sample",
         "subject": {
-          "kind": "crypto",
-          "id": "crypto:fictional"
+          "kind": "security",
+          "id": "security:provisional:fictional:coin:fictional-coin"
         },
         "provider_ref": {
           "provider": "synthetic_crypto",
@@ -675,8 +675,8 @@
         "view": {
           "kind": "pythia",
           "subject": {
-            "kind": "crypto",
-            "id": "crypto:fictional"
+            "kind": "security",
+            "id": "security:provisional:fictional:coin:fictional-coin"
           }
         },
         "reason": "preference",
@@ -2912,33 +2912,6 @@
     "structural": false
   },
   {
-    "name": "identity_scope",
-    "kind": "mapping",
-    "value": {
-      "schema_version": 1,
-      "id": "mapping:synthetic-1",
-      "provider_ref": {
-        "provider": "synthetic_equity",
-        "native_id": "contract-17",
-        "native_scope": "contract",
-        "qualifiers": {
-          "currency": "USD",
-          "route": "SMART"
-        }
-      },
-      "target": {
-        "kind": "instrument",
-        "id": "company:fictional"
-      },
-      "status": "candidate",
-      "evidence_ids": ["evidence:synthetic-1"],
-      "rule_version": "synthetic-1",
-      "revision": 1,
-      "active_override": null
-    },
-    "structural": false
-  },
-  {
     "name": "isin_listing_claim",
     "kind": "evidence",
     "value": {
@@ -3000,33 +2973,6 @@
         "end": null
       },
       "authority": "source_asserted"
-    },
-    "structural": false
-  },
-  {
-    "name": "confirmed_without_evidence",
-    "kind": "mapping",
-    "value": {
-      "schema_version": 1,
-      "id": "mapping:synthetic-1",
-      "provider_ref": {
-        "provider": "synthetic_equity",
-        "native_id": "contract-17",
-        "native_scope": "contract",
-        "qualifiers": {
-          "currency": "USD",
-          "route": "SMART"
-        }
-      },
-      "target": {
-        "kind": "instrument",
-        "id": "instrument:fictional"
-      },
-      "status": "confirmed",
-      "evidence_ids": [],
-      "rule_version": "synthetic-1",
-      "revision": 1,
-      "active_override": null
     },
     "structural": false
   },
@@ -4821,5 +4767,22 @@
       },
       "market_data_type": "delayed"
     }
+  },
+  {
+    "name": "subject_level_differs",
+    "kind": "subject",
+    "value": {
+      "kind": "listing",
+      "id": "security:provisional:fictional:coin:fictional-coin"
+    }
+  },
+  {
+    "name": "retired_subject_kind",
+    "kind": "subject",
+    "value": {
+      "kind": "instrument",
+      "id": "instrument:fictional"
+    },
+    "structural": true
   }
 ]
