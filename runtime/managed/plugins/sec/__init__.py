@@ -71,11 +71,11 @@ class Reader:
             budget = self.connector.connection('sec', contact, concurrency=2, per_minute=120)
             reuse = not refresh and (scope is None or scope.get('cacheable', False))
 
-            def fetch(endpoint, number=None, page=None, timeout=15):
+            def fetch(endpoint, number=None, page=None, timeout=15, fresh=False):
                 request = {'operation': endpoint, 'contact': contact, **({'cik': number} if number else {}),
                            **({'page': page} if page else {})}
                 return self.reads.read([__file__], request, {}, cancelled=cancelled, cache_scope=scope,
-                                       age=AGES[endpoint] if reuse else 0, budget=budget, timeout=timeout)
+                                       age=AGES[endpoint] if reuse and not fresh else 0, budget=budget, timeout=timeout)
 
             if operation == 'resolve':
                 return self.resolve(clean, fetch)
@@ -107,8 +107,7 @@ class Reader:
                 raise ValueError('invalid_request')
             raw = fetch('companyfacts', number)
             if operation == 'fundamentals':
-                result = financials.fundamentals(raw['data'], number, raw['observed_at'], clean.get('limit', 20))
-                return envelope(result, self.freshness(result, raw['data'], number, fetch))
+                return self.fundamentals(raw, number, fetch, clean.get('limit', 20))
             return envelope(financials.native_facts(raw['data'], number, raw['observed_at'],
                 clean['taxonomy'], clean['concepts'], clean.get('limit', 100)))
         except (ValueError, KeyError, TypeError) as error:
@@ -120,35 +119,45 @@ class Reader:
             return self.connector.qualify_failure(failure(detail['code'], detail['message']), getattr(error, 'raw', {}))
 
     def drift(self, operation, drift):
-        """The warning for unexpected SEC input, also logged for maintainers; empty when there is none."""
+        """Unexpected SEC input, logged for maintainers; a warning only when it changes the rows."""
         issue = filings.drift_issue(drift)
-        if issue is None:
-            return []
-        for kind, values in drift.items():
-            self.connector.emit('source_drift', level='warning', provider='sec', operation=operation, code=kind,
-                                count=sum(values.values()))
-        return [issue]
+        for kind, values in (drift or {}).items():
+            self.connector.emit('source_drift', level='info' if kind == 'unknown_form' else 'warning', provider='sec',
+                                operation=operation, code=kind, count=sum(values.values()))
+        return [] if issue is None else [issue]
 
-    def freshness(self, result, facts, number, fetch):
-        """Mark `result` stale, visibly, when companyfacts lacks the latest periodic report; its warnings."""
+    def fundamentals(self, raw, number, fetch, limit):
+        """Fundamentals marked stale, visibly, when companyfacts lacks the latest periodic report.
+
+        A retained companyfacts copy read before that report was accepted is read once more first, so the alarm
+        reports SEC's lag, not the cache's."""
         try:
-            state = financials.freshness(fetch('submissions', number)['data'], facts, number)
+            submissions = fetch('submissions', number)
+            state = financials.freshness(submissions['data'], raw['data'], number, submissions['observed_at'])
+            if state and state['status'] == 'stale' and financials.read_before(raw['observed_at'], state['latest_filing']):
+                try:
+                    current = fetch('companyfacts', number, fresh=True)
+                    state = financials.freshness(submissions['data'], current['data'], number, submissions['observed_at'])
+                    raw = current
+                except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+                    pass  # the retained copy stays, marked stale
         except (RuntimeError, OSError, ValueError, KeyError, TypeError):
             state = {'status': 'unknown', 'latest_filing': None, 'reason': 'SEC\'s filing list could not be read, '
                      'so whether these facts include the latest report is unknown.'}
+        result = financials.fundamentals(raw['data'], number, raw['observed_at'], limit)
         if state is None:  # nothing to check against, which is not a warning
             result['freshness'] = {'status': 'unknown', 'latest_filing': None,
                                    'reason': 'SEC lists no recent 10-K, 10-Q, 20-F or 40-F with XBRL for this filer.'}
-            return []
+            return envelope(result)
         result['freshness'] = state
         if state['status'] == 'fresh':
-            return []
+            return envelope(result)
         result['limitations'].insert(0, state['reason'])
         if state['status'] == 'stale':
             self.connector.emit('source_drift', level='warning', provider='sec', operation='fundamentals',
                                 code='companyfacts_behind', count=1)
-        return [{'code': 'stale' if state['status'] == 'stale' else 'freshness_unknown', 'severity': 'warning',
-                 'message': state['reason']}]
+        return envelope(result, [{'code': 'stale' if state['status'] == 'stale' else 'freshness_unknown',
+                                  'severity': 'warning', 'message': state['reason']}])
 
     @staticmethod
     def resolve(clean, fetch):

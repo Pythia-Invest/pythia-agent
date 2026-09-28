@@ -3,9 +3,10 @@
 Public format: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
 No synthetic TTM, quarterly subtraction, or currency conversion is performed.
 """
-from datetime import date
+from datetime import date, datetime, timezone
 import math
 import re
+from zoneinfo import ZoneInfo
 
 from .identity import cik, reference
 
@@ -43,6 +44,36 @@ def checked_date(value):
         raise ValueError('invalid_response')
     date.fromisoformat(value)
     return value
+
+
+EASTERN = ZoneInfo('America/New_York')
+ACCEPTED = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z')
+
+
+def eastern_date(observed_at):
+    """The Eastern calendar date of an ISO read time (a naive time is UTC)."""
+    moment = datetime.fromisoformat(observed_at)
+    return (moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)).astimezone(EASTERN).date().isoformat()
+
+
+def accepted_utc(value, filed_at, read_day):
+    """EDGAR's `acceptanceDateTime` as a true UTC time ('...Z'), or None when it is not a well-formed time.
+
+    The value always ends in Z, but until SEC's nightly rebuild of the submissions files rewrites it, it is the
+    Eastern wall-clock time. Measured on 2026-09-28 against the current feed's explicit offsets: every filing
+    whose `filingDate` was the reading day or later was Eastern, including those accepted after 17:30 ET on the
+    previous business day. Filings of earlier days were UTC, including a Form 4 accepted at 21:57 ET that Friday.
+    So a filing dated on or after `read_day` (the Eastern date of the read) is read as America/New_York.
+    Known gap: a filing accepted at a weekend but dated to the previous business day stays Eastern until the next
+    rebuild, and is read as UTC."""
+    if not isinstance(value, str) or not ACCEPTED.fullmatch(value):
+        return None
+    try:
+        naive = datetime.fromisoformat(value[:19])
+    except ValueError:
+        return None
+    zone = EASTERN if filed_at >= read_day else timezone.utc
+    return naive.replace(tzinfo=zone).astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def filing_url(identifier, accession, document=None):
@@ -160,14 +191,14 @@ PERIODIC_FORMS = frozenset({'10-K', '10-Q', '20-F', '40-F'})
 STATEMENT_TAXONOMIES = ('us-gaap', 'ifrs-full')
 
 
-def freshness(submissions, raw, identifier):
+def freshness(submissions, raw, identifier, observed_at):
     """Whether companyfacts includes the filer's latest periodic report with XBRL (drift alarm, not a fallback).
 
     The newest 10-K, 10-Q, 20-F or 40-F flagged `isXBRL` in `submissions` must appear as the accession of at
     least one us-gaap or ifrs-full fact. A cover-page (`dei`) fact alone does not count: in 2026 companyfacts kept
     only one `dei` fact of several filers' 20-Fs and none of their statements. Amendments are not checked, since
-    many carry no statements. Answers {'status': 'fresh' | 'stale' | 'unknown', 'reason', 'latest_filing'}, or None
-    when the filer has no such report to check against."""
+    many carry no statements. `observed_at` is when `submissions` was read. Answers {'status': 'fresh' | 'stale' |
+    'unknown', 'reason', 'latest_filing'}, or None when the filer has no such report to check against."""
     identifier = cik(identifier)
     if not isinstance(submissions, dict) or cik(submissions.get('cik')) != identifier:
         raise ValueError('invalid_response')
@@ -184,7 +215,10 @@ def freshness(submissions, raw, identifier):
     if latest is None:
         return None
     filing = {'accession': recent['accessionNumber'][latest], 'form': recent['form'][latest],
-              'filed_at': checked_date(recent['filingDate'][latest])}
+              'filed_at': checked_date(recent['filingDate'][latest]), 'accepted_at': None}
+    accepted = recent.get('acceptanceDateTime')
+    if isinstance(accepted, list) and len(accepted) == len(recent['form']):
+        filing['accepted_at'] = accepted_utc(accepted[latest], filing['filed_at'], eastern_date(observed_at))
     facts = _concepts(raw, identifier)
     present = any(isinstance(row, dict) and row.get('accn') == filing['accession']
                   for taxonomy in STATEMENT_TAXONOMIES for item in (facts.get(taxonomy) or {}).values()
@@ -196,6 +230,16 @@ def freshness(submissions, raw, identifier):
         f"Stale: SEC's companyfacts does not include the financial statements of the filer's latest "
         f"{filing['form']} (filed {filing['filed_at']}, accession {filing['accession']}), so these facts may be a "
         f"period or more behind. That filing itself is the current source.")}
+
+
+def read_before(observed_at, filing):
+    """Whether companyfacts read at `observed_at` predates `filing` (its acceptance, else its filing day), so a
+    retained copy cannot hold it yet."""
+    if filing.get('accepted_at'):
+        moment = datetime.fromisoformat(observed_at)
+        moment = moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+        return moment < datetime.fromisoformat(filing['accepted_at'].replace('Z', '+00:00'))
+    return eastern_date(observed_at) <= filing['filed_at']
 
 
 def native_facts(raw, identifier, observed_at, taxonomy, concepts, limit=100):

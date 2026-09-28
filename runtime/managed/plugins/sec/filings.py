@@ -2,10 +2,9 @@
 
 Public format: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
 """
-from datetime import datetime
 import re
 
-from .financials import checked_date, filing_url
+from .financials import accepted_utc, checked_date, eastern_date, filing_url
 from .identity import cik, reference, submissions_url
 
 # Investor-facing descriptions; the native form remains a separate field.
@@ -31,8 +30,9 @@ FILING_TITLES = {
 # hundreds of Forms 4 do not crowd out the reports; naming one of them in `forms` reads it.
 OWNERSHIP_FORMS = frozenset({'3', '4', '5', '144', 'SC 13G', 'SCHEDULE 13G'})
 # Forms SEC is known to list, shown by their native name. With FILING_TITLES and OWNERSHIP_FORMS this is the
-# vocabulary a response is checked against: any other form is still listed but counted as drift, so a rename (as
-# SC 13G became SCHEDULE 13G) is noticed rather than silently escaping the ownership filter or the titles.
+# vocabulary a response is checked against: any other form is still listed but logged as drift for maintainers, so
+# a rename (as SC 13G became SCHEDULE 13G) is noticed rather than silently escaping the ownership filter or the
+# titles.
 # Seen across 28 filers' submissions (large and small caps, banks, funds, 20-F and 40-F filers), 2026-09.
 UNTITLED_FORMS = frozenset({
     '10-12B', '10-12G', '11-K', '13F-NT', '15-12B', '15-12G', '15F-12B', '25', '25-NSE', '40-17G', '40-33', '40-APP',
@@ -67,17 +67,6 @@ def filing_title(form):
 REQUIRED = ('accessionNumber', 'form', 'filingDate', 'primaryDocument')
 # Read when present. Each is a column as long as the required ones; a missing column is drift, not a failure.
 OPTIONAL = ('acceptanceDateTime', 'items', 'primaryDocDescription', 'isInlineXBRL', 'size')
-ACCEPTED = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z')
-
-
-def accepted_time(value):
-    """Whether `value` is an EDGAR acceptance time: an ISO date-time in UTC."""
-    try:
-        return isinstance(value, str) and bool(ACCEPTED.fullmatch(value)) and bool(datetime.fromisoformat(value[:19]))
-    except ValueError:
-        return False
-
-
 def drift_count(drift, kind, value):
     """Count one unexpected input under `kind` (docs/architecture/source-onboarding.md: counted, never coerced)."""
     counts = drift.setdefault(kind, {})
@@ -93,11 +82,12 @@ def _optional(block, key, index, drift):
     return column[index]
 
 
-def _block(block, identifier, drift):
+def _block(block, identifier, drift, read_day):
     """The rows of one columnar submissions block (`filings.recent`, or an older page), newest first.
 
-    Field meanings (EDGAR submissions API): `acceptanceDateTime` is when EDGAR accepted the filing, in UTC; a filing
-    accepted after 17:30 ET carries the next business day as its `filingDate`. `items` are Form 8-K item numbers
+    Field meanings (EDGAR submissions API): `acceptanceDateTime` is when EDGAR accepted the filing, kept in true UTC
+    (see `accepted_utc`: SEC labels recent Eastern times as UTC); a filing accepted after 17:30 ET usually carries
+    the next business day as its `filingDate`. `items` are Form 8-K item numbers
     only for 8-K; other forms put other values there (dates, form names), which are not read. `size` is the whole
     submission in bytes, every document included, not the primary document. Unexpected input is counted in
     `drift` and left out, never reinterpreted."""
@@ -124,9 +114,8 @@ def _block(block, identifier, drift):
         if index < len(report_dates) and report_dates[index]:
             row['period_end'] = checked_date(report_dates[index])
         accepted = _optional(block, 'acceptanceDateTime', index, drift)
-        if accepted_time(accepted):
-            row['accepted_at'] = accepted
-        elif accepted is not None:
+        row['accepted_at'] = accepted_utc(accepted, row['filed_at'], read_day)
+        if accepted is not None and row['accepted_at'] is None:
             drift_count(drift, 'malformed', 'acceptanceDateTime')
         description = _optional(block, 'primaryDocDescription', index, drift)
         if isinstance(description, str):
@@ -184,10 +173,11 @@ def filings(raw, identifier, observed_at, limit=20, forms=None, pages=()):
     if not isinstance(filing_data, dict):
         raise ValueError('invalid_response')
     forms = [item.upper() for item in forms or []]
+    read_day = eastern_date(observed_at)
     blocks = [filing_data.get('recent', {}), *pages]
     rows, scanned, omitted, oldest, drift = [], 0, 0, None, {}
     for block in blocks:
-        for row in _block(block, identifier, drift):
+        for row in _block(block, identifier, drift, read_day):
             scanned += 1
             oldest = row['filed_at']
             if not forms and ownership(row['form']):
@@ -214,11 +204,17 @@ def filings(raw, identifier, observed_at, limit=20, forms=None, pages=()):
     return result
 
 
+# Drift a caller should see, because it changes a field it reads. An unknown form does not: the filing is listed
+# under SEC's own name, so it is only logged (funds and ETFs file many forms outside the vocabulary).
+VISIBLE_DRIFT = ('malformed', 'missing_field', 'unknown_8k_item')
+
+
 def drift_issue(drift):
-    """A warning naming unexpected SEC input, or None."""
-    if not drift:
+    """A warning naming unexpected SEC input that changes the rows, or None."""
+    shown = {kind: values for kind, values in (drift or {}).items() if kind in VISIBLE_DRIFT}
+    if not shown:
         return None
-    named = [f'{kind.replace("_", " ")}: {", ".join(sorted(values)[:5])}' for kind, values in sorted(drift.items())]
+    named = [f'{kind.replace("_", " ")}: {", ".join(sorted(values)[:5])}' for kind, values in sorted(shown.items())]
     return {'code': 'drift', 'severity': 'warning',
             'message': 'SEC returned input Pythia does not recognise (' + '; '.join(named) + '). The filings are '
-                       'still listed as SEC names them; malformed fields are left empty.'}
+                       'still listed; malformed or missing fields are left empty.'}

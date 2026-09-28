@@ -41,7 +41,9 @@ FILINGS_SCHEMA = {
         "forms": {"type": "array", "minItems": 1, "maxItems": 8,
                   "items": {"type": "string", "minLength": 1, "maxLength": 16},
                   "description": "Only these forms (10-K, 20-F, ESEF; AFR or annual for annual reports); an "
-                                 "amendment matches its form. Sources search beyond their most recent filings."}},
+                                 "amendment matches its form. Sources search beyond their most recent filings. "
+                                 "Without forms, SEC insider and major-holder filings are left out; name them "
+                                 "(3, 4, 5, 144, 13G) to read them."}},
         "required": ["subject_id"], "additionalProperties": False},
 }
 def _envelope(outcome: str, data: Any, issue: str | None = None) -> str:

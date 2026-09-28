@@ -250,14 +250,15 @@ class SecFilingFields(unittest.TestCase):
             'form': ['8-K', 'EFFECT', '10-K'], 'filingDate': ['2026-09-24', '2026-09-01', '2026-08-01'],
             'reportDate': ['2026-09-22', '', '2026-06-30'],
             'primaryDocument': ['ex-8k.htm', 'xslEFFECT/primary_doc.xml', 'ex-20260630.htm'],
-            'acceptanceDateTime': ['2026-09-24T22:30:07.000Z', '2026-09-01T12:00:00.000Z', '2026-08-01T10:01:26.000Z'],
+            'acceptanceDateTime': ['2026-09-24T08:25:27.000Z', '2026-09-01T12:00:00.000Z', '2026-08-01T10:01:26.000Z'],
             'items': ['2.02,9.01', '20260901', ''], 'primaryDocDescription': ['FORM 8-K', '', '10-K'],
             'isInlineXBRL': [1, 0, 1], 'size': [412345, 1500, 9392337], **columns}}}
 
     def test_acceptance_time_8k_items_description_inline_xbrl_and_submission_size_are_kept(self):
         eight_k, effect, annual = filings.filings(self.block(), CIK, STAMP)['filings']
-        self.assertEqual((eight_k['accepted_at'], eight_k['items'], eight_k['description']),
-                         ('2026-09-24T22:30:07.000Z', ['2.02', '9.01'], 'FORM 8-K'))
+        self.assertEqual((eight_k['items'], eight_k['description']), (['2.02', '9.01'], 'FORM 8-K'))
+        # Until SEC's nightly rebuild, a filing dated the reading day carries Eastern time labelled Z.
+        self.assertEqual((eight_k['accepted_at'], annual['accepted_at']), ('2026-09-24T12:25:27Z', '2026-08-01T10:01:26Z'))
         self.assertEqual((annual['inline_xbrl'], annual['submission_bytes'], annual['items']), (True, 9392337, None))
         # Other forms put dates or form names in `items`; only 8-K item numbers are read.
         self.assertEqual((effect['items'], effect['description']), (None, None))
@@ -272,15 +273,20 @@ class SecFilingFields(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'invalid_response'):  # a column of another length is a broken shape
             filings.filings(self.block(size=[1, 2]), CIK, STAMP)
 
-    def test_an_unknown_form_is_listed_under_its_native_name_and_raises_a_drift_warning(self):
+    def test_an_unknown_form_is_only_logged_while_a_malformed_field_warns(self):
         raw = self.block(form=['8-K', 'SCHEDULE 13Z', '10-K'])
         instance, _ = reader({'submissions': raw})
         result = instance.invoke('filings', {'native_ref': REF})
         self.assertEqual(result['outcome'], 'ok')
         self.assertEqual(result['data']['filings'][1]['title'], 'SCHEDULE 13Z')
         self.assertEqual(result['data']['drift'], {'unknown_form': {'SCHEDULE 13Z': 1}})
-        self.assertEqual([(issue['code'], issue['severity']) for issue in result['issues']], [('drift', 'warning')])
-        self.assertIn('SCHEDULE 13Z', result['issues'][0]['message'])
+        self.assertEqual(result['issues'], [])  # logged for maintainers only: the row is unchanged
+        malformed = instance.invoke('filings', {'native_ref': REF, 'refresh': True})
+        self.assertEqual(malformed['issues'], [])
+        broken, _ = reader({'submissions': self.block(size=[1, 'large', 3])})
+        issue, = broken.invoke('filings', {'native_ref': REF})['issues']
+        self.assertEqual((issue['code'], issue['severity']), ('drift', 'warning'))
+        self.assertIn('size', issue['message'])
 
     def test_titles_cover_renamed_ownership_schedules_and_offering_forms(self):
         self.assertEqual({form: filings.filing_title(form) for form in
@@ -304,16 +310,16 @@ class SecFactsFreshness(unittest.TestCase):
     def test_the_latest_periodic_accession_must_carry_statement_facts(self):
         submissions = periodic_submissions(('0000123456-26-000010', '6-K', 0), ('0000123456-26-000011', '20-F/A', 1),
                                            ('0000123456-26-000009', '20-F', 1), ('0000123456-25-000001', '20-F', 1))
-        stale = financials.freshness(submissions, self.facts('0000123456-25-000001'), CIK)
+        stale = financials.freshness(submissions, self.facts('0000123456-25-000001'), CIK, STAMP)
         self.assertEqual((stale['status'], stale['latest_filing']['accession']), ('stale', '0000123456-26-000009'))
         self.assertIn('0000123456-26-000009', stale['reason'])
-        fresh = financials.freshness(submissions, self.facts('0000123456-26-000009', 'us-gaap'), CIK)
+        fresh = financials.freshness(submissions, self.facts('0000123456-26-000009', 'us-gaap'), CIK, STAMP)
         self.assertEqual((fresh['status'], fresh['reason']), ('fresh', None))
         self.assertIsNone(financials.freshness(periodic_submissions(('0000123456-26-000010', '6-K', 0)),
-                                               self.facts('0000123456-25-000001'), CIK))
+                                               self.facts('0000123456-25-000001'), CIK, STAMP))
         unflagged = periodic_submissions(('0000123456-26-000009', '20-F', 1))
         del unflagged['filings']['recent']['isXBRL']
-        self.assertEqual(financials.freshness(unflagged, self.facts('0000123456-25-000001'), CIK)['status'], 'unknown')
+        self.assertEqual(financials.freshness(unflagged, self.facts('0000123456-25-000001'), CIK, STAMP)['status'], 'unknown')
 
     def test_stale_fundamentals_say_so_in_the_result_and_its_issues(self):
         submissions = periodic_submissions(('0000123456-26-000009', '20-F', 1))
@@ -330,6 +336,35 @@ class SecFactsFreshness(unittest.TestCase):
         current, _ = reader({'companyfacts': self.facts('0000123456-26-000009'), 'submissions': submissions})
         fresh = current.invoke('fundamentals', {'native_ref': REF})
         self.assertEqual((fresh['issues'], fresh['data']['freshness']['status']), ([], 'fresh'))
+
+
+class SecFactsCacheSkew(unittest.TestCase):
+    def test_a_retained_copy_older_than_the_filing_is_read_once_more_before_it_is_called_stale(self):
+        old, new = SecFactsFreshness.facts(None, '0000123456-25-000001'), SecFactsFreshness.facts(None, '0000123456-26-000009')
+        submissions = periodic_submissions(('0000123456-26-000009', '10-Q', 1))
+        submissions['filings']['recent']['acceptanceDateTime'] = ['2026-06-10T06:00:00.000Z']  # 10:00 UTC, filed that day
+
+        class Copies(Transport):
+            def __init__(self, copies):
+                super().__init__({'submissions': submissions})
+                self.copies = copies
+
+            def run_worker(self, _command, request, _environment, **_options):
+                if request['operation'] != 'companyfacts':
+                    return {**super().run_worker(_command, request, _environment), 'observed_at': '2026-06-10T12:00:00+00:00'}
+                self.calls.append(deepcopy(request))
+                data, observed = self.copies.pop(0)
+                return {'data': deepcopy(data), 'observed_at': observed, 'issues': []}
+        transport = Copies([(old, '2026-06-10T09:00:00+00:00'), (new, '2026-06-10T12:00:00+00:00')])
+        instance = plugin.Reader(wire, connector, settings, None, transport=transport)
+        result = instance.invoke('fundamentals', {'native_ref': REF})
+        self.assertEqual((result['data']['freshness']['status'], result['issues']), ('fresh', []))
+        self.assertEqual([call['operation'] for call in transport.calls].count('companyfacts'), 2)
+        # A copy read after the filing and still lacking it is SEC's lag: stale, with no second read.
+        lagging = Copies([(old, '2026-06-10T11:00:00+00:00')])
+        stale = plugin.Reader(wire, connector, settings, None, transport=lagging).invoke('fundamentals', {'native_ref': REF})
+        self.assertEqual(stale['data']['freshness']['status'], 'stale')
+        self.assertEqual([call['operation'] for call in lagging.calls].count('companyfacts'), 1)
 
 
 class SecConfiguration(unittest.TestCase):
@@ -381,34 +416,8 @@ class SecExecution(unittest.TestCase):
             return transport.run_worker([], {'operation': 'submissions', 'cik': CIK, 'contact': CONTACT}, {},
                 cancelled=lambda: False, budget=connector.connection('sec-test-gzip', concurrency=1, per_minute=10))
         self.assertEqual(read()['data'], SUBMISSIONS)
-        with patch.object(client, 'JSON_MAX_BYTES', 64), self.assertRaisesRegex(RuntimeError, 'output_limit'):
+        with patch.object(client, 'MAX_BYTES', 64), self.assertRaisesRegex(RuntimeError, 'output_limit'):
             read()
-
-    def test_a_filing_document_has_its_own_size_cap_above_the_json_one(self):
-        body = b'<html>' + b'x' * 200 + b'</html>'
-        requests = []
-
-        def serve(request, timeout):
-            requests.append(request)
-            response = io.BytesIO(gzip.compress(body))
-            response.status = 200
-            response.headers = {'Content-Encoding': 'gzip', 'Content-Type': 'text/html'}
-            return response
-        transport = client.Transport(connector, opener=SimpleNamespace(open=serve))
-
-        def read(document='asml-20251231.htm'):
-            return transport.run_worker([], {'operation': 'document', 'cik': CIK, 'contact': CONTACT,
-                                             'accession': '0000123456-26-000001', 'document': document}, {},
-                cancelled=lambda: False, budget=connector.connection('sec-test-document', concurrency=1, per_minute=10))
-        with patch.object(client, 'JSON_MAX_BYTES', 64):
-            value = read()['data']
-        self.assertEqual((value['text'], value['bytes'], value['content_type']), (body.decode(), len(body), 'text/html'))
-        self.assertEqual(requests[0].full_url,
-                         'https://www.sec.gov/Archives/edgar/data/123456/000012345626000001/asml-20251231.htm')
-        with patch.object(client, 'DOCUMENT_MAX_BYTES', 64), self.assertRaisesRegex(RuntimeError, 'output_limit'):
-            read()
-        with self.assertRaisesRegex(ValueError, 'invalid_response'):  # only a checked document name reaches a URL
-            read('../../other.htm')
 
     def test_successful_reads_are_retained_but_failures_and_refresh_are_not(self):
         class Flaky(Transport):

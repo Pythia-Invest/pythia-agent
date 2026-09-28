@@ -168,7 +168,8 @@ searches by form (SEC scans its whole recent list and up to three older pages
 back five years, so a 10-K is not crowded out by Forms 4 and 8-K) and core
 filters every answer. Without `forms`, SEC leaves out insider and major-holder
 ownership filings (Forms 3, 4, 5, 144 and Schedule 13G), so a default read shows
-the reports; naming one of those forms reads it. `use` names one source, by plugin id, provider, label or
+the reports; naming one of those forms reads it (`13G` matches both SEC names).
+`use` names one source, by plugin id, provider, label or
 a common name (sec, edgar, esef). A source serving several authorities
 (filings.xbrl.org: ESMA and FCA) tags each item by the filer's country. Each
 source runs only if Pythia may run its native tool for this caller
