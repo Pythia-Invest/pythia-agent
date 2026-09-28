@@ -6,14 +6,18 @@ paths:
   - "runtime/managed/runner/{coingecko,ibkr}/**/*"
   - "runtime/contracts/financial-data.md"
   - "packages/market-data/**/*"
-  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody}.md"
+  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody,source-onboarding}.md"
+  - "docs/sources/**/*"
+  - "tooling/reference-builder/**/*"
 globs:
   - "runtime/managed/plugins/**/*"
   - "runtime/managed/runner/{eodhd*,yahoo*,provider-*}.ts"
   - "runtime/managed/runner/{coingecko,ibkr}/**/*"
   - "runtime/contracts/financial-data.md"
   - "packages/market-data/**/*"
-  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody}.md"
+  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody,source-onboarding}.md"
+  - "docs/sources/**/*"
+  - "tooling/reference-builder/**/*"
 ---
 
 # Financial connectors
@@ -48,6 +52,22 @@ useful native detail through the supported source-detail or specialist surface.
 Preferred reads follow compatible preferences; retained pins preserve their
 series. A failed selected source never authorizes fallback or history stitching.
 See [selection and actions](../../packages/market-data/BACKEND.md).
+
+## Onboarding a source
+
+Onboard reference sources and provider plugins one at a time through the stages
+in [source onboarding](../../docs/architecture/source-onboarding.md)
+([ADR 0042](../../docs/decisions/0042-source-onboarding-standard.md)), and keep
+the source's record in `docs/sources/<source>.md` current. A source that has not
+signed off never auto-confirms identity and is never a default. Sources in use
+before the standard keep their current role until their turn; do not widen what
+an unsigned source may confirm. Adapter and builder code encodes documented field meanings
+and standards: emit each field under the one meaning its specification gives,
+count unexpected input instead of coercing it, and turn disagreements into
+conflicts or judgement questions. Do not add hand lists that stand in for an
+unread field, tie-breaks that hide ambiguity, or name heuristics used as
+identity. Judgement questions follow that page's calibration and
+public/private split.
 
 ## Execution and access
 

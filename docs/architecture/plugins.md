@@ -11,7 +11,8 @@ the pluggable features and connectors. Core supplies operating guidance, Desk
 context, shared transport and the investment identity backbone, not
 provider-specific research tools. A plugin that serves investment data declares
 what it can address in a static `contract.json`
-([ADR 0038](../decisions/0038-plugin-addressing-contract.md)). See
+([ADR 0038](../decisions/0038-plugin-addressing-contract.md)) and is onboarded
+through the [source onboarding](source-onboarding.md) stages. See
 [ADR 0034](../decisions/0034-core-and-optional-features.md).
 
 The package owns its tools, domain implementation, bundled skills and explicitly
