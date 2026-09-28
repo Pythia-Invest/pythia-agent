@@ -28,6 +28,7 @@ class QueueReason(StrEnum):
     NO_KEY = "no_key"                                # residual: no identifier the join can use
     UNDERLYING_IDENTIFIER = "underlying_identifier"  # residual: carries its underlying's ISIN
     AMBIGUOUS = "ambiguous"                          # residual: several candidates fit
+    UNAUDITED = "unaudited"                          # residual: a match from a source not yet signed off (ADR 0042)
     IDENTIFIER = "identifier"                        # conflict: one key claimed by two subjects, or two values
     BINDING = "binding"                              # conflict: new evidence contradicts a binding
     RELATION = "relation"                            # conflict: a typed edge contradicts identifiers
@@ -35,7 +36,8 @@ class QueueReason(StrEnum):
 
 
 REASONS = {
-    QueueItemKind.RESIDUAL: frozenset({QueueReason.NO_KEY, QueueReason.UNDERLYING_IDENTIFIER, QueueReason.AMBIGUOUS}),
+    QueueItemKind.RESIDUAL: frozenset({QueueReason.NO_KEY, QueueReason.UNDERLYING_IDENTIFIER, QueueReason.AMBIGUOUS,
+                                       QueueReason.UNAUDITED}),
     QueueItemKind.CONFLICT: frozenset({QueueReason.IDENTIFIER, QueueReason.BINDING, QueueReason.RELATION, QueueReason.GUARD}),
 }
 

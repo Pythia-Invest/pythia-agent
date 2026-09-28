@@ -35,12 +35,15 @@ def schemas(wire):
             'an ISO operating MIC: XNAS, XNYS, XCBO or OTCM). Answers with an identity claim batch for Pythia\'s core: '
             'one issuer claim (name, CIK, native reference) per matching filer, never a pick or a merge.',
         'filings': 'Read recent public SEC filings for an SEC CIK reference with accession, form, filing date, '
-            'report period and document link. 20-F, 40-F and 6-K forms from foreign issuers are included. With forms, '
-            'only those forms, searched beyond the most recent filings so an annual report is not crowded out.',
+            'acceptance time, report period, 8-K item numbers and document link. 20-F, 40-F and 6-K forms from '
+            'foreign issuers are included. Insider and major-holder ownership filings (Forms 3, 4, 5, 144 and '
+            'Schedule 13G) are left out unless named in forms. With forms, only those forms, searched beyond the most '
+            'recent filings so an annual report is not crowded out.',
         'fundamentals': 'Read supported reported annual facts for an SEC CIK reference from US GAAP or IFRS '
             '(foreign private issuers). Income and cash-flow facts use actual annual durations; balance-sheet facts '
             'are instants. Taxonomies and reported currencies stay separate; no TTM, quarterly subtraction or '
-            'conversion is inferred.',
+            'conversion is inferred. freshness is stale when SEC has not yet added the latest 10-K, 10-Q, 20-F or '
+            '40-F to these facts.',
         'facts': 'Read bounded native XBRL facts for explicit concepts of one taxonomy (us-gaap, ifrs-full, dei or '
             'srt) for an SEC CIK reference, keeping periods, filing revisions and reported units.',
     }

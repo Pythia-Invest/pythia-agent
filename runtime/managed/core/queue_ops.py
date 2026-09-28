@@ -92,7 +92,7 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
 
 def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
     """identity-verdict: one answer, attributed to the user or the agent by the transport."""
-    from .identity_ops import _envelope
+    from .identity_ops import _envelope, installed
     from .platform.request_context import usage
     desk = usage.get() == "dashboard"  # trusted transport scope: the Desk's own HTTP call, never a model tool call
     now = store.now()
@@ -106,7 +106,8 @@ def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
             chosen_id=arguments.get("chosen_id"), now=now, as_of=date.today().isoformat(),
             resolver=questions.ResolverKind.USER if desk else questions.ResolverKind.AGENT,
             rationale=arguments.get("rationale"),
-            user_turn=f"desk:identity-verdict:{now}" if desk else None)
+            user_turn=f"desk:identity-verdict:{now}" if desk else None,
+            unaudited={info.manifest.plugin for info in installed() if info.manifest.unaudited})
     except questions.Refused as refused:
         result = {"outcome": "refused", "message": str(refused)}
     except (sqlite3.Error, OSError):

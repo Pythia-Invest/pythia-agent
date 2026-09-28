@@ -21,7 +21,7 @@ from typing import Any
 
 from .identity import (
     MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch, subject_kind,
-    validate_manifest,
+    validate_manifest, vouched,
 )
 from . import queue_ops, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
@@ -202,8 +202,8 @@ class Identity:
 
     def price_sources(self, subject_id: str) -> dict:
         """Where market data for a subject comes from: its asset class, the native references that serve
-        its quote and chart in core's order and the providers the investor named in `source_order`, or the
-        reason there are none. Local only."""
+        its quote and chart in core's order, the providers the investor named in `source_order` and those not
+        yet audited (ADR 0042), or the reason there are none. Local only."""
         try:
             path, subject, lookups, _issue = self._load(subject_id)
         except ValueError:  # a malformed subject id
@@ -217,8 +217,9 @@ class Identity:
                             else "no_reference_data")
         plugins = installed()
         named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
+        unaudited = [info.manifest.provider for info in plugins if info.manifest.unaudited]
         return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, plugins, **lookups),
-                "named": named, "reason": None}
+                "named": named, "unaudited": unaudited, "reason": None}
 
     def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
         path, subject, lookups, issue = self._load(subject_id)
@@ -351,7 +352,8 @@ def installed() -> list[page.PluginInfo]:
         if directory is None or not directory.is_absolute() or not (directory / MANIFEST_FILE).is_file():
             continue
         try:
-            manifest = validate_manifest(json.loads((directory / MANIFEST_FILE).read_text(encoding="utf-8")))
+            manifest = vouched(validate_manifest(json.loads((directory / MANIFEST_FILE).read_text(encoding="utf-8"))),
+                               key)
         except ManifestNeedsUpdate as error:
             logger.warning("%s of %s needs a newer Pythia (needs_update): %s", MANIFEST_FILE, key, error)
             continue

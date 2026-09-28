@@ -106,6 +106,30 @@ class ShippedContracts(unittest.TestCase):
         self.assertFalse(any(manifest(path.parent.name).rights.hostable
                              for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE)))
 
+    def test_every_shipped_source_declares_its_signoff(self):
+        # ADR 0042: the sources in use before the standard keep their role until their turn, each pointing at the
+        # record it will be onboarded in; anything newer ships unsigned; a signed-off source links a record that exists.
+        root = PLUGINS.parents[2]
+        standing = {}
+        for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE):
+            contract = manifest(path.parent.name)
+            standing[contract.plugin] = contract.signoff
+            with self.subTest(plugin=contract.plugin):
+                if contract.signoff is identity.SignOff.SIGNED_OFF:
+                    self.assertTrue((root / contract.record).is_file())
+                elif contract.signoff is identity.SignOff.GRANDFATHERED:
+                    self.assertEqual(contract.record, f'docs/sources/{contract.provider}.md')
+        self.assertEqual({plugin for plugin, status in standing.items() if status is identity.SignOff.GRANDFATHERED},
+                         {'pythia-coingecko', 'pythia-coinmarketcap', 'pythia-eodhd', 'pythia-gleif', 'pythia-sec',
+                          'pythia-xbrl-filings', 'pythia-yahoo-discovery'})
+        self.assertEqual(standing['pythia-hyperliquid'], identity.SignOff.UNSIGNED)  # opt-in and display-only
+        self.assertEqual(set(standing), identity.BUNDLED)  # core knows every plugin Pythia ships
+
+    def test_a_plugin_pythia_does_not_bundle_cannot_vouch_for_itself(self):
+        sec = manifest('sec')
+        self.assertIs(identity.vouched(sec, 'pythia-sec').signoff, identity.SignOff.GRANDFATHERED)
+        self.assertTrue(identity.vouched(sec, 'community-sec').unaudited)
+
     def test_filing_sources_declare_their_authorities(self):
         self.assertEqual(manifest('sec').concepts[identity.Concept.FILINGS].authorities, ('sec',))
         self.assertEqual(manifest('xbrl-filings').concepts[identity.Concept.FILINGS].authorities, ('esma', 'fca'))

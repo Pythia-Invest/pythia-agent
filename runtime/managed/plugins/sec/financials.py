@@ -3,11 +3,12 @@
 Public format: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
 No synthetic TTM, quarterly subtraction, or currency conversion is performed.
 """
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 import math
 import re
+from zoneinfo import ZoneInfo
 
-from .identity import cik, reference, submissions_url
+from .identity import cik, reference
 
 US_GAAP_METRICS = (
     ('revenue', 'Revenue', 'duration', ('RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'SalesRevenueNet')),
@@ -34,30 +35,6 @@ IFRS_METRICS = (
     ('cash', 'Cash and cash equivalents', 'instant', ('CashAndCashEquivalents',)),
 )
 STATEMENT_FORMS = frozenset(form + amendment for form in ('10-K', '10-Q', '20-F', '40-F', '6-K') for amendment in ('', '/A'))
-# Investor-facing descriptions; the native form remains a separate field.
-# https://www.investor.gov/introduction-investing/getting-started/researching-investments/using-edgar-research-investments
-# 20-F and 40-F can also register securities, so do not call every one an annual report.
-FILING_TITLES = {
-    '10-K': 'Annual report', '10-Q': 'Quarterly report', '8-K': 'Current report',
-    '20-F': 'Foreign issuer report', '40-F': 'Canadian issuer report',
-    '6-K': 'Foreign issuer update', '3': 'Initial ownership statement',
-    '4': 'Ownership changes', '5': 'Annual ownership statement',
-    'DEF 14A': 'Proxy statement', 'DEFA14A': 'Additional proxy materials',
-    'S-1': 'Securities registration', 'S-3': 'Securities registration',
-    'F-1': 'Foreign issuer securities registration', 'F-3': 'Foreign issuer securities registration',
-    '13F-HR': 'Institutional holdings report', 'ARS': 'Annual report to shareholders',
-}
-
-
-def filing_title(form):
-    amended = form.endswith('/A')
-    base = form[:-2] if amended else form
-    label = FILING_TITLES.get(base)
-    if label is None:
-        return form
-    return label + (' (amended)' if amended else '')
-
-
 def facts_url(identifier):
     return 'https://data.sec.gov/api/xbrl/companyfacts/CIK' + cik(identifier) + '.json'
 
@@ -67,6 +44,47 @@ def checked_date(value):
         raise ValueError('invalid_response')
     date.fromisoformat(value)
     return value
+
+
+EASTERN = ZoneInfo('America/New_York')
+ACCEPTED = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z')
+
+
+# From Eastern midnight until SEC's nightly rewrite (time unknown; its bulk files are rebuilt about 03:00 ET) the
+# previous day's filings may still carry Eastern time. Their acceptance time is left out in this window.
+UNSURE_UNTIL_HOUR = 6
+
+
+def eastern(observed_at):
+    """An ISO read time in America/New_York (a naive time is UTC)."""
+    moment = datetime.fromisoformat(observed_at)
+    return (moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)).astimezone(EASTERN)
+
+
+def eastern_date(observed_at):
+    """The Eastern calendar date of an ISO read time."""
+    return eastern(observed_at).date().isoformat()
+
+
+def accepted_utc(value, filed_at, read_at):
+    """EDGAR's `acceptanceDateTime` as a true UTC time ('...Z'), or None when it cannot be told; ValueError when it is
+    not a well-formed time. `read_at` is the Eastern time the submissions were read.
+
+    The value always ends in Z, but until SEC's nightly rewrite of the submissions files it is the Eastern
+    wall-clock time. Measured on 2026-09-28 against the current feed's explicit offsets: every filing whose
+    `filingDate` was the reading day or later was Eastern, including those accepted after 17:30 ET on the previous
+    business day. Filings of earlier days were UTC, including a Form 4 accepted at 21:57 ET that Friday. So a
+    filing dated on or after the Eastern date of the read is read as America/New_York, and an earlier one as UTC.
+    Between Eastern midnight and UNSURE_UNTIL_HOUR the previous day's filings may not be rewritten yet: their time is
+    left out (None) and only the filing date is given."""
+    if not isinstance(value, str) or not ACCEPTED.fullmatch(value):
+        raise ValueError('malformed')
+    naive = datetime.fromisoformat(value[:19])
+    read_day = read_at.date()
+    if read_at.hour < UNSURE_UNTIL_HOUR and filed_at == (read_day - timedelta(days=1)).isoformat():
+        return None
+    zone = EASTERN if filed_at >= read_day.isoformat() else timezone.utc
+    return naive.replace(tzinfo=zone).astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def filing_url(identifier, accession, document=None):
@@ -80,77 +98,6 @@ def filing_url(identifier, accession, document=None):
             raise ValueError('invalid_response')
         return base + document
     return base + accession + '-index.html'
-
-
-REQUIRED = ('accessionNumber', 'form', 'filingDate', 'primaryDocument')
-
-
-def _block(block, identifier):
-    """The rows of one columnar submissions block (`filings.recent`, or an older page), newest first."""
-    if not isinstance(block, dict) or any(not isinstance(block.get(key), list) for key in REQUIRED):
-        raise ValueError('invalid_response')
-    total = len(block['accessionNumber'])
-    if any(len(block[key]) != total for key in REQUIRED):
-        raise ValueError('invalid_response')
-    report_dates = block.get('reportDate', [])
-    for index in range(total):
-        accession, form = block['accessionNumber'][index], block['form'][index]
-        if not isinstance(form, str) or not form:
-            raise ValueError('invalid_response')
-        row = {'accession': accession, 'form': form,
-               'filed_at': checked_date(block['filingDate'][index]), 'title': filing_title(form),
-               'url': filing_url(identifier, accession, block['primaryDocument'][index] or None),
-               'period_end': None, 'language': None}
-        if index < len(report_dates) and report_dates[index]:
-            row['period_end'] = checked_date(report_dates[index])
-        yield row
-
-
-def wanted(form, forms):
-    """Whether a form is one of the requested forms; an amendment (10-K/A) matches its form."""
-    form = form.upper()
-    return not forms or any(form == item or form.startswith(item + '/') for item in forms)
-
-
-def older_pages(raw, since):
-    """Names of the filer's older submissions pages that reach back to `since` (ISO date), newest first."""
-    files = (raw.get('filings') or {}).get('files') if isinstance(raw, dict) else None
-    pages = [item for item in files or [] if isinstance(item, dict) and isinstance(item.get('name'), str)
-             and isinstance(item.get('filingTo'), str) and item['filingTo'] >= since]
-    return [item['name'] for item in sorted(pages, key=lambda item: item['filingTo'], reverse=True)]
-
-
-def filings(raw, identifier, observed_at, limit=20, forms=None, pages=()):
-    """The filer's filings, newest first: the first `limit`, or with `forms` the first `limit` of those forms from
-    the whole recent list and any older `pages` read for it."""
-    identifier = cik(identifier)
-    if not isinstance(raw, dict) or cik(raw.get('cik')) != identifier:
-        raise ValueError('invalid_response')
-    filing_data = raw.get('filings')
-    if not isinstance(filing_data, dict):
-        raise ValueError('invalid_response')
-    forms = [item.upper() for item in forms or []]
-    blocks = [filing_data.get('recent', {}), *pages]
-    rows, scanned, oldest = [], 0, None
-    for block in blocks:
-        for row in _block(block, identifier):
-            scanned += 1
-            oldest = row['filed_at']
-            if wanted(row['form'], forms):
-                rows.append(row)
-            if len(rows) >= limit:
-                break
-        if len(rows) >= limit:
-            break
-    total = len(filing_data['recent']['accessionNumber']) + sum(item.get('filingCount', 0) for item in
-                                                               filing_data.get('files') or [] if isinstance(item, dict))
-    return {'dataset': 'filings', 'provider': 'sec', 'provider_ref': reference(identifier),
-            'observed_at': observed_at, 'source_url': submissions_url(identifier), 'filings': rows,
-            'source': {'label': 'SEC EDGAR', 'url': 'https://www.sec.gov/edgar/browse/?CIK=' + identifier},
-            'coverage': {'scope': 'recent_and_older_submissions' if pages else 'recent_submissions',
-                         'returned': len(rows), 'scanned': scanned, 'searched_back_to': oldest,
-                         'forms': forms or None, 'total_available': total,
-                         'complete': not filing_data.get('files') and len(rows) < limit}}
 
 
 def _concepts(raw, identifier):
@@ -248,6 +195,65 @@ def fundamentals(raw, identifier, observed_at, limit=20):
     return {'dataset': 'fundamentals', 'provider': 'sec', 'provider_ref': reference(identifier),
             'observed_at': observed_at, 'source_url': facts_url(identifier), 'facts': rows[:limit],
             'limitations': [*limitations, 'Income and cash-flow figures cover the latest reported annual duration for each metric; balance-sheet values are reported instants. Exact dates and filing revisions are retained. No TTM or quarterly values are synthesized.']}
+
+
+# Periodic reports whose financial statements companyfacts should carry once SEC has processed them.
+PERIODIC_FORMS = frozenset({'10-K', '10-Q', '20-F', '40-F'})
+STATEMENT_TAXONOMIES = ('us-gaap', 'ifrs-full')
+
+
+def freshness(submissions, raw, identifier, observed_at):
+    """Whether companyfacts includes the filer's latest periodic report with XBRL (drift alarm, not a fallback).
+
+    The newest 10-K, 10-Q, 20-F or 40-F flagged `isXBRL` in `submissions` must appear as the accession of at
+    least one us-gaap or ifrs-full fact. A cover-page (`dei`) fact alone does not count: in 2026 companyfacts kept
+    only one `dei` fact of several filers' 20-Fs and none of their statements. Amendments are not checked, since
+    many carry no statements. `observed_at` is when `submissions` was read. Answers {'status': 'fresh' | 'stale' |
+    'unknown', 'reason', 'latest_filing'}, or None when the filer has no such report to check against."""
+    identifier = cik(identifier)
+    if not isinstance(submissions, dict) or cik(submissions.get('cik')) != identifier:
+        raise ValueError('invalid_response')
+    recent = (submissions.get('filings') or {}).get('recent')
+    if not isinstance(recent, dict) or any(not isinstance(recent.get(key), list)
+                                           for key in ('accessionNumber', 'form', 'filingDate')):
+        raise ValueError('invalid_response')
+    flags = recent.get('isXBRL')
+    if not isinstance(flags, list) or len(flags) != len(recent['form']):
+        return {'status': 'unknown', 'latest_filing': None, 'reason': 'SEC no longer marks which filings carry '
+                'XBRL, so whether these facts include the latest report could not be checked.'}
+    latest = next((index for index, form in enumerate(recent['form'])
+                   if form in PERIODIC_FORMS and flags[index] == 1), None)
+    if latest is None:
+        return None
+    filing = {'accession': recent['accessionNumber'][latest], 'form': recent['form'][latest],
+              'filed_at': checked_date(recent['filingDate'][latest]), 'accepted_at': None}
+    accepted = recent.get('acceptanceDateTime')
+    if isinstance(accepted, list) and len(accepted) == len(recent['form']):
+        try:
+            filing['accepted_at'] = accepted_utc(accepted[latest], filing['filed_at'], eastern(observed_at))
+        except ValueError:
+            pass  # left out: read_before then falls back to the filing date
+    facts = _concepts(raw, identifier)
+    present = any(isinstance(row, dict) and row.get('accn') == filing['accession']
+                  for taxonomy in STATEMENT_TAXONOMIES for item in (facts.get(taxonomy) or {}).values()
+                  if isinstance(item, dict) for rows in (item.get('units') or {}).values() if isinstance(rows, list)
+                  for row in rows)
+    if present:
+        return {'status': 'fresh', 'latest_filing': filing, 'reason': None}
+    return {'status': 'stale', 'latest_filing': filing, 'reason': (
+        f"Stale: SEC's companyfacts does not include the financial statements of the filer's latest "
+        f"{filing['form']} (filed {filing['filed_at']}, accession {filing['accession']}), so these facts may be a "
+        f"period or more behind. That filing itself is the current source.")}
+
+
+def read_before(observed_at, filing):
+    """Whether companyfacts read at `observed_at` predates `filing` (its acceptance, else its filing day), so a
+    retained copy cannot hold it yet."""
+    if filing.get('accepted_at'):
+        moment = datetime.fromisoformat(observed_at)
+        moment = moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+        return moment < datetime.fromisoformat(filing['accepted_at'].replace('Z', '+00:00'))
+    return eastern_date(observed_at) <= filing['filed_at']
 
 
 def native_facts(raw, identifier, observed_at, taxonomy, concepts, limit=100):

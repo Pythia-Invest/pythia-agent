@@ -76,6 +76,7 @@ export function usingSource(
       plugin: alternative.plugin,
       label: alternative.label,
       status: alternative.status,
+      unaudited: alternative.unaudited,
       binding: alternative.binding ?? null,
       request: alternative.request ?? null,
       reason: null,

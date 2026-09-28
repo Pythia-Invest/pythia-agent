@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   assertManagedPluginSource,
@@ -311,6 +312,17 @@ export function managedPluginCopies(paths, payloads = MANAGED_PLUGINS) {
     }));
 }
 
+/** ADR 0042: a source that has not signed off is never enabled in a fresh
+ * profile; the investor enables it explicitly. Core rejects a contract without
+ * `signoff`, so an undeclared one counts as unsigned here too. */
+function unsigned(plugin) {
+  if (!plugin.files.includes("contract.json")) return false;
+  const contract = JSON.parse(
+    readFileSync(join(plugin.source, "contract.json"), "utf8"),
+  );
+  return (contract.signoff?.status ?? "unsigned") === "unsigned";
+}
+
 export function refreshManagedPlugins(
   paths,
   apiKey,
@@ -353,7 +365,9 @@ export function refreshManagedPlugins(
     );
   }
   if (freshProfile) {
-    for (const plugin of managed.filter((plugin) => plugin.enabledByDefault)) {
+    for (const plugin of managed.filter(
+      (plugin) => plugin.enabledByDefault && !unsigned(plugin),
+    )) {
       execute(
         paths,
         [

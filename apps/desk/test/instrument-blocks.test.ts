@@ -73,16 +73,20 @@ describe("using an alternative source once", () => {
       status: "ready",
       binding: eodhd,
       request: null,
+      unaudited: true,
     };
     const [block] = pageBlocks([
       section("quote", { alternatives: [also], notice: null }),
-      section("chart", { alternatives: [also] }),
+      section("chart", { alternatives: [also], unaudited: false }),
     ]);
     if (!block) throw Error("expected a price card");
     const used = usingSource(block, "pythia-eodhd");
-    expect(used.sections.map((item) => [item.plugin, item.binding])).toEqual([
-      ["pythia-eodhd", eodhd],
-      ["pythia-eodhd", eodhd],
+    // The source used once carries its own sign-off label, not the lead's.
+    expect(
+      used.sections.map((item) => [item.plugin, item.binding, item.unaudited]),
+    ).toEqual([
+      ["pythia-eodhd", eodhd, true],
+      ["pythia-eodhd", eodhd, true],
     ]);
     expect(used.key).not.toEqual(block.key);
     expect(usingSource(block, null)).toBe(block);
