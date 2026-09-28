@@ -40,6 +40,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "worker_budget.py",
       "worker_reads.py",
       "connector.py",
+      "coverage.py",
       "diagnostics.py",
       "failures.py",
       "resident_worker.py",
@@ -92,6 +93,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "yahoo-prices.ts",
       "yahoo-sessions.ts",
       "yahoo-options.ts",
+      "yahoo-news.ts",
     ]),
   }),
   Object.freeze({

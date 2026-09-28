@@ -67,5 +67,34 @@ in two narrow ways only:
   only, so a row never proves the other listings of a security. No tool exposes
   it yet; the plugin addressing contract adopts it as this connector's
   `resolve`.
-- research `news` accepts a validated Yahoo symbol and returns only the items
-  Yahoo tags with that exact symbol.
+- research `news` reads an issuer's news. It takes validated Yahoo symbols
+  (the listing asked for plus the issuer's other Yahoo lines, at most eight)
+  and optionally the issuer's name, and returns only the items Yahoo tags
+  with one of those symbols. The name is only a query; it never widens
+  what is kept.
+
+## News
+
+Yahoo's search is a text search and its tag is its own "main" line: ASML
+and Shell news is tagged with the US lines `ASML` and `SHEL`, Nestlé news
+with `NESN.SW`, and bitcoin news with `BTC-USD`, while the queries `ASML.AS`,
+`SHEL.L` and `NESN.SW` match no news at all (measured 2026-09-28). A news
+read is therefore per issuer, not per listing: one query for each of the
+issuer's Yahoo symbols and one for its name, keeping items tagged with any
+of those symbols. The caller supplies the symbols from Pythia's identity;
+the connector never guesses them from names.
+
+Yahoo answers at most about 50 items per query and has no offset, so the
+read is a dated window (default the last 7 days, at most 31) filled as far
+as that cap allows. `complete_from` is the newest "oldest item" among the
+queries that reached the cap; earlier items in the window may be missing,
+and the result then carries `window_incomplete`. For Apple that is about
+two days.
+
+Drift is reported, never absorbed:
+
+- unknown item fields, unknown `type` values and unreadable items are
+  counted under `drift` with a `schema_drift` warning;
+- an empty answer for symbols whose earlier items fall in the window carries
+  `no_items_drift` and the earlier sightings, instead of an ordinary empty
+  list. That memory lasts for the running session only and holds no content.

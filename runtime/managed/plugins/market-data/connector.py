@@ -10,7 +10,8 @@ from .public_http import Transport
 from .governor import connection
 from .failures import failed_item, detail, cacheable, item_failures, qualify_items, worker_failure
 from .diagnostics import emit
+from .coverage import NewsCoverage
 
 __all__ = ['WorkerReads', 'SourceFailure', 'qualify_failure', 'NativeBatch',
            'worker_batch', 'worker_item', 'ResidentTransport', 'Transport', 'connection', 'failed_item',
-           'detail', 'cacheable', 'item_failures', 'qualify_items', 'worker_failure', 'emit']
+           'detail', 'cacheable', 'item_failures', 'qualify_items', 'worker_failure', 'emit', 'NewsCoverage']

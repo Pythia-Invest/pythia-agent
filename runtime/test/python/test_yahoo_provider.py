@@ -28,12 +28,20 @@ class Yahoo(unittest.TestCase):
         provider = importlib.import_module('test_yahoo.__init__')
         connector = importlib.import_module('test_yahoo_feature.connector')
         metadata = {'symbol': 'SYNTH.AS', 'type': 'EQUITY', 'currency': 'EUR', 'exchange': 'AMS'}
-        calls = []
+        calls, news_calls = [], []
         def worker(_command, request, _environment, **_kwargs):
             calls.append(request)
             if request['operation'] == 'news':
-                return {'data': {'source': 'yahoo.news', 'retrieved_at': '2026-01-01T00:00:00Z',
-                                 'result': {'symbol': 'SYNTH.AS', 'news': []}}, 'issues': []}
+                arguments = request['arguments']
+                items = [{'uuid': 'a', 'title': 'Synthetic', 'link': 'https://example.test/a', 'published_at': '2026-01-05T10:00:00.000Z',
+                          'matched': ['SYNTH'], 'related_tickers': ['SYNTH']}] if not news_calls else []
+                news_calls.append(arguments)
+                window = {'from': arguments['options'].get('from', '2026-01-01'), 'to': '2026-01-07'}
+                return {'data': {'source': 'yahoo.news', 'retrieved_at': '2026-01-07T00:00:00Z',
+                                 'result': {'symbol': arguments['symbol'], 'symbols': [arguments['symbol'], *arguments.get('symbols', [])],
+                                            'name': None, 'window': window, 'complete_from': None, 'queries': [], 'outside_window': 0,
+                                            'drift': {'unknown_fields': [], 'unknown_types': [], 'unreadable_items': 0}, 'news': items}},
+                        'issues': []}
             return {'data': {'common': {'SYNTH.AS': {'metadata': dict(metadata)}},
                 'display': {'quotes': [], 'retrieved_at': '2026-01-01T00:00:00Z'}}, 'issues': []}
         process = types.SimpleNamespace(run_worker=worker, shutdown=lambda: None)
@@ -61,13 +69,20 @@ class Yahoo(unittest.TestCase):
                 # Neither a search operation nor free text as a news key reaches Yahoo.
                 for arguments in ({'operation': 'search', 'symbol': 'SYNTH'}, {'operation': 'news', 'symbol': 'free text'}):
                     self.assertEqual(json.loads(research(arguments))['issues'][0]['code'], 'invalid_request')
-                news = json.loads(research({'operation': 'news', 'symbol': 'SYNTH.AS'}))
-                self.assertEqual(news['data']['result'], {'symbol': 'SYNTH.AS', 'news': []})
+                news = json.loads(research({'operation': 'news', 'symbol': 'SYNTH.AS', 'symbols': ['SYNTH']}))
+                self.assertEqual((news['outcome'], news['data']['result']['news'][0]['matched']), ('ok', ['SYNTH']))
+                # The same issuer answering nothing where its earlier item falls is drift, not an empty list.
+                empty = json.loads(research({'operation': 'news', 'symbol': 'SYNTH.AS', 'symbols': ['SYNTH'],
+                                             'options_json': '{"from": "2026-01-02"}'}))
+                self.assertEqual(empty['outcome'], 'partial')
+                self.assertEqual([(item['code'], item['severity']) for item in empty['issues']], [('no_items_drift', 'warning')])
+                self.assertEqual([row['key'] for row in empty['data']['result']['drift']['previously_covered']], ['SYNTH'])
                 details = json.loads(ctx.tools[provider.TOOLS['details']]({'native_ref': native}))['data'][0]
                 # Exact metadata adds Yahoo's venue/currency but asserts no identity evidence.
                 self.assertEqual(details['provider_ref']['qualifiers'], {'currency': 'EUR', 'venue': 'AMS'})
                 self.assertNotIn('evidence', details)
-        self.assertEqual(calls, [{'operation': 'news', 'arguments': {'symbol': 'SYNTH.AS', 'options': {}}},
+        self.assertEqual(calls, [{'operation': 'news', 'arguments': {'symbol': 'SYNTH.AS', 'symbols': ['SYNTH'], 'options': {}}},
+                                 {'operation': 'news', 'arguments': {'symbol': 'SYNTH.AS', 'symbols': ['SYNTH'], 'options': {'from': '2026-01-02'}}},
                                  {'operation': 'quote_bundle', 'arguments': {'symbols': ['SYNTH.AS']}}])
 
     def test_identity_and_units_do_not_infer_equivalence_or_index_currency(self):
