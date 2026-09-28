@@ -90,7 +90,7 @@ class Identity:
             return self._store
 
     def reference_path(self, *, again: bool = False) -> Path | None:
-        """The newest reference build. Its first use carries local rows to its subject IDs (Lifecycle A), so every
+        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A), so every
         read and write after it sees current IDs; a failure is retried on the next use. `again` carries rows
         written meanwhile under an older build's IDs."""
         path = store.reference_path(self.data_dir)
@@ -98,7 +98,8 @@ class Identity:
             try:
                 ref = store.open_reference(path)
                 try:
-                    done = lifecycle.rekey(self.store, ref, lifecycle.release_id(ref, path.stem), again=again)
+                    # Keyed by the installed package (build and checksum), so a same-day rebuild re-keys too.
+                    done = lifecycle.rekey(self.store, ref, path.parent.name, again=again)
                 finally:
                     ref.close()
                 if done:

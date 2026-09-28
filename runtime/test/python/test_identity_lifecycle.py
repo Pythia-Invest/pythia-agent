@@ -103,6 +103,23 @@ class LifecycleTest(QueueFixture):
         self.assertLessEqual(set(item["evidence_ids"]), cited)
         self.assertEqual(item["key"], replace(conflict, subject_ids=tuple(item["subject_ids"])).key)
 
+    def test_a_same_day_rebuild_is_a_new_release_for_the_re_key(self):
+        self.bind()
+        core = load_core()
+        from pythia_core_queue_fixture import identity_ops
+        data = Path(self.tmp.name) / "core"
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=data)))
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("eodhd")]):
+            self.install(self.path, "reference-20261001", data)
+            ops.subject({"subject_id": ASML})
+            # Rebuilt the same day with the same build ID: another checksum, and a re-keyed ASML.
+            self.install(self.release("rebuild", renames=[(ASML, NEW_LISTING)], aliases=[(ASML, NEW_LISTING)]),
+                         "reference-20261001", data)
+            ops.subject({"subject_id": ASML})
+        ops.store.db.close()
+        del core
+        self.assertEqual(self.bound()[0], NEW_LISTING)
+
     def test_a_two_hop_alias_chain_is_followed(self):
         self.bind()
         self.identity.put_miss(ASML, "pythia-yahoo", "no match", 3600)
