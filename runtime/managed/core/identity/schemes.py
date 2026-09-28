@@ -60,7 +60,9 @@ DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
 INSTANT = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})\Z")
 DECIMAL = re.compile(r"^(0|[1-9][0-9]*)(\.[0-9]+)?\Z")
 NAMESPACE = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")
-TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}\Z")
+# A venue ticker; one space may separate a share class as the venue writes it (`VOLV B` on Nasdaq Stockholm).
+TICKER_BODY = r"[A-Z0-9][A-Z0-9.&-]{0,15}(?: [A-Z0-9]{1,4})?"
+TICKER = re.compile(rf"^{TICKER_BODY}\Z")
 CAIP2 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}\Z")
 PROVISIONAL_NATIVE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}\Z")
 
@@ -72,7 +74,7 @@ _PATTERNS = {
     Scheme.COMPOSITE_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
     Scheme.FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
     # TICKER@operating MIC, e.g. ASML@XAMS, ASML@XNAS (never a segment MIC such as XNGS).
-    Scheme.TICKER_MIC: re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}@[A-Z0-9]{4}\Z"),
+    Scheme.TICKER_MIC: re.compile(rf"^{TICKER_BODY}@[A-Z0-9]{{4}}\Z"),
     # CAIP-19: chain_id "/" asset_namespace ":" asset_reference [ "/" token_id ]
     Scheme.CAIP19: re.compile(
         r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}/[-a-z0-9]{3,8}:[-.%a-zA-Z0-9]{1,128}(/[-.%a-zA-Z0-9]{1,78})?\Z"),

@@ -12,7 +12,7 @@ def schemas(wire):
     fields = {
         'resolve': ({'identifiers': {'type': 'object', 'additionalProperties': False, 'properties': {
                 'cik': {'type': 'string', 'pattern': '^[0-9]{1,10}$'},
-                'ticker_mic': {'type': 'string', 'pattern': '^[A-Z0-9][A-Z0-9.&-]{0,15}@[A-Z0-9]{4}$'}}},
+                'ticker_mic': {'type': 'string', 'pattern': '^[A-Z0-9][A-Z0-9.&-]{0,15}( [A-Z0-9]{1,4})?@[A-Z0-9]{4}$'}}},
             'refresh': refresh}, ['identifiers']),
         'filings': ({'native_ref': native_ref, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50},
                      'refresh': refresh}, ['native_ref']),

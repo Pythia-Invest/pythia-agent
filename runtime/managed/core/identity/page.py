@@ -22,7 +22,7 @@ from .manifest import Manifest, Section
 from .model import Binding, IdentifierAssertion, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
 from .schemes import Level, provisional_id, subject_level
-from .vocabulary import InstrumentKind, VerdictRelation
+from .vocabulary import AssetClass, InstrumentKind, VerdictRelation
 
 SECTIONS = (Section.QUOTE, Section.CHART, Section.PROFILE, Section.FILINGS)
 ORDER = {Section.QUOTE: ("yahoo", "eodhd", "coinmarketcap", "coingecko"),
@@ -154,17 +154,23 @@ def derive(info: PluginInfo, level: Level, subject: dict, coins: Callable[[str, 
     return None
 
 
-def priced_venues(plugins: list[PluginInfo]) -> set[str]:
-    """Operating MICs where a usable plugin addresses a quote from the listing's ticker (its MIC table).
+def priced_venues(plugins: list[PluginInfo]) -> dict[str, frozenset[AssetClass]]:
+    """Operating MICs where a usable plugin addresses a quote from the listing's ticker (its MIC table), with the
+    asset classes its listing scope covers (empty: any), the same test `derive` applies.
 
-    Search shows an instrument through such a line when the query names none, so the page it opens can
+    Search prefers such a line among an instrument's non-home, non-primary lines, so the page it opens can
     show a price."""
-    venues: set[str] = set()
+    venues: dict[str, frozenset[AssetClass]] = {}
     for info in plugins:
         entry = info.manifest.content.get(Section.QUOTE)
-        if (info.enabled and not info.missing and entry is not None and entry.via is Level.LISTING
-                and any(scope.level is Level.LISTING for scope in info.manifest.native)):
-            venues |= set(info.manifest.mic_table)
+        if not (info.enabled and not info.missing and entry is not None and entry.via is Level.LISTING):
+            continue
+        for scope in info.manifest.native:
+            if scope.level is Level.LISTING:
+                for mic in info.manifest.mic_table:
+                    known = venues.get(mic)
+                    wanted = frozenset(scope.asset_classes)
+                    venues[mic] = frozenset() if known == frozenset() or not wanted else (known or frozenset()) | wanted
     return venues
 
 

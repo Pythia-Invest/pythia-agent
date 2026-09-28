@@ -299,6 +299,11 @@ class FallbackPrimaryTest(unittest.TestCase):
         records += [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first) for segment, first in german]
         self.assertEqual(self.primaries(records), {SAP_ISIN: ("XETR", "XETB"), WORLD_ISIN: ("XFRA", "FRAB")})
 
+    def test_a_regional_regulated_admission_moves_only_to_a_regulated_xetra_line(self):
+        on_mtf = [firds_record(SAP_ISIN, segment, SAP_LEI, relevant="DUSA") for segment in ("DUSA", "XETB")]
+        on_regulated = [firds_record(WORLD_ISIN, segment, WORLD_LEI, relevant="DUSA") for segment in ("DUSA", "XETA")]
+        self.assertEqual(self.primaries(on_mtf + on_regulated), {SAP_ISIN: ("XDUS", "DUSA"), WORLD_ISIN: ("XETR", "XETA")})
+
     def test_without_a_preferred_venue_the_earliest_listing_wins(self):
         records = [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first)
                    for segment, first in (("DUSB", "2012-01-02"), ("HAMB", "2011-01-03"), ("CEUX", "2009-01-02"))]
@@ -344,6 +349,14 @@ class CikLinkTest(unittest.TestCase):
         self.assertEqual(links, {"200": ("LEIX", "share_class_figi")})
         self.assertEqual([(f.subject_id, f.flag) for f in snap.flags], [("cik:100", "lei_already_linked")])
 
+    def test_among_identifier_links_to_one_lei_the_cik_whose_name_matches_wins(self):
+        snap = Snapshot(as_of="2026-09-25")
+        snap.issuers["lei:BRK"] = Issuer("lei:BRK", "Berkshire Hathaway Inc.", "gleif", lei="BRK")
+        tickers = [SecTicker("58361", "LEE ENTERPRISES, Inc", "LEE", "NYSE", 0),
+                   SecTicker("1067983", "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE", 1)]
+        evidence = {"58361": [("BRK", "isin_exch_us")], "1067983": [("BRK", "share_class_figi")]}
+        self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {"1067983": ("BRK", "share_class_figi")})
+
     def test_links_that_share_no_name_word_and_split_issuers_are_flagged_not_changed(self):
         snap = Snapshot(as_of="2026-09-25")
         snap.issuers["lei:BRK"] = Issuer("lei:BRK", "Berkshire Hathaway Inc.", "gleif", lei="BRK")
@@ -358,10 +371,24 @@ class CikLinkTest(unittest.TestCase):
 
 
 class NordicTickerTest(unittest.TestCase):
-    def test_a_glued_nordic_class_is_stored_in_the_exchange_form(self):
-        line = Listing(listing_id="XSTO:SE0000115446", source="esma_firds", row_class="share", operating_mic="XSTO")
-        assemble._apply_figi(line, figi_row("VOLVB", "SS", "BBGVOLVBSS01", "BBGVOLVBSC01"), "VOLVO AB/SH B")
+    def test_a_glued_stockholm_class_is_stored_in_the_exchange_form_and_keeps_its_ticker_mic(self):
+        isin, lei = "SE0000115446", "549300HGV012CNC8JD22"
+        admissions = {}
+        records = [firds_record(isin, "XSTO", lei, name="VOLVO AB", relevant="XSTO", short="VOLVO/SH B")]
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        answers = {("ID_ISIN", isin, "XSTO"): [figi_row("VOLVB", "SS", "BBG000BLNXL5", "BBG001S5PMW7")]}
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [],
+                                     {"XSTO"}), gleif_fetch, FakeOpenFigi(answers))
+        line = snap.listings[f"XSTO:{isin}"]
         self.assertEqual((line.ticker, line.ticker_root, line.ticker_class), ("VOLV B", "VOLV", "B"))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                found = db.execute("select value from assertions where scheme = 'ticker_mic'").fetchall()
+        self.assertEqual(found, [("VOLV B@XSTO",)])
+        self.assertNotIn("skipped_ticker_mic", snap.audit["schema"])
+
 
 if __name__ == "__main__":
     unittest.main()

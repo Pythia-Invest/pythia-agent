@@ -28,7 +28,9 @@ MIC_CSV = (
     "FRAB,XFRA,SGMT,BOERSE FRANKFURT - FREIVERKEHR,,,MLTF,,DE,FRANKFURT,,ACTIVE\n"
     "ARCX,XNYS,SGMT,NYSE ARCA,,,RMKT,,US,NEW YORK,,ACTIVE\n"
     "XDUS,XDUS,OPRT,BOERSE DUESSELDORF,,,RMKT,,DE,DUESSELDORF,,ACTIVE\n"
+    "DUSA,XDUS,SGMT,BOERSE DUESSELDORF - REGULIERTER MARKT,,,RMKT,,DE,DUESSELDORF,,ACTIVE\n"
     "DUSB,XDUS,SGMT,BOERSE DUESSELDORF - FREIVERKEHR,,,MLTF,,DE,DUESSELDORF,,ACTIVE\n"
+    "XSTO,XSTO,OPRT,NASDAQ STOCKHOLM AB,,,RMKT,,SE,STOCKHOLM,,ACTIVE\n"
     "XHAM,XHAM,OPRT,BOERSE HAMBURG,,,RMKT,,DE,HAMBURG,,ACTIVE\n"
     "HAMB,XHAM,SGMT,BOERSE HAMBURG - FREIVERKEHR,,,MLTF,,DE,HAMBURG,,ACTIVE\n"
     "TGAT,TGAT,OPRT,TRADEGATE,,,MLTF,,DE,BERLIN,,ACTIVE\n"
@@ -50,13 +52,14 @@ MIC_CSV = (
 )
 
 
-def firds_record(isin, mic, lei, cfi="ESVUFR", name="SHARES", relevant="XAMS", first="2012-11-26", term=None, underlying=None):
+def firds_record(isin, mic, lei, cfi="ESVUFR", name="SHARES", relevant="XAMS", first="2012-11-26", term=None, underlying=None,
+                 short=None):
     venue = f"<Id>{mic}</Id><IssrReq>true</IssrReq><FrstTradDt>{first}T08:00:00Z</FrstTradDt>"
     if term:
         venue += f"<TermntnDt>{term}T23:59:59Z</TermntnDt>"
     deriv = f"<DerivInstrmAttrbts><UndrlygInstrm><Sngl><ISIN>{underlying}</ISIN></Sngl></UndrlygInstrm></DerivInstrmAttrbts>" if underlying else ""
     return (
-        f"<FinInstrmGnlAttrbts><Id>{isin}</Id><FullNm>{name}</FullNm><ShrtNm>{name[:10]}/SH</ShrtNm>"
+        f"<FinInstrmGnlAttrbts><Id>{isin}</Id><FullNm>{name}</FullNm><ShrtNm>{short or name[:10] + "/SH"}</ShrtNm>"
         f"<ClssfctnTp>{cfi}</ClssfctnTp><NtnlCcy>EUR</NtnlCcy><CmmdtyDerivInd>false</CmmdtyDerivInd></FinInstrmGnlAttrbts>"
         f"<Issr>{lei}</Issr><TradgVnRltdAttrbts>{venue}</TradgVnRltdAttrbts>{deriv}"
         f"<TechAttrbts><RlvntCmptntAuthrty>NL</RlvntCmptntAuthrty><RlvntTradgVn>{relevant}</RlvntTradgVn></TechAttrbts>"

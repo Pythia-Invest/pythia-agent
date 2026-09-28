@@ -14,7 +14,7 @@ import re
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 RANKING_VERSION = "ranking@1"
 W = dict(exact_ticker=6.0, exact_id=20.0, name_exact=3.0, name_prefix=1.5, bm25=0.15, size=6.0, size_missing=0.3,
@@ -30,6 +30,10 @@ PREFERENCES = ("primary", "EU", "US")
 # The search contract's kinds (packages/market-data/src/search.ts); the reference holds a subset.
 KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other")
 PER_ISSUER = 2  # instrument rows shown per issuer
+# Among otherwise equal lines of an instrument (a foreign share traded on several EEA venues), one stated,
+# query-independent order: the largest EEA equity markets (as the reference builder's primary fallback), then
+# Tradegate, Frankfurt and the German regional floors, then every other venue; then the listing ID.
+VENUE_ORDER = ("XETR", "XPAR", "XAMS", "XMIL", "TGAT", "XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER")
 
 ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 LEI = re.compile(r"^[A-Z0-9]{18}[0-9]{2}$")
@@ -197,18 +201,19 @@ class Directory:
 
     def lines(self, query: str, prefer: str = "primary",
               suffixes: Callable[[], dict[str, set[str]]] = dict,
-              priced: Callable[[], set[str]] = set) -> list[tuple[float, dict, tuple]]:
+              priced: Mapping[str, frozenset[str]] = {}) -> list[tuple[float, dict, tuple]]:
         """Scored directory lines for a query: (score, line, representative key).
 
-        `suffixes` maps a provider symbol suffix (".AS") to the operating MICs it names; `priced` gives the
-        operating MICs where an installed plugin can address a quote from the line's ticker."""
+        `suffixes` maps a provider symbol suffix (".AS") to the operating MICs it names; `priced` maps the
+        operating MICs where an installed plugin can address a quote from the line's ticker to the asset
+        classes it covers (empty: any)."""
         kind, value = classify(query)
         by_id = {"isin": "d.isin = ?", "lei": "d.lei = ?", "cik": "d.cik = ?",
                  "figi": "(' ' || d.figis || ' ') LIKE ?", "pair": "d.crypto = 1 AND d.tnorm = ?"}
         with self.lock:
             if kind in by_id:
                 argument = f"% {value} %" if kind == "figi" else value
-                return _score(self._fetch(by_id[kind], (argument,)), query, prefer, id_rows=True, priced=priced())
+                return _score(self._fetch(by_id[kind], (argument,)), query, prefer, id_rows=True, priced=priced)
             tokens, hint = norm(query).split(), None
             if len(tokens) > 1:
                 for token in list(tokens):
@@ -239,7 +244,7 @@ class Directory:
                     hits, query = self._fts(fixed), " ".join(fixed)
             for hit in hits:
                 found.setdefault(hit["id"], hit)
-            return _score(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy, priced=priced())
+            return _score(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy, priced=priced)
 
     def instrument_listings(self, security: str) -> list[dict]:
         """The listings of the instrument a security belongs to, receipts folded in as in search: the ones
@@ -254,14 +259,16 @@ class Directory:
                 for index, row in enumerate(rows)]
 
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
-               suffixes: Callable[[], dict[str, set[str]]] = dict, priced: Callable[[], set[str]] = set,
+               suffixes: Callable[[], dict[str, set[str]]] = dict,
+               priced: Callable[[], Mapping[str, frozenset[str]]] = dict,
                bindings: Callable[[list[str]], dict[str, list[dict]]] = lambda ids: {}) -> dict[str, Any]:
         """The SearchResponse (packages/market-data/src/search.ts) for one query: one row per instrument."""
         allowed = set(kinds) if kinds else None
         # Issuers compete by their best line; an issuer's instruments follow in `_instrument_order`, at most
         # PER_ISSUER of them, each shown through its representative listing (the best key among its lines).
         issuers: dict[str, list] = {}
-        for score, line, key in self.lines(query, prefer, suffixes, priced):
+        venues = priced()  # read before taking the directory lock
+        for score, line, key in self.lines(query, prefer, suffixes, venues):
             # A type filter matches the instrument or the line (a folded receipt for "depositary_receipt").
             if allowed is not None and line["ikind"] not in allowed and line["kind"] not in allowed:
                 continue
@@ -294,7 +301,8 @@ def _instrument_order(members: list) -> tuple:
 
 
 def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None = None, hint: set[str] | None = None,
-           id_rows: bool = False, fuzzy: bool = False, priced: set[str] = frozenset()) -> list[tuple[float, dict, tuple]]:
+           id_rows: bool = False, fuzzy: bool = False,
+           priced: Mapping[str, frozenset[str]] = {}) -> list[tuple[float, dict, tuple]]:
     wanted_core, wanted = core_name(query), norm(query)
     out = []
     for line in lines:
@@ -322,11 +330,16 @@ def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None 
             score += W["fuzzy"]
         # The representative listing of an instrument: lexicographic, not additive. A listing the query names
         # first (its venue, or its exact ticker unless the query is also the name: "relx", "ing"), then
-        # the preferred region, then a line an installed plugin can price, then the primary market.
+        # the preferred region, then the home and primary market, then a line an installed plugin can price,
+        # then a fixed venue order (VENUE_ORDER) and the listing ID, so the pick never depends on hit order.
         preferred = (prefer == "EU" and line["country"] in EEA) or (prefer == "US" and line["country"] == "US"
                                                                      and not line["otc"])
-        key = (int(venue_hit), int(exact_hit and not named), int(preferred), int(line["mic"] in priced), -line["fus"],
-               -line["deriv"], -line["otc"], line["home"], line["prim"], -line["dr"], line["size"] or 0)
+        classes = priced.get(line["mic"] or "")
+        priceable = classes is not None and (not classes or ("crypto" if line["crypto"] else "equity") in classes)
+        venue = -VENUE_ORDER.index(line["mic"]) if line["mic"] in VENUE_ORDER else -len(VENUE_ORDER)
+        key = (int(venue_hit), int(exact_hit and not named), int(preferred), -line["fus"], -line["deriv"],
+               -line["otc"], line["home"], line["prim"], int(priceable), -line["dr"], line["size"] or 0, venue,
+               line["listing"])
         out.append((score, line, key))
     return out
 

@@ -84,6 +84,7 @@ class NamesAndClassesTest(unittest.TestCase):
         self.assertEqual(rules.exchange_ticker("VOLV", "B", "XSTO"), "VOLV B")
         self.assertEqual(rules.exchange_ticker("NOVO", "B", "XCSE"), "NOVO B")
         self.assertIsNone(rules.exchange_ticker("BRK", "B", "XNYS"))
+        self.assertIsNone(rules.exchange_ticker("KESKO", "B", "XHEL"))  # Helsinki keeps KESKOB
         self.assertIsNone(rules.exchange_ticker("ASML", None, "XAMS"))
 
     def test_sec_non_share_lines_are_labelled(self):
@@ -107,7 +108,8 @@ class DisplayNameTest(unittest.TestCase):
                  ("JPMORGAN CHASE & CO", "JPM"): "JPMorgan Chase & Co",
                  ("NESTLÉ S.A.", ""): "Nestlé S.A.", ("A.P. MØLLER - MÆRSK A/S", "MAERSK"): "A.P. Møller - Mærsk A/S",
                  ("INDUSTRIA DE DISEÑO TEXTIL, S.A.", ""): "Industria de Diseño Textil, S.A.",
-                 ("ORLEN SPÓŁKA AKCYJNA", ""): "Orlen Spółka Akcyjna"}
+                 ("ORLEN SPÓŁKA AKCYJNA", ""): "Orlen Spółka Akcyjna",
+                 ("TÜRKİYE HALK BANKASI", ""): "Türkiye Halk Bankasi"}
         for (name, ticker), shown in cases.items():
             self.assertEqual(rules.display_case(name, frozenset({ticker})), shown)
 

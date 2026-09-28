@@ -189,7 +189,9 @@ def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     if moved:
         relevant = moved.mic
     share_class = next((l.share_class_figi for l in listings if l.share_class_figi), None)
-    xetra_live = any(r.mic in XETRA_SEGMENTS and not (r.termination and r.termination <= inputs.as_of.isoformat()) for r in records)
+    xetra = [r for r in records if r.mic in XETRA_SEGMENTS and not (r.termination and r.termination <= inputs.as_of.isoformat())]
+    # A regional regulated-market admission is the listing: it moves only to a regulated Xetra line.
+    xetra_live = bool(xetra) and (not _regulated(inputs, relevant) or any(_regulated(inputs, r.mic) for r in xetra))
     primary_mic, rule, home_row = rules.primary_venue(isin, operating(inputs.venues, relevant), xetra_live, fanout)
     if moved and rule == "firds_relevant_venue":
         rule = "trading_venue_to_listing_venue"
@@ -209,6 +211,11 @@ def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     _mark_primary(snap, security, listings, relevant, home_row)
     states = {l.status for l in listings}
     security.activity = "active" if "active" in states else ("suspect" if "suspect" in states else ("inactive" if states else "active"))
+
+
+def _regulated(inputs: Inputs, mic: str | None) -> bool:
+    venue = inputs.venues.get(mic or "")
+    return bool(venue and venue.category == "RMKT")
 
 
 def _listing_venue(isin: str, listings: list[Listing]) -> Listing | None:

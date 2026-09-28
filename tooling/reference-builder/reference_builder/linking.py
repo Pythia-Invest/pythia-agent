@@ -175,9 +175,13 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
         else:
             continue
         candidates.append((rule == "name_unique", cik, lei, rule))
+    titles = _titles(tickers)
     links: dict[str, tuple[str, str]] = {}
     claimed: dict[str, str] = {}
-    for _weak, cik, lei, rule in sorted(candidates, key=lambda c: c[0]):  # stable: CIK order within a pass
+    # Identifier links first; among CIKs claiming one LEI, one whose SEC title matches the LEI's names first (FIRDS
+    # gives Lee Enterprises' ISIN Berkshire Hathaway's LEI); otherwise CIK order.
+    ordered = sorted(candidates, key=lambda c: (c[0], not _name_alike(titles[c[1]], snap.issuers.get(f"lei:{c[2]}"))))
+    for _weak, cik, lei, rule in ordered:
         if lei in claimed:
             snap.flag(f"cik:{cik}", "lei_already_linked", f"{lei} to cik:{claimed[lei]}")
             audit["link_conflicts"] += 1
@@ -199,20 +203,31 @@ def _issuer_for(snap: Snapshot, ticker: SecTicker, link: tuple[str, str] | None)
     return issuer
 
 
-def _flag_suspect_links(snap: Snapshot, tickers: list[SecTicker], links: dict[str, tuple[str, str]]) -> None:
-    """An identifier link whose SEC title shares no name word with any GLEIF name of the LEI: a rename, or a
-    wrong LEI in the source (FIRDS gives Lee Enterprises' ISIN Berkshire Hathaway's LEI). Flagged, kept."""
-    titles = {t.cik: t.name for t in reversed(tickers)}
+def _titles(tickers: list[SecTicker]) -> dict[str, str]:
+    return {t.cik: t.name for t in reversed(tickers)}  # a CIK's first SEC title
 
-    def alike(a: str, b: str) -> bool:  # a shared word, or the same letters apart from spacing ("MOODY S", "F N B")
-        x, y = rules.normalized_name(a), rules.normalized_name(b)
+
+def _name_alike(title: str, issuer: Issuer | None) -> bool:
+    """Whether a SEC title shares a name word with any GLEIF name of the issuer, or its letters apart from
+    spacing ("MOODY S", "F N B")."""
+    if issuer is None:
+        return False
+    x = rules.normalized_name(title)
+    for name in (issuer.name, *(name for name, *_ in issuer.names)):
+        y = rules.normalized_name(name)
         joined = sorted((x.replace(" ", ""), y.replace(" ", "")), key=len)
-        return bool(set(x.split()) & set(y.split())) or bool(joined[0]) and joined[1].startswith(joined[0])
+        if set(x.split()) & set(y.split()) or (joined[0] and joined[1].startswith(joined[0])):
+            return True
+    return False
 
+
+def _flag_suspect_links(snap: Snapshot, tickers: list[SecTicker], links: dict[str, tuple[str, str]]) -> None:
+    """An identifier link whose SEC title matches no GLEIF name of the LEI: a rename, or a wrong LEI in the
+    source. Flagged, kept."""
+    titles = _titles(tickers)
     for cik, (lei, rule) in links.items():
         issuer = snap.issuers[f"lei:{lei}"]
-        names = [issuer.name, *(name for name, *_ in issuer.names)]
-        if rule != "name_unique" and not any(alike(titles[cik], name) for name in names):
+        if rule != "name_unique" and not _name_alike(titles[cik], issuer):
             snap.flag(issuer.issuer_id, "cik_link_suspect", f"cik:{cik}")
 
 

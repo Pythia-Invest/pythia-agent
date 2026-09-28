@@ -95,28 +95,35 @@ table under `writer_ignored`.
   primary is an EEA regulated-market admission: Stellantis and Ferrari stay on
   Euronext Milan. Move a German floor exchange (Frankfurt, Stuttgart, Munich,
   Düsseldorf, Hamburg, Hanover, Berlin) to Xetra when a live Xetra line exists
-  (`german_floor_to_xetra`). Known debatable results in the XAMS build: DSM-Firmenich moves to
+  (`german_floor_to_xetra`), except that a regional regulated-market admission
+  moves only to a regulated Xetra line. Known debatable results in the XAMS build: DSM-Firmenich moves to
   XSWX; Coca-Cola Europacific Partners and Accsys Technologies (AIM plus
   Euronext Amsterdam) move to XLON. OpenFIGI does not tell AIM from the LSE
   main market, so the rule cannot separate these cases without turnover
   evidence from both venues.
 - **OpenFIGI multi-row answers.** Prefer the venue's main exchange code, reject
   currency-suffixed MTF tickers, then prefer the shortest ticker.
-- **Share-class tickers.** A class OpenFIGI glues on (`VOLVB`, found through the
-  FISN `…/SH B`) is written as Nasdaq Nordic writes it, after a space
-  (`VOLV B`); core turns the space into `-` for provider symbols (`VOLV-B.ST`).
+- **Share-class tickers.** On Nasdaq Stockholm and Copenhagen a class OpenFIGI
+  glues on (`VOLVB`, found through the FISN `…/SH B` or `…/B Aktie`) is written
+  as the venue writes it, after a space (`VOLV B`), which core's ticker grammar
+  accepts; core turns the space into `-` for provider symbols (`VOLV-B.ST`).
+  Helsinki writes classes glued (`KESKOB`) and keeps them so.
 - **Names.** Use the GLEIF legal name when it is Latin script. Otherwise use the
   typed alternative-language name, then the transliterated legal name. Never use
   a previous name. SEC titles drop their state and ADR markers (`/DE/`,
   ` DE`, `/ADR`), and display names re-case all-capitals names (`rules.display_case`): legal forms
   keep their usual spelling (N.V., PLC, AG, Inc), and the issuer's tickers,
   words without a vowel and short uncommon words stay capitals (ASML, KPN,
-  ING); accented capitals re-case like any other (Nestlé, Møller, Spółka).
+  ING); accented capitals re-case like any other (Nestlé, Møller, Spółka,
+  Türkiye).
   Mixed-case names are kept as written.
 - **CIK to LEI.** Link by identifier agreement first: a FIRDS US ISIN mapped to
   the SEC ticker, a shared share-class FIGI, or GLEIF's SEC EDGAR registration.
   Fall back to a unique normalised name match on both sides. Conflicts become
-  flags, never merges. Two cases are flagged for review and left as built:
+  flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
+  title matches the LEI's names wins, then CIK order (FIRDS gives Lee
+  Enterprises' ISIN Berkshire Hathaway's LEI). Two cases are flagged for review
+  and left as built:
   an identifier link whose SEC title shares no name word with any GLEIF name of
   the LEI (`cik_link_suspect`: a rename, or a wrong LEI in FIRDS such as Lee
   Enterprises under Berkshire Hathaway's), and a CIK-only issuer named like a
@@ -171,9 +178,13 @@ command. The builder runs the same audit after writing a snapshot and records
 the scores under `truth_audit` in the manifest; it never blocks a build. Both
 also list build counts to review from the manifest's audit: primaries set by
 `us_exchange_no_home_line`, live securities written without a primary listing,
-`issuer_split_lei_cik` and `cik_link_suspect` flags. The baseline is taken on a
+`issuer_split_lei_cik` and `cik_link_suspect` flags, and every `skipped_*`
+count (identifiers or relations the schema rejected). The baseline is taken on a
 default-scope build (every EEA venue and US lines); an XAMS-only build reports
-checks it cannot pass without other venues as regressions.
+checks it cannot pass without other venues as regressions. `--write-baseline`
+lists every truth entry's subject ID that changed since the previous baseline
+and writes nothing unless `--accept-id-changes` is given; the accepted changes
+are kept in the baseline under `accepted_id_changes`.
 
 Conventions: US tickers use the SEC's `-` class separator (`BRK-B`); Nordic
 tickers keep the exchange's space (`VOLV B`, Yahoo `VOLV-B.ST`); the listing

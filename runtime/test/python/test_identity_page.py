@@ -1,4 +1,5 @@
 """Core identity operations over a hand-written reference: local search, page sections, resolve decisions."""
+import contextlib
 import sqlite3
 import tempfile
 import unittest
@@ -136,24 +137,38 @@ class SearchTest(Fixture):
         self.assertEqual({key: row[key] for key in ("id", "mic", "country", "listings", "bindings")},
                          {"id": BTC, "mic": None, "country": None, "listings": 0, "bindings": bound[BTC]})
 
-    def test_unless_the_query_names_a_listing_the_row_shows_one_a_plugin_can_price(self):
-        self.assertEqual(self.rows("shell")[:1], [SHELL])
-        self.assertEqual(self.rows("shell", priced=lambda: {"OTCM"})[:1], [SHELL_OTC])
-        self.assertEqual(self.rows("shell", priced=lambda: {"XAMS", "OTCM"})[:1], [SHELL])
-        self.assertEqual(self.rows("shell", prefer="EU", priced=lambda: {"OTCM"})[:1], [SHELL])  # the preference first
-        self.assertEqual(self.rows("SHEL", priced=lambda: {"OTCM"})[:1], [SHEL])  # a typed ticker still names its line
+    def lines(self, issuer, country, *lines):
+        """A company with lines (id, operating MIC, primary); the venues are added when missing."""
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues VALUES (?1, ?1, ?1, ?2)",
+                           [("XETR", "DE"), ("XMUN", "DE"), ("XDUS", "DE"), ("XBUD", "HU")])
+            db.execute("INSERT INTO issuers (id, name, country) VALUES (?, ?, ?)", (f"issuer:lei:{issuer}", issuer, country))
+            db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'x', 'equity', 'ordinary')",
+                       (f"security:{issuer}", f"issuer:lei:{issuer}"))
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?1, ?2, ?3, ?3, ?4, 'EUR', ?5)",
+                           [(listing, f"security:{issuer}", mic, ticker, primary) for listing, mic, ticker, primary in lines])
+        return search.Directory(self.ref)
+
+    def test_a_priceable_line_is_preferred_only_among_non_home_non_primary_lines(self):
+        directory = self.lines("TOYOTA", "JP", ("listing:t:dus", "XDUS", "TOM", 0), ("listing:t:mun", "XMUN", "TOM", 0),
+                               ("listing:t:xetr", "XETR", "TOM", 0))
+        row = lambda query, priced: directory.search(query, limit=1, priced=lambda: priced)["rows"][0]["id"]  # noqa: E731
+        self.assertEqual(row("toyota", {}), "listing:t:xetr")  # the fixed venue order: Xetra before the floors
+        self.assertEqual(row("toyota", {"XMUN": frozenset()}), "listing:t:mun")
+        self.assertEqual(row("TOM", {"XMUN": frozenset()}), "listing:t:mun")  # the same pick for any phrasing
+        self.assertEqual(row("toyota", {"XMUN": frozenset({"crypto"})}), "listing:t:xetr")  # not for equities
+
+    def test_the_home_and_primary_market_outrank_a_priceable_line(self):
+        directory = self.lines("OTP", "HU", ("listing:otp:bud", "XBUD", "OTP", 1), ("listing:otp:dus", "XDUS", "OTP", 0))
+        for query in ("OTP", "otp"):
+            self.assertEqual(directory.search(query, limit=1, priced=lambda: {"XDUS": frozenset()})["rows"][0]["id"],
+                             "listing:otp:bud")
+        self.assertEqual(self.rows("shell", priced=lambda: {"OTCM": frozenset()})[:1], [SHELL])  # an OTC line stays below
 
     def test_a_foreign_companys_primary_us_line_represents_it(self):
-        with sqlite3.connect(self.path) as db:
-            db.execute("INSERT INTO venues VALUES ('XETR', 'XETR', 'Xetra', 'DE')")
-            db.execute("INSERT INTO issuers (id, name, country) VALUES ('issuer:lei:LINDE', 'Linde plc', 'IE')")
-            db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind)"
-                       " VALUES ('security:linde', 'issuer:lei:LINDE', 'x', 'equity', 'ordinary')")
-            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
-                           " VALUES (?1, 'security:linde', ?2, ?2, 'LIN', ?3, ?4)",
-                           [("listing:linde:xetr", "XETR", "EUR", 0), ("listing:linde:xnys", "XNYS", "USD", 1)])
-        directory = search.Directory(self.ref)
-        rows = directory.search("linde", limit=5, priced=lambda: {"XETR", "XNYS"})["rows"]
+        directory = self.lines("LINDE", "IE", ("listing:linde:xetr", "XETR", "LIN", 0), ("listing:linde:xnys", "XNYS", "LIN", 1))
+        rows = directory.search("linde", limit=5, priced=lambda: {"XETR": frozenset(), "XNYS": frozenset()})["rows"]
         self.assertEqual([row["id"] for row in rows], ["listing:linde:xnys"])
 
     def test_an_issuers_main_share_and_preferred_come_before_its_notes(self):
@@ -172,8 +187,9 @@ class PageTest(Fixture):
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
 
     def test_priced_venues_are_the_mic_tables_of_usable_quote_plugins(self):
-        self.assertEqual(page.priced_venues([plugin("yahoo"), plugin("eodhd"), plugin("gleif")]), {"XAMS", "XNAS"})
-        self.assertEqual(page.priced_venues([plugin("yahoo", enabled=False)]), set())
+        self.assertEqual(page.priced_venues([plugin("yahoo"), plugin("eodhd"), plugin("gleif")]),
+                         {"XAMS": frozenset({"equity"}), "XNAS": frozenset({"equity"})})
+        self.assertEqual(page.priced_venues([plugin("yahoo", enabled=False)]), {})
 
     def test_a_nordic_class_ticker_becomes_a_dashed_provider_symbol(self):
         contract = {**CONTRACTS["yahoo"], "addressing": {**CONTRACTS["yahoo"]["addressing"], "mic_table": {"XSTO": ".ST"}}}

@@ -34,9 +34,11 @@ not a registry: deleting the package removes the declaration.
   level; the global schemes it accepts per level (a scheme must belong to that
   level); and a flat table from operating MIC to the literal suffix core appends
   to the ticker (`".AS"`, or `""` for a bare symbol), so core can build a
-  native reference from `ticker_mic` without a call. A provider symbol has no
-  space: a venue's class separator (`VOLV B` on Nasdaq Nordic) becomes `-`
-  (`VOLV-B.ST`), rule `mic_table@2`.
+  native reference from `ticker_mic` without a call. A ticker is written as its
+  venue writes it: core's ticker grammar allows one space before a short class
+  suffix (`VOLV B@XSTO` on Nasdaq Stockholm and Copenhagen). A provider symbol
+  has no space, so core writes that separator as `-` (`VOLV-B.ST`), rule
+  `mic_table@2`.
 - **`content`** maps core's page sections (`quote`, `chart`, `profile`,
   `financials`, `news`, `filings`) to a tool, the level the data is about and the level of
   the reference used to call (`via`). `via` may be narrower than `level`, never

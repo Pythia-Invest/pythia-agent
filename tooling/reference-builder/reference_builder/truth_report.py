@@ -28,28 +28,34 @@ def load_truth(path: Path | None = None) -> dict:
 def baseline_of(report: Audit) -> dict:
     return {"reference": report.reference, "scope": report.scope.label, "truth_version": report.truth_version,
             "key_rule": key_rule(),
-            "passed": sorted(r.key for r in report.results if r.status == "pass"),
+            "passed": sorted({r.key for r in report.results if r.status == "pass"}),
             "ids": dict(sorted(report.ids.items()))}
 
 
-def regressions(report: Audit, baseline: dict | None, aliases: dict[str, str] | None = None) -> list[str]:
-    """Checks that passed in the baseline and fail now, and subject IDs that changed without an alias."""
-    if not baseline:
-        return []
-    aliases = aliases or {}
-    now = {r.key: r for r in report.results}
-    found = [f"{key}: {now[key].reason}" for key in baseline.get("passed", [])
-             if key in now and now[key].status == "fail"]
-    for entry_id, old in baseline.get("ids", {}).items():
+def id_changes(report: Audit, baseline: dict | None, aliases: dict[str, str] | None = None) -> list[tuple[str, bool]]:
+    """Subject IDs of truth entries that differ from the baseline's, each with whether an `id_aliases` row
+    resolves the old ID to the new one."""
+    aliases, found = aliases or {}, []
+    for entry_id, old in (baseline or {}).get("ids", {}).items():
         new = report.ids.get(entry_id)
         if not new:
             continue
         pairs = [("security", old.get("security"), new.get("security")), ("issuer", old.get("issuer"), new.get("issuer"))]
         pairs += [(f"listing {label}", value, new["listings"].get(label)) for label, value in old.get("listings", {}).items()]
         for what, before, after in pairs:
-            if before and after and before != after and aliases.get(before) != after:
-                found.append(f"{entry_id}:subject_id: {what} changed {before} -> {after} without an alias")
+            if before and after and before != after:
+                found.append((f"{entry_id}:subject_id: {what} changed {before} -> {after}", aliases.get(before) == after))
     return found
+
+
+def regressions(report: Audit, baseline: dict | None, aliases: dict[str, str] | None = None) -> list[str]:
+    """Checks that passed in the baseline and fail now, and subject IDs that changed without an alias."""
+    if not baseline:
+        return []
+    now = {r.key: r for r in report.results}
+    found = [f"{key}: {now[key].reason}" for key in baseline.get("passed", [])
+             if key in now and now[key].status == "fail"]
+    return found + [f"{change} without an alias" for change, aliased in id_changes(report, baseline, aliases) if not aliased]
 
 
 def format_report(report: Audit, regressed: list[str], *, top: int = 12, baseline: dict | None = None) -> str:
@@ -97,7 +103,8 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
 
 
 # Build counts a reviewer should see beside the scores, from the manifest's audit: primaries a rule chose
-# rather than a source, securities left without one, and issuer links that look wrong. Never a gate.
+# rather than a source, securities left without one, issuer links that look wrong, and every identifier or
+# relation the schema rejected (`skipped_*`, e.g. a ticker core's grammar refuses). Never a gate.
 ATTENTION = (
     ("us_exchange_no_home_line", ("securities", "by_primary_rule"), "US primary: a US exchange line and no line in the ISIN's country"),
     ("securities_without_primary", ("schema",), "live securities without a primary listing"),
@@ -113,13 +120,19 @@ def attention(audit: dict) -> dict[str, int]:
         for step in path:
             section = section.get(step, {}) if isinstance(section, dict) else {}
         counts[key] = section.get(key, 0) if isinstance(section, dict) else 0
+    schema = audit.get("schema", {}) if isinstance(audit.get("schema"), dict) else {}
+    counts |= {key: schema[key] for key in sorted(schema) if key.startswith("skipped_")}
+    counts.setdefault("skipped_ticker_mic", 0)
     return counts
 
 
 def format_attention(counts: dict[str, int] | None) -> list[str]:
     if counts is None:
         return ["Build counts: no manifest.json for this reference beside it"]
-    return ["Build counts (manifest audit):"] + [f"  {counts.get(key, 0):>6}  {label}" for key, _path, label in ATTENTION]
+    labels = {key: label for key, _path, label in ATTENTION}
+    return ["Build counts (manifest audit):"] + [
+        f"  {value:>6}  {labels.get(key) or 'rejected by the schema: ' + key.removeprefix('skipped_')}"
+        for key, value in counts.items()]
 
 
 def manifest_audit(reference: Path) -> dict | None:
@@ -179,6 +192,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--truth", type=Path, help="truth set JSON (default truth/instruments.json)")
     parser.add_argument("--baseline", type=Path, help="baseline JSON (default truth/baseline.json)")
     parser.add_argument("--write-baseline", action="store_true", help="record this run as the baseline")
+    parser.add_argument("--accept-id-changes", action="store_true",
+                        help="with --write-baseline: accept subject IDs that changed since the previous baseline")
     parser.add_argument("--failures", action="store_true", help="list every failing check")
     parser.add_argument("--json", type=Path, help="also write the full results as JSON")
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
@@ -200,6 +215,19 @@ def main(argv: list[str] | None = None) -> int:
         args.json.write_text(json.dumps({"scores": report.scores(), "regressions": regressed,
                                          "results": [r.__dict__ for r in report.results]}, indent=1) + "\n", encoding="utf-8")
     if args.write_baseline:
-        baseline_path.write_text(json.dumps(baseline_of(report), indent=2) + "\n", encoding="utf-8")
+        # A re-take never accepts a subject-ID change silently: it lists every change, and one that no
+        # `id_aliases` row resolves needs --accept-id-changes and is kept in the baseline.
+        changes = id_changes(report, load_baseline(baseline_path), aliases_of(reference))
+        unaliased = [change for change, aliased in changes if not aliased]
+        if changes:
+            print(f"\nSubject IDs changed since the previous baseline: {len(changes)}, {len(unaliased)} without an alias")
+            print("\n".join(f"  {change} ({'resolves through id_aliases' if aliased else 'NO ALIAS'})"
+                            for change, aliased in changes))
+        if unaliased and not args.accept_id_changes:
+            print("baseline not written: review the ID changes without an alias and pass --accept-id-changes",
+                  file=sys.stderr)
+            return 1
+        data = baseline_of(report) | {"accepted_id_changes": unaliased}
+        baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
     return 1 if regressed else 0

@@ -26,8 +26,9 @@ HOME = {
 # German floor exchanges: FIRDS often names one as the relevant venue of a share whose German
 # main market is Xetra (Fresenius on Düsseldorf).
 GERMAN_FLOORS = frozenset({"XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER"})
-# Nasdaq Nordic writes a share class after a space (`VOLV B`); OpenFIGI glues it on (`VOLVB`).
-SPACED_CLASS_VENUES = frozenset({"XSTO", "XHEL", "XCSE", "XICE"})
+# Nasdaq Stockholm and Copenhagen write a share class after a space (`VOLV B`); OpenFIGI glues it on (`VOLVB`).
+# Helsinki writes it glued (`KESKOB`), as Yahoo does.
+SPACED_CLASS_VENUES = frozenset({"XSTO", "XCSE"})
 US_EXCHANGE_MIC = {"UN": "XNYS", "UW": "XNAS", "UQ": "XNAS", "UR": "XNAS", "UA": "XASE", "UP": "ARCX"}
 # Main OpenFIGI exchange code per operating MIC (derived from micCode-qualified answers).
 MAIN_EXCH_CODE = {
@@ -143,6 +144,7 @@ def display_case(name: str, tickers: frozenset[str] = frozenset(), *, sec: bool 
             return token
         # Any capital letter, not only ASCII: "NESTLÉ" -> "Nestlé", "MØLLER" -> "Møller".
         cased = re.sub(r"[^\W\d_]+(?:'[^\W\d_]+)?", lambda part: part[0].capitalize(), token)
+        cased = cased.replace("i\u0307", "i")  # Turkish dotted İ lower-cases to i + a combining dot
         return re.sub(r"^(Mc|[OD]')([a-z])", lambda part: part[1] + part[2].upper(), cased)
 
     parts = re.split(r"([\s/-]+)", name)

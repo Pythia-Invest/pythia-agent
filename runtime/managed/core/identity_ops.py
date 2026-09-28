@@ -272,13 +272,38 @@ def _suffixes() -> dict[str, set[str]]:
     return venues
 
 
-def _priced() -> set[str]:
-    """Venues where an installed plugin can price a line; without them search still answers, unranked by it."""
+_priced_cache: tuple[list, dict] | None = None
+_priced_failed = False
+
+
+def _priced() -> dict:
+    """Venues where an installed plugin can price a line (`page.priced_venues`). Kept until the plugin set, a
+    contract, an enablement or the configuration custody changes; without them search still answers, and a
+    failure is logged once, not on every keystroke."""
+    global _priced_cache, _priced_failed
     try:
-        return page.priced_venues(installed())
+        from hermes_cli.config import load_config_readonly
+        from hermes_cli.plugins import get_plugin_manager
+        from .platform.access import canonical_access_revision, native_plugin_enabled
+        config, stamp = load_config_readonly(), [canonical_access_revision()]
+        for key, plugin in sorted(tuple(get_plugin_manager()._plugins.items())):
+            contract = Path(plugin.manifest.path) / MANIFEST_FILE if plugin.manifest.path else None
+            try:
+                changed = contract.stat().st_mtime_ns if contract else None
+            except OSError:
+                changed = None
+            stamp.append((key, str(contract), changed, native_plugin_enabled(key, plugin, config)))
+        cached = _priced_cache
+        if cached is not None and stamp[0] is not None and cached[0] == stamp:
+            return cached[1]
+        venues = page.priced_venues(installed())
+        _priced_cache, _priced_failed = (stamp, venues), False
+        return venues
     except Exception:  # search degrades, never errors out
-        logger.warning("plugin contracts unreadable; search ignores price availability", exc_info=True)
-        return set()
+        if not _priced_failed:
+            logger.warning("plugin contracts unreadable; search ignores price availability", exc_info=True)
+        _priced_failed = True
+        return {}
 
 
 def installed() -> list[page.PluginInfo]:
