@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { hermesPin } from "../../scripts/dev/hermes-pin.mjs";
 import { atomicWriteJson } from "../../scripts/install/files.mjs";
 import { verifyBasicMemoryReadiness } from "../../scripts/install/basic-memory-readiness.mjs";
 import { resolveInstallPaths } from "../../scripts/install/paths.mjs";
@@ -214,7 +215,7 @@ describe("installed readiness and recovery", () => {
           return Response.json({
             status: "ok",
             platform: "hermes-agent",
-            version: "0.21.0",
+            version: hermesPin().packageVersion,
           });
         }
         return Response.json({ jsonrpc: "2.0", id: 1, result: {} });

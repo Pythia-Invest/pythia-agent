@@ -11,9 +11,11 @@
   "scripts": {
     "build": "pnpm run build:runtime && node tooling/run-turbo.mjs build",
     "build:runtime": "tsc --project runtime/managed/runner/tsconfig.json && node scripts/dev/build-managed-widgets.mjs",
+    "capture:hermes": "node tooling/qualification/hermes-capture.mjs",
     "widget:build": "node packages/widget-sdk/build.mjs",
     "check": "node tooling/run-turbo.mjs check",
     "check:boundaries": "node tooling/check-boundaries.mjs",
+    "check:hermes-capture": "node tooling/qualification/hermes-capture.mjs --check",
     "check:structure": "node tooling/check-structure.mjs",
     "check:types": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project runtime/managed/runner/tsconfig.json",
     "dev": "node tooling/run-turbo.mjs dev --parallel",

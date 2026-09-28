@@ -2,8 +2,14 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { hermesPin } from "../hermes-pin.mjs";
 
 const port = Number(process.argv[2]);
+const health = JSON.stringify({
+  status: "ok",
+  platform: "hermes-agent",
+  version: hermesPin().packageVersion,
+});
 const behavior = process.argv[3] ?? "serve";
 if (behavior === "fail") {
   process.exit(23);
@@ -54,7 +60,7 @@ if (
       request.resume();
     }
     response.writeHead(200, { "content-type": "application/json" });
-    response.end('{"status":"ok"}');
+    response.end(health);
   });
 
   server.listen(port, "127.0.0.1");

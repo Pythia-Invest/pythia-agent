@@ -23,6 +23,14 @@ universal builder guidance in `.agents/<topic>.md`, directory guidance in the
 nearest nested `AGENTS.md`, and genuinely cross-cutting path guidance in
 `.agents/rules/<topic>.md`. Mechanical requirements belong in code or tests.
 
+A path rule earns its place only when its guidance applies to a bounded area
+that a few directory-level patterns describe. If the scope has to enumerate
+individual files, must grow whenever new code starts depending on the topic,
+or would match most of the repository, write the brief guidance in root or
+the nearest nested `AGENTS.md` instead: a missing pattern silently fails to
+load the rule, while a short always-loaded paragraph cannot go stale. Prefer
+extending an existing `AGENTS.md` pointer or table row over a new rule.
+
 Rules use frontmatter with a concise `description` and identical `paths` and
 `globs` lists. Generated Claude and Cursor copies are delivery only; never use
 `.codex/rules` for Markdown instructions. Give every nested `AGENTS.md` a thin

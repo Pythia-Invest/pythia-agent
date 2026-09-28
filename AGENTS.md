@@ -47,6 +47,7 @@ Read additional guidance by the surface being changed:
 | Model-visible text, including skills, tool descriptions and builder rules | [Prompting guidance](docs/prompting.md) and [instruction rule](.agents/rules/agent-instruction-design.md) |
 | Platform, browser or hosting behavior | [Supported environments](docs/support.md) and [hosting](docs/hosting.md) |
 | Settings, credentials, lifecycle or updates | [Credential custody](docs/architecture/credential-custody.md) and [development](docs/development.md) |
+| Hermes-facing code, the Hermes pin or an upgrade | The [Hermes touchpoint index](runtime/contracts/hermes.md#touchpoint-index) and the Hermes paragraph below; upgrades use the explicit `upgrade-hermes` skill |
 | The Claude Design export of `@pythia/ui` | [Design-system sync rule](.agents/rules/design-system-sync.md) and `.design-sync/NOTES.md` |
 | Tests | [Test allocation](.agents/testing.md) |
 | Financial connector capabilities or execution | [Financial connector rule](.agents/rules/financial-connectors.md) |
@@ -56,6 +57,14 @@ Use the pinned dependency's documented native surface; inspect its relevant
 source/types before adapting it. If evidence challenges a decided boundary,
 explain the conflict and ask before changing that decision. Keep durable docs
 current; historical experiments are evidence, not competing instructions.
+
+Keep the Hermes touchpoint index true: a change that adds or alters a
+dependency on Hermes behavior (a route, field, event, command, output string,
+config key, tool shape or private seam) updates its row and coverage in the
+same change. Prefer the wire capture of pinned output over a hand-written
+fixture, which cannot detect drift; parse Hermes text only with a row naming
+its source anchor; read the pin from `runtime/versions.json`
+(`scripts/dev/hermes-pin.mjs`), never copying the version or commit into code.
 
 Keep private working records under ignored `.private/plans/<branch>/`. Before
 material work is complete, distill every accepted product or architecture
@@ -73,7 +82,9 @@ role-scoped allowlists; the seeded workspace `AGENTS.md` is separate native
 investor context and must never be projected as builder guidance.
 
 Do not commit credentials, investment records, provider responses, generated
-model output, or device state. Preserve unrelated changes. Do not commit, push,
+model output, or device state. Hermes protocol and formatter goldens captured
+from scripted agents are allowed under
+[ADR 0020](docs/decisions/0020-hermes-wire-capture-goldens.md). Preserve unrelated changes. Do not commit, push,
 activate hooks, write external services, or run real providers unless the user
 explicitly authorizes that action.
 

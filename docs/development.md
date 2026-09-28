@@ -273,6 +273,20 @@ ACLs. This is not a multi-user hosted service or an authentication layer for
 arbitrary reverse proxies. Tailscale handles certificates and forwarding; Desk
 uses Next's native `allowedDevOrigins` for remote hot reload.
 
+## Upgrading Hermes
+
+Hermes is one exact release recorded in `runtime/versions.json`; code reads the
+pin from there and `just check` rejects a disagreeing
+`runtime/hermes/hermes-source.json`. Every Pythia dependency on Hermes
+behavior has a row in the contract's
+[touchpoint index](../runtime/contracts/hermes.md#touchpoint-index), and its
+[known defects](../runtime/contracts/hermes.md#known-defects-at-this-pin) say
+what the next release must fix. An upgrade is an explicit
+`upgrade-hermes` workflow: review the candidate against the index, bump the
+pin, hydrate with `just dev-init`, rerun the wire capture and review its diff,
+fix and document, then run `just check`, `just test`, `just qualify` and a Desk
+smoke test. [ADR 0019](decisions/0019-hermes-upgrade-procedure.md) records why.
+
 ## Where changes belong
 
 - `apps/desk` is the installed local interface; its routing, data fetching,
