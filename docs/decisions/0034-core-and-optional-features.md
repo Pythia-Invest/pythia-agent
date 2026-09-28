@@ -70,6 +70,6 @@ probe would unnecessarily couple core supervision to a former provider environme
 
 [ADR 0040](0040-data-concepts-and-agent-tools.md) makes data concepts and the market-data concept layer part of core. The
 market-data feature's widgets and top-bar module become a replaceable markets UI
-plugin; provider connectors stay plugins. The Pythia profile keeps the
-`terminal` and `code_execution` toolsets off until provider credentials are out
-of the agent's reach, so the "future scripting plugin" above waits for that too.
+plugin; provider connectors stay plugins. The agent keeps
+code execution, whose tools can read the provider secrets file today; isolating
+secrets from them is an open decision that a scripting plugin must also respect.

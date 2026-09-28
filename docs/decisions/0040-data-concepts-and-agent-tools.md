@@ -183,13 +183,13 @@ with JSON in and out, served to Hermes and over HTTP. Disclosure lives in data
 (an operating prompt paragraph, `more` pointers, Markdown skills, generated
 help), so another harness needs only its own tool registration.
 
-### Terminal and code execution stay off
+### Secrets and the agent's tools
 
-Provider keys live in `<config>/secrets.json`, which any tool running as the
-investor can read. The Pythia profile keeps the `terminal` and `code_execution`
-toolsets off. The native file tools can still read that file; closing that is a
-separate change whose approach (a workspace read limit with a write allowlist,
-or keys in the OS keychain) is still being decided. See
+The agent keeps code execution (bash, Python, Node). Today its code and file
+tools run as the investor and can read the provider secrets file,
+`<config>/secrets.json`. That is an open gap. How secrets are isolated
+(sandboxed code and file tools, the OS keychain, or a credential broker) awaits
+the founder's decision. See
 [credential custody](../architecture/credential-custody.md).
 
 ### Evaluation
