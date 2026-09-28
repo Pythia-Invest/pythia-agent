@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
 
+from . import source_drift
 from .model import Venue
 from .schema import identity
 
@@ -69,6 +70,14 @@ def previous_good(path: Path) -> tuple[Path, dict] | None:
         if found and found.get("good") and found.get("fingerprint", {}).get("records"):
             return older, found
     return None
+
+
+def drift(path: Path, fingerprint: dict, read=(), exact=()) -> dict:
+    """A source's drift report for this build: its alarms against the last good build's fingerprint."""
+    baseline = previous_good(path)
+    alarms = source_drift.compare(baseline[1]["fingerprint"] if baseline else None, fingerprint, read, exact)
+    return {"record": path.name, "baseline": baseline[0].name if baseline else None, "alarms": alarms,
+            "broken": bool(source_drift.breaks(alarms))}
 
 
 # ---- claims in memory: what reconciliation and the audit read ------------------------------------------------

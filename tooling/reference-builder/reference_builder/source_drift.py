@@ -70,8 +70,11 @@ class Fingerprint:
                 "metrics": dict(sorted(self.metrics.items())), "examples": self.examples}
 
 
-def compare(before: dict | None, after: dict, read: Iterable[str] = ()) -> list[dict]:
-    """Alarms for `after` against the previous build's fingerprint `before`; `read` are the paths the adapter reads."""
+def compare(before: dict | None, after: dict, read: Iterable[str] = (), exact: Iterable[str] = ()) -> list[dict]:
+    """Alarms for `after` against the previous build's fingerprint `before`; `read` are the paths the adapter reads,
+    and `exact` the named counts whose every change is an alarm (a small count that matters, such as filers whose
+    data is known to be stale)."""
+    exact = set(exact)
     if not after.get("records"):
         return [_alarm("break", "no_records", "records", before and before.get("records"), 0, [])]
     if not before:
@@ -109,7 +112,7 @@ def compare(before: dict | None, after: dict, read: Iterable[str] = ()) -> list[
     for name, value in sorted(metrics.items()):
         old = old_metrics.get(name, 0)
         grew_from_zero, big = old == 0 and value > 0, max(old, value) >= MIN_COUNT // 10
-        if grew_from_zero or (big and abs(value - old) / max(old, 1) > COUNT_SHIFT):
+        if grew_from_zero or (big and abs(value - old) / max(old, 1) > COUNT_SHIFT) or (name in exact and value != old):
             alarms.append(_alarm("alarm", "metric_shift", name, old, value, examples.get(f"metric:{name}", [])))
     return alarms
 

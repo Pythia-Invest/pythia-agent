@@ -63,8 +63,24 @@ def run(config: BuildConfig) -> int:
     if config.fitrs:
         transparency = firds.load_transparency([firds.download(downloads, "esma_fitrs", d) for d in firds.fitrs_files(USER_AGENT, config.as_of, config.scope.cfi_prefixes)], config.as_of)
 
-    sec_rows = sec.parse(sec.fetch(downloads, config.contact, config.sec_file, day)) if config.scope.sec else []
-    funds = sec.parse_funds(sec.fetch_funds(downloads, config.contact, day)) if config.scope.sec and not config.sec_file else []
+    sec_files = {}
+    if config.scope.sec:
+        sec_files[sec.TICKERS] = sec.fetch(downloads, config.contact, config.sec_file, day)
+        if not config.sec_file:
+            sec_files[sec.FUNDS] = sec.fetch_funds(downloads, config.contact, day)
+    sec_drift = {}  # each SEC file is fingerprinted before it is parsed: a broken file is never parsed
+    for source, data in sec_files.items():
+        found = sec.observe(source, data).to_dict()
+        sec_drift[source] = (found, claims.drift(claims.record_path(config.out_dir, source, stamp), found, sec.READ[source]))
+        report = sec_drift[source][1]
+        for line in source_drift.format_alarms(report["alarms"], report["baseline"]):
+            log(f"{source}{line}")
+    sec_broken = [source for source, (_found, report) in sec_drift.items() if report["broken"]]
+    if sec_broken and config.gates:
+        log(f"SEC drift gate failed ({', '.join(sec_broken)}); no snapshot written (use --no-gates to inspect)")
+        return 2
+    sec_rows = sec.parse(sec_files[sec.TICKERS]) if sec.TICKERS in sec_files and sec.TICKERS not in sec_broken else []
+    funds = sec.parse_funds(sec_files[sec.FUNDS]) if sec.FUNDS in sec_files and sec.FUNDS not in sec_broken else []
     figi = OpenFigi(config.cache_dir, USER_AGENT, load_openfigi_key(), timedelta(days=config.openfigi_max_age_days))
     log(f"OpenFIGI: {'keyed' if figi.keyed else 'keyless (slower rate limits)'}")
     gleif = GleifClient(config.cache_dir, USER_AGENT, timedelta(days=config.gleif_max_age_days))
@@ -131,11 +147,14 @@ def run(config: BuildConfig) -> int:
         "truth_audit": truth_audit,
         "claims": writer.describe(questions_path) | {"questions": len(snap.questions)},
         "firds": {"record": record_path.name, "baseline": baseline[0].name if baseline else None} | firds_report,
+        "sec_drift": {source: report for source, (_found, report) in sec_drift.items()},
     })
     # Written last, beside a finished snapshot: a crashed build leaves no record to become the next baseline.
     claims.write(record_path, {"good": not firds_report["broken"], "fingerprint": firds_fingerprint, "report": firds_report})
+    for source, (found, report) in sec_drift.items():
+        claims.write(claims.record_path(config.out_dir, source, stamp), {"good": not report["broken"], "fingerprint": found, "report": report})
     log(f"wrote {snapshot_path} ({counts.get('listings', 0)} listings) in {time.monotonic() - clock:.0f}s")
-    return 1 if failed or firds_report["broken"] else 0
+    return 1 if failed or firds_report["broken"] or sec_broken else 0
 
 
 def _unique_sources(sources: list[dict]) -> list[dict]:

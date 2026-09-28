@@ -9,7 +9,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from . import claims, firds_audit, invariants
+from . import claims, firds_audit, invariants, sec, source_drift
 from .schema import identity
 from .truth import TRUTH_DIR, Audit, Reference, audit
 
@@ -113,6 +113,7 @@ ATTENTION = (
     ("securities_without_primary", ("schema",), "live securities without a primary listing"),
     ("issuer_split_lei_cik", ("flags",), "CIK-only issuers named like a LEI issuer (one company split in two?)"),
     ("cik_link_suspect", ("flags",), "CIK links whose SEC title shares no word with the LEI's names"),
+    ("issuer_identity_name_candidate", ("flags",), "CIK-only issuers whose name matches one LEI issuer: open questions"),
 )
 
 
@@ -251,6 +252,9 @@ def main(argv: list[str] | None = None) -> int:
     print("\n" + "\n".join(invariants.format_results(checked, before, previous.name if previous else "")))
     firds_lines, firds_broken = firds_audit.format_section(claims.for_reference(reference, "firds"), reference.name)
     print("\n" + "\n".join(firds_lines))
+    sec_lines, sec_broken = sec_section(reference)
+    if sec_lines:
+        print("\n" + "\n".join(sec_lines))
     if args.failures:
         print("\nFailing checks:")
         print("\n".join(f"  {r.key}: {r.reason}" for r in report.results if r.status == "fail"))
@@ -277,4 +281,21 @@ def main(argv: list[str] | None = None) -> int:
         data = baseline_of(report) | {"accepted_id_changes": accepted}
         baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
-    return 1 if regressed or firds_broken or any(r.failed for r in checked) else 0
+    return 1 if regressed or firds_broken or sec_broken or any(r.failed for r in checked) else 0
+
+
+def sec_section(reference: Path) -> tuple[list[str], bool]:
+    """The SEC ticker files' drift against the last good build, from the records beside a snapshot (none for an
+    EEA-only build), and whether a file broke."""
+    lines, broken = [], False
+    for source in (sec.TICKERS, sec.FUNDS):
+        path = claims.for_reference(reference, source)
+        record = claims.read(path)
+        if not record or not record.get("fingerprint"):
+            continue
+        report = claims.drift(path, record["fingerprint"], sec.READ[source])
+        broken = broken or report["broken"]
+        counts = ", ".join(f"{name} {value}" for name, value in record["fingerprint"]["metrics"].items() if value)
+        lines += [f"{source} ({record['fingerprint']['records']} rows; {path.name}{'' if record.get('good') else ', a broken build'})"
+                  f"{': ' + counts if counts else ''}", *source_drift.format_alarms(report["alarms"], report["baseline"])]
+    return lines, broken

@@ -197,15 +197,18 @@ def fundamentals(raw, identifier, observed_at, limit=20):
             'limitations': [*limitations, 'Income and cash-flow figures cover the latest reported annual duration for each metric; balance-sheet values are reported instants. Exact dates and filing revisions are retained. No TTM or quarterly values are synthesized.']}
 
 
-# Periodic reports whose financial statements companyfacts should carry once SEC has processed them.
-PERIODIC_FORMS = frozenset({'10-K', '10-Q', '20-F', '40-F'})
+# Reports whose financial statements companyfacts should carry once SEC has processed them. A 6-K is included:
+# SEC's cover-page tagging covers 10-K, 10-Q, 8-K, 20-F and 40-F, not 6-K, so a 6-K marked `isXBRL` carries
+# financial statements (a foreign issuer's interim report). In 2026 companyfacts silently lacked every such 6-K
+# (docs/sources/sec.md), leaving ING's and Shell's balance sheets a half-year behind while marked fresh.
+PERIODIC_FORMS = frozenset({'10-K', '10-Q', '20-F', '40-F', '6-K'})
 STATEMENT_TAXONOMIES = ('us-gaap', 'ifrs-full')
 
 
 def freshness(submissions, raw, identifier, observed_at):
     """Whether companyfacts includes the filer's latest periodic report with XBRL (drift alarm, not a fallback).
 
-    The newest 10-K, 10-Q, 20-F or 40-F flagged `isXBRL` in `submissions` must appear as the accession of at
+    The newest 10-K, 10-Q, 20-F, 40-F or 6-K flagged `isXBRL` in `submissions` must appear as the accession of at
     least one us-gaap or ifrs-full fact. A cover-page (`dei`) fact alone does not count: in 2026 companyfacts kept
     only one `dei` fact of several filers' 20-Fs and none of their statements. Amendments are not checked, since
     many carry no statements. `observed_at` is when `submissions` was read. Answers {'status': 'fresh' | 'stale' |

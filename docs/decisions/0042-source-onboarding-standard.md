@@ -47,10 +47,12 @@ It takes time, and it is the only way to get data we can trust.
   Sign-off follows as a gate.
 
   Each source keeps a public record in `docs/sources/<source>.md`.
-- **One source in onboarding at a time.** Onboarding means the audit, the
-  judgement work and sign-off. The current source may change another source's
-  adapter when it needs that source's evidence. It records the change in both
-  records and does not widen what the other source confirms.
+- **One audit per source, never batched.** Onboarding means the audit, the
+  judgement work and sign-off. Several sources may be in onboarding at once
+  (amended 2026-09-28, below), each with its own pull request, record, audit and
+  sign-off. A source in onboarding may change another source's adapter when it
+  needs that source's evidence. It records the change in both records and does
+  not widen what the other source confirms.
 - **Not trusted until sign-off.** Until then, a source does not create or change
   identity bindings, subjects or relations without review. It is also not
   enabled by default, and it is not the default source for any section.
@@ -80,9 +82,8 @@ precision has been measured.
 
 ## Consequences
 
-- FIRDS is onboarded first.
-- **The pre-standard sources keep their current role** while they are onboarded
-  in turn:
+- FIRDS was onboarded first.
+- **The pre-standard sources keep their current role** while they are onboarded:
   - the builder's FIRDS, FITRS, GLEIF, SEC, OpenFIGI and ISO 10383;
   - N-CEN, which is in review;
   - the bundled plugins: coingecko, coinmarketcap, eodhd, gleif, openfigi, sec,
@@ -118,8 +119,10 @@ precision has been measured.
 
 ## Rejected alternatives
 
-- **Auditing several sources in parallel.** That is how the misread fields and
-  the per-case rules accumulated.
+- **Auditing several sources together.** One build that took in five sources
+  at once, with one shared audit, is how the misread fields and the per-case
+  rules accumulated. Separate audits running at the same time are allowed
+  (amendment below); a combined one is not.
 - **Measuring quality on the hand-picked truth set.** It rewards fixing the
   names it contains.
 - **Fixing odd cases with more rules.** A rule written for a named case has no
@@ -128,3 +131,29 @@ precision has been measured.
   precision on EU depositary receipts in the gold-set evaluation.
 - **Requiring a gold set for suggest-only questions.** Most of the cost for
   little safety: a suggestion is reviewed anyway.
+
+## Amendment (2026-09-28): several sources in onboarding at once
+
+**Context.** The original ruling allowed one source in onboarding at a time.
+FIRDS then held the slot while the SEC, filings.xbrl.org, Yahoo and the national
+regulators waited behind it, although their audits share no work with FIRDS.
+
+**Ruling.** The founder's ruling, 2026-09-28 (decision C5): "just continue and
+parallelize what we can. But use a healthy amount of resources."
+
+- Several sources may be in onboarding at the same time.
+- Each has its own pull request, source record, audit and sign-off. Sources are
+  never batched into one audit, one record or one sign-off.
+- A source in onboarding may still change another source's adapter only when it
+  needs that source's evidence, recorded in both records.
+- Parallel work stays proportionate: audits are scripted over cached data, and
+  labelling is limited to the random sample.
+
+**Rationale.** The errors this standard answers came from one shared audit of
+five sources, not from audits running side by side. A separate record, sample
+and sign-off per source keep each source's odd cases visible.
+
+**Consequences.** `docs/architecture/source-onboarding.md` says the same. A
+source's record names the other sources whose open work it depends on (the
+SEC's CIK links depend on FIRDS field 5), and its sign-off does not wait for
+theirs unless it confirms through their evidence.

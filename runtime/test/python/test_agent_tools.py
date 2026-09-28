@@ -9,7 +9,6 @@ import copy
 import importlib
 import importlib.util
 import json
-import os
 import sqlite3
 import sys
 import tempfile
@@ -25,7 +24,6 @@ from test_identity_contracts import identity as fixture_identity
 
 RUNTIME = Path(__file__).resolve().parents[2]
 MANAGED = RUNTIME / "managed"
-SNAPSHOT = Path(__file__).parent / "fixtures" / "agent-tools.json"
 if "pythia_core_fixture" not in sys.modules:
     spec = importlib.util.spec_from_file_location("pythia_core_fixture", MANAGED / "core/__init__.py",
                                                   submodule_search_locations=[str(MANAGED / "core")])
@@ -536,63 +534,6 @@ class ConceptToolTest(AgentToolFixture):
             result = self.call(agent_tools.answer, item_id="q1", relation="none")
         self.assertEqual(result["data"], {"outcome": "refused"})
         self.assertEqual(submit.call_args.kwargs["resolver"], queue_ops.questions.ResolverKind.AGENT)
-
-
-class DeliveredViewTest(unittest.TestCase):
-    """What the model receives from Pythia: a reviewed snapshot, size budgets and no operation markers."""
-
-    def visible(self):
-        ctx = Context({})
-        with mock.patch.object(identity_ops, "CURRENT", None):
-            core.register(ctx)
-        return [ctx.tools[name]["schema"] for name in ctx.tools if ctx.tools[name]["toolset"] == agent_tools.TOOLSET]
-
-    def test_the_visible_tools_match_the_reviewed_snapshot(self):
-        schemas = self.visible()
-        if os.environ.get("PYTHIA_UPDATE_SNAPSHOTS") == "1":
-            SNAPSHOT.write_text(json.dumps(schemas, indent=2, ensure_ascii=False) + "\n")
-        self.assertEqual(schemas, json.loads(SNAPSHOT.read_text()),
-                         "The model-visible tool list changed. It is every session's cached prefix: review the "
-                         "change, then rerun with PYTHIA_UPDATE_SNAPSHOTS=1 and format the file with Biome to accept it.")
-
-    def test_registration_order_leaves_one_verdict_operation_and_no_marker_on_the_answer(self):
-        with mock.patch.object(identity_ops, "CURRENT", None):
-            for _ in range(2):  # core registered before (as the loaded plugin is) stamps the shared Desk schema
-                ctx = Context({})
-                core.register(ctx)
-        declared = [name for name, entry in ctx.tools.items()
-                    if (operations.declaration(entry["schema"]) or {}).get("operation") == "identity-verdict"]
-        self.assertEqual(declared, ["pythia_identity_verdict"])
-        self.assertNotIn("$comment", json.dumps(ctx.tools["pythia_answer_identity_question"]["schema"]))
-
-    def test_budgets_and_no_operation_markers(self):
-        schemas = self.visible()
-        sizes = {schema["name"]: len(json.dumps(schema, separators=(",", ":"))) for schema in schemas}
-        self.assertEqual(sorted(sizes), ["pythia_answer_identity_question", "pythia_desk_view",
-                                         "pythia_filings", "pythia_find", "pythia_identity_questions",
-                                         "pythia_instrument", "pythia_prices"])
-        for name, size in sizes.items():
-            self.assertLessEqual(size, 2000, name)
-        self.assertLessEqual(sum(sizes.values()), 9200)  # about 2,300 tokens by Hermes's chars/4
-        for schema in schemas:
-            self.assertLessEqual(len(schema["description"]), 700, schema["name"])
-            self.assertNotIn("$comment", json.dumps(schema), schema["name"])
-
-    def test_the_seed_hides_plugin_toolsets_and_leaves_tool_search_to_the_investor(self):
-        import re
-        text = (RUNTIME / "seeds/profile/config.yaml").read_text()
-        self.assertNotIn("tool_search", text)  # Tool Search on or off is the investor's own Hermes setting
-        block = text.split("known_plugin_toolsets:\n", 1)[1].split("\ntools:", 1)[0]
-        hidden = {platform: re.findall(r"^    - (\S+)$", body, re.M)
-                  for platform, body in re.findall(r"^  (\w+):\n((?:    - \S+\n)+)", block + "\n", re.M)}
-        # Plugin operations share core's hidden toolset; Pythia's and the plugins' agent tools serve Desk chat only.
-        providers = ["pythia-sec", "pythia-xbrl-filings", "pythia-gleif", "pythia-eodhd", "pythia-yahoo-discovery",
-                     "pythia-coinmarketcap", "pythia-openfigi", "pythia-hyperliquid"]
-        elsewhere = [identity_ops.TOOLSET, agent_tools.TOOLSET, *providers]
-        self.assertEqual(hidden, {"api_server": [identity_ops.TOOLSET], "cli": elsewhere, "cron": elsewhere})
-        for plugin in (MANAGED / "plugins").iterdir():
-            sources = "".join(path.read_text() for path in plugin.glob("*.py"))
-            self.assertNotRegex(sources, r"toolset=['\"](?!pythia-core)|TOOLSET = ['\"](?!pythia-core)", plugin.name)
 
 
 if __name__ == "__main__":

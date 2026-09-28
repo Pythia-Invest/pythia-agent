@@ -124,7 +124,7 @@ class IssuerTest(unittest.TestCase):
 class BuildTest(unittest.TestCase):
     """`main.run` on hand-made sources: the FIRDS record, its gate, and a snapshot the claims leave unchanged."""
 
-    def run_build(self, tmp: Path, day: str, records: list[str], gates: bool = True) -> int:
+    def run_build(self, tmp: Path, day: str, records: list[str], gates: bool = True, sec_file: Path | None = None) -> int:
         stamp = day.replace("-", "")
         archive = tmp / f"FULINS_E_{stamp}_01of01.zip"
         with zipfile.ZipFile(archive, "w") as zipped:
@@ -151,8 +151,8 @@ class BuildTest(unittest.TestCase):
             def provenance(self):
                 return None
 
-        config = BuildConfig(scope=Scope(mics=("XAMS",), sec=False), as_of=date.fromisoformat(day), out_dir=tmp / "out",
-                             cache_dir=tmp / "cache", fitrs=False, gates=gates)
+        config = BuildConfig(scope=Scope(mics=("XAMS",), sec=sec_file is not None), as_of=date.fromisoformat(day),
+                             out_dir=tmp / "out", cache_dir=tmp / "cache", fitrs=False, gates=gates, sec_file=sec_file)
         with mock.patch.object(main.mic, "fetch", lambda *a: MIC_CSV.encode()), \
                 mock.patch.object(main.firds, "firds_files", lambda *a: ([{"file_name": archive.name}], [])), \
                 mock.patch.object(main.firds, "download", lambda *a: str(archive)), \
