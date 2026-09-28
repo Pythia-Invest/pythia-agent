@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sqlite3
 import sys
+import threading
 import types
 import unittest.mock
 from pathlib import Path
@@ -94,6 +95,19 @@ class VerdictTest(QueueFixture):
             self.submit(item, "agent", chosen_id="listing:isin:USN070592100:XNAS:USD", confidence=0.99)
         with self.assertRaises(queue.Refused):
             self.submit(item, "agent")  # an agent states its confidence
+
+
+class StoreTest(QueueFixture):
+    def test_a_rolled_back_transaction_never_drops_another_threads_write(self):
+        writer = threading.Thread(target=self.identity.put_miss, args=(ASML, "pythia-eodhd", "EODHD found no match", 60))
+        with self.assertRaises(RuntimeError):
+            with self.identity.transaction():
+                writer.start()
+                writer.join(timeout=0.2)
+                self.assertTrue(writer.is_alive())  # it waits for the transaction instead of joining it
+                raise RuntimeError("roll back")
+        writer.join(timeout=5)
+        self.assertEqual(self.identity.misses(ASML), {"pythia-eodhd": "EODHD found no match"})
 
 
 class RulesTest(QueueFixture):

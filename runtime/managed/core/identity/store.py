@@ -7,6 +7,7 @@ private on first use. Portable SQL only; callers own nothing but the path.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -60,6 +61,16 @@ def open_reference(path: Path) -> sqlite3.Connection:
     return connection
 
 
+def _locked(method):
+    """Every use of the one shared connection holds the store lock, so a write from another thread never joins
+    (and is never rolled back with) an open transaction."""
+    @functools.wraps(method)
+    def call(self, *args, **kwargs):
+        with self._writing:
+            return method(self, *args, **kwargs)
+    return call
+
+
 class IdentityStore:
     """identity.sqlite3: bindings, the resolution queue and plugin-tagged claims."""
 
@@ -83,7 +94,7 @@ class IdentityStore:
             staging.replace(self.path)
         self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
-        self._writing = threading.RLock()  # one connection serves every thread: one transaction at a time
+        self._writing = threading.RLock()  # one connection serves every thread: one user of it at a time
 
     def _readable(self) -> bool:
         try:
@@ -96,6 +107,7 @@ class IdentityStore:
             return False
         return row is not None and row[0] == SCHEMA_VERSION
 
+    @_locked
     def bindings(self, subject_ids: Iterable[str], statuses: Iterable[str] = ("confirmed",)) -> list[sqlite3.Row]:
         subjects, states = list(subject_ids), list(statuses)
         if not subjects:
@@ -117,14 +129,17 @@ class IdentityStore:
                 raise
             self.db.execute("COMMIT")
 
+    @_locked
     def metadata(self, key: str) -> str | None:
         row = self.db.execute("SELECT value FROM metadata WHERE key = ?", (key,)).fetchone()
         return row[0] if row else None
 
+    @_locked
     def set_metadata(self, key: str, value: str) -> None:
         self.db.execute("INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value=excluded.value",
                         (key, value))
 
+    @_locked
     def put_binding(self, binding: Binding, verdict_id: str | None = None) -> bool:
         """One current binding per provider reference. A newer decision for the same subject replaces it;
         a reference bound to another subject is never re-pointed (returns False: that is a conflict)."""
@@ -141,10 +156,12 @@ class IdentityStore:
              binding.validity.valid_from, binding.validity.valid_to, now(), verdict_id))
         return self.db.execute("SELECT changes()").fetchone()[0] == 1
 
+    @_locked
     def binding_for(self, ref: ProviderRef) -> sqlite3.Row | None:
         return self.db.execute("SELECT * FROM bindings WHERE provider=? AND native_scope=? AND native_id=?",
                                (ref.provider, ref.native_scope, ref.native_id)).fetchone()
 
+    @_locked
     def put_queue_item(self, item: QueueItem) -> None:
         """At most one open item per question (the dedupe key); re-asking refreshes it."""
         ref = item.provider_ref.wire() if item.provider_ref else None
@@ -156,11 +173,13 @@ class IdentityStore:
              json.dumps(item.evidence_ids), json.dumps(item.plugins), json.dumps(ref) if ref else None, item.scheme,
              json.dumps(item.values), item.state, item.opened_at, now()))
 
+    @_locked
     def open_queue(self, subject_ids: Iterable[str]) -> list[dict]:
         """The page's short form of a subject's open items."""
         return [{"id": item["id"], "plugin": item["plugins"][0], "kind": item["kind"], "reason": item["reason"]}
                 for item in self.queue_items(subject_ids=subject_ids)]
 
+    @_locked
     def queue_items(self, *, subject_ids: Iterable[str] | None = None, plugins: Iterable[str] | None = None,
                     kind: str | None = None, state: str = "open") -> list[dict]:
         """Queue items in one state, newest first; subjects match an item's subjects or candidates."""
@@ -171,20 +190,24 @@ class IdentityStore:
                 and (names is None or names & set(item["plugins"]))
                 and (subjects is None or subjects & set(item["subject_ids"] + item["candidate_ids"]))]
 
+    @_locked
     def queue_item(self, item_id: str) -> dict | None:
         row = self.db.execute("SELECT * FROM queue WHERE id = ?", (item_id,)).fetchone()
         return _item(row) if row else None
 
+    @_locked
     def settle(self, item_id: str, state: str, verdict_id: str | None) -> bool:
         """Close an open item; False when it was no longer open."""
         self.db.execute("UPDATE queue SET state = ?, resolved_by = ?, updated_at = ? WHERE id = ? AND state = 'open'",
                         (state, verdict_id, now(), item_id))
         return self.db.execute("SELECT changes()").fetchone()[0] == 1
 
+    @_locked
     def dismissed(self, key: str) -> bool:
         """A resolver already answered this question with "not a match": re-asking it does not reopen it."""
         return self.db.execute("SELECT 1 FROM queue WHERE key = ? AND state = 'dismissed' LIMIT 1", (key,)).fetchone() is not None
 
+    @_locked
     def put_verdict(self, verdict: Verdict, outcome: VerdictOutcome, plugin: str = "pythia") -> str:
         """Record a verdict with the outcome the authority rule gave it; every submission is kept."""
         verdict_id = uuid.uuid4().hex
@@ -197,6 +220,7 @@ class IdentityStore:
              verdict.rationale, verdict.user_turn, outcome, now()))
         return verdict_id
 
+    @_locked
     def history(self, item: dict) -> list[dict]:
         """Every verdict on this question, including on earlier items that asked it, oldest first."""
         rows = self.db.execute(
@@ -204,24 +228,28 @@ class IdentityStore:
             " ORDER BY v.created_at, v.rowid", (item["key"],)).fetchall()
         return [{key: row[key] for key in row.keys()} for row in rows]
 
+    @_locked
     def claim(self, plugin: str, ref: ProviderRef) -> dict | None:
         """The provider record a plugin claimed for a reference, as emitted."""
         row = self.db.execute("SELECT claim FROM claims WHERE plugin = ? AND native_scope = ? AND native_id = ?",
                               (plugin, ref.native_scope, ref.native_id)).fetchone()
         return json.loads(row[0]) if row else None
 
+    @_locked
     def put_miss(self, subject_id: str, plugin: str, reason: str, seconds: int) -> None:
         expires = (datetime.now(timezone.utc) + timedelta(seconds=seconds)).replace(microsecond=0)
         self.db.execute("INSERT INTO resolve_misses (subject_id, plugin, reason, expires_at) VALUES (?,?,?,?)"
                         " ON CONFLICT (subject_id, plugin) DO UPDATE SET reason=excluded.reason, expires_at=excluded.expires_at",
                         (subject_id, plugin, reason, expires.isoformat().replace("+00:00", "Z")))
 
+    @_locked
     def misses(self, subject_id: str) -> dict[str, str]:
         """plugin -> reason for unexpired negative resolve results."""
         rows = self.db.execute("SELECT plugin, reason FROM resolve_misses WHERE subject_id = ? AND expires_at > ?",
                                (subject_id, now())).fetchall()
         return {row["plugin"]: row["reason"] for row in rows}
 
+    @_locked
     def put_claim(self, plugin: str, provider: str, claim_json: dict) -> None:
         ref = claim_json.get("native_ref") or {}
         if not ref:
