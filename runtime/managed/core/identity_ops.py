@@ -157,16 +157,20 @@ class Identity:
 
     # ---- internals -----------------------------------------------------------------------------------------------
 
-    def price_sources(self, subject_id: str) -> dict | None:
+    def price_sources(self, subject_id: str) -> dict:
         """Where market data for a subject comes from: its asset class and the native references
-        that serve its quote and chart, in core's order. Local only; None for an unknown subject."""
+        that serve its quote and chart, in core's order, or the reason there are none. Local only."""
         try:
-            _path, subject, lookups, _issue = self._load(subject_id)
-        except (ValueError, sqlite3.Error, OSError):
-            return None
+            path, subject, lookups, _issue = self._load(subject_id)
+        except ValueError:  # a malformed subject id
+            return unrouted("unknown_subject")
+        except (sqlite3.Error, OSError):
+            logger.warning("identity unreadable for a market-data read", exc_info=True)
+            return unrouted("no_reference_data")
         if subject is None:
-            return None
-        return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, installed(), **lookups)}
+            return unrouted("unknown_subject" if path else "no_reference_data")
+        return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, installed(), **lookups),
+                "reason": None}
 
     def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
         path, subject, lookups, issue = self._load(subject_id)
@@ -293,9 +297,13 @@ def installed() -> list[page.PluginInfo]:
     return found
 
 
-def price_sources(subject_id: str) -> dict | None:
-    """Market-data routing for one subject (`Identity.price_sources`) through the registered core."""
-    return CURRENT.price_sources(subject_id) if CURRENT is not None else None
+def unrouted(reason: str) -> dict:
+    return {"asset_class": None, "refs": [], "reason": reason}
+
+
+def price_sources(subject_id: str) -> dict:
+    """Market-data routing for one subject through the registered core (exported as `platform.price_sources`)."""
+    return CURRENT.price_sources(subject_id) if CURRENT is not None else unrouted("core_unavailable")
 
 
 CURRENT: Identity | None = None  # the one registered core identity of this process

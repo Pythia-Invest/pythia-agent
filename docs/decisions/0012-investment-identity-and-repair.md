@@ -147,10 +147,13 @@ routes through core's bindings and source order
 ([ADR 0037](0037-identity-backbone.md)); explicit provider references and
 pinned source reads are unchanged.
 
-Existing device state is kept, not converted. Source preferences move to the
-feature's `preferences.sqlite3`. The old identity file is renamed
-`identity-retired.sqlite3` and left in place; its mappings are not migrated,
-because core derives or resolves addresses again from open identifiers. A
-retained reference to a retired subject fails visibly instead of being rewritten.
+Source preferences move to the feature's `preferences.sqlite3`. Global orders
+are copied as they are; scoped choices for the retired subject kinds become
+asset-class scopes, and company-scoped choices, which never applied to prices,
+are dropped. After a successful copy the old identity file is renamed
+`identity-retired.sqlite3` and left in place; a failed copy leaves it untouched
+for the next start. Its mappings are not migrated, because core derives or
+resolves addresses again from open identifiers. A retained reference to a
+retired subject fails visibly instead of being rewritten.
 [Market data and identity](../../packages/market-data/IDENTITY.md) has the
 details. The principles in the first amendment still hold, now enforced by core.

@@ -5,11 +5,25 @@ references core binds or derives for it, in core's order.
 """
 import copy
 from contextlib import contextmanager
+from contextvars import ContextVar
 
 from .cache import ReadCache, ReadCancelled
 from .preferences import Preferences
 from .selection import CRITERIA, available, compatible_ref, fingerprint, native_access_scope, matches, permits_implicit, caches_observations
 from .wire import WireError, require, validate, validate_parameters
+
+
+# One request loads each subject's routing once, however many checks read it.
+_ROUTES = ContextVar("market_data_routes", default=None)
+
+
+def core_price_sources(subject_id):
+    from ._platform import platform
+    try:
+        support = platform()
+    except RuntimeError:  # no enabled core with platform support v1
+        return {"asset_class": None, "refs": [], "reason": "core_unavailable"}
+    return support.price_sources(subject_id)
 
 
 def envelope(data, *, mutation=False, issues=(), outcome="ok"):
@@ -19,16 +33,19 @@ def envelope(data, *, mutation=False, issues=(), outcome="ok"):
     return result
 
 
+ISSUER_ISSUE = {"code": "issuer_subject", "severity": "error",
+                "message": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them."}
+
+
 class Backend:
     def __init__(self, data_dir, *, source_call=None, source_projection=None, access_scope=None, subjects=None, cache=None):
         # Injection is an ordinary code/test boundary, never part of native args.
         from .execution import call_source
         from .contributions import project
-        from ._platform import price_sources
         self._call = source_call or call_source
         self._project = source_projection or project
         self._access_scope = access_scope or native_access_scope
-        self._subjects = subjects or price_sources
+        self._subjects = subjects or core_price_sources
         self.preferences = Preferences(data_dir)
         self.cache = cache or ReadCache()
         self.metadata_cache = ReadCache(max_entries=128, ttl_seconds=300)
@@ -72,15 +89,35 @@ class Backend:
         require(preference_revision is None or self.preferences.get()["revision"] == preference_revision, "read", "stale preference revision")
         yield
 
+    @contextmanager
+    def routing(self):
+        """Share each subject's routing across one request's checks and reads."""
+        token = _ROUTES.set({}) if _ROUTES.get() is None else None
+        try:
+            yield
+        finally:
+            if token is not None:
+                _ROUTES.reset(token)
+
     def route(self, binding):
         """What a binding reads: an explicit reference itself, or core's references for a subject.
 
-        Returns {"asset_class", "refs"}; an unknown subject or a device without reference data has no refs."""
+        Returns {"asset_class", "refs", "reason"}; `reason` says why a subject has no refs:
+        "issuer_subject", "no_reference_data", "unknown_subject" or "core_unavailable"."""
         validate("binding", binding)
         if "provider" in binding:
-            return {"asset_class": None, "refs": [binding]}
-        found = self._subjects(binding["id"])
-        return {"asset_class": found.get("asset_class"), "refs": list(found.get("refs") or [])} if found else {"asset_class": None, "refs": []}
+            return {"asset_class": None, "refs": [binding], "reason": None}
+        if binding["kind"] == "issuer":  # an issuer has no price; never ask a source
+            return {"asset_class": None, "refs": [], "reason": "issuer_subject"}
+        memo = _ROUTES.get()
+        if memo is not None and binding["id"] in memo:
+            return memo[binding["id"]]
+        found = self._subjects(binding["id"]) or {}
+        route = {"asset_class": found.get("asset_class"), "refs": list(found.get("refs") or []),
+                 "reason": found.get("reason")}
+        if memo is not None:
+            memo[binding["id"]] = route
+        return route
 
     def details(self, native_ref):
         native = validate("provider_ref", native_ref)
@@ -90,6 +127,8 @@ class Backend:
         result, issues = [], []
         route = self.route(binding)
         refs = route["refs"]
+        if route["reason"] == "issuer_subject":
+            return envelope([], outcome="error", issues=[ISSUER_ISSUE])
         if "provider" not in binding:
             sources, _ = self.context()
             orders = self.preferences.get()["orders"]
@@ -130,6 +169,10 @@ class Backend:
         return self.source(native['provider'], 'series', {'native_ref': native, **({'criteria': criteria} if accepts else {})})
 
     def handle(self, request):
+        with self.routing():
+            return self._handle(request)
+
+    def _handle(self, request):
         require(type(request) is dict, "backend", "expected request object")
         self.context()  # Native feature eligibility applies to local actions too.
         action = request.get("action")

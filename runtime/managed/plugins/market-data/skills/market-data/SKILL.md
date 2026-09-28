@@ -29,10 +29,11 @@ a denied request or infer from which credential happens to exist.
 
 Investments are Pythia subjects. Find one with `pythia_identity_search` and
 pass it as `{"kind": <level>, "id": <subject id>}`, the level being the id's
-prefix (`listing`, `security`, `issuer` or `composite`). A subject's reads use
-the sources core binds or derives for it. When none serves it yet, the read
-reports `unresolved_identity`: `pythia_identity_subject` shows each source's
-state and `pythia_identity_resolve` asks one that needs a lookup. A symbol or
+prefix: `listing`, `security` or `composite`. An issuer has no price; read one
+of its securities or listings instead. A subject's reads use the sources core
+binds or derives for it. When none serves it yet, the read reports
+`unresolved_identity` and says why: `pythia_identity_subject` shows each
+source's state and `pythia_identity_resolve` asks one that needs a lookup. A symbol or
 name alone never identifies a subject. Associations belong to core; this tool
 cannot save, override or repair them.
 

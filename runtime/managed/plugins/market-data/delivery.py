@@ -5,6 +5,14 @@ from .selection import fingerprint, caches_observations
 
 
 def deliver(request, backend_factory, reuse_scope=None):
+    if isinstance(request, dict) and request.get('action') == 'read_many':
+        # The reuse checks and the reads share one routing load per subject.
+        with backend_factory().routing():
+            return _deliver(request, backend_factory, reuse_scope)
+    return _deliver(request, backend_factory, reuse_scope)
+
+
+def _deliver(request, backend_factory, reuse_scope):
     scope, sources = None, []
     if isinstance(request, dict) and request.get('action') == 'read_many' and set(request) == {'action', 'reads'}:
         reads = request['reads']

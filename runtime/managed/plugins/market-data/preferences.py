@@ -3,7 +3,8 @@
 They live in the feature's private `preferences.sqlite3`. A device that ran the
 retired market-data identity layer (ADR 0012, removed per ADR 0037) kept them in
 `identity.sqlite3` beside its provider mappings. The first open copies them here
-and renames that file `identity-retired.sqlite3`: the mappings are not migrated
+(company-scoped choices, which never applied to prices, are dropped) and renames
+that file `identity-retired.sqlite3`: the mappings are not migrated
 (core re-derives or resolves every address from open identifiers) and the file
 is kept for inspection, never deleted.
 """
@@ -33,8 +34,9 @@ CREATE TABLE IF NOT EXISTS scoped_source_preferences (operation TEXT NOT NULL, s
 """
 LEGACY, RETIRED = "identity.sqlite3", "identity-retired.sqlite3"
 # Retired subject kinds and the asset class a scoped rule for them now names. Listing rules win
-# over instrument and company rules that map to the same scope.
-LEGACY_KINDS = {"listing": "equity", "instrument": "equity", "company": "equity", "crypto": "crypto"}
+# over instrument rules that map to the same scope. Company rules never applied to a price
+# (a company was not a price instrument), so they are not carried over.
+LEGACY_KINDS = {"listing": "equity", "instrument": "equity", "crypto": "crypto"}
 
 
 def dumps(value):
@@ -83,22 +85,30 @@ class Preferences:
             db.executescript(DDL)
         legacy = directory / LEGACY
         if legacy.is_file() and not legacy.is_symlink():
-            try:
-                with self.transaction() as db:
-                    counts = self._migrate(db, legacy)
-            except sqlite3.Error:  # an unreadable file is set aside as it is
-                logger.warning("The retired market-data identity file is unreadable; kept as %s", RETIRED, exc_info=True)
-                counts = None
-            # Set aside only after the copy committed; a crash in between copies again (idempotent).
+            self._retire(legacy)
+
+    def _retire(self, legacy):
+        """Copy the old file's source choices, then set it aside. Any failure leaves it in place for the
+        next start; the copy is idempotent, so a crash or a second process racing this one is harmless."""
+        try:
+            with self.transaction() as db:
+                counts = self._migrate(db, legacy)
+        except sqlite3.Error:
+            if legacy.exists():  # otherwise another process migrated it first
+                logger.warning("Could not copy source choices from the retired market-data identity file;"
+                               " it stays in place and is retried on the next start", exc_info=True)
+            return
+        try:
             legacy.replace(legacy.with_name(RETIRED))
-            if counts:
-                logger.warning("Retired the market-data identity file: %d source choices copied, %d scoped choices"
-                               " shadowed by a more specific one, %d provider mappings not migrated; kept as %s",
-                               *counts, RETIRED)
+        except FileNotFoundError:  # another process set it aside first
+            return
+        logger.warning("Retired the market-data identity file: %d source choices copied, %d scoped choices"
+                       " shadowed by a more specific one, %d company-scoped choices dropped (they never applied"
+                       " to prices), %d provider mappings not migrated; kept as %s", *counts, RETIRED)
 
     def _migrate(self, db, legacy):
         """Copy the retired identity file's source choices into this store."""
-        old = sqlite3.connect(f"{legacy.resolve().as_uri()}?mode=ro", uri=True)
+        old = sqlite3.connect(f"{legacy.resolve().as_uri()}?mode=ro", uri=True, timeout=2)
         try:
             tables = {row[0] for row in old.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             orders = old.execute("SELECT operation, providers FROM source_preferences").fetchall() \
@@ -110,7 +120,8 @@ class Preferences:
             old.close()
         for operation, providers in orders:
             db.execute("INSERT OR REPLACE INTO source_preferences VALUES (?, ?)", (operation, providers))
-        ranked = sorted(scoped, key=lambda row: list(LEGACY_KINDS).index(json.loads(row[1]).get("subject_kind", "listing")))
+        kept = [row for row in scoped if json.loads(row[1]).get("subject_kind") != "company"]
+        ranked = sorted(kept, key=lambda row: list(LEGACY_KINDS).index(json.loads(row[1]).get("subject_kind", "listing")))
         shadowed = 0
         for operation, scope, providers in ranked:
             value = json.loads(scope)
@@ -120,7 +131,7 @@ class Preferences:
                                (operation, dumps(value), providers)).rowcount
             shadowed += not added
         db.execute("UPDATE metadata SET value=value+1 WHERE key='preference_revision'")
-        return len(orders) + len(ranked) - shadowed, shadowed, mappings
+        return len(orders) + len(ranked) - shadowed, shadowed, len(scoped) - len(kept), mappings
 
     @contextmanager
     def connection(self):

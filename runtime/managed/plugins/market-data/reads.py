@@ -8,7 +8,12 @@ from .wire import require, validate, validate_read_result, WireError
 
 
 def read_failure(request, code, *, reason="unavailable", alternatives=(), provider=None, selected=None, source_issues=()):
+    # A key's text before ":" is the issue code; the rest picks the explanation.
     messages = {"unresolved_identity": "No installed source serves this subject yet. Check it with pythia_identity_subject; pythia_identity_resolve asks a source that needs a lookup.",
+                "unresolved_identity:unknown_subject": "This subject id is not in the device's reference data. Find the investment with pythia_identity_search.",
+                "unresolved_identity:no_reference_data": "This device has no readable reference data yet, so no subject can be routed. Explicit source references still read.",
+                "unresolved_identity:core_unavailable": "Pythia core identity is not loaded, so no subject can be routed. Explicit source references still read.",
+                "issuer_subject": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them.",
                 "ambiguous_series": "Several source series match; specify more criteria or pin a descriptor.",
                 "ambiguous_source": "Several sources are eligible; set a source order or pin a descriptor.",
                 "incompatible_series": "The selected source has no compatible series.",
@@ -18,6 +23,7 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
                 "invalid_response": "The selected source returned different or invalid series semantics.",
                 "selection_changed": "Source preferences or access changed during this read; retry explicitly."}
     message = messages[code]
+    code = code.split(":", 1)[0]
     if provider is not None:
         message += f" Selected source: {provider}."
     if selected is not None:
@@ -58,8 +64,10 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
     eligible = [ref for ref in bindings if available(sources, ref["provider"], operation)
                 and available(sources, ref["provider"], "series")
                 and (explicit or permits_implicit(sources, ref["provider"], opted_in))]
+    if route["reason"] == "issuer_subject":
+        return None, "issuer_subject", None, []
     if not bindings:
-        return None, "unresolved_identity", None, []
+        return None, "unresolved_identity" + (f":{route['reason']}" if route["reason"] else ""), None, []
     providers = {ref["provider"] for ref in eligible}
     ordered = [provider for provider in order if provider in providers]
     ordered += sorted(providers - set(ordered))
@@ -145,7 +153,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                     if available(sources, source["contribution"]["provider"], request["operation"])]
     selected, error, chosen_provider, source_issues = _choose(backend, request, criteria, descriptor, sources, preferences)
     if error:
-        reason = "unresolved" if error == "unresolved_identity" else "incompatible" if error in ("incompatible_series", "ambiguous_series", "ambiguous_source") else "unavailable"
+        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error in ("incompatible_series", "ambiguous_series", "ambiguous_source", "issuer_subject") else "unavailable"
         alternatives = [item for item in alternatives if item != "provider:" + (chosen_provider or "")]
         return read_failure(request, error, reason=reason, alternatives=alternatives, provider=chosen_provider, source_issues=source_issues)
     provider = selected["provider_ref"]["provider"]

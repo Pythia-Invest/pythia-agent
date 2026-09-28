@@ -24,7 +24,6 @@ sys.modules[PLATFORM] = platform_module
 platform_spec.loader.exec_module(platform_module)
 dependency = ModuleType(PACKAGE + '._platform')
 dependency.platform = lambda: platform_module
-dependency.price_sources = lambda subject_id: None  # no core identity unless a test injects one
 sys.modules[dependency.__name__] = dependency
 # Feature modules are provider-free: don't execute the native plugin initializer.
 from importlib import import_module  # noqa: E402

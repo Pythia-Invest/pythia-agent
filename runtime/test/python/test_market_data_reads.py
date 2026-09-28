@@ -1,5 +1,6 @@
 """Shared source selection/cache regressions; source fixtures are synthetic only."""
 import copy
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -12,7 +13,7 @@ import tempfile
 import threading
 import unittest
 
-from market_data_read_fixtures import CRITERIA, Sources, SUBJECT, request, run_read, wire
+from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, request, run_read, wire
 from market_data_fixture import native
 
 
@@ -435,40 +436,74 @@ class BackendMutationTests(unittest.TestCase):
     def test_a_subject_core_does_not_route_is_unresolved_without_source_calls(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = Sources()
-            result = run_read(sources.backend(directory, canonical=False))
-            self.assertEqual(result["issues"][0]["code"], "unresolved_identity")
+            for reason, words in ((None, "No installed source"), ("unknown_subject", "pythia_identity_search"),
+                                  ("no_reference_data", "no readable reference data"), ("core_unavailable", "not loaded")):
+                backend = Backend(directory, subjects=lambda _id, reason=reason: {"refs": [], "reason": reason},
+                                  source_call=sources.call, source_projection=sources.project, access_scope=lambda: sources.access)
+                issue = run_read(backend)["issues"][0]
+                self.assertEqual(issue["code"], "unresolved_identity")
+                self.assertIn(words, issue["message"])
+            issuer = {"kind": "issuer", "id": "issuer:lei:" + "A" * 18 + "00"}
+            result = run_read(sources.backend(directory), read_request=request({"kind": "pythia", "subject": issuer}))
+            self.assertEqual(result["issues"][0]["code"], "issuer_subject")
+            self.assertEqual(sources.backend(directory).handle({"action": "series", "binding": issuer})["issues"][0]["code"],
+                             "issuer_subject")
             self.assertEqual(sources.calls, [])
             with self.assertRaises(wire.WireError):  # retired subject kinds are not subjects
                 run_read(sources.backend(directory), read_request=request({"kind": "pythia", "subject": {"kind": "instrument", "id": "instrument:x"}}))
 
+    def legacy_file(self, directory):
+        import sqlite3
+        os.chmod(directory, 0o700)
+        legacy = Path(directory) / "identity.sqlite3"
+        with closing(sqlite3.connect(legacy)) as db, db:
+            db.executescript("""CREATE TABLE metadata (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
+                INSERT INTO metadata VALUES ('preference_revision', 4);
+                CREATE TABLE mappings (id TEXT PRIMARY KEY); INSERT INTO mappings VALUES ('mapping:kept');
+                CREATE TABLE source_preferences (operation TEXT PRIMARY KEY, providers TEXT NOT NULL);
+                CREATE TABLE scoped_source_preferences (operation TEXT NOT NULL, scope TEXT NOT NULL,
+                  providers TEXT NOT NULL, PRIMARY KEY(operation, scope));""")
+            db.execute("INSERT INTO source_preferences VALUES ('history', '[\"synthetic_other\"]')")
+            db.executemany("INSERT INTO scoped_source_preferences VALUES ('latest', ?, ?)", [
+                ('{"subject_kind":"crypto"}', '["coingecko"]'), ('{"subject_kind":"instrument"}', '["eodhd"]'),
+                ('{"subject_kind":"listing"}', '["yahoo"]'), ('{"subject_kind":"company"}', '["sec"]')])
+        legacy.chmod(0o600)
+        return legacy
+
     def test_the_retired_identity_file_keeps_its_source_choices_and_is_set_aside(self):
         import sqlite3
         with tempfile.TemporaryDirectory() as directory:
-            os.chmod(directory, 0o700)
-            legacy = Path(directory) / "identity.sqlite3"
-            with sqlite3.connect(legacy) as db:
-                db.executescript("""CREATE TABLE metadata (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
-                    INSERT INTO metadata VALUES ('preference_revision', 4);
-                    CREATE TABLE mappings (id TEXT PRIMARY KEY); INSERT INTO mappings VALUES ('mapping:kept');
-                    CREATE TABLE source_preferences (operation TEXT PRIMARY KEY, providers TEXT NOT NULL);
-                    CREATE TABLE scoped_source_preferences (operation TEXT NOT NULL, scope TEXT NOT NULL,
-                      providers TEXT NOT NULL, PRIMARY KEY(operation, scope));""")
-                db.execute("INSERT INTO source_preferences VALUES ('history', '[\"synthetic_other\"]')")
-                db.executemany("INSERT INTO scoped_source_preferences VALUES ('latest', ?, ?)", [
-                    ('{"subject_kind":"crypto"}', '["coingecko"]'), ('{"subject_kind":"instrument"}', '["eodhd"]'),
-                    ('{"subject_kind":"listing"}', '["yahoo"]')])
-            legacy.chmod(0o600)
+            legacy = self.legacy_file(directory)
             with self.assertLogs(level="WARNING") as logged:
                 migrated = Sources().backend(directory).preferences.get()
+            self.assertIn("1 company-scoped choices dropped", logged.output[0])
             self.assertIn("1 provider mappings not migrated", logged.output[0])
             self.assertEqual(migrated["orders"]["history"], ["synthetic_other"])
             self.assertEqual(migrated["scopes"], [
                 {"operation": "latest", "scope": {"asset_class": "crypto"}, "providers": ["coingecko"]},
                 {"operation": "latest", "scope": {"asset_class": "equity"}, "providers": ["yahoo"]}])
             self.assertFalse(legacy.exists())
-            with sqlite3.connect(Path(directory) / "identity-retired.sqlite3") as db:  # kept, not deleted
+            with closing(sqlite3.connect(Path(directory) / "identity-retired.sqlite3")) as db:  # kept, not deleted
                 self.assertEqual(db.execute("SELECT id FROM mappings").fetchall(), [("mapping:kept",)])
             self.assertEqual(Sources().backend(directory).preferences.get(), migrated)
+
+    def test_a_locked_retired_file_stays_in_place_and_migrates_on_the_next_start(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as directory:
+            legacy = self.legacy_file(directory)
+            holder = sqlite3.connect(legacy, isolation_level=None)
+            holder.execute("BEGIN EXCLUSIVE")
+            try:
+                with self.assertLogs(level="WARNING"):
+                    locked = Sources().backend(directory).preferences.get()
+            finally:
+                holder.execute("ROLLBACK")
+                holder.close()
+            self.assertEqual(locked["orders"]["history"], [])
+            self.assertTrue(legacy.exists())
+            with self.assertLogs(level="WARNING"):
+                self.assertEqual(Sources().backend(directory).preferences.get()["orders"]["history"], ["synthetic_other"])
+            self.assertFalse(legacy.exists())
 
     def test_cache_bounds_expiry_detached_values_and_strict_fresh_bypass(self):
         from importlib import import_module
