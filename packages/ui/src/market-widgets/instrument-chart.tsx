@@ -136,11 +136,7 @@ export function InstrumentChart({
       g
         ? {
             values: valueTicks(g.scale.low, g.scale.high),
-            times: timeTicks(
-              g,
-              dates ? "UTC" : undefined,
-              joined,
-            ),
+            times: timeTicks(g, dates ? "UTC" : undefined, joined),
           }
         : null,
     [g, dates, joined],
