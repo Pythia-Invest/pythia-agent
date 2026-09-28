@@ -92,12 +92,23 @@ export function intervalMs(series: Series) {
 const INTRADAY: Partial<
   Record<
     ChartPeriod,
-    { minutes: number[]; days: number; least: number; continuous: number }
+    {
+      minutes: number[];
+      days: number;
+      least: number;
+      /** Continuous markets: preferred lookback and the least that covers it. */
+      continuous: [number, number];
+    }
   >
 > = {
-  "1D": { minutes: [2, 1, 5, 15, 30, 60], days: 4, least: 4, continuous: 2 },
-  "5D": { minutes: [5, 15, 2, 30, 60], days: 9, least: 7, continuous: 6 },
-  "1M": { minutes: [30, 60, 15], days: 35, least: 31, continuous: 32 },
+  "1D": {
+    minutes: [2, 1, 5, 15, 30, 60],
+    days: 4,
+    least: 4,
+    continuous: [2, 1],
+  },
+  "5D": { minutes: [5, 15, 2, 30, 60], days: 9, least: 7, continuous: [6, 6] },
+  "1M": { minutes: [30, 60, 15], days: 35, least: 31, continuous: [32, 32] },
 };
 const minutes = (s: Series) => intervalMs(s) / 60_000;
 
@@ -150,8 +161,8 @@ export function chartPlan(
   for (const period of CHART_PERIODS) {
     const intraday = INTRADAY[period];
     if (intraday) {
-      const days = continuous ? intraday.continuous : intraday.days;
-      const least = continuous ? intraday.continuous : intraday.least;
+      const days = continuous ? intraday.continuous[0] : intraday.days;
+      const least = continuous ? intraday.continuous[1] : intraday.least;
       const session = (s: Series) =>
         (s.session === "extended" || s.session === "all") === (period === "1D")
           ? 0
