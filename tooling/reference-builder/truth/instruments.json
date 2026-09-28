@@ -10,6 +10,7 @@
     "openfigi": "OpenFIGI v3 mapping, 2026-09-26: ISIN exists, exchange and composite FIGIs, share-class FIGI, security type, exchange ticker",
     "symbol_conventions": "Yahoo Finance and EODHD documented exchange suffixes; share-class separators as '-'",
     "reviewed": "primary market and trading currency reviewed by hand against the FIRDS relevant venue and the exchanges' own listings",
+    "issuer_announcements": "issuer press releases and annual-meeting resolutions, checked 2026-09-28 (BMW AG: preference shares converted into ordinary shares on 2026-06-30)",
     "coin_registries": "CoinMarketCap and CoinGecko coin ids, SLIP-0044 coin types, CAIP-2 chain ids and issuer-published token contracts"
   },
   "venues": {
@@ -84,6 +85,9 @@
     },
     "XSTO": {
       "country": "SE"
+    },
+    "XSTU": {
+      "country": "DE"
     },
     "XSWX": {
       "country": "CH"
@@ -8077,9 +8081,9 @@
     {
       "id": "bmw-pref",
       "name": "Bayerische Motoren Werke AG preferred",
-      "tags": ["share_class", "preferred", "eu_home"],
+      "tags": ["share_class", "preferred", "delisted"],
       "kind": "preferred",
-      "status": "active",
+      "status": "delisted",
       "cfi": "EP",
       "issuer": {
         "lei": "YEH5ZCD6E441RHVHD759"
@@ -8087,30 +8091,13 @@
       "security": {
         "isin": "DE0005190037"
       },
-      "listings": [
-        {
-          "ticker": "BMW3",
-          "mic": "XETR",
-          "currency": "EUR",
-          "primary": true,
-          "symbols": {
-            "yahoo": "BMW3.DE",
-            "eodhd": "BMW3.XETRA"
-          }
-        },
-        {
-          "ticker": "BMW3",
-          "mic": "XFRA",
-          "currency": "EUR",
-          "primary": "accepted",
-          "symbols": {
-            "yahoo": "BMW3.F",
-            "eodhd": "BMW3.F"
-          }
-        }
-      ],
+      "listings": [],
       "fold": "bmw-pref",
-      "sources": ["firds", "gleif", "reviewed", "symbol_conventions"]
+      "former": {
+        "tickers": ["BMW3@XETR", "BMW3@XFRA"]
+      },
+      "sources": ["firds", "gleif", "openfigi", "issuer_announcements"],
+      "note": "converted 1:1 into ordinary shares on 2026-06-30; FIRDS still carries a Xetra midpoint and MTF lines, OpenFIGI no German line"
     },
     {
       "id": "henkel",
@@ -9780,7 +9767,7 @@
       "status": "active",
       "cfi": "ES",
       "issuer": {
-        "lei": "549300PZN3NFSOUXLC42"
+        "lei": "KY37LUS27QQX7BB93L28"
       },
       "security": {
         "isin": "CH0038863350",
@@ -9816,7 +9803,7 @@
       "status": "active",
       "cfi": "ED",
       "issuer": {
-        "lei": "549300PZN3NFSOUXLC42"
+        "lei": "KY37LUS27QQX7BB93L28"
       },
       "security": {
         "isin": "US6410694060",
@@ -10685,6 +10672,422 @@
       "fold": "vwra",
       "sources": ["openfigi", "symbol_conventions"],
       "note": "accumulating share class of the same sub-fund as vwrl: a sibling security, never folded"
+    },
+    {
+      "id": "porsche-se-pref",
+      "name": "Porsche Automobil Holding SE preferred",
+      "tags": ["preferred", "eu_home", "share_class"],
+      "kind": "preferred",
+      "status": "active",
+      "cfi": "EP",
+      "issuer": {
+        "lei": "52990053Z17ZYM1KFV27"
+      },
+      "security": {
+        "isin": "DE000PAH0038",
+        "share_class_figi": "BBG001S6CYJ5"
+      },
+      "listings": [
+        {
+          "ticker": "PAH3",
+          "mic": "XETR",
+          "currency": "EUR",
+          "primary": true,
+          "figi": "BBG000BCZ6K6",
+          "symbols": {
+            "yahoo": "PAH3.DE",
+            "eodhd": "PAH3.XETRA"
+          }
+        }
+      ],
+      "fold": "porsche-se-pref",
+      "sources": ["firds", "gleif", "openfigi", "reviewed", "symbol_conventions"]
+    },
+    {
+      "id": "sartorius-pref",
+      "name": "Sartorius AG preferred",
+      "tags": ["preferred", "eu_home", "share_class"],
+      "kind": "preferred",
+      "status": "active",
+      "cfi": "EP",
+      "issuer": {
+        "lei": "529900EQV2DY4FOAMU38"
+      },
+      "security": {
+        "isin": "DE0007165631",
+        "share_class_figi": "BBG001S73659"
+      },
+      "listings": [
+        {
+          "ticker": "SRT3",
+          "mic": "XETR",
+          "currency": "EUR",
+          "primary": true,
+          "figi": "BBG000BGC784",
+          "symbols": {
+            "yahoo": "SRT3.DE",
+            "eodhd": "SRT3.XETRA"
+          }
+        }
+      ],
+      "fold": "sartorius-pref",
+      "sources": ["firds", "gleif", "openfigi", "reviewed", "symbol_conventions"]
+    },
+    {
+      "id": "grifols-b",
+      "name": "Grifols, S.A. Class B",
+      "tags": ["preferred", "eu_home", "share_class", "punctuated_ticker"],
+      "kind": "preferred",
+      "status": "active",
+      "cfi": "EP",
+      "issuer": {
+        "lei": "959800HSSNXWRKBK4N60"
+      },
+      "security": {
+        "isin": "ES0171996095",
+        "share_class_figi": "BBG001V1HWX5"
+      },
+      "listings": [
+        {
+          "ticker": "GRF-P",
+          "mic": "BMEX",
+          "currency": "EUR",
+          "primary": true,
+          "symbols": {
+            "yahoo": "GRF-P.MC"
+          }
+        }
+      ],
+      "fold": "grifols-b",
+      "sources": ["firds", "gleif", "openfigi", "reviewed", "symbol_conventions"],
+      "note": "OpenFIGI writes the class ticker GRF/P; core keys the provider convention GRF-P"
+    },
+    {
+      "id": "societe-generale",
+      "name": "Société Générale S.A.",
+      "tags": ["eu_home", "ticker_collision"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "lei": "O2RNE8IBXP4R0TD8PU41"
+      },
+      "security": {
+        "isin": "FR0000130809",
+        "share_class_figi": "BBG001S69K18"
+      },
+      "listings": [
+        {
+          "ticker": "GLE",
+          "mic": "XPAR",
+          "currency": "EUR",
+          "primary": true,
+          "figi": "BBG000BCDQ35",
+          "symbols": {
+            "yahoo": "GLE.PA",
+            "eodhd": "GLE.PA"
+          }
+        },
+        {
+          "ticker": "SGE",
+          "mic": "XSTU",
+          "currency": "EUR",
+          "primary": false,
+          "figi": "BBG000BK50J6"
+        }
+      ],
+      "fold": "societe-generale",
+      "sources": ["firds", "gleif", "openfigi", "reviewed", "symbol_conventions"],
+      "note": "German venues write SGE; Stuttgart's international OpenFIGI row repeats the Paris ticker GLE, which there is Gladstone Commercial's"
+    },
+    {
+      "id": "hal-trust",
+      "name": "HAL Trust",
+      "tags": ["eu_home", "ticker_collision"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "lei": "5493000O3IE3DNOY3R07"
+      },
+      "security": {
+        "isin": "BMG455841020",
+        "share_class_figi": "BBG001S74827"
+      },
+      "listings": [
+        {
+          "ticker": "HAL",
+          "mic": "XAMS",
+          "currency": "EUR",
+          "primary": true,
+          "figi": "BBG000BGG9X8",
+          "symbols": {
+            "yahoo": "HAL.AS",
+            "eodhd": "HAL.AS"
+          }
+        },
+        {
+          "ticker": "HA4",
+          "mic": "XSTU",
+          "currency": "EUR",
+          "primary": false
+        }
+      ],
+      "fold": "hal-trust",
+      "sources": ["firds", "gleif", "openfigi", "reviewed", "symbol_conventions"],
+      "note": "HAL on Stuttgart is Halliburton; the German venues write HA4 for HAL Trust"
+    },
+    {
+      "id": "halliburton",
+      "name": "Halliburton Company",
+      "tags": ["us_home", "ticker_collision"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "lei": "ENYF8GB5SMQZ25S06U51",
+        "cik": "45012"
+      },
+      "security": {
+        "isin": "US4062161017",
+        "share_class_figi": "BBG001S5RS59"
+      },
+      "listings": [
+        {
+          "ticker": "HAL",
+          "mic": "XNYS",
+          "currency": "USD",
+          "primary": true,
+          "figi": "BBG000BKTJ63",
+          "symbols": {
+            "yahoo": "HAL",
+            "eodhd": "HAL.US"
+          }
+        },
+        {
+          "ticker": "HAL",
+          "mic": "XSTU",
+          "currency": "EUR",
+          "primary": false,
+          "figi": "BBG000DQ1N14"
+        }
+      ],
+      "fold": "halliburton",
+      "sources": ["firds", "gleif", "openfigi", "reviewed", "sec", "symbol_conventions"]
+    },
+    {
+      "id": "lee-enterprises",
+      "name": "Lee Enterprises, Incorporated",
+      "tags": ["us_home", "similar_name"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "cik": "58361"
+      },
+      "security": {
+        "isin": "US5237684064",
+        "share_class_figi": "BBG001S5SRF9"
+      },
+      "listings": [
+        {
+          "ticker": "LEE",
+          "mic": "XNAS",
+          "currency": "USD",
+          "primary": true,
+          "figi": "BBG000BN50Y3",
+          "symbols": {
+            "yahoo": "LEE",
+            "eodhd": "LEE.US"
+          }
+        }
+      ],
+      "fold": "lee-enterprises",
+      "sources": ["firds", "openfigi", "sec", "symbol_conventions"],
+      "note": "FIRDS gives the ISIN Berkshire Hathaway's LEI; the issuer is Lee's own (never Berkshire's)"
+    },
+    {
+      "id": "valaris",
+      "name": "Valaris Limited",
+      "tags": ["us_home", "foreign_issuer"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "cik": "314808"
+      },
+      "security": {
+        "isin": "BMG9460G1015",
+        "share_class_figi": "BBG010JW9K58"
+      },
+      "listings": [
+        {
+          "ticker": "VAL",
+          "mic": "XNYS",
+          "currency": "USD",
+          "primary": true,
+          "figi": "BBG010LLL1P5",
+          "symbols": {
+            "yahoo": "VAL",
+            "eodhd": "VAL.US"
+          }
+        }
+      ],
+      "fold": "valaris",
+      "sources": ["firds", "openfigi", "sec", "symbol_conventions"],
+      "note": "FIRDS gives the ISIN the LEI of TP ICAP (Europe), the MTF that reported it, as issuer"
+    },
+    {
+      "id": "cipher-mining",
+      "name": "Cipher Mining Inc.",
+      "tags": ["us_home", "renamed"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "cik": "1819989"
+      },
+      "security": {
+        "isin": "US17253J1060",
+        "share_class_figi": "BBG00XYHY0L1"
+      },
+      "listings": [
+        {
+          "ticker": "CIFR",
+          "mic": "XNAS",
+          "currency": "USD",
+          "primary": true,
+          "figi": "BBG00YFDNCK6",
+          "symbols": {
+            "yahoo": "CIFR",
+            "eodhd": "CIFR.US"
+          }
+        }
+      ],
+      "fold": "cipher-mining",
+      "sources": ["firds", "openfigi", "sec", "symbol_conventions"],
+      "note": "FIRDS gives the ISIN the LEI of Bloomberg Finance L.P., a data vendor; the SEC now titles the company Cipher Digital Inc."
+    },
+    {
+      "id": "nova-minerals-cdi",
+      "name": "Nova Minerals Limited CDI",
+      "tags": ["non_eu_home", "multi_venue"],
+      "kind": "depositary_receipt",
+      "status": "active",
+      "cfi": "ED",
+      "issuer": {},
+      "security": {
+        "isin": "AU000000NVA2",
+        "share_class_figi": "BBG022L9S394"
+      },
+      "listings": [
+        {
+          "ticker": "NVA",
+          "mic": "XASX",
+          "currency": "AUD",
+          "primary": true
+        },
+        {
+          "ticker": "QM3",
+          "mic": "XFRA",
+          "currency": "EUR",
+          "primary": false,
+          "figi": "BBG000PYQH92"
+        }
+      ],
+      "fold": "nova-minerals-cdi",
+      "sources": ["firds", "openfigi", "reviewed"],
+      "note": "Frankfurt's open market (FRAB): OpenFIGI answers its segment code with nothing, the ISIN's own answer has the GF line; FIRDS names Frankfurter Wertpapierbörse and TP ICAP as issuer"
+    },
+    {
+      "id": "fresenius",
+      "name": "Fresenius SE & Co. KGaA",
+      "tags": ["eu_home", "re_isin"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "lei": "XDFJ0CYCOO1FXRFTQS51"
+      },
+      "security": {
+        "isin": "DE000FRE5EN2",
+        "share_class_figi": "BBG001S9NDP6"
+      },
+      "listings": [
+        {
+          "ticker": "FRE",
+          "mic": "XETR",
+          "currency": "EUR",
+          "primary": true,
+          "figi": "BBG000BS3CD1",
+          "symbols": {
+            "yahoo": "FRE.DE",
+            "eodhd": "FRE.XETRA"
+          }
+        }
+      ],
+      "fold": "fresenius",
+      "former": {
+        "isins": ["DE0005785604"]
+      },
+      "sources": ["firds", "gleif", "openfigi", "reviewed", "symbol_conventions"],
+      "note": "bearer shares replaced by registered shares under a new ISIN; the old ISIN stays on German floors without a ticker"
+    },
+    {
+      "id": "blackrock",
+      "name": "BlackRock, Inc.",
+      "tags": ["us_home", "re_isin"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "lei": "529900VBK42Y5HHRMD23",
+        "cik": "2012383"
+      },
+      "security": {
+        "isin": "US09290D1019",
+        "share_class_figi": "BBG01PSW2WR0"
+      },
+      "listings": [
+        {
+          "ticker": "BLK",
+          "mic": "XNYS",
+          "currency": "USD",
+          "primary": true,
+          "figi": "BBG01PT1FFJ9",
+          "symbols": {
+            "yahoo": "BLK",
+            "eodhd": "BLK.US"
+          }
+        }
+      ],
+      "fold": "blackrock",
+      "former": {
+        "isins": ["US09247X1019"]
+      },
+      "sources": ["firds", "gleif", "openfigi", "sec", "symbol_conventions"],
+      "note": "the 2024 holding-company reorganisation gave a new ISIN; FIRDS gives the old one the LEI of BlackRock Finance, Inc. (the former holding company)"
+    },
+    {
+      "id": "marathon-oil",
+      "name": "Marathon Oil Corporation",
+      "tags": ["delisted", "merger"],
+      "kind": "ordinary",
+      "status": "delisted",
+      "cfi": "ES",
+      "issuer": {
+        "lei": "1FRVQX2CRLGC1XLP5727"
+      },
+      "security": {
+        "isin": "US5658491064"
+      },
+      "listings": [],
+      "fold": "marathon-oil",
+      "former": {
+        "tickers": ["MRO@XNYS"]
+      },
+      "sources": ["firds", "gleif", "openfigi", "sec"],
+      "note": "acquired by ConocoPhillips in November 2024; absent from the SEC ticker file, OpenFIGI maps the ISIN to no US line, German floors still carry it"
     },
     {
       "id": "bund-2032",

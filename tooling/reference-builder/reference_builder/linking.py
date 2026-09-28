@@ -38,7 +38,11 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
         rows[ticker] = rows[ticker] | {"figi": line["figi"]}
     audit["listing_figi_from_composite"] = sum(1 for t in tickers if rows.get(t.ticker) and t.ticker not in lines)
 
-    evidence, isins = _link_evidence(snap, entities, tickers, rows, figi_map)
+    us_shares = sorted(s.isin for s in snap.securities.values() if s.isin and s.isin.startswith("US") and s.kind == "share")
+    us_rows = {isin: a.get("data") or [] for isin, a in
+               zip(us_shares, figi_map([{"idType": "ID_ISIN", "idValue": i, "exchCode": "US"} for i in us_shares]))}
+    otc_rows = _receipt_otc_rows(snap, figi_map, audit)
+    evidence, isins = _link_evidence(snap, entities, tickers, rows, us_rows)
     links = _decide(snap, tickers, evidence, audit)
     _flag_suspect_links(snap, tickers, links)
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
@@ -46,9 +50,109 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
         listing = _listing(snap, inputs, ticker, rows.get(ticker.ticker), links.get(ticker.cik), audit)
         if not listing.security_id:
             listing.security_id = _security_for(snap, listing, isins.get(ticker.ticker), share_classes)
+    _adopt_sec_issuers(snap, tickers, audit)
+    _receipt_otc_lines(snap, otc_rows, audit)
+    _retire_us_shares_without_us_line(snap, inputs.venues, us_rows, audit)
     build_us_etfs(snap, inputs, figi_map)
     _flag_split_issuers(snap)
     _mark_us_primaries(snap, inputs.venues)
+
+
+def _receipt_otc_rows(snap: Snapshot, figi_map: FigiMap, audit: Counter) -> dict[str, dict]:
+    """The OTC Markets row (`PQ`) of every live FIRDS depositary receipt with a US ISIN.
+
+    Unsponsored ADRs (Heineken's HEINY, Adyen's ADYEY) are not SEC registrants, so the SEC ticker file has no
+    line for them, and SEC-registered OTC ADRs (Akzo Nobel's AKZOY) join a FIRDS receipt only by share-class
+    FIGI, which the German lines' empty OpenFIGI answers do not give. The row gives both.
+    """
+    receipts = sorted(s.isin for s in snap.securities.values()
+                      if s.isin and s.isin.startswith("US") and s.kind == "dr" and s.activity != "inactive")
+    found = {}
+    for isin, answer in zip(receipts, figi_map([{"idType": "ID_ISIN", "idValue": i, "exchCode": "PQ"} for i in receipts])):
+        row = _pick(answer.get("data") or [])
+        if row and row.get("ticker"):
+            found[isin] = row
+            security = snap.securities[f"isin:{isin}"]
+            security.share_class_figi = security.share_class_figi or row.get("shareClassFIGI")
+    audit["receipt_otc_rows"] = len(found)
+    return found
+
+
+def _receipt_otc_lines(snap: Snapshot, otc_rows: dict[str, dict], audit: Counter) -> None:
+    """An OTC Markets line for a receipt that no SEC line joined (never primary: an OTC line is no listing)."""
+    with_us = {l.security_id for l in snap.listings.values() if l.country == "US"}
+    for isin, row in otc_rows.items():
+        security = snap.securities[f"isin:{isin}"]
+        listing_id = f"OTCM:{row['ticker']}"
+        if security.security_id in with_us or listing_id in snap.listings:
+            continue
+        root, klass = rules.split_ticker(row["ticker"])
+        snap.listings[listing_id] = Listing(
+            listing_id=listing_id, source="openfigi", row_class="dr", security_id=security.security_id,
+            issuer_id=security.issuer_id, mic="OTCM", operating_mic="OTCM", country="US", ticker=row["ticker"],
+            ticker_root=root, ticker_class=klass, ticker_source="openfigi", currency="USD", name=row.get("name"),
+            figi=row.get("figi"), composite_figi=row.get("compositeFIGI"), share_class_figi=row.get("shareClassFIGI"),
+            security_type=row.get("securityType2") or row.get("securityType"))
+        audit["receipt_otc_lines"] += 1
+
+
+def _retire_us_shares_without_us_line(snap: Snapshot, venues: dict[str, Venue], us_rows: dict[str, list[dict]],
+                                      audit: Counter) -> None:
+    """A FIRDS share with a US ISIN that no SEC line joined, that OpenFIGI knows on no US exchange, and that has
+    no regulated-market line in the EEA is a delisted or superseded US share (Marathon Oil, VMware, the old
+    BlackRock ISIN) that German floors still carry: its lines become inactive. Warsaw-listed US companies
+    (Huuuge) keep their regulated line and stay active."""
+    joined = {l.security_id for l in snap.listings.values() if l.country == "US"}
+    lines: dict[str, list[Listing]] = defaultdict(list)
+    for listing in snap.listings.values():
+        lines[listing.security_id or ""].append(listing)
+    for isin, rows in us_rows.items():
+        security_id = f"isin:{isin}"
+        mine = lines.get(security_id, [])
+        if rows or security_id in joined or not mine or any(_regulated(venues, l) for l in mine):
+            continue
+        for listing in mine:
+            if listing.status != "inactive":
+                listing.status = "inactive"
+                listing.status_reasons.append("us_isin_without_us_line")
+        snap.securities[security_id].activity = "inactive"
+        audit["us_shares_retired_no_us_line"] += 1
+
+
+def _regulated(venues: dict[str, Venue], listing: Listing) -> bool:
+    venue = venues.get(listing.mic or "") or venues.get(listing.operating_mic or "")
+    return bool(venue and venue.category == "RMKT")
+
+
+def _adopt_sec_issuers(snap: Snapshot, tickers: list[SecTicker], audit: Counter) -> None:
+    """A FIRDS security that a SEC line joined takes that line's issuer when it has none (its FIRDS LEI was a
+    venue's) or when its LEI issuer's names share no word with the SEC title while the security's own name
+    does (FIRDS gives Lee Enterprises' ISIN Berkshire Hathaway's LEI; Credit Acceptance a funding vehicle's)."""
+    titles = _titles(tickers)
+    firds_lines: dict[str, list[Listing]] = defaultdict(list)
+    for line in snap.listings.values():
+        if line.source == "esma_firds":
+            firds_lines[line.security_id or ""].append(line)
+    for listing in [l for l in snap.listings.values() if l.source == "sec"]:
+        security = snap.securities.get(listing.security_id or "")
+        if not security or not security.isin or not listing.issuer_id:
+            continue
+        if security.issuer_id == listing.issuer_id:
+            continue
+        issuer = snap.issuers.get(listing.issuer_id)
+        title = titles.get(issuer.cik) if issuer and issuer.cik else None
+        current = snap.issuers.get(security.issuer_id or "")
+        if security.issuer_id is None:
+            reason = "issuer_from_sec_line"
+        elif title and not _name_alike(title, current) and rules.names_share_word([title], [security.name or ""]):
+            reason = "issuer_contradicted_by_sec_line"
+            snap.flag(security.security_id, reason, security.issuer_id)
+        else:
+            continue
+        security.issuer_id = listing.issuer_id
+        for line in firds_lines[security.security_id]:
+            line.issuer_id = listing.issuer_id
+        audit[reason] += 1
 
 
 def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
@@ -116,17 +220,18 @@ def _exchange_lines(figi_map: FigiMap, wanted: list[tuple[str, tuple[str, ...]]]
     return found
 
 
-def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, list[tuple[str, str]]], dict[str, str]]:
+def _link_evidence(snap, entities, tickers, rows, us_rows) -> tuple[dict[str, list[tuple[str, str]]], dict[str, str]]:
     """Candidate LEIs per CIK with the rule that produced each, and FIRDS ISINs per SEC ticker."""
     by_ticker = {t.ticker: t for t in tickers}
     evidence: dict[str, list[tuple[str, str]]] = defaultdict(list)
     isins: dict[str, str] = {}
-    us_isins = sorted(s.isin for s in snap.securities.values() if s.isin and s.isin.startswith("US") and s.kind == "share")
-    for isin, answer in zip(us_isins, figi_map([{"idType": "ID_ISIN", "idValue": i, "exchCode": "US"} for i in us_isins])):
-        row = _pick(answer.get("data") or [])
+    for isin, found in us_rows.items():
+        row = _pick(found)
         match = by_ticker.get((row or {}).get("ticker", "").replace("/", "-"))
         if match:
-            evidence[match.cik].append((snap.securities[f"isin:{isin}"].issuer_id[4:], "isin_exch_us"))
+            issuer_id = snap.securities[f"isin:{isin}"].issuer_id
+            if issuer_id:  # none when the FIRDS LEI was a venue's (see `assemble.choose_issuers`)
+                evidence[match.cik].append((issuer_id[4:], "isin_exch_us"))
             snap.audit["sec"]["isin_from_firds"] += 1
             isins[match.ticker] = isin
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}

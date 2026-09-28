@@ -30,12 +30,24 @@ GERMAN_FLOORS = frozenset({"XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER
 # Helsinki writes it glued (`KESKOB`), as Yahoo does.
 SPACED_CLASS_VENUES = frozenset({"XSTO", "XCSE"})
 US_EXCHANGE_MIC = {"UN": "XNYS", "UW": "XNAS", "UQ": "XNAS", "UR": "XNAS", "UA": "XASE", "UP": "ARCX"}
-# Main OpenFIGI exchange code per operating MIC (derived from micCode-qualified answers).
+# Main OpenFIGI exchange code per operating MIC: the code that answers nearly every micCode-qualified job of
+# the venue (measured on the cached answers of the FIRDS week of 2026-09-26). Other codes in those answers
+# are pan-European MTF rows that repeat the home ticker (Stuttgart's `XS`: `GLE` for Société Générale,
+# whose Stuttgart ticker is `SGE`) or currency-suffixed lines. Berlin (`GB`) is Bloomberg's code for the
+# venue; OpenFIGI answers almost no Berlin job, so its lines take the German ticker (`country_rows`).
 MAIN_EXCH_CODE = {
     "XAMS": "NA", "XPAR": "FP", "XBRU": "BB", "XLIS": "PL", "XMIL": "IM", "XETR": "GY", "XFRA": "GF",
     "XSTO": "SS", "XHEL": "FH", "XCSE": "DC", "XOSL": "NO", "BMEX": "SQ", "XMAD": "SQ", "XWAR": "PW",
     "XWBO": "AV", "XLON": "LN", "XSWX": "SE", "XDUB": "ID",
+    "XSTU": "GS", "XMUN": "GM", "XDUS": "GD", "XHAM": "GH", "XHAN": "GI", "XBER": "GB", "TGAT": "TH",
+    "ASEX": "GA", "XBUD": "HB", "XBUL": "BU", "XBSE": "RE", "XPRA": "CK", "XBRA": "SK", "XLJU": "SV", "XZAG": "ZA",
+    "XLUX": "LX", "XMAL": "MV", "XICE": "IR", "XTAL": "ET", "XLIT": "LH", "XNGM": "NG", "XSAT": "KA",
 }
+# OpenFIGI rows that describe debt: a debt market sector, or a ticker that is a coupon-and-maturity
+# description (`SIEMAD V0 09/07/39 REGS`, `BNP 0 PERP u`). FIRDS types some structured notes and CDO
+# "preference shares" as equity; OpenFIGI shows what they are.
+DEBT_SECTORS = frozenset({"Corp", "Govt", "Mtge", "Muni", "M-Mkt"})
+DEBT_TICKER = re.compile(r"\s(?:PERP|\d{1,2}/\d{1,2}/\d{2,4})\b")
 # Venue policy (Pythia-authored). Pan-European venues that trade shares and ETFs listed
 # elsewhere: lit and dark MTFs, request-for-quote platforms, systematic internalisers and
 # OTFs, by operating MIC. They are not where an instrument lists, so their lines are left
@@ -158,8 +170,9 @@ def normalized_name(text: str) -> str:
 
 
 def firds_kind(cfi: str) -> str:
-    """Security kind from the CFI code: depositary receipt (ED), exchange-traded fund (CE) or share."""
-    return {"ED": "dr", "CE": "etf"}.get(cfi[:2], "share")
+    """Security kind from the CFI code: depositary receipt (ED), exchange-traded fund (CE), preference share
+    (EP, and EF convertible preference shares) or share."""
+    return {"ED": "dr", "CE": "etf", "EP": "preferred", "EF": "preferred"}.get(cfi[:2], "share")
 
 
 def lit_segment(mic: str) -> str:
@@ -173,6 +186,18 @@ def _unaccented(text: str) -> str:
 def exchange_ticker(root: str, klass: str | None, operating_mic: str | None) -> str | None:
     """The ticker as the venue writes a share class: `VOLV B` on Nasdaq Nordic, else None (keep the source's)."""
     return f"{root} {klass}" if klass and operating_mic in SPACED_CLASS_VENUES else None
+
+
+def slash_class(ticker: str) -> str:
+    """OpenFIGI's `/` class separator in the provider convention core keys on (`GRF/P` -> `GRF-P`, as the SEC
+    writes `BRK-B`); a bare trailing slash (`BA/`, London's `BA.`) is dropped."""
+    return ticker.rstrip("/").replace("/", "-")
+
+
+def debt_like(rows: list[dict]) -> bool:
+    """Every OpenFIGI row describes debt (see `DEBT_SECTORS`, `DEBT_TICKER`); no rows is no evidence."""
+    return bool(rows) and all(
+        r.get("marketSector") in DEBT_SECTORS or DEBT_TICKER.search(r.get("ticker") or "") for r in rows)
 
 
 def split_ticker(ticker: str | None) -> tuple[str | None, str | None]:
@@ -198,7 +223,7 @@ def currency_suffixed(ticker: str) -> bool:
 
 
 def pick_figi_row(rows: list[dict], operating_mic: str) -> tuple[dict | None, str]:
-    """Choose one OpenFIGI answer row for a venue: main exchange code, no currency-suffixed tickers."""
+    """Choose one OpenFIGI answer row for a venue: main exchange code, no currency-suffixed or debt tickers."""
     if not rows:
         return None, "no_match"
     if len(rows) == 1:
@@ -210,13 +235,72 @@ def pick_figi_row(rows: list[dict], operating_mic: str) -> tuple[dict | None, st
         return (
             row.get("exchCode") != main,
             currency_suffixed(ticker),
-            row.get("marketSector") not in (None, "Equity"),
+            bool(DEBT_TICKER.search(ticker)),
+            row.get("marketSector") not in (None, "Equity", "Pfd"),
             len(ticker),
             ticker,
             row.get("figi") or "",
         )
 
     return sorted(rows, key=rank)[0], "multi_row_ranked"
+
+
+def country_rows(rows: list[dict], country: str | None, code_country: dict[str, str]) -> list[dict]:
+    """Rows on the main exchange code of a venue in `country`. Bloomberg gives an instrument one ticker per
+    country composite, so these rows carry the ticker of every venue of that country (`SGE` for Société
+    Générale on Xetra, Frankfurt, Stuttgart and Berlin alike)."""
+    return [r for r in rows if country and code_country.get(r.get("exchCode") or "") == country
+            and r.get("ticker") and not currency_suffixed(r["ticker"]) and not DEBT_TICKER.search(r["ticker"])]
+
+
+# ---- issuers --------------------------------------------------------------------
+
+# Name words that say nothing about which company a name is.
+_NAME_STOP = frozenset("THE AND OF DE LA LE DES DU DER DIE DAS UND ET CO COMPANY GROUP GRUPPE HOLDING HOLDINGS HLDGS "
+                       "INTERNATIONAL INTL BANK SHARES SHARE SHS REGISTERED REG INHABER NAMENS AKTIEN AKTIE ORD ORDINARY "
+                       "COMMON STOCK CLASS NEW INC CORP LTD PLC AG SA NV SE ASA AB OYJ SPA KGAA GMBH LIMITED "
+                       "CORPORATION INCORPORATED ADR ADRS ADS GDR GDRS SPONS UNSPONS SPONSORED UNSPONSORED".split())
+# A GLEIF legal name of a financing subsidiary (Nestlé Capital Markets, Brambles Finance, Avantor Funding).
+FINANCING_VEHICLE = re.compile(r"\b(FINANCE|FINANCING|FUNDING|TREASURY|CAPITAL MARKETS|ISSUANCE|ISSUER)\b")
+# A security name that is itself about finance (Japan Securities Fin., Enterprise Finl Services).
+_FINANCE_WORD = re.compile(r"^(FIN|FUND|TREAS|ISSU)")
+# Where a share description starts in a FIRDS or OpenFIGI name (`Brambles Ltd. Registered Shares o.N.`).
+_DESCRIPTOR = re.compile(r"\s(REG|REGISTERED|REGSH|NAMENS|NAM|INHABER|ACTIONS?|ACT|AZIONI|ACC|SHS|SHARES?|SH|ORD|"
+                         r"ADRS?|ADSS?|GDRS?|SPONS?|UNSP|UNSPONS|CDIS?|NPV|DL|EO|LS|SF|CD|VORZUG\w*|VZ)\b.*$")
+
+
+def ascii_upper(text: str | None) -> str:
+    return unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().upper()
+
+
+def name_words(text: str | None) -> set[str]:
+    """Distinctive words of a company or security name (three characters or more, without legal forms)."""
+    folded = re.sub(r"(?<=[A-Z])[.'’](?=[A-Z])|'S\b|[.'’]", "", ascii_upper(text))
+    return {w for w in re.findall(r"[A-Z0-9]{3,}", folded) if w not in _NAME_STOP}
+
+
+def company_key(text: str | None) -> str:
+    """A security name reduced to its company name, for an exact match against GLEIF legal names
+    (`Nestle S.A. (ADRs)`, `NESTLE SA-REG` and `NESTLÉ S.A.` all give `NESTLE`)."""
+    return normalized_name(_DESCRIPTOR.sub("", normalized_name(text or "")))
+
+
+def names_share_word(names_a, names_b) -> bool:
+    a = set().union(*(name_words(n) for n in names_a)) if names_a else set()
+    b = set().union(*(name_words(n) for n in names_b)) if names_b else set()
+    return bool(a & b)
+
+
+def financing_vehicle_of(entity_name: str, security_names) -> bool:
+    """The issuer is a financing subsidiary of the company whose share this is: its legal name is the
+    company's name plus a financing word (`Brambles Finance Limited` on `Brambles Ltd.`), and no name of the
+    security is about finance itself (`Enterprise Finl Services`, `Japan Securities Fin.` keep their issuer)."""
+    upper = ascii_upper(entity_name)
+    if not FINANCING_VEHICLE.search(upper):
+        return False
+    stem = name_words(FINANCING_VEHICLE.sub(" ", upper))
+    words = set().union(*(name_words(n) for n in security_names)) if security_names else set()
+    return bool(stem & words) and not any(_FINANCE_WORD.match(w) for w in words)
 
 
 def primary_venue(

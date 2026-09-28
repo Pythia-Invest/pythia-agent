@@ -21,6 +21,7 @@ class Venue:
     country: str
     category: str | None
     status: str
+    lei: str | None = None  # the operator's LEI (ISO 10383 `LEI` column)
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,7 @@ class Security:
     turnover_eur: float | None = None
     turnover_method: str | None = None
     rank: int | None = None  # notability order within its source, 1 = most notable (see pipeline.rank)
+    exch_codes: frozenset[str] = frozenset()  # OpenFIGI exchange codes of the ISIN's rows (FIRDS securities)
 
 
 @dataclass

@@ -28,12 +28,12 @@ class Scope:
 
     `mics=None` covers every venue in FIRDS (all EU/EEA trading venues); a tuple
     of operating MICs restricts the build to those venues. CFI prefixes select
-    shares (ES), depositary receipts (ED) and exchange-traded funds (CE).
+    shares (ES), preference shares (EP), depositary receipts (ED) and exchange-traded funds (CE).
     """
 
     mics: tuple[str, ...] | None = None
     sec: bool = True
-    cfi_prefixes: tuple[str, ...] = ("ES", "ED", "CE")
+    cfi_prefixes: tuple[str, ...] = ("ES", "EP", "ED", "CE")
 
     def covers(self, operating_mic: str | None) -> bool:
         return self.mics is None or operating_mic in self.mics
