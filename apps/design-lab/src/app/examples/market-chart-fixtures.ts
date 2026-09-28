@@ -56,7 +56,6 @@ const euDay: InstrumentPath = {
   intervalMs: 5 * MINUTE,
   session: { start: euOpen, end: euClose },
   regularSession: { start: euOpen, end: euClose },
-  timeZone: "Europe/Amsterdam",
 };
 
 // A US day with pre-market 04:00, regular 09:30–16:00, post until 20:00 ET.
@@ -72,7 +71,6 @@ function usDay(until: number, seed: number): InstrumentPath {
     intervalMs: 5 * MINUTE,
     session: { start: usPre, end: usPostEnd },
     regularSession: { start: usOpen, end: usClose },
-    timeZone: "America/New_York",
   };
 }
 const usBase = {
@@ -99,7 +97,6 @@ const preMarket: InstrumentPath = {
   session: { start: prevOpen, end: usOpen },
   regularSession: { start: prevOpen, end: prevClose },
   sessionGap: { start: prevClose, end: usPre },
-  timeZone: "America/New_York",
 };
 
 // Five European sessions in calendar time and with the nights omitted.
@@ -123,7 +120,6 @@ const fiveCalendar: InstrumentPath = {
   label: "Synthetic 5-minute bars · past 5 days, calendar time",
   intervalMs: 5 * MINUTE,
   window: fiveWindow,
-  timeZone: "Europe/Amsterdam",
 };
 const fiveCompressed: InstrumentPath = {
   ...fiveCalendar,

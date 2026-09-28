@@ -2,13 +2,12 @@
 import { Toggle, ToggleGroup } from "../actions/toggle";
 import { cn } from "../class-name";
 import { Skeleton } from "../feedback/skeleton";
-import { activityDetail, instrumentActivity, sessionWords } from "./activity";
 import { InstrumentExtendedSummary } from "./extended-change";
 import { instrumentNumber } from "./format";
 import {
   InstrumentChange,
+  InstrumentIdentity,
   InstrumentPrice,
-  InstrumentStatusDot,
 } from "./values";
 import type { InstrumentDisplay } from "./types";
 
@@ -39,35 +38,19 @@ export function InstrumentQuoteHeader({
   periodChange?: InstrumentPeriodChange | undefined;
   className?: string;
 }) {
-  const activity = instrumentActivity(item);
-  const detail = activityDetail(activity);
-  const words = sessionWords[activity.session];
-  const status = detail.includes(words) ? detail : `${words} · ${detail}`;
   return (
     <div
       data-slot="instrument-quote-header"
       aria-busy={loading || undefined}
       className={cn("flex min-w-0 flex-col gap-1", className)}
     >
-      <div
-        className="flex min-h-5 items-center gap-1.5 text-foreground-secondary text-xs"
-        title={loading ? undefined : item.description}
-      >
-        {loading ? (
-          <Skeleton className="w-32 after:hidden" />
-        ) : (
-          <>
-            <span className="-my-2 -mr-1.5 -ml-3 inline-flex">
-              <InstrumentStatusDot
-                status={item.status}
-                session={activity.session}
-                label={sessionWords[activity.session]}
-              />
-            </span>
-            <span data-slot="instrument-quote-status">{status}</span>
-          </>
-        )}
-      </div>
+      {/* The tiles' identity row: activity dot and ticker on the left,
+          status icon with a plain-language hover on the right. */}
+      <InstrumentIdentity
+        item={item}
+        options={{ name: false }}
+        loading={loading}
+      />
       <div className="flex min-h-9 flex-wrap items-baseline gap-x-3 gap-y-1">
         {loading ? (
           <Skeleton className="h-8 w-40 after:hidden" />

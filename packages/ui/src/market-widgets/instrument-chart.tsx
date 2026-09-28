@@ -33,7 +33,7 @@ function valueTicks(low: number, high: number) {
   return ticks;
 }
 
-/** Calendar-aligned labels in the supplied zone. Omitted closed intervals
+/** Calendar-aligned labels in the viewer's zone (session dates in UTC). Omitted closed intervals
  * carry no labels; the domain itself is never widened to reach a label. */
 function timeTicks(g: PathGeometry, timeZone: string | undefined) {
   const { start, end, gaps } = g.scale;
@@ -120,23 +120,22 @@ export function InstrumentChart({
   const activity = instrumentActivity(item);
   const active = instrumentPathActive(item);
   const [hover, setHover] = useState<number | null>(null);
-  const zone = series?.timeZone;
   const dates = series?.dates === true;
   const ticks = useMemo(
     () =>
       g
         ? {
             values: valueTicks(g.scale.low, g.scale.high),
-            times: timeTicks(g, dates ? "UTC" : zone),
+            times: timeTicks(g, dates ? "UTC" : undefined),
           }
         : null,
-    [g, zone, dates],
+    [g, dates],
   );
   const pointLabel = useMemo(
     () =>
       dates
         ? formatter("UTC", { dateStyle: "medium" })
-        : formatter(zone, {
+        : formatter(undefined, {
             day: "numeric",
             month: "short",
             year: "numeric",
@@ -144,7 +143,7 @@ export function InstrumentChart({
             minute: "2-digit",
             timeZoneName: "short",
           }),
-    [zone, dates],
+    [dates],
   );
   const unavailable = activity.data === "unavailable";
   const pending = loading || (!series && item.pathState === "loading");
@@ -199,7 +198,7 @@ export function InstrumentChart({
       className={cn("grid grid-cols-[minmax(0,1fr)_auto] gap-x-2", className)}
     >
       <div
-        className={cn("relative touch-pan-y", muted && "opacity-80")}
+        className={cn("relative touch-pan-y", muted && "opacity-70")}
         style={{ height }}
         onPointerMove={track}
         onPointerDown={track}
