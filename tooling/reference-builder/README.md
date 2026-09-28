@@ -21,7 +21,7 @@ python3 tooling/reference-builder/run.py --help
 | Equity and ETF admissions | `firds.py` | ESMA FIRDS weekly `FULINS_E` (shares `ES`, depositary receipts `ED`) and `FULINS_C` (exchange-traded funds `CE`) files, optional daily `DLTINS` deltas (`--deltas`) |
 | Activity and turnover | `firds.py` | ESMA FITRS `FULECR` equity transparency results for shares, depositary receipts and ETFs |
 | Issuers | `gleif.py` | GLEIF `lei-records` API, batched by LEI |
-| US tickers | `sec.py` | SEC `company_tickers_exchange.json` and the fund file `company_tickers_mf.json` |
+| US tickers | `sec.py`, `sec_probe.py` | SEC `company_tickers_exchange.json` and the fund file `company_tickers_mf.json`, fingerprinted per build; `sec_probe.py` fingerprints the plugin's `submissions` and `companyfacts` for a fixed sample |
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
 | Claims (shadow mode) | `claims.py`, `source_drift.py`, `firds_audit.py` | typed FIRDS claims, the FIRDS drift fingerprint and odd cases, and today's decisions against the claims (below) |
@@ -229,6 +229,26 @@ cannot absorb: no records, or a field it reads that the source stopped sending.
 A break stops the build before the snapshot is written (`--no-gates` writes it
 anyway, without `package.json`, and records the build as not good, so it never
 becomes the next baseline) and fails `just reference-audit`.
+
+### SEC fingerprints and the content probe
+
+`sec.observe` fingerprints each SEC ticker file before it is parsed
+(`sec_tickers-<date>.json` and `sec_funds-<date>.json` beside the snapshot): the
+columns each row carries, the exchange labels, and counts of what the parse would
+otherwise absorb (a ticker on two rows, a CIK under two titles, a malformed CIK or
+ticker, a row without an exchange). A read column that stops arriving, or a file
+that is not the documented `{fields, data}` shape, is a break: the build stops
+before the parse, as for FIRDS, and `just reference-audit` fails on it.
+
+The SEC plugin reads `submissions` and `companyfacts` live, so they have no build.
+`just reference-sec-probe` reads them for the frozen audit sample
+(`samples/sec-2026-09-28.json`, two requests per filer, cached under
+`.local/reference-builder/sec-probe/`) and writes `sec_filers`, `sec_filings` and
+`sec_facts` records beside the builds: their fields, form groups, the taxonomy and
+`fp` vocabularies, and counts such as unknown forms, unknown 8-K items and filers whose
+companyfacts lacks their latest report with XBRL (the plugin's own `freshness`
+check). The [SEC source record](../../docs/sources/sec.md) has the field meanings,
+the baselines and the audit.
 
 ## Identity truth set and audit
 

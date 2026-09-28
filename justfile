@@ -76,6 +76,10 @@ reference-status:
 reference-audit *args:
     python3 tooling/reference-builder/audit.py {{args}}
 
+# Fingerprint SEC submissions and companyfacts for the frozen audit sample (network; fails on drift).
+reference-sec-probe *args:
+    PYTHONPATH=tooling/reference-builder python3 -m reference_builder.sec_probe {{args}}
+
 # Check core's curated crypto assets against CoinGecko and CoinMarketCap (network; fails on drift).
 canonical-assets-drift *args:
     PYTHONPATH=tooling/reference-builder python3 -m reference_builder.drift {{args}}
