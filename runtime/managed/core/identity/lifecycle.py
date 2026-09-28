@@ -1,7 +1,8 @@
 """Lifecycle A (ADR 0037): the device's identity state follows a new reference release's subject IDs.
 
 A release never rewrites a saved ID: it records each re-key in `id_aliases`. On first
-use of a release, `rekey` re-points every row of identity.sqlite3 that names a subject
+use of a release, `rekey` re-points every row of identity.sqlite3 that names a subject (bindings, queue
+items, verdicts, resolve misses)
 through that chain, once, in one transaction recorded against the release ID. An
 assertion a row cites moved with its subject, so the row cites it by the evidence ID the
 release gives it. A subject the release neither holds nor aliases is flagged; its rows
@@ -35,11 +36,12 @@ def vanished(store: IdentityStore) -> list[str]:
     return json.loads(store.metadata(VANISHED) or "[]")
 
 
-def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str) -> dict | None:
-    """Re-point local rows to the IDs this release gives their subjects; None when it was already applied."""
+def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again: bool = False) -> dict | None:
+    """Re-point local rows to the IDs this release gives their subjects; None when it was already applied, unless
+    `again` (rows written meanwhile under an older release's IDs)."""
     db = store.db
     with store.transaction():
-        if store.metadata(REKEYED) == release:
+        if store.metadata(REKEYED) == release and not again:
             return None
         bindings = [dict(row, evidence_ids=json.loads(row["evidence_ids"]))
                     for row in db.execute("SELECT id, subject_id, evidence_ids FROM bindings")]
@@ -50,9 +52,8 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str) -> dict |
         cited.update(value for (value,) in db.execute("SELECT chosen_id FROM verdicts WHERE chosen_id IS NOT NULL"))
         for item in queue:
             cited.update(item["candidate_ids"], item["subject_ids"] if item["kind"] == "conflict" else ())
-        named = cited | {value for item in queue for value in item["subject_ids"]} | {value for (value,) in db.execute(
-            "SELECT id FROM subjects UNION SELECT parent_id FROM subjects UNION SELECT from_id FROM relations"
-            " UNION SELECT to_id FROM relations UNION SELECT subject_id FROM resolve_misses") if value}
+        named = cited | {value for item in queue for value in item["subject_ids"]} | {
+            value for (value,) in db.execute("SELECT subject_id FROM resolve_misses")}
         moved = {old: new for old in named if (new := current_id(ref, old)) != old}
         point = lambda ids: list(dict.fromkeys(moved.get(value, value) for value in ids))  # noqa: E731
 
@@ -84,11 +85,8 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str) -> dict |
         pairs = [(new, old) for old, new in moved.items()]
         db.executemany("UPDATE verdicts SET chosen_id = ? WHERE chosen_id = ?", pairs)
         db.executemany("UPDATE OR REPLACE resolve_misses SET subject_id = ? WHERE subject_id = ?", pairs)
-        db.executemany("UPDATE OR IGNORE subjects SET id = ?, kind = ? WHERE id = ?",
-                       [(new, subject_kind(new), old) for new, old in pairs])
-        for table, column in (("subjects", "parent_id"), ("relations", "from_id"), ("relations", "to_id")):
-            db.executemany(f"UPDATE OR IGNORE {table} SET {column} = ? WHERE {column} = ?", pairs)
-        gone = sorted(subject for subject in cited - moved.keys() if not _held(ref, subject))
+        gone = sorted({current for current in (moved.get(subject, subject) for subject in cited)
+                       if not _held(ref, current)})
         store.set_metadata(VANISHED, json.dumps(gone))
         store.set_metadata(REKEYED, release)
     return {"release": release, "moved": len(moved), "rows": changed, "vanished": len(gone)}
@@ -105,7 +103,8 @@ def _moved_evidence(ref: sqlite3.Connection, rows: list[tuple[str, list[str]]], 
 
     An assertion's evidence ID hashes its subject ID, so a re-keyed subject's assertions get new IDs. The ones a
     row cites were read from its subject's page (`load_subject`: the listing, security, composite and issuer), so
-    each is found by re-hashing that family's assertions under the IDs aliased to them."""
+    each is found by re-hashing that family's assertions under the IDs aliased to them (the builder writes
+    single-hop aliases)."""
     cited = {value for _subject, ids in rows for value in ids}
     held = {value for (value,) in ref.execute("SELECT evidence_id FROM assertions WHERE evidence_id IN"
                                               " (SELECT value FROM json_each(?))", (json.dumps(sorted(cited)),))}
@@ -124,12 +123,7 @@ def _moved_evidence(ref: sqlite3.Connection, rows: list[tuple[str, list[str]]], 
         family.update(value for value in (found["ids"].values() if found else ()) if value)
     out: dict[str, str] = {}
     for member in family:
-        olds, pending = set(), list(back.get(member, ()))
-        while pending:  # every ID aliased to it, through chains
-            old = pending.pop()
-            if old not in olds and old != member:
-                olds.add(old)
-                pending.extend(back.get(old, ()))
+        olds = back.get(member)
         if not olds:
             continue
         for row in ref.execute("SELECT * FROM assertions WHERE subject_id = ?", (member,)):

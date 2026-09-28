@@ -88,15 +88,16 @@ class Identity:
                 self._store = store.IdentityStore(self.data_dir)
             return self._store
 
-    def reference_path(self) -> Path | None:
+    def reference_path(self, *, again: bool = False) -> Path | None:
         """The newest reference build. Its first use carries local rows to its subject IDs (Lifecycle A), so every
-        read and write after it sees current IDs; a failure is retried on the next use."""
+        read and write after it sees current IDs; a failure is retried on the next use. `again` carries rows
+        written meanwhile under an older build's IDs."""
         path = store.reference_path(self.data_dir)
-        if path is not None and path != self._rekeyed:
+        if path is not None and (again or path != self._rekeyed):
             try:
                 ref = store.open_reference(path)
                 try:
-                    done = lifecycle.rekey(self.store, ref, lifecycle.release_id(ref, path.stem))
+                    done = lifecycle.rekey(self.store, ref, lifecycle.release_id(ref, path.stem), again=again)
                 finally:
                     ref.close()
                 if done:
@@ -161,6 +162,8 @@ class Identity:
         reason, transient = self._resolve(info, subject) if info.enabled and not info.missing else (None, False)
         if reason:  # remember the miss so reopening the page does not call the provider again
             self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
+        if store.reference_path(self.data_dir) != path:  # a new build landed during the call: carry this answer to it
+            self.reference_path(again=True)
         queue_ops.settle(self, [value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
         sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]

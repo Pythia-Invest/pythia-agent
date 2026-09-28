@@ -19,8 +19,7 @@ CREATE TABLE metadata (
 -- Subjects no reference build knows yet: IDs derived from their open identifiers,
 -- or provisional IDs derived from the provider reference that introduced them.
 -- Descriptive provider fields stay in the plugin-tagged claims table below.
--- Like every row here that names a subject, re-pointed through the reference id_aliases
--- once per new release (identity/lifecycle.py).
+-- Not re-pointed through id_aliases yet: nothing writes local subjects or relations.
 CREATE TABLE subjects (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,              -- the ID's first segment (schemes.Kind)

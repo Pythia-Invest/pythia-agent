@@ -58,9 +58,13 @@ class LifecycleTest(QueueFixture):
         self.assertTrue(self.identity.put_binding(binding))
         return binding
 
-    def rekey(self, path):
+    def rekey(self, path, again=False):
         with closing(store.open_reference(path)) as ref:
-            return lifecycle.rekey(self.identity, ref, lifecycle.release_id(ref, path.stem))
+            return lifecycle.rekey(self.identity, ref, lifecycle.release_id(ref, path.stem), again=again)
+
+    def bound(self):
+        row = self.identity.binding_for(identity.ProviderRef("eodhd", "ASML.AS", "catalogue"))
+        return row["subject_id"], json.loads(row["evidence_ids"])
 
     def test_a_binding_still_serves_the_page_after_its_subjects_are_re_keyed(self):
         self.bind()
@@ -125,6 +129,30 @@ class LifecycleTest(QueueFixture):
         self.assertEqual((again["moved"], again["rows"]), (0, 0))
         self.assertEqual([tuple(row) for row in self.identity.db.execute("SELECT * FROM bindings")],
                          [tuple(row) for row in snapshot])
+
+    def test_a_row_written_under_the_previous_release_during_a_re_key_is_carried_again(self):
+        path = self.release("reference-20261001", renames=[(ASML, NEW_LISTING)], aliases=[(ASML, NEW_LISTING)])
+        self.rekey(path)
+        self.bind()  # identity-resolve answered for the subject it loaded before the new release landed
+        self.assertIsNone(self.rekey(path))
+        self.assertEqual(self.rekey(path, again=True)["rows"], 1)
+        self.assertEqual(self.bound()[0], NEW_LISTING)
+
+    def test_reinstalling_an_older_release_re_keys_back_or_flags_and_a_newer_one_re_applies(self):
+        self.bind()
+        original = self.bound()
+        newer = self.release("reference-20261001", renames=[(ASML, NEW_LISTING), (SECURITY, NEW_SECURITY)],
+                             aliases=[(ASML, NEW_LISTING), (SECURITY, NEW_SECURITY)])
+        self.rekey(newer)
+        # An older build that knows the newer key (the builder aliases every key a subject could have had).
+        self.rekey(self.release("reference-20260927", aliases=[(NEW_LISTING, ASML), (NEW_SECURITY, SECURITY)]))
+        self.assertEqual(self.bound(), original)
+        self.rekey(newer)
+        # An older build that does not: the rows are kept and flagged until a newer build applies again.
+        self.rekey(self.release("reference-20260926"))
+        self.assertEqual((self.bound()[0], lifecycle.vanished(self.identity)), (NEW_LISTING, [NEW_LISTING]))
+        self.rekey(newer)
+        self.assertEqual((self.bound()[0], lifecycle.vanished(self.identity)), (NEW_LISTING, []))
 
 
 class ScaleTest(QueueFixture):
