@@ -15,7 +15,7 @@ from collections import defaultdict
 from dataclasses import replace
 
 from .model import ProviderRef
-from .page import _assertion, current_id, load_subject
+from .subject import _assertion, current_id, load_subject
 from .resolution import question_key
 from .schemes import Level, subject_kind
 from .store import IdentityStore

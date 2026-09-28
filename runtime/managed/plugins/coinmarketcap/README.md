@@ -49,7 +49,7 @@ it. Each row is shaped for the plugin addressing contract (ADR 0038, pending):
   stay unknown; a failed listings read leaves ranks and adds a warning.
 
 Symbols are not unique, and a shared contract address is not proof that two
-providers mean the same asset. Rows are source-asserted evidence; the core
+providers mean the same asset. Rows are source assertions; the core
 decides every join.
 
 CoinMarketCap uses two network namespaces. The map names a token's platform by
@@ -57,8 +57,8 @@ a platform ID (Ethereum is platform 1); info names each deployment's chain by
 that chain's own coin ID (Ethereum is coin 1027). The connector keeps them
 distinct (`coinmarketcap:platform:<id>` and `coinmarketcap:coin:<id>`) with the
 chain's name, slug and symbol. Two chains can share a native coin (BNB Beacon
-Chain and BNB Smart Chain), so `details` evidence keys a deployment's network by
-coin ID plus the platform name as a slug (`coinmarketcap:coin:1839:bnb-smart-chain-bep20`).
+Chain and BNB Smart Chain), so each `details` `platform_contracts` entry keeps the
+deployment's platform name beside its coin ID to tell them apart.
 That is enough for a core CAIP-2 table to derive CAIP-19 later. CoinMarketCap
 lists wrapped representations for some native coins (SOL shows the wrapped-SOL
 mint); the mapping must not treat those addresses as the native asset.
@@ -71,6 +71,9 @@ The free Basic plan allows 15,000 credits a month and 50 requests a minute
 Map pages cost no credits (observed 2026-09-25); listings cost one credit per
 200 rows, quotes and info one per 100 coins, and historical quotes one per 100
 data points. Basic history is limited to one month intraday and one year daily.
+A year of daily samples is one request (4 credits); a start up to two days
+before the plan's year is read from there. Both edges move hourly and daily
+reads are reused for an hour, so an open page costs about 96 credits a day.
 
 The local request budget is 30 requests a minute, leaving room for other use of
 the same account. A daily catalogue sync costs 3 credits (the 500-row listings

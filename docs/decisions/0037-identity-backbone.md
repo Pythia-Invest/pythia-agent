@@ -215,16 +215,40 @@ memory (FTS5) from the newest reference file and ranks with one versioned,
 gold-calibrated additive score (exact ticker or identifier, name match,
 notability from each security's source `rank`, primary and home line,
 penalties for OTC lines and derivatives); issuers compete by their best line.
-Results are one row per instrument, never nested: a security with its
-depositary receipts and registry shares folded in (the same economic share), or
-a crypto asset. Share classes, preferreds and products on a company are rows of
-their own and rank below it. A row shows one representative listing: the one
+Results are grouped per search group (founder decision 2026-09-28, superseding
+one row per instrument), the investable entity of the amendment below: a
+company with all its equity listings, including share classes, preferreds,
+depositary receipts and registry shares; a fund, ETF, ETN or ETC on its own,
+never under its issuer or umbrella; a crypto asset on its own. Core derives the
+group; the search response only orders it. Groups compete by their best line.
+A group first shows a few relevant listings, then offers all of them: the lead
+listing is the one
 the query names (a venue word, a provider symbol such as `ASML.AS` through the
 installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange). Core declares the key in its `configuration.json`. "Look up in X"
+exchange). Among the lead's candidates, a regulated listing comes next (an ISO
+10383 regulated-market segment, carried as `venues.category`, or a US exchange)
+over open-market trading such as a German Freiverkehr line; then the home and
+primary market; a foreign company's receipt or OTC line ranks below its other
+lines. Among the remaining lines, one an installed, usable plugin can price
+comes first (its operating MIC is in the `mic_table` of a plugin whose quote is
+addressed per listing, for the line's asset class), so a group for a company
+whose home market is out of the reference's scope leads with a line whose page
+shows a price. Remaining ties follow one stated, query-independent venue order
+(Xetra, Euronext Paris, Amsterdam and Milan, then Tradegate, Frankfurt and the
+German regional floors, then any other venue) and then the listing ID. The main
+share's primary listing (only a line flagged primary; a missing primary venue
+is not filled with another line) and a line of each other matched security
+(one the query names, else that security's primary listing) follow the lead,
+at most three in all. A group states how many listings it has;
+"All N listings" reads the rest as a separate group read, so a search answer
+stays small for the agent as well. A type filter picks groups and narrows their
+listings. Each row names its instrument, and choosing a row opens that
+instrument's page on the row's listing: a receipt's row opens the share it
+folds into. Core declares the key
+in its `configuration.json`. "Look up in X"
 explicitly calls one provider's `resolve`, and the result joins like any other
 claim.
 

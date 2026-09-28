@@ -11,7 +11,7 @@ from pathlib import Path
 from test_identity_contracts import identity
 from test_identity_page import ASML, plugin
 from test_identity_queue import AS_OF, NOW, QueueFixture, answer, load_core
-from pythia_identity_fixture import lifecycle, page, store  # noqa: E402
+from pythia_identity_fixture import lifecycle, page, store, subject as subjects  # noqa: E402
 
 SECURITY = "security:isin:NL0010273215"
 NEW_SECURITY, NEW_LISTING = "security:figi:BBG001S7Q066", "listing:figi:BBG000C1HT47"
@@ -40,7 +40,7 @@ class LifecycleTest(QueueFixture):
                     for column in columns:
                         db.execute(f"UPDATE {table} SET {column} = ? WHERE {column} = ?", (new, old))
                 for row in db.execute("SELECT * FROM assertions WHERE subject_id = ?", (old,)).fetchall():
-                    moved = replace(page._assertion(row), subject_id=new)
+                    moved = replace(subjects._assertion(row), subject_id=new)
                     db.execute("UPDATE assertions SET subject_id = ?, evidence_id = ? WHERE evidence_id = ?",
                                (new, moved.evidence_id, row["evidence_id"]))
             for subject in drop:

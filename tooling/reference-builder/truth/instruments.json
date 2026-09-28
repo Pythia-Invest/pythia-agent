@@ -209,6 +209,10 @@
       ],
       "kind": "ordinary",
       "status": "active",
+      "search": {
+        "query": "Shell",
+        "rows": ["SHEL@XLON", "SHELL@XAMS"]
+      },
       "cfi": "ES",
       "issuer": {
         "lei": "21380068P1DRHMJ8KU70",
@@ -323,6 +327,10 @@
       "tags": ["re_isin", "cross_listing", "otc"],
       "kind": "ordinary",
       "status": "active",
+      "search": {
+        "query": "Unilever",
+        "rows": ["ULVR@XLON", "UNA@XAMS"]
+      },
       "cfi": "ES",
       "issuer": {
         "lei": "549300MKFYEKVRWML317",
@@ -6447,6 +6455,10 @@
       "tags": ["cross_listing"],
       "kind": "ordinary",
       "status": "active",
+      "search": {
+        "query": "AstraZeneca",
+        "rows": ["AZN@XLON", "AZN@XSTO"]
+      },
       "cfi": "ES",
       "issuer": {
         "lei": "PY6ZZQWO2IZFZC3IOL08"

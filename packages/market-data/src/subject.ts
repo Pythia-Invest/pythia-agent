@@ -38,19 +38,52 @@ const pluginRequestSchema = z.object({
   arguments: z.record(z.string(), z.unknown()),
 });
 
+/** A source as core names it on sections and in agent results. */
+const sourceSchema = z.object({ source: text, provider: text, plugin: text });
+
+/** Another source that could serve the section now: one click reads it
+ * instead, for this view only. */
+export const sectionAlternativeSchema = z.object({
+  plugin: text,
+  label: text,
+  status: text,
+  binding: providerRefSchema.nullish(),
+  request: pluginRequestSchema.nullish(),
+});
+export type SectionAlternative = z.infer<typeof sectionAlternativeSchema>;
+
+/** A source that declares the concept but does not serve this subject, with
+ * core's plain reason (code: not_covering, not_addressable, disabled, ...). */
+export const sectionSkipSchema = sourceSchema.extend({
+  code: text,
+  reason: text,
+});
+export type SectionSkip = z.infer<typeof sectionSkipSchema>;
+
 export const subjectSectionSchema = z.object({
   /** "quote" | "chart" | "profile" | "filings"; later types render as placeholders. */
   section: text,
+  /** The level the plugin addresses this section through ("issuer" for a
+   * company profile or filings, "listing" for a quote). */
+  via: text.nullish(),
   plugin: text,
   label: text,
   status: text,
   binding: providerRefSchema.nullish(),
   /** The read that fills a profile or filings section; null for quote/chart. */
   request: pluginRequestSchema.nullish(),
-  alternatives: z
-    .array(z.object({ plugin: text, label: text, status: text }))
-    .default([]),
+  /** Eligible sources not chosen; the investor can use one once. */
+  alternatives: z.array(sectionAlternativeSchema).default([]),
   reason: optionalText,
+  source: sourceSchema.nullish(),
+  skipped: z.array(sectionSkipSchema).default([]),
+  /** Filings: the sources combined, one per filing authority. */
+  sources: z
+    .array(sourceSchema.extend({ authorities: z.array(text).default([]) }))
+    .nullish(),
+  /** Set only when a source ranked ahead of the chosen one could have served
+   * and did not (named by the investor, contradicted, not found): amber. */
+  notice: sectionSkipSchema.nullish(),
 });
 export type SubjectSection = z.infer<typeof subjectSectionSchema>;
 
@@ -63,6 +96,9 @@ export const subjectListingSchema = z.object({
   primary: z.boolean().default(false),
   /** The listed security's kind: a folded receipt is labelled as one. */
   kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
+  /** A line of a security that folds into the instrument (a receipt), not
+   * of the instrument's own security. */
+  folded: z.boolean().default(false),
 });
 export type SubjectListing = z.infer<typeof subjectListingSchema>;
 
@@ -87,6 +123,9 @@ export const subjectPageSchema = z.object({
     level: text,
     name: text,
     kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
+    /** The listing whose quote and chart this composition shows (a
+     * security's or issuer's page shows one of its listings). */
+    listing: text.nullish(),
   }),
   identifiers: z.record(z.string(), optionalText).default({}),
   issuer: z
@@ -143,7 +182,8 @@ export const profileSchema = z.object({
 });
 export type Profile = z.infer<typeof profileSchema>;
 
-/** Normalized output of a filings section read (XBRL filings, SEC). */
+/** Output of a filings section read: one source's list, or core's combined
+ * list where each item names its source and filing authority. */
 export const filingsSchema = z.object({
   filings: z
     .array(
@@ -154,10 +194,30 @@ export const filingsSchema = z.object({
         form: optionalText,
         url: z.string().nullish(),
         language: optionalText,
+        source: optionalText,
+        authority: optionalText,
+        /** The date that orders the list and its basis: "filed", "indexed"
+         * (the day the source indexed a report without a filing date) or
+         * "period_end". */
+        date: optionalText,
+        date_basis: optionalText,
       }),
     )
     .default([]),
   source: z.object({ label: text, url: z.string().nullish() }).nullish(),
+  /** Combined reads: the sources read and those that failed. */
+  sources: z
+    .array(
+      z.object({
+        source: text,
+        plugin: text,
+        authorities: z.array(text).default([]),
+        url: z.string().nullish(),
+      }),
+    )
+    .default([]),
+  skipped: z.array(sectionSkipSchema).default([]),
+  partial: z.boolean().default(false),
 });
 export type Filings = z.infer<typeof filingsSchema>;
 

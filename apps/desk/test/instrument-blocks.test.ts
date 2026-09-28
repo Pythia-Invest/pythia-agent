@@ -1,6 +1,10 @@
 import type { SubjectSection } from "@pythia/market-data/subject";
 import { describe, expect, it } from "vitest";
-import { pageBlocks } from "../src/components/instrument/blocks";
+import {
+  newestPerAuthority,
+  pageBlocks,
+  usingSource,
+} from "../src/components/instrument/blocks";
 const yahoo = {
   provider: "yahoo",
   native_scope: "symbol",
@@ -19,6 +23,7 @@ function section(
     request: null,
     alternatives: [],
     reason: null,
+    skipped: [],
     ...overrides,
   };
 }
@@ -52,5 +57,57 @@ describe("instrument page composition", () => {
     expect(pageBlocks([section("news")]).map((block) => block.type)).toEqual([
       "other",
     ]);
+  });
+});
+
+describe("using an alternative source once", () => {
+  it("reads every section of the card from the chosen alternative, and only it", () => {
+    const eodhd = {
+      provider: "eodhd",
+      native_scope: "catalogue",
+      native_id: "SYN.AS",
+    };
+    const also = {
+      plugin: "pythia-eodhd",
+      label: "EODHD",
+      status: "ready",
+      binding: eodhd,
+      request: null,
+    };
+    const [block] = pageBlocks([
+      section("quote", { alternatives: [also], notice: null }),
+      section("chart", { alternatives: [also] }),
+    ]);
+    if (!block) throw Error("expected a price card");
+    const used = usingSource(block, "pythia-eodhd");
+    expect(used.sections.map((item) => [item.plugin, item.binding])).toEqual([
+      ["pythia-eodhd", eodhd],
+      ["pythia-eodhd", eodhd],
+    ]);
+    expect(used.key).not.toEqual(block.key);
+    expect(usingSource(block, null)).toBe(block);
+    expect(usingSource(block, "pythia-unknown").sections).toEqual(
+      block.sections,
+    );
+  });
+});
+
+describe("combined filings rows", () => {
+  it("keep each authority's newest filing in view, newest first", () => {
+    const rows = [
+      ...Array.from({ length: 12 }, (_, index) => ({
+        id: `6-K ${index}`,
+        authority: "sec",
+      })),
+      { id: "ESEF 2025", authority: "esma" },
+      { id: "ESEF 2024", authority: "esma" },
+    ];
+    const shown = newestPerAuthority(rows, 10);
+    expect(shown).toHaveLength(10);
+    expect(shown.at(-1)?.id).toBe("ESEF 2025");
+    expect(shown.slice(0, 9).map((row) => row.id)).toEqual(
+      rows.slice(0, 9).map((row) => row.id),
+    );
+    expect(newestPerAuthority(rows.slice(0, 3), 10)).toEqual(rows.slice(0, 3));
   });
 });

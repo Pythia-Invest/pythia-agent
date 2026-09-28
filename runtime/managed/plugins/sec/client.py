@@ -12,7 +12,7 @@ import zlib
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from .identity import DIRECTORY_URL, submissions_url
+from .identity import DIRECTORY_URL, submissions_page_url, submissions_url
 from .financials import facts_url
 
 MAX_BYTES = 24_000_000
@@ -48,7 +48,9 @@ class Transport:
         from importlib import import_module
         retry_after = import_module(self.connector.__package__ + '.worker_budget').retry_after
         operation = request['operation']
-        url = DIRECTORY_URL if operation == 'directory' else submissions_url(request['cik']) if operation == 'submissions' else facts_url(request['cik'])
+        url = (DIRECTORY_URL if operation == 'directory' else submissions_url(request['cik']) if operation == 'submissions'
+               else submissions_page_url(request['cik'], request['page']) if operation == 'submissions_page'
+               else facts_url(request['cik']))
         req = Request(url, headers={'User-Agent': request['contact'], 'Accept': 'application/json', 'Accept-Encoding': 'gzip'})
         started, status = time.monotonic(), None
         try:

@@ -103,7 +103,8 @@ def register(ctx):
                 bulk = {'timeout': 45, 'output_limit': 8_000_000} if endpoint == 'catalogue' else {'timeout': 12}
                 return reads.read([python, '-I', worker], {'mode': access, 'token': token, 'operation': endpoint, 'arguments': args}, env,
                     cancelled=cancelled, budget=budget, **bulk,
-                    age=0 if endpoint == 'catalogue' or fresh else 900 if args.get('days', 1) != 1 else 300)
+                    # Daily points change once a day: an hour-old year stays usable.
+                    age=0 if endpoint == 'catalogue' or fresh else 3600 if args.get('interval') == 'daily' else 900 if args.get('days', 1) != 1 else 300)
             if operation == 'catalogue':
                 expires, snapshot = snapshots.get(access, (0, None))
                 if time.monotonic() < expires:
@@ -118,7 +119,7 @@ def register(ctx):
                 groups = {}
                 for item in clean['reads']:
                     native, mode, unit = selector(item['source_selector'], access)
-                    expected = definition(native, mode, unit)
+                    expected = definition(native, mode, unit, access)
                     if item['request']['view'] != {'kind': 'source', 'series_id': expected['id']} or (mode == 'latest') != (item['request']['operation'] == 'latest'):
                         raise ValueError('unsupported_series')
                     if mode == 'latest':
@@ -139,7 +140,7 @@ def register(ctx):
                 if (mode == 'latest') != (operation == 'latest'):
                     raise ValueError('invalid_request')
                 endpoint, controls = bounds(request, mode, access=access)
-                series = wire.validate('series', definition(native, mode, currency))
+                series = wire.validate('series', definition(native, mode, currency, access))
                 view = request['view']
                 if view['kind'] != 'source' or view['series_id'] != series['id']:
                     raise ValueError('unsupported_series')
@@ -153,11 +154,9 @@ def register(ctx):
             item = candidate(raw['data'], details=True)
             if item['provider_ref'] != native:
                 raise ValueError('invalid_response')
-            for evidence in item['evidence']:
-                wire.validate('evidence', evidence)
             if operation == 'details':
                 return envelope([item])
-            return envelope([wire.validate('series', definition(native, mode, currency)) for mode in modes(access)])
+            return envelope([wire.validate('series', definition(native, mode, currency, access)) for mode in modes(access)])
         except failures.SourceFailure as error:
             return failures.qualify_failure(base(request, [issue(str(error))]) if request else envelope(None, [issue(str(error))]), error.raw)
         except process.WorkerError as error:

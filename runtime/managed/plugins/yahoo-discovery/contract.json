@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "plugin": "pythia-yahoo-discovery",
   "provider": "yahoo",
   "addressing": {
@@ -26,28 +27,60 @@
       "XPAR": ".PA",
       "XETR": ".DE",
       "XFRA": ".F",
+      "XSTU": ".SG",
+      "XMUN": ".MU",
+      "XDUS": ".DU",
+      "XHAM": ".HM",
+      "XHAN": ".HA",
+      "XBER": ".BE",
       "BMEX": ".MC",
       "XHEL": ".HE",
       "XSTO": ".ST",
       "XCSE": ".CO",
       "XWBO": ".VI",
       "XWAR": ".WA",
+      "ASEX": ".AT",
+      "XBUD": ".BD",
+      "XPRA": ".PR",
+      "XICE": ".IC",
+      "XTAL": ".TL",
+      "XRIS": ".RG",
+      "XLIT": ".VS",
       "XNAS": "",
       "XNYS": "",
       "XCBO": "",
       "OTCM": ""
     }
   },
-  "content": {
-    "quote": {
+  "concepts": {
+    "market_data": {
       "level": "listing",
       "via": "listing",
-      "tool": "pythia_yahoo_latest"
-    },
-    "chart": {
-      "level": "listing",
-      "via": "listing",
-      "tool": "pythia_yahoo_history"
+      "operations": {
+        "quote": "latest",
+        "intraday": "history",
+        "daily": "history"
+      },
+      "coverage": {
+        "asset_classes": [
+          "equity"
+        ]
+      },
+      "qualities": {
+        "intraday": {
+          "extended_hours": true
+        },
+        "daily": {
+          "adjustment": [
+            "split_dividend"
+          ]
+        }
+      }
     }
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "none",
+    "hostable": false
   }
 }

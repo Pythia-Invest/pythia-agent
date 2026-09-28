@@ -31,7 +31,7 @@ def schemas(wire):
         'read_batch': ({'reads': {'type': 'array', 'minItems': 1, 'maxItems': 32, 'items': wire.parameter_schema('source_read')}}, ['reads']),
     }
     contribution = wire.validate('contribution', {
-        'schema_version': 1, 'provider': 'coinmarketcap', 'adapter_version': '1', 'subject_kinds': ['crypto'],
+        'schema_version': 1, 'provider': 'coinmarketcap', 'adapter_version': '1',
         'cadence': {'latest': 600, 'history': 900, 'series': 3600},
         'operations': [{'operation': op, 'tool': TOOLS[op], 'effect': 'read'} for op in COMMON]})
     descriptions = {
@@ -41,7 +41,7 @@ def schemas(wire):
                       'Symbols and contracts do not prove identity with another provider.' % RANK_DEPTH),
         'profile': ('Read the CoinMarketCap profile of one exact coin ID: description, logo, links, tags, launch date and '
                     'every listed contract deployment. Source text, labelled with CoinMarketCap and retrieval time.'),
-        'details': 'Read identity evidence for an exact CoinMarketCap coin ID: the native ID and network-scoped contract addresses.',
+        'details': 'Read source details for an exact CoinMarketCap coin ID: name, symbol and network-scoped contract addresses.',
         'series': 'Describe pinned CoinMarketCap aggregate latest and 15-minute, hourly or daily price-sample series in the configured currency.',
         'latest': 'Read a pinned CoinMarketCap aggregate quote. Keeps price precision and source time; freshness and completion stay unknown.',
         'history': ('Read pinned CoinMarketCap aggregate price samples, not OHLC bars. Use aware start/end instants: at most '

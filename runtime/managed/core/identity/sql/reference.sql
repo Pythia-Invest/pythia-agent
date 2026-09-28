@@ -133,7 +133,9 @@ CREATE TABLE venues (
   mic TEXT PRIMARY KEY CHECK (length(mic) = 4),
   operating_mic TEXT NOT NULL CHECK (length(operating_mic) = 4),
   name TEXT NOT NULL,              -- short display label (curated for common venues), else the ISO 10383 name
-  country TEXT CHECK (country IS NULL OR length(country) = 2)
+  country TEXT CHECK (country IS NULL OR length(country) = 2),
+  category TEXT CHECK (category IS NULL OR length(category) = 4)  -- ISO 10383 market category: RMKT regulated
+                                   -- market, MLTF multilateral facility, ... (absent in builds before it was added)
 );
 
 CREATE TABLE chains (

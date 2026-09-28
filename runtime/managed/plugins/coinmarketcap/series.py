@@ -11,6 +11,12 @@ INTERVALS = {'sample_15m': '15m', 'sample_hourly': 'hourly', 'sample_daily': 'da
 CODES = {'unavailable', 'invalid_request', 'invalid_response', 'access_denied', 'authentication_failed', 'unsupported_series',
          'unsupported_window', 'rate_limit', 'timeout', 'network_error', 'provider_error', 'response_limit', 'cancelled',
          'requirements_unmet', 'busy'}
+# One daily request serves the plan's history: 12 months on the plans with
+# historical quotes (checked 2026-09-28). The declared span admits up to two
+# days more (a date-to-date year, also across 29 February); those are read
+# from the plan's start, as the returned window shows.
+PLAN_DAYS = 365
+DAILY_DAYS = PLAN_DAYS + 2
 
 
 def now():
@@ -105,7 +111,7 @@ def definition(native, mode, currency):
              'source_detail': {'namespace': PROVIDER, 'values': {'price_basis': 'source_aggregate'}}}
     value['id'] = 'series:coinmarketcap:' + hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()[:32]
     value['read_support'] = {'operations': ['latest' if mode == 'latest' else 'history'], 'window_kind': 'instant',
-                             'max_span_seconds': (90 if mode == 'sample_daily' else 7) * 86400}
+                             'max_span_seconds': (DAILY_DAYS if mode == 'sample_daily' else 7) * 86400}
     value['source_detail']['values']['read_selector'] = json.dumps(
         {'version': 1, 'native_ref': native, 'mode': mode, 'currency': currency}, separators=(',', ':'))
     return value
@@ -133,7 +139,7 @@ def read_result(request, series=None, observations=(), issues=()):
             'request': request, 'series': series, 'observations': values,
             'selection': {'view': request['view'], 'reason': 'pinned' if series else 'unavailable', 'preference_revision': None, 'alternatives': []},
             'provenance': {'provider': PROVIDER, 'native_ref': series['provider_ref'], 'adapter_version': '1', 'retrieved_at': stamp,
-                           'source_time': known[-1]['value'] if known else None, 'revision_vintage': None, 'mapping_revision': None,
+                           'source_time': known[-1]['value'] if known else None, 'revision_vintage': None,
                            'source_detail': None} if series else None,
             'retrieved_at': stamp, 'returned_window': {'start': known[0] if known else None, 'end': known[-1] if known else None},
             'coverage': {'status': 'partial' if truncated else 'unknown', 'gaps': [], 'truncated': truncated, 'continuation': None},
