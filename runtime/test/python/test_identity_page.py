@@ -110,7 +110,7 @@ class SearchTest(Fixture):
                                "bindings": []})
 
     def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
-        us = "listing:isin:USN070592100:XNAS:USD"
+        us = "listing:figi:BBG000K6N6G7"
         self.assertEqual(self.rows("asml", prefer="US"), [us])
         self.assertEqual(self.rows("asml", prefer="EU"), [ASML])
         self.assertEqual(self.rows("ASML.AS", prefer="US", suffixes=lambda: {".AS": {"XAMS"}}), [ASML])
@@ -150,6 +150,16 @@ class PageTest(Fixture):
         self.assertEqual(quote["alternatives"], [{"plugin": "pythia-eodhd", "label": "EODHD", "status": "resolving"}])
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "gleif-profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
+
+    def test_an_old_us_id_resolves_through_its_alias(self):
+        old, current = "listing:isin:USN070592100:XNAS:USD", "listing:figi:BBG000K6N6G7"  # before subject_key@1
+        self.assertIsNone(page.load_subject(self.ref, old))
+        with sqlite3.connect(self.path) as db:  # the builder writes aliases; the reference opens read-only
+            db.execute("INSERT INTO id_aliases VALUES (?, ?, 'test')", (old, current))
+        ref = store.open_reference(self.path)
+        self.addCleanup(ref.close)
+        subject = page.load_subject(ref, old)
+        self.assertEqual((subject["id"], subject["listing"]["ticker"]), (current, "ASML"))
 
     def test_an_unusable_plugin_yields_to_the_next_and_says_why(self):
         missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)

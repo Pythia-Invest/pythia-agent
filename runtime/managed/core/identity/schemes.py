@@ -149,12 +149,26 @@ def subject_level(subject_id: str) -> Level:
     return Level(subject_id.split(":", 1)[0])
 
 
+# The subject-key rule (ADR 0037), versioned: a new rule is `subject_key@2`, recorded in the
+# reference `release` table, with aliases from the old IDs. Keys use only identifiers every build
+# path has and may host. ISINs from CUSIP Global Services (US and Canadian ISINs, and those of the
+# territories and offshore centres whose ISINs carry a CUSIP/CINS number) are licensed, local-only
+# evidence, so they never key a subject: such securities are keyed by share-class FIGI and keep
+# the ISIN as an assertion.
+KEY_RULE = "subject_key@1"
+CGS_AREA = frozenset((
+    "US", "CA",  # CGS is the national numbering agency
+    "AS", "GU", "MP", "PR", "VI", "UM",  # US territories
+    "BM", "KY", "VG", "AI", "AG", "BS", "BB", "BZ", "TC", "MH", "FM", "PW",  # CGS as substitute agency
+))
+
+
 def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, operating_mic: str | None = None,
                currency: str | None = None, country: str | None = None) -> str | None:
     """Derive the deterministic subject ID from open identifiers, or None if none applies.
 
     Every install and every rebuild derives the same ID from the same open
-    evidence. Precedence per level:
+    evidence. Precedence per level (KEY_RULE; "isin" means an ISIN outside CGS_AREA):
       issuer     lei, else cik
       security   isin, else share_class_figi, else caip19 (a crypto asset's home deployment)
       composite  the security key + country
@@ -168,6 +182,8 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
     """
     level = Level(level)
     known = {Scheme(scheme): normalize_identifier(scheme, value) for scheme, value in identifiers.items() if value}
+    if known.get(Scheme.ISIN, "")[:2] in CGS_AREA:
+        del known[Scheme.ISIN]  # an assertion, never a key
 
     def security_key() -> str | None:
         for scheme, tag in ((Scheme.ISIN, "isin"), (Scheme.SHARE_CLASS_FIGI, "figi"), (Scheme.CAIP19, "caip19")):

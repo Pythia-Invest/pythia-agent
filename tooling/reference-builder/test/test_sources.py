@@ -9,6 +9,7 @@ from pathlib import Path
 
 from reference_builder import config, firds, gleif, mic, sec
 from reference_builder.fetch import Downloader
+from reference_builder.openfigi import OpenFigi
 from reference_builder.rules import display_name
 
 from .fixtures import (
@@ -32,9 +33,12 @@ class FirdsTest(unittest.TestCase):
             firds_record(ASML_ISIN, "XAMS", ASML_LEI, name="ASML HOLDING"),
             firds_record("NL0000000099", "XAMS", ASML_LEI, cfi="EYXXXX"),  # structured product: not an equity
             firds_record("NL0000000098", "XAMS", ASML_LEI, cfi="EDSXFR", underlying="NOISINFOUND9"),
+            firds_record("IE0000000097", "XAMS", ASML_LEI, cfi="CEOGES"),  # exchange-traded fund
+            firds_record("IE0000000096", "XAMS", ASML_LEI, cfi="CIOGES"),  # open-ended fund: not exchange-traded
         ])
-        records = list(firds.full_records(stream(xml), ("ES", "ED")))
-        self.assertEqual([r.isin for r in records], [ASML_ISIN, "NL0000000098"])
+        records = list(firds.full_records(stream(xml), ("ES", "ED", "CE")))
+        self.assertEqual([r.isin for r in records], [ASML_ISIN, "NL0000000098", "IE0000000097"])
+        self.assertEqual(firds.file_types(("ES", "ED", "CE")), ["C", "E"])
         asml = records[0]
         self.assertEqual((asml.mic, asml.issuer_lei, asml.relevant_mic, asml.first_trade), ("XAMS", ASML_LEI, "XAMS", "2012-11-26"))
         self.assertIsNone(records[1].underlying_isin, "FIRDS placeholder ISINs are not underlyings")
@@ -103,6 +107,20 @@ class SecAndMicTest(unittest.TestCase):
             (Path(tmp) / "pythia").mkdir()
             (Path(tmp) / "pythia" / "settings.json").write_text(json.dumps({"sec_identity": " Example Research research@example.org "}))
             self.assertEqual(config.load_sec_identity(env), "Example Research research@example.org")
+
+    def test_fund_file_keeps_one_row_per_ticker(self):
+        data = json.dumps({"fields": ["cik", "seriesId", "classId", "symbol"],
+                           "data": [[1424958, "S01", "C01", "tsll"], [1424958, "S01", "C02", "TSLL"], [2110, "S02", "C03", "LACAX"]]}).encode()
+        self.assertEqual([f.ticker for f in sec.parse_funds(data)], ["TSLL", "LACAX"])
+
+    def test_openfigi_cache_carries_the_newest_answers_of_the_old_line_file(self):
+        job = {"idType": "ID_ISIN", "idValue": ASML_ISIN}
+        key = json.dumps(job, sort_keys=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            lines = [json.dumps([key, {"at": at, "answer": {"data": [n]}}]) for at, n in (("2099-01-02T00:00:00Z", 2), ("2099-01-01T00:00:00Z", 1))]
+            (Path(tmp) / "openfigi-answers.jsonl").write_text("\n".join(lines) + "\n")
+            figi = OpenFigi(Path(tmp), "test", None, timedelta(days=30))
+            self.assertEqual(figi.map([job]), [{"data": [2]}], "answered from the cache, without a request")
 
     def test_mic_rows_map_segments_to_operating_mic(self):
         venues = mic.parse(MIC_CSV.encode())

@@ -24,9 +24,10 @@ def build_snapshot(inputs: Inputs, gleif_fetch: GleifFetch, figi_map: FigiMap) -
 def rank(snap: Snapshot, inputs: Inputs) -> None:
     """Notability order per source, 1 = most notable; search turns it into a score.
 
-    EU securities rank by FITRS turnover among every equity FITRS reports; SEC
-    securities by their company's first position in the SEC file, which the SEC
-    orders roughly by market value.
+    EU securities rank by FITRS turnover among every equity and ETF FITRS reports;
+    SEC securities by their company's first position in the SEC file, which the SEC
+    orders roughly by market value. A security with both keeps the more notable
+    rank: a US share's small EU turnover must not bury its SEC position.
     """
     turnovers = sorted(t.turnover_eur for t in (inputs.transparency or {}).values() if t.turnover_eur)
     for security in snap.securities.values():
@@ -36,8 +37,8 @@ def rank(snap: Snapshot, inputs: Inputs) -> None:
     for listing in sorted((l for l in snap.listings.values() if l.position is not None), key=lambda l: l.position):
         companies.setdefault(listing.issuer_id or listing.listing_id, len(companies) + 1)
         security = snap.securities.get(listing.security_id or "")
-        if security and security.rank is None:
-            security.rank = companies[listing.issuer_id or listing.listing_id]
+        if security:
+            security.rank = min(filter(None, (security.rank, companies[listing.issuer_id or listing.listing_id])))
 
 
 def used_venues(snap: Snapshot, venues: dict[str, Venue]) -> dict[str, Venue]:
