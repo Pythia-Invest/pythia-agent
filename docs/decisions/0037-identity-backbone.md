@@ -183,3 +183,135 @@ auditable: swapping a resolver changes who answers, not what an answer may do.
 - **Random or sequential IDs:** installs and rebuilds would disagree.
 - **A cloud master or server database:** a service dependency the product does
   not need.
+
+## Amendment (2026-09-28): subject kinds, relation behaviour and key rules
+
+Funds, bonds, FX, indices, rate series and DeFi protocols and markets must fit
+the backbone without re-keying anything, and search and pages need a general
+rule for what belongs together. A review of those scenarios found four places
+where the text above would force a breaking change once investors hold state.
+This amendment settles them while no stored user state depends on the old form.
+
+These passages are superseded: "Four levels" (the closed level set), the
+subject-ID table and its "first available key wins" precedence, the provisional
+example `security:provisional:eodhd:catalogue:GSPC.INDX`, the security key
+`security:caip19:<home deployment>`, the fixed list under "Typed relations",
+and the one-row-per-instrument presentation under "Search is a local read".
+
+### Subject kinds are separate from levels
+
+A subject ID is `<kind>:<key-scheme>:<key>`. The **kind** is its first segment,
+drawn from an open vocabulary registered in core's identity package.
+
+- The instrument kinds `issuer`, `security`, `composite` and `listing` keep the
+  hierarchy and meaning above; they are the only kinds with a **level**. Level
+  walks, `via` and depth rules apply only inside this hierarchy.
+- Other kinds sit outside it and connect only through typed relations:
+  `currency`, `fx`, `index`, `series`, `protocol` and `market` (a lending
+  reserve, pool, vault or perpetual book), later `venue`. A rate series is a
+  `series` subject, not a fifth level; an index is an `index` subject, not a
+  security, so "security" keeps meaning something one can hold.
+- A provisional subject is minted in its own kind:
+  `index:provisional:eodhd:catalogue:GSPC.INDX`, never a provisional security.
+- IDs are opaque. Readers pass an unknown kind through unchanged, and nothing
+  parses an ID, provisional or not, to recover a symbol.
+
+The kind vocabulary, relation types and each relation's allowed kinds and
+levels live in core's vocabulary module, not in SQL. The persistent
+`identity.sqlite3` checks only an ID's format, so a new kind or relation never
+needs a table rebuild; the rebuilt `reference.sqlite3` may keep its checks.
+
+### Relation types declare their grouping behaviour
+
+Relations never merge subjects. Each relation type declares one behaviour:
+
+| Behaviour | Meaning | Examples |
+| --- | --- | --- |
+| `fold` | The same economic thing: shown in one group, still separate subjects with their own identifiers and data | `depositary_receipt_of`, `share_class_of`, `native_deployment_of` |
+| `related` | Different things: shown nearby, never folded into a group | `wraps`, `bridged_from`, `staked_as`, `tracks`, `derivative_on`, `tokenized_from`, `successor_of` |
+
+A **group** is the closure of a subject under the instrument hierarchy and
+`fold` relations; it is headed by the issuer when there is one, else by the root
+asset. Search results and pages derive from these declarations, not from rules
+per asset class. Search shows one entry per group: the name, a compact set of
+its relevant listings (the one the query names, the preferred market or
+currency, the primary line) and an entry that expands to all of them. The
+listing page offers the group's other listings in its header, and `related`
+subjects appear as links beside the group. A new relation type states its
+behaviour when it is added, so an unforeseen case gets grouping without new
+code.
+
+### Crypto keys come from curated tables
+
+A multi-chain asset takes its portable key only from core's curated
+canonical-asset table (rule `canonical_assets@1`): Pythia-authored, versioned
+and open, like `native_coins@1`. Each row names the asset's canonical issuance
+deployment, which gives the key `security:caip19:<deployment>`, and lists the
+deployments that are the same security (a natively issued multi-chain
+stablecoin, canonical-bridge L2 ether). A bridged or wrapped variant is its own
+security linked by `bridged_from` or `wraps`.
+
+A token with no curated row gets a **provisional** ID, declared non-portable,
+that becomes an alias once curated. A provider's "primary platform" or grouping
+is a claim; it never sets a key, and disagreement between providers becomes a
+queue conflict.
+
+Two chains need Pythia identifier profiles, fixed before any ID is minted:
+
+- **Sui coin types** (`sui_coin@1`): chain `sui:mainnet`, asset namespace
+  `coin`, reference the full coin type with its address as 64 lowercase hex and
+  every character outside CAIP-19's reference set percent-encoded. A reference
+  longer than CAIP-19's 128 characters (generic types such as LP coins) becomes
+  `h-` plus the lowercase hex SHA-256 of the normalized type, and the full type
+  is kept as an identifier assertion.
+- **HyperCore** (`hypercore@1`) is a venue, not a CAIP-2 chain. A spot token
+  keys through its linked HyperEVM deployment (`eip155:999/erc20:<address>`)
+  when one exists, else provisionally by token index. Order books and perpetuals
+  are `market` subjects keyed by venue, such as `market:venue:hyperliquid:BTC`.
+
+### Keys follow a versioned rule
+
+Key precedence is the versioned rule `subject_key@1`, recorded in each
+reference build. It uses only identifiers that every build path has and may
+host: EU/EEA ISINs (from FIRDS and GLEIF), share-class and composite FIGIs, LEI,
+CIK and Pythia's curated tables. Securities with ISINs from the CUSIP Global
+Services area (US, Canada, Bermuda, the Cayman Islands and the other
+jurisdictions it assigns) are keyed by share-class FIGI even when the ISIN is
+known; the ISIN stays an identifier assertion. Their composites and listings key
+by composite FIGI and FIGI.
+
+| Kind | `subject_key@1`, first available key wins |
+| --- | --- |
+| Issuer | `issuer:lei:<LEI>`, else `issuer:cik:<CIK>` |
+| Security | `security:isin:<ISIN>` outside the CGS area, else `security:figi:<share-class FIGI>`, else `security:caip19:<curated deployment>` |
+| Composite | `composite:figi:<composite FIGI>`, else the security's ISIN key plus country |
+| Listing | `listing:isin:<ISIN>:<operating MIC>:<currency>` outside the CGS area, else `listing:figi:<FIGI>`, else `listing:caip19:<deployment>` |
+
+ASML's NASDAQ line, the New York Registry Shares (ISIN USN070592100), is
+therefore `security:figi:<its share-class FIGI>`, linked to
+`security:isin:NL0010273215` by `depositary_receipt_of`.
+
+The builder emits **deterministic aliases**: every lower-precedence key a
+subject could have had (such as `security:isin:US…`), computed from the record
+itself rather than from a diff against an earlier build. An old or foreign ID
+therefore resolves on a fresh install or after a skipped build. A later rule
+version ships with the alias map from the one before. New open evidence never
+re-keys a subject under the same rule version.
+
+### Rationale and consequences
+
+An open kind vocabulary keeps each new asset class additive; SQLite cannot
+change a check constraint without rebuilding the table. Declared relation
+behaviour gives one general grouping rule instead of cases per asset class.
+Curated crypto keys and a hostable key rule keep the promise that installs,
+rebuilds and a hosted build agree on every ID, which watchlists, notes, holdings
+and a later team edition depend on.
+
+- Today's `security:isin:US…` and `composite:isin:…:US` IDs are re-keyed once,
+  with aliases, before investor state holds them.
+- The identity package, both SQL files, the manifest validator's level
+  checks, the reference builder and the truth set adopt these rules.
+- Rejected: `series` or `index` as extra levels (they are not tradable lines of
+  an issuer); keying multi-chain tokens by a provider's primary platform (installs
+  would disagree); keying CGS-area securities by ISIN (a hosted build could not
+  carry them); aliases from build-to-build diffs (lost on a fresh install).

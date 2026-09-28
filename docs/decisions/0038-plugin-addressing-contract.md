@@ -115,3 +115,76 @@ catalogue or `resolve`; no search or matching code.
   to typing.
 - **Plugin code deciding addressing on the page path:** slow, untrusted and
   impossible to evaluate for a disabled plugin.
+
+## Amendment (2026-09-28): contract version, concepts, operations, rights and functions
+
+**Status: next implementation.** All managed contracts live in this repository
+today; the first third-party or forked plugin would freeze whatever shape
+exists. Every change below is made in one pass, before that happens.
+
+The validator rejects unknown fields and the file had no version, so an older
+core would reject a newer plugin wholesale. [ADR 0040](0040-data-concepts-and-agent-tools.md)
+replaces page sections with core concepts. Naming Hermes tools ties the contract
+to one harness. Provider terms that core must enforce (cache lifetime,
+attribution, whether data may be hosted) lived only in READMEs.
+
+These passages are superseded: the `content` block, `catalogue.tool` and
+`resolve.tool` holding Hermes tool names, the fixed per-section default orders
+under "Page sections never wait on a provider", and "Adding a section is a core
+change" (now: adding a concept is a core change).
+
+```json
+{
+  "contract_version": 1,
+  "plugin": "pythia-coingecko", "provider": "coingecko",
+  "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}]},
+  "concepts": {
+    "market_data": {
+      "level": "security", "via": "security",
+      "operations": {"quote": "latest", "daily": "history"},
+      "coverage": {"asset_classes": ["crypto"]},
+      "qualities": {"delay_minutes": 1, "daily_history_start": "2013-04-28"}
+    }
+  },
+  "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
+  "rights": {"cache": {"ttl_seconds": 86400}, "hostable": false,
+             "attribution": {"text": "Powered by CoinGecko", "url": "https://www.coingecko.com"}},
+  "functions": []
+}
+```
+
+Values are illustrative, not a provider's actual terms.
+
+- **`contract_version`** is a required integer. Core refuses a contract with a
+  higher version than it supports and shows the plugin as `needs_update`, a
+  visible status like `needs_configuration`; it never ignores fields silently.
+  Adding an optional field keeps the version; changing a field's meaning or
+  removing one raises it.
+- **`concepts`** replaces `content`. Each entry names a core concept, its
+  `level` and `via` (as before; `level` may be `security`, and later a
+  non-instrument kind the concept allows), the plugin operation per concept
+  operation, `coverage` and `qualities` from core's closed vocabularies.
+  Selection follows ADR 0040.
+- **Operations, not tools.** Every entry names a plugin operation already
+  declared through `declare_operation`. A Hermes adapter maps operations to
+  tools, so another harness reads the same contract.
+- **`rights`** holds the provider terms core enforces mechanically:
+  `cache` (`none`, `{"ttl_seconds": n}` or `unlimited`; core drops claim and
+  content rows past their TTL when a store opens), `hostable` (whether data from
+  this plugin may appear in a published package; false for every provider
+  plugin), and `attribution` (text and link that every surface showing the data
+  renders). `catalogue.mode` keeps bulk versus resolve-only. Each plugin still
+  enforces its provider's other terms itself.
+- **`functions`** is reserved for the read-only provider functions of ADR 0040.
+  An entry names the function, its operation, the `level` its data is about and
+  the `via` level used to call, `effect: "read"`, an argument schema reference,
+  a one-line summary for generated help, cost and optional entitlement notes,
+  and cache seconds. The block may stay empty until that phase; the validator
+  accepts only the reserved shape.
+
+Consequences: `identity.validate_manifest`, every managed `contract.json`, page
+composition and section selection change together in one reviewed change. The
+`pythia_market_data` annotation remains until market-data selection moves to
+core. Rejected: adding only the version now (the `content` to `concepts` and
+tool-to-operation changes break every contract anyway), and keeping rights in
+READMEs (core could not enforce cache lifetimes or render attribution).
