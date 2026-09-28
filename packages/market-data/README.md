@@ -162,41 +162,53 @@ the native reader remains responsible for semantic validation.
 
 `@pythia/market-data/search` is the provisional contract of the core local
 directory `search` operation and the only place its types live. The response
-holds ranked rows, one per instrument: a security with its depositary receipts
-folded in, or a crypto asset. A row carries the subject `id` of its
-representative listing, the security's subject id, ticker, name, instrument
-kind, the listing's MIC, short venue label and venue country, how many other
-listings the instrument has, and confirmed provider bindings of that listing.
-Core picks the representative listing (see ADR 0037: a listing the query names,
-else `search_listing_preference` in `settings.json`, `primary` by default, or
-`EU` or `US`). The response also names the plugins offering an explicit lookup.
-The core ranks and the client keeps the order.
+holds ranked groups, core's search groups (ADR 0037): a company with all its
+equity listings (share classes, receipts and registry shares included), a fund,
+ETF, ETN or ETC on its own, or a crypto asset. A group carries its subject id,
+name, main kind, `listings` (how many it has in all) and only its relevant
+listing rows, at most three; a group read (`group` with the group's id instead
+of a query; `limit` does not apply) answers the same shape with its listings,
+up to 500, for "All N listings", each opened group being its own read. A row carries the listing's subject `id`, its `instrument` (the
+security the page is; a receipt's is the share it folds into), ticker, the
+listed security's own name and kind, MIC, short venue label, venue country and
+currency. Core orders the rows (see ADR 0037: a listing the query names, else
+`search_listing_preference` in `settings.json`, `primary` by default, or `EU`
+or `US`; then a flagged primary listing and other classes and receipts). A type
+filter picks groups and narrows their listings. The response also names the
+plugins offering an explicit lookup. The core ranks and the client keeps the
+order.
 
 `@pythia/market-data/search-ui` is the search bar, composed from the SDK's
 shared Autocomplete, combobox parts and ToggleGroup. Typing reads only the local
 directory; no connector is called on that path. The first shown row is always
 highlighted and Enter opens it, but never a row of a previous query while the
-typed one loads. Each row is one line without group headers: ticker, name, the
-venue with a small country flag, a plain type (Stock, ETF, Fund, Crypto, …) and
-"+N" other listings; the precise type, such as registry shares, belongs on the
-instrument page. Type pills ask the directory for their instrument kinds and
-never take focus from the field. Tiny connector logos appear only for bindings
-on that listing; rows carry no prices. The panel is anchored below the field
+typed one loads. Each group shows the company name and type above its relevant
+listings; the heading belongs to the first listing's option, so hovering or
+choosing it highlights and opens that listing and the keyboard stops there
+once. Listings take one line each: ticker, the venue with a small country flag, what the
+listing is when it is not the plain share (Class C, registry shares), currency
+and type. A group with more listings ends in an "All N listings" option that
+reads and reveals every listing in place ("Fewer listings" hides them again);
+the arrow keys reach it like any listing and Enter toggles it. Type pills ask the
+directory for their instrument kinds and
+never take focus from the field. Rows carry no prices and no provider logos:
+search shows what exists, and sources belong on the instrument page. The panel is anchored below the field
 with fixed geometry, keeps the previous answer while the next loads, and reopens
 instantly from `['plugin', 'pythia', 'search', …]`, the query cache of core's
 serving `pythia`/`identity-search` operation. A query the directory does not
 hold can be looked up explicitly, in one plugin per action and never
-concurrently, when the host supplies a lookup runner. Selecting a row reports
-its listing's subject id, which an instrument page addresses.
+concurrently, when the host supplies a lookup runner. Enter or a click on a
+listing reports its instrument's subject id and its own listing id.
 
 The feature's `top-bar` presentation composes the bar with the Desk title and
 actions under ADR 0036 and is Desk's product default top bar; a workspace
 `desk/top-bar.json` selects another bar or `renderer: null` for the core one. It
-offers no lookup yet. While a row is highlighted it prefetches that subject's
-page composition (`pythia`/`identity-subject`) under the key Desk's instrument
-route reads (`@pythia/market-data/subject`), and a choice is announced as a
-`pythia:open-subject` window event with `{subject_id}`, which Desk routes to
-`/instrument/[subject]`. The module keeps its own query, so typing never filters
+offers no lookup yet. While a row is highlighted it prefetches the instrument's
+and the listing's page compositions (`pythia`/`identity-subject`) under the key
+Desk's instrument route reads (`@pythia/market-data/subject`), and a choice is
+announced as a `pythia:open-subject` window event with
+`{subject_id, listing_id}`, which Desk routes to
+`/instrument/[subject]?listing=…`. The module keeps its own query, so typing never filters
 Desk's chat lists. The Design Lab's investment search demonstration renders the
 bar over a Lab-local synthetic directory.
 

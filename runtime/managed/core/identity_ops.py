@@ -18,7 +18,9 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from .identity import MANIFEST_FILE, ClaimError, Level, ManifestError, check_batch, validate_manifest
+from .identity import (
+    MANIFEST_FILE, ClaimError, Level, ManifestError, ManifestNeedsUpdate, check_batch, validate_manifest,
+)
 from . import queue_ops
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, page, search, store
@@ -34,12 +36,16 @@ PREFERENCE = "search_listing_preference"  # declared in configuration.json
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
     "description": "Search the device's local directory of securities, listings and crypto assets by name, ticker "
-                   "or identifier (ISIN, LEI, FIGI, CIK). Local only; no provider is called.",
+                   "or identifier (ISIN, LEI, FIGI, CIK). Answers groups (a company, a fund or a crypto asset), "
+                   "each with its most relevant listings and its total listing count. Pass `group` with a group's "
+                   f"id instead of `query` to list its listings, up to {search.GROUP_ROWS}; `limit` (groups, "
+                   "default 20) does not apply there. Local only; no provider is called.",
     "parameters": {"type": "object", "properties": {
         "query": {"type": "string", "minLength": 1, "maxLength": 128},
+        "group": {"type": "string", "minLength": 1, "maxLength": 256},
         "kinds": {"type": "array", "items": {"type": "string", "enum": list(search.KINDS)}, "maxItems": 16},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
-        "required": ["query", "limit"], "additionalProperties": False},
+        "additionalProperties": False},
 }
 SUBJECT_SCHEMA = {
     "name": "pythia_identity_subject",
@@ -86,20 +92,23 @@ class Identity:
     # ---- operations ----------------------------------------------------------------------------------------------
 
     def search(self, arguments: dict, **_context: Any) -> str:
-        empty = {"rows": [], "lookup": []}
+        empty = {"groups": [], "lookup": []}
         query = str(arguments.get("query") or "").strip()[:128]
+        group = str(arguments.get("group") or "").strip()[:256]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
             path = store.reference_path(self.data_dir)
             if path is None:
                 return _envelope("empty", empty, issue=NO_REFERENCE)
             directory = search.directory(path, store.open_reference)
-            data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), prefer=self._preference(),
-                                    suffixes=_suffixes, bindings=self._bindings) if query else empty
+            kinds = arguments.get("kinds")
+            data = (directory.group(group, kinds=kinds) if group
+                    else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
+                                          suffixes=_suffixes) if query else empty)
         except (sqlite3.Error, OSError):  # search degrades, never errors out
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
-        return _envelope("ok" if data["rows"] else "empty", data)
+        return _envelope("ok" if data["groups"] else "empty", data)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -147,18 +156,6 @@ class Identity:
             return "primary"
         return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
 
-    def _bindings(self, listing_ids: list[str]) -> dict[str, list[dict]]:
-        """Confirmed bindings for search rows; optional, so a store problem only drops them."""
-        out: dict[str, list[dict]] = {}
-        try:
-            rows = self.store.bindings(listing_ids)
-        except sqlite3.Error:
-            logger.warning("identity store unreadable; search rows carry no bindings", exc_info=True)
-            return out
-        for row in rows:
-            out.setdefault(row["subject_id"], []).append({"plugin": row["plugin"], "ref": row["native_id"]})
-        return out
-
     # ---- internals -----------------------------------------------------------------------------------------------
 
     def price_sources(self, subject_id: str) -> dict:
@@ -183,7 +180,7 @@ class Identity:
         security = subject["ids"].get(Level.SECURITY)
         view = subject["view"]
         view["other_securities"] = []
-        if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
+        if subject["asset_class"] == "equity" and security:  # the instrument's lines, receipts folded in
             directory = search.directory(path, store.open_reference)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
             # The company's other instruments; a share class listed there is not repeated under `related`.
@@ -202,6 +199,9 @@ class Identity:
             subject = page.load_subject(ref, subject_id)
             if subject is None:
                 return path, None, {}, "Unknown subject."
+            default = self._default_listing(path, subject)
+            if default and default != (subject["listing"] or {"id": None})["id"]:
+                subject = page.load_subject(ref, subject_id, default)
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
         finally:
             ref.close()
@@ -214,17 +214,30 @@ class Identity:
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id)}
         return path, subject, lookups, None
 
+    @staticmethod
+    def _default_listing(path: Path, subject: dict) -> str | None:
+        """The line an equity security or issuer subject is priced through: the first of the instrument's own
+        lines in the listing selector's order (a flagged primary, else the best exchange line), so the page
+        and market-data reads agree with the selector. None for a listing subject or anything else."""
+        security = subject["ids"].get(Level.SECURITY)
+        if subject["level"] == Level.LISTING or subject["asset_class"] != "equity" or not security:
+            return None
+        own = [line for line in search.directory(path, store.open_reference).instrument_listings(security)
+               if not line["folded"]]
+        return own[0]["id"] if own else None
+
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
         """Run the plugin's resolve once; store what the authority rule decides.
 
         Returns (reason when unresolved, whether the failure is transient)."""
         from tools.registry import registry
         sent = page.resolve_input(info, subject)
-        levels = {entry.via for entry in info.manifest.content.values()} & {level for level in Level if subject["ids"].get(level)}
-        if not sent or not levels:
+        levels = {entry.via for entry in info.manifest.concepts.values()} & {level for level in Level if subject["ids"].get(level)}
+        tool = info.operations.get(info.manifest.resolve.operation)
+        if not sent or not levels or tool is None:
             return f"{info.label} cannot look up this subject", False
         call = contextvars.copy_context().run
-        future = self._pool.submit(call, registry.dispatch, info.manifest.resolve.tool, {"identifiers": sent})
+        future = self._pool.submit(call, registry.dispatch, tool, {"identifiers": sent})
         try:
             raw = future.result(timeout=RESOLVE_TIMEOUT)
         except concurrent.futures.TimeoutError:
@@ -278,31 +291,77 @@ def _suffixes() -> dict[str, set[str]]:
 
 
 def installed() -> list[page.PluginInfo]:
-    """Every installed plugin that ships a valid contract.json, with its native enablement and configuration."""
+    """Every installed plugin that ships a valid contract.json, with its native enablement and configuration.
+
+    A contract newer than this core is skipped with a distinct `needs_update` log line, never reported invalid."""
     from hermes_cli.config import load_config_readonly
     from hermes_cli.plugins import get_plugin_manager
-    from tools.registry import registry
     from .platform import configuration
     from .platform.access import native_plugin_enabled
-    from .platform.operations import declaration
-    config, found = load_config_readonly(), []
+    config, loaded = load_config_readonly(), []
     for key, plugin in tuple(get_plugin_manager()._plugins.items()):
         directory = Path(plugin.manifest.path) if plugin.manifest.path else None
         if directory is None or not directory.is_absolute() or not (directory / MANIFEST_FILE).is_file():
             continue
         try:
             manifest = validate_manifest(json.loads((directory / MANIFEST_FILE).read_text(encoding="utf-8")))
-        except (OSError, ValueError, ManifestError) as error:
+        except ManifestNeedsUpdate as error:
+            logger.warning("%s of %s needs a newer Pythia (needs_update): %s", MANIFEST_FILE, key, error)
+            continue
+        except (OSError, ValueError, TypeError, ManifestError) as error:  # one bad contract never hides the others
             logger.warning("ignoring invalid %s of %s: %s", MANIFEST_FILE, key, error)
             continue
-        operations = {}
-        for entry in manifest.content.values():
-            schema = registry.get_schema(entry.tool) if entry.tool in registry.get_all_tool_names() else None
-            meta = declaration(schema) if schema else None
-            if isinstance(meta, dict):
-                operations[entry.tool] = meta["operation"]
-        found.append(page.PluginInfo(key=key, manifest=manifest, enabled=native_plugin_enabled(key, plugin, config),
-                                     missing=tuple(configuration.missing_at(directory)), operations=operations))
+        loaded.append((key, plugin, directory, manifest))
+    tools = native_operations({key for key, *_ in loaded})
+    return [page.PluginInfo(key=key, manifest=manifest, enabled=native_plugin_enabled(key, plugin, config),
+                            missing=tuple(configuration.missing_at(directory)),
+                            operations={name: tool for name, tool in tools.get(key, {}).items()
+                                        if name in manifest.plugin_operations})
+            for key, plugin, directory, manifest in loaded]
+
+
+def native_operations(plugins: set[str]) -> dict[str, dict[str, str]]:
+    """The Hermes adapter for contract operations: plugin key -> operation -> the native tool declaring it.
+
+    A contract names plugin operations, never tools. An operation is the name a tool the plugin actually owns
+    declares, either as a protected HTTP operation (`declare_operation`) or in its market-data contribution.
+    A name two of one plugin's tools declare is ambiguous and maps to neither."""
+    from tools.registry import registry
+    from .platform.access import native_tool_owners
+    registered = set(registry.get_all_tool_names())
+    owners = {name: key for name, (key, _plugin) in native_tool_owners().items() if key in plugins and name in registered}
+    return operation_tools(owners, {name: registry.get_schema(name) for name in owners})
+
+
+def operation_tools(owners: dict[str, str], schemas: dict[str, Any]) -> dict[str, dict[str, str]]:
+    """Plugin key -> operation -> tool, from each owned tool's declarations; pure."""
+    from .platform.operations import MARKER
+    declared: dict[tuple[str, str], set[str]] = {}
+    for name, key in owners.items():
+        schema = schemas.get(name)
+        try:
+            comment = schema["parameters"].get("$comment") if isinstance(schema, dict) else None
+            marks = json.loads(comment) if isinstance(comment, str) and len(comment) <= 16384 else {}
+        except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
+            continue
+        if not isinstance(marks, dict):
+            continue
+        http = marks.get(MARKER)
+        names = [http.get("operation")] if isinstance(http, dict) else []
+        contribution = marks.get("pythia_market_data")  # its owner validates it; only the tool's own entry counts
+        for item in contribution.get("operations", []) if isinstance(contribution, dict) else []:
+            if isinstance(item, dict) and item.get("tool") == name:
+                names.append(item.get("operation"))
+        for operation in names:
+            if isinstance(operation, str):
+                declared.setdefault((key, operation), set()).add(name)
+    found: dict[str, dict[str, str]] = {}
+    for (key, operation), tools in declared.items():
+        if len(tools) == 1:
+            found.setdefault(key, {})[operation] = next(iter(tools))
+        else:
+            logger.warning("%s declares operation %s on several tools (%s); it is not mapped",
+                           key, operation, ", ".join(sorted(tools)))
     return found
 
 

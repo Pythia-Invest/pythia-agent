@@ -92,6 +92,7 @@ const surfaces = {
     "Toggle",
     "ToggleGroup",
     "useQuery",
+    "useQueries",
     "useMutation",
     "useQueryClient",
   ],
