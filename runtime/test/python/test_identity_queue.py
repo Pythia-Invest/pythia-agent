@@ -96,6 +96,15 @@ class VerdictTest(QueueFixture):
         with self.assertRaises(queue.Refused):
             self.submit(item, "agent")  # an agent states its confidence
 
+    def test_a_question_without_a_provider_record_takes_no_answer(self):
+        item = identity.QueueItem(id="q-identifier", kind="conflict", reason="identifier", subject_ids=(ASML,),
+                                  candidate_ids=(ASML,), evidence_ids=("ev:x",), state="open", opened_at=NOW,
+                                  plugins=("eodhd",), scheme="isin", values=("NL0010273215", "USN070592100"))
+        self.identity.put_queue_item(item)
+        with self.assertRaises(queue.Refused):
+            self.submit(item, "user", user_turn="desk:identity-verdict:test")
+        self.assertEqual(self.identity.queue_item(item.id)["state"], "open")
+
 
 class StoreTest(QueueFixture):
     def test_a_rolled_back_transaction_never_drops_another_threads_write(self):

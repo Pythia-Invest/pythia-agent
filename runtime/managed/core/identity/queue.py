@@ -98,6 +98,9 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     view, row = inspect(store, ref, item_id), store.queue_item(item_id)
     if view is None or row["state"] != "open":
         raise Refused("This question is not open.")
+    raw = _raw(store, row)
+    if raw is None:  # identifier or relation conflicts without a provider record: no answer has an effect yet
+        raise Refused("This question has no provider record to bind, so no answer can take effect.")
     item = _queue_item(row)
     agent = ResolverKind(resolver) is ResolverKind.AGENT
     if agent and confidence is None:
@@ -112,8 +115,7 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                           input_digest=view["digest"] if agent else None, rationale=rationale, user_turn=user_turn)
     except ValueError as error:
         raise Refused(str(error)) from None
-    raw = _raw(store, row)
-    record = _claim(raw) if raw else None
+    record = _claim(raw)
     subject = load_subject(ref, chosen_id) if chosen_id else None
     if chosen_id and subject is None:
         raise Refused("The chosen subject is not in the reference data.")
@@ -122,9 +124,9 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                                   if entry["item_id"] == item_id and entry["resolver"] != resolver
                                   and entry["outcome"] == "suggested"]
     try:
-        outcome = decide(verdict, item, claimed=record.identifiers if record else (), as_of=as_of,
+        outcome = decide(verdict, item, claimed=record.identifiers, as_of=as_of,
                          evidence=subject["evidence"] if subject else (),
-                         record_kind=record.attributes.kind if record else None,
+                         record_kind=record.attributes.kind,
                          subject_kind=_kind(subject), prior=prior, threshold=threshold)
     except ValueError as error:
         raise Refused(str(error)) from None
@@ -138,11 +140,10 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
             outcome, message = VerdictOutcome.BLOCKED, "Refused: the record is bound to another instrument; a binding is never re-pointed."
         verdict_id = store.put_verdict(verdict, outcome)
         if outcome is VerdictOutcome.CONFIRMED:
-            if item.provider_ref:
-                store.put_binding(Binding(provider_ref=item.provider_ref, subject_id=chosen_id, status="confirmed",
-                                          authority=authority, plugin=item.plugins[0],
-                                          evidence_ids=(evidence_id({"kind": "verdict", "verdict": verdict_id}),)),
-                                  verdict_id=verdict_id)
+            store.put_binding(Binding(provider_ref=item.provider_ref, subject_id=chosen_id, status="confirmed",
+                                      authority=authority, plugin=item.plugins[0],
+                                      evidence_ids=(evidence_id({"kind": "verdict", "verdict": verdict_id}),)),
+                              verdict_id=verdict_id)
             state = "resolved"
         elif outcome is VerdictOutcome.NO_MATCH and authority is not Authority.MODEL_SUGGESTED:
             state = "dismissed"
