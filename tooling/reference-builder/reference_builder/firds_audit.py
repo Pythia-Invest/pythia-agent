@@ -30,80 +30,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from . import firds, source_drift
-from .claims import Claim, Meaning, previous_good, read
+from .claims import Claims, Meaning, Venues, previous_good, read, requested
 from .model import Snapshot, Venue
 from .rules import EEA
 
 EXAMPLES = 5
-ADMISSION = (Meaning.ISSUER_REQUESTED_ADMISSION, Meaning.TERMINATION_DATE)
-KEPT = (Meaning.INSTRUMENT_FULL_NAME, Meaning.CFI, Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, Meaning.NOTIONAL_CURRENCY,
-        Meaning.UNDERLYING_ISIN, Meaning.MOST_LIQUID_EU_MARKET, *ADMISSION)
-# Segments with at least this many records that answer field 8 true on every one are listed as an odd case.
-CONVENTION_MIN = 20
-
-
-@dataclass
-class Claims:
-    """The build's FIRDS claims the audit needs, per ISIN."""
-
-    isins: dict[str, dict[str, set[str]]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(set)))
-    admissions: dict[str, dict[str, dict[str, str]]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(dict)))
-    convention: set[str] = field(default_factory=set)  # segments whose field 8 is true on every record
-    count: int = 0
-
-    def one(self, isin: str, meaning: str) -> str | None:
-        values = self.isins.get(isin, {}).get(meaning)
-        return sorted(values)[0] if values else None
-
-    def name(self, isin: str) -> str:
-        return f"{isin} {self.one(isin, Meaning.INSTRUMENT_FULL_NAME) or ''}".strip()
-
-
-def load(claims: Iterable[Claim]) -> Claims:
-    found = Claims()
-    for claim in claims:
-        found.count += 1
-        if claim.meaning not in KEPT:
-            continue
-        isin, _, segment = claim.subject_key.removeprefix("isin:").partition("@")
-        if segment:
-            found.admissions[isin][segment][claim.meaning] = claim.value
-        else:
-            found.isins[isin][claim.meaning].add(claim.value)
-    answers: dict[str, Counter] = defaultdict(Counter)
-    for segments in found.admissions.values():
-        for segment, admission in segments.items():
-            answers[segment][admission.get(Meaning.ISSUER_REQUESTED_ADMISSION, "missing")] += 1
-    found.convention = {segment for segment, c in answers.items() if set(c) == {"true"} and c["true"] >= CONVENTION_MIN}
-    return found
-
-
-class Venues:
-    def __init__(self, venues: dict[str, Venue]):
-        self.venues = venues
-        self.operated: dict[str, set[str]] = defaultdict(set)  # LEI -> MICs whose operating entity it is
-        for venue in venues.values():
-            if venue.lei:
-                self.operated[venue.lei].add(venue.mic)
-
-    def op(self, mic: str | None) -> str | None:
-        venue = self.venues.get(mic or "")
-        return venue.operating_mic if venue else mic
-
-    def country(self, mic: str | None) -> str | None:
-        venue = self.venues.get(mic or "")
-        return venue.country if venue else None
-
-
-def _live(admission: dict[str, str], as_of: str) -> bool:
-    end = admission.get(Meaning.TERMINATION_DATE)
-    return not end or end > as_of
-
-
-def requested(claims: Claims, isin: str, as_of: str) -> set[str]:
-    """Segment MICs of the live EEA admissions the issuer requested (field 8)."""
-    return {segment for segment, a in claims.admissions.get(isin, {}).items()
-            if a.get(Meaning.ISSUER_REQUESTED_ADMISSION) == "true" and _live(a, as_of)}
 
 
 class Tally:

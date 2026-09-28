@@ -176,6 +176,17 @@ class Flag:
     detail: str | None = None
 
 
+@dataclass(frozen=True)
+class Question:
+    """What the evidence leaves open, in working IDs; the package carries it to core's resolution queue."""
+
+    question: str  # issuer_identity | home_market | receipt_underlying | receipt_conflict
+    subject_id: str
+    candidates: tuple[str, ...] = ()
+    evidence: tuple[str, ...] = ()  # source record digests
+    values: tuple[str, ...] = ()  # the contested values (an operator's LEI)
+
+
 @dataclass
 class Snapshot:
     as_of: str
@@ -185,7 +196,11 @@ class Snapshot:
     listings: dict[str, Listing] = field(default_factory=dict)
     relationships: list[Relationship] = field(default_factory=list)
     flags: list[Flag] = field(default_factory=list)
+    questions: list[Question] = field(default_factory=list)
     audit: dict = field(default_factory=dict)
 
     def flag(self, subject_id: str, flag: str, detail: str | None = None) -> None:
         self.flags.append(Flag(subject_id, flag, detail))
+
+    def ask(self, question: str, subject_id: str, candidates=(), evidence=(), values=()) -> None:
+        self.questions.append(Question(question, subject_id, tuple(dict.fromkeys(candidates)), tuple(evidence), tuple(values)))

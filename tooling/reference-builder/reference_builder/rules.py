@@ -23,9 +23,6 @@ HOME = {
     "ZA": (("SJ",), "XJSE"),
     "US": (("UN", "UW", "UQ", "UR", "UA", "UP"), None),
 }
-# German floor exchanges: FIRDS often names one as the relevant venue of a share whose German
-# main market is Xetra (Fresenius on Düsseldorf).
-GERMAN_FLOORS = frozenset({"XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER"})
 # Nasdaq Stockholm and Copenhagen write a share class after a space (`VOLV B`); OpenFIGI glues it on (`VOLVB`).
 # Helsinki writes it glued (`KESKOB`), as Yahoo does.
 SPACED_CLASS_VENUES = frozenset({"XSTO", "XCSE"})
@@ -56,11 +53,6 @@ TRADING_ONLY_VENUES = frozenset({
     "UBSL", "CREM", "XDNB", "AACA",  # systematic internalisers: UBS, Credem, DNB, Crédit Agricole CIB
     "TSAF", "AURB",  # OTFs: TSAF, Aurel
 })
-# When FIRDS names a trading-only venue as a security's relevant venue, its primary moves
-# to another of its lines: lines in the ISIN's country first, then this order (the largest
-# EEA equity and ETF markets, then the German floor and retail venue that list most foreign
-# shares), then the earliest listing.
-PRIMARY_FALLBACK = ("XETR", "XPAR", "XAMS", "XMIL", "XFRA", "TGAT")
 # Auxiliary segments (midpoint, off-book, auction) collapse onto the operator's lit segment.
 LIT_SEGMENT = {
     "DSTO": "XSTO", "MSTO": "XSTO", "PSTO": "XSTO", "DHEL": "XHEL", "MHEL": "XHEL", "PHEL": "XHEL",
@@ -219,31 +211,17 @@ def pick_figi_row(rows: list[dict], operating_mic: str) -> tuple[dict | None, st
     return sorted(rows, key=rank)[0], "multi_row_ranked"
 
 
-def primary_venue(
-    isin: str,
-    relevant_operating_mic: str | None,
-    xetra_live: bool,
-    fanout: list[dict],
-) -> tuple[str | None, str, dict | None]:
-    """FIRDS relevant venue, corrected for non-EEA home markets and the German floor exchanges.
-
-    Returns (operating MIC, rule, OpenFIGI home row when the home line is outside FIRDS).
-    """
+def home_row(isin: str, fanout: list[dict]) -> tuple[str, dict] | None:
+    """An OpenFIGI line on the home exchange of a non-EEA ISIN's country, outside FIRDS: (home MIC, row)."""
     country = isin[:2]
-    if country in HOME and country not in EEA:
-        codes, home_mic = HOME[country]
-        home = [
-            r for r in fanout
-            if r.get("exchCode") in codes and r.get("ticker") and not LSE_ORDER_BOOK.match(r["ticker"])
-        ]
-        if home:
-            row = sorted(home, key=lambda r: (codes.index(r["exchCode"]), r.get("ticker") or ""))[0]
-            return home_mic or US_EXCHANGE_MIC[row["exchCode"]], "home_listing_evidence", row
-    if relevant_operating_mic in GERMAN_FLOORS and xetra_live:
-        return "XETR", "german_floor_to_xetra", None
-    if relevant_operating_mic:
-        return relevant_operating_mic, "firds_relevant_venue", None
-    return None, "no_relevant_venue", None
+    if country not in HOME or country in EEA:
+        return None
+    codes, home_mic = HOME[country]
+    home = [r for r in fanout if r.get("exchCode") in codes and r.get("ticker") and not LSE_ORDER_BOOK.match(r["ticker"])]
+    if not home:
+        return None
+    row = sorted(home, key=lambda r: (codes.index(r["exchCode"]), r.get("ticker") or ""))[0]
+    return home_mic or US_EXCHANGE_MIC[row["exchCode"]], row
 
 
 def also_us_listed(fanout: list[dict], share_class_figi: str | None) -> bool:

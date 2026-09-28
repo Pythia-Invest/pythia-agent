@@ -48,7 +48,7 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
             listing.security_id = _security_for(snap, listing, isins.get(ticker.ticker), share_classes)
     build_us_etfs(snap, inputs, figi_map)
     _flag_split_issuers(snap)
-    _mark_us_primaries(snap, inputs.venues)
+    _mark_us_primaries(snap)
 
 
 def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
@@ -126,7 +126,9 @@ def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, l
         row = _pick(answer.get("data") or [])
         match = by_ticker.get((row or {}).get("ticker", "").replace("/", "-"))
         if match:
-            evidence[match.cik].append((snap.securities[f"isin:{isin}"].issuer_id[4:], "isin_exch_us"))
+            issuer_id = snap.securities[f"isin:{isin}"].issuer_id
+            if issuer_id:  # none when FIRDS names a venue operator's LEI: that is no issuer to link
+                evidence[match.cik].append((issuer_id[4:], "isin_exch_us"))
             snap.audit["sec"]["isin_from_firds"] += 1
             isins[match.ticker] = isin
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
@@ -296,48 +298,33 @@ def _security_for(snap: Snapshot, listing: Listing, isin: str | None, share_clas
     return security_id
 
 
-def _mark_us_primaries(snap: Snapshot, venues: dict[str, Venue]) -> None:
-    """A US security's first exchange-listed line is its primary listing.
-
-    US securities are the SEC ones, and FIRDS securities with a US ISIN: OpenFIGI
-    shows US lines on every exchange, so it cannot name the home one. A non-US
-    security with a US exchange line and no line in its ISIN's country (Linde,
-    Accenture) has its home market in the US too, unless its primary is an EEA
-    regulated-market admission (Stellantis and Ferrari on Euronext Milan).
-    """
+def _mark_us_primaries(snap: Snapshot) -> None:
+    """A SEC security's first exchange-listed line is its primary listing: OpenFIGI shows US lines on every
+    exchange, so it cannot name the home one. FIRDS securities are decided in `reconcile`."""
     by_security: dict[str, list[Listing]] = defaultdict(list)
     for listing in snap.listings.values():
         if listing.security_id:
             by_security[listing.security_id].append(listing)
     for security_id, lines in by_security.items():
         security = snap.securities[security_id]
-        listed = sorted((l for l in lines if l.country == "US" and l.operating_mic in LISTED_MICS and l.currency),
-                        key=lambda l: (l.position is None, l.position or 0, l.listing_id))
-        if not listed:
-            continue
-        if security.source in ("sec", "sec_funds") or (security.isin or "").startswith("US"):
-            rule = "us_exchange_listing"
-        elif _us_home(security, lines, venues):
-            rule = "us_exchange_no_home_line"
-        else:
+        listed = us_lines(lines)
+        if not listed or security.source not in ("sec", "sec_funds"):
             continue
         for line in lines:
             line.is_primary = line is listed[0]
-        security.primary_mic, security.primary_rule = listed[0].operating_mic, rule
+        security.primary_mic, security.primary_rule = listed[0].operating_mic, "us_exchange_listing"
 
 
-def _us_home(security: Security, lines: list[Listing], venues: dict[str, Venue]) -> bool:
-    if not security.isin or any(l.country == security.isin[:2] and l.status != "inactive" for l in lines):
-        return False
-    current = next((l for l in lines if l.is_primary), None)
-    venue = venues.get(current.mic or "") if current else None
-    return not (venue and venue.category == "RMKT" and venue.country in rules.EEA)
+def us_lines(lines: list[Listing]) -> list[Listing]:
+    """A security's US exchange lines (not OTC), in SEC file order."""
+    return sorted((l for l in lines if l.country == "US" and l.operating_mic in LISTED_MICS and l.currency),
+                  key=lambda l: (l.position is None, l.position or 0, l.listing_id))
 
 
 RECEIPT_RULE = "receipt_issuer_share@1"
 
 
-def link_receipts(snap: Snapshot) -> None:
+def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> None:
     """Every receipt's `depositary_receipt_of` names a security of this build, or the receipt has none.
 
     A FIRDS-stated underlying ISIN is kept when an active security of the build carries it; FIRDS often names a
@@ -349,7 +336,7 @@ def link_receipts(snap: Snapshot) -> None:
     never guessed. Every drop and narrowing is counted in the build report."""
     audit = snap.audit.setdefault("relations", Counter())
     by_isin = {security.isin: key for key, security in snap.securities.items() if security.isin}
-    kept = []
+    kept, asked = [], set()
     for item in snap.relationships:
         if item.relation == "depositary_receipt_of":
             target = item.to_id if item.to_id in snap.securities else by_isin.get(item.to_id.split(":", 1)[1])
@@ -357,9 +344,10 @@ def link_receipts(snap: Snapshot) -> None:
             # the edge is dropped, flagged and counted, and the issuer rule below decides.
             reason = ("firds_underlying_outside_build" if target is None else
                       "firds_underlying_inactive" if snap.securities[target].activity == "inactive" else None)
-            if reason:
+            if reason:  # FIRDS names an underlying this build cannot hold: which security it is now is a question
                 audit[reason] += 1
                 snap.flag(item.from_id, reason, item.to_id)
+                asked.add(item.from_id)
                 continue
             item = Relationship(item.from_id, item.relation, target, item.source, item.rule_id)
         kept.append(item)
@@ -372,10 +360,19 @@ def link_receipts(snap: Snapshot) -> None:
         if security.issuer_id:
             by_issuer[security.issuer_id].append(security)
     for security in snap.securities.values():
-        if security.kind != "dr" or security.security_id in stated or not security.issuer_id:
+        if security.kind != "dr" or security.security_id in stated:
             continue
-        siblings = by_issuer[security.issuer_id]
+        siblings = by_issuer.get(security.issuer_id or "", [])
         shares = [item for item in siblings if item.kind == "share" and item.activity == "active" and item.security_id in lined]
+        if security.security_id in asked or security.isin in firds_isins:
+            # FIRDS states receipts' underlyings (field 26): where it names none this build holds, the answer is a
+            # question, not the issuer rule's guess. The issuer's shares are its candidates.
+            if security.activity != "inactive":
+                snap.ask("receipt_underlying", security.security_id, [item.security_id for item in shares])
+            audit["receipt_underlying_question"] += 1
+            continue
+        if not security.issuer_id:
+            continue
         narrowed = len(shares) > 1
         shares = [item for item in shares if item.isin] if narrowed else shares
         if len(shares) != 1 or any(item.kind == "preferred" for item in siblings):
