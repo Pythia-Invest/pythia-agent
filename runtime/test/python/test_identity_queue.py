@@ -224,7 +224,7 @@ class TransportTest(QueueFixture):
 
     def test_only_the_desk_transport_attests(self):
         core = load_core()
-        from pythia_core_queue_fixture import identity_ops
+        from pythia_core_queue_fixture import identity_ops, queue_ops
         from pythia_core_queue_fixture.platform import request_context
         builds = Path(self.tmp.name) / "builds"
         builds.mkdir()
@@ -236,13 +236,13 @@ class TransportTest(QueueFixture):
         arguments = {"item_id": item.id, "relation": "same_listing", "chosen_id": ASML}
         with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}), \
                 unittest.mock.patch.object(identity_ops, "installed", lambda: []):
-            agent = json.loads(ops.verdict(arguments))["data"]
-            waiting_body = json.loads(ops.queue({"subject_id": ASML, "answered": True}))
+            agent = json.loads(queue_ops.submit_verdict(ops, arguments))["data"]
+            waiting_body = json.loads(queue_ops.read_queue(ops, {"subject_id": ASML, "answered": True}))
             waiting, waiting_outcome = waiting_body["data"], waiting_body["outcome"]
             desk = contextvars.copy_context()
             desk.run(request_context.usage.set, "dashboard")
-            user = json.loads(desk.run(ops.verdict, arguments))["data"]
-            listed = json.loads(ops.queue({"subject_id": ASML}))
+            user = json.loads(desk.run(queue_ops.submit_verdict, ops, arguments))["data"]
+            listed = json.loads(queue_ops.read_queue(ops, {"subject_id": ASML}))
         ops.store.db.close()
         self.assertEqual((agent["authority"], agent["outcome"]), ("agent_confirmed", "confirmed"))
         self.assertEqual((waiting["total"], [row["id"] for row in waiting["answered"]]), (0, [item.id]))
