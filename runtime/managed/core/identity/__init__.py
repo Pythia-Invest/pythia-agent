@@ -26,8 +26,8 @@ from .resolution import (
     guarded,
 )
 from .schemes import (
-    SCHEME_LEVEL, IdentifierError, Level, Scheme, normalize_identifier, provisional_id, subject_id, subject_level,
-    ticker_mic,
+    CGS_AREA, KEY_RULE, SCHEME_LEVEL, IdentifierError, Level, Scheme, normalize_identifier, provisional_id, subject_id,
+    subject_level, ticker_mic,
 )
 from .vocabulary import (
     AUTHORITY_TIER, AssetClass, Authority, BindingStatus, EvidenceTier, IdentifierRole, InstrumentKind, RelationType,

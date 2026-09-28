@@ -31,14 +31,27 @@ an operating MIC with a currency, a FIGI and, where known, a ticker (FIRDS lines
 carry none), or a crypto chain deployment. Each scheme identifies exactly one
 level, enforced by the types and the SQL: an ISIN never identifies a listing.
 
-**Subject IDs are derived from open identifiers** (`subject_id`), never random:
+**Subject IDs are derived from open identifiers** (`subject_id`), never random,
+by a versioned key rule, `subject_key@1` (`KEY_RULE`, recorded in the
+reference `release` table):
 
 | Level | ID, first available key wins |
 | --- | --- |
 | Issuer | `issuer:lei:<LEI>`, else `issuer:cik:<CIK>` |
 | Security | `security:isin:<ISIN>`, else `security:figi:<share-class FIGI>`, else `security:caip19:<home deployment>` |
-| Composite | the security key plus country, e.g. `composite:isin:USN070592100:US` |
+| Composite | the security key plus country, e.g. `composite:figi:BBG001SCG0R3:US` |
 | Listing | `listing:isin:<ISIN>:<operating MIC>:<currency>`, else `listing:figi:<FIGI>`, else `listing:caip19:<deployment>` |
+
+A key uses only identifiers every build path has and may host. ISINs from
+CUSIP Global Services (`CGS_AREA`: US, Canada, US territories and the offshore
+centres whose ISINs carry a CUSIP/CINS number) are licensed, local-only
+evidence, so they never key a subject: such securities are keyed by share-class
+FIGI and listings by FIGI, and the ISIN stays an assertion. New evidence
+therefore never re-keys a subject. The builder writes deterministic aliases,
+every other key a subject could have had (for example `security:isin:US…` and
+`listing:figi:…` for an ISIN-keyed EU line), into `id_aliases`, so an old or
+foreign ID resolves without the previous build. A changed rule is a new
+version (`subject_key@2`) with aliases from the old IDs.
 
 Installs and rebuilds agree on every ID. Venue lines with
 the same ISIN, operating MIC and currency are one listing; segment MICs and

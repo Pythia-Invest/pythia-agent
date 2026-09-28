@@ -107,7 +107,7 @@ class SearchTest(Fixture):
                                "bindings": []})
 
     def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
-        us = "listing:isin:USN070592100:XNAS:USD"
+        us = "listing:figi:BBG000K6N6G7"
         self.assertEqual(self.rows("asml", prefer="US"), [us])
         self.assertEqual(self.rows("asml", prefer="EU"), [ASML])
         self.assertEqual(self.rows("ASML.AS", prefer="US", suffixes=lambda: {".AS": {"XAMS"}}), [ASML])
