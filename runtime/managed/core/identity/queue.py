@@ -21,9 +21,6 @@ from .schemes import subject_level
 from .store import IdentityStore
 from .vocabulary import Authority, InstrumentKind, VerdictRelation
 
-# Provisional: an agent verdict at or above this confidence is model_confirmed. The truth set replaces it with a
-# gold-calibrated threshold per relation (ADR 0037); below it the verdict is kept as a suggestion.
-AGENT_THRESHOLD = 0.9
 AGENT_MODEL = "hermes-agent"
 PROMPT_VERSION = "pythia_identity_verdict@1"
 CORE = "pythia"
@@ -53,8 +50,10 @@ def summary(item: dict) -> dict:
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
                                   if level is subject_level(candidate)), "unrelated")]
-    return {key: item[key] for key in ("id", "kind", "reason", "plugins", "provider_ref", "subject_ids", "candidate_ids",
-                                       "opened_at", "updated_at")} | {
+    return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
+                                       "candidate_ids", "opened_at", "updated_at")} | {
+        # A question only the agent answered: its answer routes provisionally and the user may still override it.
+        "agent_answer": item["settled"] if item["state"] != "open" and item["settled"] else None,
         "label": LABELS.get(plugin, plugin), "question": question,
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
@@ -79,7 +78,7 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
     cited = item["evidence_ids"]
     rows = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({','.join('?' * len(cited))})", cited).fetchall() \
         if cited else []
-    view = {**summary(item), "state": item["state"], "scheme": item["scheme"], "values": item["values"],
+    view = {**summary(item), "scheme": item["scheme"], "values": item["values"],
             "record": _record(record) if record else None,
             "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
             "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
@@ -92,54 +91,53 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
 
 
 def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resolver: ResolverKind, relation: str,
-           chosen_id: str | None, now: str, as_of: str, confidence: float | None = None, rationale: str | None = None,
-           user_turn: str | None = None, threshold: float = AGENT_THRESHOLD) -> dict:
-    """Decide and record one agent or user verdict; a confirmed one binds, a "not a match" dismisses the item."""
+           chosen_id: str | None, now: str, as_of: str, rationale: str | None = None,
+           user_turn: str | None = None) -> dict:
+    """Decide and record one agent or user verdict.
+
+    A confirmed answer binds the record, a "not a match" dismisses the question. The agent's answer is
+    provisional (`agent_confirmed`): the user may still answer a question only the agent settled, and that
+    answer supersedes it, re-pointing or withdrawing the agent's binding."""
+    resolver = ResolverKind(resolver)
+    user = resolver is ResolverKind.USER
     view, row = inspect(store, ref, item_id), store.queue_item(item_id)
-    if view is None or row["state"] != "open":
+    if view is None or not _answerable(row, user):
         raise Refused("This question is not open.")
     raw = _raw(store, row)
     if raw is None:  # identifier or relation conflicts without a provider record: no answer has an effect yet
         raise Refused("This question has no provider record to bind, so no answer can take effect.")
-    item = _queue_item(row)
-    agent = ResolverKind(resolver) is ResolverKind.AGENT
-    if agent and confidence is None:
-        raise Refused("An agent verdict states its confidence.")
-    authority = (Authority.USER_ATTESTED if not agent else
-                 Authority.MODEL_CONFIRMED if confidence >= threshold else Authority.MODEL_SUGGESTED)
+    item = _queue_item({**row, "state": "open"})
+    authority = Authority.USER_ATTESTED if user else Authority.AGENT_CONFIRMED
     try:
         verdict = Verdict(item_id=item_id, resolver=resolver, authority=authority, relation=relation, chosen_id=chosen_id,
                           provenance={"plugin": CORE, "source": str(resolver), "adapter_version": "1", "retrieved_at": now},
-                          confidence=confidence if agent else None, model=AGENT_MODEL if agent else None,
-                          prompt_version=PROMPT_VERSION if agent else None,
-                          input_digest=view["digest"] if agent else None, rationale=rationale, user_turn=user_turn)
+                          model=None if user else AGENT_MODEL, prompt_version=None if user else PROMPT_VERSION,
+                          input_digest=None if user else view["digest"], rationale=rationale, user_turn=user_turn)
     except ValueError as error:
         raise Refused(str(error)) from None
     record = _claim(raw)
     subject = load_subject(ref, chosen_id) if chosen_id else None
     if chosen_id and subject is None:
         raise Refused("The chosen subject is not in the reference data.")
-    # The user's attestation is the last word; an agent answer that differs from another resolver's is ambiguous.
-    prior = [] if not agent else [_verdict(entry, item_id) for entry in store.history(row)
-                                  if entry["item_id"] == item_id and entry["resolver"] != resolver
-                                  and entry["outcome"] == "suggested"]
+    # Against "none", every candidate's evidence counts.
+    subjects = [subject] if subject else [found for other in item.candidate_ids if (found := load_subject(ref, other))]
+    prior = [] if user else [_verdict(entry, item_id) for entry in store.history(row)
+                             if entry["item_id"] == item_id and entry["resolver"] != resolver
+                             and entry["outcome"] == "suggested"]
     try:
-        outcome = decide(verdict, item, claimed=record.identifiers, as_of=as_of,
-                         evidence=[assertion for candidate in ((subject,) if subject else map(
-                             lambda other: load_subject(ref, other), item.candidate_ids)) if candidate
-                             for assertion in candidate["evidence"]],
-                         record_kind=record.attributes.kind,
-                         subject_kind=_kind(subject), prior=prior, threshold=threshold)
+        outcome = decide(verdict, item, claimed=record.identifiers, as_of=as_of, record_kind=record.attributes.kind,
+                         evidence=[assertion for found in subjects for assertion in found["evidence"]],
+                         subject_kind=_kind(subject), prior=prior)
     except ValueError as error:
         raise Refused(str(error)) from None
-    state, message = "open", _MESSAGES[outcome]
+    state, message = row["state"], _MESSAGES[outcome]
     with store.transaction():
-        if store.queue_item(item_id)["state"] != "open":  # another resolver answered meanwhile
+        current = store.queue_item(item_id)
+        if not _answerable(current, user) or current["state"] != row["state"]:  # another resolver answered meanwhile
             raise Refused("This question is not open.")
-        bound = store.binding_for(item.provider_ref) if item.provider_ref else None
-        if outcome is VerdictOutcome.CONFIRMED and bound is not None and bound["status"] == "confirmed" \
-                and bound["subject_id"] != chosen_id:
-            outcome, message = VerdictOutcome.BLOCKED, "Refused: the record is bound to another instrument; a binding is never re-pointed."
+        firm = store.bound_subject(item.provider_ref)
+        if outcome is VerdictOutcome.CONFIRMED and firm not in (None, chosen_id):
+            outcome, message = VerdictOutcome.BLOCKED, "Refused: the record is bound to another instrument."
         verdict_id = store.put_verdict(verdict, outcome)
         if outcome is VerdictOutcome.CONFIRMED:
             store.put_binding(Binding(provider_ref=item.provider_ref, subject_id=chosen_id, status="confirmed",
@@ -147,12 +145,22 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                                       evidence_ids=(evidence_id({"kind": "verdict", "verdict": verdict_id}),)),
                               verdict_id=verdict_id)
             state = "resolved"
-        elif outcome is VerdictOutcome.NO_MATCH and authority is not Authority.MODEL_SUGGESTED:
+        elif outcome is VerdictOutcome.NO_MATCH:
+            if current["settled"] and current["settled"]["chosen_id"] and current["state"] == "resolved":
+                store.reject_binding(item.provider_ref, current["settled"]["chosen_id"], verdict_id)
             state = "dismissed"
-        if state != "open":
-            store.settle(item_id, state, verdict_id)
+        if outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
+            store.settle(item_id, state, verdict_id, current=current["state"])
+    if not user and outcome is VerdictOutcome.CONFIRMED:
+        message = _PROVISIONAL
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
+
+
+def _answerable(row: dict | None, user: bool) -> bool:
+    """Open questions take any answer; one only the agent settled still takes the user's."""
+    return row is not None and (row["state"] == "open" or (
+        user and row["state"] in ("resolved", "dismissed") and (row["settled"] or {}).get("by") == "agent"))
 
 
 def settle_by_rules(store: IdentityStore, ref: sqlite3.Connection, plugins: Iterable[PluginInfo], items: Iterable[dict],
@@ -164,43 +172,57 @@ def settle_by_rules(store: IdentityStore, ref: sqlite3.Connection, plugins: Iter
     usable = {info.manifest.plugin: info for info in plugins if info.enabled and not info.missing}
     settled = []
     for row in items:
-        info = usable.get(row["plugins"][0])
-        raw = _raw(store, row)
-        if row["state"] != "open" or info is None or raw is None or len(row["candidate_ids"]) != 1:
+        try:
+            if _settle_one(store, ref, usable.get(row["plugins"][0]), row, now=now, as_of=as_of):
+                settled.append(row["id"])
+        except (ValueError, KeyError, TypeError):  # one unreadable stored claim never stops the rest
             continue
-        target = row["candidate_ids"][0]
-        subject = load_subject(ref, target)
-        if subject is None:
-            continue
-        record = _claim(raw)
-        batch = ClaimBatch(plugin=record.provenance.plugin, provider=record.native_ref.provider,
-                           adapter_version=record.provenance.adapter_version, origin="resolve", claims=(record,))
-
-        def bound_to(provider_ref):
-            found = store.binding_for(provider_ref)
-            return found["subject_id"] if found is not None and found["status"] == "confirmed" else None
-
-        level = subject_level(target)
-        binding, item, _records = apply_resolve(batch, info, level, subject, resolve_input(info, subject), now=now,
-                                                as_of=as_of, bound_to=bound_to)
-        if binding is not None:
-            verdict = Verdict(item_id=row["id"], resolver="rules", authority="rule_confirmed", relation=SAME[level],
-                              chosen_id=target, rule_id=RESOLVE_RULE,
-                              provenance={"plugin": CORE, "source": CORE, "adapter_version": "1", "retrieved_at": now})
-            with store.transaction():
-                verdict_id = store.put_verdict(verdict, VerdictOutcome.CONFIRMED)
-                if store.put_binding(binding, verdict_id=verdict_id) and store.settle(row["id"], "resolved", verdict_id):
-                    settled.append(row["id"])
-        elif item is not None and item.key != row["key"]:
-            with store.transaction():
-                if store.settle(row["id"], "superseded", None):
-                    store.put_queue_item(item)
-                    settled.append(row["id"])
     return settled
 
 
 # ---- internals -----------------------------------------------------------------------------------------------------
 
+class _Unbound(Exception):
+    """The reference is firmly bound elsewhere after all: roll the rules verdict back."""
+
+
+def _settle_one(store: IdentityStore, ref: sqlite3.Connection, info: PluginInfo | None, row: dict, *, now: str,
+                as_of: str) -> bool:
+    raw = _raw(store, row)
+    if row["state"] != "open" or info is None or raw is None or len(row["candidate_ids"]) != 1:
+        return False
+    target = row["candidate_ids"][0]
+    subject = load_subject(ref, target)
+    if subject is None:
+        return False
+    record = _claim(raw)
+    batch = ClaimBatch(plugin=record.provenance.plugin, provider=record.native_ref.provider,
+                       adapter_version=record.provenance.adapter_version, origin="resolve", claims=(record,))
+    level = subject_level(target)
+    binding, item, _records = apply_resolve(batch, info, level, subject, resolve_input(info, subject), now=now,
+                                            as_of=as_of, bound_to=store.bound_subject)
+    if binding is not None:
+        verdict = Verdict(item_id=row["id"], resolver="rules", authority="rule_confirmed", relation=SAME[level],
+                          chosen_id=target, rule_id=RESOLVE_RULE,
+                          provenance={"plugin": CORE, "source": CORE, "adapter_version": "1", "retrieved_at": now})
+        try:
+            with store.transaction():
+                verdict_id = store.put_verdict(verdict, VerdictOutcome.CONFIRMED)
+                if not (store.put_binding(binding, verdict_id=verdict_id) and store.settle(row["id"], "resolved", verdict_id)):
+                    raise _Unbound
+        except _Unbound:
+            return False
+        return True
+    if item is not None and item.key != row["key"]:
+        with store.transaction():
+            if store.settle(row["id"], "superseded", None):
+                store.put_queue_item(item)
+                return True
+    return False
+
+
+_PROVISIONAL = ("Confirmed provisionally: the record routes to the chosen instrument until the user or identifier "
+                "evidence overrides it.")
 _MESSAGES = {
     VerdictOutcome.CONFIRMED: "Confirmed: the record is bound to the chosen instrument.",
     VerdictOutcome.SUGGESTED: "Kept as a suggestion: it does not route reads until a confirming verdict.",

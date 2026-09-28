@@ -21,10 +21,11 @@ from typing import Iterable
 
 from . import Store, schema_sql
 from .model import Binding, ProviderRef
+from .vocabulary import PROVISIONAL
 from .resolution import QueueItem, Verdict, VerdictOutcome
 
 REFERENCE_DIR_ENV = "PYTHIA_REFERENCE_DIR"
-SCHEMA_VERSION = "2"            # identity.sqlite3 metadata.schema_version
+SCHEMA_VERSION = "3"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed)
 REFERENCE_SCHEMA_VERSION = "2"  # reference-*.sqlite3 release.schema_version, written by the builder
 
 
@@ -141,20 +142,42 @@ class IdentityStore:
 
     @_locked
     def put_binding(self, binding: Binding, verdict_id: str | None = None) -> bool:
-        """One current binding per provider reference. A newer decision for the same subject replaces it;
-        a reference bound to another subject is never re-pointed (returns False: that is a conflict)."""
+        """One current binding per provider reference. A newer decision for the same subject replaces it. A
+        reference bound to another subject is re-pointed only from a rejected or provisional (agent) binding by a
+        stronger answer, which supersedes the agent's item; otherwise it returns False: that is a conflict."""
         ref = binding.provider_ref
+        before = self.binding_for(ref)
         self.db.execute(
             "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, level, status, authority,"
             " rule_id, evidence_ids, valid_from, valid_to, verified_at, verdict_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT (provider, native_scope, native_id) DO UPDATE SET plugin=excluded.plugin,"
             " subject_id=excluded.subject_id, level=excluded.level, status=excluded.status,"
             " authority=excluded.authority, rule_id=excluded.rule_id, evidence_ids=excluded.evidence_ids,"
-            " verified_at=excluded.verified_at, verdict_id=excluded.verdict_id WHERE bindings.subject_id = excluded.subject_id",
+            " verified_at=excluded.verified_at, verdict_id=excluded.verdict_id WHERE bindings.subject_id = excluded.subject_id"
+            " OR bindings.status = 'rejected'"
+            " OR (bindings.authority = 'agent_confirmed' AND excluded.authority <> 'agent_confirmed')",
             (uuid.uuid4().hex, binding.plugin, ref.provider, ref.native_id, ref.native_scope, binding.subject_id,
              binding.level, binding.status, binding.authority, binding.rule_id, json.dumps(list(binding.evidence_ids)),
              binding.validity.valid_from, binding.validity.valid_to, now(), verdict_id))
-        return self.db.execute("SELECT changes()").fetchone()[0] == 1
+        changed = self.db.execute("SELECT changes()").fetchone()[0] == 1
+        if changed and before is not None and before["verdict_id"] and before["subject_id"] != binding.subject_id:
+            self.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE resolved_by = ?"
+                            " AND state = 'resolved'", (now(), before["verdict_id"]))
+        return changed
+
+    @_locked
+    def bound_subject(self, ref: ProviderRef) -> str | None:
+        """The subject a reference is firmly bound to; a provisional (agent) binding yields to stronger evidence."""
+        row = self.binding_for(ref)
+        return row["subject_id"] if row is not None and row["status"] == "confirmed" \
+            and row["authority"] not in PROVISIONAL else None
+
+    @_locked
+    def reject_binding(self, ref: ProviderRef, subject_id: str, verdict_id: str) -> None:
+        """A user's "not this instrument" withdraws the provisional binding it overrides."""
+        self.db.execute("UPDATE bindings SET status = 'rejected', verdict_id = ? WHERE provider = ? AND native_scope = ?"
+                        " AND native_id = ? AND subject_id = ?", (verdict_id, ref.provider, ref.native_scope,
+                                                                  ref.native_id, subject_id))
 
     @_locked
     def binding_for(self, ref: ProviderRef) -> sqlite3.Row | None:
@@ -181,10 +204,12 @@ class IdentityStore:
 
     @_locked
     def queue_items(self, *, subject_ids: Iterable[str] | None = None, plugins: Iterable[str] | None = None,
-                    kind: str | None = None, state: str = "open") -> list[dict]:
-        """Queue items in one state, newest first; subjects match an item's subjects or candidates."""
+                    kind: str | None = None, provisional: bool = False) -> list[dict]:
+        """Open items, newest first, and with `provisional` the ones only the agent answered (the user may still);
+        subjects match an item's subjects or candidates."""
         subjects, names = (set(subject_ids) if subject_ids is not None else None), (set(plugins) if plugins is not None else None)
-        rows = self.db.execute("SELECT * FROM queue WHERE state = ? ORDER BY opened_at DESC, id", (state,)).fetchall()
+        rows = self.db.execute(f"{_ITEMS} WHERE q.state = 'open' OR (? AND q.state IN ('resolved', 'dismissed')"
+                               " AND v.resolver = 'agent') ORDER BY q.opened_at DESC, q.id", (provisional,)).fetchall()
         items = [_item(row) for row in rows]
         return [item for item in items if (kind is None or item["kind"] == kind)
                 and (names is None or names & set(item["plugins"]))
@@ -192,14 +217,14 @@ class IdentityStore:
 
     @_locked
     def queue_item(self, item_id: str) -> dict | None:
-        row = self.db.execute("SELECT * FROM queue WHERE id = ?", (item_id,)).fetchone()
+        row = self.db.execute(f"{_ITEMS} WHERE q.id = ?", (item_id,)).fetchone()
         return _item(row) if row else None
 
     @_locked
-    def settle(self, item_id: str, state: str, verdict_id: str | None) -> bool:
-        """Close an open item; False when it was no longer open."""
-        self.db.execute("UPDATE queue SET state = ?, resolved_by = ?, updated_at = ? WHERE id = ? AND state = 'open'",
-                        (state, verdict_id, now(), item_id))
+    def settle(self, item_id: str, state: str, verdict_id: str | None, current: str = "open") -> bool:
+        """Settle an item in its `current` state; False when it was no longer in it."""
+        self.db.execute("UPDATE queue SET state = ?, resolved_by = ?, updated_at = ? WHERE id = ? AND state = ?",
+                        (state, verdict_id, now(), item_id, current))
         return self.db.execute("SELECT changes()").fetchone()[0] == 1
 
     @_locked
@@ -267,9 +292,15 @@ class IdentityStore:
              (claim_json.get("attributes") or {}).get("name"), text, "sha256:" + hashlib.sha256(text.encode()).hexdigest(), stamp, stamp))
 
 
+_ITEMS = ("SELECT q.*, v.resolver AS settled_by, v.relation AS settled_relation, v.chosen_id AS settled_choice"
+          " FROM queue q LEFT JOIN verdicts v ON v.id = q.resolved_by")
+
+
 def _item(row: sqlite3.Row) -> dict:
     decoded = {name: json.loads(row[name]) for name in ("subject_ids", "candidate_ids", "evidence_ids", "plugins")}
     return {"id": row["id"], "key": row["key"], "kind": row["kind"], "reason": row["reason"], **decoded,
             "provider_ref": json.loads(row["provider_ref"]) if row["provider_ref"] else None, "scheme": row["scheme"],
             "values": json.loads(row["contested_values"]), "state": row["state"], "opened_at": row["opened_at"],
-            "updated_at": row["updated_at"], "resolved_by": row["resolved_by"]}
+            "updated_at": row["updated_at"], "resolved_by": row["resolved_by"],
+            "settled": {"by": row["settled_by"], "relation": row["settled_relation"], "chosen_id": row["settled_choice"]}
+            if row["settled_by"] else None}

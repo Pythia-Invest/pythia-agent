@@ -64,8 +64,10 @@ QUEUE_SCHEMA = {
     "name": "pythia_identity_queue",
     "description": "List open identity questions: provider records the device could not place on a subject "
                    "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
-                   "subject, plugin or kind. With item_id, returns one question in full: the provider record, the "
-                   "candidate subjects, the cited reference evidence and earlier verdicts. Local only.",
+                   "subject, plugin or kind. Questions the agent already answered are listed with that answer "
+                   "(agent_answer), which the user may still override. With item_id, returns one question in full: "
+                   "the provider record, the candidate subjects, the cited reference evidence and earlier verdicts. "
+                   "Local only.",
     "parameters": {"type": "object", "properties": {
         "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
         "subject_id": SUBJECT_ID,
@@ -77,16 +79,17 @@ QUEUE_SCHEMA = {
 VERDICT_SCHEMA = {
     "name": "pythia_identity_verdict",
     "description": "Answer one open identity question after reading it in full. A match names the relation and one of "
-                   "the question's candidates; 'unrelated' says the record is a different instrument; 'ambiguous' "
-                   "leaves it open. Core applies the identity authority rule: an answer that contradicts identifier "
-                   "evidence is refused, and a match below the confidence threshold is kept only as a suggestion. "
-                   "A confirmed match binds the provider record to the subject; every answer is recorded.",
+                   "the question's candidates; 'unrelated' says the record is a different instrument than that "
+                   "candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the "
+                   "identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the "
+                   "record's own identifiers disprove, is refused. An accepted answer takes effect provisionally: a "
+                   "match routes the record to the subject until the user or identifier evidence overrides it. "
+                   "Accepted and refused answers are recorded.",
     "parameters": {"type": "object", "properties": {
         "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
         "relation": {"type": "string", "enum": ["same_listing", "same_composite", "same_security", "same_issuer",
                                                 "depositary_receipt_of", "unrelated", "none", "ambiguous"]},
         "chosen_id": SUBJECT_ID,
-        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "rationale": {"type": "string", "maxLength": 400}},
         "required": ["item_id", "relation"], "additionalProperties": False},
 }
@@ -184,6 +187,7 @@ class Identity:
                 subject, plugin = arguments.get("subject_id"), arguments.get("plugin")
                 items = self.store.queue_items(
                     subject_ids=queue.family(ref, str(subject)) if subject else None, kind=arguments.get("kind"),
+                    provisional=True,
                     plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)} if plugin else None)
             finally:
                 ref.close()
@@ -206,7 +210,7 @@ class Identity:
                 self.store, ref, item_id=str(arguments.get("item_id") or ""), relation=arguments.get("relation"),
                 chosen_id=arguments.get("chosen_id"), now=now, as_of=date.today().isoformat(),
                 resolver=queue.ResolverKind.USER if desk else queue.ResolverKind.AGENT,
-                confidence=None if desk else arguments.get("confidence"), rationale=arguments.get("rationale"),
+                rationale=arguments.get("rationale"),
                 user_turn=f"desk:identity-verdict:{now}" if desk else None)
         except queue.Refused as refused:
             result = {"outcome": "refused", "message": str(refused)}
@@ -316,12 +320,9 @@ class Identity:
         for claim in batch_to_json(batch)["claims"]:
             self.store.put_claim(batch.plugin, batch.provider, claim)
 
-        def bound_to(ref):
-            row = self.store.binding_for(ref)
-            return row["subject_id"] if row is not None and row["status"] == "confirmed" else None
-
         for level in sorted(levels, key=lambda item: item != Level.LISTING):
-            binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now, bound_to=bound_to)
+            binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now,
+                                                         bound_to=self.store.bound_subject)
             if binding is not None:
                 if self.store.put_binding(binding):
                     return None, False

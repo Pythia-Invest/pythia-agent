@@ -54,14 +54,14 @@ class VerdictTest(QueueFixture):
     def test_no_verdict_confirms_against_identifier_proof(self):
         item = self.ask(answer(("isin", "USN070592100")))  # EODHD's record names the NASDAQ receipt's ISIN
         self.assertEqual(item.kind, "conflict")
-        agent = self.submit(item, "agent", confidence=0.99, rationale="Same ticker and name.")
+        agent = self.submit(item, "agent", rationale="Same ticker and name.")
         user = self.submit(item, "user", user_turn="desk:identity-verdict:test")
         self.assertEqual([agent["outcome"], user["outcome"]], ["blocked", "blocked"])
         self.assertEqual(self.identity.queue_item(item.id)["state"], "open")
         self.assertIsNone(self.identity.binding_for(item.provider_ref))
         history = queue.inspect(self.identity, self.ref, item.id)["history"]
         self.assertEqual([(entry["resolver"], entry["authority"], entry["outcome"]) for entry in history],
-                         [("agent", "model_confirmed", "blocked"), ("user", "user_attested", "blocked")])
+                         [("agent", "agent_confirmed", "blocked"), ("user", "user_attested", "blocked")])
 
     def test_no_answer_dismisses_against_identifier_proof(self):
         nasdaq = "listing:isin:USN070592100:XNAS:USD"
@@ -70,7 +70,7 @@ class VerdictTest(QueueFixture):
                                                    authority="user_attested", evidence_ids=["ev:x"], plugin="eodhd"))
         item = self.ask(answer(("isin", "NL0010273215")))  # ASML's own ISIN, but the reference is bound elsewhere
         self.assertEqual((item.kind, item.reason, set(item.subject_ids)), ("conflict", "binding", {nasdaq, ASML}))
-        for resolver, fields in (("agent", {"confidence": 0.99}), ("user", {"user_turn": "desk:identity-verdict:test"})):
+        for resolver, fields in (("agent", {}), ("user", {"user_turn": "desk:identity-verdict:test"})):
             result = self.submit(item, resolver, relation="unrelated", **fields)
             self.assertEqual((result["outcome"], result["state"]), ("blocked", "open"))
         self.assertFalse(self.identity.dismissed(item.key, item.evidence_ids))
@@ -82,21 +82,42 @@ class VerdictTest(QueueFixture):
         self.assertEqual((view["record"]["name"], view["candidates"][0]["name"]), ("ASML Holding", "ASML Holding N.V."))
         self.assertIn({"relation": "same_listing", "chosen_id": ASML}, view["answers"])
 
-        low = self.submit(item, "agent", confidence=0.5)
-        self.assertEqual((low["outcome"], low["state"]), ("suggested", "open"))
-        view = queue.inspect(self.identity, self.ref, item.id)  # what the agent reads before answering again
-        high = self.submit(item, "agent", confidence=0.95)
-        self.assertEqual((high["outcome"], high["state"], high["authority"]), ("confirmed", "resolved", "model_confirmed"))
+        agent = self.submit(item, "agent")
+        self.assertEqual((agent["outcome"], agent["state"], agent["authority"]), ("confirmed", "resolved", "agent_confirmed"))
 
         bound = self.identity.binding_for(item.provider_ref)
-        self.assertEqual((bound["subject_id"], bound["status"], bound["verdict_id"]), (ASML, "confirmed", high["verdict_id"]))
-        row = self.identity.db.execute("SELECT * FROM verdicts WHERE id = ?", (high["verdict_id"],)).fetchone()
-        self.assertEqual((row["model"], row["input_digest"]), (queue.AGENT_MODEL, view["digest"]))
-        self.assertEqual(self.identity.queue_item(item.id)["resolved_by"], high["verdict_id"])
+        self.assertEqual((bound["subject_id"], bound["authority"], bound["verdict_id"]),
+                         (ASML, "agent_confirmed", agent["verdict_id"]))
+        row = self.identity.db.execute("SELECT * FROM verdicts WHERE id = ?", (agent["verdict_id"],)).fetchone()
+        self.assertEqual((row["model"], row["input_digest"], row["confidence"]), (queue.AGENT_MODEL, view["digest"], None))
         _subject, sections = self.compose(ASML, [plugin("eodhd")])
         self.assertEqual((sections["quote"]["status"], sections["quote"]["binding_status"]), ("ready", "confirmed"))
-        with self.assertRaises(queue.Refused):  # a settled question takes no further verdicts
-            self.submit(item, "user", user_turn="desk:identity-verdict:test")
+        with self.assertRaises(queue.Refused):  # the agent does not answer a settled question again
+            self.submit(item, "agent")
+
+        # The agent's answer is provisional: the question stays listed with it, and the user overrides it.
+        [listed] = [queue.summary(entry) for entry in self.identity.queue_items(subject_ids=[ASML], provisional=True)]
+        self.assertEqual(listed["agent_answer"], {"by": "agent", "relation": "same_listing", "chosen_id": ASML})
+        user = self.submit(item, "user", relation="unrelated", user_turn="desk:identity-verdict:test")
+        self.assertEqual((user["outcome"], user["state"]), ("no_match", "dismissed"))
+        self.assertEqual(self.identity.binding_for(item.provider_ref)["status"], "rejected")
+        self.assertEqual(self.identity.queue_items(subject_ids=[ASML], provisional=True), [])
+        history = queue.inspect(self.identity, self.ref, item.id)["history"]
+        self.assertEqual([(entry["resolver"], entry["outcome"]) for entry in history], [("agent", "confirmed"), ("user", "no_match")])
+
+    def test_identifier_evidence_re_points_a_provisional_binding(self):
+        item = self.ask(answer(), subject=self.bare())
+        self.submit(item, "agent", chosen_id=ASML)
+        nasdaq = "listing:isin:USN070592100:XNAS:USD"
+        proof = identity.Binding(provider_ref=item.provider_ref, subject_id=nasdaq, status="confirmed",
+                                 authority="rule_confirmed", rule_id="resolve_answer@1", evidence_ids=["ev:x"], plugin="eodhd")
+        self.assertEqual(self.identity.bound_subject(item.provider_ref), None)  # provisional: never blocks the join
+        self.assertTrue(self.identity.put_binding(proof))
+        self.assertEqual(self.identity.binding_for(item.provider_ref)["subject_id"], nasdaq)
+        self.assertEqual(self.identity.queue_item(item.id)["state"], "superseded")
+        user = identity.Binding(provider_ref=item.provider_ref, subject_id=ASML, status="confirmed",
+                                authority="user_attested", evidence_ids=["ev:y"], plugin="eodhd")
+        self.assertFalse(self.identity.put_binding(user))  # a firm binding is never re-pointed
 
     def test_not_a_match_dismisses_the_question_for_good(self):
         item = self.ask(answer(), subject=self.bare())
@@ -109,9 +130,7 @@ class VerdictTest(QueueFixture):
     def test_an_answer_outside_the_question_is_refused(self):
         item = self.ask(answer(), subject=self.bare())
         with self.assertRaises(queue.Refused):
-            self.submit(item, "agent", chosen_id="listing:isin:USN070592100:XNAS:USD", confidence=0.99)
-        with self.assertRaises(queue.Refused):
-            self.submit(item, "agent")  # an agent states its confidence
+            self.submit(item, "agent", chosen_id="listing:isin:USN070592100:XNAS:USD")
 
     def test_a_question_without_a_provider_record_takes_no_answer(self):
         item = identity.QueueItem(id="q-identifier", kind="conflict", reason="identifier", subject_ids=(ASML,),
@@ -185,7 +204,7 @@ class TransportTest(QueueFixture):
             db.execute("INSERT INTO release (key, value) VALUES ('schema_version', ?)", (store.REFERENCE_SCHEMA_VERSION,))
         ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
         item = self.ask(answer(), subject=self.bare())
-        arguments = {"item_id": item.id, "relation": "same_listing", "chosen_id": ASML, "confidence": 0.5}
+        arguments = {"item_id": item.id, "relation": "same_listing", "chosen_id": ASML}
         with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}), \
                 unittest.mock.patch.object(identity_ops, "installed", lambda: []):
             agent = json.loads(ops.verdict(arguments))["data"]
@@ -194,7 +213,7 @@ class TransportTest(QueueFixture):
             user = json.loads(desk.run(ops.verdict, arguments))["data"]
             listed = json.loads(ops.queue({"subject_id": ASML}))
         ops.store.db.close()
-        self.assertEqual((agent["authority"], agent["outcome"]), ("model_suggested", "suggested"))
+        self.assertEqual((agent["authority"], agent["outcome"]), ("agent_confirmed", "confirmed"))
         self.assertEqual((user["authority"], user["outcome"], user["state"]), ("user_attested", "confirmed", "resolved"))
         self.assertEqual((listed["outcome"], listed["data"]["items"]), ("empty", []))
         del core
