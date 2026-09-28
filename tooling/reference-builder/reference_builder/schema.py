@@ -201,7 +201,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
 
     for venue in snap.venues.values():
         label = VENUE_NAMES.get(venue.mic) or VENUE_NAMES.get(venue.operating_mic) or venue.name or venue.mic
-        tables["venues"].append({"mic": venue.mic, "operating_mic": venue.operating_mic, "name": label, "country": venue.country or None})
+        tables["venues"].append({"mic": venue.mic, "operating_mic": venue.operating_mic, "name": label, "country": venue.country or None,
+                                 "category": venue.category if venue.category and len(venue.category) == 4 else None})
     # An issuer's tickers keep their capitals when its name is re-cased for display (ASML, RELX).
     tickers: dict[str, frozenset[str]] = {}
     for listing in snap.listings.values():

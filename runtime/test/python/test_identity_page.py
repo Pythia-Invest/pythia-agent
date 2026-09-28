@@ -80,9 +80,9 @@ class SearchTest(Fixture):
     def setUp(self):
         super().setUp()
         with sqlite3.connect(self.path) as db:
-            db.executemany("INSERT INTO venues VALUES (?, ?, ?, ?)", [
-                ("XAMS", "XAMS", "Euronext Amsterdam", "NL"), ("XNGS", "XNAS", "Nasdaq", "US"),
-                ("XNYS", "XNYS", "NYSE", "US")])
+            db.executemany("INSERT INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)", [
+                ("XAMS", "XAMS", "Euronext Amsterdam", "NL", "RMKT"), ("XNGS", "XNAS", "Nasdaq", "US", "RMKT"),
+                ("XNYS", "XNYS", "NYSE", "US", "NSPD")])
             # Shell: home line on Amsterdam, a receipt on NYSE whose ticker starts the name; a bank with a
             # preferred and two notes.
             db.executemany("INSERT INTO issuers (id, name, country) VALUES (?, ?, ?)",
@@ -140,7 +140,7 @@ class SearchTest(Fixture):
     def lines(self, issuer, country, *lines):
         """A company with lines (id, operating MIC, primary); the venues are added when missing."""
         with contextlib.closing(sqlite3.connect(self.path)) as db, db:
-            db.executemany("INSERT OR IGNORE INTO venues VALUES (?1, ?1, ?1, ?2)",
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country) VALUES (?1, ?1, ?1, ?2)",
                            [("XETR", "DE"), ("XMUN", "DE"), ("XDUS", "DE"), ("XBUD", "HU")])
             db.execute("INSERT INTO issuers (id, name, country) VALUES (?, ?, ?)", (f"issuer:lei:{issuer}", issuer, country))
             db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'x', 'equity', 'ordinary')",
@@ -158,6 +158,28 @@ class SearchTest(Fixture):
         self.assertEqual(row("toyota", {"XMUN": frozenset()}), "listing:t:mun")
         self.assertEqual(row("TOM", {"XMUN": frozenset()}), "listing:t:mun")  # the same pick for any phrasing
         self.assertEqual(row("toyota", {"XMUN": frozenset({"crypto"})}), "listing:t:xetr")  # not for equities
+
+    def test_a_regulated_listing_outranks_open_market_trading_on_a_bigger_venue(self):
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
+                           [("XETB", "XETR", "Xetra", "DE", "MLTF"), ("XAMS", "XAMS", "Euronext Amsterdam", "NL", "RMKT")])
+            db.execute("UPDATE venues SET category = 'RMKT' WHERE mic = 'XAMS'")
+            db.execute("INSERT INTO issuers (id, name, country) VALUES ('issuer:lei:SHEL2', 'Shelf plc', 'GB')")
+            db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind)"
+                       " VALUES ('security:shelf', 'issuer:lei:SHEL2', 'x', 'equity', 'ordinary')")
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?1, 'security:shelf', ?2, ?3, ?4, 'EUR', 0)",
+                           [("listing:shelf:xetb", "XETB", "XETR", "SHF0"), ("listing:shelf:xams", "XAMS", "XAMS", "SHELF")])
+        directory = search.Directory(self.ref)
+        priced = {"XETR": frozenset(), "XAMS": frozenset()}
+        for query in ("shelf", "SHELF", "SHF0"):
+            row = directory.search(query, limit=1, priced=lambda: priced)["rows"][0]["id"]
+            self.assertEqual(row, "listing:shelf:xetb" if query == "SHF0" else "listing:shelf:xams", query)
+
+    def test_a_build_without_venue_categories_ranks_no_line_as_regulated(self):
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("ALTER TABLE venues DROP COLUMN category")
+        self.assertEqual([row["id"] for row in search.Directory(self.ref).search("shell", limit=1)["rows"]], [SHELL])
 
     def test_the_home_and_primary_market_outrank_a_priceable_line(self):
         directory = self.lines("OTP", "HU", ("listing:otp:bud", "XBUD", "OTP", 1), ("listing:otp:dus", "XDUS", "OTP", 0))
@@ -197,6 +219,10 @@ class PageTest(Fixture):
         subject = {"values": {}, "asset_class": "equity", "listing": {"ticker": "VOLV B", "mic": "XSTO", "operating_mic": "XSTO"}}
         ref, _rule = page.derive(yahoo, identity.Level.LISTING, subject, lambda provider, caip19: None)
         self.assertEqual(ref.native_id, "VOLV-B.ST")
+        self.assertEqual(identity.normalize_identifier("ticker_mic", "VOLV B@XSTO"), "VOLV B@XSTO")
+        for bloomberg in ("AAPL US@XNAS", "ASML NA@XAMS", "VOLV  B@XSTO"):
+            with self.assertRaises(ValueError):
+                identity.normalize_identifier("ticker_mic", bloomberg)
 
     def test_an_old_us_id_resolves_through_its_alias(self):
         old, current = "listing:isin:USN070592100:XNAS:USD", "listing:figi:BBG000K6N6G7"  # before subject_key@1

@@ -217,7 +217,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.write_baseline:
         # A re-take never accepts a subject-ID change silently: it lists every change, and one that no
         # `id_aliases` row resolves needs --accept-id-changes and is kept in the baseline.
-        changes = id_changes(report, load_baseline(baseline_path), aliases_of(reference))
+        previous = load_baseline(baseline_path) or {}
+        changes = id_changes(report, previous, aliases_of(reference))
         unaliased = [change for change, aliased in changes if not aliased]
         if changes:
             print(f"\nSubject IDs changed since the previous baseline: {len(changes)}, {len(unaliased)} without an alias")
@@ -227,7 +228,8 @@ def main(argv: list[str] | None = None) -> int:
             print("baseline not written: review the ID changes without an alias and pass --accept-id-changes",
                   file=sys.stderr)
             return 1
-        data = baseline_of(report) | {"accepted_id_changes": unaliased}
+        accepted = list(dict.fromkeys([*previous.get("accepted_id_changes", []), *unaliased]))  # kept across re-takes
+        data = baseline_of(report) | {"accepted_id_changes": accepted}
         baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
     return 1 if regressed else 0

@@ -30,9 +30,9 @@ PREFERENCES = ("primary", "EU", "US")
 # The search contract's kinds (packages/market-data/src/search.ts); the reference holds a subset.
 KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other")
 PER_ISSUER = 2  # instrument rows shown per issuer
-# Among otherwise equal lines of an instrument (a foreign share traded on several EEA venues), one stated,
-# query-independent order: the largest EEA equity markets (as the reference builder's primary fallback), then
-# Tradegate, Frankfurt and the German regional floors, then every other venue; then the listing ID.
+# The last tie-break among otherwise equal lines of an instrument (after regulated market, home, primary and
+# price): the largest EEA equity markets (as the reference builder's primary fallback), then Tradegate,
+# Frankfurt and the German regional floors, then every other venue; then the listing ID.
 VENUE_ORDER = ("XETR", "XPAR", "XAMS", "XMIL", "TGAT", "XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER")
 
 ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
@@ -77,9 +77,9 @@ DOC = """CREATE TABLE doc (
   id INTEGER PRIMARY KEY, listing TEXT, security TEXT, issuer TEXT, grp TEXT, kind TEXT, crypto INTEGER,
   ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
   venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
-  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT)"""
+  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER)"""
 DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind").split()
+               "currency prim home otc deriv fund dr fus size inst ikind reg").split()
 
 
 class Directory:
@@ -111,7 +111,12 @@ class Directory:
                 out.setdefault(key, []).append(value)
             return out
 
+        # Regulated listings: an ISO 10383 RMKT segment or a US exchange (whose operating MICs ISO leaves
+        # unspecified). A build from before the category column ranks no line as regulated.
+        categorised = "category" in {row[1] for row in ref.execute("PRAGMA table_info(venues)")}
         venues = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT mic, name, country FROM venues")}
+        regulated = ({row[0] for row in ref.execute("SELECT mic FROM venues WHERE category = 'RMKT'")}
+                     | set(US_LISTED)) if categorised else set()
         issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
                    " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
@@ -140,9 +145,10 @@ class Directory:
             aliases = [*names.get(issuer or "", []), *names.get(security, [])]
             label = " | ".join(dict.fromkeys(filter(None, primary_names)))
             label += " || " + " | ".join(dict.fromkeys(filter(None, aliases))) if aliases else ""
-            # A foreign company's US line ranks below its home lines, unless it is its own share's primary (Linde).
+            # A foreign company's receipt or OTC line ranks below its other lines; its own shares listed on a US
+            # exchange (Linde, Shopify) compete like any other listing.
             foreign_us = (bool(issuer_country and issuer_country != "US" and op in (*US_LISTED, "OTCM"))
-                          and not (primary and kind != "depositary_receipt"))
+                          and (kind == "depositary_receipt" or op == "OTCM"))
             home = crypto or bool((isin and isin[:2] == venue_country) or (issuer_country and issuer_country == venue_country)
                                   or (not issuer_country and op in US_LISTED and not isin))
             docs.append(dict(zip(DOC_COLUMNS, (
@@ -152,7 +158,7 @@ class Directory:
                 venue_name, venue_country if not crypto else None, currency, int(bool(primary)), int(home),
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
                 int(foreign_us), logrank(rank),
-                security, kind))))
+                security, kind, int(mic in regulated or op in regulated & set(US_LISTED))))))
         # A depositary receipt is the same economic share: it folds into its underlying security, or else
         # into its issuer's best-ranked ordinary share.
         kinds = {doc["security"]: doc["kind"] for doc in docs}
@@ -330,14 +336,15 @@ def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None 
             score += W["fuzzy"]
         # The representative listing of an instrument: lexicographic, not additive. A listing the query names
         # first (its venue, or its exact ticker unless the query is also the name: "relx", "ing"), then
-        # the preferred region, then the home and primary market, then a line an installed plugin can price,
-        # then a fixed venue order (VENUE_ORDER) and the listing ID, so the pick never depends on hit order.
+        # the preferred region, then a regulated listing over open-market trading (ARM's Nasdaq line over its
+        # Stuttgart open-market line), then the home and primary market, then a line an installed plugin can
+        # price, then a fixed venue order (VENUE_ORDER) and the listing ID, so the pick never depends on hit order.
         preferred = (prefer == "EU" and line["country"] in EEA) or (prefer == "US" and line["country"] == "US"
                                                                      and not line["otc"])
         classes = priced.get(line["mic"] or "")
         priceable = classes is not None and (not classes or ("crypto" if line["crypto"] else "equity") in classes)
         venue = -VENUE_ORDER.index(line["mic"]) if line["mic"] in VENUE_ORDER else -len(VENUE_ORDER)
-        key = (int(venue_hit), int(exact_hit and not named), int(preferred), -line["fus"], -line["deriv"],
+        key = (int(venue_hit), int(exact_hit and not named), int(preferred), line["reg"], -line["fus"], -line["deriv"],
                -line["otc"], line["home"], line["prim"], int(priceable), -line["dr"], line["size"] or 0, venue,
                line["listing"])
         out.append((score, line, key))

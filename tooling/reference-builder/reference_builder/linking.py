@@ -15,6 +15,9 @@ from .model import GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot, 
 from .sec import EXCHANGE_MIC, LISTED_MICS
 
 SEC_EDGAR_RA = "RA000665"
+# Name words too common to show two names belong to one company.
+GENERIC_WORDS = frozenset("THE AND OF GROUP HOLDING HOLDINGS INTERNATIONAL INDUSTRIES BANK FINANCIAL CAPITAL TRUST FUND "
+                          "PARTNERS TECHNOLOGIES TECHNOLOGY SYSTEMS RESOURCES ENERGY AMERICA AMERICAN GLOBAL NEW".split())
 IDENTIFIER_RULES = ("isin_exch_us", "share_class_figi", "gleif_edgar_registration")
 
 
@@ -178,9 +181,20 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
     titles = _titles(tickers)
     links: dict[str, tuple[str, str]] = {}
     claimed: dict[str, str] = {}
+    alike = {(cik, lei): rule == "name_unique" or _name_alike(titles[cik], snap.issuers.get(f"lei:{lei}"))
+             for _weak, cik, lei, rule in candidates}
+    # A LEI several CIKs claim and none of them names (FIRDS puts a venue's or data vendor's LEI on US ISINs:
+    # TP ICAP, Frankfurter Wertpapierbörse, Bloomberg) links to none of them.
+    claimants = Counter(lei for _weak, _cik, lei, _rule in candidates)
+    named = {lei for (_cik, lei), match in alike.items() if match}
+    for _weak, cik, lei, _rule in candidates:
+        if claimants[lei] > 1 and lei not in named:
+            snap.flag(f"cik:{cik}", "lei_contested_unnamed", lei)
+            audit["link_conflicts"] += 1
+    candidates = [c for c in candidates if claimants[c[2]] == 1 or c[2] in named]
     # Identifier links first; among CIKs claiming one LEI, one whose SEC title matches the LEI's names first (FIRDS
     # gives Lee Enterprises' ISIN Berkshire Hathaway's LEI); otherwise CIK order.
-    ordered = sorted(candidates, key=lambda c: (c[0], not _name_alike(titles[c[1]], snap.issuers.get(f"lei:{c[2]}"))))
+    ordered = sorted(candidates, key=lambda c: (c[0], not alike[(c[1], c[2])]))
     for _weak, cik, lei, rule in ordered:
         if lei in claimed:
             snap.flag(f"cik:{cik}", "lei_already_linked", f"{lei} to cik:{claimed[lei]}")
@@ -216,7 +230,7 @@ def _name_alike(title: str, issuer: Issuer | None) -> bool:
     for name in (issuer.name, *(name for name, *_ in issuer.names)):
         y = rules.normalized_name(name)
         joined = sorted((x.replace(" ", ""), y.replace(" ", "")), key=len)
-        if set(x.split()) & set(y.split()) or (joined[0] and joined[1].startswith(joined[0])):
+        if (set(x.split()) & set(y.split())) - GENERIC_WORDS or (joined[0] and joined[1].startswith(joined[0])):
             return True
     return False
 

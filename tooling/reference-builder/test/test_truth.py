@@ -18,6 +18,7 @@ VENUES = {"XAMS": {"country": "NL"}, "XNAS": {"country": "US"}, "XETR": {"countr
 TRUTH = {"version": "test", "venues": VENUES, "entries": [
     {"id": "asml", "kind": "ordinary", "status": "active", "cfi": "ES", "tags": ["eu_home"],
      "issuer": {"cik": "937966"}, "security": {"isin": ASML_ISIN}, "fold": "asml",
+     "search": {"query": "asml", "rows": ["ASML@XLON", "ASML@XAMS"]},  # the first line the build has
      "listings": [{"ticker": "ASML", "mic": "XAMS", "currency": "EUR", "primary": True,
                    "symbols": {"yahoo": "ASML.AS", "eodhd": "ASML.AS"}},
                   {"ticker": "ASML", "mic": "XETR", "currency": "EUR", "primary": False}]},
@@ -70,6 +71,7 @@ class AuditTest(unittest.TestCase):
         self.assertEqual(results["asml-nyrs:symbols:eodhd:ASML.US"], ("pass", ""))
         self.assertEqual(results["asml-nyrs:fold:row"], ("pass", ""))  # the registry share folds into the company row
         self.assertEqual(results["asml:primary:home"], ("pass", ""))
+        self.assertEqual(results["asml:fold:row_line:asml"], ("pass", ""))
 
     def test_wrong_expectations_and_merges_fail_with_a_reason(self):
         wrong = copy.deepcopy(TRUTH)
@@ -105,6 +107,9 @@ class AuditTest(unittest.TestCase):
             truth_report.main([*args, "--accept-id-changes"])
         written = json.loads(path.read_text())
         self.assertEqual(len(written["accepted_id_changes"]), 1)
+        with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            truth_report.main(args)  # a later re-take keeps the record
+        self.assertEqual(json.loads(path.read_text())["accepted_id_changes"], written["accepted_id_changes"])
         self.assertEqual(len(written["passed"]), len(set(written["passed"])))
 
     def test_the_build_report_and_the_audit_list_the_build_counts_to_review(self):

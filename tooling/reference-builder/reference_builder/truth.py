@@ -135,19 +135,13 @@ class Reference:
     def security_of(self, subject: str) -> str | None:
         if subject.startswith("security:"):
             return subject
-        if subject.startswith("listing:"):
-            row = self.one("SELECT security_id FROM listings WHERE id = ?", subject)
-        elif subject.startswith("composite:"):
-            row = self.one("SELECT security_id FROM composites WHERE id = ?", subject)
-        else:
-            return None
+        table = {"listing": "listings", "composite": "composites"}.get(subject.split(":", 1)[0])
+        row = table and self.one(f"SELECT security_id FROM {table} WHERE id = ?", subject)
         return row[0] if row else None
 
     def issuer_ids(self, issuer: str | None) -> dict[str, str]:
-        if not issuer:
-            return {}
-        return {row["scheme"]: row["value"] for row in
-                self.all("SELECT scheme, value FROM assertions WHERE subject_id = ? AND scheme IN ('lei', 'cik')", issuer)}
+        rows = self.all("SELECT scheme, value FROM assertions WHERE subject_id = ? AND scheme IN ('lei', 'cik')", issuer) if issuer else []
+        return {row["scheme"]: row["value"] for row in rows}
 
     def locate(self, entry: dict) -> tuple[str | None, str]:
         """The reference security for an entry and the route that found it."""
@@ -189,6 +183,7 @@ def audit(reference: Path, truth: dict, contracts: dict | None = None, cfi: tupl
     located = {entry_id: ref.locate(entry)[0] for entry_id, entry in entries.items()}
     directory = search.Directory(ref.db)
     folded = {row[0]: row[1] for row in directory.db.execute("SELECT security, inst FROM doc GROUP BY security")}
+    priced = page.priced_venues(list(contracts.values()))
     issuers = {}
     for entry_id, security in located.items():
         row = security and ref.one("SELECT issuer_id FROM securities WHERE id = ?", security)
@@ -202,6 +197,7 @@ def audit(reference: Path, truth: dict, contracts: dict | None = None, cfi: tupl
             continue
         report.in_scope += 1
         _check_entry(report, ref, entry, entries, scoped, located, issuers, folded, contracts, scope, venues)
+        _check_row_line(report, entry, located[entry_id], folded, directory, priced)
     _check_issuer_groups(report, entries, located, issuers)
     return report
 
@@ -292,6 +288,19 @@ def _check_entry(report, ref, entry, entries, scoped, located, issuers, folded, 
     if wanted and issuers[eid]:
         report.add(eid, "subject_key", "issuer", issuers[eid] == wanted, _keyed(issuers[eid], wanted))
     report.ids[eid] = ids
+
+
+def _check_row_line(report, entry, security, folded, directory, priced) -> None:
+    """The line a search row shows for the entry: the first of `search.rows` the build has (`TICKER@MIC`)."""
+    spec, inst, db = entry.get("search"), folded.get(security), directory.db
+    if not spec or entry["status"] != "active" or inst is None:
+        return
+    key = lambda line: f"{tnorm(line.rsplit('@', 1)[0])}@{line.rsplit('@', 1)[1]}"  # noqa: E731
+    lines = {key(f"{ticker}@{mic}") for ticker, mic in db.execute("SELECT ticker, mic FROM doc WHERE inst = ?", (inst,))}
+    wanted = next((key(row) for row in spec["rows"] if key(row) in lines), None)
+    shown = next((key(f"{r['ticker']}@{r['mic']}") for r in directory.search(spec["query"], limit=10, priced=lambda: priced)["rows"]
+                  if db.execute("SELECT 1 FROM doc WHERE listing = ? AND inst = ?", (r["id"], inst)).fetchone()), None)
+    report.add(entry["id"], "fold", f"row_line:{spec['query']}", shown == wanted if wanted else None, f"row:{shown}")
 
 
 def _keyed(have: str, want: str) -> str:

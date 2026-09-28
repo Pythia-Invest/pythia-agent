@@ -357,6 +357,15 @@ class CikLinkTest(unittest.TestCase):
         evidence = {"58361": [("BRK", "isin_exch_us")], "1067983": [("BRK", "share_class_figi")]}
         self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {"1067983": ("BRK", "share_class_figi")})
 
+    def test_a_lei_several_ciks_claim_and_none_names_links_to_none(self):
+        snap = Snapshot(as_of="2026-09-25")
+        snap.issuers["lei:TPI"] = Issuer("lei:TPI", "TP ICAP (Europe)", "gleif", lei="TPI")
+        tickers = [SecTicker("10329", "BASSETT FURNITURE INDUSTRIES INC", "BSET", "Nasdaq", 0),
+                   SecTicker("23795", "CTO Realty Growth, Inc.", "CTO", "NYSE", 1)]
+        evidence = {"10329": [("TPI", "isin_exch_us")], "23795": [("TPI", "isin_exch_us")]}
+        self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
+        self.assertEqual({f.flag for f in snap.flags}, {"lei_contested_unnamed"})
+
     def test_links_that_share_no_name_word_and_split_issuers_are_flagged_not_changed(self):
         snap = Snapshot(as_of="2026-09-25")
         snap.issuers["lei:BRK"] = Issuer("lei:BRK", "Berkshire Hathaway Inc.", "gleif", lei="BRK")

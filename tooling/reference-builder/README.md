@@ -34,7 +34,9 @@ assertion, never a key, so those securities are keyed by share-class FIGI and
 listings by FIGI. `id_aliases` maps every other key a subject could have had
 (ISIN-, FIGI-, LEI- or CIK-based) to its ID; an alias that is itself a subject,
 or names two subjects, is dropped and counted. Identifier assertions carry
-authority `snapshot`. It also carries core's curated native-coin seed
+authority `snapshot`. Venues carry their ISO 10383 market category (`RMKT`,
+`MLTF`…), which search uses to prefer a regulated listing over open-market
+trading. It also carries core's curated native-coin seed
 (`runtime/managed/core/identity/native_coins.json`: chains, provider chain ids
 and each provider's coin id for BTC, ETH, SOL and a few other native coins), so
 search finds those coins without a provider. Securities carry a notability
@@ -122,7 +124,10 @@ table under `writer_ignored`.
   Fall back to a unique normalised name match on both sides. Conflicts become
   flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
   title matches the LEI's names wins, then CIK order (FIRDS gives Lee
-  Enterprises' ISIN Berkshire Hathaway's LEI). Two cases are flagged for review
+  Enterprises' ISIN Berkshire Hathaway's LEI); when none matches, none links
+  (`lei_contested_unnamed`: FIRDS puts venue and data-vendor LEIs such as TP
+  ICAP's or Bloomberg's on US ISINs). Generic words (GROUP, HOLDINGS, BANK…)
+  do not count as a match. Two cases are flagged for review
   and left as built:
   an identifier link whose SEC title shares no name word with any GLEIF name of
   the LEI (`cik_link_suspect`: a rename, or a wrong LEI in FIRDS such as Lee
@@ -164,7 +169,9 @@ The audit locates each entry (ISIN, share-class FIGI, CAIP-19, FIGI, then
 ticker at MIC) and scores checks by category: `coverage`, `lifecycle` (delisted
 names and former ISINs and tickers stay inactive), `issuer`, `security`,
 `separate` (two entries never share a security), `listing` (ticker, currency,
-FIGI), `primary`, `relation`, `fold` (core's search directory), `symbols`
+FIGI), `primary`, `relation`, `fold` (core's search directory, and for entries
+with `search`, the line the row for that query shows: the first of `search.rows`
+the build has), `symbols`
 (core's page derivation with the installed `contract.json` files) and
 `subject_key` (the ID core's current key rule derives from the entry's
 identifiers). `subject_key` is reported apart from the headline score: a

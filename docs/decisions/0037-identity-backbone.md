@@ -211,14 +211,17 @@ installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange). The home and primary market come next. Among an instrument's other
-lines, one an installed, usable plugin can price comes first (its operating MIC
-is in the `mic_table` of a plugin whose quote is addressed per listing, for the
-line's asset class), so a row for a company whose home market is out of the
-reference's scope opens a page with a price. Remaining ties follow one stated,
-query-independent venue order (Xetra, Euronext Paris, Amsterdam and Milan,
-then Tradegate, Frankfurt and the German regional floors, then any other venue)
-and then the listing ID. Core declares the key
+exchange). A regulated listing comes next (an ISO 10383 regulated-market
+segment, carried as `venues.category`, or a US exchange) over open-market
+trading such as a German Freiverkehr line; then the home and primary market; a
+foreign company's receipt or OTC line ranks below its other lines. Among the
+remaining lines, one an installed, usable plugin can price comes first (its
+operating MIC is in the `mic_table` of a plugin whose quote is addressed per
+listing, for the line's asset class), so a row for a company whose home market
+is out of the reference's scope opens a page with a price. Remaining ties follow
+one stated, query-independent venue order (Xetra, Euronext Paris, Amsterdam and
+Milan, then Tradegate, Frankfurt and the German regional floors, then any other
+venue) and then the listing ID. Core declares the key
 in its `configuration.json`. "Look up in X"
 explicitly calls one provider's `resolve`, and the result joins like any other
 claim.
