@@ -1,63 +1,42 @@
-"""Local search (ADR 0037): the directory derived from the reference file, and its ranking.
+"""Local search (ADR 0037): the directory derived from the reference file, and its search groups.
 
 Search is one local read: no provider call, no identity write, no reconciliation.
 The directory is an in-memory FTS5 index built once per reference file and
-rebuilt when the file changes. Ranking is additive (weights `W`, version
-`RANKING_VERSION`, calibrated on the ranking gold set). Results are one row per
-instrument: a security with what `fold` relations fold into it, such as its
-depositary receipts (a crypto asset is its own row), shown through one
-representative listing. Instruments group per company by issuer.
+rebuilt when the file changes; `ranking` scores its lines. Each line knows its
+instrument (`inst`: a security with what `fold` relations fold into it, such as
+its depositary receipts) and its search group (`grp`: the company for its
+equity, the product itself for a fund, ETF or note, the asset for crypto).
+Results are search groups, each with its relevant listings first.
 """
 from __future__ import annotations
 
 import logging
-import math
 import re
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
+from . import ranking
 from .model import fold_roots
+from .ranking import logrank, norm, tnorm
 from .vocabulary import ISSUER_INTERESTS
 
 logger = logging.getLogger(__name__)
-RANKING_VERSION = "ranking@1"
-W = dict(exact_ticker=6.0, exact_id=20.0, name_exact=3.0, name_prefix=1.5, bm25=0.15, size=6.0, size_missing=0.3,
-         prim=1.0, home=1.2, otc=-2.5, deriv=-3.0, fund=-0.3, dr=-0.3, venue=4.0, fuzzy=-0.5)
-LEGAL = set("nv n v se ag inc corp corporation plc sa s a spa asa ab oyj the co company ltd limited holding holdings "
-            "aktiengesellschaft aktiebolag aktiebolaget koninklijke group groep kgaa ohg abp inhaber aktien o".split())
 VENUE_WORDS = {"nasdaq": "XNAS", "nyse": "XNYS", "amsterdam": "XAMS", "xetra": "XETR", "paris": "XPAR",
                "frankfurt": "XFRA", "milan": "XMIL", "otc": "OTCM"}
 US_LISTED = ("XNAS", "XNYS", "XCBO")
-EEA = frozenset("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split())
 # Which listing represents an instrument, unless the query names one (settings.json `search_listing_preference`).
 PREFERENCES = ("primary", "EU", "US")
 # The search contract's kinds (packages/market-data/src/search.ts); the reference holds a subset.
 KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other")
-PER_ISSUER = 2  # instrument rows shown per issuer
+SHOWN = 3  # relevant listing rows a search group carries
+GROUP_ROWS = 500  # listings one group read ("all listings") carries at most
 
 ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 LEI = re.compile(r"^[A-Z0-9]{18}[0-9]{2}$")
 FIGI = re.compile(r"^BBG[0-9A-Z]{9}$")
 CIK = re.compile(r"^\d{6,10}$")
-
-
-def logrank(rank: int | None) -> float | None:
-    """Notability comparable across sources: rank 1 -> 1.0, rank 100k -> 0."""
-    return max(0.0, 1 - math.log10(rank) / 5) if rank else None
-
-
-def norm(text: str | None) -> str:
-    return " ".join(re.findall(r"\w+", (text or "").lower()))
-
-
-def core_name(text: str | None) -> str:
-    return " ".join(token for token in norm(text).split() if token not in LEGAL)
-
-
-def tnorm(text: str | None) -> str:
-    return re.sub(r"[^A-Z0-9]", "", (text or "").upper())
 
 
 def classify(query: str) -> tuple[str, str]:
@@ -79,9 +58,9 @@ DOC = """CREATE TABLE doc (
   id INTEGER PRIMARY KEY, listing TEXT, security TEXT, issuer TEXT, grp TEXT, kind TEXT, crypto INTEGER,
   ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
   venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
-  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT)"""
+  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER)"""
 DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind").split()
+               "currency prim home otc deriv fund dr fus size inst ikind reg").split()
 
 
 class Directory:
@@ -94,7 +73,7 @@ class Directory:
         self.db.execute("CREATE VIRTUAL TABLE fts USING fts5(ticker, names, content='doc', content_rowid='id',"
                         " tokenize=\"unicode61 remove_diacritics 2\", prefix='2 3 4')")
         self.db.execute("INSERT INTO fts(rowid, ticker, names) SELECT id, coalesce(ticker, ''), names FROM doc")
-        for column in ("tnorm", "isin", "lei", "cik", "grp", "security"):
+        for column in ("tnorm", "isin", "lei", "cik", "grp", "security", "inst"):
             self.db.execute(f"CREATE INDEX doc_{column} ON doc ({column})")
         self.db.execute("CREATE TABLE gsize AS SELECT grp, max(size) g FROM doc GROUP BY grp")
         self.db.execute("CREATE INDEX gsize_grp ON gsize (grp)")
@@ -113,7 +92,12 @@ class Directory:
                 out.setdefault(key, []).append(value)
             return out
 
+        # Regulated listings: an ISO 10383 RMKT segment or a US exchange (whose operating MICs ISO leaves
+        # unspecified). A build from before the category column ranks no line as regulated.
+        categorised = "category" in {row[1] for row in ref.execute("PRAGMA table_info(venues)")}
         venues = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT mic, name, country FROM venues")}
+        regulated = ({row[0] for row in ref.execute("SELECT mic FROM venues WHERE category = 'RMKT'")}
+                     | set(US_LISTED)) if categorised else set()
         issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
                    " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
@@ -144,6 +128,10 @@ class Directory:
             aliases = [*names.get(issuer or "", []), *names.get(security, [])]
             label = " | ".join(dict.fromkeys(filter(None, primary_names)))
             label += " || " + " | ".join(dict.fromkeys(filter(None, aliases))) if aliases else ""
+            # A foreign company's receipt or OTC line ranks below its other lines; its own shares listed on a US
+            # exchange (Linde, Shopify) compete like any other listing.
+            foreign_us = (bool(issuer_country and issuer_country != "US" and op in (*US_LISTED, "OTCM"))
+                          and (kind == "depositary_receipt" or op == "OTCM"))
             home = crypto or bool((isin and isin[:2] == venue_country) or (issuer_country and issuer_country == venue_country)
                                   or (not issuer_country and op in US_LISTED and not isin))
             docs.append(dict(zip(DOC_COLUMNS, (
@@ -152,8 +140,8 @@ class Directory:
                 (values.get("cik") or "").lstrip("0") or None, figis, op if not crypto else None,
                 venue_name, venue_country if not crypto else None, currency, int(bool(primary)), int(home),
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
-                int(bool(issuer_country and issuer_country != "US" and op in (*US_LISTED, "OTCM"))), logrank(rank),
-                security, kind))))
+                int(foreign_us), logrank(rank),
+                security, kind, int(mic in regulated or op in regulated & set(US_LISTED))))))
         # Relations with `fold` behaviour (vocabulary.RELATIONS) make one unit of the same economic thing: a receipt
         # folds into its share (`inst`, the page's listings). A unit that is an interest in its issuer
         # (vocabulary.ISSUER_INTERESTS) groups under the issuer's company (`grp`, search's company groups); a fund,
@@ -167,9 +155,6 @@ class Directory:
             doc.update(inst=unit, ikind=kinds[unit], grp=company or unit)
         self.db.executemany(f"INSERT INTO doc VALUES ({','.join('?' * len(DOC_COLUMNS))})",
                             [tuple(doc.values()) for doc in docs])
-        # Other listings per instrument (a crypto asset's deployments are one row).
-        self.listings = {inst: count - 1 for inst, count in self.db.execute(
-            "SELECT inst, count(DISTINCT listing) FROM doc GROUP BY inst")}
 
     # ---- query side ------------------------------------------------------------------------------------------
 
@@ -193,23 +178,27 @@ class Directory:
         for word, size in self.vocab.items():
             if word[0] != token[0] or abs(len(word) - len(token)) > limit:
                 continue
-            distance = _distance(token, word, limit)
+            distance = ranking.distance(token, word, limit)
             if distance <= limit and (best is None or (distance, -size) < best[0]):
                 best = ((distance, -size), word)
         return best[1] if best else None
 
     def lines(self, query: str, prefer: str = "primary",
-              suffixes: Callable[[], dict[str, set[str]]] = dict) -> list[tuple[float, dict, tuple]]:
+              suffixes: Callable[[], dict[str, set[str]]] = dict,
+              priced: Mapping[str, frozenset[str]] = {}) -> list[tuple[float, dict, tuple]]:
         """Scored directory lines for a query: (score, line, representative key).
 
-        `suffixes` maps a provider symbol suffix (".AS") to the operating MICs it names."""
+        `suffixes` maps a provider symbol suffix (".AS") to the operating MICs it names; `priced` maps the
+        operating MICs where an installed plugin can address a quote from the line's ticker to the asset
+        classes it covers (empty: any)."""
         kind, value = classify(query)
         by_id = {"isin": "d.isin = ?", "lei": "d.lei = ?", "cik": "d.cik = ?",
                  "figi": "(' ' || d.figis || ' ') LIKE ?", "pair": "d.crypto = 1 AND d.tnorm = ?"}
         with self.lock:
             if kind in by_id:
                 argument = f"% {value} %" if kind == "figi" else value
-                return _score(self._fetch(by_id[kind], (argument,)), query, prefer, id_rows=True)
+                return ranking.score_lines(self._fetch(by_id[kind], (argument,)), query, prefer, id_rows=True,
+                                           priced=priced)
             tokens, hint = norm(query).split(), None
             if len(tokens) > 1:
                 for token in list(tokens):
@@ -240,19 +229,24 @@ class Directory:
                     hits, query = self._fts(fixed), " ".join(fixed)
             for hit in hits:
                 found.setdefault(hit["id"], hit)
-            return _score(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy)
+            return ranking.score_lines(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy,
+                                       priced=priced)
 
     def instrument_listings(self, security: str) -> list[dict]:
-        """The listings of the instrument a security belongs to, receipts folded in as in search: the ones
-        a row's "+N" counts. The company's primary (else home, exchange) listing comes first and is marked
-        primary, even when a receipt carries its own primary flag. Empty for a security not in the directory."""
+        """The listings of the instrument a security belongs to: its own lines, then those of each security
+        that folds into it (a receipt), one security after another. The instrument's primary (else home,
+        exchange) listing comes first; it is marked primary only when flagged so, never a receipt's line.
+        Empty for a security not in the directory."""
         with self.lock:
             rows = self.db.execute(
-                "SELECT listing, ticker, mic, venue, currency, kind FROM doc"
+                "SELECT listing, ticker, mic, venue, currency, kind, security <> inst, prim FROM doc"
                 " WHERE inst = (SELECT inst FROM doc WHERE security = ? LIMIT 1) AND crypto = 0"
-                " ORDER BY security <> inst, prim DESC, fus, otc, home DESC, mic, listing", (security,)).fetchall()
-        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind"), row), primary=index == 0)
-                for index, row in enumerate(rows)]
+                " ORDER BY security <> inst, security, prim DESC, fus, otc, home DESC, mic, listing",
+                (security,)).fetchall()
+        # `folded`: a line of a security that folds into the instrument (a receipt), not of the instrument's own.
+        # Only a flagged line of the instrument's own security is its primary; with none, no line claims it.
+        return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind"), row), folded=bool(row[6]),
+                     primary=index == 0 and not row[6] and bool(row[7])) for index, row in enumerate(rows)]
 
     def other_instruments(self, security: str) -> list[dict]:
         """The other instruments of a security's search group (a company's other share classes, preferreds and
@@ -274,101 +268,88 @@ class Directory:
 
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
                suffixes: Callable[[], dict[str, set[str]]] = dict,
-               bindings: Callable[[list[str]], dict[str, list[dict]]] = lambda ids: {}) -> dict[str, Any]:
-        """The SearchResponse (packages/market-data/src/search.ts) for one query: one row per instrument."""
+               priced: Callable[[], Mapping[str, frozenset[str]]] = dict) -> dict[str, Any]:
+        """The SearchResponse (packages/market-data/src/search.ts): core's search groups (ADR 0037). Groups compete
+        by their best line; each carries its relevant listings (at most `SHOWN`) and how many it has in all."""
         allowed = set(kinds) if kinds else None
-        # Issuers compete by their best line; an issuer's instruments follow in `_instrument_order`, at most
-        # PER_ISSUER of them, each shown through its representative listing (the best key among its lines).
-        issuers: dict[str, list] = {}
-        for score, line, key in self.lines(query, prefer, suffixes):
-            # A type filter matches the instrument or the line (a folded receipt for "depositary_receipt").
-            if allowed is not None and line["ikind"] not in allowed and line["kind"] not in allowed:
+        groups: dict[str, list] = {}
+        venues = priced()  # read before taking the directory lock
+        for score, line, key in self.lines(query, prefer, suffixes, venues):
+            if not _allowed(line, allowed):
                 continue
-            issuer = issuers.setdefault(line["grp"], [score, {}])
-            issuer[0] = max(issuer[0], score)
-            issuer[1].setdefault(line["inst"], []).append((score, key, line))
-        shown: list[dict] = []
-        for _score, instruments in sorted(issuers.values(), key=lambda item: -item[0]):
-            ordered = sorted(instruments.values(), key=_instrument_order, reverse=True)[:PER_ISSUER]
-            shown += [max(members, key=lambda entry: entry[1])[2] for members in ordered]
-            if len(shown) >= limit:
-                break
-        shown = shown[:limit]
-        bound = bindings([line["listing"] for line in shown])
-        return {"rows": [{"id": line["listing"], "ticker": line["ticker"], "name": line["name"],
-                          "kind": line["ikind"], "mic": line["mic"], "venue": line["venue"], "country": line["country"],
-                          "listings": self.listings.get(line["inst"], 0),
-                          "bindings": bound.get(line["listing"], [])[:16]} for line in shown],
-                "lookup": []}
+            group = groups.setdefault(line["grp"], [score, {}])
+            group[0] = max(group[0], score)
+            group[1].setdefault(line["security"], []).append((score, key, line))
+        out = []
+        for key, (_score, securities) in sorted(groups.items(), key=lambda item: -item[1][0])[:limit]:
+            # The lead is the best line of the best instrument (receipts folded in), then the main share's
+            # primary listing (only a flagged one) and a line of each other matched security (receipts,
+            # classes): one the query names, else that security's own primary listing.
+            folded: dict[str, list] = {}
+            for members in securities.values():
+                folded.setdefault(members[0][2]["inst"], []).extend(members)
+            lead = max(max(folded.values(), key=lambda m: _order(m, "ikind")), key=lambda entry: entry[1])[2]
+            best = [max(members, key=lambda entry: (entry[1][:2], entry[2]["prim"], entry[1]))[2]
+                    for members in sorted(securities.values(), key=lambda m: _order(m, "kind"), reverse=True)]
+            everything = self._group_lines(key, allowed)
+            primary = everything[:1] if everything and everything[0]["prim"] else []
+            shown: list[dict] = []
+            for line in [lead, *primary, *best]:
+                if len(shown) < SHOWN and all(line["listing"] != item["listing"] for item in shown):
+                    shown.append(line)
+            out.append(_group(key, lead, shown, max(len(everything), len(shown))))
+        return {"groups": out, "lookup": []}
+
+    def group(self, key: str, *, kinds: Iterable[str] | None = None) -> dict[str, Any]:
+        """One search group with all its listings (at most `GROUP_ROWS`), in `_group_lines` order: the SearchResponse
+        a group's "All N listings" reads. No groups for an unknown key."""
+        everything = self._group_lines(key, set(kinds) if kinds else None)
+        if not everything:
+            return {"groups": [], "lookup": []}
+        return {"groups": [_group(key, everything[0], everything[:GROUP_ROWS], len(everything))], "lookup": []}
+
+    def _group_lines(self, key: str, allowed: set[str] | None = None) -> list[dict]:
+        """Every listing of a search group that the type filter allows: the main share's lines first (primary,
+        then exchange, then OTC), then other share classes, receipts, preferreds and notes."""
+        with self.lock:
+            lines = self._fetch("d.grp = ?", (key,))
+        lines.sort(key=lambda line: (-KIND_ORDER.get(line["kind"], 1), -(line["size"] or 0), line["security"],
+                                     -line["prim"], line["fus"], line["otc"], -line["home"], line["mic"] or "",
+                                     line["listing"]))
+        seen: set[str] = set()  # a crypto asset's chain deployments are one listing
+        return [line for line in lines if _allowed(line, allowed)
+                and not (line["listing"] in seen or seen.add(line["listing"]))]
+
+
+def _allowed(line: dict, allowed: set[str] | None) -> bool:
+    """A type filter matches the instrument or the line (a folded receipt for "depositary_receipt")."""
+    return allowed is None or line["ikind"] in allowed or line["kind"] in allowed
+
+
+def _group(key: str, lead: dict, lines: list[dict], listings: int) -> dict:
+    """A SearchGroup: named by its lead line, with these listing rows and its true listing count. Each row names
+    its instrument (`inst`), which the page opens, and its own listing, which the page shows."""
+    return {"id": key, "name": lead["name"], "kind": lead["ikind"], "listings": listings,
+            "rows": [{"id": line["listing"], "instrument": line["inst"], "ticker": line["ticker"],
+                      "name": _own(line["names"]) or line["name"], "kind": line["kind"], "mic": line["mic"],
+                      "venue": line["venue"], "country": line["country"], "currency": line["currency"]}
+                     for line in lines]}
 
 
 def _own(names: str | None) -> str | None:
-    """A line's own security name: the first of its search names."""
+    """A line's own security name (a share class, a receipt): the first of its search names."""
     return (names or "").split("||")[0].split("|")[0].strip() or None
 
 
 KIND_ORDER = {"ordinary": 3, "coin": 3, "depositary_receipt": 2}  # notes, funds and preferreds rank below
 
 
-def _instrument_order(members: list) -> tuple:
-    """Order an issuer's instruments: one whose line the query names (venue, exact ticker) first, then the
-    main share before a receipt before notes, funds and preferreds, then the best line score."""
-    return (max(key[:2] for _score, key, _line in members), KIND_ORDER.get(members[0][2]["ikind"], 1),
+def _order(members: list, kind: str) -> tuple:
+    """Order a group's instruments ("ikind", receipts folded in) or securities ("kind"): one whose line the
+    query names (venue, exact ticker) first, then the main share before a receipt before notes, funds and
+    preferreds, then the best line score."""
+    return (max(key[:2] for _score, key, _line in members), KIND_ORDER.get(members[0][2][kind], 1),
             max(score for score, _key, _line in members))
-
-
-def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None = None, hint: set[str] | None = None,
-           id_rows: bool = False, fuzzy: bool = False) -> list[tuple[float, dict, tuple]]:
-    wanted_core, wanted = core_name(query), norm(query)
-    out = []
-    for line in lines:
-        score = W["exact_id"] if id_rows else 0.0
-        exact_hit = bool(exact and line["tnorm"] == exact)
-        if exact_hit:
-            score += W["exact_ticker"]
-        primary, _, aliases = (line["names"] or "").partition("||")
-        variants = [item.strip() for item in (primary + "|" + aliases).split("|") if item.strip()]
-        cores, plains = [core_name(item) for item in variants], [norm(item) for item in variants]
-        primary_cores = [core_name(item) for item in primary.split("|") if item.strip()]
-        named = bool(wanted_core and wanted_core in primary_cores)  # the query is the name, not only its start
-        if named:
-            score += W["name_exact"]
-        elif any(item.startswith(wanted) for item in plains) or (wanted_core and any(item.startswith(wanted_core) for item in cores)):
-            score += W["name_prefix"]
-        score += W["bm25"] * min(-line.get("bm25", 0.0), 20)
-        score += W["size"] * (line["g"] if line["g"] is not None else W["size_missing"]) + (line["size"] or 0)
-        score += (W["prim"] * line["prim"] + W["home"] * line["home"] + W["otc"] * line["otc"] + W["deriv"] * line["deriv"]
-                  + W["fund"] * line["fund"] + W["dr"] * line["dr"])
-        venue_hit = bool(hint and line["mic"] in hint)
-        if venue_hit:
-            score += W["venue"]
-        if fuzzy:
-            score += W["fuzzy"]
-        # The representative listing of an instrument: lexicographic, not additive. A listing the query names
-        # first (its venue, or its exact ticker unless the query is also the name: "relx", "ing"), then
-        # the preferred region, then the primary market.
-        preferred = (prefer == "EU" and line["country"] in EEA) or (prefer == "US" and line["country"] == "US"
-                                                                     and not line["otc"])
-        key = (int(venue_hit), int(exact_hit and not named), int(preferred), -line["fus"], -line["deriv"], -line["otc"],
-               line["home"], line["prim"], -line["dr"], line["size"] or 0)
-        out.append((score, line, key))
-    return out
-
-
-def _distance(a: str, b: str, limit: int) -> int:
-    """Damerau-Levenshtein distance with an early exit above `limit`."""
-    previous, before = list(range(len(b) + 1)), None
-    for i, left in enumerate(a, 1):
-        current, low = [i] + [0] * len(b), i
-        for j, right in enumerate(b, 1):
-            current[j] = min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (left != right))
-            if before is not None and j > 1 and left == b[j - 2] and a[i - 2] == right:
-                current[j] = min(current[j], before[j - 2] + 1)
-            low = min(low, current[j])
-        if low > limit:
-            return limit + 1
-        before, previous = previous, current
-    return previous[-1]
 
 
 _cache: dict[str, tuple[tuple, Directory]] = {}

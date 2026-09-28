@@ -1,4 +1,4 @@
-"""Build manifest, per-source licence labels, and canary gates."""
+"""Build manifest and reference package, per-source licence labels, and canary gates."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import json
 import platform
 from pathlib import Path
 
+from . import package
 from .model import Snapshot
 
 LICENCES = {
@@ -85,5 +86,7 @@ def _find(snap: Snapshot, canary: dict):
 
 
 def write_manifest(path: Path, manifest: dict) -> None:
+    """The build record, then `package.json`: the snapshot and it form the package core installs."""
     manifest.setdefault("environment", {"python": platform.python_version()})
     path.write_text(json.dumps(manifest, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    package.write(path.parent, manifest)

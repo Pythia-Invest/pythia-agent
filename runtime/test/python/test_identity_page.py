@@ -1,10 +1,10 @@
 """Core identity operations over a hand-written reference: local search, page sections, resolve decisions."""
+import contextlib
 import copy
 import json
 import sqlite3
 import tempfile
 import unittest
-import unittest.mock
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
@@ -82,13 +82,18 @@ BANK = [("common", "ordinary", "BNK"), ("preferred", "preferred", "BNK-PA"), ("n
         ("note2", "other", "BNKO"), ("etn", "fund", "BNKX")]
 
 
+def leads(directory, query, limit=5, **options):
+    """The lead listing of each search group: the line that represents the group's best instrument."""
+    return [group["rows"][0]["id"] for group in directory.search(query, limit=limit, **options)["groups"]]
+
+
 class SearchTest(Fixture):
     def setUp(self):
         super().setUp()
         with sqlite3.connect(self.path) as db:
-            db.executemany("INSERT INTO venues VALUES (?, ?, ?, ?)", [
-                ("XAMS", "XAMS", "Euronext Amsterdam", "NL"), ("XNGS", "XNAS", "Nasdaq", "US"),
-                ("XNYS", "XNYS", "NYSE", "US")])
+            db.executemany("INSERT INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)", [
+                ("XAMS", "XAMS", "Euronext Amsterdam", "NL", "RMKT"), ("XNGS", "XNAS", "Nasdaq", "US", "RMKT"),
+                ("XNYS", "XNYS", "NYSE", "US", "NSPD")])
             # Shell: home line on Amsterdam, a receipt on NYSE whose ticker starts the name; a bank with a
             # preferred and two notes.
             db.executemany("INSERT INTO issuers (id, name, country) VALUES (?, ?, ?)",
@@ -111,13 +116,30 @@ class SearchTest(Fixture):
         self.directory = search.Directory(self.ref)
 
     def rows(self, query, **options):
-        return [row["id"] for row in self.directory.search(query, limit=5, **options)["rows"]]
+        """The lead listing of each company group."""
+        return leads(self.directory, query, **options)
 
-    def test_a_receipt_folds_into_the_company_row_shown_through_its_primary_listing(self):
-        row, = self.directory.search("asml", limit=5)["rows"]
-        self.assertEqual(row, {"id": ASML, "ticker": "ASML", "name": "ASML Holding N.V.", "kind": "ordinary",
-                               "mic": "XAMS", "venue": "Euronext Amsterdam", "country": "NL", "listings": 1,
-                               "bindings": []})
+    def test_a_company_groups_its_listings_receipts_included(self):
+        group, = self.directory.search("asml", limit=5)["groups"]
+        us = "listing:figi:BBG000K6N6G7"
+        self.assertEqual({key: group[key] for key in ("name", "kind", "listings")},
+                         {"name": "ASML Holding N.V.", "kind": "ordinary", "listings": 2})
+        self.assertEqual(group["rows"][0], {"id": ASML, "instrument": "security:isin:NL0010273215", "ticker": "ASML",
+                                            "name": "ASML Holding N.V.", "kind": "ordinary", "mic": "XAMS",
+                                            "venue": "Euronext Amsterdam", "country": "NL", "currency": "EUR"})
+        # The registry shares are a listing row of the same company, with their own type; the page they open is
+        # the share's instrument, which they fold into.
+        self.assertEqual({key: group["rows"][1][key] for key in ("id", "kind", "instrument")},
+                         {"id": us, "kind": "depositary_receipt", "instrument": "security:isin:NL0010273215"})
+
+    def test_another_securitys_row_is_its_own_primary_listing(self):
+        # A registry share line elsewhere would win on the foreign-on-US penalty; the row shows the primary.
+        with sqlite3.connect(self.path) as db:
+            db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                       " VALUES ('listing:asml-nyrs:XMUN', 'security:figi:BBG001SCG0R3', 'XMUN', 'XMUN', 'ASMF', 'USD', 0)")
+        group, = search.Directory(self.ref).search("asml", limit=5)["groups"]
+        self.assertEqual([row["id"] for row in group["rows"]], [ASML, "listing:figi:BBG000K6N6G7"])
+        self.assertEqual(group["listings"], 3)
 
     def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
         us = "listing:figi:BBG000K6N6G7"
@@ -131,14 +153,48 @@ class SearchTest(Fixture):
         self.assertEqual(self.rows("SHEL")[:1], [SHEL])  # a receipt ticker that only starts the name
         self.assertEqual(self.rows("shell")[:1], [SHELL])
 
-    def test_the_page_lists_what_the_row_counts(self):
-        row = self.directory.search("shell", limit=1)["rows"][0]
+    def test_a_group_carries_its_relevant_listings_and_a_group_read_all_of_them(self):
+        group = self.directory.search("shell", limit=1)["groups"][0]
+        # Home line, then the receipt the name starts; the OTC line waits for "all listings".
+        self.assertEqual(([row["id"] for row in group["rows"]], group["listings"]), ([SHELL, SHEL], 3))
+        everything, = self.directory.group(group["id"])["groups"]
+        self.assertEqual(([row["id"] for row in everything["rows"]], everything["listings"]),
+                         ([SHELL, SHELL_OTC, SHEL], 3))
+        self.assertEqual(self.directory.group("issuer:unknown")["groups"], [])
+
+    def test_only_a_flagged_primary_fills_the_primary_slot(self):
+        # No Shell line is flagged primary: the OTC query's group shows that line, not an unflagged "primary".
+        group, = self.directory.search("RYDAF", limit=1)["groups"]
+        self.assertEqual([row["id"] for row in group["rows"]], [SHELL_OTC])
+
+    def test_a_type_filter_narrows_a_groups_listings(self):
+        group, = self.directory.search("shell", limit=1, kinds=["depositary_receipt"])["groups"]
+        self.assertEqual(([row["id"] for row in group["rows"]], group["listings"]), ([SHEL], 1))
+        everything, = self.directory.group(group["id"], kinds=["depositary_receipt"])["groups"]
+        self.assertEqual([row["id"] for row in everything["rows"]], [SHEL])
+
+    def test_the_page_lists_the_instruments_lines(self):
         listings = self.directory.instrument_listings("security:figi:BBG0147BN6H1")
-        # The receipt carries the only primary flag; the company's home line still leads, marked primary.
+        # The receipt carries the only primary flag: the company's home line still leads, but no line is marked
+        # primary, since none of the share's own lines is flagged.
         self.assertEqual([(item["id"], item["kind"], item["primary"]) for item in listings],
-                         [(SHELL, "ordinary", True), (SHELL_OTC, "ordinary", False),
+                         [(SHELL, "ordinary", False), (SHELL_OTC, "ordinary", False),
                           (SHEL, "depositary_receipt", False)])
-        self.assertEqual(row["listings"], len(listings) - 1)
+        # The receipt's line is folded in: the page sets it apart from the share's own lines.
+        self.assertEqual([item["folded"] for item in listings], [False, False, True])
+
+    def test_a_security_page_prices_the_selectors_first_line(self):
+        from test_identity_queue import load_core
+        load_core()
+        from pythia_core_queue_fixture import identity_ops
+        shell = "security:isin:GB00BP6MXD84"
+        self.assertEqual(page.load_subject(self.ref, shell)["listing"]["id"], SHELL_OTC)  # id order alone: OTC
+        default = identity_ops.Identity._default_listing(Path(self.path), page.load_subject(self.ref, shell))
+        self.assertEqual(default, SHELL)
+        self.assertEqual(page.load_subject(self.ref, shell, default)["view"]["subject"]["listing"], SHELL)
+        # A line of another security is not the security's to price through.
+        self.assertEqual(page.load_subject(self.ref, shell, SHEL)["listing"]["id"], SHELL_OTC)
+        self.assertIsNone(identity_ops.Identity._default_listing(Path(self.path), page.load_subject(self.ref, SHELL)))
 
     def test_only_a_fold_relation_folds_a_receipt_and_the_issuer_still_groups_it(self):
         with sqlite3.connect(self.path) as db:
@@ -163,31 +219,111 @@ class SearchTest(Fixture):
         self.assertEqual(self.directory.other_instruments("security:figi:BBG0147BN6H1"), [])
         self.assertEqual(self.directory.other_instruments("security:bank:etn"), [])
 
-    def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):
-        bound = {BTC: [{"plugin": "coinmarketcap", "ref": "1"}]}
-        row = self.directory.search("BTC", limit=5, bindings=lambda ids: bound)["rows"][0]
-        self.assertEqual({key: row[key] for key in ("id", "mic", "country", "listings", "bindings")},
-                         {"id": BTC, "mic": None, "country": None, "listings": 0, "bindings": bound[BTC]})
+    def test_crypto_rows_address_the_asset(self):
+        group = self.directory.search("BTC", limit=5)["groups"][0]
+        row, = group["rows"]  # one asset, however many chain deployments
+        self.assertEqual(group["listings"], 1)
+        self.assertEqual({key: row[key] for key in ("id", "instrument", "mic", "country")},
+                         {"id": BTC, "instrument": BTC, "mic": None, "country": None})
+
+    def lines(self, issuer, country, *lines):
+        """A company with lines (id, operating MIC, primary); the venues are added when missing."""
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country) VALUES (?1, ?1, ?1, ?2)",
+                           [("XETR", "DE"), ("XMUN", "DE"), ("XDUS", "DE"), ("XBUD", "HU")])
+            db.execute("INSERT INTO issuers (id, name, country) VALUES (?, ?, ?)", (f"issuer:lei:{issuer}", issuer, country))
+            db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'x', 'equity', 'ordinary')",
+                       (f"security:{issuer}", f"issuer:lei:{issuer}"))
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?1, ?2, ?3, ?3, ?4, 'EUR', ?5)",
+                           [(listing, f"security:{issuer}", mic, ticker, primary) for listing, mic, ticker, primary in lines])
+        return search.Directory(self.ref)
+
+    def test_a_priceable_line_is_preferred_only_among_non_home_non_primary_lines(self):
+        directory = self.lines("TOYOTA", "JP", ("listing:t:dus", "XDUS", "TOM", 0), ("listing:t:mun", "XMUN", "TOM", 0),
+                               ("listing:t:xetr", "XETR", "TOM", 0))
+        row = lambda query, priced: leads(directory, query, limit=1, priced=lambda: priced)[0]  # noqa: E731
+        self.assertEqual(row("toyota", {}), "listing:t:xetr")  # the fixed venue order: Xetra before the floors
+        self.assertEqual(row("toyota", {"XMUN": frozenset()}), "listing:t:mun")
+        self.assertEqual(row("TOM", {"XMUN": frozenset()}), "listing:t:mun")  # the same pick for any phrasing
+        self.assertEqual(row("toyota", {"XMUN": frozenset({"crypto"})}), "listing:t:xetr")  # not for equities
+
+    def test_a_regulated_listing_outranks_open_market_trading_on_a_bigger_venue(self):
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
+                           [("XETB", "XETR", "Xetra", "DE", "MLTF"), ("XAMS", "XAMS", "Euronext Amsterdam", "NL", "RMKT")])
+            db.execute("UPDATE venues SET category = 'RMKT' WHERE mic = 'XAMS'")
+            db.execute("INSERT INTO issuers (id, name, country) VALUES ('issuer:lei:SHEL2', 'Shelf plc', 'GB')")
+            db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind)"
+                       " VALUES ('security:shelf', 'issuer:lei:SHEL2', 'x', 'equity', 'ordinary')")
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?1, 'security:shelf', ?2, ?3, ?4, 'EUR', 0)",
+                           [("listing:shelf:xetb", "XETB", "XETR", "SHF0"), ("listing:shelf:xams", "XAMS", "XAMS", "SHELF")])
+        directory = search.Directory(self.ref)
+        priced = {"XETR": frozenset(), "XAMS": frozenset()}
+        for query in ("shelf", "SHELF", "SHF0"):
+            row = leads(directory, query, limit=1, priced=lambda: priced)[0]
+            self.assertEqual(row, "listing:shelf:xetb" if query == "SHF0" else "listing:shelf:xams", query)
+
+    def test_a_build_without_venue_categories_ranks_no_line_as_regulated(self):
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("ALTER TABLE venues DROP COLUMN category")
+        self.assertEqual(leads(search.Directory(self.ref), "shell", limit=1), [SHELL])
+
+    def test_the_home_and_primary_market_outrank_a_priceable_line(self):
+        directory = self.lines("OTP", "HU", ("listing:otp:bud", "XBUD", "OTP", 1), ("listing:otp:dus", "XDUS", "OTP", 0))
+        for query in ("OTP", "otp"):
+            self.assertEqual(leads(directory, query, limit=1, priced=lambda: {"XDUS": frozenset()}), ["listing:otp:bud"])
+        self.assertEqual(self.rows("shell", priced=lambda: {"OTCM": frozenset()})[:1], [SHELL])  # an OTC line stays below
+
+    def test_a_foreign_companys_primary_us_line_represents_it(self):
+        directory = self.lines("LINDE", "IE", ("listing:linde:xetr", "XETR", "LIN", 0), ("listing:linde:xnys", "XNYS", "LIN", 1))
+        self.assertEqual(leads(directory, "linde", priced=lambda: {"XETR": frozenset(), "XNYS": frozenset()}),
+                         ["listing:linde:xnys"])
 
     def test_an_issuers_main_share_and_preferred_come_before_its_notes(self):
         # The bank's ETN is a product: its own group, after the company's.
-        self.assertEqual(self.rows("bank corp"), ["listing:bank:common", "listing:bank:preferred", "listing:bank:etn"])
+        company, etn = self.directory.search("bank corp", limit=5)["groups"]
+        self.assertEqual([row["id"] for row in company["rows"]][:2], ["listing:bank:common", "listing:bank:preferred"])
+        self.assertEqual([row["id"] for row in etn["rows"]], ["listing:bank:etn"])
 
 
 class PageTest(Fixture):
+    def test_a_security_page_names_the_listing_it_prices(self):
+        view = page.load_subject(self.ref, "security:isin:NL0010273215")["view"]
+        self.assertEqual((view["subject"]["level"], view["subject"]["listing"]), ("security", ASML))
+
     def test_sections_use_derived_addresses_without_a_call(self):
         _subject, sections = self.compose(ASML, [plugin("gleif", operations={"profile": "pythia_gleif_profile"}),
                                                  plugin("yahoo")])
         quote, profile = sections["quote"], sections["profile"]
+        # Each section says which level its plugin addresses, so a client can resolve issuer data once.
+        self.assertEqual((quote["via"], profile["via"]), ("listing", "issuer"))
         self.assertEqual((quote["plugin"], quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-yahoo", "ready", "ASML.AS", "derived"))
         # Free sources come first in core's default order: Yahoo serves; EODHD, still needing its lookup, is listed.
         _subject, sections = self.compose(ASML, [plugin("eodhd"), plugin("yahoo")])
         self.assertEqual((sections["quote"]["plugin"], sections["quote"]["status"]), ("pythia-yahoo", "ready"))
-        self.assertEqual(sections["quote"]["alternatives"],
-                         [{"plugin": "pythia-eodhd", "label": "EODHD", "status": "resolving"}])
+        [also] = sections["quote"]["alternatives"]
+        self.assertEqual((also["plugin"], also["source"], also["status"]), ("pythia-eodhd", "EODHD", "resolving"))
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
+
+    def test_priced_venues_are_the_mic_tables_of_usable_quote_plugins(self):
+        self.assertEqual(page.priced_venues([plugin("yahoo"), plugin("eodhd"), plugin("gleif")]),
+                         {"XAMS": frozenset({"equity"}), "XNAS": frozenset({"equity"})})
+        self.assertEqual(page.priced_venues([plugin("yahoo", enabled=False)]), {})
+
+    def test_a_nordic_class_ticker_becomes_a_dashed_provider_symbol(self):
+        contract = {**CONTRACTS["yahoo"], "addressing": {**CONTRACTS["yahoo"]["addressing"], "mic_table": {"XSTO": ".ST"}}}
+        yahoo = page.PluginInfo(key="pythia-yahoo", manifest=identity.validate_manifest(contract))
+        subject = {"values": {}, "asset_class": "equity", "listing": {"ticker": "VOLV B", "mic": "XSTO", "operating_mic": "XSTO"}}
+        ref, _rule = page.derive(yahoo, identity.Level.LISTING, subject, lambda provider, caip19: None)
+        self.assertEqual(ref.native_id, "VOLV-B.ST")
+        self.assertEqual(identity.normalize_identifier("ticker_mic", "VOLV B@XSTO"), "VOLV B@XSTO")
+        for bloomberg in ("AAPL US@XNAS", "ASML NA@XAMS", "VOLV  B@XSTO"):
+            with self.assertRaises(ValueError):
+                identity.normalize_identifier("ticker_mic", bloomberg)
 
     def test_an_old_us_id_resolves_through_its_alias(self):
         old, current = "listing:isin:USN070592100:XNAS:USD", "listing:figi:BBG000K6N6G7"  # before subject_key@1
@@ -206,8 +342,10 @@ class PageTest(Fixture):
         quote = sections["quote"]
         self.assertEqual((quote["plugin"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-coingecko", "bitcoin", "confirmed"))
-        self.assertEqual(quote["alternatives"], [{"plugin": "pythia-coinmarketcap", "label": "CoinMarketCap",
-                                                  "status": "needs_configuration"}])
+        self.assertEqual(quote["alternatives"], [])
+        self.assertEqual([(item["plugin"], item["code"]) for item in quote["skipped"]],
+                         [("pythia-yahoo", "not_addressable"), ("pythia-coinmarketcap", "needs_configuration")])
+        self.assertIsNone(quote["notice"])  # a source the investor has not set up is not a warning
 
     def test_market_data_reads_a_subject_through_its_ready_references_in_core_order(self):
         missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)
@@ -286,7 +424,8 @@ class ReviewFixesTest(Fixture):
         sections = {s["section"]: s for s in page.compose(subject, [plugin("eodhd"), plugin("yahoo")], queue=queue,
                                                         stored=lambda *_: None, coins=lambda *_: None)}
         self.assertEqual(sections["quote"]["plugin"], "pythia-yahoo")
-        self.assertEqual(sections["quote"]["alternatives"][0]["status"], "conflict")
+        self.assertEqual(sections["quote"]["skipped"][0]["code"], "conflict")
+        self.assertIsNone(sections["quote"]["notice"])  # EODHD ranks after the free Yahoo: not a passed-over choice
         binding, _item, _ = self.resolve(asml, self.answer("NL0010273215"))
         self.identity.put_binding(binding)
         _subject, sections = self.compose(ASML, [plugin("eodhd")])
@@ -307,15 +446,6 @@ class ReviewFixesTest(Fixture):
         (directory / "identity.sqlite3").write_bytes(b"not a database")
         self.assertEqual(store.IdentityStore(directory).bindings([ASML]), [])
         self.assertEqual(len(list(directory.glob("identity.unreadable-*.sqlite3"))), 1)
-        builds = Path(self.tmp.name) / "builds"
-        builds.mkdir()
-        good = builds / "reference-20260925.sqlite3"
-        good.write_bytes(self.path.read_bytes())
-        with sqlite3.connect(good) as db:
-            db.execute("INSERT INTO release (key, value) VALUES ('schema_version', ?)", (store.REFERENCE_SCHEMA_VERSION,))
-        (builds / "reference-20260926.sqlite3").write_bytes(b"")
-        with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}):
-            self.assertEqual(store.reference_path(Path(self.tmp.name)), good)
 
 
 class MarketPages(Fixture):

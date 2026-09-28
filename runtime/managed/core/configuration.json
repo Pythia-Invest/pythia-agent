@@ -6,6 +6,12 @@
       "kind": "identity",
       "label": "Search listing preference",
       "description": "Which listing a search result shows when a company trades on several venues: primary (its primary market, the default), EU (an EU/EEA venue when it has one) or US (a US exchange when it has one). A typed ticker, symbol or venue still wins."
+    },
+    {
+      "key": "source_order",
+      "kind": "identity",
+      "label": "Source order",
+      "description": "Your preferred data sources, first choice first, separated by commas: plugin ids, provider names or common names, for example 'eodhd, coingecko, edgar'. One list for every kind of data; a source that does not cover an instrument is passed over. Leave empty for Pythia's default order: free sources first, so adding a key never changes the source by itself."
     }
   ]
 }

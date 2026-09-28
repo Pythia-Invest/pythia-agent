@@ -58,3 +58,51 @@ export function pageBlocks(sections: readonly SubjectSection[]): PageBlock[] {
   }
   return blocks.sort((a, b) => ORDER.indexOf(a.type) - ORDER.indexOf(b.type));
 }
+
+/** A block's sections read from one alternative source instead, for this
+ * view only: core's choice is not changed. */
+export function usingSource(
+  block: PageBlock,
+  plugin: string | null,
+): PageBlock {
+  if (!plugin) return block;
+  const sections = block.sections.map((section) => {
+    const alternative = section.alternatives.find(
+      (item) => item.plugin === plugin,
+    );
+    if (!alternative) return section;
+    return {
+      ...section,
+      plugin: alternative.plugin,
+      label: alternative.label,
+      status: alternative.status,
+      binding: alternative.binding ?? null,
+      request: alternative.request ?? null,
+      reason: null,
+      sources: null,
+      notice: null,
+    };
+  });
+  return { ...block, key: `${block.key}:${plugin}`, sections };
+}
+
+/** The newest filings, keeping each authority's newest one in view so a
+ * yearly ESEF report is not pushed out by frequent SEC 6-Ks; still newest
+ * first as core ordered them. */
+export function newestPerAuthority<T extends { authority?: string | null }>(
+  items: readonly T[],
+  count: number,
+): T[] {
+  const pinned = new Set<T>();
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (item.authority && !seen.has(item.authority)) {
+      seen.add(item.authority);
+      pinned.add(item);
+    }
+  }
+  const room = Math.max(0, count - pinned.size);
+  const rest = items.filter((item) => !pinned.has(item)).slice(0, room);
+  const kept = new Set<T>([...pinned, ...rest]);
+  return items.filter((item) => kept.has(item));
+}

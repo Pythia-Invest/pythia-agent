@@ -201,12 +201,10 @@ class Provider(unittest.TestCase):
                 self.assertEqual(result['issues'][0]['limit_origin'], origin)
                 self.assertEqual(result['issues'][0]['retry_after_seconds'], 7)
 
-    def test_evidence_only_exact_common_stock(self):
+    def test_candidates_carry_typed_identifiers_not_evidence(self):
         row = {'symbol': 'SYNTH.US', 'currency': 'USD', 'name': 'Synthetic', 'type': 'Common Stock', 'isin': 'US0378331005'}
         candidate = identity.candidates([row])[0]
-        for evidence in candidate['evidence']:
-            wire.validate('evidence', evidence)
-        self.assertEqual([e['scheme'] for e in candidate['evidence']], ['native'])
+        self.assertNotIn('evidence', candidate)  # core owns identity evidence; no legacy evidence IDs
         # The ISIN is a typed claim, never identity evidence: it may describe an underlying.
         self.assertEqual(candidate['identifiers'], [
             {'scheme': 'isin', 'value': 'US0378331005', 'level': 'security', 'authority': 'source_asserted'}])
@@ -216,11 +214,7 @@ class Provider(unittest.TestCase):
         self.assertEqual(candidate['kind'], 'instrument')
         # Dots inside the returned exchange-local Code are significant.
         self.assertEqual(identity.candidates([{**row, 'symbol': 'SYNTH.B.US'}])[0]['symbol'], 'SYNTH.B')
-        for kind in ('ETF', 'ADR', None):
-            self.assertEqual(identity.candidates([{**row, 'type': kind}])[0]['evidence'], [])
-        self.assertEqual(identity.candidates([row, {**row, 'type': 'ADR'}])[0]['evidence'], [])
         conflict = identity.candidates([row, {**row, 'isin': 'US5949181045'}])[0]
-        self.assertEqual(len(conflict['evidence']), 1)
         self.assertEqual([item['value'] for item in conflict['identifiers']], ['US0378331005', 'US5949181045'])
         self.assertTrue(conflict['identifier_conflict'])
 

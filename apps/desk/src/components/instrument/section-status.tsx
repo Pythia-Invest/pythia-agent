@@ -111,37 +111,100 @@ export function SectionPlaceholder({
   );
 }
 
-/** The chosen plugin and what else could serve the section, beside it. */
-export function SourcesLine({ section }: { section: SubjectSection }) {
-  const alternatives = section.alternatives.map((item) =>
-    item.status === "ready"
-      ? item.label
-      : `${item.label} (${STATUS_LABELS[item.status] ?? item.status.replaceAll("_", " ")})`,
-  );
+/** The quiet source line under a section: the source (or the sources
+ * combined), "Also:" alternatives that read another source once, and an amber
+ * reason only when a source ranked ahead of this one was passed over. */
+export function SourcesLine({
+  section,
+  chosen,
+  onUse,
+}: {
+  section: SubjectSection;
+  /** The source the investor picked for this view, if not core's choice. */
+  chosen?: string | null | undefined;
+  onUse?: ((plugin: string | null) => void) | undefined;
+}) {
+  const sources = section.sources?.length
+    ? section.sources
+    : [
+        {
+          source: section.label,
+          plugin: section.plugin,
+          provider:
+            section.binding?.provider ??
+            // Connector marks are keyed by provider, plugin ids by package.
+            section.plugin.replace(/^pythia-/u, "").replace(/-discovery$/u, ""),
+        },
+      ];
+  const notice = chosen ? null : section.notice;
   return (
-    <p
+    <div
       data-slot="instrument-sources"
-      className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 border-border/60 border-t pt-2 text-[11px] text-foreground-secondary"
+      className="flex min-w-0 flex-col gap-1 border-border/60 border-t pt-2 text-[11px] text-foreground-secondary"
     >
-      <span>Source</span>
-      <ConnectorMark
-        plugin={
-          section.binding?.provider ??
-          // Connector marks are keyed by provider, plugin ids by package.
-          section.plugin.replace(/^pythia-/u, "").replace(/-discovery$/u, "")
-        }
-      />
-      <span className="text-foreground">{section.label}</span>
-      {section.status !== "ready" ? (
-        <span>
-          ·{" "}
-          {STATUS_LABELS[section.status] ?? section.status.replaceAll("_", " ")}
-        </span>
+      <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <span>{sources.length > 1 ? "Sources" : "Source"}</span>
+        {sources.map((item, index) => (
+          <span key={item.plugin} className="inline-flex items-center gap-1">
+            {index ? <span aria-hidden="true">+</span> : null}
+            <ConnectorMark plugin={item.provider} />
+            <span className="text-foreground">{item.source}</span>
+          </span>
+        ))}
+        {section.status !== "ready" ? (
+          <span>
+            ·{" "}
+            {STATUS_LABELS[section.status] ??
+              section.status.replaceAll("_", " ")}
+          </span>
+        ) : null}
+        {chosen && onUse ? (
+          <>
+            <span>· used once instead of core's choice</span>
+            <button
+              type="button"
+              onClick={() => onUse(null)}
+              className="underline underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+            >
+              Back
+            </button>
+          </>
+        ) : null}
+        {section.alternatives.length && !chosen ? (
+          <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1">
+            · Also:
+            {section.alternatives.map((item, index) => {
+              const comma = index < section.alternatives.length - 1 ? "," : "";
+              // Only a ready source can be read once; others say why not.
+              return item.status === "ready" && onUse ? (
+                <button
+                  key={item.plugin}
+                  type="button"
+                  title={`Show ${item.label} here instead, this time only`}
+                  onClick={() => onUse(item.plugin)}
+                  className="underline decoration-dotted underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+                >
+                  {item.label}
+                  {comma}
+                </button>
+              ) : (
+                <span key={item.plugin}>
+                  {item.label} (
+                  {STATUS_LABELS[item.status] ??
+                    item.status.replaceAll("_", " ")}
+                  ){comma}
+                </span>
+              );
+            })}
+          </span>
+        ) : null}
+      </p>
+      {notice ? (
+        <p data-slot="instrument-source-notice" className="text-warning">
+          {sentence(notice.reason)}
+        </p>
       ) : null}
-      {alternatives.length ? (
-        <span className="min-w-0">· Also: {alternatives.join(", ")}</span>
-      ) : null}
-    </p>
+    </div>
   );
 }
 

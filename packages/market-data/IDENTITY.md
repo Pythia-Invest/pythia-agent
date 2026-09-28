@@ -25,8 +25,7 @@ A read names what it wants in one of two ways:
 - An **explicit provider reference** (`provider_ref`). It reads exactly that
   source. Pinned `source` views read the retained series descriptor.
 
-A subject read's series carries the requested subject; `provenance.mapping_revision`
-stays `null`. Scoped source preferences may name an `asset_class` (`equity` or
+A subject read's series carries the requested subject. Scoped source preferences may name an `asset_class` (`equity` or
 `crypto`) taken from core's subject.
 
 This feature cannot save, override or repair an association. Those are core

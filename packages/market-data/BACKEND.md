@@ -13,7 +13,7 @@ Arguments are flat action objects. The backend rejects unrelated fields.
 
 | Action | Required fields | Optional fields / result |
 | --- | --- | --- |
-| `details` | `native_ref` | Source candidates, normalized evidence and issues |
+| `details` | `native_ref` | Source candidates (names, typed identifiers, listed contracts) and issues |
 | `series` | `binding` | `criteria`; returns matching definitions |
 | `read` | `request` | `criteria`, `series`; returns wire `ReadResult` |
 | `read_many` | `reads` | 1–32 `{request, criteria?, series?}` items; ordered `ReadResult` array in `data` |

@@ -46,7 +46,7 @@ def read(request, series, mode, message):
     if mode == 'edgx_latest' and observations:
         result['price_context'] = context(message['rows'][-1])
     result['provenance'] = {'provider': 'eodhd', 'native_ref': series['provider_ref'], 'adapter_version': '1',
-        'retrieved_at': result['retrieved_at'], 'source_time': observed, 'revision_vintage': None, 'mapping_revision': None,
+        'retrieved_at': result['retrieved_at'], 'source_time': observed, 'revision_vintage': None,
         'source_detail': {'namespace': 'eodhd', 'values': {'feed': message['feed'], 'venue': 'XEDX',
             'numeric_basis': 'sdk_parsed_js_number', 'session': str(message['rows'][-1].get('ms', 'unknown')) if message['rows'] else 'unknown'}}}
     issues = []

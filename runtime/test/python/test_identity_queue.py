@@ -11,7 +11,8 @@ from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity
 from test_identity_page import ASML, LEI, Fixture, plugin
-from pythia_identity_fixture import page, queue, store  # noqa: E402
+from test_reference_package import make_package
+from pythia_identity_fixture import page, queue, reference_package, store  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
 
@@ -227,16 +228,11 @@ class TransportTest(QueueFixture):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops, queue_ops
         from pythia_core_queue_fixture.platform import request_context
-        builds = Path(self.tmp.name) / "builds"
-        builds.mkdir()
-        (builds / self.path.name).write_bytes(self.path.read_bytes())
-        with sqlite3.connect(builds / self.path.name) as db:
-            db.execute("INSERT INTO release (key, value) VALUES ('schema_version', ?)", (store.REFERENCE_SCHEMA_VERSION,))
+        reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
         ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
         item = self.ask(answer(), subject=self.bare())
         arguments = {"item_id": item.id, "relation": "same_listing", "chosen_id": ASML}
-        with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}), \
-                unittest.mock.patch.object(identity_ops, "installed", lambda: []):
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: []):
             agent = json.loads(queue_ops.submit_verdict(ops, arguments))["data"]
             waiting_body = json.loads(queue_ops.read_queue(ops, {"subject_id": ASML, "answered": True}))
             waiting, waiting_outcome = waiting_body["data"], waiting_body["outcome"]
@@ -257,13 +253,10 @@ class SubjectOperationTest(QueueFixture):
     def test_a_share_class_is_listed_once_under_other_securities_not_related(self):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops
-        builds = Path(self.tmp.name) / "builds"
-        builds.mkdir()
-        path = builds / self.path.name
+        path = Path(self.tmp.name) / "fixture.sqlite3"
         path.write_bytes(self.path.read_bytes())
         other = "security:isin:NL0000000C07"
         with sqlite3.connect(path) as db:
-            db.execute("INSERT INTO release (key, value) VALUES ('schema_version', ?)", (store.REFERENCE_SCHEMA_VERSION,))
             db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'ASML class C',"
                        " 'equity', 'ordinary')", (other, f"issuer:lei:{LEI}"))
             db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency) VALUES"
@@ -271,13 +264,15 @@ class SubjectOperationTest(QueueFixture):
             db.execute("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
                        " retrieved_at) VALUES ('ev:class', 'share_class_of', ?, 'security:isin:NL0010273215', 'curated',"
                        " 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')", (other,))
+        reference_package.install(make_package(Path(self.tmp.name) / "out", source=path), Path(self.tmp.name) / "core")
         ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
-        with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}), \
-                unittest.mock.patch.object(identity_ops, "installed", lambda: []):
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: []):
             view = json.loads(ops.subject({"subject_id": ASML}))["data"]
+            status = json.loads(ops.reference_status({}))
         ops.store.db.close()
         self.assertEqual([(item["id"], item["ticker"]) for item in view["other_securities"]], [(other, "ASMLC")])
         self.assertEqual(view["related"], [])
+        self.assertEqual((status["outcome"], status["data"]["installed"]["build_id"]), ("ok", "reference-20260926"))
         del core
 
 

@@ -1,14 +1,13 @@
 "use client";
 
 import { KIND_LABELS } from "@pythia/market-data/search-ui";
-import type {
-  RelatedSubject,
-  SubjectListing,
-  SubjectPage,
-} from "@pythia/market-data/subject";
-import { cn, Skeleton } from "@pythia/ui";
+import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
+import { Menu, Skeleton } from "@pythia/ui";
+import { Check, ChevronDown } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { instrumentHref } from "./instrument-href";
+import { listingGroups, listingLabel } from "./listing-groups";
 
 const IDENTIFIERS = [
   ["isin", "ISIN"],
@@ -18,50 +17,28 @@ const IDENTIFIERS = [
   ["caip19", "CAIP-19"],
 ] as const;
 
-/** How a related subject reads from this page: [this is the source, this is the target]. */
-const RELATION_WORDS: Record<string, [string, string]> = {
-  derivative_on: ["Underlying", "Market"],
-  tracks: ["Tracks", "Tracked by"],
-  wraps: ["Wraps", "Wrapped as"],
-  successor_of: ["Successor of", "Succeeded by"],
-};
-/** Kinds this Desk opens as a page; others are named without a link. */
-const PAGE_KINDS = new Set([
-  "issuer",
-  "security",
-  "composite",
-  "listing",
-  "market",
-]);
-
-function relationWords({ type, direction }: RelatedSubject) {
-  const words = RELATION_WORDS[type];
-  return words
-    ? words[direction === "from" ? 1 : 0]
-    : direction === "from"
-      ? "Related"
-      : type
-          .replaceAll("_", " ")
-          .replace(/^./u, (first) => first.toUpperCase());
-}
-
-function currentListing(page: SubjectPage): SubjectListing | undefined {
+/** The listing whose price the composition shows: its own subject when it
+ * is a listing, else the one core priced it through. */
+export function currentListing(page: SubjectPage): SubjectListing | undefined {
+  const priced = page.subject.listing ?? page.subject.id;
   return (
-    page.listings.find((listing) => listing.id === page.subject.id) ??
-    page.listings.find((listing) => listing.primary)
+    page.listings.find((listing) => listing.id === priced) ??
+    page.listings.find((listing) => listing.primary) ??
+    page.listings[0]
   );
 }
 
-export function InstrumentHeader({ page }: { page: SubjectPage }) {
-  const listing = currentListing(page);
+/** The page is the instrument; `subjectId` is its route subject and `page`
+ * its composition, so the kind badge, name and identifiers stay the
+ * instrument's while the selector follows the chosen listing. */
+export function InstrumentHeader({
+  page,
+  subjectId,
+}: {
+  page: SubjectPage;
+  subjectId: string;
+}) {
   const ids = page.identifiers;
-  const ticker = ids.ticker ?? listing?.ticker;
-  const place = [
-    listing?.venue ?? ids.mic ?? listing?.mic,
-    ids.currency ?? listing?.currency,
-  ]
-    .filter(Boolean)
-    .join(" · ");
   const identifiers = IDENTIFIERS.flatMap(([key, label]) => {
     const value =
       ids[key] ??
@@ -81,10 +58,7 @@ export function InstrumentHeader({ page }: { page: SubjectPage }) {
             {KIND_LABELS[page.subject.kind]}
           </span>
         ) : null}
-        {ticker ? (
-          <span className="font-semibold text-foreground">{ticker}</span>
-        ) : null}
-        {place ? <span>{place}</span> : null}
+        <ListingSelector page={page} subjectId={subjectId} />
       </div>
       <h1 className="font-semibold text-2xl text-foreground leading-tight tracking-tight">
         {page.subject.name}
@@ -92,36 +66,7 @@ export function InstrumentHeader({ page }: { page: SubjectPage }) {
       {issuer ? (
         <p className="text-foreground-secondary text-xs">Issued by {issuer}</p>
       ) : null}
-      {page.related.length ? (
-        <ul
-          aria-label="Related"
-          data-slot="instrument-related"
-          className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
-        >
-          {page.related.map((item) => (
-            <li
-              key={`${item.type}:${item.direction}:${item.id}`}
-              className="flex min-w-0 gap-1.5"
-            >
-              <span className="text-foreground-secondary">
-                {relationWords(item)}
-              </span>
-              {PAGE_KINDS.has(item.kind) ? (
-                <Link
-                  href={instrumentHref(item.id)}
-                  className="truncate text-foreground underline-offset-2 outline-ring hover:underline focus-visible:outline-2"
-                >
-                  {item.name ?? item.id}
-                </Link>
-              ) : (
-                <span className="truncate text-foreground">
-                  {item.name ?? item.id}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <DerivativeLinks page={page} />
       {identifiers.length ? (
         <dl
           data-slot="instrument-identifiers"
@@ -140,61 +85,103 @@ export function InstrumentHeader({ page }: { page: SubjectPage }) {
           ))}
         </dl>
       ) : null}
-      {page.queue.length ? (
-        <p className="text-foreground-secondary text-xs">
-          {page.queue.length === 1
-            ? "One identity question is open for the agent to review."
-            : `${page.queue.length} identity questions are open for the agent to review.`}
-        </p>
-      ) : null}
     </header>
   );
 }
 
-/** Listings of the instrument, receipts included; each is its own page. A
- * listing of another kind than the open one says which (Depositary receipt). */
-export function ListingSwitcher({ page }: { page: SubjectPage }) {
-  if (page.listings.length < 2) return null;
+/** `TICKER · Venue · CCY ▾`: which line of the instrument the price and
+ * chart follow. Every line of the instrument as core folds it: the security's
+ * own listings, then its depositary receipts. Choosing one keeps the page
+ * (profile and filings are the issuer's) and records the listing in the URL. */
+function ListingSelector({
+  page,
+  subjectId,
+}: {
+  page: SubjectPage;
+  subjectId: string;
+}) {
+  // The URL's listing is the choice at once; the composition that follows
+  // it may still be loading.
+  const requested = useSearchParams().get("listing");
+  const current =
+    page.listings.find((listing) => listing.id === requested) ??
+    currentListing(page);
+  const ids = page.identifiers;
+  const label = current
+    ? listingLabel(current)
+    : [ids.ticker, ids.mic, ids.currency].filter(Boolean).join(" · ");
+  if (!label) return null;
+  if (page.listings.length < 2)
+    return (
+      <span data-slot="instrument-listing" className="text-foreground">
+        {label}
+      </span>
+    );
   return (
-    <nav
-      aria-label="Listings"
-      data-slot="instrument-listings"
-      className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1"
-    >
-      {page.listings.map((listing) => {
-        const current = listing.id === page.subject.id;
-        return (
-          <Link
-            key={listing.id}
-            href={instrumentHref(listing.id)}
-            aria-current={current ? "page" : undefined}
-            className={cn(
-              "motion-fast flex h-8 flex-none items-center gap-2 rounded-control border px-2.5 text-xs outline-ring transition-colors focus-visible:outline-2",
-              current
-                ? "border-border-strong bg-raised text-foreground"
-                : "border-border text-foreground-secondary hover:bg-interaction-hover hover:text-foreground",
-            )}
-          >
-            <span className="font-semibold text-foreground">
-              {listing.ticker ?? listing.mic ?? "Listing"}
-            </span>
-            <span>
-              {[listing.venue ?? listing.mic, listing.currency]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-            {listing.kind && listing.kind !== page.subject.kind ? (
-              <span>{KIND_LABELS[listing.kind]}</span>
-            ) : null}
-            {listing.primary ? (
-              <span className="text-[10px] text-foreground-secondary uppercase tracking-wide">
-                Primary
-              </span>
-            ) : null}
-          </Link>
-        );
-      })}
-    </nav>
+    <Menu.Root>
+      <Menu.Trigger
+        data-slot="instrument-listing"
+        aria-label={`Listing: ${label}. Choose another listing`}
+        className="motion-fast -mx-1 flex h-7 min-w-0 items-center gap-1 rounded-control px-1.5 font-semibold text-foreground outline-ring transition-colors hover:bg-interaction-hover focus-visible:outline-2 data-popup-open:bg-interaction-active"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className="size-3.5 flex-none stroke-[1.8] text-foreground-secondary"
+        />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner align="start" side="bottom">
+          <Menu.Popup className="max-h-[min(24rem,var(--available-height))] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto">
+            <Menu.RadioGroup
+              value={current?.id}
+              // Native history updates keep Next's search params in sync
+              // without a server round trip or remounting the page.
+              onValueChange={(id: string) =>
+                window.history.replaceState(
+                  null,
+                  "",
+                  instrumentHref(subjectId, id),
+                )
+              }
+            >
+              {listingGroups(page.listings).map((group, _index, groups) => (
+                <Menu.Group key={group.key}>
+                  {groups.length > 1 ? (
+                    <Menu.GroupLabel>{group.label}</Menu.GroupLabel>
+                  ) : null}
+                  {group.listings.map((listing) => (
+                    <Menu.RadioItem
+                      key={listing.id}
+                      value={listing.id}
+                      closeOnClick
+                      data-slot="instrument-listing-option"
+                      className="min-h-9 gap-3 py-1.5 text-xs"
+                    >
+                      <Menu.RadioItemIndicator>
+                        <Check aria-hidden="true" />
+                      </Menu.RadioItemIndicator>
+                      <span className="w-16 flex-none truncate font-semibold text-body">
+                        {listing.ticker ?? listing.mic}
+                      </span>
+                      {/* The venue truncates; the currency, which tells a
+                          receipt's lines apart, stays. The group names the
+                          kind. */}
+                      <span className="min-w-0 flex-1 truncate text-foreground-secondary">
+                        {listing.venue ?? listing.mic}
+                      </span>
+                      <span className="flex-none text-foreground-secondary">
+                        {listing.currency}
+                      </span>
+                    </Menu.RadioItem>
+                  ))}
+                </Menu.Group>
+              ))}
+            </Menu.RadioGroup>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
@@ -217,5 +204,36 @@ export function InstrumentPageSkeleton() {
         <Skeleton shape="block" className="h-48" />
       </div>
     </div>
+  );
+}
+
+/** A perp's underlying, and on the underlying's page its perps (`derivative_on`, related and never folded):
+ * each is its own subject and page. */
+function DerivativeLinks({ page }: { page: SubjectPage }) {
+  const links = page.related.filter((item) => item.type === "derivative_on");
+  if (!links.length) return null;
+  return (
+    <ul
+      aria-label="Related markets"
+      data-slot="instrument-related"
+      className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
+    >
+      {links.map((item) => (
+        <li
+          key={`${item.direction}:${item.id}`}
+          className="flex min-w-0 gap-1.5"
+        >
+          <span className="text-foreground-secondary">
+            {item.direction === "to" ? "Underlying" : "Market"}
+          </span>
+          <Link
+            href={instrumentHref(item.id)}
+            className="truncate text-foreground underline-offset-2 outline-ring hover:underline focus-visible:outline-2"
+          >
+            {item.name ?? item.id}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -5,8 +5,6 @@ The subject level is stated only where the scheme fixes it; EODHD does not
 qualify FIGI grain, so that level stays unknown (None).
 """
 import re
-from datetime import datetime, timezone
-from uuid import uuid4
 
 
 def isin(value):
@@ -67,16 +65,6 @@ def candidates(rows):
     result = []
     for (symbol, currency), records in groups.items():
         ref = native(symbol, currency)
-        evidence = []
-        if {row['type'] for row in records} == {'Common Stock'}:
-            # Search ISIN can describe underlying exposure (for example a CEDEAR).
-            # Common Stock is too broad to qualify it as this instrument's ISIN.
-            values = [('native', symbol)]
-            for scheme, value in values:
-                evidence.append({'schema_version': 1, 'id': 'evidence:' + str(uuid4()), 'provider_ref': ref,
-                    'scope': 'instrument', 'scheme': scheme, 'value': value, 'qualifiers': {}, 'adapter_version': '2',
-                    'authority': 'source_asserted', 'observed_at': None, 'retrieved_at': datetime.now(timezone.utc).isoformat(),
-                    'effective': {'start': None, 'end': None}})
         provider_type = records[0]['type'] if len({row['type'] for row in records}) == 1 else None
         # Returned types are display facts, not evidence of identity equivalence
         # or supported price reads. Never classify from the candidate's name.
@@ -94,5 +82,5 @@ def candidates(rows):
         result.append({'provider_ref': ref, 'name': records[0]['name'], 'symbol': symbol.rsplit('.', 1)[0],
                        'kind': 'instrument', 'category': category, 'venue': records[0].get('actual_venue') or symbol.rsplit('.', 1)[1],
                        'metadata': {'product_type': provider_type}, 'provider_type': provider_type,
-                       'identifiers': identifiers, 'evidence': evidence, 'identifier_conflict': len(identifiers) > 1})
+                       'identifiers': identifiers, 'identifier_conflict': len(identifiers) > 1})
     return result
