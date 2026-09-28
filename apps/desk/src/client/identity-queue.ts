@@ -10,10 +10,16 @@ import { useDeskApi } from "./providers";
  * open identity questions and `identity-verdict` answers one. Core owns both
  * shapes and decides who answers from the transport: a Desk call is the
  * user's own attestation, still refused when identifier evidence contradicts
- * it. Answering is optional; the agent and rules work the same queue.
+ * it. Answering is optional; rules, and the agent when asked, work the same
+ * queue.
  */
 
 const text = z.string().min(1);
+
+const optionalText = z
+  .string()
+  .nullish()
+  .transform((value) => value || null);
 
 export const identityQuestionSchema = z.object({
   id: text,
@@ -21,6 +27,21 @@ export const identityQuestionSchema = z.object({
   reason: text,
   label: text,
   question: text,
+  /** What the provider's record says, shown before anyone answers. */
+  record: z
+    .object({
+      native_ref: z.object({ native_id: text }).nullish(),
+      name: optionalText,
+      ticker: optionalText,
+      mic: optionalText,
+      currency: optionalText,
+    })
+    .nullish(),
+  candidates: z.array(z.object({ id: text, name: optionalText })).default([]),
+  /** Set when only the agent answered: provisional, the user may override. */
+  agent_answer: z
+    .object({ relation: text, chosen_id: z.string().nullable() })
+    .nullish(),
   candidate_ids: z.array(text).default([]),
   answers: z
     .array(z.object({ relation: text, chosen_id: z.string().nullable() }))
@@ -48,8 +69,8 @@ function questionsKey(subjectId: string) {
 }
 
 /** Open identity questions about one subject and its listing, security and
- * issuer; read only while the page reports any. */
-export function useIdentityQuestions(subjectId: string, enabled: boolean) {
+ * issuer, with those only the agent answered. */
+export function useIdentityQuestions(subjectId: string) {
   const api = useDeskApi();
   return useQuery({
     queryKey: questionsKey(subjectId),
@@ -61,7 +82,6 @@ export function useIdentityQuestions(subjectId: string, enabled: boolean) {
           arguments: { subject_id: subjectId },
         }),
       ).data?.items ?? [],
-    enabled,
     ...busyRetry,
   });
 }

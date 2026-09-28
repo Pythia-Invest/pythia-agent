@@ -8,26 +8,32 @@ import {
   useIdentityQuestions,
 } from "@/client/identity-queue";
 
-/** Open identity questions about this instrument, collapsed by default. The
- * agent and rules answer them; the user may answer one, never has to. A
- * section in conflict meanwhile shows its reason, or yields to a ready source. */
+const AGENT_ANSWERS: Record<string, string> = {
+  unrelated: "not this instrument",
+  none: "none of the candidates",
+};
+
+/** Identity questions about this instrument, collapsed by default: open ones
+ * and those only the agent answered (provisional). The user may answer one,
+ * never has to. A section in conflict meanwhile shows its reason, or yields
+ * to a ready source. */
 export function IdentityIssues({ page }: { page: SubjectPage }) {
   const subjectId = page.subject.id;
-  const questions = useIdentityQuestions(subjectId, page.queue.length > 0);
+  const questions = useIdentityQuestions(subjectId);
   const answer = useAnswerQuestion(subjectId);
-  if (!page.queue.length) return null;
   const items = questions.data ?? [];
+  if (!items.length && !questions.isError) return null;
   return (
     <details
       data-slot="identity-issues"
       className="rounded-container border border-border/60 px-4 py-3 text-xs"
     >
       <summary className="cursor-pointer font-semibold text-body text-foreground">
-        Identity questions ({page.queue.length})
+        Identity questions ({items.length})
       </summary>
       <p className="mt-1 text-foreground-secondary">
-        Sources that disagree with the reference data, or that could not be
-        placed. The agent reviews them; you can also answer one yourself.
+        Source records that disagree with the reference data, or that could not
+        be placed. You can answer one yourself, or ask the agent to review them.
       </p>
       {questions.isError ? (
         <p role="alert" className="mt-2 text-error">
@@ -68,9 +74,45 @@ function Question({
     (entry) => entry.chosen_id && entry.relation.startsWith("same_"),
   );
   const other = item.answers.find((entry) => entry.relation === "unrelated");
+  const record = item.record;
+  const said = record
+    ? [
+        record.native_ref?.native_id,
+        record.name,
+        record.ticker,
+        record.mic,
+        record.currency,
+      ].filter(Boolean)
+    : [];
+  const candidate = item.candidates.find(
+    (entry) => entry.id === same?.chosen_id,
+  );
+  const agent = item.agent_answer;
   return (
     <li className="flex flex-col gap-1.5 border-border/60 border-t pt-2">
       <p className="text-foreground">{item.question}</p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-foreground-secondary">
+        <dt>{item.label} record</dt>
+        <dd className="min-w-0 text-foreground [overflow-wrap:anywhere]">
+          {said.length ? said.join(" · ") : "No details"}
+        </dd>
+        {candidate ? (
+          <>
+            <dt>Candidate</dt>
+            <dd className="min-w-0 text-foreground [overflow-wrap:anywhere]">
+              {candidate.name ?? candidate.id}
+            </dd>
+          </>
+        ) : null}
+        {agent ? (
+          <>
+            <dt>Agent</dt>
+            <dd className="min-w-0 text-foreground">
+              {AGENT_ANSWERS[agent.relation] ?? "same instrument"} (provisional)
+            </dd>
+          </>
+        ) : null}
+      </dl>
       {same || other ? (
         <div className="flex flex-wrap gap-2">
           {same ? (

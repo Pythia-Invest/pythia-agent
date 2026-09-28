@@ -41,12 +41,14 @@ class Refused(ValueError):
     """The verdict cannot be taken: the item is not open, or the answer does not fit it."""
 
 
-def summary(item: dict) -> dict:
-    """An open item as the agent and Desk list it."""
+def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
+    """An item as the agent and Desk list it: what the provider's record says and which subjects it may be,
+    so an answer never rests on the question text alone."""
+    record = _raw(store, item)
     plugin = item["plugins"][0]
-    ref = item["provider_ref"]
+    native = item["provider_ref"]
     reason = "bound" if item["reason"] == "binding" and len(item["subject_ids"]) > 1 else item["reason"]
-    question = QUESTIONS[reason].format(label=LABELS.get(plugin, plugin), ref=ref["native_id"] if ref else "")
+    question = QUESTIONS[reason].format(label=LABELS.get(plugin, plugin), ref=native["native_id"] if native else "")
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
                                   if level is subject_level(candidate)), "unrelated")]
@@ -54,7 +56,8 @@ def summary(item: dict) -> dict:
                                        "candidate_ids", "opened_at", "updated_at")} | {
         # A question only the agent answered: its answer routes provisionally and the user may still override it.
         "agent_answer": item["settled"] if item["state"] != "open" and item["settled"] else None,
-        "label": LABELS.get(plugin, plugin), "question": question,
+        "label": LABELS.get(plugin, plugin), "question": question, "record": _record(record) if record else None,
+        "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
 
@@ -74,14 +77,11 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
     item = store.queue_item(item_id)
     if item is None:
         return None
-    record = store.claim(item["plugins"][0], ProviderRef(**item["provider_ref"])) if item["provider_ref"] else None
     cited = item["evidence_ids"]
     rows = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({','.join('?' * len(cited))})", cited).fetchall() \
         if cited else []
-    view = {**summary(item), "scheme": item["scheme"], "values": item["values"],
-            "record": _record(record) if record else None,
+    view = {**summary(store, ref, item), "scheme": item["scheme"], "values": item["values"],
             "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
-            "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
             "evidence": [{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "authority", "source",
                                                     "retrieved_at")} for row in rows],
             "history": [{key: entry[key] for key in ("resolver", "authority", "relation", "chosen_id", "confidence",

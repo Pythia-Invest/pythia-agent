@@ -198,10 +198,12 @@ because core stores the resulting binding), quote and chart through the
 market-data `instrument-panel` widget bound to the section's provider reference,
 and profile and filings through the section's own read. Sections that cannot be
 served show why and which configuration key would change that.
-When core reports open identity questions for the subject, a collapsed
-"Identity questions" note lists them (`identity-queue`) and lets the user
-answer one (`identity-verdict`, recorded as the user's attestation); the agent
-and rules work the same queue, so answering is never required.
+A collapsed "Identity questions (N)" note lists the subject's open identity
+questions and those only the agent answered (`identity-queue`), each with what
+the provider's record says and the candidate. The user may answer one
+(`identity-verdict`, recorded as the user's attestation, which overrides a
+provisional agent answer). Rules, and the agent when asked, work the same queue,
+so answering is never required.
 A separate toolbar inside the Workspace page, beneath the shell header, owns
 Back/Forward, Up, Workspace home, the current folder path and a folder-scoped
 search field.

@@ -189,12 +189,13 @@ class Identity:
                     subject_ids=queue.family(ref, str(subject)) if subject else None, kind=arguments.get("kind"),
                     provisional=True,
                     plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)} if plugin else None)
+                data = {"items": [queue.summary(self.store, ref, item) for item in items[:max(1, min(50, limit))]],
+                        "total": len(items)}
             finally:
                 ref.close()
         except (sqlite3.Error, OSError):
             logger.warning("identity queue unavailable", exc_info=True)
             return _envelope("empty", None, issue="The identity store could not be read.")
-        data = {"items": [queue.summary(item) for item in items[:max(1, min(50, limit))]], "total": len(items)}
         return _envelope("ok" if items else "empty", data)
 
     def verdict(self, arguments: dict, **_context: Any) -> str:

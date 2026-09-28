@@ -96,7 +96,7 @@ class VerdictTest(QueueFixture):
             self.submit(item, "agent")
 
         # The agent's answer is provisional: the question stays listed with it, and the user overrides it.
-        [listed] = [queue.summary(entry) for entry in self.identity.queue_items(subject_ids=[ASML], provisional=True)]
+        [listed] = [queue.summary(self.identity, self.ref, entry) for entry in self.identity.queue_items(subject_ids=[ASML], provisional=True)]
         self.assertEqual(listed["agent_answer"], {"by": "agent", "relation": "same_listing", "chosen_id": ASML})
         user = self.submit(item, "user", relation="unrelated", user_turn="desk:identity-verdict:test")
         self.assertEqual((user["outcome"], user["state"]), ("no_match", "dismissed"))
