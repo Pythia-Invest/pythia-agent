@@ -284,6 +284,22 @@ class AllVenuesTest(unittest.TestCase):
                        if l.security_id == f"isin:{ETF_ISIN}" and l.source == "openfigi")
         self.assertEqual(lines, [("CSP1", "XLON", "GBP", False), ("CSPX", "XLON", "USD", False), ("CSSPX", "XSWX", "USD", False)])
 
+    def test_a_swiss_etfs_six_line_is_its_home_primary(self):
+        swiss = "CH0017142719"
+        admissions = {}
+        records = [firds_record(swiss, "XGAT", NN_LEI, cfi="CEOGES", name="UBS SMI ETF", relevant="TWEM"),
+                   firds_record(swiss, "TWEM", NN_LEI, cfi="CEOGES", name="UBS SMI ETF", relevant="TWEM")]
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        answers = {("ID_ISIN", swiss, None): [figi_row("SMICHA", "SW", "BBGSMISW0001", "BBGSMISC0001")],
+                   ("ID_ISIN", swiss, "SW", "CHF"): [figi_row("SMICHA", "SW", "BBGSMISW0001", "BBGSMISC0001")],
+                   ("ID_ISIN", swiss, "SW", "USD"): [figi_row("SMIUSD", "SW", "BBGSMISW0002", "BBGSMISC0001")]}
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [],
+                                     set()), gleif_fetch, FakeOpenFigi(answers))
+        primaries = [(l.ticker, l.operating_mic, l.currency) for l in snap.listings.values()
+                     if l.security_id == f"isin:{swiss}" and l.is_primary]
+        self.assertEqual(primaries, [("SMICHA", "XSWX", "CHF")])
+        self.assertEqual(snap.securities[f"isin:{swiss}"].primary_rule, "etf_home_line")
+
     def test_eu_and_us_etf_canaries_apply_to_the_default_scope(self):
         names = {c["name"] for c in manifest.default_canaries(Scope())}
         self.assertTrue({"SAP on Xetra", "LVMH on Euronext Paris", "Nokia on Nasdaq Helsinki", "Direxion Daily TSLA Bull 2X ETF"} <= names)
