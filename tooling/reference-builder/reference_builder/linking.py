@@ -265,12 +265,27 @@ RECEIPT_RULE = "receipt_issuer_share@1"
 
 
 def link_receipts(snap: Snapshot) -> None:
-    """A receipt no source links to its underlying (SEC ADRs and New York registry shares; OpenFIGI names no
-    underlying) is `depositary_receipt_of` its issuer's one active ordinary share. Several candidates narrow to the
-    ones FIRDS lists (an ISIN); an issuer with a preferred share, or still several candidates, gets no edge: a
-    receipt of a preferred or of another class is never guessed."""
+    """Every receipt's `depositary_receipt_of` names a security of this build, or the receipt has none.
+
+    A FIRDS-stated underlying ISIN is kept when a security of the build carries it; FIRDS often names a
+    superseded ISIN (GSK, ArcelorMittal) or one outside the scope, so such an edge is dropped and counted. A
+    receipt no source links (SEC ADRs and New York registry shares; OpenFIGI names no underlying) is linked to its
+    issuer's one active ordinary share. Several candidates narrow to the ones FIRDS lists (an ISIN); an issuer with
+    a preferred share, or still several candidates, gets no edge: a receipt of a preferred or of another class is
+    never guessed. Every drop and narrowing is counted in the build report."""
     audit = snap.audit.setdefault("relations", Counter())
-    stated = {item.from_id for item in snap.relationships if item.relation == "depositary_receipt_of"}
+    by_isin = {security.isin: key for key, security in snap.securities.items() if security.isin}
+    kept = []
+    for item in snap.relationships:
+        if item.relation == "depositary_receipt_of" and item.to_id not in snap.securities:
+            target = by_isin.get(item.to_id.split(":", 1)[1])
+            if target is None:
+                audit["firds_underlying_outside_build"] += 1
+                continue
+            item = Relationship(item.from_id, item.relation, target, item.source, item.rule_id)
+        kept.append(item)
+    snap.relationships[:] = kept
+    stated = {item.from_id for item in kept if item.relation == "depositary_receipt_of"}
     by_issuer: dict[str, list[Security]] = defaultdict(list)
     for security in snap.securities.values():
         if security.issuer_id:
@@ -280,10 +295,12 @@ def link_receipts(snap: Snapshot) -> None:
             continue
         siblings = by_issuer[security.issuer_id]
         shares = [item for item in siblings if item.kind == "share" and item.activity == "active"]
-        shares = shares if len(shares) <= 1 else [item for item in shares if item.isin]
+        narrowed = len(shares) > 1
+        shares = [item for item in shares if item.isin] if narrowed else shares
         if len(shares) != 1 or any(item.kind == "preferred" for item in siblings):
             audit["receipt_without_underlying"] += 1
             continue
         snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", shares[0].security_id,
                                                "pythia", RECEIPT_RULE))
         audit[RECEIPT_RULE] += 1
+        audit["receipt_issuer_share_narrowed_to_firds"] += narrowed  # a guess worth seeing in the report

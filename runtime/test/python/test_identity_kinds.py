@@ -25,6 +25,9 @@ class KindTest(Fixture):
             identity.subject_kind("Index:x:y")
         with self.assertRaises(ValueError):
             identity.provisional_id("venue", "eodhd", "catalogue", "X")
+        for unkeyed in ("security:bogus:x", "index:isin:NL0010273215"):  # open kinds, but registered key schemes
+            with self.subTest(unkeyed=unkeyed), self.assertRaises(identity.IdentifierError):
+                identity.registered_kind(unkeyed)
         self.assertIsNone(page.load_subject(self.ref, INDEX))
 
     def test_a_provider_index_record_is_never_provisionally_a_security(self):
@@ -38,6 +41,7 @@ class KindTest(Fixture):
         self.assertEqual(item.subject_ids, (INDEX,))
         with self.assertRaises(ValueError):
             model.Security(id="security:isin:US78378X1072", name="S&P 500", asset_class="equity", kind="index")
+        self.assertTrue(identity.guarded("same_listing", "index", "ordinary"))  # no verdict binds it to an instrument
 
     def test_relation_kinds_and_grouping_live_in_the_vocabulary(self):
         self.assertEqual(relation("tracks", "security:isin:IE00B5BMR087", "index:pythia:sp500").type, "tracks")
@@ -53,8 +57,16 @@ class KindTest(Fixture):
                  ("depositary_receipt_of", "security:gdr", "security:adr"), ("share_class_of", "security:c", "security:a"),
                  ("wraps", "security:wbtc", "security:btc")]
         expected = {"security:adr": "security:a", "security:gdr": "security:a"}
-        self.assertEqual(identity.fold_roots(edges), expected)
-        self.assertEqual(identity.fold_roots(reversed(edges)), expected)
+        self.assertEqual(identity.fold_roots(edges), (expected, []))
+        self.assertEqual(identity.fold_roots(reversed(edges)), (expected, []))
+
+    def test_odd_fold_data_is_reported_not_resolved(self):
+        D = "depositary_receipt_of"
+        roots, odd = identity.fold_roots([(D, "security:adr", "security:x"), (D, "security:adr", "security:y"),
+                                          (D, "security:a", "security:b"), (D, "security:b", "security:a")])
+        self.assertEqual(roots, {"security:adr": "security:x"})
+        self.assertEqual(sorted(odd), [("cycle", "security:a"), ("cycle", "security:b"),
+                                       ("second_target", "security:adr")])
 
     def test_the_page_lists_related_subjects_but_folds_none_of_them(self):
         with sqlite3.connect(self.path) as db:
@@ -66,17 +78,6 @@ class KindTest(Fixture):
         view = page.load_subject(self.ref, ASML)["view"]
         self.assertEqual(view["related"], [{"id": "index:pythia:aex", "type": "tracks", "direction": "to", "kind": "index",
                                             "name": None}])
-
-
-    def test_the_page_names_the_companys_other_securities_but_not_what_folds_into_it(self):
-        with sqlite3.connect(self.path) as db:
-            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, ?, 'equity', ?)",
-                           [("security:isin:NL0000000P01", "issuer:lei:724500Y6DUVHQD6OXN27", "ASML Pref", "preferred"),
-                            ("security:isin:NL0000000N01", "issuer:lei:724500Y6DUVHQD6OXN27", "ASML Note", "fund")])
-        others = [{"id": "security:isin:NL0000000P01", "name": "ASML Pref", "kind": "preferred"}]
-        self.assertEqual(page.load_subject(self.ref, ASML)["view"]["other_securities"], others)
-        receipt = page.load_subject(self.ref, "listing:isin:USN070592100:XNAS:USD")["view"]
-        self.assertEqual(receipt["other_securities"], others)  # the receipt's page is ASML's instrument too
 
 
 class StoreKindTest(Fixture):
@@ -99,4 +100,17 @@ class StoreKindTest(Fixture):
         with self.assertRaises(ValueError):  # the store keeps registered kinds only
             migrated.put_binding(model.Binding(provider_ref=ref, subject_id="venue:pythia:x", status="candidate",
                                                authority="source_asserted", evidence_ids=(), plugin="eodhd"))
-        self.assertEqual(sorted(path.name for path in directory.iterdir()), ["identity.sqlite3"])
+        names = sorted(path.name for path in directory.iterdir())
+        self.assertEqual((len(names), names[1]), (2, "identity.sqlite3"))
+        self.assertRegex(names[0], r"^identity\.before-v4-[0-9a-f]{8}\.sqlite3$")  # the v3 file, kept
+
+    def test_a_failed_migration_leaves_no_staging_file_and_keeps_the_store_aside(self):
+        directory = Path(self.tmp.name) / "broken"
+        directory.mkdir()
+        with sqlite3.connect(directory / "identity.sqlite3") as db:  # a v3 store missing its tables
+            db.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            db.execute("INSERT INTO metadata VALUES ('schema_version', '3')")
+        fresh = store.IdentityStore(directory)
+        self.assertEqual(fresh.metadata("schema_version"), store.SCHEMA_VERSION)
+        self.assertFalse(any(path.suffix == ".part" for path in directory.iterdir()))
+        self.assertTrue(fresh.set_aside.startswith("identity.v3-"))

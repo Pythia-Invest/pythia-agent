@@ -10,6 +10,7 @@ representative listing. Instruments group per company by issuer.
 """
 from __future__ import annotations
 
+import logging
 import math
 import re
 import sqlite3
@@ -20,6 +21,7 @@ from typing import Any, Callable, Iterable
 from .model import fold_roots
 from .vocabulary import ISSUER_INTERESTS
 
+logger = logging.getLogger(__name__)
 RANKING_VERSION = "ranking@1"
 W = dict(exact_ticker=6.0, exact_id=20.0, name_exact=3.0, name_prefix=1.5, bm25=0.15, size=6.0, size_missing=0.3,
          prim=1.0, home=1.2, otc=-2.5, deriv=-3.0, fund=-0.3, dr=-0.3, venue=4.0, fuzzy=-0.5)
@@ -116,7 +118,9 @@ class Directory:
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
                    " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
         names = many("SELECT subject_id, name FROM names")
-        units = fold_roots(ref.execute("SELECT type, from_id, to_id FROM relations"))
+        units, odd = fold_roots(ref.execute("SELECT type, from_id, to_id FROM relations"))
+        if odd:  # the builder's report and the reference audit list them
+            logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
         rows = ref.execute(
             "SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.currency, l.chain,"
             " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank FROM listings l"
@@ -149,7 +153,7 @@ class Directory:
                 venue_name, venue_country if not crypto else None, currency, int(bool(primary)), int(home),
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
                 int(bool(issuer_country and issuer_country != "US" and op in (*US_LISTED, "OTCM"))), logrank(rank),
-                security, kind)), line=listing))
+                security, kind))))
         # Relations with `fold` behaviour (vocabulary.RELATIONS) make one unit of the same economic thing: a receipt
         # folds into its share (`inst`, the page's listings). A unit that is an interest in its issuer
         # (vocabulary.ISSUER_INTERESTS) groups under the issuer's company (`grp`, search's company groups); a fund,
@@ -157,7 +161,7 @@ class Directory:
         kinds = {doc["security"]: doc["kind"] for doc in docs}
         issuers_of = {doc["security"]: doc["issuer"] for doc in docs}
         for doc in docs:
-            unit = units.get(doc.pop("line")) or units.get(doc["security"])
+            unit = units.get(doc["security"])
             unit = unit if unit in kinds else doc["security"]  # a unit outside the directory folds nothing in
             company = issuers_of[unit] if kinds[unit] in ISSUER_INTERESTS else None
             doc.update(inst=unit, ikind=kinds[unit], grp=company or unit)
@@ -250,6 +254,24 @@ class Directory:
         return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind"), row), primary=index == 0)
                 for index, row in enumerate(rows)]
 
+    def other_instruments(self, security: str) -> list[dict]:
+        """The other instruments of a security's search group (a company's other share classes, preferreds and
+        warrants), each with its own name and its representative line: the primary, else an exchange line. Empty
+        for a fund, ETF, note or crypto asset, which is its own group."""
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT inst, names, ikind, listing, ticker, mic, venue, currency, size FROM doc d JOIN"
+                " (SELECT grp, inst AS own FROM doc WHERE security = ? LIMIT 1) me ON d.grp = me.grp AND d.inst <> me.own"
+                " WHERE d.crypto = 0 ORDER BY d.inst, d.security <> d.inst, -d.prim, d.otc, -d.home, d.mic, d.listing",
+                (security,)).fetchall()
+        seen: dict[str, tuple] = {}
+        for row in rows:
+            seen.setdefault(row[0], row)  # the instrument's first line: its own primary, else exchange, line
+        ordered = sorted(seen.values(), key=lambda row: (-(row[8] or 0), row[0]))
+        return [{"id": inst, "name": _own(names), "kind": kind, "listing": listing, "ticker": ticker, "mic": mic,
+                 "venue": venue, "currency": currency}
+                for inst, names, kind, listing, ticker, mic, venue, currency, _size in ordered]
+
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
                suffixes: Callable[[], dict[str, set[str]]] = dict,
                bindings: Callable[[list[str]], dict[str, list[dict]]] = lambda ids: {}) -> dict[str, Any]:
@@ -278,6 +300,11 @@ class Directory:
                           "listings": self.listings.get(line["inst"], 0),
                           "bindings": bound.get(line["listing"], [])[:16]} for line in shown],
                 "lookup": []}
+
+
+def _own(names: str | None) -> str | None:
+    """A line's own security name: the first of its search names."""
+    return (names or "").split("||")[0].split("|")[0].strip() or None
 
 
 KIND_ORDER = {"ordinary": 3, "coin": 3, "depositary_receipt": 2}  # notes, funds and preferreds rank below

@@ -39,6 +39,17 @@ class Kind(StrEnum):
 
 
 INSTRUMENT_KINDS = frozenset(Level)
+# The key schemes (an ID's second segment) each kind may use: `subject_id` derives the instrument keys; a kind
+# outside the hierarchy takes a Pythia-curated (`pythia`) or provisional key until its open schemes are registered
+# with its first data.
+_OTHER_KEYS = frozenset({"pythia", "provisional"})
+KEY_SCHEMES: dict[Kind, frozenset[str]] = {
+    Kind.ISSUER: frozenset({"lei", "cik", "provisional"}),
+    Kind.SECURITY: frozenset({"isin", "figi", "caip19", "provisional"}),
+    Kind.COMPOSITE: frozenset({"isin", "figi", "provisional"}),
+    Kind.LISTING: frozenset({"isin", "figi", "caip19", "provisional"}),
+    **{kind: _OTHER_KEYS for kind in Kind if kind not in INSTRUMENT_KINDS},
+}
 
 
 class Scheme(StrEnum):
@@ -170,10 +181,21 @@ def subject_kind(subject_id: str) -> str:
     return subject_id.split(":", 1)[0]
 
 
+def registered_kind(subject_id: str) -> Kind:
+    """The kind of a subject ID whose kind and key scheme are both registered (KEY_SCHEMES); raises otherwise.
+    Writers and the instrument code check this; readers only need `subject_kind`."""
+    kind, scheme = subject_kind(subject_id), subject_id.split(":", 2)[1]
+    if kind not in KEY_SCHEMES:
+        raise IdentifierError(f"subject id: {kind} is not a registered kind")
+    if scheme not in KEY_SCHEMES[Kind(kind)]:
+        raise IdentifierError(f"subject id: a {kind} is not keyed by {scheme}")
+    return Kind(kind)
+
+
 def subject_level(subject_id: str) -> Level:
     """The instrument level a subject ID names (`listing:isin:NL0010273215:XAMS:EUR` is a listing); raises for a
-    subject outside the instrument hierarchy."""
-    kind = subject_kind(subject_id)
+    subject outside the instrument hierarchy or an unregistered key scheme."""
+    kind = registered_kind(subject_id)
     if kind not in INSTRUMENT_KINDS:
         raise IdentifierError(f"subject id: a {kind} is not an instrument")
     return Level(kind)

@@ -272,7 +272,9 @@ A subject ID is `<kind>:<key-scheme>:<key>`, and its first segment is the
     something one can hold.
 - A provisional ID is minted in its own kind, for example
   `index:provisional:eodhd:catalogue:GSPC.INDX`.
-- Readers pass an unknown kind through unchanged.
+- Readers, including the queue tool and the market-data wire, pass an unknown
+  kind through unchanged. Stores and instrument code accept only registered
+  kinds with their registered key schemes, so `security:bogus:x` is rejected.
 - Kinds, relation types and each relation's allowed kinds live in Python.
   - The persistent `identity.sqlite3` checks only the ID format (schema 4, which
     migrates schema 3 in place).
@@ -285,12 +287,14 @@ Relations never merge subjects. Each relation type declares one behaviour:
 
 | Behaviour | Meaning | Types |
 | --- | --- | --- |
-| `fold` | Sameness across distinct subjects, which must be shown together | `depositary_receipt_of`, `native_deployment_of` |
+| `fold` | Sameness across distinct securities, which must be shown together | `depositary_receipt_of`, `native_deployment_of` |
 | `related` | Different things, shown nearby as links and never folded | `share_class_of`, `wraps`, `bridged_from`, `staked_as`, `tracks`, `derivative_on`, `tokenized_from`, `successor_of` |
 
-- **Instrument.** An instrument is a security plus everything folded into it:
-  its depositary receipts, registry lines and native deployments. The
-  instrument page's listing selector lists exactly these lines.
+- **Instrument.** An instrument is a security plus every security folded into
+  it: its depositary receipts and registry lines, and later a chain's native
+  issuance of a curated crypto asset (M2 settles which deployments are
+  separate securities). An equity page's listing selector lists the
+  instrument's lines.
 - **Search group.** A search group is the investable entity:
   - the company, for its equity securities (share classes and preferreds
     included, as distinct instruments);
@@ -302,6 +306,9 @@ Relations never merge subjects. Each relation type declares one behaviour:
   `related` subjects appear as links.
 - A new relation type states its behaviour when it is added, so an unforeseen
   case groups without new code.
+- Odd fold data is never resolved silently. A second fold target or a fold
+  cycle keeps its subjects apart, and the builder's report and
+  `just reference-audit` list it.
 
 ### Rationale and rejected alternatives
 

@@ -307,20 +307,31 @@ def check_relation(type: RelationType, from_kind: str, to_kind: str, ratio: str 
              "relation.ratio: decimal, receipts only")
 
 
-def fold_roots(edges: Iterable[tuple[str, str, str]]) -> dict[str, str]:
+def fold_roots(edges: Iterable[tuple[str, str, str]]) -> tuple[dict[str, str], list[tuple[str, str]]]:
     """For (type, from_id, to_id) relation rows, the unit each folded subject belongs to: its fold edges followed
-    from -> to until a subject that folds into nothing (a receipt into its share, a class into the main class).
-    Subjects no fold edge leaves are their own unit and absent from the result. Deterministic for any row order;
-    a cycle stops where it closes."""
+    from -> to until a subject that folds into nothing (a receipt into its share). Subjects no fold edge leaves are
+    their own unit and absent from the result.
+
+    Odd fold data is kept and reported, never silently resolved: a subject with a second fold target keeps the first
+    in sorted order, and a fold cycle leaves its members as their own units. The second value lists them as
+    ("second_target" | "cycle", subject_id) for the build report and the reference audit."""
     out: dict[str, str] = {}
+    odd: list[tuple[str, str]] = []
     for type, start, end in sorted(tuple(edge) for edge in edges):
-        if type in FOLD:
-            out.setdefault(start, end)  # a subject folds into one unit: the first target in sorted order
+        if type not in FOLD:
+            continue
+        if start in out and out[start] != end:
+            odd.append(("second_target", start))
+            continue
+        out[start] = end
     roots: dict[str, str] = {}
     for start in out:
         seen, node = {start}, out[start]
-        while node in out and out[node] not in seen:
+        while node in out and node not in seen:
             seen.add(node)
             node = out[node]
+        if node in seen:  # the walk came back: a cycle
+            odd.append(("cycle", start))
+            continue
         roots[start] = node
-    return roots
+    return roots, odd

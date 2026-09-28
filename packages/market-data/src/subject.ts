@@ -100,14 +100,20 @@ export const subjectPageSchema = z.object({
   security: z.object({ id: text, name: text, isin: optionalText }).nullish(),
   listings: z.array(subjectListingSchema).default([]),
   related: z.array(relatedSubjectSchema).default([]),
-  /** The company's other equity securities (share classes, preferreds): its
-   * search group less this instrument. Empty for a fund, note or crypto asset. */
+  /** The company's other instruments (share classes, preferreds): its search
+   * group less this instrument, each with its representative listing. Empty
+   * for a fund, note or crypto asset. */
   other_securities: z
     .array(
       z.object({
         id: text,
-        name: text,
+        name: optionalText,
         kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
+        listing: optionalText,
+        ticker: optionalText,
+        mic: optionalText,
+        venue: optionalText,
+        currency: optionalText,
       }),
     )
     .default([]),

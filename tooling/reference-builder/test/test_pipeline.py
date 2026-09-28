@@ -13,7 +13,7 @@ from reference_builder import firds, gleif, linking, manifest, mic, schema, sec,
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
 from reference_builder.linking import link_receipts
-from reference_builder.model import SecFund, SecTicker, Security, Snapshot
+from reference_builder.model import Relationship, SecFund, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
 
 from .fixtures import (
@@ -115,6 +115,16 @@ class PipelineTest(unittest.TestCase):
         self.snap.audit.clear()
         link_receipts(self.snap)  # a receipt might be of the preferred: never guessed
         self.assertNotIn(receipt, {item.from_id for item in self.snap.relationships})
+
+    def test_a_stated_underlying_outside_the_build_yields_to_the_issuer_rule_and_is_counted(self):
+        receipt = self.snap.listings["XNAS:ASML"].security_id
+        self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", "isin:NL9999999999", "esma_firds",
+                                                   "firds_underlying_isin")]  # a superseded ISIN
+        self.snap.audit.clear()
+        link_receipts(self.snap)
+        edges = {(item.from_id, item.to_id, item.rule_id) for item in self.snap.relationships}
+        self.assertIn((receipt, f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
+        self.assertEqual(self.snap.audit["relations"]["firds_underlying_outside_build"], 1)
 
     def test_similar_names_do_not_link_different_companies(self):
         self.assertIsNone(self.snap.issuers[f"lei:{NN_LEI}"].cik)

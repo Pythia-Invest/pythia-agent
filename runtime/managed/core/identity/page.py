@@ -19,10 +19,10 @@ from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
 from .manifest import Manifest, Section
-from .model import Binding, IdentifierAssertion, ProviderRef, fold_roots
+from .model import Binding, IdentifierAssertion, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
 from .schemes import INSTRUMENT_KINDS, Level, provisional_id, subject_kind, subject_level
-from .vocabulary import ISSUER_INTERESTS, KIND_OF_RECORD, RELATIONS, Grouping, InstrumentKind, VerdictRelation
+from .vocabulary import KIND_OF_RECORD, RELATIONS, Grouping, InstrumentKind, VerdictRelation
 
 SECTIONS = (Section.QUOTE, Section.CHART, Section.PROFILE, Section.FILINGS)
 ORDER = {Section.QUOTE: ("yahoo", "eodhd", "coinmarketcap", "coingecko"),
@@ -121,7 +121,6 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
                           "venue": venues.get(row["mic"] or ""), "currency": row["currency"], "primary": bool(row["is_primary"])}
                          for row in siblings],
             "related": related(ref, subjects),
-            "other_securities": other_securities(ref, issuer, security),
         },
     }
 
@@ -148,22 +147,6 @@ def related(ref: sqlite3.Connection, subject_ids: list[str]) -> list[dict[str, A
                              f" ({','.join('?' * len(out))})", [key[0] for key in out] * 2)) if out else {}
     return [{"id": other, "type": type, "direction": direction, "kind": subject_kind(other), "name": names.get(other)}
             for other, type, direction in out]
-
-
-def other_securities(ref: sqlite3.Connection, issuer: sqlite3.Row | None, security: sqlite3.Row | None) -> list[dict]:
-    """The company's other equity securities (share classes, preferreds, warrants): its search group less this
-    page's instrument (the security and what folds into it). Empty for a fund, ETF, note or crypto asset, which is
-    its own group."""
-    if issuer is None or security is None or security["kind"] not in ISSUER_INTERESTS:
-        return []
-    rows = ref.execute("SELECT id, name, kind FROM securities WHERE issuer_id = ? AND status <> 'inactive'"
-                       " ORDER BY rank IS NULL, rank, id", (issuer["id"],)).fetchall()
-    ids = [row["id"] for row in rows]
-    marks = ",".join("?" * len(ids))
-    units = fold_roots(ref.execute(f"SELECT type, from_id, to_id FROM relations WHERE from_id IN ({marks})", ids))
-    unit = units.get(security["id"], security["id"])
-    return [{"id": row["id"], "name": row["name"], "kind": row["kind"]} for row in rows
-            if row["kind"] in ISSUER_INTERESTS and units.get(row["id"], row["id"]) != unit]
 
 
 def _assertion(row: sqlite3.Row) -> IdentifierAssertion:

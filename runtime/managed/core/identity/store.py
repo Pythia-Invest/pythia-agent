@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import sqlite3
 import threading
 import uuid
@@ -22,7 +23,7 @@ from typing import Iterable
 
 from . import Store, schema_sql
 from .model import Binding, ProviderRef
-from .schemes import Kind, subject_kind
+from .schemes import registered_kind
 from .vocabulary import PROVISIONAL
 from .resolution import QueueItem, Verdict, VerdictOutcome
 
@@ -88,8 +89,10 @@ class IdentityStore:
             try:
                 self._migrate_v3()
                 version = SCHEMA_VERSION
-            except sqlite3.Error:  # an unreadable v3 store is kept aside below like any other
+            except sqlite3.Error:
+                # Another process may have migrated it meanwhile; otherwise it is kept aside below like any other.
                 logger.warning("identity store schema 3 could not be migrated", exc_info=True)
+                version = self._version()
         if version != SCHEMA_VERSION:
             # Never delete device state: keep the old file (and its journal) aside and start a fresh store.
             kept = self.path.with_name(f"identity.{'v' + version if version else 'unreadable'}-{uuid.uuid4().hex[:8]}.sqlite3")
@@ -117,14 +120,19 @@ class IdentityStore:
             setup.execute("INSERT INTO metadata (key, value) VALUES ('schema_version', ?)"
                           " ON CONFLICT (key) DO UPDATE SET value = excluded.value", (SCHEMA_VERSION,))
             setup.commit()
-        finally:
+        except BaseException:
             setup.close()
+            staging.unlink(missing_ok=True)  # only this call's own staging file
+            raise
+        setup.close()
         os.chmod(staging, 0o600)
         staging.replace(self.path)
 
     def _migrate_v3(self) -> None:
         """v3 -> v4 keeps every row: v4 only drops the level and relation-type CHECKs and names the subject's kind
-        `kind` (SQLite cannot alter a CHECK, so the tables are copied into a fresh store that replaces the file)."""
+        `kind` (SQLite cannot alter a CHECK, so the tables are copied into a fresh store that replaces the file).
+        The v3 file is kept as `identity.before-v4-<id>.sqlite3`. Processes share no lock: a second process that
+        starts during the migration fails its own copy and re-reads the migrated version."""
         def fill(setup: sqlite3.Connection) -> None:
             setup.execute("ATTACH DATABASE ? AS old", (str(self.path),))
             for (table,) in setup.execute("SELECT name FROM main.sqlite_master WHERE type = 'table'").fetchall():
@@ -134,6 +142,9 @@ class IdentityStore:
                               f" SELECT {','.join(source)} FROM old.{table}")
             setup.commit()
             setup.execute("DETACH DATABASE old")
+        kept = self.path.with_name(f"identity.before-v4-{uuid.uuid4().hex[:8]}.sqlite3")
+        shutil.copy2(self.path, kept)
+        os.chmod(kept, 0o600)
         self._create(fill)
         logger.info("identity store migrated from schema 3 to %s", SCHEMA_VERSION)
 
@@ -187,7 +198,7 @@ class IdentityStore:
         reference bound to another subject is re-pointed only from a rejected or provisional (agent) binding by a
         stronger answer, which supersedes the agent's item; otherwise it returns False: that is a conflict."""
         ref = binding.provider_ref
-        _registered(binding.subject_id)
+        registered_kind(binding.subject_id)  # the store keeps registered kinds and key schemes only
         before = self.binding_for(ref)
         self.db.execute(
             "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, kind, status, authority,"
@@ -339,13 +350,6 @@ class IdentityStore:
 
 # v4 column -> the v3 expression that fills it.
 _V3_COLUMNS = {("subjects", "kind"): "level", ("bindings", "kind"): "level"}
-
-
-def _registered(subject_id: str) -> None:
-    """The store keeps subjects of registered kinds only (schemes.Kind); readers pass other kinds through."""
-    kind = subject_kind(subject_id)
-    if kind not in set(Kind):
-        raise ValueError(f"identity store: {kind} is not a registered subject kind")
 
 
 _ITEMS = ("SELECT q.*, v.resolver AS settled_by, v.relation AS settled_relation, v.chosen_id AS settled_choice"
