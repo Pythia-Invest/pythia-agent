@@ -1,10 +1,10 @@
 # 0040: Data concepts, source selection and the agent tool surface
 
 **Status.** Concepts, the registry, the contract declarations, the selection
-rule and the `live` operation: accepted (2026-09-28). The contract shape, the
-registry and core's default order are implemented; the investor's order,
-coverage filtering, skip reasons and filings combining come with selection in
-core, the next step. The licence classes are a recommended default that awaits
+rule and the `live` operation: accepted (2026-09-28) and implemented: the
+contract shape and registry, and selection in page composition with the
+investor's order, coverage, skip reasons, remembered plan refusals and
+combined filings. The licence classes are a recommended default that awaits
 the founder's confirmation. The agent tool surface, the market-data
 split and the result envelope are **out of scope of this revision**; they
 remain a proposal (pull request #42).
@@ -81,10 +81,11 @@ There is no fallback policy to configure. For a subject and a concept
 operation:
 
 1. **Candidates** are the plugins whose contract declares the operation and
-   whose coverage includes the subject's asset class and market. Coverage is
-   indexed once when contracts load, so an unsuitable source drops out without
-   any setting: an investor never configures which source handles crypto.
-2. **Order.** The investor's one ordered list of plugins (across concepts)
+   whose coverage (per operation where declared) includes the subject's asset
+   class and market, so an unsuitable source drops out without any setting:
+   an investor never configures which source handles crypto.
+2. **Order.** The investor's one ordered list (`source_order` in
+   `settings.json`: plugin ids or provider names, one list across concepts)
    comes first, then core's default order for the concept, which lists free
    and open sources before paid ones (Yahoo first for stocks and ETFs,
    CoinGecko first for crypto; EODHD and CoinMarketCap after them). Adding a
@@ -118,14 +119,46 @@ added.
 ADR 0028's rule stands: failed observation reads do not authorize fallback.
 A labelled fallback for prices is a possible later addition, not built.
 
-**Performance.** Selection is a pure in-memory function of the loaded
-contracts, the plugins' state, identity's addressing answer and the
-investor's order: no network or disk I/O and no trial calls.
+**Every section carries its selection.** A page section (and the same core
+answer the agent reads through `pythia_identity_subject`) has `source`
+(`{source, provider, plugin}`, the names agent results use), `alternatives`
+(eligible sources not chosen, each with the address or request that reads
+it), `skipped` (`{source, provider, plugin, code, reason}` with a plain
+reason) and `notice`. A section appears only when some declaring source could
+serve it; sources that do not cover or cannot address the subject are still
+listed as skipped.
+
+**Amber only when something went wrong.** `notice` names the first source
+ranked ahead of the one serving that could have served and did not, and only
+when the investor named it or it was refused, contradicted or not found. A
+source the investor has not set up is not a warning. The Desk shows
+alternatives as "Also:" links that read that source once, for the view only;
+core's choice is not changed.
+
+**Performance.** Selection is a plain filter over the few declaring sources,
+in memory: no network or disk I/O and no trial calls. Composing every section
+of 1,000 page opens over the shipped contracts takes about 50 µs per page
+(about 15 µs per section), with file, socket and SQLite access blocked in the
+test.
 
 **"Not on your plan" is remembered** per plugin, concept and operation: a
-plan can include daily history but not live data. A provider's refusal on a
-read is recorded in a disposable cache and that operation is skipped as
-`not_entitled` from then on.
+plan can include daily history but not intraday. A plugin result with a
+`not_entitled` issue, or `access_denied` with source code 402 or 403, seen by
+the protected HTTP adapter or by core's combined read, is recorded in
+identity.sqlite3 (`plan_refusals`); that operation is then skipped as
+`not_entitled`. A 401 is a key problem and is not remembered. The investor
+clears refusals with `source-refusals-clear` (all, or one plugin's), for
+example after upgrading a plan; `source-refusals` lists them. A market-data
+read is attributed from its answer (provider, latest or history and the
+series interval); when that cannot be told, nothing is recorded.
+
+**Core's filing item** is `{id, form, title, filed_at, period_end, url,
+authority, source, provider, plugin}`: dates are ISO or null (filings.xbrl.org
+has no filing date), `id` is the accession number or report hash. The
+combined read is core's `filings` operation; its answer has `filings`,
+`sources`, `skipped`, `alternatives` and `partial`. A source serving several
+authorities (filings.xbrl.org: ESMA and FCA) tags each item by the filer's
+country. Items sort by filing date, else period end.
 
 ### Live market data
 
@@ -188,18 +221,19 @@ surface for plugins that need a newer Pythia, and team mode.
 
 ## Consequences
 
-- Page composition already reads core's default order from the registry.
-  Stocks compose as before (Yahoo, with EODHD as the alternative, whether or
-  not EODHD has a key); crypto now reads CoinGecko ahead of CoinMarketCap. Selection in core (the investor's order,
-  coverage, skip reasons, `not_entitled`) replaces the choice inside
-  `page.compose` in the next step. The combined filings read (the merged list,
-  `partial`) comes with filings reads through core.
+- Page composition selects through core: stocks read Yahoo (EODHD is the
+  alternative, key or not), crypto CoinGecko (CoinMarketCap the alternative);
+  the investor's order puts a paid source first. Filings sections read core's
+  combined list, so ASML shows its ESEF reports and SEC 20-F and 6-K filings
+  together. `identity-resolve` answers with sections whose combined sources
+  include the resolved plugin.
 - Market data's own preferences (ADR 0028) still govern reads by explicit
   provider reference; they move to the one ordered list when market-data reads
   route through core selection.
-- No new store: the order lives in `settings.json` when it is added, selection
+- No new store: the order lives in `settings.json`, selection
   is computed per request, and the record of "not on your plan" is a
-  disposable cache.
+  disposable table in identity.sqlite3 (created when the store opens, no
+  schema change); losing it only means asking the provider again.
 
 ## Rejected alternatives
 

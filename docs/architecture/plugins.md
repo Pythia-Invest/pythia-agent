@@ -259,6 +259,16 @@ addressing (the full shape is in the ADR 0038 amendment):
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
   (`identity.validate_live_market`).
+- When the provider refuses a read because it is not on the investor's plan,
+  return an error issue `not_entitled` (or `access_denied` with
+  `source_code` 402 or 403). Core remembers the refusal for that concept
+  operation and selection skips the source until the investor clears it; a
+  401 is a key problem and is not remembered.
+
+Selection is core's: the investor's one `source_order` (settings.json), then
+core's default order, free sources first; a source whose coverage excludes the
+subject, that is unconfigured or refused, is skipped with its reason. Filings
+combine one source per declared authority into core's `filings` read.
 
 Core validates the file with `identity.validate_manifest`; a contract newer
 than the installed Pythia shows as `needs_update`. A bundled plugin lists
