@@ -53,10 +53,10 @@ function schedules(meta: Record<string, unknown>, now: number) {
 export function lastSession(meta: Record<string, unknown>, now: number) {
   const all = schedules(meta, now);
   const current = all[0];
-  // Before today's open, the last regular session precedes today's pre-market.
+  // Before today's open, the last session precedes today's pre-market.
   const previous =
     current && now < current.regular.start
-      ? all.find((p) => p.regular.end < current.start)?.regular
+      ? all.find((p) => p.end <= current.start)
       : undefined;
   const zone = meta.exchangeTimezoneName;
   if (!current || typeof zone !== "string" || !zone) return null;
@@ -73,9 +73,12 @@ export function lastSession(meta: Record<string, unknown>, now: number) {
     extended: { start: iso(current.start), end: iso(current.end) },
     ...(previous
       ? {
-          previous_regular: {
-            start: iso(previous.start),
-            end: iso(previous.end),
+          previous: {
+            regular: {
+              start: iso(previous.regular.start),
+              end: iso(previous.regular.end),
+            },
+            extended: { start: iso(previous.start), end: iso(previous.end) },
           },
         }
       : {}),

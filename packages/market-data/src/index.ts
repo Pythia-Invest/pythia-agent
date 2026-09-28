@@ -192,9 +192,12 @@ export interface PriceContext {
     timezone: string;
     regular: { start: Instant; end: Instant };
     extended: { start: Instant; end: Instant };
-    /** Before today's open: the last regular session, whose close precedes
-     * today's pre-market by a closed interval. */
-    previous_regular?: { start: Instant; end: Instant };
+    /** Before today's open: the last session, whose after-hours close
+     * precedes today's pre-market by a closed interval. */
+    previous?: {
+      regular: { start: Instant; end: Instant };
+      extended: { start: Instant; end: Instant };
+    };
   };
   /** The latest pre- or post-market trade, compared with the last regular
    * close; the regular observation remains the series value. */

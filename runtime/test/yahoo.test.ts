@@ -518,10 +518,13 @@ test("intraday equity reads carry the current or last started session; crypto ke
         date: "2026-01-05",
         timezone: "America/New_York",
         extended: { start: "2026-01-05T09:00:00.000Z" },
-        // In pre-market the last regular session precedes today's.
-        previous_regular: {
-          start: "2026-01-02T14:30:00.000Z",
-          end: "2026-01-02T21:00:00.000Z",
+        // In pre-market the last session precedes today's.
+        previous: {
+          regular: { start: "2026-01-02T14:30:00.000Z" },
+          extended: {
+            start: "2026-01-02T09:00:00.000Z",
+            end: "2026-01-03T01:00:00.000Z",
+          },
         },
       },
     });
