@@ -24,6 +24,8 @@ export interface Repair<Data = unknown> {
   created: string;
   resolved: string | null;
   status: RepairStatus;
+  /** For status "agent": the agent's provisional answer in two or three words. */
+  agentAnswer: string | null;
   /** Text the page's search matches. */
   search: string;
   /** Kind-specific payload for its renderer. */
@@ -58,6 +60,11 @@ function identityRepair(item: IdentityQuestion): IdentityRepair {
     created: item.opened_at,
     resolved: status === "open" ? null : item.updated_at,
     status,
+    agentAnswer: item.agent_answer
+      ? item.agent_answer.relation.startsWith("same_")
+        ? "match"
+        : "not a match"
+      : null,
     search: [
       item.question,
       item.label,

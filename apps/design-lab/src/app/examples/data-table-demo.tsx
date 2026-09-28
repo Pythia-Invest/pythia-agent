@@ -161,6 +161,7 @@ export function DataTableDemo() {
         label="Synthetic tasks"
         onRefresh={() => setLog("Refreshed the synthetic list.")}
         rowKey={(task) => task.id}
+        rowLabel={(task) => task.id}
         rows={rows}
         search={{
           value: query,

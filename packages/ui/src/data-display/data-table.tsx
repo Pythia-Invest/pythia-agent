@@ -27,7 +27,7 @@ export interface DataTableColumn<Row> {
   key: string;
   header: string;
   cell: (row: Row) => ReactNode;
-  /** The full value as text: shown as a tooltip when the cell is cut off with an ellipsis. */
+  /** The full value as text, shown as the cell's tooltip; useful where values may end in an ellipsis. */
   text?: (row: Row) => string;
   /** Width or alignment of this column's cells. Values longer than 18rem are cut off with an ellipsis. */
   className?: string;
@@ -54,6 +54,8 @@ export interface DataTableProps<Row> {
   label: string;
   rows: readonly Row[];
   rowKey: (row: Row) => string;
+  /** Names a row in its toggle's label ("Show context for …"). */
+  rowLabel?: (row: Row) => string;
   columns: readonly DataTableColumn<Row>[];
   /** Details shown when the row's "+" toggle expands it; omit for no toggle. */
   context?: (row: Row) => readonly DataTableContextItem[];
@@ -87,6 +89,7 @@ export function DataTable<Row>({
   label,
   rows,
   rowKey,
+  rowLabel,
   columns,
   context,
   actions,
@@ -207,7 +210,7 @@ export function DataTable<Row>({
                     <TableCell className="w-8">
                       <button
                         aria-expanded={open}
-                        aria-label={open ? "Hide context" : "Show context"}
+                        aria-label={`${open ? "Hide" : "Show"} context${rowLabel ? ` for ${rowLabel(row)}` : ""}`}
                         className="grid size-6 cursor-pointer place-items-center rounded-control border-0 bg-transparent text-foreground-secondary outline-ring hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2"
                         onClick={() => toggle(key)}
                         type="button"
@@ -250,7 +253,7 @@ export function DataTable<Row>({
                       <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-2 min-[1100px]:grid-cols-4 min-[720px]:grid-cols-3">
                         {details.map((item) => (
                           <div key={item.label} className="min-w-0">
-                            <dt className="text-[11px] text-foreground-secondary">
+                            <dt className="text-foreground-secondary text-xs">
                               {item.label}
                             </dt>
                             <dd className="m-0 text-foreground text-xs [overflow-wrap:anywhere]">

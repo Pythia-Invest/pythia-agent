@@ -108,6 +108,9 @@ export function RepairsView() {
           label="Repairs"
           rows={rows}
           rowKey={(repair) => repair.id}
+          rowLabel={(repair) =>
+            `${repair.title}, ${repair.subject?.name ?? repair.plugin ?? repair.id}`
+          }
           columns={[
             {
               key: "issue",
@@ -143,7 +146,9 @@ export function RepairsView() {
               header: "Status",
               cell: (repair) => (
                 <Badge tone={STATUS[repair.status].tone}>
-                  {STATUS[repair.status].label}
+                  {repair.agentAnswer
+                    ? `Agent: ${repair.agentAnswer}`
+                    : STATUS[repair.status].label}
                 </Badge>
               ),
             },

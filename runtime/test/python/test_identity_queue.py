@@ -114,6 +114,7 @@ class VerdictTest(QueueFixture):
         self.assertEqual(self.identity.queue_items(subject_ids=[ASML], which="answered"), [])
         [settled] = self.identity.queue_items(subject_ids=[ASML], which="settled")  # the history keeps it
         self.assertEqual((settled["id"], settled["state"], settled["settled"]["by"]), (item.id, "dismissed", "user"))
+        self.assertIsNone(queue.summary(self.identity, self.ref, settled)["agent_answer"])  # the user's, not the agent's
         history = queue.inspect(self.identity, self.ref, item.id)["history"]
         self.assertEqual([(entry["resolver"], entry["outcome"]) for entry in history], [("agent", "confirmed"), ("user", "no_match")])
 

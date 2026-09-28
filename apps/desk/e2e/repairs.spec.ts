@@ -51,6 +51,14 @@ test("repairs list issues in the back-office table and record the user's fix wit
               },
             }),
           ],
+          // Settled by the user: a Dismissed badge and no actions, hidden by default.
+          settled: [
+            question("q-user", {
+              state: "dismissed",
+              settled_by: "user",
+              updated_at: "2026-09-26T11:00:00Z",
+            }),
+          ],
         },
       },
     });
@@ -78,10 +86,22 @@ test("repairs list issues in the back-office table and record the user's fix wit
   const table = page.getByRole("table", { name: "Repairs" });
   const rows = table.locator('[data-slot="data-table-row"]');
   await expect(rows).toHaveCount(2);
-  await expect(rows.nth(1)).toContainText("Answered by agent");
+  await expect(rows.nth(1)).toContainText("Agent: match");
   await expect(
     rows.nth(1).getByRole("button", { name: "Override" }),
   ).toBeVisible();
+
+  await page.getByRole("button", { name: /^Status/u }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Dismissed" }).click();
+  await page.keyboard.press("Escape");
+  await expect(rows).toHaveCount(3);
+  const settled = rows.filter({ hasText: "Dismissed" });
+  await expect(settled).toHaveCount(1);
+  await expect(
+    settled.getByRole("button", {
+      name: /^(Match|Not a match|Confirm|Override)$/u,
+    }),
+  ).toHaveCount(0);
 
   await rows.first().getByRole("button", { name: "Show context" }).click();
   await expect(table.locator('[data-slot="data-table-context"]')).toContainText(
