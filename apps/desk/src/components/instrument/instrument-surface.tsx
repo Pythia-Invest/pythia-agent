@@ -104,6 +104,9 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
     listingId && listing.isError && instrument.data,
   );
   const page = listingFailed ? instrument : listing;
+  // Until the chosen listing's own composition arrives, its price blocks wait
+  // instead of mounting on the previous or the route's line.
+  const awaitingListing = Boolean(listingId && listing.isPlaceholderData);
   // Resolution follows the composition on screen: while another listing's
   // composition loads, the previous one (a placeholder) keeps its cached
   // resolutions and nothing is resolved on its behalf.
@@ -163,6 +166,11 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
                 <SectionFailure
                   message={`This listing's price could not be read. ${listing.error?.message ?? ""}`}
                   onRetry={() => void listing.refetch()}
+                />
+              ) : awaitingListing && PRICE_BLOCKS.has(block.type) ? (
+                <SectionLoading
+                  label="Loading this listing's price…"
+                  lines={4}
                 />
               ) : servable ? (
                 <BlockContent block={block} page={view} retryResolve={retry} />

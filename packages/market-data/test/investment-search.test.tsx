@@ -279,6 +279,65 @@ describe("investment search", () => {
     expect(selected).toEqual(["listing:ASMLF"]);
   });
 
+  it("reads each opened group on its own, so a second open never fails the first", async () => {
+    const a = group([row("AAA"), row("AAB"), row("AAC")], 1);
+    const b = group([row("BBA"), row("BBB")], 1);
+    const held = new Map<string, () => void>();
+    const search: SearchBackend = (request, signal) => {
+      if (!request.group)
+        return Promise.resolve({ groups: [a, b], lookup: [] });
+      const rows = everything.get(request.group) ?? [];
+      return new Promise((resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason));
+        held.set(request.group ?? "", () =>
+          resolve({
+            groups: [
+              { ...a, id: request.group ?? "", listings: rows.length, rows },
+            ],
+            lookup: [],
+          }),
+        );
+      });
+    };
+    await act(async () => root.render(<Harness search={search} />));
+    await type("aa");
+    await until(() =>
+      expect(rows()).toEqual([
+        "AAA",
+        "Show all 3 listings of AAA Holding (2 more)",
+        "BBA",
+        "Show all 2 listings of BBA Holding (1 more)",
+      ]),
+    );
+    const open = (name: RegExp) =>
+      act(async () =>
+        document
+          .querySelector<HTMLElement>(
+            `[role="option"][aria-label^="${name.source}"]`,
+          )
+          ?.click(),
+      );
+    await open(/Show all 3 listings/);
+    await until(() => expect(held.has(a.id)).toBe(true));
+    await open(/Show all 2 listings/);
+    await until(() => expect(held.has(b.id)).toBe(true));
+    await act(async () => {
+      held.get(a.id)?.();
+      held.get(b.id)?.();
+    });
+    await until(() =>
+      expect(rows()).toEqual([
+        "AAA",
+        "AAB",
+        "AAC",
+        "Show fewer listings of AAA Holding",
+        "BBA",
+        "BBB",
+        "Show fewer listings of BBA Holding",
+      ]),
+    );
+  });
+
   it("opens a receipt's row as its instrument's page, showing that listing", async () => {
     const { search, answer } = directory();
     await act(async () => root.render(<Harness search={search} />));

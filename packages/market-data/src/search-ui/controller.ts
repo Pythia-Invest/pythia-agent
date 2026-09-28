@@ -1,10 +1,6 @@
 "use client";
-import {
-  type PluginTransport,
-  useQuery,
-  useQueryClient,
-} from "@pythia/widget-sdk";
-import { useMemo } from "react";
+import { type PluginTransport, useQueries, useQuery } from "@pythia/widget-sdk";
+import { useCallback } from "react";
 import { z } from "zod";
 import {
   type LookupRequest,
@@ -60,65 +56,45 @@ export function useDirectorySearch(
   });
 }
 
-type GroupRead = { id: string; rows: readonly SearchRow[] | null };
-
-/** All listings of the given groups, each its own cached group read, keyed by
- * group id once read; `pending` names the groups still loading or failed. */
+/** All listings of the given groups, one cached group read per group, keyed
+ * by group id once read; `pending` names the groups still loading or failed. */
 export function useGroupListings(
   search: SearchBackend,
   query: string,
   filter: TypeFilter,
   groups: readonly SearchGroup[],
 ) {
-  const client = useQueryClient();
   const kinds = TYPE_FILTERS.find((type) => type.value === filter)?.kinds;
-  const ids = groups.map((group) => group.id);
-  const reads = useQuery<GroupRead[]>({
-    queryKey: [...searchQueryKey, "groups", ids, filter],
-    queryFn: ({ signal }) =>
-      Promise.all(
-        ids.map((id) =>
-          client
-            .fetchQuery({
-              queryKey: [...searchQueryKey, "group", id, filter],
-              queryFn: () =>
-                search(
-                  { query, group: id, limit: 1, ...(kinds ? { kinds } : {}) },
-                  signal,
-                ),
-              staleTime: 30_000,
-              gcTime: 5 * 60_000,
-            })
-            .then(
-              (response) => ({
-                id,
-                rows:
-                  response.groups.find((group) => group.id === id)?.rows ??
-                  null,
-              }),
-              () => ({ id, rows: null }),
-            ),
-        ),
-      ),
-    enabled: ids.length > 0,
-    // Groups already read stay shown while another group's read runs.
-    placeholderData: (previous) => previous,
-    staleTime: 30_000,
-    retry: false,
-    refetchOnWindowFocus: false,
+  const ids = groups.map((group) => group.id).join("\n");
+  // A stable combine keeps the answer's identity while no read changes, so
+  // the panel's options are not rebuilt on every render.
+  const combine = useCallback(
+    (results: { data?: SearchResponse | undefined; isPending: boolean }[]) => {
+      const rows = new Map<string, readonly SearchRow[]>();
+      const pending = new Map<string, "loading" | "error">();
+      ids.split("\n").forEach((id, index) => {
+        const result = results[index];
+        if (!id || !result) return;
+        const read = result.data?.groups.find((group) => group.id === id);
+        if (read) rows.set(id, read.rows);
+        else pending.set(id, result.isPending ? "loading" : "error");
+      });
+      return { rows, pending };
+    },
+    [ids],
+  );
+  return useQueries({
+    queries: groups.map((group) => ({
+      queryKey: [...searchQueryKey, "group", group.id, filter],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        search({ query, group: group.id, ...(kinds ? { kinds } : {}) }, signal),
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      retry: false,
+      refetchOnWindowFocus: false,
+    })),
+    combine,
   });
-  const key = ids.join("\n");
-  return useMemo(() => {
-    const done = new Map(reads.data?.map((read) => [read.id, read.rows]));
-    const rows = new Map<string, readonly SearchRow[]>();
-    const pending = new Map<string, "loading" | "error">();
-    for (const id of key ? key.split("\n") : []) {
-      const read = done.get(id);
-      if (read) rows.set(id, read);
-      else pending.set(id, read === null ? "error" : "loading");
-    }
-    return { rows, pending };
-  }, [reads.data, key]);
 }
 
 const envelopeSchema = z.object({

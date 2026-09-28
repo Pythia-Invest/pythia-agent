@@ -35,14 +35,15 @@ SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
     "description": "Search the device's local directory of securities, listings and crypto assets by name, ticker "
                    "or identifier (ISIN, LEI, FIGI, CIK). Answers groups (a company, a fund or a crypto asset), "
-                   "each with its most relevant listings and its total listing count; pass `group` with a group's "
-                   "id instead of `query` to list all of its listings. Local only; no provider is called.",
+                   "each with its most relevant listings and its total listing count. Pass `group` with a group's "
+                   f"id instead of `query` to list its listings, up to {search.GROUP_ROWS}; `limit` (groups, "
+                   "default 20) does not apply there. Local only; no provider is called.",
     "parameters": {"type": "object", "properties": {
         "query": {"type": "string", "minLength": 1, "maxLength": 128},
         "group": {"type": "string", "minLength": 1, "maxLength": 256},
         "kinds": {"type": "array", "items": {"type": "string", "enum": list(search.KINDS)}, "maxItems": 16},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
-        "required": ["limit"], "additionalProperties": False},
+        "additionalProperties": False},
 }
 SUBJECT_SCHEMA = {
     "name": "pythia_identity_subject",
@@ -196,6 +197,9 @@ class Identity:
             subject = page.load_subject(ref, subject_id)
             if subject is None:
                 return path, None, {}, "Unknown subject."
+            default = self._default_listing(path, subject)
+            if default and default != (subject["listing"] or {"id": None})["id"]:
+                subject = page.load_subject(ref, subject_id, default)
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
         finally:
             ref.close()
@@ -207,6 +211,18 @@ class Identity:
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id)}
         return path, subject, lookups, None
+
+    @staticmethod
+    def _default_listing(path: Path, subject: dict) -> str | None:
+        """The line an equity security or issuer subject is priced through: the first of the instrument's own
+        lines in the listing selector's order (a flagged primary, else the best exchange line), so the page
+        and market-data reads agree with the selector. None for a listing subject or anything else."""
+        security = subject["ids"].get(Level.SECURITY)
+        if subject["level"] == Level.LISTING or subject["asset_class"] != "equity" or not security:
+            return None
+        own = [line for line in search.directory(path, store.open_reference).instrument_listings(security)
+               if not line["folded"]]
+        return own[0]["id"] if own else None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
         """Run the plugin's resolve once; store what the authority rule decides.

@@ -88,8 +88,8 @@ export type SearchRequest = {
   group?: string;
   /** Type filter; omitted means every kind. */
   kinds?: InstrumentKind[];
-  /** Maximum number of groups. */
-  limit: number;
+  /** Maximum number of groups; a group read ignores it. */
+  limit?: number;
 };
 
 /** One explicit lookup, in exactly one plugin, of a query the directory does

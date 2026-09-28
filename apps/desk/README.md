@@ -205,7 +205,10 @@ Status filter.
 
 `/instrument/[subject]` is one instrument's page (URL-encoded subject id,
 normally the instrument's security); `?listing=` names the listing whose quote
-and chart it shows. A search row opens its instrument with its own listing, so
+and chart it shows, and without it core prices the page through the selector's
+first line (a flagged primary, else the best exchange line). The price card
+waits for the chosen listing's own composition rather than showing another
+line meanwhile. A search row opens its instrument with its own listing, so
 a receipt's row opens the share's page on the receipt's line. The header's
 listing selector (`TICKER · Venue · CCY ▾`) lists every line of the instrument
 as core folds it (ADR 0037): the security's own listings, then those of its

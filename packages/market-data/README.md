@@ -168,8 +168,8 @@ equity listings (share classes, receipts and registry shares included), a fund,
 ETF, ETN or ETC on its own, or a crypto asset. A group carries its subject id,
 name, main kind, `listings` (how many it has in all) and only its relevant
 listing rows, at most three; a group read (`group` with the group's id instead
-of a query) answers the same shape with all its listings, for "All N
-listings". A row carries the listing's subject `id`, its `instrument` (the
+of a query; `limit` does not apply) answers the same shape with its listings,
+up to 500, for "All N listings", each opened group being its own read. A row carries the listing's subject `id`, its `instrument` (the
 security the page is; a receipt's is the share it folds into), ticker, the
 listed security's own name and kind, MIC, short venue label, venue country and
 currency. Core orders the rows (see ADR 0037: a listing the query names, else

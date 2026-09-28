@@ -171,6 +171,19 @@ class SearchTest(Fixture):
         # The receipt's line is folded in: the page sets it apart from the share's own lines.
         self.assertEqual([item["folded"] for item in listings], [False, False, True])
 
+    def test_a_security_page_prices_the_selectors_first_line(self):
+        from test_identity_queue import load_core
+        load_core()
+        from pythia_core_queue_fixture import identity_ops
+        shell = "security:isin:GB00BP6MXD84"
+        self.assertEqual(page.load_subject(self.ref, shell)["listing"]["id"], SHELL_OTC)  # id order alone: OTC
+        default = identity_ops.Identity._default_listing(Path(self.path), page.load_subject(self.ref, shell))
+        self.assertEqual(default, SHELL)
+        self.assertEqual(page.load_subject(self.ref, shell, default)["view"]["subject"]["listing"], SHELL)
+        # A line of another security is not the security's to price through.
+        self.assertEqual(page.load_subject(self.ref, shell, SHEL)["listing"]["id"], SHELL_OTC)
+        self.assertIsNone(identity_ops.Identity._default_listing(Path(self.path), page.load_subject(self.ref, SHELL)))
+
     def test_only_a_fold_relation_folds_a_receipt_and_the_issuer_still_groups_it(self):
         with sqlite3.connect(self.path) as db:
             db.execute("DELETE FROM relations WHERE evidence_id = 'ev:shel'")

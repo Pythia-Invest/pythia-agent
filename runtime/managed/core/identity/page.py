@@ -59,9 +59,10 @@ def ordered(plugins: list[PluginInfo], section: Section) -> list[PluginInfo]:
 
 # ---- the subject from the reference file ------------------------------------------------------------------------
 
-def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | None:
+def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None = None) -> dict[str, Any] | None:
     """The subject with its listing, security and issuer (whichever exist), or None if unknown. The reference
-    holds instruments only: a subject of another kind is unknown here.
+    holds instruments only: a subject of another kind is unknown here. A security or issuer subject is priced
+    through `listing_id` when that is one of its security's lines, else through its primary (else first) line.
 
     An ID the reference no longer holds (an older key rule, a re-key, another build path)
     resolves through `id_aliases` (ADR 0037); the result carries the current ID.
@@ -84,6 +85,8 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
                                   " rank IS NULL, rank LIMIT 1", subject_id)
     if (listing or security or issuer) is None:
         return None
+    if security is not None and listing is None and listing_id:
+        listing = one("SELECT * FROM listings WHERE id = ? AND security_id = ?", listing_id, security["id"])
     if security is not None and listing is None:
         listing = one("SELECT * FROM listings WHERE security_id = ? ORDER BY is_primary DESC, status <> 'active', id LIMIT 1",
                       security["id"])
