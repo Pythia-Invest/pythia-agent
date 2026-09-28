@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import truth, writer
+from reference_builder import truth, truth_report, writer
 from reference_builder.pipeline import build_snapshot
 from reference_builder.schema import identity
 
@@ -80,16 +80,16 @@ class AuditTest(unittest.TestCase):
 
     def test_regressions_are_passes_that_now_fail_and_ids_that_move_without_an_alias(self):
         report = truth.audit(self.path, TRUTH, cfi=("ES",))
-        baseline = truth.baseline_of(report)
-        self.assertEqual(truth.regressions(report, baseline), [])
+        baseline = truth_report.baseline_of(report)
+        self.assertEqual(truth_report.regressions(report, baseline), [])
         worse = copy.deepcopy(TRUTH)
         worse["entries"][0]["listings"][0]["symbols"]["yahoo"] = "ASML.XX"
         baseline["results"]["asml:symbols:yahoo:ASML.XX"] = "pass"
         old = baseline["ids"]["asml"]["security"]
         baseline["ids"]["asml"]["security"] = "security:figi:BBGOLDKEY001"
-        found = truth.regressions(truth.audit(self.path, worse, cfi=("ES",)), baseline)
+        found = truth_report.regressions(truth.audit(self.path, worse, cfi=("ES",)), baseline)
         self.assertEqual(len(found), 2)
-        aliased = truth.regressions(truth.audit(self.path, TRUTH, cfi=("ES",)), baseline, {"security:figi:BBGOLDKEY001": old})
+        aliased = truth_report.regressions(truth.audit(self.path, TRUTH, cfi=("ES",)), baseline, {"security:figi:BBGOLDKEY001": old})
         self.assertEqual(aliased, [])
 
 
