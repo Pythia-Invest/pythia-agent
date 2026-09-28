@@ -22,6 +22,7 @@ from .identity import (
     MANIFEST_FILE, ClaimError, Level, ManifestError, ManifestNeedsUpdate, check_batch, validate_manifest,
 )
 from . import queue_ops
+from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, page, search, store
 
@@ -32,6 +33,7 @@ PLUGIN = "pythia"  # the core plugin (plugin.yaml)
 NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
 MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes
 PREFERENCE = "search_listing_preference"  # declared in configuration.json
+SOURCE_ORDER = "source_order"             # declared in configuration.json: the investor's one source order
 
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
@@ -156,6 +158,17 @@ class Identity:
             return "primary"
         return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
 
+    def order(self) -> tuple[str, ...]:
+        """The investor's `source_order` (settings.json): plugin ids or provider names; empty means core's order."""
+        from .identity.concepts import parse_order
+        from .platform import configuration
+        try:
+            _status, value = configuration.value(self.ctx, SOURCE_ORDER)
+        except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
+            return ()
+        plugins = installed()  # common names ("edgar", "esef") mean the plugin; unknown names are kept as written
+        return tuple(dict.fromkeys(page.named(name, plugins) or name for name in parse_order(value)))
+
     # ---- internals -----------------------------------------------------------------------------------------------
 
     def price_sources(self, subject_id: str) -> dict:
@@ -211,7 +224,8 @@ class Identity:
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
-                   "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id)}
+                   "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
+                   "order": self.order()}
         return path, subject, lookups, None
 
     @staticmethod
@@ -320,51 +334,6 @@ def installed() -> list[page.PluginInfo]:
             for key, plugin, directory, manifest in loaded]
 
 
-def native_operations(plugins: set[str]) -> dict[str, dict[str, str]]:
-    """The Hermes adapter for contract operations: plugin key -> operation -> the native tool declaring it.
-
-    A contract names plugin operations, never tools. An operation is the name a tool the plugin actually owns
-    declares, either as a protected HTTP operation (`declare_operation`) or in its market-data contribution.
-    A name two of one plugin's tools declare is ambiguous and maps to neither."""
-    from tools.registry import registry
-    from .platform.access import native_tool_owners
-    registered = set(registry.get_all_tool_names())
-    owners = {name: key for name, (key, _plugin) in native_tool_owners().items() if key in plugins and name in registered}
-    return operation_tools(owners, {name: registry.get_schema(name) for name in owners})
-
-
-def operation_tools(owners: dict[str, str], schemas: dict[str, Any]) -> dict[str, dict[str, str]]:
-    """Plugin key -> operation -> tool, from each owned tool's declarations; pure."""
-    from .platform.operations import MARKER
-    declared: dict[tuple[str, str], set[str]] = {}
-    for name, key in owners.items():
-        schema = schemas.get(name)
-        try:
-            comment = schema["parameters"].get("$comment") if isinstance(schema, dict) else None
-            marks = json.loads(comment) if isinstance(comment, str) and len(comment) <= 16384 else {}
-        except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
-            continue
-        if not isinstance(marks, dict):
-            continue
-        http = marks.get(MARKER)
-        names = [http.get("operation")] if isinstance(http, dict) else []
-        contribution = marks.get("pythia_market_data")  # its owner validates it; only the tool's own entry counts
-        for item in contribution.get("operations", []) if isinstance(contribution, dict) else []:
-            if isinstance(item, dict) and item.get("tool") == name:
-                names.append(item.get("operation"))
-        for operation in names:
-            if isinstance(operation, str):
-                declared.setdefault((key, operation), set()).add(name)
-    found: dict[str, dict[str, str]] = {}
-    for (key, operation), tools in declared.items():
-        if len(tools) == 1:
-            found.setdefault(key, {})[operation] = next(iter(tools))
-        else:
-            logger.warning("%s declares operation %s on several tools (%s); it is not mapped",
-                           key, operation, ", ".join(sorted(tools)))
-    return found
-
-
 def unrouted(reason: str) -> dict:
     return {"asset_class": None, "refs": [], "reason": reason}
 
@@ -391,3 +360,5 @@ def register(ctx: Any) -> None:
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])
+    from . import concept_ops
+    concept_ops.register(ctx, identity)

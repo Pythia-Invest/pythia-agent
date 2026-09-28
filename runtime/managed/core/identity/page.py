@@ -19,12 +19,13 @@ from enum import StrEnum
 from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
-from .concepts import REGISTRY, Concept
+from .concepts import NOTICE, REGISTRY, Combine, Concept, ranked, select
 from .manifest import ConceptEntry, Manifest
-from .model import Binding, IdentifierAssertion, ProviderRef
+from .model import Binding, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
-from .schemes import INSTRUMENT_KINDS, Level, provisional_id, subject_kind, subject_level
-from .vocabulary import KIND_OF_RECORD, RELATIONS, Grouping, InstrumentKind, VerdictRelation
+from .schemes import Level, provisional_id
+from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
+from .vocabulary import KIND_OF_RECORD, InstrumentKind, VerdictRelation
 
 
 
@@ -67,123 +68,42 @@ class PluginInfo:
         return LABELS.get(self.manifest.provider, self.manifest.provider)
 
 
-def serving(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str] | None:
-    """The plugin's concept entry for a section and the plugin operation that serves it, or None."""
+# Other names investors and agents use for a provider, beside its plugin id, provider name and label.
+ALIASES = {"sec": ("edgar", "sec edgar", "sec-edgar"), "xbrl-filings": ("esef", "xbrl", "filings.xbrl.org", "uksef"),
+           "yahoo": ("yahoo finance",), "coinmarketcap": ("cmc",), "gleif": ("lei",)}
+CORE_PLUGIN = "pythia"  # core's own operations (the combined filings read)
+ABSENT = frozenset({"not_covering", "not_addressable"})  # a section only these could serve is not shown
+
+
+def named(name: str | None, plugins: list[PluginInfo]) -> str | None:
+    """The plugin key a caller's source name means: plugin id, provider, label or a common alias; case-insensitive."""
+    wanted = (name or "").strip().lower()
+    for info in plugins:
+        provider = info.manifest.provider
+        if wanted and wanted in {info.key.lower(), info.manifest.plugin.lower(), provider, info.label.lower(),
+                                 *ALIASES.get(provider, ())}:
+            return info.key
+    return None
+
+
+def served_by(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str, str] | None:
+    """The plugin's concept entry for a section, the concept operation and the plugin operation serving it."""
     concept, operations = SERVES[section]
     entry = manifest.concepts.get(concept)
     name = entry and next((name for name in operations if name in entry.operations), None)
-    return (entry, entry.operations[name]) if name else None
+    return (entry, name, entry.operations[name]) if name else None
 
 
-def ordered(plugins: list[PluginInfo], section: Section) -> list[PluginInfo]:
-    """Core's default order for the section's concept (the registry's), then plugin key."""
-    preferred = REGISTRY[SERVES[section][0]].default_order
-    rank = {name: index for index, name in enumerate(preferred)}
-    return sorted(plugins, key=lambda info: (rank.get(info.manifest.provider, len(preferred)), info.key))
+def serving(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str] | None:
+    """The plugin's concept entry for a section and the plugin operation that serves it, or None."""
+    found = served_by(manifest, section)
+    return (found[0], found[2]) if found else None
 
 
-# ---- the subject from the reference file ------------------------------------------------------------------------
-
-def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None = None) -> dict[str, Any] | None:
-    """The subject with its listing, security and issuer (whichever exist), or None if unknown. The reference
-    holds instruments only: a subject of another kind is unknown here. A security or issuer subject is priced
-    through `listing_id` when that is one of its security's lines, else through its primary (else first) line.
-
-    An ID the reference no longer holds (an older key rule, a re-key, another build path)
-    resolves through `id_aliases` (ADR 0037); the result carries the current ID.
-    """
-    if subject_kind(subject_id) not in INSTRUMENT_KINDS:
-        return None
-    alias = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone()
-    subject_id = alias[0] if alias else subject_id
-    level = subject_level(subject_id)
-    one = lambda sql, *args: ref.execute(sql, args).fetchone()  # noqa: E731
-    listing = security = issuer = None
-    if level is Level.LISTING:
-        listing = one("SELECT * FROM listings WHERE id = ?", subject_id)
-        security = listing and one("SELECT * FROM securities WHERE id = ?", listing["security_id"])
-    elif level is Level.SECURITY:
-        security = one("SELECT * FROM securities WHERE id = ?", subject_id)
-    elif level is Level.ISSUER:
-        issuer = one("SELECT * FROM issuers WHERE id = ?", subject_id)
-        security = issuer and one("SELECT * FROM securities WHERE issuer_id = ? ORDER BY kind <> 'ordinary', status <> 'active',"
-                                  " rank IS NULL, rank LIMIT 1", subject_id)
-    if (listing or security or issuer) is None:
-        return None
-    if security is not None and listing is None and listing_id:
-        listing = one("SELECT * FROM listings WHERE id = ? AND security_id = ?", listing_id, security["id"])
-    if security is not None and listing is None:
-        listing = one("SELECT * FROM listings WHERE security_id = ? ORDER BY is_primary DESC, status <> 'active', id LIMIT 1",
-                      security["id"])
-    if security is not None and issuer is None and security["issuer_id"]:
-        issuer = one("SELECT * FROM issuers WHERE id = ?", security["issuer_id"])
-    ids = {Level.LISTING: listing and listing["id"], Level.SECURITY: security and security["id"],
-           Level.ISSUER: issuer and issuer["id"], Level.COMPOSITE: listing and listing["composite_id"]}
-    subjects = [value for value in ids.values() if value]
-    rows = ref.execute(f"SELECT * FROM assertions WHERE subject_id IN ({','.join('?' * len(subjects))})", subjects).fetchall()
-    evidence = [_assertion(row) for row in rows]
-    values: dict[str, str] = {}
-    for item in evidence:
-        values.setdefault(item.scheme, item.value)
-    venues = {row["mic"]: row["name"] for row in ref.execute("SELECT mic, name FROM venues")}
-    siblings = ref.execute("SELECT * FROM listings WHERE security_id = ? AND status <> 'inactive'"
-                           " ORDER BY is_primary DESC, operating_mic, id", (security["id"],)).fetchall() if security else []
-    name = (issuer["name"] if issuer and (security is None or security["asset_class"] != "crypto") else None) or (
-        security["name"] if security else subject_id)
-    identifiers = {"isin": values.get("isin"), "lei": values.get("lei"), "cik": values.get("cik"),
-                   "figi": values.get("figi"), "caip19": values.get("caip19"),
-                   "ticker": listing["ticker"] if listing else None, "mic": listing["operating_mic"] if listing else None,
-                   "currency": listing["currency"] if listing else None}
-    return {
-        "id": subject_id, "level": level, "ids": ids, "values": values, "evidence": evidence,
-        "asset_class": security["asset_class"] if security else None,
-        "kind": security["kind"] if security else None,
-        "listing": listing,
-        "view": {
-            "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None,
-                        "listing": listing["id"] if listing else None},
-            "identifiers": {key: value for key, value in identifiers.items() if value},
-            "issuer": {"id": issuer["id"], "name": issuer["name"], "lei": values.get("lei"), "cik": values.get("cik")}
-            if issuer else None,
-            "security": {"id": security["id"], "name": security["name"], "isin": values.get("isin")} if security else None,
-            "listings": [{"id": row["id"], "ticker": row["ticker"], "mic": row["operating_mic"] or row["mic"],
-                          "venue": venues.get(row["mic"] or ""), "currency": row["currency"], "primary": bool(row["is_primary"])}
-                         for row in siblings],
-            "related": related(ref, subjects),
-        },
-    }
-
-
-RELATED = tuple(type for type, rule in RELATIONS.items() if rule.grouping is Grouping.RELATED)
-
-
-def related(ref: sqlite3.Connection, subject_ids: list[str]) -> list[dict[str, Any]]:
-    """Subjects linked to these by a `related` relation (a wrapped token, a fund's index, a successor), in either
-    direction: each its own subject, for display beside the page, never merged into it. `fold` relations are not
-    listed: they fold into the page's listings instead."""
-    if not subject_ids:
-        return []
-    marks, types = ",".join("?" * len(subject_ids)), ",".join("?" * len(RELATED))
-    rows = ref.execute(
-        f"SELECT type, from_id, to_id FROM relations WHERE type IN ({types}) AND (from_id IN ({marks}) OR to_id IN ({marks}))"
-        " ORDER BY type, from_id, to_id", (*RELATED, *subject_ids, *subject_ids)).fetchall()
-    out: dict[tuple[str, str, str], None] = {}
-    for type, start, end in rows:
-        outgoing = start in subject_ids
-        out.setdefault((end if outgoing else start, type, "to" if outgoing else "from"))
-    names = dict(ref.execute(f"SELECT id, name FROM securities WHERE id IN ({','.join('?' * len(out))})"
-                             " UNION ALL SELECT id, name FROM issuers WHERE id IN"
-                             f" ({','.join('?' * len(out))})", [key[0] for key in out] * 2)) if out else {}
-    return [{"id": other, "type": type, "direction": direction, "kind": subject_kind(other), "name": names.get(other)}
-            for other, type, direction in out]
-
-
-def _assertion(row: sqlite3.Row) -> IdentifierAssertion:
-    return IdentifierAssertion(
-        subject_id=row["subject_id"], scheme=row["scheme"], value=row["value"], authority=row["authority"],
-        provenance={"plugin": row["plugin"], "source": row["source"], "adapter_version": row["adapter_version"],
-                    "retrieved_at": row["retrieved_at"], "source_record": row["source_record"]},
-        validity={"valid_from": row["valid_from"], "valid_to": row["valid_to"]})
+def ordered(plugins: list[PluginInfo], section: Section, order: tuple[str, ...] = ()) -> list[PluginInfo]:
+    """The investor's order, then core's default order for the section's concept (free before paid), then key."""
+    entries = [{"plugin": info.key, "provider": info.manifest.provider, "info": info} for info in plugins]
+    return [entry["info"] for entry in ranked(entries, order, REGISTRY[SERVES[section][0]].default_order)]
 
 
 # ---- addressing -------------------------------------------------------------------------------------------------
@@ -226,20 +146,35 @@ def _addressable(info: PluginInfo, level: Level, subject: dict) -> bool:
 def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Callable[[str, str], sqlite3.Row | None],
              coins: Callable[[str, str], str | None], queue: list[dict],
              misses: Mapping[str, str] = {}) -> dict | None:
-    """One plugin's answer for one section, or None when it cannot address the subject."""
-    served = serving(info.manifest, section)
-    entry, operation = served if served else (None, None)
-    target = entry and subject["ids"].get(entry.via)
-    if not target or not _addressable(info, entry.via, subject):
+    """One plugin's answer for one section, or None when its contract does not declare the section's concept.
+
+    A declaring plugin that cannot serve this subject answers with the reason as its status: `not_covering`
+    (its coverage excludes the asset class or market), `not_addressable`, `disabled`, `needs_configuration`,
+    `conflict` or `unresolved`."""
+    served = served_by(info.manifest, section)
+    if served is None:
         return None
-    row = stored(target, info.manifest.provider)
-    derived = None if row else derive(info, entry.via, subject, coins)
-    wants_resolve = not row and not derived and bool(resolve_input(info, subject))
+    entry, concept_operation, operation = served
+    concept = SERVES[section][0]
+    answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "provider": info.manifest.provider,
+              "label": info.label,
+              "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
+              "binding_status": None, "request": None, "alternatives": [], "reason": None,
+              "authorities": [str(item) for item in entry.authorities]}
+    coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
+    market = listing and (listing["operating_mic"] or listing["mic"])
+    if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes:
+        return {**answer, "status": "not_covering",
+                "reason": f"{info.label} does not cover {subject['asset_class'] or 'this kind of'} instruments"}
+    if coverage.markets is not None and market not in coverage.markets:
+        return {**answer, "status": "not_covering", "reason": f"{info.label} does not cover {market or 'this market'}"}
+    target = subject["ids"].get(entry.via)
+    row = stored(target, info.manifest.provider) if target and _addressable(info, entry.via, subject) else None
+    derived = None if row or not target or not _addressable(info, entry.via, subject) else derive(info, entry.via, subject, coins)
+    wants_resolve = (bool(target) and _addressable(info, entry.via, subject) and not row and not derived
+                     and bool(resolve_input(info, subject)))
     if not (row or derived or wants_resolve):
-        return None
-    answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "label": info.label, "status": "ready",
-              "binding": None,
-              "binding_status": None, "request": None, "alternatives": [], "reason": None}
+        return {**answer, "status": "not_addressable", "reason": f"{info.label} has no address for this {subject['level']}"}
     missing = info.missing[0] if info.missing else None
     queued = next((item for item in queue if item["plugin"] == info.manifest.plugin), None)
     conflict = queued if queued and queued.get("kind", "conflict") == "conflict" else None
@@ -268,18 +203,19 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     return {**answer, "binding": ref.wire(), "binding_status": state, "request": request}
 
 
-def answers(subject: dict, plugins: list[PluginInfo], section: Section, **lookups: Any) -> list[dict]:
-    """Every plugin's answer for one section, in the default order."""
-    return [answer for info in ordered(plugins, section)
+def answers(subject: dict, plugins: list[PluginInfo], section: Section, *, order: tuple[str, ...] = (),
+            **lookups: Any) -> list[dict]:
+    """Every declaring plugin's answer for one section, in the investor's order, then core's default order."""
+    return [answer for info in ordered(plugins, section, order)
             if (answer := evaluate(info, section, subject, **lookups)) is not None]
 
 
 def price_sources(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[dict]:
-    """The native references that serve the subject's quote and chart now, in the default order.
+    """The native references that serve the subject's quote and chart now, in selection order.
 
     Market-data reads of a subject route through these: confirmed bindings and addresses core
-    derives. A plugin that is disabled, unconfigured, contradicted or still needs a resolve
-    contributes none."""
+    derives. A plugin that is disabled, unconfigured, not covering, contradicted or still
+    needs a resolve contributes none."""
     refs: list[dict] = []
     for section in (Section.QUOTE, Section.CHART):
         for answer in answers(subject, plugins, section, **lookups):
@@ -288,18 +224,59 @@ def price_sources(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> l
     return refs
 
 
+def source(answer: dict) -> dict:
+    """A source as page sections and agent results name it."""
+    return {"source": answer["label"], "provider": answer["provider"], "plugin": answer["plugin"]}
+
+
+def filings_request(subject_id: str, use: str | None = None) -> dict:
+    """Core's combined filings read for a subject; `use` reads one named source for its authorities, once."""
+    return {"plugin": CORE_PLUGIN, "operation": "filings",
+            "arguments": {"subject_id": subject_id, **({"use": use} if use else {})}}
+
+
 def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[dict]:
-    """One chosen plugin per section (the first usable one in the default order), with the others as alternatives."""
+    """One section per concept a plugin can serve for the subject: the chosen source, the other eligible sources
+    as alternatives and every other declaring source as skipped with its reason. Filings combine one source per
+    authority into one core read. Pure: the lookups are in-memory, so composition does no I/O."""
+    order = tuple(lookups.get("order", ()))
     sections = []
     for section in SECTIONS:
         found = answers(subject, plugins, section, **lookups)
-        if not found:
+        if not any(answer["status"] not in ABSENT for answer in found):
             continue
-        usable = [answer for answer in found if answer["status"] in ("ready", "resolving")]
-        chosen = (usable or found)[0]
-        chosen["alternatives"] = [{"plugin": answer["plugin"], "label": answer["label"], "status": answer["status"]}
-                                  for answer in found if answer is not chosen]
-        sections.append(chosen)
+        combine = REGISTRY[SERVES[section][0]].combine
+        chosen, alternatives, skipped = select(found, combine=combine)
+        # A combined section reads its ready sources at once; one still to be looked up is listed, not awaited. It
+        # is looked up (by the Desk, as for any section) only when no combined source is ready yet.
+        ready = [(answer, served) for answer, served in chosen if answer["status"] == "ready"]
+        combined = combine is Combine.PER_AUTHORITY and bool(ready)
+        waiting = [answer for answer, _ in chosen if answer["status"] != "ready"] if combined else []
+        if combined:
+            chosen = ready
+        lead = dict(chosen[0][0]) if chosen else next(a for a in found if a["status"] not in ABSENT)
+        rest = [answer for answer in skipped if answer["plugin"] != lead["plugin"]]
+        lead["source"] = source(lead)
+        lead["skipped"] = [{**source(answer), "label": answer["label"], "code": answer["status"],
+                            "reason": answer["reason"] or answer["status"].replace("_", " ")} for answer in waiting + rest]
+        lead["alternatives"] = [{**source(answer), "label": answer["label"], "status": answer["status"],
+                                 "binding": answer["binding"],
+                                 "request": filings_request(subject["id"], answer["plugin"]) if combined
+                                 and answer["status"] == "ready" else answer["request"]}
+                                for answer in alternatives]
+        if combined:
+            lead["sources"] = [{**source(answer), "authorities": list(served), "status": answer["status"]}
+                               for answer, served in chosen]
+            lead["label"] = " + ".join(answer["label"] for answer, _ in chosen)
+            lead.update(status="ready", reason=None, request=filings_request(subject["id"]))
+        # Amber only when a source ranked ahead of the one serving could have served and did not: the investor
+        # named it, or something went wrong (contradicted, not found). Setup states are not warnings.
+        served = {entry["plugin"] for entry, _ in chosen} or {lead["plugin"]}
+        position = min(index for index, answer in enumerate(found) if answer["plugin"] in served)
+        notice = next((answer for answer in found[:position] if answer["status"] not in ABSENT
+                       and (answer["status"] in NOTICE or answer["plugin"] in order or answer["provider"] in order)), None)
+        lead["notice"] = {**source(notice), "code": notice["status"], "reason": notice["reason"]} if notice else None
+        sections.append(lead)
     return sections
 
 

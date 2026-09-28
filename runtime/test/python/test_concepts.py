@@ -9,7 +9,6 @@ from test_identity_contracts import identity, load, load_reference
 from pythia_identity_fixture import page  # noqa: E402
 
 PLUGINS = Path(__file__).resolve().parents[2] / "managed/plugins"
-PLUGINS = Path(__file__).resolve().parents[2] / "managed/plugins"
 MD = identity.Concept.MARKET_DATA
 RIGHTS = {"licence": "personal", "cache": "none", "hostable": False}
 
@@ -143,52 +142,49 @@ SUBJECTS = {"asml_xams": "listing:isin:NL0010273215:XAMS:EUR", "asml_nasdaq": "l
 TOOLS = {"gleif": {"profile": "pythia_gleif_profile"}, "sec": {"filings": "pythia_sec_filings"},
          "xbrl-filings": {"filings": "pythia_xbrl_filings_filings"}}
 EQUITY_ADDRESS = {"asml_xams": ("ASML.AS", "ASML.AS"), "asml_nasdaq": ("ASML", "ASML.US"), "apple": ("AAPL", "AAPL.US")}
+NOT_CRYPTO = [("coingecko", "not_covering"), ("coinmarketcap", "not_covering")]
+NOT_EQUITY = [("yahoo-discovery", "not_covering"), ("eodhd", "not_covering")]
+# Filings combine one source per authority into core's read, whatever the price configuration.
+FILINGS = {"profile": ("gleif", "ready", [], []),
+           "filings": ("xbrl-filings", "ready", [], [], [("xbrl-filings", ["esma", "fca"]), ("sec", ["sec"])])}
 
 
-def ready_equity(name):
+def equity(config, name):
     yahoo, eodhd = EQUITY_ADDRESS[name]
-    rest = {"profile": ("gleif", "ready", []), "filings": ("xbrl-filings", "ready", [("sec", "ready")])}
-    return {"quote": ("yahoo-discovery", "ready", [("eodhd", "ready")]),
-            "chart": ("yahoo-discovery", "ready", [("eodhd", "ready")]), **rest}, [("yahoo", yahoo), ("eodhd", eodhd)]
+    prices = {"all_ready": (("yahoo-discovery", "ready", ["eodhd"], NOT_CRYPTO), [("yahoo", yahoo), ("eodhd", eodhd)]),
+              "yahoo_off_keys_missing": (("yahoo-discovery", "disabled", [],
+                                          [("coingecko", "not_covering"), ("eodhd", "needs_configuration"),
+                                           ("coinmarketcap", "not_covering")]), []),
+              "no_keys": (("yahoo-discovery", "ready", [], [("coingecko", "not_covering"),
+                                                             ("eodhd", "needs_configuration"),
+                                                             ("coinmarketcap", "not_covering")]),
+                          [("yahoo", yahoo)])}[config]
+    return {"quote": prices[0], "chart": prices[0], **FILINGS}, prices[1]
 
 
-def keyless_equity(name):
-    rest = {"profile": ("gleif", "ready", []), "filings": ("xbrl-filings", "ready", [("sec", "ready")])}
-    return {"quote": ("yahoo-discovery", "ready", [("eodhd", "needs_configuration")]),
-            "chart": ("yahoo-discovery", "ready", [("eodhd", "needs_configuration")]), **rest}, [("yahoo", EQUITY_ADDRESS[name][0])]
+def crypto(config):
+    keyed = config == "all_ready"
+    quote = (("coingecko", "ready", ["coinmarketcap"], NOT_EQUITY) if keyed else
+             ("coingecko", "ready", [], [*NOT_EQUITY, ("coinmarketcap", "needs_configuration")]))
+    return {"quote": quote, "chart": quote}, [("coingecko", "bitcoin"), ("coinmarketcap", "1")] if keyed else [
+        ("coingecko", "bitcoin")]
 
 
-def off_equity(_name):
-    rest = {"profile": ("gleif", "ready", []), "filings": ("xbrl-filings", "ready", [("sec", "ready")])}
-    return {"quote": ("yahoo-discovery", "disabled", [("eodhd", "needs_configuration")]),
-            "chart": ("yahoo-discovery", "disabled", [("eodhd", "needs_configuration")]), **rest}, []
-
-
-# What page composition chooses on the shipped contracts. Core's default order lists free sources first, so a
-# configured key never changes the source: Yahoo serves stocks and CoinGecko crypto, with the paid EODHD and
-# CoinMarketCap as alternatives. Against origin/identity-backbone f2575c1 only crypto changes (CoinGecko before
-# CoinMarketCap); stocks, profile and filings compose as before.
-EXPECTED = {
-    "all_ready": {**{name: ready_equity(name) for name in EQUITY_ADDRESS},
-                  "btc": ({"quote": ("coingecko", "ready", [("coinmarketcap", "ready")]),
-                           "chart": ("coingecko", "ready", [("coinmarketcap", "ready")])},
-                          [("coingecko", "bitcoin"), ("coinmarketcap", "1")])},
-    "yahoo_off_keys_missing": {**{name: off_equity(name) for name in EQUITY_ADDRESS},
-                               "btc": ({"quote": ("coingecko", "ready", [("coinmarketcap", "needs_configuration")]),
-                                        "chart": ("coingecko", "ready", [("coinmarketcap", "needs_configuration")])},
-                                       [("coingecko", "bitcoin")])},
-    "no_keys": {**{name: keyless_equity(name) for name in EQUITY_ADDRESS},
-                "btc": ({"quote": ("coingecko", "ready", [("coinmarketcap", "needs_configuration")]),
-                         "chart": ("coingecko", "ready", [("coinmarketcap", "needs_configuration")])},
-                        [("coingecko", "bitcoin")])},
-}
+# Free sources come first in core's default order, so a key never changes the source: Yahoo serves stocks and
+# CoinGecko crypto. Every source that declares the concept and does not serve is listed as skipped with its reason.
 CONFIGS = {"all_ready": {}, "yahoo_off_keys_missing": {"yahoo-discovery": {"enabled": False},
                                                        "eodhd": {"missing": True}, "coinmarketcap": {"missing": True}},
            "no_keys": {"eodhd": {"missing": True}, "coinmarketcap": {"missing": True}}}
+EXPECTED = {config: {**{name: equity(config, name) for name in EQUITY_ADDRESS}, "btc": crypto(config)}
+            for config in CONFIGS}
+
+
+def short(plugin):
+    return plugin.removeprefix("pythia-")
 
 
 class PageCompositionTest(unittest.TestCase):
-    """Page sections on contract v1: free sources first in core's default order; a key does not change the source."""
+    """Page sections: free sources first in core's default order; a key does not change the source."""
 
     def setUp(self):
         self.ref = sqlite3.connect(":memory:")
@@ -220,15 +216,21 @@ class PageCompositionTest(unittest.TestCase):
             for name, (sections, refs) in expected.items():
                 with self.subTest(config=config, subject=name):
                     subject = page.load_subject(self.ref, SUBJECTS[name])
-                    got = {s["section"]: (s["plugin"].removeprefix("pythia-"), s["status"],
-                                          [(a["plugin"].removeprefix("pythia-"), a["status"]) for a in s["alternatives"]])
-                           for s in page.compose(subject, plugins, **lookups)}
+                    got = {}
+                    for s in page.compose(subject, plugins, **lookups):
+                        row = (short(s["plugin"]), s["status"], [short(a["plugin"]) for a in s["alternatives"]],
+                               [(short(k["plugin"]), k["code"]) for k in s["skipped"]])
+                        got[s["section"]] = (*row, [(short(x["plugin"]), x["authorities"]) for x in s["sources"]]) \
+                            if "sources" in s else row
+                        self.assertIsNone(s["notice"])
                     self.assertEqual(got, sections)
                     self.assertEqual([(ref["provider"], ref["native_id"])
                                       for ref in page.price_sources(subject, plugins, **lookups)], refs)
         subject = page.load_subject(self.ref, SUBJECTS["asml_xams"])
-        profile = next(s for s in page.compose(subject, self.plugins({}), **lookups) if s["section"] == "profile")
-        self.assertEqual(profile["request"]["operation"], "profile")
+        sections = {s["section"]: s for s in page.compose(subject, self.plugins({}), **lookups)}
+        self.assertEqual(sections["profile"]["request"]["operation"], "profile")
+        self.assertEqual(sections["filings"]["request"], {"plugin": "pythia", "operation": "filings",
+                                                          "arguments": {"subject_id": SUBJECTS["asml_xams"]}})
 
 
 if __name__ == "__main__":

@@ -259,6 +259,14 @@ addressing (the full shape is in the ADR 0038 amendment):
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
   (`identity.validate_live_market`).
+- A filings source may accept `forms` in its filings operation's schema; core
+  then passes the requested forms so the source can search beyond its most
+  recent filings.
+
+Selection is core's: the investor's one `source_order` (settings.json), then
+core's default order, free sources first; a source whose coverage excludes the
+subject, or that is unconfigured, is skipped with its reason. Filings
+combine one source per declared authority into core's `filings` read.
 
 Core validates the file with `identity.validate_manifest`; a contract newer
 than the installed Pythia shows as `needs_update`. A bundled plugin lists

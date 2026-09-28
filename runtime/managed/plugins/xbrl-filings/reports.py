@@ -73,12 +73,22 @@ def filings(raw, identifier, observed_at, limit):
         # The repository indexes neither a regulator filing date (date_added is its own ingestion) nor a language.
         'filings': [{'accession': row['hash'], 'report_id': row['id'], 'form': row['form'],
             'country': row['country'], 'title': row['form'] + ' report', 'period_end': row['period_end'],
-            'filed_at': None, 'language': None,
+            # Not a filing date: the day filings.xbrl.org indexed the report, a documented proxy for ordering.
+            'filed_at': None, 'indexed_at': indexed(row['added_raw']), 'language': None,
             'url': row['url'], 'links': row['links'], 'machine_readable': available(row),
             'source_detail': detail(row)} for row in rows[:limit]],
         'latest': latest(rows, total),
         'coverage': {'scope': 'indexed_reports', 'returned': min(limit, len(rows)),
                      'total_available': total, 'complete': total <= limit}}
+
+
+def indexed(value):
+    """The date part of the repository's `date_added` ("2026-03-04 13:55:19.06"), or None when absent or malformed."""
+    day = value[:10] if isinstance(value, str) else None
+    try:
+        return day if day and checked_date(day) else None
+    except ValueError:
+        return None
 
 
 def available(row):
