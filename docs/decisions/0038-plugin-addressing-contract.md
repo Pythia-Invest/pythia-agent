@@ -120,3 +120,103 @@ catalogue or `resolve`; no search or matching code.
   to typing.
 - **Plugin code deciding addressing on the page path:** slow, untrusted and
   impossible to evaluate for a disabled plugin.
+
+## Amendment (2026-09-28): contract version 1
+
+**Status: accepted and implemented.** All managed contracts live in this
+repository; the first third-party or forked plugin would freeze whatever shape
+exists, so every change below is made in one pass. The licence classes are a
+recommended default awaiting the founder's confirmation.
+
+The file had no version and the validator rejects unknown fields, so an older
+core would have rejected a newer plugin wholesale. [ADR 0040](0040-data-concepts-and-agent-tools.md)
+makes core own data concepts. Naming Hermes tools tied the contract to one
+harness, and provider terms core must know (cache lifetime, attribution,
+licence) lived only in READMEs.
+
+Superseded: the `content` block, `catalogue.tool` and `resolve.tool` holding
+Hermes tool names, the fixed per-section default orders under "Page sections
+never wait on a provider" (they are now each concept's default order in core's
+registry), and "Adding a section is a core change" (now: adding a concept or
+operation is a core change). "`catalogue.mode` is the one provider term core
+enforces" stands; `rights` below is declared, not yet enforced.
+
+```json
+{
+  "contract_version": 1,
+  "plugin": "pythia-coingecko", "provider": "coingecko",
+  "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}]},
+  "concepts": {
+    "market_data": {
+      "level": "security", "via": "security",
+      "operations": {"quote": "latest", "intraday": "history", "daily": "history"},
+      "coverage": {"asset_classes": ["crypto"]}
+    }
+  },
+  "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
+  "rights": {"licence": "personal", "cache": {"ttl_seconds": 86400}, "hostable": false,
+             "attribution": {"text": "Powered by CoinGecko API", "url": "https://www.coingecko.com/en/api/"}},
+  "limits": {"plan": "Demo", "unit": "credit", "per_minute": 100, "per_month": 10000}
+}
+```
+
+- **`contract_version`** is a required positive integer, read before anything
+  else. A contract newer than this core is not validated further: the plugin
+  is reported as `needs_update` (`ManifestNeedsUpdate`, logged distinctly),
+  never as invalid, and its fields are never silently ignored. Any added, removed or changed field raises the version. A new value
+  in one of core's closed vocabularies (a concept, operation, quality,
+  authority or asset class) is a core change; managed plugins always ship with
+  the core that knows their values.
+- **`concepts`** replaces `content`. Each entry names a registered concept,
+  its `level` and `via` (as before; the concept limits the levels), the plugin
+  operation per concept operation, optional `coverage` (`asset_classes`, and
+  `markets` as operating MICs where coverage is narrower than addressing, and
+  `operations` narrowing either for one concept operation, as for a live
+  stream that covers fewer markets),
+  optional `qualities` keyed by concept operation from the registry's closed
+  vocabulary, and for a combining concept (filings) the `authorities` it serves.
+  Page sections read concepts: quote is `market_data.quote`, chart
+  `market_data.daily` or `intraday`, profile `profile.fields`, filings
+  `filings.list`.
+- **Operations, not tools.** Every concept and resolve entry names a plugin
+  operation: the name a tool the plugin actually owns declares, either as a
+  protected HTTP operation or in its market-data contribution. Core's Hermes
+  adapter (`identity_ops.native_operations`) maps an operation to that tool, so
+  another harness reads the same contract. A name two of one plugin's tools
+  declare is ambiguous and is not mapped. `catalogue.operation` names the
+  plugin's own catalogue operation, which the plugin's sync runs and core does
+  not dispatch, so the adapter does not map it.
+- **`rights`** (required): `licence` (`open`, `personal`, `business` or
+  `seat`; only personal mode exists), `cache` (`none`, `{"ttl_seconds": n}`
+  or `unlimited`: how long the data may stay on the device), `hostable`
+  (whether data may appear in a published package; false for every shipped
+  plugin) and optional `attribution` (text and an https link that every surface
+  showing the data renders). Declared now; enforcing the cache lifetime and
+  rendering attribution come later. Each plugin still enforces its provider's
+  other terms itself.
+- **`limits`** (optional): the provider's published rate limits for a named
+  plan (`unit` `call`, `credit` or `request`; per second, minute, day or
+  month). A claim for that plan, not the investor's entitlement; nothing
+  enforces it yet. A per-operation cost comes with the quota ledger.
+- Provider functions (ADR 0040's later phases) are not part of version 1;
+  adding them raises the version.
+
+Consequences: `identity.validate_manifest` and `identity_ops.installed()` keep
+their names and signatures. The `Manifest` they return has `concepts` instead
+of `content` (with `ConceptEntry.coverage_for(operation)`),
+`catalogue_operation` instead of `catalogue_tool`, `resolve.operation` instead
+of `resolve.tool`, plus `rights`, `limits`, `contract_version` and
+`plugin_operations` (every operation the contract names).
+`PluginInfo.operations` maps a plugin operation to its native tool. `Section`
+moved from the manifest to page composition. The `pythia_market_data`
+annotation remains until market-data selection moves to core. Page
+composition reads concepts; its only change is core's default order (ADR
+0040), free sources first, which puts CoinGecko ahead of CoinMarketCap.
+
+Rejected: adding only the version (the `content` to `concepts` and
+tool-to-operation changes break every contract anyway); keeping rights in
+READMEs (core could not render attribution or respect cache lifetimes);
+qualities flat per concept (delay and depth differ between a quote and daily
+history); free-form qualities (selection and labels need values core
+understands); reserving an always-empty `functions` key (adding a field raises
+the version either way).

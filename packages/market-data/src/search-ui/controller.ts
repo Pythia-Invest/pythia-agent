@@ -1,10 +1,12 @@
 "use client";
-import { type PluginTransport, useQuery } from "@pythia/widget-sdk";
+import { type PluginTransport, useQueries, useQuery } from "@pythia/widget-sdk";
+import { useCallback } from "react";
 import { z } from "zod";
 import {
   type LookupRequest,
   type SearchRequest,
   type SearchResponse,
+  type SearchGroup,
   type SearchRow,
   searchResponseSchema,
 } from "../search";
@@ -27,9 +29,9 @@ export type SearchBackend = (
 export type LookupRunner = (
   request: LookupRequest,
   signal: AbortSignal,
-) => Promise<SearchRow[]>;
+) => Promise<SearchGroup[]>;
 
-/** Directory rows for the typed query. The previous answer stays on screen
+/** Directory groups for the typed query. The previous answer stays on screen
  * while the next one loads, and a reopened panel answers from the cache. */
 export function useDirectorySearch(
   search: SearchBackend,
@@ -51,6 +53,47 @@ export function useDirectorySearch(
     gcTime: 5 * 60_000,
     retry: false,
     refetchOnWindowFocus: false,
+  });
+}
+
+/** All listings of the given groups, one cached group read per group, keyed
+ * by group id once read; `pending` names the groups still loading or failed. */
+export function useGroupListings(
+  search: SearchBackend,
+  query: string,
+  filter: TypeFilter,
+  groups: readonly SearchGroup[],
+) {
+  const kinds = TYPE_FILTERS.find((type) => type.value === filter)?.kinds;
+  const ids = groups.map((group) => group.id).join("\n");
+  // A stable combine keeps the answer's identity while no read changes, so
+  // the panel's options are not rebuilt on every render.
+  const combine = useCallback(
+    (results: { data?: SearchResponse | undefined; isPending: boolean }[]) => {
+      const rows = new Map<string, readonly SearchRow[]>();
+      const pending = new Map<string, "loading" | "error">();
+      ids.split("\n").forEach((id, index) => {
+        const result = results[index];
+        if (!id || !result) return;
+        const read = result.data?.groups.find((group) => group.id === id);
+        if (read) rows.set(id, read.rows);
+        else pending.set(id, result.isPending ? "loading" : "error");
+      });
+      return { rows, pending };
+    },
+    [ids],
+  );
+  return useQueries({
+    queries: groups.map((group) => ({
+      queryKey: [...searchQueryKey, "group", group.id, filter],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        search({ query, group: group.id, ...(kinds ? { kinds } : {}) }, signal),
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      retry: false,
+      refetchOnWindowFocus: false,
+    })),
+    combine,
   });
 }
 

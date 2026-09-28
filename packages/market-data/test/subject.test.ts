@@ -23,6 +23,15 @@ describe("subject page client", () => {
               // Empty text means "not known", never a failed page.
               identifiers: { ticker: "", isin: "XS0000000001" },
               listings: [{ id: "listing:synthetic", ticker: "", currency: "" }],
+              // A kind or relation this client does not know yet is passed through.
+              related: [
+                {
+                  id: "venue:pythia:synthetic",
+                  type: "future_relation",
+                  direction: "sideways",
+                  kind: "venue",
+                },
+              ],
               sections: [
                 {
                   section: "news",
@@ -40,6 +49,15 @@ describe("subject page client", () => {
     expect(page.subject.kind).toBeNull();
     expect(page.identifiers).toEqual({ ticker: null, isin: "XS0000000001" });
     expect(page.listings[0]).toMatchObject({ ticker: null, currency: null });
+    expect(page.related).toEqual([
+      {
+        id: "venue:pythia:synthetic",
+        type: "future_relation",
+        direction: null,
+        kind: "venue",
+        name: null,
+      },
+    ]);
     expect(page.sections[0]).toMatchObject({
       section: "news",
       status: "throttled",

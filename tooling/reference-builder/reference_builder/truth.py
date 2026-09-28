@@ -29,10 +29,7 @@ CHECKS = ("coverage", "lifecycle", "issuer", "security", "separate", "listing", 
           "subject_key")
 search = importlib.import_module(f"{identity.__name__}.search")
 page = importlib.import_module(f"{identity.__name__}.page")
-
-
-def tnorm(ticker: str | None) -> str:
-    return re.sub(r"[^A-Z0-9]", "", (ticker or "").upper())
+tnorm = search.tnorm  # core's ticker normalisation
 
 
 @dataclass
@@ -102,6 +99,7 @@ class Audit:
     ids: dict[str, dict] = field(default_factory=dict)
     in_scope: int = 0
     future: list[str] = field(default_factory=list)   # entries of subject kinds core does not have yet (M1)
+    fold_odd: list[tuple[str, str]] = field(default_factory=list)  # fold second targets and cycles (identity.fold_roots)
 
     def add(self, entry: str, check: str, sub: str, ok: bool | None, reason: str = "") -> None:
         status = "na" if ok is None else ("pass" if ok else "fail")
@@ -182,6 +180,7 @@ def audit(reference: Path, truth: dict, contracts: dict | None = None, cfi: tupl
     report = Audit(build, scope, truth.get("version", ""), {e["id"]: e.get("tags", []) for e in truth["entries"]})
     located = {entry_id: ref.locate(entry)[0] for entry_id, entry in entries.items()}
     directory = search.Directory(ref.db)
+    report.fold_odd = identity.fold_roots(ref.all("SELECT type, from_id, to_id FROM relations"))[1]
     folded = {row[0]: row[1] for row in directory.db.execute("SELECT security, inst FROM doc GROUP BY security")}
     priced = page.priced_venues(list(contracts.values()))
     issuers = {}
@@ -291,15 +290,15 @@ def _check_entry(report, ref, entry, entries, scoped, located, issuers, folded, 
 
 
 def _check_row_line(report, entry, security, folded, directory, priced) -> None:
-    """The line a search row shows for the entry: the first of `search.rows` the build has (`TICKER@MIC`)."""
+    """The line search shows for the entry, its instrument's first row: the first of `search.rows` the build has."""
     spec, inst, db = entry.get("search"), folded.get(security), directory.db
     if not spec or entry["status"] != "active" or inst is None:
         return
     key = lambda line: f"{tnorm(line.rsplit('@', 1)[0])}@{line.rsplit('@', 1)[1]}"  # noqa: E731
     lines = {key(f"{ticker}@{mic}") for ticker, mic in db.execute("SELECT ticker, mic FROM doc WHERE inst = ?", (inst,))}
     wanted = next((key(row) for row in spec["rows"] if key(row) in lines), None)
-    shown = next((key(f"{r['ticker']}@{r['mic']}") for r in directory.search(spec["query"], limit=10, priced=lambda: priced)["rows"]
-                  if db.execute("SELECT 1 FROM doc WHERE listing = ? AND inst = ?", (r["id"], inst)).fetchone()), None)
+    rows = (row for group in directory.search(spec["query"], limit=10, priced=lambda: priced)["groups"] for row in group["rows"])
+    shown = next((key(f"{row['ticker']}@{row['mic']}") for row in rows if row["instrument"] == inst), None)
     report.add(entry["id"], "fold", f"row_line:{spec['query']}", shown == wanted if wanted else None, f"row:{shown}")
 
 

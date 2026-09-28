@@ -1,4 +1,4 @@
-"""Instrument page composition (ADR 0038): the subject, its listings and one plugin per section.
+"""Instrument page composition (ADR 0038, ADR 0040): the subject, its listings and one plugin per section.
 
 `subject_view` is local only: it reads the reference file, the identity store and
 the installed plugins' contracts, and never calls a plugin. A plugin whose
@@ -15,19 +15,35 @@ import sqlite3
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
+from enum import StrEnum
 from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
-from .manifest import Manifest, Section
+from .concepts import REGISTRY, Concept
+from .manifest import ConceptEntry, Manifest
 from .model import Binding, IdentifierAssertion, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
-from .schemes import Level, provisional_id, subject_level
-from .vocabulary import AssetClass, InstrumentKind, VerdictRelation
+from .schemes import INSTRUMENT_KINDS, Level, provisional_id, subject_kind, subject_level
+from .vocabulary import KIND_OF_RECORD, RELATIONS, AssetClass, Grouping, InstrumentKind, VerdictRelation
 
+
+
+class Section(StrEnum):
+    """Instrument page sections. Each is served by one concept operation (ADR 0040); the Desk renders sections."""
+
+    QUOTE = "quote"
+    CHART = "chart"
+    PROFILE = "profile"
+    FINANCIALS = "financials"
+    NEWS = "news"
+    FILINGS = "filings"
+
+
+# The concept operations that can fill each section, preferred first.
+SERVES = {Section.QUOTE: (Concept.MARKET_DATA, ("quote",)), Section.CHART: (Concept.MARKET_DATA, ("daily", "intraday")),
+          Section.PROFILE: (Concept.PROFILE, ("fields",)), Section.FILINGS: (Concept.FILINGS, ("list",)),
+          Section.FINANCIALS: (Concept.FUNDAMENTALS, ("statements",)), Section.NEWS: (Concept.NEWS, ("list",))}
 SECTIONS = (Section.QUOTE, Section.CHART, Section.PROFILE, Section.FILINGS)
-ORDER = {Section.QUOTE: ("yahoo", "eodhd", "coinmarketcap", "coingecko"),
-         Section.CHART: ("yahoo", "eodhd", "coinmarketcap", "coingecko"),
-         Section.PROFILE: ("gleif",), Section.FILINGS: ("xbrl-filings", "sec")}
 LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMarketCap", "coingecko": "CoinGecko",
           "gleif": "GLEIF", "xbrl-filings": "filings.xbrl.org", "sec": "SEC EDGAR", "openfigi": "OpenFIGI"}
 SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
@@ -44,28 +60,40 @@ class PluginInfo:
     manifest: Manifest
     enabled: bool = True
     missing: tuple[Mapping[str, str], ...] = ()  # required configuration not configured
-    operations: Mapping[str, str] = field(default_factory=dict)  # native tool -> declared HTTP operation
+    operations: Mapping[str, str] = field(default_factory=dict)  # plugin operation -> the native tool declaring it
 
     @property
     def label(self) -> str:
         return LABELS.get(self.manifest.provider, self.manifest.provider)
 
 
+def serving(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str] | None:
+    """The plugin's concept entry for a section and the plugin operation that serves it, or None."""
+    concept, operations = SERVES[section]
+    entry = manifest.concepts.get(concept)
+    name = entry and next((name for name in operations if name in entry.operations), None)
+    return (entry, entry.operations[name]) if name else None
+
+
 def ordered(plugins: list[PluginInfo], section: Section) -> list[PluginInfo]:
-    preferred = ORDER.get(section, ())
+    """Core's default order for the section's concept (the registry's), then plugin key."""
+    preferred = REGISTRY[SERVES[section][0]].default_order
     rank = {name: index for index, name in enumerate(preferred)}
     return sorted(plugins, key=lambda info: (rank.get(info.manifest.provider, len(preferred)), info.key))
 
 
 # ---- the subject from the reference file ------------------------------------------------------------------------
 
-def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | None:
-    """The subject with its listing, security and issuer (whichever exist), or None if unknown.
+def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None = None) -> dict[str, Any] | None:
+    """The subject with its listing, security and issuer (whichever exist), or None if unknown. The reference
+    holds instruments only: a subject of another kind is unknown here. A security or issuer subject is priced
+    through `listing_id` when that is one of its security's lines, else through its primary (else first) line.
 
     An ID the reference no longer holds (an older key rule, a re-key, another build path)
     resolves through `id_aliases` (ADR 0037); the result carries the current ID.
     """
-    subject_level(subject_id)
+    if subject_kind(subject_id) not in INSTRUMENT_KINDS:
+        return None
     alias = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone()
     subject_id = alias[0] if alias else subject_id
     level = subject_level(subject_id)
@@ -82,6 +110,8 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
                                   " rank IS NULL, rank LIMIT 1", subject_id)
     if (listing or security or issuer) is None:
         return None
+    if security is not None and listing is None and listing_id:
+        listing = one("SELECT * FROM listings WHERE id = ? AND security_id = ?", listing_id, security["id"])
     if security is not None and listing is None:
         listing = one("SELECT * FROM listings WHERE security_id = ? ORDER BY is_primary DESC, status <> 'active', id LIMIT 1",
                       security["id"])
@@ -110,7 +140,8 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
         "kind": security["kind"] if security else None,
         "listing": listing,
         "view": {
-            "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None},
+            "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None,
+                        "listing": listing["id"] if listing else None},
             "identifiers": {key: value for key, value in identifiers.items() if value},
             "issuer": {"id": issuer["id"], "name": issuer["name"], "lei": values.get("lei"), "cik": values.get("cik")}
             if issuer else None,
@@ -118,8 +149,33 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
             "listings": [{"id": row["id"], "ticker": row["ticker"], "mic": row["operating_mic"] or row["mic"],
                           "venue": venues.get(row["mic"] or ""), "currency": row["currency"], "primary": bool(row["is_primary"])}
                          for row in siblings],
+            "related": related(ref, subjects),
         },
     }
+
+
+RELATED = tuple(type for type, rule in RELATIONS.items() if rule.grouping is Grouping.RELATED)
+
+
+def related(ref: sqlite3.Connection, subject_ids: list[str]) -> list[dict[str, Any]]:
+    """Subjects linked to these by a `related` relation (a wrapped token, a fund's index, a successor), in either
+    direction: each its own subject, for display beside the page, never merged into it. `fold` relations are not
+    listed: they fold into the page's listings instead."""
+    if not subject_ids:
+        return []
+    marks, types = ",".join("?" * len(subject_ids)), ",".join("?" * len(RELATED))
+    rows = ref.execute(
+        f"SELECT type, from_id, to_id FROM relations WHERE type IN ({types}) AND (from_id IN ({marks}) OR to_id IN ({marks}))"
+        " ORDER BY type, from_id, to_id", (*RELATED, *subject_ids, *subject_ids)).fetchall()
+    out: dict[tuple[str, str, str], None] = {}
+    for type, start, end in rows:
+        outgoing = start in subject_ids
+        out.setdefault((end if outgoing else start, type, "to" if outgoing else "from"))
+    names = dict(ref.execute(f"SELECT id, name FROM securities WHERE id IN ({','.join('?' * len(out))})"
+                             " UNION ALL SELECT id, name FROM issuers WHERE id IN"
+                             f" ({','.join('?' * len(out))})", [key[0] for key in out] * 2)) if out else {}
+    return [{"id": other, "type": type, "direction": direction, "kind": subject_kind(other), "name": names.get(other)}
+            for other, type, direction in out]
 
 
 def _assertion(row: sqlite3.Row) -> IdentifierAssertion:
@@ -162,8 +218,8 @@ def priced_venues(plugins: list[PluginInfo]) -> dict[str, frozenset[AssetClass]]
     show a price."""
     venues: dict[str, frozenset[AssetClass]] = {}
     for info in plugins:
-        entry = info.manifest.content.get(Section.QUOTE)
-        if not (info.enabled and not info.missing and entry is not None and entry.via is Level.LISTING):
+        served = serving(info.manifest, Section.QUOTE)
+        if not (info.enabled and not info.missing and served is not None and served[0].via is Level.LISTING):
             continue
         for scope in info.manifest.native:
             if scope.level is Level.LISTING:
@@ -193,7 +249,8 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
              coins: Callable[[str, str], str | None], queue: list[dict],
              misses: Mapping[str, str] = {}) -> dict | None:
     """One plugin's answer for one section, or None when it cannot address the subject."""
-    entry = info.manifest.content.get(section)
+    served = serving(info.manifest, section)
+    entry, operation = served if served else (None, None)
     target = entry and subject["ids"].get(entry.via)
     if not target or not _addressable(info, entry.via, subject):
         return None
@@ -202,7 +259,8 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     wants_resolve = not row and not derived and bool(resolve_input(info, subject))
     if not (row or derived or wants_resolve):
         return None
-    answer = {"section": str(section), "plugin": info.key, "label": info.label, "status": "ready", "binding": None,
+    answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "label": info.label, "status": "ready",
+              "binding": None,
               "binding_status": None, "request": None, "alternatives": [], "reason": None}
     missing = info.missing[0] if info.missing else None
     queued = next((item for item in queue if item["plugin"] == info.manifest.plugin), None)
@@ -226,8 +284,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         state = "confirmed" if rule == NATIVE_COINS_RULE else "derived"
     request = None
     if section in (Section.PROFILE, Section.FILINGS):
-        operation = info.operations.get(entry.tool)
-        if operation is None:
+        if operation not in info.operations:  # the contract names it, but no native tool declares it
             return {**answer, "status": "unresolved", "reason": f"{info.label} exposes no {section} operation"}
         request = {"plugin": info.key, "operation": operation, "arguments": {"native_ref": ref.wire()}}
     return {**answer, "binding": ref.wire(), "binding_status": state, "request": request}
@@ -288,11 +345,15 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     evidence_ids = tuple(item.evidence_id for item in subject["evidence"] if sent.get(item.scheme) == item.value)
     ref = records[0].native_ref
     base = {"candidate_ids": (target,), "state": "open", "opened_at": now, "plugins": (plugin,), "provider_ref": ref}
-    local = (provisional_id(level, ref.provider, ref.native_scope, ref.native_id),)
+    # The record's own kind names what it is: a provider's index or FX record is never provisionally a security.
+    local = (provisional_id(KIND_OF_RECORD.get(records[0].attributes.kind, level), ref.provider, ref.native_scope,
+                            ref.native_id),)
     if len({(claim.native_ref.native_scope, claim.native_ref.native_id) for claim in records}) > 1:
         return None, QueueItem(id=uuid.uuid4().hex, kind="residual", reason="ambiguous", subject_ids=local,
                                evidence_ids=(), **base), records
     item = QueueItem(id=uuid.uuid4().hex, kind="residual", reason="no_key", subject_ids=local, evidence_ids=(), **base)
+    if records[0].attributes.kind in KIND_OF_RECORD:  # an index or FX record: its own subject, never this instrument
+        return None, item, records
     verdict = Verdict(item_id=item.id, resolver="rules", authority="rule_confirmed", relation=SAME[level],
                       chosen_id=target, rule_id=RESOLVE_RULE,
                       provenance={"plugin": "pythia", "source": "pythia", "adapter_version": "1", "retrieved_at": now})

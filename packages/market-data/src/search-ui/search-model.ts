@@ -1,4 +1,4 @@
-import type { InstrumentKind, SearchRow } from "../search";
+import type { InstrumentKind, SearchGroup, SearchRow } from "../search";
 
 export type TypeFilter =
   | "all"
@@ -56,16 +56,41 @@ export const ROW_LABELS: Record<InstrumentKind, string> = {
 
 export type RowSource = "directory" | "lookup";
 
-/** One selectable row in panel order. */
+/** One selectable entry in panel order: a listing row of a group, or the
+ * group's toggle between its relevant listings and all of them. */
 export type SearchOption = {
   key: string;
-  row: SearchRow;
+  group: SearchGroup;
   source: RowSource;
+  /** The listing a choice opens; absent on the toggle. */
+  row?: SearchRow | undefined;
 };
 
+/** Each group's relevant listings (all of them when expanded and read),
+ * then its toggle when it has more listings than the search answer carries.
+ * `full` holds the group reads of expanded groups, by group id. */
 export function searchOptions(
-  rows: readonly SearchRow[],
+  groups: readonly SearchGroup[],
   source: RowSource,
+  expanded: ReadonlySet<string> = new Set(),
+  full: ReadonlyMap<string, readonly SearchRow[]> = new Map(),
 ): SearchOption[] {
-  return rows.map((row) => ({ key: `${source}:${row.id}`, row, source }));
+  return groups.flatMap((group) => {
+    // Expanded, the relevant rows stay first and the rest follow in core's
+    // order, so nothing already shown moves.
+    const all = expanded.has(group.id) ? full.get(group.id) : undefined;
+    const shown = new Set(group.rows.map((row) => row.id));
+    const rows = all
+      ? [...group.rows, ...all.filter((row) => !shown.has(row.id))]
+      : group.rows;
+    const options: SearchOption[] = rows.map((row) => ({
+      key: `${source}:${group.id}:${row.id}`,
+      group,
+      source,
+      row,
+    }));
+    if (group.listings > group.rows.length)
+      options.push({ key: `${source}:${group.id}:toggle`, group, source });
+    return options;
+  });
 }

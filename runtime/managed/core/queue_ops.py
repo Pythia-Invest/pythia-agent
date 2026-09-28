@@ -14,7 +14,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from .identity import queue as questions
-from .identity import store
+from .identity import schemes, store
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 RELEASE = "reference_release"  # identity.sqlite3 metadata: the reference build the rules last settled against
 NO_REFERENCE = "No reference data on this device yet."
-SUBJECT_ID = {"type": "string", "minLength": 4, "maxLength": 320, "pattern": "^(issuer|security|composite|listing):"}
+# Any well-formed subject ID, of any kind: a residual may name an `index:` or `fx:` subject.
+SUBJECT_ID = {"type": "string", "minLength": 5, "maxLength": 370, "pattern": schemes.SUBJECT_ID.pattern.replace(r"\Z", "$")}
 
 QUEUE_SCHEMA = {
     "name": "pythia_identity_queue",

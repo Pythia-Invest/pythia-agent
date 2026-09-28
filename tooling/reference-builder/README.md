@@ -134,6 +134,19 @@ table under `writer_ignored`.
   the LEI (`cik_link_suspect`: a rename, or a wrong LEI in FIRDS such as Lee
   Enterprises under Berkshire Hathaway's), and a CIK-only issuer named like a
   LEI issuer (`issuer_split_lei_cik`: probably one company split in two).
+- **Receipts.** Every `depositary_receipt_of` names a security of the build. A
+  FIRDS receipt's stated underlying ISIN is kept when a security of the build
+  carries it; FIRDS often names a superseded ISIN or one outside the scope, so
+  such an edge is dropped and counted (`firds_underlying_outside_build`). SEC
+  ADRs and New York registry shares name no underlying (neither does
+  OpenFIGI), so rule `receipt_issuer_share@1` links a receipt to its issuer's
+  one active ordinary share with an active ticker line (a share search cannot
+  show folds nothing in), preferring the FIRDS share when the issuer also has
+  a SEC-only line (counted). An issuer with a preferred share or several
+  candidate shares gets no edge (`receipt_without_underlying`). No source
+  states share classes, so the builder writes no `share_class_of`. Core's
+  search folds a receipt into its share only through this relation, and the
+  audit lists any second fold target or fold cycle.
 - **Noise.** Auxiliary segments (midpoint, auction) collapse onto the lit
   segment. SEC warrants, units, rights, preferreds and funds are labelled by
   `row_class`, not merged into the share line.
