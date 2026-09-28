@@ -127,10 +127,12 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     try:
         outcome = decide(verdict, item, claimed=record.identifiers, as_of=as_of, record_kind=record.attributes.kind,
                          evidence=[assertion for found in subjects for assertion in found["evidence"]],
-                         subject_kind=_kind(subject), prior=prior)
+                         subject_kind=_kind(subject), prior=prior, same_venue=_same_venue(record, subjects))
     except ValueError as error:
         raise Refused(str(error)) from None
     state, message = row["state"], _MESSAGES[outcome]
+    if outcome is VerdictOutcome.BLOCKED and verdict.relation in ("unrelated", "none"):
+        message = _NAMED
     with store.transaction():
         current = store.queue_item(item_id)
         if not _answerable(current, user) or current["state"] != row["state"]:  # another resolver answered meanwhile
@@ -155,6 +157,13 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
         message = _PROVISIONAL
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
+
+
+def _same_venue(record: RecordClaim, subjects: list[dict]) -> bool:
+    """The record states the candidate listing's venue, so its security's ISIN names that listing."""
+    venue = record.attributes.operating_mic or record.attributes.mic
+    return bool(venue) and any(found["listing"] is not None and venue in (found["listing"]["operating_mic"],
+                                                                          found["listing"]["mic"]) for found in subjects)
 
 
 def _answerable(row: dict | None, user: bool) -> bool:
@@ -223,6 +232,7 @@ def _settle_one(store: IdentityStore, ref: sqlite3.Connection, info: PluginInfo 
 
 _PROVISIONAL = ("Confirmed provisionally: the record routes to the chosen instrument until the user or identifier "
                 "evidence overrides it.")
+_NAMED = "Refused: the record's own identifier names this instrument, so it cannot be dismissed."
 _MESSAGES = {
     VerdictOutcome.CONFIRMED: "Confirmed: the record is bound to the chosen instrument.",
     VerdictOutcome.SUGGESTED: "Kept as a suggestion: it does not route reads until a confirming verdict.",

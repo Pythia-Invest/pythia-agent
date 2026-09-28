@@ -15,7 +15,7 @@ from typing import Iterable, Sequence
 
 from .claims import DIGEST, IdentifierValue
 from .model import IdentifierAssertion, Provenance, ProviderRef, _coerce, _require
-from .schemes import INSTANT, NAMESPACE, SINGLE_VALUED, Level, Scheme, subject_level
+from .schemes import INSTANT, NAMESPACE, SCHEME_LEVEL, SINGLE_VALUED, Level, Scheme, subject_level
 from .vocabulary import Authority, EvidenceTier, IdentifierRole, InstrumentKind, VerdictRelation
 
 
@@ -176,11 +176,15 @@ def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[Identifie
                if item.authority is Authority.SNAPSHOT or item.scheme not in open_schemes)
 
 
-def corroborates(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str) -> bool:
-    """Identifier evidence supports an association: one of the record's own single-valued identifiers equals a
-    valid T0 assertion of that scheme on the chosen subject or an ancestor. No answer dismisses against it."""
+def corroborates(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str,
+                 level: Level, same_venue: bool = False) -> bool:
+    """Identifier evidence names the question's own subject: one of the record's own single-valued identifiers at
+    that `level` equals a valid T0 assertion. A listing is also named by its security's ISIN on the same venue
+    (`same_venue`). A shared issuer LEI or a sibling venue's ISIN says nothing about which instrument this is."""
     claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
-    return any(item.scheme in SINGLE_VALUED and claims.get(item.scheme) == item.value and item.tier is EvidenceTier.T0
+    named = {level} | ({Level.SECURITY} if level is Level.LISTING and same_venue else set())
+    return any(item.scheme in SINGLE_VALUED and SCHEME_LEVEL[item.scheme] in named
+               and claims.get(item.scheme) == item.value and item.tier is EvidenceTier.T0
                and item.validity.contains(as_of) for item in evidence)
 
 
@@ -198,13 +202,13 @@ def guarded(relation: VerdictRelation, record_kind: InstrumentKind | None, subje
 
 def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierValue],
            evidence: Iterable[IdentifierAssertion], as_of: str, record_kind: InstrumentKind | None,
-           subject_kind: InstrumentKind | None, prior: Sequence[Verdict] = (),
+           subject_kind: InstrumentKind | None, prior: Sequence[Verdict] = (), same_venue: bool = False,
            threshold: float | None = None) -> VerdictOutcome:
     """The authority rule (ADR 0037), identical for every resolver.
 
     A verdict may confirm in the absence of identifier proof, never against it:
     contradicting identifier evidence and the receipt guard always block. Likewise
-    "not a match" is blocked when the record's identifiers corroborate the candidate. If the
+    "not a match" is blocked when the record's own identifiers name the candidate. If the
     resolver found several candidates, or a standing `prior` verdict on the item
     gives a different answer, nothing is confirmed. A model verdict confirms only
     at or above the relation's gold-calibrated `threshold`; without one it suggests.
@@ -217,7 +221,9 @@ def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierVal
     if verdict.relation is VerdictRelation.AMBIGUOUS:
         return VerdictOutcome.AMBIGUOUS
     if verdict.relation in (VerdictRelation.NONE, VerdictRelation.UNRELATED):
-        return VerdictOutcome.BLOCKED if corroborates(claimed, evidence, as_of) else VerdictOutcome.NO_MATCH
+        named = verdict.chosen_id or next(iter(item.candidate_ids), None)
+        proven = named is not None and corroborates(claimed, evidence, as_of, subject_level(named), same_venue)
+        return VerdictOutcome.BLOCKED if proven else VerdictOutcome.NO_MATCH
     if contradicts(claimed, evidence, as_of) or guarded(verdict.relation, record_kind, subject_kind):
         return VerdictOutcome.BLOCKED
     answer = (verdict.relation, verdict.chosen_id)

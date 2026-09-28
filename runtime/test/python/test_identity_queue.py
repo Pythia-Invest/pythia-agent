@@ -10,14 +10,14 @@ import unittest.mock
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity
-from test_identity_page import ASML, Fixture, plugin
+from test_identity_page import ASML, LEI, Fixture, plugin
 from pythia_identity_fixture import page, queue, store  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
 
 
-def answer(*identifiers, native_id="ASML.AS"):
-    record = {"level": "listing", "provenance": PROVENANCE, "attributes": {"name": "ASML Holding"},
+def answer(*identifiers, native_id="ASML.AS", mic=None):
+    record = {"level": "listing", "provenance": PROVENANCE, "attributes": {"name": "ASML Holding", "mic": mic},
               "identifiers": [{"scheme": scheme, "value": value} for scheme, value in identifiers],
               "native_ref": {"provider": "eodhd", "native_id": native_id, "native_scope": "catalogue"}}
     return identity.batch_from_json({"plugin": "eodhd", "provider": "eodhd", "adapter_version": "1",
@@ -68,12 +68,20 @@ class VerdictTest(QueueFixture):
         ref = {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"}
         self.identity.put_binding(identity.Binding(provider_ref=ref, subject_id=nasdaq, status="confirmed",
                                                    authority="user_attested", evidence_ids=["ev:x"], plugin="eodhd"))
-        item = self.ask(answer(("isin", "NL0010273215")))  # ASML's own ISIN, but the reference is bound elsewhere
+        item = self.ask(answer(("isin", "NL0010273215"), mic="XAMS"))  # ASML's ISIN on XAMS, but bound elsewhere
         self.assertEqual((item.kind, item.reason, set(item.subject_ids)), ("conflict", "binding", {nasdaq, ASML}))
         for resolver, fields in (("agent", {}), ("user", {"user_turn": "desk:identity-verdict:test"})):
             result = self.submit(item, resolver, relation="unrelated", **fields)
             self.assertEqual((result["outcome"], result["state"]), ("blocked", "open"))
+            self.assertIn("names this instrument", result["message"])
         self.assertFalse(self.identity.dismissed(item.key, item.evidence_ids))
+
+    def test_evidence_above_the_questions_level_does_not_block_not_a_match(self):
+        # Only the issuer's LEI, or the ISIN without this venue: the record may be another line of the same company.
+        for identifiers, mic in (((("lei", LEI),), None), ((("isin", "NL0010273215"),), "XNAS")):
+            item = self.ask(answer(*identifiers, native_id=f"ASML.{mic}", mic=mic), subject=self.bare())
+            result = self.submit(item, "user", relation="unrelated", user_turn="desk:identity-verdict:test")
+            self.assertEqual((result["outcome"], result["state"]), ("no_match", "dismissed"))
 
     def test_a_verdict_may_confirm_without_identifier_proof_and_leaves_an_audit_trail(self):
         item = self.ask(answer(), subject=self.bare())  # nothing proves the answer: a residual
