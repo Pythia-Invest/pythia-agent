@@ -5,9 +5,15 @@ import {
   type SubjectPage,
   type SubjectSection,
 } from "@pythia/market-data/subject";
-import type { FinancialWidgetInput } from "@pythia/market-data/widgets";
-import { Button, cn } from "@pythia/ui";
-import type { ReactNode } from "react";
+import {
+  CHART_PERIOD_LABELS,
+  CHART_PERIODS,
+  type ChartPeriod,
+  type ChartWidgetInput,
+  type FinancialWidgetInput,
+} from "@pythia/market-data/widgets";
+import { Button, cn, InstrumentPeriodSelector } from "@pythia/ui";
+import { type ReactNode, useState } from "react";
 import {
   useResolvedSections,
   useSectionRead,
@@ -29,9 +35,11 @@ import {
 } from "./section-status";
 import { FilingsView, ProfileView } from "./section-views";
 
-/** Canonical price presentation of the market-data feature. */
+/** Canonical price presentations of the market-data feature: the price
+ * section with its chart, and the quote-only panel. */
 const MARKET_PLUGIN = "pythia-market-data";
 const MARKET_PRESENTATION = "instrument-panel";
+const CHART_PRESENTATION = "instrument-chart";
 
 /** Grid placement by block type: prices lead, the profile sits beside them on
  * wide screens and filings span the page. One column on narrow screens. */
@@ -216,8 +224,9 @@ function SectionRead({
   }
 }
 
-/** Quote and chart through the market-data feature's own widget, bound to the
- * section's explicit provider reference; Desk only hosts the module. */
+/** Quote and chart through the market-data feature's own widgets, bound to
+ * the section's explicit provider reference; Desk only hosts the module and
+ * keeps the selected chart period (1D intraday by default). */
 function MarketSection({
   block,
   page,
@@ -226,10 +235,11 @@ function MarketSection({
   page: SubjectPage;
 }) {
   const presentation = useWidgetPresentation(MARKET_PLUGIN);
+  const [period, setPeriod] = useState<ChartPeriod>("1D");
   const lead = block.sections[0] as SubjectSection;
-  const widget = presentation.data?.widgets.find(
-    (item) => item.id === MARKET_PRESENTATION,
-  );
+  const chart = block.type !== "quote";
+  const id = chart ? CHART_PRESENTATION : MARKET_PRESENTATION;
+  const widget = presentation.data?.widgets.find((item) => item.id === id);
   const moduleUrl = presentation.data?.assets.find(
     (asset) => asset.id === widget?.asset,
   )?.moduleUrl;
@@ -244,13 +254,43 @@ function MarketSection({
     );
   if (!lead.binding)
     return <SectionFailure message="This section has no source address." />;
-  const chart = block.type !== "quote";
   const listing =
     page.listings.find((item) => item.id === page.subject.id) ??
     page.listings.find((item) => item.primary);
-  const options = chart
-    ? { range: true, unit: true, change: "both" as const, pathHeight: 64 }
-    : { range: true, unit: true, change: "both" as const, path: false };
+  const symbol = page.identifiers.ticker ?? listing?.ticker ?? "";
+  if (chart) {
+    const input: ChartWidgetInput = {
+      subject: lead.binding,
+      symbol,
+      name: page.subject.name,
+      period,
+    };
+    return (
+      <div className="flex flex-col gap-2">
+        <InstrumentPeriodSelector
+          periods={CHART_PERIODS.map((value) => ({
+            id: value,
+            label: CHART_PERIOD_LABELS[value],
+          }))}
+          value={period}
+          onValueChange={(value) => setPeriod(value as ChartPeriod)}
+          className="self-end"
+        />
+        <BoundWidget
+          moduleUrl={moduleUrl}
+          name={`${block.title} · ${lead.label}`}
+          presentation={CHART_PRESENTATION}
+          input={input}
+        />
+      </div>
+    );
+  }
+  const options = {
+    range: true,
+    unit: true,
+    change: "both" as const,
+    path: false,
+  };
   const input: FinancialWidgetInput = {
     widget: "instrument-tile",
     options,
@@ -259,23 +299,9 @@ function MarketSection({
       subjects: [
         {
           subject: lead.binding,
-          symbol: page.identifiers.ticker ?? listing?.ticker ?? "",
+          symbol,
           name: page.subject.name,
           price: { mode: "preferred", criteria: {} },
-          ...(chart
-            ? {
-                // Hourly bars are the one interval every price connector
-                // offers once, so the explicit source stays unambiguous.
-                history: {
-                  selection: {
-                    mode: "preferred" as const,
-                    criteria: { interval: { kind: "hour" as const, count: 1 } },
-                  },
-                  window: { kind: "rolling" as const, days: 5 },
-                  completion: "any" as const,
-                },
-              }
-            : {}),
         },
       ],
     },

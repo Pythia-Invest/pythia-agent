@@ -110,7 +110,11 @@ DEFS = {
     "price_context": obj({}, {
         "session_window": obj({"date": DATE, "timezone": TEXT,
             "regular": obj({"start": INSTANT, "end": INSTANT}),
-            "extended": obj({"start": INSTANT, "end": INSTANT})}),
+            "extended": obj({"start": INSTANT, "end": INSTANT})},
+            {"previous": obj({"regular": obj({"start": INSTANT, "end": INSTANT}),
+                              "extended": obj({"start": INSTANT, "end": INSTANT})})}),
+        "extended": obj({"session": enum("pre", "post"), "value": DECIMAL, "time": ref("time")},
+                        {"absolute": DECIMAL, "percent": DECIMAL}),
         "reference_close": obj({"value": DECIMAL, "unit": ref("unit"), "time": ref("time"),
             "provider_ref": ref("provider_ref"), "dataset": TEXT, "retrieved_at": INSTANT}),
         "top_of_book": obj({"bid": DECIMAL, "ask": DECIMAL, "bid_size": DECIMAL, "ask_size": DECIMAL,

@@ -154,7 +154,7 @@ class FixtureTest(unittest.TestCase):
         countries = {row["id"]: row["country"] for row in fixture["composites"]}
         for listing in fixture["listings"]:
             security = keys[listing["security_id"]]
-            self.assertEqual(derive("listing", security, operating_mic=listing["operating_mic"],
+            self.assertEqual(derive("listing", {**security, **keys[listing["id"]]}, operating_mic=listing["operating_mic"],
                                     currency=listing["currency"]), listing["id"])
             self.assertEqual(derive("security", security), listing["security_id"])
             self.assertEqual(derive("composite", security, country=countries[listing["composite_id"]]),
@@ -162,6 +162,13 @@ class FixtureTest(unittest.TestCase):
         self.assertEqual(derive("issuer", keys["issuer:lei:724500Y6DUVHQD6OXN27"]), "issuer:lei:724500Y6DUVHQD6OXN27")
         self.assertEqual(derive("issuer", {"cik": "937966"}), "issuer:cik:0000937966")
         self.assertEqual(derive("listing", {"figi": "BBG000K6N6G7"}), "listing:figi:BBG000K6N6G7")
+        # subject_key@1: a CGS-area ISIN (here ASML's New York registry shares) is an assertion, never a key.
+        self.assertEqual(identity.KEY_RULE, "subject_key@1")
+        self.assertEqual(derive("security", {"isin": "USN070592100", "share_class_figi": "BBG001SCG0R3"}),
+                         "security:figi:BBG001SCG0R3")
+        self.assertIsNone(derive("security", {"isin": "US0378331005"}))
+        self.assertEqual(derive("listing", {"isin": "USN070592100", "figi": "BBG000K6N6G7"}, operating_mic="XNAS",
+                                currency="USD"), "listing:figi:BBG000K6N6G7")
         for row in load("crypto.json")["listings"]:
             caip19 = next(item["value"] for item in load("crypto.json")["assertions"] if item["subject_id"] == row["id"])
             self.assertEqual(derive("listing", {"caip19": caip19}), row["id"])

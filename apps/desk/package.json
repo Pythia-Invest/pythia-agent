@@ -41,6 +41,7 @@
     "@types/papaparse": "5.5.2",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

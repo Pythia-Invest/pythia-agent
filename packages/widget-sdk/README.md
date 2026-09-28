@@ -34,7 +34,9 @@ dependency downloads and private Desk imports are unsupported.
 
 The component is the default export; the host handles rendering. Compose
 `InstrumentIdentity`, `InstrumentStatusDot`, `InstrumentPrice`, `InstrumentChange`,
-`InstrumentExtendedSummary`, `InstrumentPathView` and `InstrumentSparkline`, or
+`InstrumentExtendedSummary`, `InstrumentPathView`, `InstrumentSparkline`,
+`InstrumentChart`, `InstrumentQuoteHeader`, `InstrumentStats` and
+`InstrumentPeriodSelector`, or
 reuse `InstrumentTile`, `InstrumentCompactTile` and `InstrumentTable`. Use ordinary
 React hooks and custom markup when those components do not fit. Public SDK exports
 are the supported boundary; private Desk and Design Lab imports are not.

@@ -79,6 +79,13 @@ class SecTicker:
     position: int  # order in the SEC file
 
 
+@dataclass(frozen=True)
+class SecFund:
+    """One share-class ticker in the SEC fund file (which also carries the trust CIK, series and class)."""
+
+    ticker: str
+
+
 # ---- assembled snapshot ------------------------------------------------------
 
 
@@ -102,7 +109,7 @@ class Issuer:
 @dataclass
 class Security:
     security_id: str
-    kind: str  # share | dr | preferred | fund | other
+    kind: str  # share | dr | etf | preferred | fund | other
     source: str
     issuer_id: str | None = None
     isin: str | None = None
