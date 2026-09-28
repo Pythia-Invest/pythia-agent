@@ -41,5 +41,9 @@
     "licence": "open",
     "cache": "unlimited",
     "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/xbrl-filings.md"
   }
 }

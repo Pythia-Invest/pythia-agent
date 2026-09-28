@@ -38,8 +38,16 @@ const pluginRequestSchema = z.object({
   arguments: z.record(z.string(), z.unknown()),
 });
 
+/** Core marks a source that has not signed off (ADR 0042): "not yet audited". */
+const unaudited = z.boolean().optional();
+
 /** A source as core names it on sections and in agent results. */
-const sourceSchema = z.object({ source: text, provider: text, plugin: text });
+const sourceSchema = z.object({
+  source: text,
+  provider: text,
+  plugin: text,
+  unaudited,
+});
 
 /** Another source that could serve the section now: one click reads it
  * instead, for this view only. */
@@ -49,6 +57,7 @@ export const sectionAlternativeSchema = z.object({
   status: text,
   binding: providerRefSchema.nullish(),
   request: pluginRequestSchema.nullish(),
+  unaudited,
 });
 export type SectionAlternative = z.infer<typeof sectionAlternativeSchema>;
 
@@ -69,6 +78,7 @@ export const subjectSectionSchema = z.object({
   plugin: text,
   label: text,
   status: text,
+  unaudited,
   binding: providerRefSchema.nullish(),
   /** The read that fills a profile or filings section; null for quote/chart. */
   request: pluginRequestSchema.nullish(),

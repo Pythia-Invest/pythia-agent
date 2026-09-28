@@ -184,6 +184,9 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                 or semantic_series(result["series"]) != semantic_series(selected)):
             return read_failure(request, "invalid_response", alternatives=alternatives, provider=provider, selected=selected)
     result = copy.deepcopy(result)
+    if preferred and provider in backend.route(request["view"]["subject"])["unaudited"]:
+        result["issues"].append({"code": "unaudited_source", "severity": "warning",
+                                 "message": f"{provider} is not yet audited: Pythia has not checked this source's data."})
     if result["outcome"] == "error":
         result["issues"].append({"code": "selected_source", "severity": "warning",
                                  "message": f"Selected source: {provider}. Requested series: {selected['id']}. Alternatives require a separate read."})

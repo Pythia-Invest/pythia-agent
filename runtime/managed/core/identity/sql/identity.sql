@@ -80,7 +80,7 @@ CREATE TABLE queue (
   id TEXT PRIMARY KEY,
   key TEXT NOT NULL,               -- QueueItem.key: kind|reason|subjects|scheme|provider ref
   kind TEXT NOT NULL CHECK (kind IN ('residual', 'conflict')),
-  reason TEXT NOT NULL,
+  reason TEXT NOT NULL,            -- one of its kind's reasons (resolution.REASONS), checked by QueueItem
   subject_ids TEXT NOT NULL,
   candidate_ids TEXT NOT NULL DEFAULT '[]',
   evidence_ids TEXT NOT NULL DEFAULT '[]',
@@ -91,9 +91,7 @@ CREATE TABLE queue (
   state TEXT NOT NULL CHECK (state IN ('open', 'resolved', 'superseded', 'dismissed')),
   opened_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  resolved_by TEXT,                -- the verdict that settled it
-  CHECK ((kind = 'residual' AND reason IN ('no_key', 'underlying_identifier', 'ambiguous'))
-      OR (kind = 'conflict' AND reason IN ('identifier', 'binding', 'relation', 'guard')))
+  resolved_by TEXT                 -- the verdict that settled it
 );
 CREATE INDEX queue_open ON queue (state, opened_at);
 CREATE UNIQUE INDEX queue_open_key ON queue (key) WHERE state = 'open';

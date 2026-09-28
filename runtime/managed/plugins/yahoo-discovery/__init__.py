@@ -8,6 +8,8 @@ from .identity import candidate, reference
 from .series import definition, selector, MODES
 from .results import envelope, issue, base, read, window, now
 
+NEWS_WARNINGS = frozenset({'schema_drift', 'window_incomplete', 'truncated', 'invalid_value'})
+
 
 def register(ctx):
     from hermes_cli.plugins import get_plugin_manager
@@ -105,7 +107,9 @@ def register(ctx):
                     args['options'] = json.loads(args.pop('options_json', '{}'))
                     if not isinstance(args['options'], dict): raise ValueError('invalid_request')
                 raw = call(clean['operation'] if operation == 'research' else 'dashboard', args)
-                return failures.qualify_items(failures.qualify_failure(envelope(raw['data'], [issue(code) for code in raw['issues']]), raw))
+                reading_news = operation == 'research' and clean['operation'] == 'news'
+                return failures.qualify_items(failures.qualify_failure(envelope(raw['data'], [
+                    issue(code, 'warning' if reading_news and code in NEWS_WARNINGS else 'error') for code in raw['issues']]), raw))
             if request:
                 native, mode = selector(clean['source_selector'])
                 wire.validate('provider_ref', native)

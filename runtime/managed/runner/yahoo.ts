@@ -1,6 +1,7 @@
 /** Owned, bounded public Yahoo SDK execution. No browser/account cookies or MCP.
  * There is no free-text search: Yahoo's search endpoint is reached only by
- * `resolve_isin` (a checksummed ISIN) and `news` (a validated symbol). */
+ * `resolve_isin` (a checksummed ISIN) and `news` (validated symbols and an
+ * issuer name, keeping only items tagged with those symbols). */
 import YahooFinance from "yahoo-finance2";
 import { pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
@@ -9,6 +10,7 @@ import { budgetedFetch } from "./provider-budget.js";
 import { providerFailure } from "./provider-errors.js";
 import { serveWorker, workerSignal } from "./provider-worker.js";
 import { dated, statements, screen } from "./yahoo-options.js";
+import { symbolNews } from "./yahoo-news.js";
 export type Client = InstanceType<typeof YahooFinance>;
 export const methods = [
   "quote",
@@ -177,47 +179,6 @@ async function resolveIsin(sdk: Client, code: string) {
     }),
   };
 }
-/** News Yahoo tags with this exact symbol. The query is a validated symbol and
- * untagged items are dropped, so free text cannot turn this into a search. */
-async function symbolNews(
-  sdk: Client,
-  code: string,
-  options: Record<string, unknown>,
-) {
-  const count = options.count ?? 10;
-  if (
-    Object.keys(options).some((key) => key !== "count") ||
-    !Number.isInteger(count) ||
-    Number(count) < 1 ||
-    Number(count) > 20
-  )
-    throw Error("invalid_request");
-  const found = await sdk.search(code, {
-    quotesCount: 0,
-    newsCount: Number(count),
-    enableFuzzyQuery: false,
-    enableCb: false,
-    enableNavLinks: false,
-  });
-  return {
-    symbol: code,
-    news: found.news.flatMap((item) =>
-      item.relatedTickers?.includes(code)
-        ? [
-            {
-              uuid: item.uuid,
-              title: item.title,
-              publisher: item.publisher,
-              link: item.link,
-              published_at: item.providerPublishTime,
-              type: item.type,
-              related_tickers: item.relatedTickers,
-            },
-          ]
-        : [],
-    ),
-  };
-}
 export async function execute(input: unknown, sdk: Client = client()) {
   const fetched = new Date().toISOString();
   try {
@@ -240,6 +201,7 @@ export async function execute(input: unknown, sdk: Client = client()) {
     const options = args.options === undefined ? {} : record(args.options);
     bounds(operation, options);
     let data: unknown;
+    let issues: string[] = [];
     // Deliberate explicit dispatch; caller cannot invoke SDK internals or fetch controls.
     switch (operation) {
       case "quote":
@@ -280,7 +242,12 @@ export async function execute(input: unknown, sdk: Client = client()) {
         data = await sdk.insights(symbol(args.symbol), options);
         break;
       case "news":
-        data = await symbolNews(sdk, symbol(args.symbol), options);
+        ({ result: data, issues } = await symbolNews(
+          sdk,
+          symbol(args.symbol),
+          args.symbols,
+          options,
+        ));
         break;
     }
     const result = {
@@ -289,7 +256,7 @@ export async function execute(input: unknown, sdk: Client = client()) {
         retrieved_at: fetched,
         result: data,
       },
-      issues: [],
+      issues,
     };
     if (JSON.stringify(result).length > 1_800_000) throw Error("output_limit");
     return result;

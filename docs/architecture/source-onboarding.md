@@ -44,14 +44,14 @@ subject or relation without review. A source that has not signed off:
 - is not enabled by default in fresh profiles;
 - is not the default source for any page section.
 
-Until core records each source's trust status, a new source that has not signed
-off ships disabled. That code gate must land before the first source outside
-the pre-standard list is merged, except for a source that ships opt-in and is
-display-only: it never confirms or creates identity, so it needs no gate
-([ADR 0042](../decisions/0042-source-onboarding-standard.md),
-[ADR 0043](../decisions/0043-live-market-view.md)). The sources in use before this standard are
-listed in ADR 0042. They keep their current role while they are onboarded in
-turn, starting with FIRDS.
+Core enforces this from the `signoff` each plugin declares in `contract.json`
+(`signed_off` with its record, `grandfathered` or `unsigned`); ADR 0042 lists
+what the gate does. An `unsigned` source can still be enabled by the investor,
+and is then labelled "not yet audited". An opt-in, display-only source such as
+Hyperliquid's live view ([ADR 0043](../decisions/0043-live-market-view.md))
+ships `unsigned`. The sources in use before this standard are listed in ADR
+0042 and declared `grandfathered`. They keep their current role while they are
+onboarded in turn, starting with FIRDS.
 
 ## Stages
 
