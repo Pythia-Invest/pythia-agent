@@ -48,7 +48,8 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     plugin = item["plugins"][0]
     native = item["provider_ref"]
     reason = "bound" if item["reason"] == "binding" and len(item["subject_ids"]) > 1 else item["reason"]
-    question = QUESTIONS[reason].format(label=LABELS.get(plugin, plugin), ref=native["native_id"] if native else "")
+    label = LABELS.get(native["provider"] if native else plugin, plugin)  # labels are keyed by provider
+    question = QUESTIONS[reason].format(label=label, ref=native["native_id"] if native else "")
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
                                   if level is subject_level(candidate)), "unrelated")]
@@ -56,7 +57,7 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
                                        "candidate_ids", "opened_at", "updated_at")} | {
         # A question only the agent answered: its answer routes provisionally and the user may still override it.
         "agent_answer": item["settled"] if item["state"] != "open" and item["settled"] else None,
-        "label": LABELS.get(plugin, plugin), "question": question, "record": _record(record) if record else None,
+        "label": label, "question": question, "record": _record(record) if record else None,
         "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
