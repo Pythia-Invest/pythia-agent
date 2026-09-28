@@ -61,6 +61,7 @@ class Build:
         self.db = db
         release = {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM release")}
         self.as_of = release.get("as_of") or (release.get("built_at") or "")[:10] or "9999-12-31"
+        self.us = bool({t.strip().upper() for t in (release.get("scope") or "").split(",")} & {"US", "SEC"})
         self.venues = {row["mic"]: dict(row) for row in db.execute("SELECT * FROM venues")}
         self.securities = {row["id"]: dict(row) for row in db.execute("SELECT * FROM securities")}
         self.issuers = {row["id"]: dict(row) for row in db.execute("SELECT * FROM issuers")}
@@ -284,3 +285,13 @@ def top_ranked_unreachable(build: Build, top: int = 1000) -> list[tuple]:
         elif not any(l["is_primary"] for l in lines):
             found.append((security["name"], "no primary"))
     return found
+
+
+def us_share_without_us_line(build: Build) -> list[tuple]:
+    """A live share with a US ISIN and no NYSE, Nasdaq, Cboe or OTC line in a build with SEC lines: usually a
+    company delisted or taken over (VMware, Splunk, Marathon Oil) that EU venues still carry."""
+    if not build.us:
+        return []
+    return [(s["name"], build.isin[s["id"]]) for s in build.securities.values()
+            if s["kind"] == "ordinary" and build.live_security(s["id"]) and build.isin.get(s["id"], "").startswith("US")
+            and not any(l["operating_mic"] in US_EXCHANGES | {"OTCM"} for l in build.by_security.get(s["id"], []))]

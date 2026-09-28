@@ -20,7 +20,7 @@ from .invariant_checks import (
     Build, currency_is_issue_country, currency_single_currency_venue, currency_withdrawn, primary_floor_beside_xetra,
     primary_foreign_country, primary_inactive, primary_more_than_one, primary_on_open_market_beside_regulated,
     primary_open_market_beside_us_exchange, security_without_listing, ticker_currency_suffix, ticker_grammar,
-    ticker_two_securities, ticker_venue_shape, top_ranked_unreachable, venue_ticker_coverage)
+    ticker_two_securities, ticker_venue_shape, top_ranked_unreachable, us_share_without_us_line, venue_ticker_coverage)
 from .invariant_names import (
     cik_lei_name_disjoint, fund_named_ordinary, issuer_financing_vehicle, issuer_is_market_operator,
     issuer_name_disjoint, name_casing, name_encoding, name_not_latin, preferred_named_ordinary,
@@ -105,6 +105,9 @@ INVARIANTS: tuple[Invariant, ...] = (
     Invariant("top_ranked_unreachable", "warning",
               "One of the 1,000 most notable live shares, receipts or ETFs has no ticker line or no primary.",
               top_ranked_unreachable, 148, "UK, Swiss, Japanese and Canadian home lines are not built yet"),
+    Invariant("us_share_without_us_line", "warning",
+              "A live share with a US ISIN has no US exchange or OTC line although the build has SEC lines.",
+              us_share_without_us_line, 312, "mostly delisted or acquired companies still carried by EU venues"),
     Invariant("name_casing", "error", "A re-cased name has a capital inside a word (NestlÉ, MØLler).", name_casing),
     Invariant("name_encoding", "error", "A name carries mojibake, an HTML entity, a control character or non-NFC text.",
               name_encoding, 3, "source names: `S&amp;P`, `King\ufffds`"),

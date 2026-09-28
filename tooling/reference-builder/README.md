@@ -201,7 +201,8 @@ such as BGN or XXX, a ticker whose currency suffix disagrees with its line), tic
 (core's grammar, the venue's shape, one ticker on one venue naming two securities, a
 listing segment where most lines have no ticker), primary listings (more than one,
 inactive, an open-market line chosen over a NYSE/Nasdaq, Xetra or home regulated
-line), names (casing, encoding, non-Latin display names), issuers (a trading venue
+line), lifecycle (a US share with no US line, usually delisted), names (casing,
+encoding, non-Latin display names), issuers (a trading venue
 or a financing vehicle as issuer, names that share no word with the security or the
 SEC title) and kinds (funds or preference shares typed as ordinary shares,
 receipts without an underlying). An `error` above its limit fails the command; a
