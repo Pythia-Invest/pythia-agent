@@ -28,8 +28,13 @@ python3 tooling/reference-builder/run.py --help
 
 `schema.py` is the only module that knows the table layout. The file is core's
 reference store (`runtime/managed/core/identity/sql/reference.sql`) with subject
-IDs from core's `subject_id()`; identifier assertions carry authority
-`snapshot`. It also carries core's curated native-coin seed
+IDs from core's `subject_id()` under its versioned key rule (`subject_key@1`,
+recorded in `release`; ADR 0037): a US, Canadian or other CGS-area ISIN is an
+assertion, never a key, so those securities are keyed by share-class FIGI and
+listings by FIGI. `id_aliases` maps every other key a subject could have had
+(ISIN-, FIGI-, LEI- or CIK-based) to its ID; an alias that is itself a subject,
+or names two subjects, is dropped and counted. Identifier assertions carry
+authority `snapshot`. It also carries core's curated native-coin seed
 (`runtime/managed/core/identity/native_coins.json`: chains, provider chain ids
 and each provider's coin id for BTC, ETH, SOL and a few other native coins), so
 search finds those coins without a provider. Securities carry a notability
@@ -37,7 +42,8 @@ search finds those coins without a provider. Securities carry a notability
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit
 (`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue) and
-OpenFIGI-only home lines (no trading currency). Rows the writer ignores
+OpenFIGI-only home lines (no trading currency), and FIRDS lines of a CGS-area
+security OpenFIGI does not know (no hostable key). Rows the writer ignores
 (duplicate IDs of collapsed lines, or a constraint violation) are counted per
 table under `writer_ignored`.
 

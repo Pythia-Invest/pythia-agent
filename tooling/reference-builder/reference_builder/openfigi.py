@@ -36,6 +36,19 @@ class OpenFigi:
         self._last_call = 0.0
         self._db = sqlite3.connect(self.path)
         self._db.execute("CREATE TABLE IF NOT EXISTS answers (job TEXT PRIMARY KEY, at TEXT NOT NULL, answer TEXT NOT NULL)")
+        self._import_jsonl(cache_dir / "openfigi-answers.jsonl")
+
+    def _import_jsonl(self, old: Path) -> None:
+        """Carry answers from the earlier line-per-answer cache into the database once, newest answer per job."""
+        if not old.exists() or self._db.execute("SELECT 1 FROM answers LIMIT 1").fetchone():
+            return
+        with old.open(encoding="utf-8") as lines, self._db:
+            for line in lines:
+                job, entry = json.loads(line)
+                self._db.execute("INSERT INTO answers VALUES (?, ?, ?) ON CONFLICT (job) DO UPDATE SET at = excluded.at,"
+                                 " answer = excluded.answer WHERE excluded.at > answers.at",
+                                 (job, entry["at"], json.dumps(entry["answer"])))
+        log(f"OpenFIGI: imported {old.name} into {self.path.name}; the old file can be deleted")
 
     @property
     def keyed(self) -> bool:

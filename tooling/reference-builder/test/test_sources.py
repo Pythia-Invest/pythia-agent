@@ -9,6 +9,7 @@ from pathlib import Path
 
 from reference_builder import config, firds, gleif, mic, sec
 from reference_builder.fetch import Downloader
+from reference_builder.openfigi import OpenFigi
 from reference_builder.rules import display_name
 
 from .fixtures import (
@@ -111,6 +112,15 @@ class SecAndMicTest(unittest.TestCase):
         data = json.dumps({"fields": ["cik", "seriesId", "classId", "symbol"],
                            "data": [[1424958, "S01", "C01", "tsll"], [1424958, "S01", "C02", "TSLL"], [2110, "S02", "C03", "LACAX"]]}).encode()
         self.assertEqual([f.ticker for f in sec.parse_funds(data)], ["TSLL", "LACAX"])
+
+    def test_openfigi_cache_carries_the_newest_answers_of_the_old_line_file(self):
+        job = {"idType": "ID_ISIN", "idValue": ASML_ISIN}
+        key = json.dumps(job, sort_keys=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            lines = [json.dumps([key, {"at": at, "answer": {"data": [n]}}]) for at, n in (("2099-01-02T00:00:00Z", 2), ("2099-01-01T00:00:00Z", 1))]
+            (Path(tmp) / "openfigi-answers.jsonl").write_text("\n".join(lines) + "\n")
+            figi = OpenFigi(Path(tmp), "test", None, timedelta(days=30))
+            self.assertEqual(figi.map([job]), [{"data": [2]}], "answered from the cache, without a request")
 
     def test_mic_rows_map_segments_to_operating_mic(self):
         venues = mic.parse(MIC_CSV.encode())

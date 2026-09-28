@@ -178,8 +178,11 @@ WIDE_SEC = sec_json([
 WIDE_FUNDS = [SecFund("TSLL"), SecFund("VOO"), SecFund("LACAX")]
 WIDE_OPENFIGI = OPENFIGI | {
     ("ID_ISIN", ASML_ISIN, "XETA"): [figi_row("ASME", "GY", "BBGASMLGY001", "BBGASMLSC001")],
-    ("ID_ISIN", APPLE_ISIN, "FRAB"): [figi_row("APC", "GF", "BBGAAPLGF001", "BBGAAPLSC001")],
-    ("ID_ISIN", APPLE_ISIN, "US"): [figi_row("AAPL", "US", "BBGAAPL00001", "BBGAAPLSC001")],
+    # Real Apple share-class and US FIGIs (valid check digits): core keys a US security by them.
+    ("ID_ISIN", APPLE_ISIN, "FRAB"): [figi_row("APC", "GF", "BBG000BPCGF6", "BBG001S5N8V8")],
+    ("ID_ISIN", APPLE_ISIN, "US"): [figi_row("AAPL", "US", "BBG000B9XRY4", "BBG001S5N8V8")],
+    ("TICKER", "AAPL", "US"): [figi_row("AAPL", "US", "BBG000B9XRY4", "BBG001S5N8V8")],
+    ("TICKER", "AAPL", "UW"): [figi_row("AAPL", "UW", "BBG000B9Y5X2", "BBG001S5N8V8", composite="BBG000B9XRY4")],
     ("ID_ISIN", ETF_ISIN, "XETA"): [figi_row("SXR8", "GY", "BBGETFGY0001", "BBGETFSC0001", sec_type="ETP")],
     ("TICKER", "SPY", "US"): [figi_row("SPY", "US", "BBGSPY000001", "BBGSPYSC0001", sec_type="ETP")],
     ("TICKER", "TSLL", "US"): [figi_row("TSLL", "US", "BBGTSLL00001", "BBGTSLLSC001", sec_type="ETP", name="DIRX DLY TSLA BUL 2X ETF")],
@@ -239,6 +242,21 @@ class AllVenuesTest(unittest.TestCase):
         self.assertTrue(results["Direxion Daily TSLA Bull 2X ETF"])
         offline = {c["name"] for c in manifest.default_canaries(Scope(), funds=False)}  # --sec-file loads no fund file
         self.assertNotIn("Direxion Daily TSLA Bull 2X ETF", offline)
+
+    def test_us_security_is_keyed_by_share_class_figi_with_aliases_from_its_isin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(self.snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                rule = db.execute("select value from release where key = 'subject_key'").fetchone()
+                isin = db.execute("select subject_id from assertions where scheme = 'isin' and value = ?", (APPLE_ISIN,)).fetchone()
+                aliases = dict(db.execute("select old_id, new_id from id_aliases"))
+                ids = {row[0] for row in db.execute("select id from securities union select id from listings")}
+        self.assertEqual((rule, isin), (("subject_key@1",), ("security:figi:BBG001S5N8V8",)))
+        self.assertEqual(aliases[f"security:isin:{APPLE_ISIN}"], "security:figi:BBG001S5N8V8")
+        self.assertEqual(aliases[f"listing:isin:{APPLE_ISIN}:XNAS:USD"], "listing:figi:BBG000B9Y5X2", "the Nasdaq line's FIGI, not the composite's")
+        self.assertFalse(set(aliases) & ids, "an alias never shadows a subject")
+        self.assertTrue(all(new in ids or new.startswith(("issuer:", "composite:")) for new in aliases.values()))
 
     def test_segment_venues_take_their_operator_label(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -30,6 +30,10 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
     answers = figi_map([_ticker_job(t.ticker, "US") for t in tickers])
     rows = {t.ticker: _pick(a.get("data") or []) for t, a in zip(tickers, answers)}
     audit["openfigi_found"] = sum(1 for r in rows.values() if r)
+    lines = _exchange_lines(figi_map, [(t.ticker, EXCHANGE_CODES.get(t.exchange or "", ())) for t in tickers if rows.get(t.ticker)])
+    for ticker, line in lines.items():  # the venue line's own FIGI, not the US composite's
+        rows[ticker] = rows[ticker] | {"figi": line["figi"]}
+    audit["listing_figi_from_composite"] = sum(1 for t in tickers if rows.get(t.ticker) and t.ticker not in lines)
 
     evidence, isins = _link_evidence(snap, entities, tickers, rows, figi_map)
     links = _decide(snap, tickers, evidence, audit)
@@ -61,7 +65,8 @@ def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
     audit["fund_tickers"], audit["exchange_traded"] = len(funds), len(etfs)
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
     for (fund, row), on_nasdaq in zip(etfs, nasdaq):
-        if not on_nasdaq.get("data"):
+        line = _pick(on_nasdaq.get("data") or [])
+        if not line:
             audit["unplaced_not_nasdaq"] += 1
             continue
         audit["placed_nasdaq"] += 1
@@ -69,7 +74,7 @@ def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
         listing = Listing(
             listing_id=f"XNAS:{fund.ticker}", source="sec_funds", row_class="etf", mic="XNAS", operating_mic="XNAS",
             country="US", ticker=fund.ticker, ticker_root=root, ticker_class=klass, ticker_source="sec_funds", currency="USD",
-            name=row.get("name"), figi=row.get("figi"), composite_figi=row.get("compositeFIGI"),
+            name=row.get("name"), figi=line.get("figi"), composite_figi=row.get("compositeFIGI"),
             share_class_figi=row.get("shareClassFIGI"), security_type=row.get("securityType"),
         )
         security = share_classes.get(listing.share_class_figi or "")
@@ -86,6 +91,24 @@ def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
 
 def _ticker_job(ticker: str, exchange: str) -> dict:
     return {"idType": "TICKER", "idValue": ticker.replace("-", "/"), "exchCode": exchange}
+
+
+# OpenFIGI exchange codes of a SEC exchange label's venue lines, most likely first: Nasdaq's
+# three tiers; NYSE, then NYSE Arca and NYSE American (the SEC's "NYSE" covers all three);
+# Cboe BZX; OTC Markets.
+EXCHANGE_CODES = {"Nasdaq": ("UW", "UQ", "UR"), "NYSE": ("UN", "UP", "UA"), "CBOE": ("UF",), "OTC": ("PQ",)}
+
+
+def _exchange_lines(figi_map: FigiMap, wanted: list[tuple[str, tuple[str, ...]]]) -> dict[str, dict]:
+    """Each ticker's OpenFIGI row on the first of its exchange codes that has one (one round per code)."""
+    found: dict[str, dict] = {}
+    for round_ in range(max((len(codes) for _, codes in wanted), default=0)):
+        jobs = [(ticker, codes[round_]) for ticker, codes in wanted if ticker not in found and round_ < len(codes)]
+        for (ticker, _code), answer in zip(jobs, figi_map([_ticker_job(t, c) for t, c in jobs])):
+            row = _pick(answer.get("data") or [])
+            if row and row.get("figi"):
+                found[ticker] = row
+    return found
 
 
 def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, list[tuple[str, str]]], dict[str, str]]:

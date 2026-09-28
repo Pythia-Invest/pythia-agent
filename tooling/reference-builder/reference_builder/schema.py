@@ -13,7 +13,7 @@ import importlib.util
 import json
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from . import rules
@@ -105,9 +105,12 @@ class _Ids:
         found = derive("issuer", {"lei": issuer.lei, "cik": issuer.cik})
         return found or identity.provisional_id("issuer", issuer.source, "id", issuer.issuer_id.split(":", 1)[1])
 
-    def _security(self, security) -> str:
+    def _security(self, security) -> str | None:
+        """None for a FIRDS security whose only key would be a CGS-area ISIN (core's key rule never keys by it)."""
         found = derive("security", {"isin": security.isin, "share_class_figi": security.share_class_figi})
-        return found or identity.provisional_id("security", security.source, "id", security.security_id.split(":", 1)[1])
+        if found or security.isin:
+            return found
+        return identity.provisional_id("security", security.source, "id", security.security_id.split(":", 1)[1])
 
     def listing(self, listing) -> str | None:
         security = self.snap.securities.get(listing.security_id or "")
@@ -115,7 +118,33 @@ class _Ids:
             return None
         found = derive("listing", {"isin": security.isin, "figi": listing.figi},
                        operating_mic=listing.operating_mic or listing.mic, currency=listing.currency)
-        return found or identity.provisional_id("listing", listing.source, "ticker", f"{listing.mic}.{listing.ticker}")
+        if found or not listing.ticker:
+            return found
+        return identity.provisional_id("listing", listing.source, "ticker", f"{listing.mic}.{listing.ticker}")
+
+
+def aliases(level: str, subject: str, identifiers: dict[str, str | None], *, operating_mic: str | None = None,
+            currency: str | None = None, country: str | None = None) -> set[str]:
+    """Every other ID the subject could have had under any key precedence (deterministic, ADR 0037).
+
+    Old builds, other build paths and foreign installs may hold one of these; each resolves
+    through `id_aliases` to the ID this build's key rule gives.
+    """
+    valid = {}
+    for scheme, value in identifiers.items():
+        try:
+            valid[scheme] = identity.normalize_identifier(scheme, value) if value else None
+        except ValueError:
+            pass
+    isin, figi_key = valid.get("isin"), valid.get("share_class_figi")
+    keys = {
+        "issuer": [f"lei:{valid['lei']}" if valid.get("lei") else None, f"cik:{valid['cik']}" if valid.get("cik") else None],
+        "security": [f"isin:{isin}" if isin else None, f"figi:{figi_key}" if figi_key else None],
+        "composite": [f"isin:{isin}:{country}" if isin and country else None, f"figi:{figi_key}:{country}" if figi_key and country else None],
+        "listing": [f"isin:{isin}:{operating_mic}:{currency}" if isin and operating_mic and currency else None,
+                    f"figi:{valid['figi']}" if valid.get("figi") else None],
+    }[level]
+    return {f"{level}:{key}" for key in keys if key} - {subject}
 
 
 def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str, list[dict]]:
@@ -124,7 +153,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     ids, audit = _Ids(snap), Counter()
     tables: dict[str, list[dict]] = {name: [] for name in (
         "release", "venues", "issuers", "securities", "composites", "listings", "assertions", "relations", "names",
-        "chains", "provider_chains", "native_coins")}
+        "chains", "provider_chains", "native_coins", "id_aliases")}
+    candidates: dict[str, set[str]] = defaultdict(set)  # alias -> the subjects it could name
 
     def assert_(subject, scheme, value, source, *, record=None, start=None, end=None, authority="snapshot"):
         try:
@@ -156,6 +186,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             tickers[owner] = tickers.get(owner, frozenset()) | set(re.split(r"[^A-Z0-9]+", listing.ticker.upper()))
     for key, issuer in sorted(snap.issuers.items()):
         subject = ids.issuers[key]
+        for alias in aliases("issuer", subject, {"lei": issuer.lei, "cik": issuer.cik}):
+            candidates[alias].add(subject)
         country = issuer.country if issuer.country and len(issuer.country) == 2 else None
         status = "inactive" if issuer.entity_status == "INACTIVE" else "active"
         shown = rules.display_case(issuer.name, tickers.get(key, frozenset()), sec=issuer.source == "sec")
@@ -174,6 +206,11 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     titles: dict[str, str | None] = {}
     for key, security in sorted(snap.securities.items()):
         subject = ids.securities[key]
+        if subject is None:
+            audit["securities_without_hostable_key"] += 1
+            continue
+        for alias in aliases("security", subject, {"isin": security.isin, "share_class_figi": security.share_class_figi}):
+            candidates[alias].add(subject)
         title = titles[key] = security.name or line_names.get(key)
         issuer = snap.issuers.get(security.issuer_id or "")
         tables["securities"].append({
@@ -189,16 +226,23 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             assert_(subject, "share_class_figi", security.share_class_figi, "openfigi")
     for listing in sorted(snap.listings.values(), key=lambda l: (not l.is_primary, l.status != "active", l.listing_id)):
         subject = ids.listing(listing)
-        if subject is None:  # core needs a venue and a trading currency for a venue line
-            audit["lines_without_venue" if not listing.mic else "lines_without_currency"] += 1
+        security_id = ids.securities.get(listing.security_id or "")
+        if subject is None or security_id is None:  # core needs a venue, a trading currency and a hostable key
+            audit["lines_without_venue" if not listing.mic else "lines_without_currency" if not listing.currency
+                  else "lines_without_hostable_key"] += 1
             continue
-        security_id = ids.securities[listing.security_id]
-        composite = None
         security = snap.securities[listing.security_id]
+        keys = {"isin": security.isin, "figi": listing.figi}
+        for alias in aliases("listing", subject, keys, operating_mic=listing.operating_mic or listing.mic, currency=listing.currency):
+            candidates[alias].add(subject)
+        composite = None
         if listing.composite_figi and listing.country:
             composite = derive("composite", {"isin": security.isin, "share_class_figi": security.share_class_figi},
                                country=listing.country)
             if composite:
+                for alias in aliases("composite", composite, {"isin": security.isin, "share_class_figi": security.share_class_figi},
+                                     country=listing.country):
+                    candidates[alias].add(composite)
                 tables["composites"].append({"id": composite, "security_id": security_id, "country": listing.country})
                 assert_(composite, "composite_figi", listing.composite_figi, "openfigi")
         tables["listings"].append({
@@ -214,7 +258,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         if listing.name != titles.get(listing.security_id):  # the security row already carries its title
             name(subject, listing.name, listing.source)
     for relation in snap.relationships:
-        source, target = ids.securities.get(relation.from_id), f"security:{relation.to_id}"
+        source = ids.securities.get(relation.from_id)
+        target = ids.securities.get(relation.to_id) or derive("security", {"isin": relation.to_id.split(":", 1)[1]})
         try:
             item = identity.Relation(type=relation.relation, from_id=source, to_id=target, authority="snapshot",
                                      provenance={"plugin": relation.source, "source": relation.source,
@@ -228,9 +273,15 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             "authority": "snapshot", "source": relation.source, "source_record": relation.rule_id,
             "plugin": relation.source, "adapter_version": BUILDER_VERSION, "retrieved_at": at})
     _native_coins(tables, assert_)
+    subjects = {row["id"] for table in ("issuers", "securities", "composites", "listings") for row in tables[table]}
+    for alias, named in sorted(candidates.items()):
+        if alias in subjects or len(named) > 1:  # a real subject, or ambiguous: never an alias
+            audit["aliases_dropped"] += 1
+            continue
+        tables["id_aliases"].append({"old_id": alias, "new_id": next(iter(named)), "release": meta.get("build_id", "")})
     snap.audit["schema"] = dict(sorted(audit.items()))
     release = {"schema_version": str(SCHEMA_VERSION), "release": meta.get("build_id", ""), "built_at": at,
-               "built_by": "device", "sources": json.dumps(sources, sort_keys=True), **meta}
+               "built_by": "device", "subject_key": identity.KEY_RULE, "sources": json.dumps(sources, sort_keys=True), **meta}
     tables["release"] = [{"key": key, "value": str(value)} for key, value in sorted(release.items())]
     return tables
 
