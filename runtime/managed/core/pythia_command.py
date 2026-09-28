@@ -25,9 +25,9 @@ HELP = {"help", "--help", "-h"}
 SERVED = {Section.QUOTE, Section.CHART, Section.FILINGS}  # concepts pythia_prices and pythia_filings read
 SCHEMA = {
     "name": "pythia",
-    "description": "Provider depth the other pythia tools do not cover, such as reported XBRL facts and "
-                   "fundamentals, legal-entity profiles, company research and news from connected sources, and open "
-                   "identity questions. Run `help` "
+    "description": "Company fundamentals, revenue, profiles and news. Provider depth the other pythia tools do not "
+                   "cover, such as reported XBRL facts and fundamentals, legal-entity profiles, company research and "
+                   "news from connected sources, and open identity questions. Run `help` "
                    "first: it lists the connected sources and their functions, and `help <source> <function>` "
                    "prints that function's arguments. Then run `<source> <function>` with args. Put subject_id "
                    "(from pythia_find) in args and Pythia fills in the source's own reference. Read-only.",

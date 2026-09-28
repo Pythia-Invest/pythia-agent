@@ -39,7 +39,6 @@ const MIGRATIONS = [
           platform,
         ]);
       }
-      hermes([...profile, "config", "set", "tools.tool_search.enabled", "off"]);
       // Automatic skill writing stays a native setting the investor can turn back on.
       hermes([
         ...profile,
@@ -55,7 +54,6 @@ const MIGRATIONS = [
         );
       const known = read("known_plugin_toolsets") ?? {};
       const shown = read("platform_toolsets") ?? {};
-      const search = String(read("tools.tool_search.enabled")).toLowerCase();
       for (const platform of ["api_server", "cli", "cron"]) {
         const hidden =
           platform === "api_server"
@@ -71,9 +69,6 @@ const MIGRATIONS = [
             );
           }
         }
-      }
-      if (search !== "off" && search !== "false") {
-        throw new Error("Hermes did not turn Tool Search off.");
       }
       if (Number(read("skills.creation_nudge_interval")) !== 0) {
         throw new Error("Hermes did not turn automatic skill writing off.");

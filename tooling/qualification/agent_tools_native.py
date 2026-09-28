@@ -3,9 +3,11 @@
 It copies the managed core and plugins into a disposable profile seeded from runtime/seeds/profile/config.yaml,
 then asks Hermes itself what an api_server turn delivers and how calls flow:
 
-- the assembled tool list: only the pythia-desk tools and the kept Hermes built-ins, no Tool Search bridge,
+- with Tool Search off, the assembled tool list: only the pythia-desk tools and the kept Hermes built-ins,
   byte-identical when assembled twice, equal to the reviewed snapshot and free of `$comment` markers, with
   core registered in production order;
+- with Tool Search on (the investor's choice either way), the catalogue lists exactly the pythia-desk tools,
+  tool_search finds them for investor phrasing, and tool_call reaches `pythia`'s hidden functions;
 - every declared Desk HTTP operation has exactly one tool, and `identity-verdict` still resolves;
 - cli and cron sessions see no Pythia tool, and a bad argument is named by the real JSON-Schema validator;
 - `may_run` still admits hidden plugin tools;
@@ -29,7 +31,7 @@ import tempfile
 from pathlib import Path
 
 CHILD = r'''
-import json, os, sys
+import json, os, re, sys
 sys.path.insert(0, os.environ["HERMES_SOURCE"])
 from hermes_cli.plugins import discover_plugins, get_plugin_manager
 discover_plugins()
@@ -41,15 +43,24 @@ set_session_vars(platform="api_server")
 from hermes_cli.config import load_config_readonly
 from hermes_cli.tools_config import _get_platform_tools
 import model_tools
-from tools.tool_search import assemble_tool_defs, load_config
+from tools.tool_search import ToolSearchConfig, assemble_tool_defs
 enabled = sorted(_get_platform_tools(load_config_readonly(), "api_server", include_default_mcp_servers=False))
 
-def assembled():
+def assembled(mode):
     model_tools._clear_tool_defs_cache()
     raw = model_tools.get_tool_definitions(enabled_toolsets=enabled, quiet_mode=True, skip_tool_search_assembly=True)
-    return assemble_tool_defs(raw, context_length=272000, config=load_config()).tool_defs
+    return assemble_tool_defs(raw, context_length=272000, config=ToolSearchConfig.from_raw({"enabled": mode})).tool_defs
 
-first, second = assembled(), assembled()
+# Tool Search is the investor's choice: both modes must work. "off" loads every schema; "on" defers plugin tools.
+first, second = assembled("off"), assembled("off")
+deferred, deferred_again = assembled("on"), assembled("on")
+listing = next((item["function"]["description"] for item in deferred if item["function"]["name"] == "tool_search"), "")
+searches = {}
+for query in ("price of ASML", "10-K annual report", "ISIN lookup", "company revenue fundamentals"):
+    found = json.loads(model_tools.handle_function_call("tool_search", {"queries": [query]}, enabled_toolsets=enabled))
+    searches[query] = (found.get("results") or [{}])[0].get("matches", [])[:3]
+bridged = json.loads(model_tools.handle_function_call("tool_call", {"name": "pythia", "arguments": {
+    "command": "identity queue"}}, enabled_toolsets=enabled, session_id="probe", task_id="probe"))
 core = manager._plugins["pythia"].module
 seen = []
 manager._hooks.setdefault("pre_tool_call", []).append(lambda tool_name="", **_: seen.append(tool_name))
@@ -86,7 +97,11 @@ print(json.dumps({
     "failed_plugins": failed,
     "enabled_toolsets": enabled,
     "visible": [(item["function"]["name"], len(json.dumps(item, separators=(",", ":")))) for item in first],
-    "byte_stable": json.dumps(first) == json.dumps(second),
+    "byte_stable": json.dumps(first) == json.dumps(second) and json.dumps(deferred) == json.dumps(deferred_again),
+    "visible_with_tool_search": [item["function"]["name"] for item in deferred],
+    "catalog_pythia": sorted(set(re.findall(r"\b(pythia(?:_[a-z_]+)?):", listing))),
+    "searches": searches,
+    "tool_call_reaches": bridged.get("function"),
     "may_run_hidden": sorted(name for name in core.platform.access.eligible_tools() if name.startswith("pythia_sec")),
     "help_sources": [row["source"] for row in help_result.get("sources", [])],
     "sec_issue": (sec.get("issues") or [{}])[0].get("code"),
@@ -95,7 +110,7 @@ print(json.dumps({
     "answer": answer,
     "approve_on_api_server": asked,
     "pythia_schemas": [item["function"] for item in first if item["function"]["name"].startswith("pythia")],
-    "with_comment": [item["function"]["name"] for item in first if "$comment" in json.dumps(item)],
+    "with_comment": [item["function"]["name"] for item in first + deferred if "$comment" in json.dumps(item)],
     "duplicate_operations": {f"{key}/{operation}": names for (key, operation), names in declared.items() if len(names) > 1},
     "identity_verdict_tool": verdict,
     "bad_argument": (bad.get("issues") or [{}])[0].get("message", ""),
@@ -148,7 +163,18 @@ def main() -> int:
     problems = [message for failed, message in (
         (pythia != ["pythia", "pythia_answer_identity_question", "pythia_desk_view", "pythia_filings", "pythia_find",
                     "pythia_instrument", "pythia_prices"], "visible Pythia tools differ from the pythia-desk set"),
-        (any(name in names for name in ("tool_search", "tool_describe", "tool_call")), "Tool Search is still on"),
+        (any(name in names for name in ("tool_search", "tool_describe", "tool_call")), "Tool Search off still bridged"),
+        (not {"tool_search", "tool_describe", "tool_call"} <= set(report["visible_with_tool_search"])
+         or any(name.startswith("pythia") for name in report["visible_with_tool_search"]),
+         "with Tool Search on, Pythia's tools are not deferred behind the bridge"),
+        (report["catalog_pythia"] != ["pythia", "pythia_answer_identity_question", "pythia_desk_view", "pythia_filings",
+                                      "pythia_find", "pythia_instrument", "pythia_prices"],
+         "the Tool Search catalogue differs from the pythia-desk tools (plumbing leaked or a tool is missing)"),
+        (any(expected not in report["searches"][query] for query, expected in (
+            ("price of ASML", "pythia_prices"), ("10-K annual report", "pythia_filings"),
+            ("ISIN lookup", "pythia_find"), ("company revenue fundamentals", "pythia"))),
+         "tool_search does not find the Pythia tool for investor phrasing"),
+        (report["tool_call_reaches"] != "identity queue", "tool_call cannot reach pythia's hidden functions"),
         (not report["byte_stable"], "the tool list changed between two assemblies"),
         ("pythia_sec_facts" not in report["may_run_hidden"], "may_run lost a hidden plugin tool"),
         (report["sec_issue"] != "needs_configuration", "pythia did not report SEC's missing contact"),

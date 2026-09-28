@@ -433,18 +433,13 @@ describe("installed readiness and recovery", () => {
       paths.profile,
       "config",
       "set",
-      "tools.tool_search.enabled",
-      "off",
-    ]);
-    expect(commands).toContainEqual([
-      "-p",
-      paths.profile,
-      "config",
-      "set",
       "skills.creation_nudge_interval",
       "0",
     ]);
-    expect(commands).toHaveLength(11);
+    expect(
+      commands.some((args) => args.includes("tools.tool_search.enabled")),
+    ).toBe(false); // the investor's choice
+    expect(commands).toHaveLength(9);
     // A readback that shows the toolset still visible fails the migration.
     const { paths: other } = fixture();
     for (const path of [other.configRoot, other.stateRoot, other.dataRoot]) {

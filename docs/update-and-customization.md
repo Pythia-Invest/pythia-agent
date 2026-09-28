@@ -131,12 +131,12 @@ A fresh profile explicitly enables the same ten base toolsets for `cli`,
 `session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. The Pythia
 core adapter supplies `pythia-desk`, the agent's Pythia tools and Desk context,
 on `api_server` only. Every plugin operation is registered in core's hidden
-`pythia-core` toolset, recorded as known and off, and Tool Search is off, so the
-model sees only `pythia-desk` of Pythia's tools
+`pythia-core` toolset, recorded as known and off, so the model is offered only
+`pythia-desk` of Pythia's tools, loaded or behind Tool Search as the investor chooses
 ([agent tools](architecture/agent-tools.md)). These are initial values only;
 later native user edits are preserved. The update migration
-`0002-agent-tool-surface` applies the same toolset and Tool Search choices to an
-existing profile with native commands.
+`0002-agent-tool-surface` applies the same toolset and skill-writing choices to
+an existing profile with native commands.
 
 Standalone managed skills declare native `metadata.hermes.requires_toolsets` when they
 need a tool. Where Hermes has toolset information, it uses that metadata to

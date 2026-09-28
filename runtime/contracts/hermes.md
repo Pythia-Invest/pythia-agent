@@ -240,8 +240,8 @@ Hermes default and intentionally omits `computer_use`, the retired lab-only
 `kanban`, and every other unselected toolset. Every managed plugin registers its
 tools in core's `pythia-core` toolset, which native `known_plugin_toolsets`
 records as off for all three platforms (and `pythia-desk` for `cli` and `cron`),
-so those tools stay registered but out of the model's view, and
-`tools.tool_search.enabled` is `off`; see
+so those tools stay registered but out of the model's view. Tool Search stays the
+investor's own setting in either mode; see
 [agent tools](../../docs/architecture/agent-tools.md). Because the profile seed
 is create-if-absent, later native tool changes and direct user edits are
 preserved rather than reconciled.

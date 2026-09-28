@@ -8,9 +8,17 @@ rule, the `pythia` tool's contract and the reasons behind both.
 
 ## What the model sees
 
-With the seeded profile, an `api_server` (Desk chat) turn delivers Hermes's kept
-built-ins and seven Pythia tools, all in core's `pythia-desk` toolset. Tool Search
-is off, so there is no `tool_search` bridge and no catalogue line to decode. The
+An `api_server` (Desk chat) turn offers Hermes's kept built-ins and seven Pythia
+tools, all in core's `pythia-desk` toolset. Pythia registers them natively and
+leaves their presentation to Hermes: Tool Search is the investor's own Hermes
+setting, and Pythia never changes it. With Tool Search off, the seven schemas load
+on every turn. With it on (Hermes's default), Hermes defers them: the
+`tool_search` description lists each by name and the first sentence of its
+description, `tool_search` matches investor phrasing against the name, that
+sentence, the rest of the description and the parameter names, and `tool_call`
+runs one. Each first sentence is therefore at most 60 characters and says what
+an investor would ask for ("Price of a stock, fund or crypto: quote, history,
+returns."). The plumbing in `pythia-core` is in neither list. The
 `cli` and `cron` platforms see no Pythia tool: their sessions carry no trusted
 caller platform, which Pythia's reads require. The operating prompt's data-routing
 paragraph is rendered for `api_server` sessions only, and tells the Desk agent
@@ -98,7 +106,7 @@ local write, XS external side effect.
 | `write_file`, `patch`, `memory`, `todo`, `skill_manage` | VISIBLE (Hermes) | The investor's own working state. | LW |
 | `web_search`, `web_extract`, `vision_analyze` | VISIBLE (Hermes) | News, commentary, documents; figures from the web are labelled. | ER |
 | `cronjob`, `delegate_task` | VISIBLE (Hermes) | Monitoring and delegation. | XS |
-| `tool_search`, `tool_describe`, `tool_call` | DROP | Tool Search is off. | none |
+| `tool_search`, `tool_describe`, `tool_call` | VISIBLE (Hermes) when the investor has Tool Search on | Hermes's bridge to the deferred Pythia tools. | none |
 
 ## The `pythia` tool
 
@@ -154,14 +162,13 @@ from Desk chat. Revisit this when Desk runs can answer approvals;
 
 Every managed plugin registers its tools in `pythia-core`, the toolset core
 itself always registers, so Hermes never drops it from its record of known
-toolsets and a plugin added later is hidden too. The seed turns Tool Search off
-and records `pythia-core` as known and off for `api_server`, `cli` and `cron`, and
+toolsets and a plugin added later is hidden too. The seed records `pythia-core` as
+known and off for `api_server`, `cli` and `cron`, and
 `pythia-desk` for `cli` and `cron`. The update migration `0002-agent-tool-surface`
 (`scripts/update/migrations.mjs`) applies the same choices to an existing
 installed profile with native commands: `hermes -p <profile> tools disable
 pythia-core --platform <platform>` for each platform, `tools disable pythia-desk`
-for `cli` and `cron`, `config set tools.tool_search.enabled off` and `config set
-skills.creation_nudge_interval 0`, then reads
+for `cli` and `cron`, and `config set skills.creation_nudge_interval 0`, then reads
 the configuration back and fails unless Hermes recorded each choice (`tools
 disable` exits 0 even for a toolset it does not know). A development profile
 takes the same commands by hand.
@@ -180,8 +187,8 @@ list Pythia's own toolsets and refuses to switch them.
 
 A community plugin that registers its tools in `pythia-core` is hidden the same
 way. One that uses a toolset of its own shows its tools to the model until the
-investor turns that toolset off; with Tool Search off its schemas load on every
-turn. Its contract `functions` reach the agent through `pythia` either way.
+investor turns that toolset off (deferred behind `tool_search` when Tool Search
+is on). Its contract `functions` reach the agent through `pythia` either way.
 
 ## Checks
 
@@ -194,15 +201,24 @@ turn. Its contract `functions` reach the agent through `pythia` either way.
   production order. It checks the delivered schemas against the snapshot, that no
   `$comment` marker reaches the model, that every Desk HTTP operation has one tool,
   that `cli` and `cron` see no Pythia tool and that bad arguments are named. It
+  checks both Tool Search modes: with it on, the catalogue lists exactly the
+  `pythia-desk` tools, `tool_search` finds the right one for "price of ASML",
+  "10-K annual report", "ISIN lookup" and "company revenue fundamentals", and
+  `tool_call` reaches `pythia`'s hidden functions. It
   copies the managed packages into a disposable profile, runs no model or
   provider, and runs in `just qualify`.
 
 ## Decisions and rejected alternatives
 
-- **Concept tools plus one depth tool** replace per-provider tools behind Tool
-  Search. Tool Search deferred every plugin tool, core's included, and cost a
-  describe round per tool. Every provider tool visible was rejected as too many
-  schemas and a provider choice on every question.
+- **Concept tools plus one depth tool** replace per-provider tools. Behind Tool
+  Search, 51 provider tools cost describe rounds and 60-character catalogue lines
+  that hid what they did; seven investor-shaped tools are easy to find in both
+  modes. Every provider tool visible was rejected as too many schemas and a
+  provider choice on every question.
+- **Tool Search stays the investor's setting.** Pythia works with it on or off
+  and does not turn it off: it is Hermes's default and the way Hermes scales to
+  more tools. The routing paragraph names the tools and says to find them through
+  `tool_search` when they are not loaded.
 - **`pythia_prices`**, not a slimmed `pythia_market_data`, because that name
   belongs to the market-data feature's read backend, which keeps serving Desk.
 - **Functions are declared operation names**, not tool names, so the contract

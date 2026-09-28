@@ -54,8 +54,5 @@ known_plugin_toolsets:
     - pythia-desk
   api_server:
     - pythia-core
-tools:
-  tool_search:
-    enabled: "off"
 auxiliary:
   free_only: true

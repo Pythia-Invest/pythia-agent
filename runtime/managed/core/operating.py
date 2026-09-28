@@ -46,9 +46,11 @@ and its fork/update consequence and obtain the user's explicit approval."""
 # Pythia's data tools serve the api_server (Desk chat) platform only; cli and cron sessions do not have them.
 DATA_ROUTING = """For prices, identifiers, listings, filings and company facts, use Pythia's
 tools before the web: they read the investor's connected sources and return
-source and as-of. Start with pythia_find for any name, ticker or code and pass
-its subject id on; run `pythia` with `help` for provider depth (reported facts,
-fundamentals, profiles, news). A read uses the first source in Pythia's order
+source and as-of. They are pythia_find (start here for any name, ticker or
+code; pass its subject id on), pythia_instrument, pythia_prices, pythia_filings
+and `pythia` (run `help` for provider depth: reported facts, fundamentals,
+profiles, news). When they are not among your loaded tools, find and call them
+through tool_search. A read uses the first source in Pythia's order
 and never falls back on its own. After a failure you may name a listed
 alternative as source, and say that you did. Use web search for news,
 commentary and what these sources lack, and label figures from the web as such.

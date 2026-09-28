@@ -533,10 +533,10 @@ class DeliveredViewTest(unittest.TestCase):
             self.assertLessEqual(len(schema["description"]), 700, schema["name"])
             self.assertNotIn("$comment", json.dumps(schema), schema["name"])
 
-    def test_the_seed_hides_plugin_toolsets_and_turns_tool_search_off(self):
+    def test_the_seed_hides_plugin_toolsets_and_leaves_tool_search_to_the_investor(self):
         import re
         text = (RUNTIME / "seeds/profile/config.yaml").read_text()
-        self.assertRegex(text, r'\ntools:\n  tool_search:\n    enabled: "off"\n')
+        self.assertNotIn("tool_search", text)  # Tool Search on or off is the investor's own Hermes setting
         block = text.split("known_plugin_toolsets:\n", 1)[1].split("\ntools:", 1)[0]
         hidden = {platform: re.findall(r"^    - (\S+)$", body, re.M)
                   for platform, body in re.findall(r"^  (\w+):\n((?:    - \S+\n)+)", block + "\n", re.M)}

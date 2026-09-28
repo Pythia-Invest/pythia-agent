@@ -31,8 +31,9 @@ SOURCE = {"type": "string", "minLength": 2, "maxLength": 64,
 
 FIND = {
     "name": "pythia_find",
-    "description": "Find companies, securities, funds, listings and crypto assets in the investor's local reference by "
-                   "name, ticker, ISIN, LEI, CIK or FIGI. Start here for any investment the user names. Each row carries "
+    "description": "Find a stock, fund or crypto asset by name, ticker or ISIN. Searches the investor's local "
+                   "reference of companies, securities, listings and crypto assets by name, ticker, ISIN, LEI, CIK or "
+                   "FIGI. Start here for any investment the user names. Each row carries "
                    "its subject id (pass it to the other pythia tools), ticker, venue and key identifiers. Local only; "
                    "no provider is called. A row is a candidate: check name and venue before relying on it.",
     "parameters": {"type": "object", "properties": {
@@ -44,7 +45,8 @@ FIND = {
 }
 INSTRUMENT = {
     "name": "pythia_instrument",
-    "description": "Everything Pythia knows locally about one investment: identifiers (ISIN, LEI, CIK, FIGI), issuer, "
+    "description": "Identifiers, listings and data sources of an investment. Everything Pythia knows locally about "
+                   "one investment: identifiers (ISIN, LEI, CIK, FIGI), issuer, "
                    "its listings and related instruments, and which source serves each concept (quote, chart, profile, "
                    "filings) or why none does. Use it to pick a listing, find an issuer's LEI or CIK, or see which "
                    "sources are connected. Local only.",
@@ -60,8 +62,8 @@ def answer_schema() -> dict:
                   if key != "$comment"}
     parameters["properties"]["chosen_id"] = {"type": "string", "minLength": 5, "maxLength": 370}
     return {"name": "pythia_answer_identity_question", "parameters": parameters,
-            "description": "Record the agent's provisional answer to one open identity question after reading it in "
-                           "full with `pythia identity queue`. "
+            "description": "Answer an open identity question in Repairs. Read it in full first with "
+                           "`pythia identity queue`. "
                            + queue_ops.VERDICT_SCHEMA["description"].split(". ", 1)[1]}
 
 

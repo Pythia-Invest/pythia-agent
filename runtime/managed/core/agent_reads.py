@@ -19,8 +19,9 @@ from .identity.schemes import Level
 MARKET_DATA_TOOL = "pythia_market_data"  # the market-data feature's own (hidden) read backend
 PRICES = {
     "name": "pythia_prices",
-    "description": "Latest quote or price history for a listing, security or crypto asset from the investor's connected "
-                   "market-data sources, with the source, as-of time and delay. Without start it returns the latest "
+    "description": "Price of a stock, fund or crypto: quote, history, returns. The latest quote or price history for a "
+                   "listing, security or crypto asset from the investor's connected market-data sources, with the "
+                   "source, as-of time and delay. Without start it returns the latest "
                    "quote; with start (and optional end) it returns daily bars, or intraday bars with interval, plus a "
                    "summary with the first and last close and the percentage change over the returned bars. For a "
                    "period's return (1D to 5Y) pass period, which gives the same number every time. "
@@ -40,7 +41,8 @@ PRICES = {
 }
 FILINGS = {
     "name": "pythia_filings",
-    "description": "Regulatory filings of a company, newest first, from one connected source per filing authority "
+    "description": "Company filings: annual report, 10-K, 20-F, ESEF. Regulatory filings of a company, newest first, "
+                   "from one connected source per filing authority "
                    "(SEC EDGAR; ESEF reports on filings.xbrl.org), with form, filing date, period end, document link "
                    "and source. Filter by form (10-K, 20-F, AFR…) and date. Pass any subject of the company. For "
                    "reported numbers inside a filing, run `pythia help` and use that source's facts or fundamentals.",
