@@ -124,7 +124,9 @@ export function FilingsView({ filings }: { filings: Filings }) {
               </th>
               {filed ? (
                 <th scope="col" className="py-1.5 pr-3 font-normal">
-                  Filed
+                  {shown.some((filing) => filing.date_basis === "indexed")
+                    ? "Filed / indexed"
+                    : "Filed"}
                 </th>
               ) : null}
               <th scope="col" className="py-1.5 font-normal">

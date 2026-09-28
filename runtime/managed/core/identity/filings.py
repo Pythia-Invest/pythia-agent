@@ -79,6 +79,10 @@ def merge_filings(parts: list[tuple[dict, Collection[str], dict | None, str | No
                             "reason": failure or issue.get("message") or f"{answer['label']} could not be read"})
             continue
         items.extend(item for item in filing_items(result, answer, authorities) if form_matches(item["form"], forms))
+        if "incomplete" in codes:  # the source answered but could not search everything asked: keep its rows
+            skipped.append({**source(answer), "code": "incomplete", "reason": next(
+                issue.get("message") for issue in result["issues"] if isinstance(issue, dict)
+                and issue.get("code") == "incomplete") or f"{answer['label']} answered incompletely"})
         sources.append({**source(answer), "authorities": list(authorities),
                         "url": ((result.get("data") or {}).get("source") or {}).get("url")})
     items.sort(key=lambda item: item["date"] or "", reverse=True)

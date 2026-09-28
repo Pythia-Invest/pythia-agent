@@ -201,6 +201,17 @@ class SecFormsSearch(unittest.TestCase):
                                  f'CIK{CIK}-submissions-003.json'])
         self.assertEqual({row['form'] for row in found['data']['filings']}, {'10-K/A'})
         self.assertEqual(found['data']['coverage']['scope'], 'recent_and_older_submissions')
+        # A failed older page keeps what was read and says the search is incomplete.
+        broken, _ = reader({'submissions': raw})
+        broken.reads.read = (lambda original: lambda paths, request, *args, **kwargs: (
+            (_ for _ in ()).throw(connector.SourceFailure({'error': 'missing_observation'}))
+            if request['operation'] == 'submissions_page' else original(paths, request, *args, **kwargs)))(broken.reads.read)
+        kept = broken.invoke('filings', {'native_ref': REF, 'limit': 5, 'forms': ['4']})
+        self.assertEqual((kept['outcome'], len(kept['data']['filings'])), ('ok', 5))
+        self.assertEqual([issue['code'] for issue in kept['issues']], [])  # enough found without paging
+        missing = broken.invoke('filings', {'native_ref': REF, 'limit': 5, 'forms': ['10-K']})
+        self.assertEqual((missing['outcome'], missing['data']['coverage']['complete']), ('ok', False))
+        self.assertEqual([issue['code'] for issue in missing['issues']], ['incomplete'])
         with self.assertRaises(ValueError):  # only the filer's own page names reach a URL
             identity.submissions_page_url(CIK, '../CIK0000000001.json')
 

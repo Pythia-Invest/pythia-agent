@@ -246,15 +246,12 @@ surface for plugins that need a newer Pythia, and team mode.
   alternative, key or not), crypto CoinGecko (CoinMarketCap the alternative);
   the investor's order puts a paid source first. Filings sections read core's
   combined list, so ASML shows its ESEF reports and SEC 20-F and 6-K filings
-  together. `identity-resolve` answers with sections whose combined sources
-  include the resolved plugin.
+  together.
 - Market data's own preferences (ADR 0028) still govern reads by explicit
   provider reference; they move to the one ordered list when market-data reads
   route through core selection.
-- No new store: the order lives in `settings.json`, selection
-  is computed per request, and the record of "not on your plan" is a
-  disposable table in identity.sqlite3 (created when the store opens, no
-  schema change); losing it only means asking the provider again.
+- No new store: the order lives in `settings.json` and selection is computed
+  per request.
 
 ## Rejected alternatives
 
