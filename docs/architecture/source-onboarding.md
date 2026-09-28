@@ -87,7 +87,8 @@ It records an empty answer as absence, not as a negative fact.
 `snapshot` authority. Every derived value carries its own:
 
 - a rule output is `rule_confirmed`, with its `rule_id`;
-- a venue default is a labelled default;
+- a venue default must not use `curated` or `snapshot`: until core has a
+  default authority, write it as an unconfirmed attribute or leave it out;
 - a judge answer is `model_*`.
 
 A derived value must never gain T0 authority over a provider's identifier.

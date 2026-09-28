@@ -42,8 +42,9 @@ It takes time, and it is the only way to get data we can trust.
   1. field semantics with citations;
   2. a defensive adapter with drift alarms;
   3. a full data audit;
-  4. judgement cases;
-  5. then sign-off.
+  4. judgement cases.
+
+  Sign-off follows as a gate.
 
   Each source keeps a public record in `docs/sources/<source>.md`.
 - **One source in onboarding at a time.** Onboarding means the audit, the
@@ -68,6 +69,15 @@ It takes time, and it is the only way to get data we can trust.
   source. Gold labels on licensed data, raw model exchanges and verdicts stay on
   the device.
 
+## Rationale
+
+A field read in the wrong meaning corrupts every row at once, and only checking
+against the specification catches it. A random sample measures the error rate;
+a list of famous names does not. A fingerprint turns a silent change at the
+source into an alarm. A classifier helps only where its output has been checked
+on the question it is actually asked, and it may confirm only where its
+precision has been measured.
+
 ## Consequences
 
 - FIRDS is onboarded first.
@@ -77,7 +87,8 @@ It takes time, and it is the only way to get data we can trust.
   - N-CEN, which is in review;
   - the bundled plugins: coingecko, coinmarketcap, eodhd, gleif, openfigi, sec,
     xbrl-filings and yahoo-discovery;
-  - the Yahoo runner.
+  - the connector runners under `runtime/managed/runner/` (EODHD, CoinGecko
+    and Yahoo).
 - Coverage grows more slowly.
 - The builder's planned move to typed claims, reconciliation and a build-time
   judge step implements stages 2 and 4.
