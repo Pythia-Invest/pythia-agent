@@ -13,12 +13,12 @@ metadata:
 
 # EODHD market data
 
-Use the market-data feature's shared operations for canonical identity and
-preferred or pinned prices. EODHD has no search tool here: find investments
-through Pythia, then use an exact `SYMBOL.EXCHANGE` reference.
+Find investments with `pythia_find` and read EODHD prices with `pythia_prices`
+(name `source: eodhd` to read only EODHD). News and fundamentals are
+`pythia eodhd news` and `pythia eodhd fundamentals`; pass the subject id and
+Pythia fills in the exact `SYMBOL.EXCHANGE` reference.
 
-Details and catalogue rows carry source-asserted ISINs. Only the identifier
-mapping tools (by symbol or by ISIN) return CUSIP, FIGI, LEI and CIK. Every
+EODHD rows carry source-asserted identifiers. Every
 identifier is a claim for Pythia to compare, not proof: a catalogue ISIN can
 describe an underlying security, FIGI grain is not stated, and a matching ticker
 or exchange suffix does not prove cross-provider identity. Keep ambiguous,
