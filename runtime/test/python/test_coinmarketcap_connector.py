@@ -20,7 +20,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 
 from native_plugin_fixtures import Context
-from test_market_data_identity import PACKAGE, PLATFORM, platform_module
+from market_data_fixture import PACKAGE, PLATFORM, platform_module
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/coinmarketcap'
 NAME = 'coinmarketcap_fixture'
@@ -32,7 +32,6 @@ worker = importlib.import_module(NAME + '.worker')
 series = importlib.import_module(NAME + '.series')
 wire = importlib.import_module(PACKAGE + '.wire')
 process = importlib.import_module(PACKAGE + '.process')
-matching = importlib.import_module(PACKAGE + '.identity_matching')
 
 TOKEN_PLATFORM = {'id': 1, 'name': 'Example Chain', 'symbol': 'EXC', 'slug': 'example-chain', 'token_address': '0xabc'}
 MAP = [{'id': 1, 'rank': 1, 'name': 'Synthetic Coin', 'symbol': 'SYN', 'slug': 'synthetic-coin', 'is_active': 1, 'status': 'active', 'platform': None},
@@ -193,9 +192,6 @@ class CoinMarketCap(unittest.TestCase):
                          ['coinmarketcap:coin:1027:example-chain', 'coinmarketcap:coin:1027:example-chain-side'])
         for evidence in details['evidence']:
             wire.validate('evidence', evidence)
-        # A shared contract with another provider's coin is a candidate, never a merge.
-        other = {'provider': 'coingecko', 'native_scope': 'coin', 'native_id': 'synthetic-token'}
-        self.assertEqual(matching.compare(native, details['evidence'], other, [{**e, 'provider_ref': other} for e in contract], 'crypto'), 'candidate')
 
     def test_quotes_share_native_requests_and_history_uses_observation_times(self):
         with registered() as (ctx, calls):

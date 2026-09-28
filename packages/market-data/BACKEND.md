@@ -13,35 +13,28 @@ Arguments are flat action objects. The backend rejects unrelated fields.
 
 | Action | Required fields | Optional fields / result |
 | --- | --- | --- |
-| `search` | `provider`, `query` | Source candidates; no identity save |
 | `details` | `native_ref` | Source candidates, normalized evidence and issues |
-| `resolve_save` | `native_ref`, `scope` | Reads details and explicitly saves one selected native identity |
 | `series` | `binding` | `criteria`; returns matching definitions |
 | `read` | `request` | `criteria`, `series`; returns wire `ReadResult` |
 | `read_many` | `reads` | 1–32 `{request, criteria?, series?}` items; ordered `ReadResult` array in `data` |
 | `get_preferences` | — | Per-operation orders, scoped exceptions and revision |
 | `set_preferences` | `operation`, `providers` | Optional `preference_scope`; an empty order clears that scope |
-| `inspect_identity` | `mapping_id` | Current mapping, original intent, revisions and overrides |
-| `inspect_subject` | `subject` | Retained subject evidence |
-| `refresh_identity` | `mapping_id` | Reads details for original native intent and updates evidence |
-| `inspect_repair` | — | Evaluates supported local repairs and reports pending refresh |
-| `apply_override` | `mapping_id`, `effect`, `evidence_ids` | `target` for a positive override |
-| `revoke_override` | `override_id` | Revokes an existing override |
 
 Non-read operations use `{schema_version, outcome, data, issues}` envelopes;
-explicit mutations also return `effect: "local_write"`. Identity inspection can
-apply supported dependency repairs using retained evidence, as described in the
-[identity API](IDENTITY.md). Existing `describe` and specialist `call` remain
+explicit mutations also return `effect: "local_write"`. Identity is core's:
+this feature has no search, save, override or repair action, and a subject read
+routes through core's bindings as described in [identity](IDENTITY.md). Existing
+`describe` and specialist `call` remain
 available; `call` requires provider, operation and native-schema arguments and
 accepts only operations in that provider's validated contribution. `describe`
 does not catalogue every native tool. Specialist native tools remain separate
 from the shared `call` operations.
 
-`binding` is a canonical subject or provider reference. Common read criteria
+`binding` is a Pythia subject or provider reference. Common read criteria
 are measurement, interval, session, price adjustment, market-data type,
 currency, venue and route. They filter common definition fields; the shared
 owner never parses provider datasets or transport parameters. Scoped preferences,
-global orders and deterministic defaults order eligible sources. The reader checks
+global orders and then core's source order for the subject order eligible sources. The reader checks
 each candidate's compatible definitions and declared `read_support` before
 committing to a source. Successful metadata with no compatible series permits
 examining the next candidate; a metadata failure does not.
@@ -69,22 +62,13 @@ checks its ID, native binding and common semantics before accepting the result.
 It copies only the opaque `source_detail.values.read_selector` into native
 `{request, source_selector}`. Details and series use native `{native_ref}`.
 
-Canonical reads execute a native source-pinned request first. After validating
-the native result and rechecking identity generation, the backend creates a new
-canonical projection with the original request/view, requested subject and
-mapping revision. It preserves native provider reference and series ID; it does
-not rewrite previously returned values. Correction lineage exposed by inspection
-is not routing authority: only current `bindings()` proof can route retained
-canonical intent. Native reads need no canonical mapping. Sources without a qualified details
-operation remain native-only; no evidence is invented to route them.
+Subject reads execute a native source-pinned request first. After validating
+the native result, the backend creates a new projection with the original
+request/view and requested subject. It preserves native provider reference and
+series ID; it does not rewrite previously returned values. Only core's current
+references route a subject. Native reads need no binding.
 
-Only validated connector detail results can supply normalized evidence to the
-internal identity ingest API. Search does not bulk-save identities. Public
-operations cannot submit Evidence objects or source authority; overrides cite
-persisted evidence IDs and remain subject to scope/contradiction checks. Offline
-refresh stays pending, and known-bad associations cannot route while pending.
-
-Preferences and identity live transactionally in the private SQLite state.
+Preferences live in the feature's private `preferences.sqlite3`.
 A fresh preference store uses internal revision zero for cache/publication
 checks. Read selection reports `preference_revision: null` until a saved
 positive revision exists; an unconfigured single-provider read needs no
@@ -92,7 +76,7 @@ preference write. Pinned reads also report null.
 Observations have no durable archive. The process-local cache defaults to 32
 entries and 4 MiB, with a 15-second default TTL overridden by declared provider
 cadence, and returns detached copies. Keys include complete
-request/descriptor/criteria, preference revision and identity generation for
+request/descriptor/criteria and the selected series, the preference revision for
 preferred reads, and a hash
 of native caller, configuration, environment and contribution availability.
 Environment values and the internal access fingerprint are not persisted or returned. This invalidates
@@ -107,17 +91,16 @@ invalidates cache even without an environment/configuration change. Missing
 for either file, disables cache get/put for that invocation while leaving
 native reads available. Rotation detected
 between selection and publication rejects the result as `selection_changed`.
-Native eligibility is checked before a cache hit and publication. Preference and
-identity revisions are rechecked under the identity database write lock; no
-provider call holds that lock. Strict freshness and contribution-level
+Native eligibility is checked before a cache hit and publication. The preference
+revision is rechecked before publication; no provider call holds a lock. A
+subject's current references are part of the delivery reuse scope, so a changed
+binding invalidates reused results. Strict freshness and contribution-level
 `observation_cache: disabled` bypass cache reads and publication. Connectors whose account state cannot
 qualify safe reuse should declare observation caching disabled. Unknown age,
 coverage, completion and units remain unknown; completed-only requests exclude
 unproven bars and report partial/error status.
 
-The implementation retains narrowly qualified, Pythia-owned rules for equity
-instrument evidence and native crypto-catalogue identity; see [identity](IDENTITY.md).
-Synthetic tests prove rule behavior, not installed connector availability.
+Synthetic tests prove selection behavior, not installed connector availability.
 Concrete connectors are separate plugin packages, such as the bundled
 [Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md).
 Existing SEC and legacy EOD tools remain independent and do not implicitly

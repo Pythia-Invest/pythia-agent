@@ -3,7 +3,9 @@ import type { Repair } from "@/client/repairs";
 
 /** One action on an issue: its row button and the dialog that confirms it. */
 export interface RepairAction {
+  /** Short row-button label; `hint` says it in full as a tooltip. */
   label: string;
+  hint: string;
   /** The row button; destructive-looking only when the dialog confirms a withdrawal. */
   emphasis: "primary" | "secondary";
   dialog: {

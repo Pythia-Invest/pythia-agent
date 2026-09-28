@@ -27,6 +27,9 @@ export interface DataTableColumn<Row> {
   key: string;
   header: string;
   cell: (row: Row) => ReactNode;
+  /** The full value as text, shown as the cell's tooltip; useful where values may end in an ellipsis. */
+  text?: (row: Row) => string;
+  /** Width or alignment of this column's cells. Values longer than 18rem are cut off with an ellipsis. */
   className?: string;
 }
 
@@ -51,6 +54,8 @@ export interface DataTableProps<Row> {
   label: string;
   rows: readonly Row[];
   rowKey: (row: Row) => string;
+  /** Names a row in its toggle's label ("Show context for …"). */
+  rowLabel?: (row: Row) => string;
   columns: readonly DataTableColumn<Row>[];
   /** Details shown when the row's "+" toggle expands it; omit for no toggle. */
   context?: (row: Row) => readonly DataTableContextItem[];
@@ -84,6 +89,7 @@ export function DataTable<Row>({
   label,
   rows,
   rowKey,
+  rowLabel,
   columns,
   context,
   actions,
@@ -109,11 +115,11 @@ export function DataTable<Row>({
     >
       {search || filters.length || onRefresh ? (
         <div
-          className="flex flex-wrap items-center gap-2"
+          className="flex flex-wrap items-center gap-1.5"
           data-slot="data-table-toolbar"
         >
           {search ? (
-            <div className="relative w-full min-[480px]:w-64">
+            <div className="relative w-full min-[480px]:w-56">
               <Search
                 aria-hidden="true"
                 className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-foreground-secondary"
@@ -152,11 +158,14 @@ export function DataTable<Row>({
           ) : null}
         </div>
       ) : null}
-      <Table aria-label={label}>
+      <Table
+        aria-label={label}
+        className="text-xs [&_[data-slot=badge]]:min-h-5 [&_[data-slot=badge]]:px-1.5 [&_[data-slot=button]]:h-7 [&_[data-slot=button]]:px-2.5 [&_[data-slot=data-table-row]>td]:h-10 [&_[data-slot=data-table-row]>td]:whitespace-nowrap [&_[data-slot=data-table-row]>td]:py-1 [&_td]:px-2 [&_th]:whitespace-nowrap [&_th]:px-2 [&_th]:py-1.5"
+      >
         <TableHeader>
           <TableRow>
             {context ? (
-              <TableHead className="w-10" scope="col">
+              <TableHead className="w-8" scope="col">
                 <span className="sr-only">Details</span>
               </TableHead>
             ) : null}
@@ -198,11 +207,11 @@ export function DataTable<Row>({
                   data-expanded={open || undefined}
                 >
                   {context ? (
-                    <TableCell className="w-10 py-1">
+                    <TableCell className="w-8">
                       <button
                         aria-expanded={open}
-                        aria-label={open ? "Hide context" : "Show context"}
-                        className="grid size-7 cursor-pointer place-items-center rounded-control border-0 bg-transparent text-foreground-secondary outline-ring hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2"
+                        aria-label={`${open ? "Hide" : "Show"} context${rowLabel ? ` for ${rowLabel(row)}` : ""}`}
+                        className="grid size-6 cursor-pointer place-items-center rounded-control border-0 bg-transparent text-foreground-secondary outline-ring hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2"
                         onClick={() => toggle(key)}
                         type="button"
                       >
@@ -216,12 +225,17 @@ export function DataTable<Row>({
                   ) : null}
                   {columns.map((column) => (
                     <TableCell key={column.key} className={column.className}>
-                      {column.cell(row)}
+                      <div
+                        className="max-w-72 truncate"
+                        title={column.text?.(row)}
+                      >
+                        {column.cell(row)}
+                      </div>
                     </TableCell>
                   ))}
                   {actions ? (
-                    <TableCell className="py-1 text-end">
-                      <div className="flex flex-wrap justify-end gap-1.5">
+                    <TableCell className="w-px text-end">
+                      <div className="flex flex-nowrap justify-end gap-1">
                         {actions(row)}
                       </div>
                     </TableCell>
@@ -232,17 +246,17 @@ export function DataTable<Row>({
                     className="bg-subtle hover:bg-subtle"
                     data-slot="data-table-context"
                   >
-                    <TableCell colSpan={span} className="py-3">
-                      <p className="m-0 mb-2 font-semibold text-body text-foreground">
+                    <TableCell colSpan={span} className="py-2">
+                      <p className="m-0 mb-1.5 font-semibold text-foreground text-xs">
                         Context
                       </p>
-                      <dl className="m-0 grid grid-cols-1 gap-x-6 gap-y-3 min-[480px]:grid-cols-2 min-[900px]:grid-cols-4">
+                      <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-2 min-[1100px]:grid-cols-4 min-[720px]:grid-cols-3">
                         {details.map((item) => (
                           <div key={item.label} className="min-w-0">
                             <dt className="text-foreground-secondary text-xs">
                               {item.label}
                             </dt>
-                            <dd className="m-0 text-body text-foreground [overflow-wrap:anywhere]">
+                            <dd className="m-0 text-foreground text-xs [overflow-wrap:anywhere]">
                               {item.value}
                             </dd>
                           </div>

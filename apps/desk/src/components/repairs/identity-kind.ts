@@ -54,12 +54,17 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
       if (!TAKEN.has(result.outcome)) throw new Error(result.message);
       return result.message;
     };
-  const match = (item: IdentityQuestion, label: string): RepairAction[] => {
+  const match = (
+    item: IdentityQuestion,
+    label: string,
+    hint: string,
+  ): RepairAction[] => {
     const entry = same(item);
     return entry
       ? [
           {
             label,
+            hint,
             emphasis: "primary",
             dialog: {
               title: "Same instrument",
@@ -74,12 +79,17 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
         ]
       : [];
   };
-  const dismiss = (item: IdentityQuestion, label: string): RepairAction[] => {
+  const dismiss = (
+    item: IdentityQuestion,
+    label: string,
+    hint: string,
+  ): RepairAction[] => {
     const entry = notThis(item);
     return entry
       ? [
           {
             label,
+            hint,
             emphasis: "secondary",
             dialog: {
               title: "Not this instrument",
@@ -164,23 +174,32 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
     actions: ({ data: item, status }: IdentityRepair) => {
       if (status === "open")
         return [
-          ...match(item, "Same instrument"),
-          ...dismiss(item, "Not this instrument"),
+          ...match(item, "Match", "Same instrument: bind the record to it"),
+          ...dismiss(item, "Not a match", "Not this instrument"),
         ];
       if (status !== "agent" || !item.agent_answer) return [];
       // Confirm repeats the agent's answer as the user's; Override gives the other one.
       const agentSaidSame = item.agent_answer.relation.startsWith("same_");
       return agentSaidSame
-        ? [...match(item, "Confirm"), ...dismiss(item, "Override")]
+        ? [
+            ...match(item, "Confirm", "Confirm the agent's match"),
+            ...dismiss(item, "Override", "Not this instrument, as you see it"),
+          ]
         : [
-            ...dismiss(item, "Confirm").map((action) => ({
+            ...dismiss(
+              item,
+              "Confirm",
+              "Confirm the agent's “not a match”",
+            ).map((action) => ({
               ...action,
               emphasis: "primary" as const,
             })),
-            ...match(item, "Override").map((action) => ({
-              ...action,
-              emphasis: "secondary" as const,
-            })),
+            ...match(item, "Override", "Same instrument, as you see it").map(
+              (action) => ({
+                ...action,
+                emphasis: "secondary" as const,
+              }),
+            ),
           ];
     },
   };

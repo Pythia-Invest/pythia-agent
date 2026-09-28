@@ -38,6 +38,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "configuration.json",
   "desk_view.py",
   "identity_ops.py",
+  "queue_ops.py",
   "operating.py",
   "platform/__init__.py",
   "platform/access.py",

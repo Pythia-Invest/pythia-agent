@@ -44,7 +44,7 @@ const TASKS: Task[] = [
   },
   {
     id: "T-103",
-    type: "Kestrel record mismatch",
+    type: "Kestrel record mismatch against the synthetic reference venue list",
     status: "open",
     created: "2029-03-14 15:42",
     completed: null,
@@ -114,7 +114,12 @@ export function DataTableDemo() {
         }
         columns={[
           { key: "id", header: "ID", cell: (task) => task.id },
-          { key: "type", header: "Type", cell: (task) => task.type },
+          {
+            key: "type",
+            header: "Type",
+            cell: (task) => task.type,
+            text: (task) => task.type,
+          },
           {
             key: "status",
             header: "Status",
@@ -156,6 +161,7 @@ export function DataTableDemo() {
         label="Synthetic tasks"
         onRefresh={() => setLog("Refreshed the synthetic list.")}
         rowKey={(task) => task.id}
+        rowLabel={(task) => task.id}
         rows={rows}
         search={{
           value: query,

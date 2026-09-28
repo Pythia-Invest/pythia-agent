@@ -5,7 +5,7 @@ import types
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
-from test_market_data_identity import PACKAGE
+from market_data_fixture import PACKAGE
 
 path = Path(__file__).resolve().parents[2] / 'managed/plugins/eodhd'
 module = types.ModuleType('stream_context_fixture'); module.__path__ = [str(path)]

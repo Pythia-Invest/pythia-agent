@@ -56,7 +56,8 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
                                        "candidate_ids", "opened_at", "updated_at")} | {
         # A question only the agent answered: its answer routes provisionally and the user may still override it.
-        "agent_answer": item["settled"] if item["state"] != "open" and item["settled"] else None,
+        "agent_answer": item["settled"] if item["state"] != "open" and item["settled"]
+        and item["settled"]["by"] == "agent" else None,
         "label": label, "question": question, "record": _record(record) if record else None,
         "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
         "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
