@@ -58,33 +58,32 @@ class Result:
         return self.severity == "error" and self.over
 
 
-# Limits: 0 where the rule has no legitimate exception, or where the fix is under way and the build must fail
-# until it lands (currencies). Otherwise the count measured on the default-scope build of the FIRDS week of
-# 2026-09-26, plus 10% for counts of 20 or more so a new week's data does not trip it: a ratchet that catches
-# a new systematic error (a jump) without failing on the known rows. Lower a limit when its rows are fixed.
+# Limits are a ratchet: each is the exact count on the default-scope build of the FIRDS week of 2026-09-26
+# (0 where that count was 0). Known rows pass; any growth or a new error class fails. A fix lowers its
+# rule's limit in the same change; raising a limit needs a stated reason in the pull request.
 INVARIANTS: tuple[Invariant, ...] = (
     Invariant("currency_single_currency_venue", "error",
               "A line on a venue that quotes everything in one currency (German exchanges, Vienna: EUR) carries another.",
-              currency_single_currency_venue, 0, "FIRDS' notional currency written as the trading currency; fix under way"),
+              currency_single_currency_venue, 74796, "FIRDS' notional currency written as the trading currency"),
     Invariant("currency_withdrawn", "error",
               "A live line's currency is a withdrawn ISO 4217 code (NLG, SKK, HRK, BGN since 2026) or XXX.",
-              currency_withdrawn, 0, "stale FIRDS records; a venue trading-currency table fixes them with the rule above"),
+              currency_withdrawn, 112, "stale FIRDS records; a venue trading-currency table fixes them with the rule above"),
     Invariant("currency_is_issue_country", "warning",
               "A line's currency is not its venue country's but exactly its ISIN country's: probably the notional currency.",
-              currency_is_issue_country, 4727, "multi-currency venues (Milan ETFplus, Stockholm, RFQ platforms) need review"),
+              currency_is_issue_country, 4297, "multi-currency venues (Milan ETFplus, Stockholm, RFQ platforms) need review"),
     Invariant("ticker_currency_suffix", "error",
               "A ticker that ends in a currency code (HONAEUR) disagrees with the line's currency.",
-              ticker_currency_suffix, 137, "sources disagree on the currency, or a currency-suffixed OpenFIGI row was picked"),
+              ticker_currency_suffix, 124, "sources disagree on the currency, or a currency-suffixed OpenFIGI row was picked"),
     Invariant("ticker_grammar", "error", "A live ticker fails core's ticker grammar (`BA/`, a bond description).",
               ticker_grammar, 18, "OpenFIGI `/` class tickers and debt rows; core drops their ticker_mic assertion"),
     Invariant("ticker_venue_shape", "warning",
               "A ticker does not have its venue's shape (US 1-5 letters, German 2-6 characters, Euronext 1-6).",
-              ticker_venue_shape, 380, "mostly currency-suffixed OpenFIGI rows on German floors"),
+              ticker_venue_shape, 345, "mostly currency-suffixed OpenFIGI rows on German floors"),
     Invariant("ticker_two_securities", "error", "One ticker on one venue names two live securities.",
-              ticker_two_securities, 46, "all on Stuttgart: a home-market ticker picked for a Stuttgart line"),
+              ticker_two_securities, 41, "all on Stuttgart: a home-market ticker picked for a Stuttgart line"),
     Invariant("primary_more_than_one", "error", "A security has more than one primary listing.", primary_more_than_one),
     Invariant("primary_inactive", "error", "A live security's primary listing is inactive.",
-              primary_inactive, 42, "Frankfurt lines of Canadian shares"),
+              primary_inactive, 38, "Frankfurt lines of Canadian shares"),
     Invariant("primary_open_market_beside_us_exchange", "error",
               "A security with a live NYSE/Nasdaq line has its primary on an EEA open-market segment.",
               primary_open_market_beside_us_exchange, 1, "Bending Spoons (Italian ISIN, Nasdaq listing) on Munich"),
@@ -96,51 +95,51 @@ INVARIANTS: tuple[Invariant, ...] = (
               primary_on_open_market_beside_regulated, 3),
     Invariant("primary_foreign_country", "warning",
               "A share with an EEA ISIN has its primary abroad although it has a live regulated line in its own country.",
-              primary_foreign_country, 27, "legitimate for Luxembourg holding companies listed elsewhere (ArcelorMittal)"),
+              primary_foreign_country, 24, "legitimate for Luxembourg holding companies listed elsewhere (ArcelorMittal)"),
     Invariant("venue_ticker_coverage", "error",
               "A listing segment with 200 or more live lines gives fewer than half of them a ticker.",
               venue_ticker_coverage, 12, "Frankfurt and Berlin open market, Hanover, Borsa Italiana ETFplus and GEM, Dublin"),
-    Invariant("security_without_listing", "warning", "A live security has no venue line.", security_without_listing, 179,
+    Invariant("security_without_listing", "warning", "A live security has no venue line.", security_without_listing, 162,
               "SEC tickers without an exchange"),
     Invariant("top_ranked_unreachable", "warning",
               "One of the 1,000 most notable live shares, receipts or ETFs has no ticker line or no primary.",
-              top_ranked_unreachable, 148, "UK, Swiss, Japanese and Canadian home lines are not built yet"),
+              top_ranked_unreachable, 135, "UK, Swiss, Japanese and Canadian home lines are not built yet"),
     Invariant("us_share_without_us_line", "warning",
               "A live share with a US ISIN has no US exchange or OTC line although the build has SEC lines.",
-              us_share_without_us_line, 312, "mostly delisted or acquired companies still carried by EU venues"),
+              us_share_without_us_line, 284, "mostly delisted or acquired companies still carried by EU venues"),
     Invariant("name_casing", "error", "A re-cased name has a capital inside a word (NestlÉ, MØLler).", name_casing),
     Invariant("name_encoding", "error", "A name carries mojibake, an HTML entity, a control character or non-NFC text.",
               name_encoding, 3, "source names: `S&amp;P`, `King\ufffds`"),
-    Invariant("name_not_latin", "warning", "An issuer's display name is not in Latin script.", name_not_latin, 161),
+    Invariant("name_not_latin", "warning", "An issuer's display name is not in Latin script.", name_not_latin, 146),
     Invariant("issuer_is_market_operator", "error",
               "A security's issuer is a trading venue or its operator (TP ICAP, Bloomberg MTF, Frankfurter Wertpapierbörse).",
-              issuer_is_market_operator, 686, "FIRDS carries the reporting venue's LEI when an issuer has none"),
+              issuer_is_market_operator, 623, "FIRDS carries the reporting venue's LEI when an issuer has none"),
     Invariant("issuer_financing_vehicle", "warning",
               "A share or receipt's issuer is named like a financing vehicle (Nestlé Capital Markets).",
-              issuer_financing_vehicle, 42),
+              issuer_financing_vehicle, 38),
     Invariant("issuer_name_disjoint", "warning",
               "A share's name shares no word with its LEI issuer's Latin names (Lee Enterprises under Berkshire).",
-              issuer_name_disjoint, 1876, "also renames and abbreviated FIRDS names; see issuer_is_market_operator"),
+              issuer_name_disjoint, 1705, "also renames and abbreviated FIRDS names; see issuer_is_market_operator"),
     Invariant("cik_lei_name_disjoint", "warning", "An issuer's SEC names share no word with its GLEIF names.",
-              cik_lei_name_disjoint, 292, "mostly renames; a sample of 50 found 3 unrelated entities"),
+              cik_lei_name_disjoint, 265, "mostly renames; a sample of 50 found 3 unrelated entities"),
     Invariant("fund_named_ordinary", "warning", "An ordinary share is named like a fund (UCITS, ETF, ETC).",
               fund_named_ordinary, 4, "SEC crypto ETFs typed as common stock"),
     Invariant("preferred_named_ordinary", "warning", "An ordinary share is named like a preference share (Vorzugsaktie, Pref).",
               preferred_named_ordinary, 4),
     Invariant("receipt_without_underlying", "warning", "A depositary receipt has no underlying share.",
-              receipt_without_underlying, 590),
+              receipt_without_underlying, 536),
     Invariant("relation_target_missing", "warning", "A relation points to a security outside the file.",
-              relation_target_missing, 776),
+              relation_target_missing, 705),
     Invariant("stale_isin_twin", "warning",
               "An issuer has two live ordinary securities with the same name and only one has a ticker (an old ISIN left active).",
-              stale_isin_twin, 81),
+              stale_isin_twin, 73),
 )
 
 
-def run(path: Path, invariants: tuple[Invariant, ...] = INVARIANTS) -> list[Result]:
+def run(path: Path, invariants: tuple[Invariant, ...] | None = None) -> list[Result]:
     build = Build(path)
     results = []
-    for invariant in invariants:
+    for invariant in INVARIANTS if invariants is None else invariants:
         found = invariant.check(build)
         results.append(Result(invariant.name, invariant.severity, invariant.rule, len(found), invariant.limit,
                               found[:EXAMPLES], invariant.note))

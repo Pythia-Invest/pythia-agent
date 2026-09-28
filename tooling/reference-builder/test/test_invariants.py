@@ -1,5 +1,6 @@
 """Whole-build invariants: a clean fixture build passes, and each planted systematic error is counted."""
 
+import dataclasses
 import sqlite3
 import tempfile
 import unittest
@@ -36,15 +37,25 @@ class InvariantTest(unittest.TestCase):
         failed = [(r.name, r.count, r.examples) for r in invariants.run(self.path) if r.severity == "error" and r.count]
         self.assertEqual(failed, [])
 
-    def test_a_notional_currency_on_a_euro_venue_fails_the_audit(self):
+    def test_growth_past_a_ratchet_limit_fails_the_audit(self):
         self.plant("INSERT OR REPLACE INTO venues VALUES ('XETR', 'XETR', 'Xetra', 'DE', 'NSPD')")
         self.plant("UPDATE listings SET mic = 'XETR', operating_mic = 'XETR', currency = 'USD' WHERE id = "
                    "(SELECT id FROM listings WHERE operating_mic = 'XAMS' LIMIT 1)")
-        result = next(r for r in invariants.run(self.path) if r.name == "currency_single_currency_venue")
+        # A fix lowered the currency limit to 0; one notional-currency line on Xetra is growth and fails.
+        lowered = tuple(dataclasses.replace(i, limit=0) if i.name == "currency_single_currency_venue" else i
+                        for i in invariants.INVARIANTS)
+        result = next(r for r in invariants.run(self.path, lowered) if r.name == "currency_single_currency_venue")
         self.assertEqual((result.count, result.failed), (1, True))
         with mock.patch("sys.stdout"), mock.patch("sys.stderr"), \
-                mock.patch.object(truth_report, "load_baseline", return_value=None):
+                mock.patch.object(truth_report, "load_baseline", return_value=None), \
+                mock.patch.object(invariants, "INVARIANTS", lowered):
             self.assertEqual(truth_report.main(["--reference", str(self.path)]), 1)
+
+    def test_every_limit_is_a_count_not_a_tolerance(self):
+        # The ratchet: limits are exact measured counts, so none is negative and the zero rules stay zero.
+        limits = {i.name: i.limit for i in invariants.INVARIANTS}
+        self.assertTrue(all(limit >= 0 for limit in limits.values()))
+        self.assertEqual((limits["name_casing"], limits["primary_more_than_one"]), (0, 0))
 
     def test_withdrawn_currencies_follow_the_build_date(self):
         self.plant("INSERT OR REPLACE INTO venues VALUES ('XBUL', 'XBUL', 'Bulgarian Stock Exchange', 'BG', 'RMKT')")

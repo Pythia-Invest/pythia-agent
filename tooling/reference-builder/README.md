@@ -206,12 +206,13 @@ encoding, non-Latin display names), issuers (a trading venue
 or a financing vehicle as issuer, names that share no word with the security or the
 SEC title) and kinds (funds or preference shares typed as ordinary shares,
 receipts without an underlying). An `error` above its limit fails the command; a
-`warning` is reported against its limit and never fails it. A limit is 0 where a
-rule has no legitimate exception or its fix is under way; otherwise it is the count
-on the default-scope build of the FIRDS week of 2026-09-26 plus 10%, a ratchet that
-catches a new systematic error without failing on known rows. Lower a limit when
-its rows are fixed. The builder records the counts under `truth_audit.invariants`
-in the manifest and never blocks on them.
+`warning` is reported against its limit and never fails it. The limits are a
+ratchet: each is the exact count on the default-scope build of the FIRDS week of
+2026-09-26 (0 where that count was 0), so known rows pass and any growth or new
+error class fails. A change that fixes rows lowers its rule's limit in the same
+change; raising a limit needs a stated reason in the pull request (for example, a
+new FIRDS week that adds rows of a known, accepted kind). The builder records the
+counts under `truth_audit.invariants` in the manifest and never blocks on them.
 
 Conventions: US tickers use the SEC's `-` class separator (`BRK-B`); Nordic
 tickers keep the exchange's space (`VOLV B`, Yahoo `VOLV-B.ST`); the listing
