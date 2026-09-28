@@ -1,13 +1,15 @@
 # ESMA FIRDS source record
 
-- **Status:** in onboarding, stage 2 in shadow mode.
+- **Status:** SIGNOFF_STATUS
   - Stage 1: the field table below is complete for the fields the builder
     reads.
   - Stage 2: the adapter emits typed claims, counts unexpected input and
-    fingerprints every build. The claims do not feed the snapshot yet: the
-    builder's decisions are unchanged, and the audit compares them with the
-    claims.
-  - Stage 3 (random sample), stage 4 (judgement) and sign-off are open.
+    fingerprints every build. The build decides FIRDS securities' issuer,
+    primary and receipt underlying from the claims, and asks where they do
+    not decide.
+  - Stage 3: a stratified random sample of 100 rows is labelled against
+    primary sources (below and [the sample](firds-signoff-sample.md)).
+  - Stage 4: the questions go to core's resolution queue, suggest-only.
   - FIRDS was in use before the
     [onboarding standard](../architecture/source-onboarding.md), so it keeps its
     current role until it signs off.
@@ -16,8 +18,8 @@
   `measure()`). The meanings are core's `SourceMeaning` vocabulary.
   `claims.py` holds the claim shape and the per-build record,
   `source_drift.py` the fingerprint comparison, and `firds_audit.py` the
-  odd-case counts and the comparison with today's decisions. FIRDS records are still
-  used directly by `assemble.py`, `rules.py` and `linking.py`.
+  odd-case counts. `assemble.issuer_lei` and `reconcile.py` decide from the
+  claims; `linking.link_receipts` applies field 26.
 - **Scope:**
   - the weekly `FULINS_E` and `FULINS_C` full files and the optional `DLTINS`
     daily deltas;
@@ -34,8 +36,10 @@
   Counts marked "audit" come from `just reference-audit` on that build: the
   builder's scope, `ES`, `ED` and `CE`, is 321,306 records and 29,002 ISINs.
 - **Changes to other sources' adapters:**
-  - ISO 10383: `mic.py` reads the LEI column, for the operator-LEI case. Only
-    the FIRDS audit uses it; it confirms nothing.
+  - ISO 10383: `mic.py` reads the LEI column, for the operator-LEI case and a
+    venue's operating entity.
+  - GLEIF: an operator LEI names the issuer only when GLEIF registers the
+    entity in the ISIN's country.
   - Planned: GLEIF Level 2 relationships, for financing subsidiaries.
   - Planned: an SEC issuer claim joined by ISIN, for another company's LEI.
 
@@ -110,7 +114,9 @@ Relevant fields not read:
   changed input that trips alarms, a rare field that empties, a count that
   disappears, a dropped field that breaks the build, and a build whose
   snapshot is identical with and without the claims.
-- [ ] Switch the builder's decisions onto the claims (a later change).
+- [x] The builder decides from the claims: issuer (field 5 with the ISO 10383
+  operator check), primary (field 8 for an EEA primary) and receipt underlying
+  (field 26).
 
 The fingerprint is written on every build to `firds-<date>.json` beside the
 snapshot, and compared with the newest older good build's (`source_drift.py`).
@@ -145,37 +151,17 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   not a quality measure.
 - **Invariants:** `invariants.py` (PR #45). The ratchet limits there are
   temporary, pending the fixes named above.
-- **Odd-case counts and the comparison with today's decisions:** the FIRDS
-  section of `just reference-audit`, from `firds-<date>.json` and the
-  manifest. For each field FIRDS speaks to, the outcome follows from the FIRDS
-  claims alone: `decided`, `co_primary`, `unknown` plus a question,
-  `conflict` plus a question, or `outside_firds` (FIRDS cannot decide it; other
-  sources must). Today's value is then compared with it. On the local build
-  (live securities or lines, then all):
+- **Decisions and questions:** the FIRDS section of `just reference-audit`, from
+  `firds-<date>.json` and the manifest. On the local build (live securities):
 
-  | Field | FIRDS outcome / today | Live | All | Example |
-  | --- | --- | --: | --: | --- |
-  | Issuer | decided / agrees | 27,927 | 28,164 | ASML |
-  | Issuer | unknown + issuer question (an operator's LEI) / today holds a guess | 786 | 838 | Vastned under TP ICAP |
-  | Primary | outside FIRDS (no EEA request) | 17,620 | 17,866 | Alphabet, Chubb, Bunge, FEMSA |
-  | Primary | decided / agrees | 8,389 | 8,432 | ASML on XAMS (XGLO decides nothing) |
-  | Primary | co-primary / agrees | 2,389 | 2,389 | UniCredit: Euronext Milan and Frankfurt |
-  | Primary | decided / today outside the EEA | 148 | 148 | DSM-Firmenich (XAMS, today SIX); Cisco and Costco (JBUL, today Nasdaq) |
-  | Primary | decided / differs | 131 | 131 | Fresenius (XEMA, today Berlin) |
-  | Primary | unknown + home-market question / today holds a guess | 30 | 30 | NVIDIA, requested only on XGLO |
-  | Primary | co-primary / today outside the EEA, or differs | 6 | 6 | Shell (XAMS and XPRM, today LSE) |
-  | Currency | outside FIRDS / today is the notional currency | 119,447 | 120,048 | 39,750 German lines in USD |
-  | Receipt | decided / agrees | 2,790 | 2,795 | |
-  | Receipt | decided / today has no edge | 490 | 514 | HDFC Bank ADR |
-  | Receipt | decided / differs | 196 | 196 | Sany Heavy ADR |
-  | Receipt | unknown + receipt question | 161 | 161 | Arm ADR (field 26 states itself) |
-  | Receipt | conflict + receipt question (a share stating an underlying) | 10 | 38 | Argentine CEDEARs |
+  | Field | FIRDS decides | Asked instead (question type) |
+  | --- | --: | --- |
+  | Issuer | 28,101 securities carry field 5's LEI as issuer | 614 `issuer_identity`: an operator's LEI on a share outside its country |
+  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid |
+  | Receipt underlying | 2,790 receipts link to the field 26 security | 849 `receipt_underlying`, 10 `receipt_conflict` |
 
-  Open questions FIRDS leaves: issuer 786 live (838 in all), home market 30,
-  receipt 171 (199). A `decided / today outside the EEA` row is not yet a
-  finding: FIRDS sees only EEA requests, and the SEC, OpenFIGI or an exchange
-  list must say whether the issuer sought the non-EEA listing too. Lee
-  Enterprises under Berkshire Hathaway's LEI needs the SEC claim.
+  Securities without a request and with a line outside the EEA keep the SEC
+  or OpenFIGI line as before (7,581); those sources are onboarded next.
 
 ### Odd cases
 
@@ -203,7 +189,13 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |
 | --- | --- | --- | --- | --- |
-| The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity` in the comparison: 838 securities) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
+| The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity`: 614 open) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
+| The home market when field 8 does not decide it (`home_market`: 10,271 open) | Which listing is the issuer's home is a knowledge question; the evidence may be outside FIRDS | Not written | Not done | Suggest-only |
+| The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 859 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
+
+The questions reach core's resolution queue through the package's `claims`
+file. The agent may answer them provisionally and the user may override; an
+answer changes no reference data yet.
 
 Classes assigned to code or to Repairs instead:
 
