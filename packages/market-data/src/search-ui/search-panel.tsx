@@ -1,13 +1,18 @@
 import { Button, ComboboxList, EmptyState, Skeleton } from "@pythia/widget-sdk";
-import { ChevronLeft, LoaderCircle } from "lucide-react";
-import { type MouseEvent, useEffect, useRef } from "react";
-import type { LookupOffer, SearchRow } from "../search";
+import { LoaderCircle } from "lucide-react";
+import { Fragment, type MouseEvent, useEffect, useRef } from "react";
+import type { LookupOffer, SearchGroup } from "../search";
 import {
   type SearchOption,
   TYPE_FILTERS,
   type TypeFilter,
 } from "./search-model";
-import { ConnectorMark, ListingRowOption, SearchRowOption } from "./search-row";
+import {
+  ConnectorMark,
+  GroupHeading,
+  SearchRowOption,
+  ToggleOption,
+} from "./search-row";
 import { TypePills } from "./type-pills";
 
 export type PanelStatus = "prompt" | "loading" | "error" | "ready";
@@ -17,7 +22,7 @@ export type LookupState = {
   label: string;
   query: string;
   status: "running" | "done" | "error";
-  rows: SearchRow[];
+  groups: SearchGroup[];
 };
 
 export type SearchPanelProps = {
@@ -36,17 +41,10 @@ export type SearchPanelProps = {
   onLookup(offer: LookupOffer): void;
   /** A row was chosen by pointer or Enter. */
   onChoose(option: SearchOption): void;
-  /** The expanded instrument's side list, which replaces the rows. */
-  side?: SideList | undefined;
-  /** Opens a row's side list; absent when the host reads no listings. */
-  onExpand?: ((option: SearchOption) => void) | undefined;
-  onCollapse?: (() => void) | undefined;
-};
-
-export type SideList = {
-  row: SearchRow;
-  status: "loading" | "ready" | "error";
-  options: readonly SearchOption[];
+  /** Groups showing all their listings, by group id. */
+  expanded?: ReadonlySet<string> | undefined;
+  /** A group's toggle was chosen by pointer or Enter. */
+  onToggle?: ((groupId: string) => void) | undefined;
 };
 
 const keepInputFocus = (event: MouseEvent) => event.preventDefault();
@@ -64,35 +62,41 @@ export function SearchPanel(props: SearchPanelProps) {
   }, [query, filter]);
   // Rows exist only while they are shown, so the combobox never highlights or
   // selects a hidden one.
-  const side = status === "ready" ? props.side : undefined;
-  const shown = status === "ready" ? (side ? side.options : props.options) : [];
+  const shown = status === "ready" ? props.options : [];
   const directory = shown.filter((option) => option.source === "directory");
   const found = shown.filter((option) => option.source === "lookup");
-  const renderRow = (option: SearchOption) =>
-    option.listing ? (
-      <ListingRowOption
-        key={option.key}
-        option={option}
-        onChoose={() => props.onChoose(option)}
-      />
-    ) : (
-      <SearchRowOption
-        key={option.key}
-        option={option}
-        onChoose={() => props.onChoose(option)}
-        onExpand={props.onExpand && (() => props.onExpand?.(option))}
-      />
-    );
+  // A heading precedes each group's first entry; the toggle closes it.
+  const renderRow = (
+    option: SearchOption,
+    index: number,
+    list: SearchOption[],
+  ) => (
+    <Fragment key={option.key}>
+      {list[index - 1]?.group.id !== option.group.id ? (
+        <GroupHeading option={option} />
+      ) : null}
+      {option.row ? (
+        <SearchRowOption
+          option={option}
+          onChoose={() => props.onChoose(option)}
+        />
+      ) : (
+        <ToggleOption
+          option={option}
+          expanded={props.expanded?.has(option.group.id) ?? false}
+          onToggle={() => props.onToggle?.(option.group.id)}
+        />
+      )}
+    </Fragment>
+  );
+  const companies = new Set(directory.map((option) => option.group.id)).size;
   const filterLabel = TYPE_FILTERS.find((type) => type.value === filter)?.label;
-  const announcement = side
-    ? side.status === "ready"
-      ? `${side.row.name}: ${side.options.length} listings. Left arrow to go back.`
-      : ""
-    : status === "loading"
+  const announcement =
+    status === "loading"
       ? "Searching"
       : status === "ready" && fresh
-        ? directory.length
-          ? `${directory.length} result${directory.length === 1 ? "" : "s"}`
+        ? companies
+          ? `${companies} result${companies === 1 ? "" : "s"}`
           : "No matches"
         : "";
   return (
@@ -135,42 +139,7 @@ export function SearchPanel(props: SearchPanelProps) {
             </Button>
           </div>
         ) : null}
-        {side ? (
-          <div
-            data-slot="investment-search-side"
-            className="flex items-center gap-1 px-1 pt-1 pb-1.5"
-          >
-            <button
-              type="button"
-              aria-label={`Back to results for “${query}”`}
-              onMouseDown={keepInputFocus}
-              onClick={props.onCollapse}
-              className="motion-fast inline-flex size-7 flex-none cursor-pointer items-center justify-center rounded-control text-foreground-secondary transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-            >
-              <ChevronLeft aria-hidden="true" className="size-4" />
-            </button>
-            <p className="min-w-0 flex-1 truncate text-xs">
-              <span className="font-semibold text-foreground">
-                {side.row.name}
-              </span>
-              <span className="text-foreground-secondary">
-                {" "}
-                ·{" "}
-                {side.status === "ready"
-                  ? side.options.length
-                  : side.row.listings + 1}{" "}
-                listings
-              </span>
-            </p>
-          </div>
-        ) : null}
-        {side?.status === "loading" ? <SkeletonRows /> : null}
-        {side?.status === "error" ? (
-          <p role="alert" className="px-2.5 py-3 text-error text-xs">
-            The listings could not be read.
-          </p>
-        ) : null}
-        {!side && status === "ready" && fresh && !directory.length ? (
+        {status === "ready" && fresh && !directory.length ? (
           <div
             data-slot="investment-search-no-results"
             className="grid justify-items-center gap-1 px-4 py-8 text-center"
@@ -200,13 +169,13 @@ export function SearchPanel(props: SearchPanelProps) {
           </div>
         ) : null}
         <ComboboxList
-          aria-label={side ? `Listings of ${side.row.name}` : "Investments"}
+          aria-label="Investments"
           aria-busy={status === "ready" && !fresh}
           hidden={!shown.length}
           className="grid max-h-none overflow-visible"
         >
-          {side ? shown.map(renderRow) : directory.map(renderRow)}
-          {!side && found.length && lookup ? (
+          {directory.map(renderRow)}
+          {found.length && lookup ? (
             <div
               aria-hidden="true"
               className="flex items-center gap-1.5 px-2.5 pt-2 text-foreground-secondary text-xs"
@@ -215,7 +184,7 @@ export function SearchPanel(props: SearchPanelProps) {
               From {lookup.label}
             </div>
           ) : null}
-          {side ? null : found.map(renderRow)}
+          {found.map(renderRow)}
         </ComboboxList>
         {lookup?.status === "running" ? (
           <p className="flex items-center gap-2 px-2.5 py-3 text-foreground-secondary text-xs">
@@ -246,11 +215,7 @@ export function SearchPanel(props: SearchPanelProps) {
       >
         {/* Key hints yield to the lookup actions in a narrow panel. */}
         <span className="@md:block hidden min-w-0 flex-1 truncate">
-          {side
-            ? "↑↓ to move · Enter to open · ← back"
-            : props.onExpand
-              ? "↑↓ to move · Enter to open · → listings · Esc to close"
-              : "↑↓ to move · Enter to open · Esc to close"}
+          ↑↓ to move · Enter to open · Esc to close
         </span>
         {props.offers.map((offer) => {
           const running =

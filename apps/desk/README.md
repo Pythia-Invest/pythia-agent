@@ -196,7 +196,7 @@ listing selector (`TICKER · Venue · CCY ▾`) lists every line of the instrume
 grouped home market, other exchanges, then OTC & ADRs; choosing one updates
 `?listing=` in place (`history.replaceState`), so profile and filings, which
 are the issuer's, keep their reads. The shell routes `pythia:open-subject`
-window events (`subject_id`, optional `listing_id`) there. The page renders core's
+window events there. The page renders core's
 local `pythia`/`identity-subject` composition at once, then loads each section
 on its own: `resolving` sections through `identity-resolve` (an explicit invoke,
 because core stores the resulting binding), quote and chart through the

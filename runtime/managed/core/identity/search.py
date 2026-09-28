@@ -250,13 +250,9 @@ class Directory:
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
                suffixes: Callable[[], dict[str, set[str]]] = dict,
                bindings: Callable[[list[str]], dict[str, list[dict]]] = lambda ids: {}) -> dict[str, Any]:
-        """The SearchResponse (packages/market-data/src/search.ts) for one query: listings grouped per company.
-
-        A group is an issuer (its share classes, receipts and registry lines together), a fund or ETF on its
-        own, or a crypto asset. Groups compete by their best line. Each group's first `shown` rows are the
-        relevant listings: the best line of each matched security (a listing the query names, else the
-        preferred region, else the primary market) and the main share's primary listing; its other listings
-        follow, for "all listings"."""
+        """The SearchResponse (packages/market-data/src/search.ts): listings grouped per company (ADR 0037), a
+        fund, ETF or crypto asset on its own. Groups compete by their best line; each group's first `shown`
+        rows are its relevant listings, the rest are for "all listings"."""
         allowed = set(kinds) if kinds else None
         groups: dict[str, list] = {}
         for score, line, key in self.lines(query, prefer, suffixes):
@@ -269,15 +265,14 @@ class Directory:
         chosen = sorted(groups.items(), key=lambda item: -item[1][0])[:limit]
         out = []
         for key, (_score, securities) in chosen:
-            # The lead is chosen as before grouping: receipts fold into their instrument, whose best line
-            # (a named listing, the preferred region, the primary market) represents it. Then the main
-            # share's primary listing and the best line of each other matched security (receipts, classes).
+            # The lead is the best line of the best instrument (receipts folded in), then the main share's
+            # primary listing and the best line of each other matched security (receipts, classes).
             folded: dict[str, list] = {}
             for members in securities.values():
                 folded.setdefault(members[0][2]["inst"], []).extend(members)
-            lead = max(max(folded.values(), key=_instrument_order), key=lambda entry: entry[1])[2]
+            lead = max(max(folded.values(), key=lambda m: _order(m, "ikind")), key=lambda entry: entry[1])[2]
             best = [max(members, key=lambda entry: entry[1])[2]
-                    for members in sorted(securities.values(), key=_security_order, reverse=True)]
+                    for members in sorted(securities.values(), key=lambda m: _order(m, "kind"), reverse=True)]
             everything = self._group_lines(key, lead)
             shown: list[dict] = []
             for line in [lead, *everything[:1], *best]:
@@ -305,10 +300,8 @@ class Directory:
         lines.sort(key=lambda line: (-KIND_ORDER.get(line["kind"], 1), -(line["size"] or 0), line["security"],
                                      -line["prim"], line["fus"], line["otc"], -line["home"], line["mic"] or "",
                                      line["listing"]))
-        unique: dict[str, dict] = {}  # a crypto asset's chain deployments are one listing
-        for line in lines:
-            unique.setdefault(line["listing"], line)
-        return list(unique.values())
+        seen: set[str] = set()  # a crypto asset's chain deployments are one listing
+        return [line for line in lines if not (line["listing"] in seen or seen.add(line["listing"]))]
 
 
 def _group_key(line: dict) -> str:
@@ -324,17 +317,11 @@ def _own_name(line: dict) -> str:
 KIND_ORDER = {"ordinary": 3, "coin": 3, "depositary_receipt": 2}  # notes, funds and preferreds rank below
 
 
-def _instrument_order(members: list) -> tuple:
-    """Order a group's instruments (receipts folded in): one whose line the query names first, then the
-    main share before notes, funds and preferreds, then the best line score."""
-    return (max(key[:2] for _score, key, _line in members), KIND_ORDER.get(members[0][2]["ikind"], 1),
-            max(score for score, _key, _line in members))
-
-
-def _security_order(members: list) -> tuple:
-    """Order a group's securities: one whose line the query names (venue, exact ticker) first, then the
-    main share before a receipt before notes, funds and preferreds, then the best line score."""
-    return (max(key[:2] for _score, key, _line in members), KIND_ORDER.get(members[0][2]["kind"], 1),
+def _order(members: list, kind: str) -> tuple:
+    """Order a group's instruments ("ikind", receipts folded in) or securities ("kind"): one whose line the
+    query names (venue, exact ticker) first, then the main share before a receipt before notes, funds and
+    preferreds, then the best line score."""
+    return (max(key[:2] for _score, key, _line in members), KIND_ORDER.get(members[0][2][kind], 1),
             max(score for score, _key, _line in members))
 
 

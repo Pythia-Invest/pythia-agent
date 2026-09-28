@@ -2,8 +2,6 @@
 
 import {
   InvestmentSearch,
-  listingOptions,
-  type SearchChoice,
   SearchPanel,
   type SearchPanelProps,
   searchOptions,
@@ -13,11 +11,9 @@ import { Combobox } from "@pythia/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import {
-  demoListingChoices,
-  demoListings,
   demoLookup,
   demoLookupOffers,
-  demoLookupRow,
+  demoLookupGroup,
   demoSearch,
   searchDemoDirectory,
 } from "./search-demo";
@@ -25,15 +21,24 @@ import {
 const ignore = () => {};
 const search = demoSearch(180);
 const lookup = demoLookup(900);
-const listings = demoListings(300);
 const crypto = TYPE_FILTERS.find((type) => type.value === "crypto")?.kinds;
 
-function options(query: string, kinds?: typeof crypto) {
-  return searchOptions(searchDemoDirectory(query, { kinds }).rows, "directory");
+function options(
+  query: string,
+  kinds?: typeof crypto,
+  expanded?: ReadonlySet<string>,
+) {
+  return searchOptions(
+    searchDemoDirectory(query, { kinds }).groups,
+    "directory",
+    expanded,
+  );
 }
 
-/** A synthetic lookup answer: rows of the search shape with subject ids. */
-const found = searchOptions([demoLookupRow("ASML.MI")], "lookup");
+/** A synthetic lookup answer: a group of the search shape with subject ids. */
+const lookupGroup = demoLookupGroup("ASML.MI");
+const found = searchOptions([lookupGroup], "lookup");
+const asml = new Set(["issuer:lei:724500Y6DUVHQD6OXN27"]);
 
 function Specimen({
   title,
@@ -81,7 +86,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function InvestmentSearchDemo() {
   const [client] = useState(() => new QueryClient());
   const [query, setQuery] = useState("");
-  const [chosen, setChosen] = useState<SearchChoice>();
+  const [chosen, setChosen] = useState<string>();
   return (
     <div className="grid gap-10">
       <p className="max-w-measure text-body text-foreground-secondary">
@@ -101,21 +106,20 @@ export function InvestmentSearchDemo() {
               search={search}
               lookup={lookup}
               onSelect={setChosen}
-              listings={listings}
               className="max-w-[60%] flex-none"
             />
             <span className="flex-1" />
           </div>
         </QueryClientProvider>
         <p className="text-foreground-secondary text-xs">
-          Try asml, asmlf, alphabet, bitcoin, IE00B4L5Y983 or zzzz. Arrow keys
-          move, Enter opens the row&apos;s listing, → or “+N” shows the
-          instrument&apos;s listings (← back), Esc closes, Tab reaches the type
+          Try asml, asmlf, alphabet, shell, bitcoin, IE00B4L5Y983 or zzzz. Arrow
+          keys move through listings and a company&apos;s “All listings” toggle,
+          Enter opens a listing or toggles, Esc closes, Tab reaches the type
           pills and the lookup action.
         </p>
         <output className="text-body text-foreground">
           {chosen
-            ? `Opens instrument ${chosen.subject} on listing ${chosen.listing}.`
+            ? `Selected listing ${chosen}; Desk opens its instrument page.`
             : "No row selected yet."}
         </output>
       </Section>
@@ -134,38 +138,35 @@ export function InvestmentSearchDemo() {
             status="loading"
           />
           <Specimen
-            title="One row per instrument"
-            note="ASML shows its Amsterdam primary listing; the Nasdaq registry shares, Xetra and OTC lines are its other listings. ASM International is another company."
+            title="Listings grouped per company"
+            note="ASML: its Amsterdam primary listing and the Nasdaq registry shares, then “All 4 listings”. ASM International is another company."
             query="asm"
             options={options("asm")}
           />
           <Specimen
-            title="An instrument's listings"
-            note="→ or “+3” on the ASML row: every line of the company, receipts included; Enter opens that listing, ← goes back."
+            title="All of a company's listings"
+            note="The toggle reveals every line in place and reads “Fewer listings”; arrow keys move through them."
             query="asml"
-            side={(() => {
-              const row = searchDemoDirectory("asml").rows[0];
-              return row
-                ? {
-                    row,
-                    status: "ready" as const,
-                    options: listingOptions(row, demoListingChoices(row.id)),
-                  }
-                : undefined;
-            })()}
-            options={options("asml")}
+            options={options("asml", undefined, asml)}
+            expanded={asml}
           />
           <Specimen
-            title="A typed ticker names its listing"
-            note="ASMLF opens the OTC listing of the same company row."
+            title="A typed ticker leads its company"
+            note="ASMLF puts the OTC listing first inside the ASML group."
             query="asmlf"
             options={options("asmlf")}
           />
           <Specimen
             title="Share classes"
-            note="GOOGL and GOOG are different instruments of one issuer, so each has its own row."
+            note="Alphabet: Class A (GOOGL) and Class C (GOOG) are listings of one company, each with its class."
             query="alphabet"
             options={options("alphabet")}
+          />
+          <Specimen
+            title="Receipts and home lines"
+            note="Shell: its Amsterdam line and the NYSE American Depositary Shares; London, Xetra and OTC wait behind the toggle."
+            query="shell"
+            options={options("shell")}
           />
           <Specimen
             title="Type filter"
@@ -189,7 +190,7 @@ export function InvestmentSearchDemo() {
               label: "Yahoo Finance",
               query: "asml.mi",
               status: "done",
-              rows: found.map((option) => option.row),
+              groups: [lookupGroup],
             }}
           />
           <Specimen
@@ -201,7 +202,7 @@ export function InvestmentSearchDemo() {
               label: "Yahoo Finance",
               query: "adyen",
               status: "running",
-              rows: [],
+              groups: [],
             }}
           />
           <Specimen

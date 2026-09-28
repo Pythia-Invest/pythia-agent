@@ -1,5 +1,4 @@
-import type { InstrumentKind, SearchRow } from "../search";
-import type { SubjectListing } from "../subject";
+import type { InstrumentKind, SearchGroup, SearchRow } from "../search";
 
 export type TypeFilter =
   | "all"
@@ -55,58 +54,36 @@ export const ROW_LABELS: Record<InstrumentKind, string> = {
   token: "Crypto",
 };
 
-export type RowSource = "directory" | "lookup" | "listing";
+export type RowSource = "directory" | "lookup";
 
-/** One line of an instrument, as its side list shows it. */
-export type ListingChoice = Pick<
-  SubjectListing,
-  | "id"
-  | "ticker"
-  | "mic"
-  | "venue"
-  | "currency"
-  | "kind"
-  | "country"
-  | "primary"
->;
-
-/** One selectable row in panel order: an instrument, or (in an instrument's
- * side list) one of its listings. */
+/** One selectable entry in panel order: a listing row of a group, or the
+ * group's toggle between its relevant listings and all of them. */
 export type SearchOption = {
   key: string;
-  row: SearchRow;
+  group: SearchGroup;
   source: RowSource;
-  listing?: ListingChoice | undefined;
+  /** The listing a choice opens; absent on the toggle. */
+  row?: SearchRow | undefined;
 };
 
-/** What a choice opens: the instrument's page (addressed by the row's
- * subject, its representative listing) on one of its listings. */
-export type SearchChoice = { subject: string; listing: string };
-
-/** A row opens its representative (preferred) listing; a side-list line
- * opens the same instrument on the listing it names. */
-export function choiceOf(option: SearchOption): SearchChoice {
-  return {
-    subject: option.row.id,
-    listing: option.listing?.id ?? option.row.id,
-  };
-}
-
-export function listingOptions(
-  row: SearchRow,
-  listings: readonly ListingChoice[],
-): SearchOption[] {
-  return listings.map((listing) => ({
-    key: `listing:${listing.id}`,
-    row,
-    source: "listing",
-    listing,
-  }));
-}
-
+/** Each group's relevant listings (all of them when expanded), then its
+ * toggle when it has more listings than it shows. */
 export function searchOptions(
-  rows: readonly SearchRow[],
+  groups: readonly SearchGroup[],
   source: RowSource,
+  expanded: ReadonlySet<string> = new Set(),
 ): SearchOption[] {
-  return rows.map((row) => ({ key: `${source}:${row.id}`, row, source }));
+  return groups.flatMap((group) => {
+    const open = expanded.has(group.id);
+    const rows = open ? group.rows : group.rows.slice(0, group.shown);
+    const options: SearchOption[] = rows.map((row) => ({
+      key: `${source}:${group.id}:${row.id}`,
+      group,
+      source,
+      row,
+    }));
+    if (group.rows.length > group.shown)
+      options.push({ key: `${source}:${group.id}:toggle`, group, source });
+    return options;
+  });
 }

@@ -11,18 +11,13 @@ import {
 } from "@pythia/widget-sdk";
 import { LoaderCircle, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { LookupOffer, SearchRow } from "../search";
+import type { LookupOffer, SearchGroup } from "../search";
 import {
-  type ListingsReader,
   type LookupRunner,
   type SearchBackend,
   useDirectorySearch,
-  useInstrumentListings,
 } from "./controller";
 import {
-  choiceOf,
-  listingOptions,
-  type SearchChoice,
   type SearchOption,
   searchOptions,
   type TypeFilter,
@@ -41,12 +36,8 @@ export type InvestmentSearchProps = {
   /** Runs the explicit single-plugin lookup the directory offers at the
    * bottom of the panel. Without it, no lookup action is shown. */
   lookup?: LookupRunner | undefined;
-  /** The chosen instrument and listing: a row opens its representative
-   * (preferred) listing, a side-list line the listing it names. */
-  onSelect(choice: SearchChoice): void;
-  /** Reads an instrument's listings for its side list (→ or "+N"). Without
-   * it, rows open directly and show no side list. */
-  listings?: ListingsReader | undefined;
+  /** The chosen row's subject id, which an instrument page addresses. */
+  onSelect(subjectId: string): void;
   /** The subject id of a row the user highlights with pointer or keyboard
    * (not the automatic first row), so a host can prepare that page. */
   onHighlight?: ((subjectId: string) => void) | undefined;
@@ -56,7 +47,8 @@ export type InvestmentSearchProps = {
 };
 
 const TABBABLE = 'button:not(:disabled):not([tabindex="-1"])';
-const NO_ROWS: SearchRow[] = [];
+const NO_GROUPS: SearchGroup[] = [];
+const NO_EXPANDED: ReadonlySet<string> = new Set();
 const NO_OFFERS: LookupOffer[] = [];
 const NO_OPTIONS: SearchOption[] = [];
 
@@ -83,7 +75,6 @@ export function InvestmentSearch({
   search,
   lookup,
   onSelect,
-  listings,
   onHighlight,
   shortcut = true,
   className,
@@ -94,25 +85,26 @@ export function InvestmentSearch({
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<TypeFilter>("all");
   const [lookupState, setLookupState] = useState<LookupState>();
-  // The instrument whose listings replace the rows, and the option the user
-  // (or the automatic first-row highlight) is on.
-  const [expanded, setExpanded] = useState<SearchRow | null>(null);
-  const highlighted = useRef<SearchOption | undefined>(undefined);
+  // Groups showing all their listings; a new query or type starts collapsed.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(NO_EXPANDED);
+  const toggled = useRef(false);
 
   const trimmed = query.trim();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on a new query or type only
+  useEffect(() => setExpanded(NO_EXPANDED), [trimmed, filter]);
   // Every keystroke is its own local read; React Query cancels the superseded
   // one and keeps the previous rows on screen until the new ones arrive.
   const result = useDirectorySearch(search, trimmed, filter, open);
   const response = trimmed ? result.data : undefined;
   const fresh = Boolean(response) && !result.isPlaceholderData;
   const shownLookup = lookupState?.query === trimmed ? lookupState : undefined;
-  const found = shownLookup?.status === "done" ? shownLookup.rows : NO_ROWS;
+  const found = shownLookup?.status === "done" ? shownLookup.groups : NO_GROUPS;
   const options = useMemo(
     () => [
-      ...searchOptions(response?.rows ?? NO_ROWS, "directory"),
-      ...searchOptions(found, "lookup"),
+      ...searchOptions(response?.groups ?? NO_GROUPS, "directory", expanded),
+      ...searchOptions(found, "lookup", expanded),
     ],
-    [response, found],
+    [response, found, expanded],
   );
   const status: PanelStatus = !trimmed
     ? "prompt"
@@ -121,31 +113,6 @@ export function InvestmentSearch({
       : response
         ? "ready"
         : "loading";
-  const sideRead = useInstrumentListings(listings, expanded);
-  const sideOptions = useMemo(
-    () => (expanded ? listingOptions(expanded, sideRead.data ?? []) : []),
-    [expanded, sideRead.data],
-  );
-  const side = expanded
-    ? {
-        row: expanded,
-        status: sideRead.isError
-          ? ("error" as const)
-          : sideRead.data
-            ? ("ready" as const)
-            : ("loading" as const),
-        options: sideOptions,
-      }
-    : undefined;
-  // A new query, type or closed panel returns to the rows.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on these changes only
-  useEffect(() => setExpanded(null), [trimmed, filter, open]);
-  const expand = (option: SearchOption | undefined) => {
-    if (!listings || !option || option.listing || !option.row.listings)
-      return false;
-    setExpanded(option.row);
-    return true;
-  };
   const busy = useDelayedFlag(
     open && Boolean(trimmed) && result.isFetching,
     250,
@@ -176,20 +143,20 @@ export function InvestmentSearch({
     const controller = new AbortController();
     lookupAbort.current = controller;
     const base = { plugin: offer.plugin, label: offer.label, query: trimmed };
-    setLookupState({ ...base, status: "running", rows: [] });
+    setLookupState({ ...base, status: "running", groups: [] });
     // The pressed action is disabled while it runs; the field keeps focus so
     // the arrow keys reach the rows it returns.
     input.current?.focus();
     try {
-      const rows = await lookup(
+      const groups = await lookup(
         { plugin: offer.plugin, query: trimmed },
         controller.signal,
       );
       if (!controller.signal.aborted)
-        setLookupState({ ...base, status: "done", rows });
+        setLookupState({ ...base, status: "done", groups });
     } catch {
       if (!controller.signal.aborted)
-        setLookupState({ ...base, status: "error", rows: [] });
+        setLookupState({ ...base, status: "error", groups: [] });
     }
   }
 
@@ -213,25 +180,29 @@ export function InvestmentSearch({
         onQueryChange(value);
       }}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next, details) => {
+        // Choosing a group's toggle expands it in place; the panel stays.
+        if (!next && details.reason === "item-press" && toggled.current) {
+          toggled.current = false;
+          return;
+        }
+        setOpen(next);
+      }}
       openOnInputClick
       // Only a highlight the user moved (keyboard or pointer); the automatic
       // first-row highlight follows every keystroke and is not a signal.
       onItemHighlighted={(option, details) => {
-        highlighted.current = option;
-        if (option && details.reason !== "none")
-          onHighlight?.(option.listing?.id ?? option.row.id);
+        if (option?.row && details.reason !== "none")
+          onHighlight?.(option.row.id);
       }}
-      itemToStringValue={(option) =>
-        option.listing?.ticker ?? option.row.ticker
-      }
+      itemToStringValue={(option) => option.row?.ticker ?? option.group.name}
       filter={null}
       // The first shown row is always highlighted, so Enter opens the row the
       // user sees highlighted.
       autoHighlight="always"
       // The rows the panel shows, in its order, so the highlight follows
       // arriving results.
-      items={status !== "ready" ? NO_OPTIONS : side ? side.options : options}
+      items={status === "ready" ? options : NO_OPTIONS}
     >
       <ComboboxInputGroup
         data-slot="investment-search"
@@ -264,26 +235,6 @@ export function InvestmentSearch({
             if (event.key === "Tab" && !event.shiftKey && open && next) {
               event.preventDefault();
               next.focus();
-              return;
-            }
-            // → opens the highlighted instrument's listings once the caret is
-            // at the end of the text; ← or Esc goes back to the rows.
-            const input = event.currentTarget;
-            if (
-              event.key === "ArrowRight" &&
-              open &&
-              !side &&
-              input.selectionStart === input.value.length &&
-              expand(highlighted.current)
-            ) {
-              event.preventDefault();
-              event.preventBaseUIHandler();
-              return;
-            }
-            if ((event.key === "ArrowLeft" || event.key === "Escape") && side) {
-              event.preventDefault();
-              event.preventBaseUIHandler();
-              setExpanded(null);
               return;
             }
             if (event.key !== "Enter" || !open || !trimmed) return;
@@ -344,10 +295,16 @@ export function InvestmentSearch({
               onFilter={setFilter}
               onRetry={() => void result.refetch()}
               onLookup={(offer) => void runLookup(offer)}
-              onChoose={(option) => onSelect(choiceOf(option))}
-              side={side}
-              onExpand={listings ? (option) => void expand(option) : undefined}
-              onCollapse={() => setExpanded(null)}
+              onChoose={(option) => option.row && onSelect(option.row.id)}
+              expanded={expanded}
+              onToggle={(groupId) => {
+                toggled.current = true;
+                setExpanded((current) => {
+                  const next = new Set(current);
+                  if (!next.delete(groupId)) next.add(groupId);
+                  return next;
+                });
+              }}
             />
           </ComboboxPopup>
         </ComboboxPositioner>

@@ -4,10 +4,9 @@
  *
  * Search is one read of the device's directory index: no connector is called
  * while typing, nothing is reconciled and rows carry no prices. The core ranks
- * one row per instrument (a security, with its depositary receipts folded in,
- * or a crypto asset) and picks the listing that represents it; clients keep
- * that order. The directory-search backend implements this shape; change it
- * here first.
+ * groups (a company, a fund, a crypto asset) and orders each group's listings,
+ * relevant ones first; clients keep both orders. The directory-search backend
+ * implements this shape; change it here first.
  */
 import { z } from "zod";
 
@@ -29,31 +28,46 @@ export type InstrumentKind = (typeof INSTRUMENT_KINDS)[number];
 
 const text = (max: number) => z.string().min(1).max(max);
 
-/** One instrument, shown through its representative listing: a listing the
- * query names (exact ticker, provider symbol, venue), else the investor's
- * listing preference (primary market, EU or US). */
+/** One listing of a company group, or a crypto asset. */
 export const searchRowSchema = z.object({
-  /** Subject id of the representative listing (crypto: of the asset).
-   * Instrument pages address it; it is never a provider symbol. */
+  /** Subject id of the listing (crypto: of the asset). Instrument pages
+   * address it; it is never a provider symbol. */
   id: text(256),
   ticker: text(64),
+  /** The listed security's own name (a share class, registry shares). */
   name: text(512),
+  /** The listed security's kind: registry shares read as a receipt. */
   kind: z.enum(INSTRUMENT_KINDS),
   mic: text(16).nullable(),
   /** Short venue label, such as "Euronext Amsterdam". */
   venue: text(128).nullable(),
   /** ISO 3166 country of the venue. */
   country: z.string().length(2).nullable(),
-  /** The instrument's other listings, receipts included. */
-  listings: z.number().int().min(0),
+  currency: text(16).nullable(),
   /** Confirmed provider bindings only; candidates are never shown. */
   bindings: z.array(z.object({ plugin: text(64), ref: text(256) })).max(16),
 });
 export type SearchRow = z.infer<typeof searchRowSchema>;
 export type SearchBinding = SearchRow["bindings"][number];
 
+/** One company (its share classes, receipts and registry lines), a fund or
+ * ETF, or a crypto asset, with its listings. The first `shown` rows are the
+ * relevant ones (a listing the query names, the preferred market, the
+ * primary listing, other classes and receipts); the rest are for "all
+ * listings". */
+export const searchGroupSchema = z.object({
+  /** Issuer, fund or crypto-asset subject id. */
+  id: text(256),
+  name: text(512),
+  /** The company's main instrument kind, for type labels. */
+  kind: z.enum(INSTRUMENT_KINDS),
+  shown: z.number().int().min(1),
+  rows: z.array(searchRowSchema).min(1).max(40),
+});
+export type SearchGroup = z.infer<typeof searchGroupSchema>;
+
 export const searchResponseSchema = z.object({
-  rows: z.array(searchRowSchema).max(50),
+  groups: z.array(searchGroupSchema).max(50),
   /** Enabled plugins offering an explicit single-provider lookup. */
   lookup: z.array(z.object({ plugin: text(64), label: text(128) })).max(8),
 });
@@ -64,11 +78,11 @@ export type SearchRequest = {
   query: string;
   /** Type filter; omitted means every kind. */
   kinds?: InstrumentKind[];
-  /** Maximum number of rows. */
+  /** Maximum number of groups. */
   limit: number;
 };
 
 /** One explicit lookup, in exactly one plugin, of a query the directory does
  * not hold. It is never issued while typing or to several plugins at once, and
- * answers with rows whose ids are subject ids. */
+ * answers with groups whose row ids are subject ids. */
 export type LookupRequest = { plugin: string; query: string };

@@ -1,5 +1,5 @@
 import { ComboboxItem } from "@pythia/widget-sdk";
-import { ChevronRight, Plug } from "lucide-react";
+import { ChevronDown, ChevronUp, Plug } from "lucide-react";
 import type { SearchBinding } from "../search";
 import { connectors } from "./connector-icons";
 import { KIND_LABELS, ROW_LABELS, type SearchOption } from "./search-model";
@@ -49,23 +49,25 @@ function onePerPlugin(bindings: readonly SearchBinding[]) {
   );
 }
 
-function others(count: number) {
-  return `${count} other listing${count === 1 ? "" : "s"}`;
+/** What a listing is beyond its company: a share class or registry shares
+ * named after the company ("Class C"), else nothing. */
+function ownDetail({ group, row }: SearchOption) {
+  if (!row || row.name === group.name) return null;
+  return row.name.startsWith(group.name)
+    ? row.name.slice(group.name.length).replace(/^[\s,.-]+/u, "") || null
+    : row.name;
 }
 
-function optionLabel(
-  { row }: SearchOption,
-  bindings: readonly SearchBinding[],
-  expandable: boolean,
-) {
+function optionLabel(option: SearchOption, bindings: readonly SearchBinding[]) {
+  const { group, row } = option;
+  if (!row) return group.name;
   return [
     row.ticker,
-    row.name,
+    group.name,
+    ownDetail(option),
     row.venue ?? row.mic,
-    ROW_LABELS[row.kind],
-    row.listings
-      ? `${others(row.listings)}${expandable ? " (Right arrow to show them)" : ""}`
-      : null,
+    row.currency,
+    KIND_LABELS[row.kind],
     bindings.length
       ? `via ${bindings.map((binding) => connectorName(binding.plugin)).join(", ")}`
       : null,
@@ -74,38 +76,65 @@ function optionLabel(
     .join(", ");
 }
 
-/** One instrument on one line: ticker, name, the representative listing's
- * venue with its country flag, a plain type and how many other listings it
- * has. Logos appear only for connectors bound to that listing. No prices. */
+/** A company, fund or crypto asset above its listings; not an option. */
+export function GroupHeading({ option }: { option: SearchOption }) {
+  const { group } = option;
+  return (
+    <div
+      aria-hidden="true"
+      data-slot="investment-search-group"
+      className="flex items-baseline gap-2 px-2.5 pt-2.5 pb-0.5 text-xs"
+    >
+      <span className="min-w-0 truncate font-semibold text-foreground">
+        {group.name}
+      </span>
+      <span className="flex-none text-foreground-secondary">
+        {ROW_LABELS[group.kind]}
+      </span>
+    </div>
+  );
+}
+
+/** One listing of a group on one line: ticker, the venue with its country
+ * flag, what the listing is when it is not the plain share (a class, registry
+ * shares), currency and type. Logos appear only for connectors bound to that
+ * listing. No prices. */
 export function SearchRowOption({
   option,
   onChoose,
-  onExpand,
 }: {
   option: SearchOption;
   onChoose(): void;
-  /** Shows the instrument's listings; absent when the host reads none. */
-  onExpand?: (() => void) | undefined;
 }) {
   const { row } = option;
+  if (!row) return null;
   const bindings = onePerPlugin(row.bindings);
   const venue = row.venue ?? row.mic;
+  const detail = ownDetail(option);
   return (
     <ComboboxItem
       value={option}
-      aria-label={optionLabel(option, bindings, Boolean(onExpand))}
+      aria-label={optionLabel(option, bindings)}
       // Base UI clicks the highlighted row on Enter, so this is the one path
       // for pointer and keyboard choices.
       onClick={onChoose}
       data-slot="investment-search-row"
       data-kind={row.kind}
-      className="min-h-9 gap-3 px-2.5 py-1.5 text-xs"
+      className="min-h-8 gap-3 py-1 pr-2.5 pl-4 text-xs"
     >
-      <span className="w-18 flex-none truncate font-semibold text-body text-foreground">
+      <span className="w-16 flex-none truncate font-semibold text-body text-foreground">
         {row.ticker}
       </span>
-      <span className="flex min-w-0 flex-1 items-center gap-1.5">
-        <span className="truncate text-foreground">{row.name}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-foreground-secondary">
+        {row.country ? (
+          <span aria-hidden="true" title={row.country} className="flex-none">
+            {countryFlag(row.country)}
+          </span>
+        ) : null}
+        {venue ? (
+          <span className="flex-none text-foreground">{venue}</span>
+        ) : null}
+        {detail ? <span className="min-w-0 truncate">· {detail}</span> : null}
         {bindings.length ? (
           <span
             aria-hidden="true"
@@ -122,111 +151,50 @@ export function SearchRowOption({
           </span>
         ) : null}
       </span>
-      {venue ? (
-        <span className="flex min-w-0 max-w-[32%] flex-none items-center gap-1.5 text-foreground-secondary">
-          {row.country ? (
-            <span aria-hidden="true" title={row.country} className="flex-none">
-              {countryFlag(row.country)}
-            </span>
-          ) : null}
-          {/* A narrow panel keeps the flag and drops the venue name. */}
-          <span className="@max-sm:hidden truncate">{venue}</span>
-        </span>
-      ) : null}
-      <span className="w-16 flex-none truncate text-right text-foreground-secondary">
-        {ROW_LABELS[row.kind]}
+      <span className="w-9 flex-none text-foreground-secondary">
+        {row.currency}
       </span>
-      {row.listings && onExpand ? (
-        // Pointer path to the side list; keyboard users press → on the row,
-        // which its label announces. Clicking here never opens the row.
-        <span
-          aria-hidden="true"
-          title={`Show ${others(row.listings)}`}
-          data-slot="investment-search-expand"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={(event) => {
-            event.stopPropagation();
-            event.preventDefault();
-            onExpand();
-          }}
-          className="motion-fast -my-1 flex h-6 w-9 flex-none cursor-pointer items-center justify-end gap-0.5 rounded-control pr-0.5 text-foreground-secondary tabular-nums transition-colors hover:bg-interaction-active hover:text-foreground"
-        >
-          +{row.listings}
-          <ChevronRight className="size-3 flex-none" />
-        </span>
-      ) : (
-        <span
-          title={row.listings ? others(row.listings) : undefined}
-          className="w-9 flex-none pr-0.5 text-right text-foreground-secondary tabular-nums"
-        >
-          {row.listings ? `+${row.listings}` : null}
-        </span>
-      )}
+      <span className="@max-sm:hidden w-28 flex-none truncate text-right text-foreground-secondary">
+        {KIND_LABELS[row.kind]}
+      </span>
     </ComboboxItem>
   );
 }
 
-/** One line of the expanded instrument: ticker, venue with its flag,
- * currency and type. The line the search row stood for (the preferred
- * listing) is marked. */
-export function ListingRowOption({
+/** The group's toggle between its relevant listings and all of them. It is
+ * an ordinary option, so the arrow keys reach it and Enter toggles it. */
+export function ToggleOption({
   option,
-  onChoose,
+  expanded,
+  onToggle,
 }: {
   option: SearchOption;
-  onChoose(): void;
+  expanded: boolean;
+  onToggle(): void;
 }) {
-  const { row, listing } = option;
-  if (!listing) return null;
-  const venue = listing.venue ?? listing.mic;
-  const type = listing.kind ? KIND_LABELS[listing.kind] : null;
-  const shown = listing.id === row.id;
+  const { group } = option;
+  const hidden = group.rows.length - group.shown;
+  const label = expanded
+    ? "Fewer listings"
+    : `All ${group.rows.length} listings`;
   return (
     <ComboboxItem
       value={option}
-      aria-label={[
-        listing.ticker ?? listing.mic,
-        venue,
-        listing.currency,
-        type,
-        shown ? "the listing the result opens" : null,
-      ]
-        .filter(Boolean)
-        .join(", ")}
-      onClick={onChoose}
-      data-slot="investment-search-listing"
-      className="min-h-9 gap-3 px-2.5 py-1.5 text-xs"
+      aria-label={
+        expanded
+          ? `Show fewer listings of ${group.name}`
+          : `Show all ${group.rows.length} listings of ${group.name} (${hidden} more)`
+      }
+      onClick={onToggle}
+      data-slot="investment-search-toggle"
+      className="min-h-7 gap-1.5 py-0.5 pr-2.5 pl-4 text-foreground-secondary text-xs"
     >
-      <span className="w-18 flex-none truncate font-semibold text-body text-foreground">
-        {listing.ticker ?? listing.mic}
-      </span>
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-foreground-secondary">
-        {listing.country ? (
-          <span
-            aria-hidden="true"
-            title={listing.country}
-            className="flex-none"
-          >
-            {countryFlag(listing.country)}
-          </span>
-        ) : null}
-        <span className="truncate text-foreground">{venue}</span>
-        {listing.currency ? (
-          <span className="flex-none">{listing.currency}</span>
-        ) : null}
-      </span>
-      {shown ? (
-        // "Default", not "Preferred": the type column may say Preferred stock.
-        <span
-          title="The listing Enter on the result opens"
-          className="flex-none text-[10px] text-foreground-secondary uppercase tracking-wide"
-        >
-          Default
-        </span>
-      ) : null}
-      <span className="w-28 flex-none truncate text-right text-foreground-secondary">
-        {type}
-      </span>
+      {expanded ? (
+        <ChevronUp aria-hidden="true" className="size-3.5 flex-none" />
+      ) : (
+        <ChevronDown aria-hidden="true" className="size-3.5 flex-none" />
+      )}
+      {label}
     </ComboboxItem>
   );
 }

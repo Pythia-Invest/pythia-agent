@@ -144,16 +144,20 @@ memory (FTS5) from the newest reference file and ranks with one versioned,
 gold-calibrated additive score (exact ticker or identifier, name match,
 notability from each security's source `rank`, primary and home line,
 penalties for OTC lines and derivatives); issuers compete by their best line.
-Results are one row per instrument, never nested: a security with its
-depositary receipts and registry shares folded in (the same economic share), or
-a crypto asset. Share classes, preferreds and products on a company are rows of
-their own and rank below it. A row shows one representative listing: the one
+Results are grouped per company (founder decision 2026-09-28, superseding one
+row per instrument): a group is an issuer with all its listings, including share
+classes, preferreds, depositary receipts and registry shares; a fund or ETF is
+its own group (never its umbrella's), and so is a crypto asset. Groups compete
+by their best line. A group first shows a few relevant listings, then offers all
+of them: the lead listing is the one
 the query names (a venue word, a provider symbol such as `ASML.AS` through the
 installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange). Core declares the key in its `configuration.json`. "Look up in X"
+exchange); the main share's primary listing and the best line of each other
+matched security follow (at most three), then the rest. Core declares the key
+in its `configuration.json`. "Look up in X"
 explicitly calls one provider's `resolve`, and the result joins like any other
 claim.
 

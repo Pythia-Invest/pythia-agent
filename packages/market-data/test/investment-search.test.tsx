@@ -3,42 +3,56 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SearchRequest, SearchResponse, SearchRow } from "../src/search";
 import type {
-  ListingsReader,
-  SearchBackend,
-} from "../src/search-ui/controller";
+  SearchGroup,
+  SearchRequest,
+  SearchResponse,
+  SearchRow,
+} from "../src/search";
+import type { SearchBackend } from "../src/search-ui/controller";
 import { InvestmentSearch } from "../src/search-ui/investment-search";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-function row(ticker: string): SearchRow {
+function row(ticker: string, venue = "Euronext Amsterdam"): SearchRow {
   return {
     id: `listing:${ticker}`,
     ticker,
     name: `${ticker} Holding`,
     kind: "ordinary",
     mic: "XAMS",
-    venue: "Euronext Amsterdam",
+    venue,
     country: "NL",
-    listings: 0,
+    currency: "EUR",
     bindings: [],
+  };
+}
+
+/** A company group; `shown` of its rows are the relevant ones. */
+function group(rows: SearchRow[], shown = rows.length): SearchGroup {
+  const [lead] = rows;
+  return {
+    id: `issuer:${lead?.ticker}`,
+    name: `${lead?.ticker} Holding`,
+    kind: "ordinary",
+    shown,
+    rows,
   };
 }
 
 /** A directory whose answers the test releases one query at a time. */
 function directory() {
-  const pending = new Map<string, (rows: SearchRow[]) => void>();
+  const pending = new Map<string, (groups: SearchGroup[]) => void>();
   const requests: SearchRequest[] = [];
   const search: SearchBackend = (request) => {
     requests.push(request);
     return new Promise<SearchResponse>((resolve) =>
-      pending.set(request.query, (rows) => resolve({ rows, lookup: [] })),
+      pending.set(request.query, (groups) => resolve({ groups, lookup: [] })),
     );
   };
-  async function answer(query: string, rows: SearchRow[]) {
+  async function answer(query: string, groups: SearchGroup[]) {
     await until(() => expect(pending.has(query)).toBe(true));
-    await act(async () => pending.get(query)?.(rows));
+    await act(async () => pending.get(query)?.(groups));
   }
   return { search, requests, answer };
 }
@@ -53,13 +67,7 @@ let host: HTMLElement;
 const selected: string[] = [];
 const highlighted: string[] = [];
 
-function Harness({
-  search,
-  listings,
-}: {
-  search: SearchBackend;
-  listings?: ListingsReader;
-}) {
+function Harness({ search }: { search: SearchBackend }) {
   const [client] = useState(() => new QueryClient());
   const [query, setQuery] = useState("");
   return (
@@ -68,12 +76,7 @@ function Harness({
         query={query}
         onQueryChange={setQuery}
         search={search}
-        onSelect={({ subject, listing }) =>
-          selected.push(
-            subject === listing ? subject : `${subject} @ ${listing}`,
-          )
-        }
-        listings={listings}
+        onSelect={(id) => selected.push(id)}
         onHighlight={(id) => highlighted.push(id)}
         shortcut={false}
       />
@@ -131,12 +134,12 @@ describe("investment search", () => {
     const { search, answer } = directory();
     await act(async () => root.render(<Harness search={search} />));
     await type("asml");
-    await answer("asml", [{ ...row("ASML"), listings: 2 }, row("ASME")]);
+    await answer("asml", [group([row("ASML")]), group([row("ASME")])]);
     await until(() => expect(rows()).toEqual(["ASML", "ASME"]));
-    // One instrument per row, read in the order it is shown.
+    // Each listing reads with its company, venue, currency and type.
     expect(
       document.querySelector('[role="option"]')?.getAttribute("aria-label"),
-    ).toBe("ASML, ASML Holding, Euronext Amsterdam, Stock, 2 other listings");
+    ).toBe("ASML, ASML Holding, Euronext Amsterdam, EUR, Stock");
     // Rows that arrive after typing still come highlighted: Enter opens what
     // is shown highlighted.
     await until(() =>
@@ -164,7 +167,7 @@ describe("investment search", () => {
     const { search, answer } = directory();
     await act(async () => root.render(<Harness search={search} />));
     await type("as");
-    await answer("as", [row("ASR"), row("ASML")]);
+    await answer("as", [group([row("ASR")]), group([row("ASML")])]);
     await until(() => expect(rows()).toEqual(["ASR", "ASML"]));
 
     await type("asml");
@@ -173,7 +176,7 @@ describe("investment search", () => {
     await press("Enter");
     expect(selected).toEqual([]);
 
-    await answer("asml", [row("ASML")]);
+    await answer("asml", [group([row("ASML")])]);
     await until(() => expect(rows()).toEqual(["ASML"]));
     await press("Enter");
     expect(selected).toEqual(["listing:ASML"]);
@@ -183,7 +186,7 @@ describe("investment search", () => {
     const { search, answer, requests } = directory();
     await act(async () => root.render(<Harness search={search} />));
     await type("asml");
-    await answer("asml", [row("ASML")]);
+    await answer("asml", [group([row("ASML")])]);
 
     await press("Escape");
     await until(() =>
@@ -198,47 +201,58 @@ describe("investment search", () => {
     expect(requests.map((request) => request.query)).toEqual(["asml"]);
   });
 
-  it("→ shows the highlighted instrument's listings; Enter opens one, ← goes back", async () => {
+  it("shows a company's relevant listings; its toggle reveals all of them in place", async () => {
     const { search, answer } = directory();
-    const asked: string[] = [];
-    const listing = (id: string, ticker: string, venue: string) => ({
-      id,
-      ticker,
-      mic: null,
-      venue,
-      currency: "EUR",
-      kind: "ordinary" as const,
-      country: null,
-      primary: id === "listing:ASML",
-    });
-    const listings: ListingsReader = async (instrument) => {
-      asked.push(instrument.id);
-      return [
-        listing("listing:ASML", "ASML", "Euronext Amsterdam"),
-        listing("listing:ASME", "ASME", "Xetra"),
-      ];
-    };
-    await act(async () =>
-      root.render(<Harness search={search} listings={listings} />),
-    );
+    await act(async () => root.render(<Harness search={search} />));
     await type("asml");
-    await answer("asml", [{ ...row("ASML"), listings: 1 }, row("ASM")]);
-    await until(() => expect(rows()).toEqual(["ASML", "ASM"]));
-    // Nothing is read for the side list until the user asks for it.
-    expect(asked).toEqual([]);
-
-    await press("ArrowRight");
-    await until(() => expect(rows()).toEqual(["ASML", "ASME"]));
-    expect(asked).toEqual(["listing:ASML"]);
-    await press("ArrowLeft");
-    await until(() => expect(rows()).toEqual(["ASML", "ASM"]));
-
-    await press("ArrowRight");
-    await until(() => expect(rows()).toEqual(["ASML", "ASME"]));
+    const company = group(
+      [
+        row("ASML"),
+        { ...row("ASML-US", "Nasdaq"), kind: "depositary_receipt" },
+        row("ASME", "Xetra"),
+        row("ASMLF", "OTC Markets"),
+      ],
+      2,
+    );
+    await answer("asml", [company, group([row("ASM")])]);
+    const toggle = /^Show all 4 listings of ASML Holding/u;
+    await until(() =>
+      expect(rows()).toEqual([
+        "ASML",
+        "ASML-US",
+        "Show all 4 listings of ASML Holding (2 more)",
+        "ASM",
+      ]),
+    );
+    // The arrow keys reach the toggle like any listing; Enter expands in place.
     await press("ArrowDown");
+    await press("ArrowDown");
+    await until(() =>
+      expect(
+        document
+          .querySelector('[role="option"][data-highlighted]')
+          ?.getAttribute("aria-label"),
+      ).toMatch(toggle),
+    );
     await press("Enter");
-    // The instrument opens on the chosen listing; a plain Enter on the row
-    // would have opened its representative listing.
-    expect(selected).toEqual(["listing:ASML @ listing:ASME"]);
+    await until(() =>
+      expect(rows()).toEqual([
+        "ASML",
+        "ASML-US",
+        "ASME",
+        "ASMLF",
+        "Show fewer listings of ASML Holding",
+        "ASM",
+      ]),
+    );
+    expect(selected).toEqual([]);
+    expect(field().getAttribute("aria-expanded")).toBe("true");
+    // A revealed listing opens like any other.
+    await act(async () =>
+      document
+        .querySelector<HTMLElement>('[role="option"][aria-label^="ASMLF,"]')
+        ?.click(),
+    );
+    expect(selected).toEqual(["listing:ASMLF"]);
   });
 });
