@@ -22,12 +22,13 @@ from typing import Iterable
 
 from . import Store, schema_sql
 from .model import Binding, ProviderRef
+from .schemes import Kind, subject_kind
 from .vocabulary import PROVISIONAL
 from .resolution import QueueItem, Verdict, VerdictOutcome
 
 logger = logging.getLogger(__name__)
 REFERENCE_DIR_ENV = "PYTHIA_REFERENCE_DIR"
-SCHEMA_VERSION = "3"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed)
+SCHEMA_VERSION = "4"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds)
 REFERENCE_SCHEMA_VERSION = "2"  # reference-*.sqlite3 release.schema_version, written by the builder
 
 
@@ -83,6 +84,12 @@ class IdentityStore:
         self.path = directory / "identity.sqlite3"
         self.set_aside: str | None = None  # the file name an incompatible store was kept under, this process
         version = self._version() if self.path.exists() else SCHEMA_VERSION
+        if version == "3":
+            try:
+                self._migrate_v3()
+                version = SCHEMA_VERSION
+            except sqlite3.Error:  # an unreadable v3 store is kept aside below like any other
+                logger.warning("identity store schema 3 could not be migrated", exc_info=True)
         if version != SCHEMA_VERSION:
             # Never delete device state: keep the old file (and its journal) aside and start a fresh store.
             kept = self.path.with_name(f"identity.{'v' + version if version else 'unreadable'}-{uuid.uuid4().hex[:8]}.sqlite3")
@@ -95,19 +102,40 @@ class IdentityStore:
             logger.warning("identity store schema %s is not %s: kept as %s; bindings, answers and claims start empty",
                            version or "unreadable", SCHEMA_VERSION, kept.name)
         if not self.path.exists():
-            staging = self.path.with_name(f"identity.{uuid.uuid4().hex}.part")
-            setup = sqlite3.connect(staging)
-            try:
-                setup.executescript(schema_sql(Store.IDENTITY))
-                setup.execute("INSERT INTO metadata (key, value) VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
-                setup.commit()
-            finally:
-                setup.close()
-            os.chmod(staging, 0o600)
-            staging.replace(self.path)
+            self._create(lambda setup: None)
         self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
         self._writing = threading.RLock()  # one connection serves every thread: one user of it at a time
+
+    def _create(self, fill) -> None:
+        """Write a fresh store beside the file, let `fill` copy rows into it, then put it in place atomically."""
+        staging = self.path.with_name(f"identity.{uuid.uuid4().hex}.part")
+        setup = sqlite3.connect(staging)
+        try:
+            setup.executescript(schema_sql(Store.IDENTITY))
+            fill(setup)
+            setup.execute("INSERT INTO metadata (key, value) VALUES ('schema_version', ?)"
+                          " ON CONFLICT (key) DO UPDATE SET value = excluded.value", (SCHEMA_VERSION,))
+            setup.commit()
+        finally:
+            setup.close()
+        os.chmod(staging, 0o600)
+        staging.replace(self.path)
+
+    def _migrate_v3(self) -> None:
+        """v3 -> v4 keeps every row: v4 only drops the level and relation-type CHECKs and names the subject's kind
+        `kind` (SQLite cannot alter a CHECK, so the tables are copied into a fresh store that replaces the file)."""
+        def fill(setup: sqlite3.Connection) -> None:
+            setup.execute("ATTACH DATABASE ? AS old", (str(self.path),))
+            for (table,) in setup.execute("SELECT name FROM main.sqlite_master WHERE type = 'table'").fetchall():
+                columns = [row[1] for row in setup.execute(f"PRAGMA main.table_info({table})")]
+                source = [_V3_COLUMNS.get((table, name), name) for name in columns]
+                setup.execute(f"INSERT INTO main.{table} ({','.join(columns)})"
+                              f" SELECT {','.join(source)} FROM old.{table}")
+            setup.commit()
+            setup.execute("DETACH DATABASE old")
+        self._create(fill)
+        logger.info("identity store migrated from schema 3 to %s", SCHEMA_VERSION)
 
     def _version(self) -> str | None:
         """The stored schema version, or None when the file is not a readable identity store."""
@@ -159,18 +187,19 @@ class IdentityStore:
         reference bound to another subject is re-pointed only from a rejected or provisional (agent) binding by a
         stronger answer, which supersedes the agent's item; otherwise it returns False: that is a conflict."""
         ref = binding.provider_ref
+        _registered(binding.subject_id)
         before = self.binding_for(ref)
         self.db.execute(
-            "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, level, status, authority,"
+            "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, kind, status, authority,"
             " rule_id, evidence_ids, valid_from, valid_to, verified_at, verdict_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT (provider, native_scope, native_id) DO UPDATE SET plugin=excluded.plugin,"
-            " subject_id=excluded.subject_id, level=excluded.level, status=excluded.status,"
+            " subject_id=excluded.subject_id, kind=excluded.kind, status=excluded.status,"
             " authority=excluded.authority, rule_id=excluded.rule_id, evidence_ids=excluded.evidence_ids,"
             " verified_at=excluded.verified_at, verdict_id=excluded.verdict_id WHERE bindings.subject_id = excluded.subject_id"
             " OR bindings.status = 'rejected'"
             " OR (bindings.authority = 'agent_confirmed' AND excluded.authority <> 'agent_confirmed')",
             (uuid.uuid4().hex, binding.plugin, ref.provider, ref.native_id, ref.native_scope, binding.subject_id,
-             binding.level, binding.status, binding.authority, binding.rule_id, json.dumps(list(binding.evidence_ids)),
+             binding.kind, binding.status, binding.authority, binding.rule_id, json.dumps(list(binding.evidence_ids)),
              binding.validity.valid_from, binding.validity.valid_to, now(), verdict_id))
         changed = self.db.execute("SELECT changes()").fetchone()[0] == 1
         if changed and before is not None and before["verdict_id"] and before["subject_id"] != binding.subject_id:
@@ -303,6 +332,17 @@ class IdentityStore:
             " last_seen=excluded.last_seen",
             (plugin, provider, ref["native_scope"], ref["native_id"], None, claim_json["level"],
              (claim_json.get("attributes") or {}).get("name"), text, "sha256:" + hashlib.sha256(text.encode()).hexdigest(), stamp, stamp))
+
+
+# v4 column -> the v3 expression that fills it.
+_V3_COLUMNS = {("subjects", "kind"): "level", ("bindings", "kind"): "level"}
+
+
+def _registered(subject_id: str) -> None:
+    """The store keeps subjects of registered kinds only (schemes.Kind); readers pass other kinds through."""
+    kind = subject_kind(subject_id)
+    if kind not in set(Kind):
+        raise ValueError(f"identity store: {kind} is not a registered subject kind")
 
 
 _ITEMS = ("SELECT q.*, v.resolver AS settled_by, v.relation AS settled_relation, v.chosen_id AS settled_choice"

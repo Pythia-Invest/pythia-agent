@@ -95,6 +95,9 @@ class SearchTest(Fixture):
                           for key, _, ticker in BANK)]
             db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
                            " VALUES (?, ?, ?, ?3, ?, ?, ?)", listings)
+            db.execute("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
+                       " retrieved_at) VALUES ('ev:shel', 'depositary_receipt_of', 'security:figi:BBG0147BN6H1',"
+                       " 'security:isin:GB00BP6MXD84', 'snapshot', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')")
         self.directory = search.Directory(self.ref)
 
     def rows(self, query, **options):
@@ -126,6 +129,15 @@ class SearchTest(Fixture):
                          [(SHELL, "ordinary", True), (SHELL_OTC, "ordinary", False),
                           (SHEL, "depositary_receipt", False)])
         self.assertEqual(row["listings"], len(listings) - 1)
+
+    def test_only_a_fold_relation_folds_a_receipt_and_the_issuer_still_groups_it(self):
+        with sqlite3.connect(self.path) as db:
+            db.execute("DELETE FROM relations WHERE evidence_id = 'ev:shel'")
+        directory = search.Directory(self.ref)
+        self.assertEqual([item["id"] for item in directory.instrument_listings("security:figi:BBG0147BN6H1")], [SHEL])
+        self.assertEqual(self.rows("shell")[:1], [SHELL])
+        groups = dict(directory.db.execute("SELECT security, grp FROM doc WHERE ticker IN ('SHELL', 'SHEL')"))
+        self.assertEqual(set(groups.values()), {"issuer:lei:21380068P1DRHMJ8KU70"})
 
     def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):
         bound = {BTC: [{"plugin": "coinmarketcap", "ref": "1"}]}

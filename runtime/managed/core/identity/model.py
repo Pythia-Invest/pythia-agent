@@ -10,15 +10,15 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from .vocabulary import (
-    AUTHORITY_TIER, CONFIRMING, RELATION_LEVELS, AssetClass, Authority, BindingStatus,
+    AUTHORITY_TIER, CONFIRMING, FOLD, KIND_OF_RECORD, RELATIONS, AssetClass, Authority, BindingStatus,
     EvidenceTier, InstrumentKind, RelationType, SubjectStatus,
 )
 from .schemes import (
     CAIP2, COUNTRY, CURRENCY, DATE, DECIMAL, INSTANT, MIC, NAMESPACE, SCHEME_LEVEL, TICKER, Level, Scheme,
-    normalize_identifier, subject_level,
+    normalize_identifier, subject_kind, subject_level,
 )
 
 
@@ -177,6 +177,7 @@ class Security:
         _require(self.issuer_id is None or subject_level(self.issuer_id) is Level.ISSUER,
                  "security.issuer_id: issuer id required")
         _text(self.name, "security.name")
+        _require(self.kind not in KIND_OF_RECORD, f"security: a {self.kind} is not a security")
         _require((self.asset_class is AssetClass.CRYPTO) == (self.kind in (InstrumentKind.COIN, InstrumentKind.TOKEN)),
                  "security: coin/token kinds belong to the crypto asset class and only there")
 
@@ -238,7 +239,8 @@ Subject = Issuer | Security | Composite | Listing
 
 @dataclass(frozen=True, slots=True)
 class Binding:
-    """Provider ref -> subject at the ref's native level. Never a subject itself."""
+    """Provider ref -> subject at the ref's native level (or of another kind: an index, an FX pair). Never a
+    subject itself."""
 
     provider_ref: ProviderRef
     subject_id: str
@@ -253,7 +255,7 @@ class Binding:
         _coerce(self, provider_ref=ProviderRef, status=BindingStatus, authority=Authority, validity=Validity)
         object.__setattr__(self, "evidence_ids", tuple(self.evidence_ids))
         _require(bool(NAMESPACE.match(self.plugin)), "binding.plugin: native plugin name required")
-        subject_level(self.subject_id)
+        subject_kind(self.subject_id)
         _require(all(isinstance(item, str) and item.startswith("ev:") for item in self.evidence_ids),
                  "binding.evidence_ids: evidence ids required")
         if self.status is BindingStatus.CONFIRMED:
@@ -263,8 +265,8 @@ class Binding:
                  "binding.rule_id: required exactly for rule confirmations")
 
     @property
-    def level(self) -> Level:
-        return subject_level(self.subject_id)
+    def kind(self) -> str:
+        return subject_kind(self.subject_id)
 
     @property
     def tier(self) -> EvidenceTier:
@@ -286,7 +288,7 @@ class Relation:
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, authority=Authority, provenance=Provenance, validity=Validity)
         _require(self.from_id != self.to_id, "relation: endpoints must be distinct subjects")
-        check_relation(self.type, subject_level(self.from_id), subject_level(self.to_id), self.ratio)
+        check_relation(self.type, subject_kind(self.from_id), subject_kind(self.to_id), self.ratio)
 
     @property
     def evidence_id(self) -> str:
@@ -295,10 +297,30 @@ class Relation:
                             "record": self.provenance.source_record})
 
 
-def check_relation(type: RelationType, from_level: Level, to_level: Level, ratio: str | None) -> None:
-    """Level and ratio rules shared by stored relations and relation claims."""
-    expected = RELATION_LEVELS[type]
-    _require((from_level, to_level) == expected if expected else from_level is to_level,
-             f"relation: {type} links subjects at the wrong levels")
+def check_relation(type: RelationType, from_kind: str, to_kind: str, ratio: str | None) -> None:
+    """Kind and ratio rules shared by stored relations and relation claims (vocabulary.RELATIONS)."""
+    type = RelationType(type)
+    ends = RELATIONS[type].ends
+    _require(from_kind in ends[0] and to_kind in ends[1] if ends else from_kind == to_kind,
+             f"relation: {type} cannot link a {from_kind} to a {to_kind}")
     _require(ratio is None or (type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(ratio))),
              "relation.ratio: decimal, receipts only")
+
+
+def fold_roots(edges: Iterable[tuple[str, str, str]]) -> dict[str, str]:
+    """For (type, from_id, to_id) relation rows, the unit each folded subject belongs to: its fold edges followed
+    from -> to until a subject that folds into nothing (a receipt into its share, a class into the main class).
+    Subjects no fold edge leaves are their own unit and absent from the result. Deterministic for any row order;
+    a cycle stops where it closes."""
+    out: dict[str, str] = {}
+    for type, start, end in sorted(tuple(edge) for edge in edges):
+        if type in FOLD:
+            out.setdefault(start, end)  # a subject folds into one unit: the first target in sorted order
+    roots: dict[str, str] = {}
+    for start in out:
+        seen, node = {start}, out[start]
+        while node in out and out[node] not in seen:
+            seen.add(node)
+            node = out[node]
+        roots[start] = node
+    return roots

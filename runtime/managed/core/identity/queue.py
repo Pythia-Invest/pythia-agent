@@ -17,7 +17,7 @@ from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
 from .page import LABELS, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_subject, resolve_input
 from .resolution import RELATION_LEVEL, QueueItem, ResolverKind, Verdict, VerdictOutcome, decide
-from .schemes import subject_level
+from .schemes import subject_kind, subject_level
 from .store import IdentityStore
 from .vocabulary import Authority, InstrumentKind, VerdictRelation
 
@@ -52,7 +52,7 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     question = QUESTIONS[reason].format(label=label, ref=native["native_id"] if native else "")
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
-                                  if level is subject_level(candidate)), "unrelated")]
+                                  if level == subject_kind(candidate)), "unrelated")]
     return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
                                        "candidate_ids", "opened_at", "updated_at")} | {
         # A question only the agent answered: its answer routes provisionally and the user may still override it.
@@ -278,7 +278,7 @@ def _record(raw: dict) -> dict:
 def _describe(ref: sqlite3.Connection, subject_id: str) -> dict:
     subject = load_subject(ref, subject_id)
     if subject is None:
-        return {"id": subject_id, "level": str(subject_level(subject_id)), "known": False}
+        return {"id": subject_id, "level": subject_kind(subject_id), "known": False}
     view = subject["view"]
     return {"id": subject_id, "level": str(subject["level"]), "known": True, "name": view["subject"]["name"],
             "kind": subject["kind"], "identifiers": view["identifiers"]}
