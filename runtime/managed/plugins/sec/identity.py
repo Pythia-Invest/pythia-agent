@@ -47,6 +47,13 @@ def submissions_url(value):
     return 'https://data.sec.gov/submissions/CIK' + cik(value) + '.json'
 
 
+def submissions_page_url(value, name):
+    """One older page of a filer's submissions, named by the index's `filings.files`; only that exact form."""
+    if not isinstance(name, str) or not re.fullmatch('CIK' + cik(value) + r'-submissions-\d{3}\.json', name):
+        raise ValueError('invalid_response')
+    return 'https://data.sec.gov/submissions/' + name
+
+
 def identifier(value):
     return {'scheme': 'cik', 'value': cik(value), 'level': 'issuer', 'authority': 'source_asserted'}
 

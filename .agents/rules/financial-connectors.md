@@ -6,14 +6,16 @@ paths:
   - "runtime/managed/runner/{coingecko,ibkr}/**/*"
   - "runtime/contracts/financial-data.md"
   - "packages/market-data/**/*"
-  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody}.md"
+  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody,source-onboarding}.md"
+  - "docs/sources/**/*"
 globs:
   - "runtime/managed/plugins/**/*"
   - "runtime/managed/runner/{eodhd*,yahoo*,provider-*}.ts"
   - "runtime/managed/runner/{coingecko,ibkr}/**/*"
   - "runtime/contracts/financial-data.md"
   - "packages/market-data/**/*"
-  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody}.md"
+  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody,source-onboarding}.md"
+  - "docs/sources/**/*"
 ---
 
 # Financial connectors
@@ -50,6 +52,14 @@ useful native detail through the supported source-detail or specialist surface.
 Preferred reads follow compatible preferences; retained pins preserve their
 series. A failed selected source never authorizes fallback or history stitching.
 See [selection and actions](../../packages/market-data/BACKEND.md).
+
+## Onboarding a source
+
+Adding a source, a field use or a judgement question type, or widening what a
+source may confirm, follows [source onboarding](../../docs/architecture/source-onboarding.md)
+([ADR 0042](../../docs/decisions/0042-source-onboarding-standard.md)). Routine
+maintenance of a source not yet onboarded does not start onboarding, but must
+not widen what that source confirms.
 
 ## Execution and access
 
