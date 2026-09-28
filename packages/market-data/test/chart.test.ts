@@ -9,6 +9,7 @@ import {
   type InstrumentChartData,
 } from "../src/widgets";
 import { downsample, periodPath } from "../src/widgets/chart-path";
+import { readQuery } from "../src/widgets/chart-plan";
 
 const NOW = Date.parse("2026-09-26T10:00:00Z");
 const subject = {
@@ -94,6 +95,28 @@ describe("chart periods follow the series a source declares", () => {
       expect(plan.reads.get(period)).toBe(plan.year);
     expect(plan.year?.days).toBe(366);
     expect(plan.unavailable.get("5Y")).toMatch(/at most 366 days/u);
+  });
+
+  it("uses CoinGecko's 5-minute day for 1D and hourly samples for 5D and 1M", () => {
+    const plan = chartPlan(
+      [
+        declared("s5m", { kind: "minute", count: 5 }, 1, "all"),
+        declared("o30m", { kind: "minute", count: 30 }, 1, "all"),
+        declared("s1h", { kind: "hour", count: 1 }, 90, "all"),
+        // Paid plans add hourly candles over 31 days: too short for 1M.
+        declared("o1h", { kind: "hour", count: 1 }, 31, "all"),
+        declared("o4h", { kind: "hour", count: 4 }, 7, "all"),
+        declared("d1", { kind: "day", count: 1 }, 90, "all"),
+      ],
+      NOW,
+      true,
+    );
+    expect(plan.reads.get("1D")).toMatchObject({
+      series: { id: "series:s5m" },
+      days: 1,
+    });
+    expect(plan.reads.get("5D")?.series.id).toBe("series:s1h");
+    expect(plan.reads.get("1M")?.series.id).toBe("series:s1h");
   });
 
   it("names periods beyond a short daily history instead of stretching it", () => {
@@ -372,5 +395,22 @@ describe("drawing budget and missing schedules", () => {
       Date.parse("2026-09-28T04:31:00Z"),
     ).path;
     expect(path?.points.map((p) => p.value)).toEqual([102, 103, 104, 105]);
+  });
+});
+
+describe("long reads reuse within the hour", () => {
+  it("keeps a year read's key for the hour", () => {
+    const series = declared("d1", { kind: "day", count: 1 }, 367, "all");
+    const instant = {
+      ...series,
+      time_anchor: "instant" as const,
+      read_support: { ...series.read_support, window_kind: "instant" as const },
+    } as Series;
+    const key = (at: string) =>
+      JSON.stringify(
+        readQuery({ series: instant, days: 367 }, Date.parse(at)).key,
+      );
+    expect(key("2026-09-28T12:05:00Z")).toBe(key("2026-09-28T12:55:00Z"));
+    expect(key("2026-09-28T13:01:00Z")).not.toBe(key("2026-09-28T12:55:00Z"));
   });
 });

@@ -268,6 +268,7 @@ class Provider(unittest.TestCase):
                     self.assertNotIn('interval=', spec.full_url)
                 else:
                     self.assertIn('price_change_percentage=24h%2C7d%2C30d', spec.full_url)
+
         calls = []
         def call(op, args):
             calls.append((op, args))
@@ -286,6 +287,15 @@ class Provider(unittest.TestCase):
         self.assertIsNone(result['quotes'][1]['price'])
         with self.assertRaisesRegex(ValueError, 'invalid_response'):
             dashboard.read({'kind': 'quotes', 'symbols': ['ethereum']}, 'USD', call, failures)
+
+    def test_recent_chart_is_the_unkeyed_five_minute_day(self):
+        req = {'mode': 'keyless', 'token': None, 'operation': 'recent_chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', 'days': 1}}
+        url = worker.request_spec(req).full_url
+        self.assertIn('/coins/bitcoin/market_chart?', url)
+        self.assertIn('days=1', url)
+        self.assertNotIn('interval=', url)
+        with self.assertRaises(ValueError):
+            worker.request_spec({**req, 'arguments': {**req['arguments'], 'days': 7}})
 
     def test_dashboard_preserves_timestamped_samples_currency_and_partial_failure(self):
         now = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -356,11 +366,11 @@ class Provider(unittest.TestCase):
             self.assertNotIn('SYNTHETIC', json.dumps(result))
             error.close()
 
-    def test_network_evidence_keeps_each_coin_and_network_distinct(self):
+    def test_platform_contracts_keep_each_network_distinct(self):
         one = identity.candidate({'id':'synthetic-coin','name':'Same','symbol':'same','platforms': {'ethereum':'0xAbC','solana':'0xAbC','':''}}, True)
-        for evidence in one['evidence']: wire.validate('evidence', evidence)
-        contracts = [e['qualifiers']['network'] for e in one['evidence'] if e['scheme'] == 'contract_address']
-        self.assertEqual(len(contracts), len(set(contracts)))
+        self.assertEqual(one['platform_contracts'], [{'network': 'ethereum', 'address': '0xAbC'},
+                                                     {'network': 'solana', 'address': '0xAbC'}])
+        self.assertNotIn('evidence', one)  # core owns identity evidence; details carry no legacy evidence IDs
 
     def test_stable_selectors_windows_and_actual_shapes(self):
         now = datetime.now(timezone.utc)
@@ -387,6 +397,14 @@ class Provider(unittest.TestCase):
         req = request(definition); req['window'] = {'start':{'kind':'instant','value':(now-timedelta(days=2)).isoformat()},'end':{'kind':'instant','value':now.isoformat()}}
         with self.assertRaisesRegex(ValueError,'unsupported_window'): series.bounds(req,'ohlc_30m',now)
         with self.assertRaisesRegex(ValueError,'unsupported_series'): series.selector(series.definition(NATIVE,'ohlc_daily','USD')['source_detail']['values']['read_selector'],'demo')
+        # The free 5-minute day: one rolling day of market_chart samples.
+        five = series.definition(NATIVE, 'sample_5m', 'USD')
+        self.assertIn('sample_5m', series.modes('demo'))
+        self.assertEqual((five['interval'], five['read_support']['max_span_seconds']), ({'kind': 'minute', 'count': 5}, 86400))
+        req = request(five); req['window'] = {'start': {'kind': 'instant', 'value': (now - timedelta(hours=24)).isoformat()}, 'end': {'kind': 'instant', 'value': now.isoformat()}}
+        self.assertEqual(series.bounds(req, 'sample_5m', now), ('recent_chart', {'days': 1}))
+        req['window']['start']['value'] = (now - timedelta(days=2)).isoformat()
+        with self.assertRaisesRegex(ValueError, 'unsupported_window'): series.bounds(req, 'sample_5m', now)
 
     def test_unknown_latest_time_invalid_prices_and_granularity(self):
         d = series.definition(NATIVE, 'latest', 'USD'); req = request(d,True)
@@ -400,6 +418,39 @@ class Provider(unittest.TestCase):
         self.assertEqual(len(results.read(request(d),d,'sample_hourly',raw)['observations']),2)
         raw['data']['prices'].append([1700000000000,'4'])
         self.assertEqual(len(results.read(request(d),d,'sample_hourly',raw)['observations']),1)
+
+    def test_the_chart_year_is_one_daily_request_on_every_plan(self):
+        now = datetime.now(timezone.utc)
+        daily = series.definition(NATIVE, 'sample_daily', 'USD', 'demo')
+        span = daily['read_support']['max_span_seconds']
+        self.assertEqual(span, 367 * 86400)
+        # The chart's year read: the declared span back from the minute, read a
+        # few seconds later by the provider process.
+        end = now.replace(second=0, microsecond=0)
+        req = request(daily)
+        req['window'] = {'start': {'kind': 'instant', 'value': (end - timedelta(seconds=span)).isoformat()},
+                         'end': {'kind': 'instant', 'value': end.isoformat()}}
+        endpoint, controls = series.bounds(req, 'sample_daily', now + timedelta(seconds=5))
+        self.assertEqual((endpoint, controls['interval']), ('chart', 'daily'))
+        self.assertGreaterEqual(controls['from'], (now - timedelta(days=365)).timestamp())
+        # The clipped start moves hourly, so repeated reads within the hour match.
+        self.assertEqual(controls['from'] % 3600, 0)
+        hour = now.replace(minute=0, second=0, microsecond=0)
+        same = {series.bounds(req, 'sample_daily', hour + timedelta(minutes=m))[1]['from'] for m in (1, 30, 59)}
+        self.assertEqual(len(same), 1)
+        self.assertEqual(worker.request_spec({**DEMO, 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls}}).method, 'GET')
+        # A window that ends before the free year is refused.
+        req['window']['end']['value'] = (now - timedelta(days=366)).isoformat()
+        with self.assertRaisesRegex(ValueError, 'unsupported_window'): series.bounds(req, 'sample_daily', now)
+        # Paid plans from Basic declare two years, still one request.
+        paid = series.definition(NATIVE, 'sample_daily', 'USD', 'paid')['read_support']['max_span_seconds'] // 86400
+        self.assertEqual(paid, 732)
+        req['window'] = {'start': {'kind': 'instant', 'value': (now - timedelta(days=paid - 1)).isoformat()},
+                         'end': {'kind': 'instant', 'value': now.isoformat()}}
+        endpoint, controls = series.bounds(req, 'sample_daily', now, access='paid')
+        worker.request_spec({**DEMO, 'mode': 'paid', 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls}})
+        with self.assertRaises(ValueError):
+            worker.request_spec({**DEMO, 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls, 'interval': 'hourly'}})
 
     def test_currency_pin_paid_history_and_provider_plan_errors(self):
         usd = series.definition(NATIVE, 'sample_daily', 'USD')

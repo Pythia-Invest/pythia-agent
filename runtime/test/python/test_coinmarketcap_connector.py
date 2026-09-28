@@ -6,6 +6,7 @@ and v3 historical quotes are keyed by coin ID. Values are invented.
 """
 from contextlib import contextmanager
 import copy
+from datetime import datetime, timedelta, timezone
 import importlib
 import importlib.util
 import io
@@ -186,12 +187,11 @@ class CoinMarketCap(unittest.TestCase):
         self.assertEqual(profile['links'], {'website': ['https://example.invalid'], 'explorer': ['https://explorer.example.invalid/0xabc']})
         self.assertEqual(profile['source']['retrieved_at'], '2026-01-02T00:00:05.000Z')
         self.assertEqual(profile['deployments'][0]['network']['namespace'], 'coinmarketcap:coin')
-        contract = [e for e in details['evidence'] if e['scheme'] == 'contract_address']
         # Two chains sharing one native coin stay distinct networks.
-        self.assertEqual([e['qualifiers']['network'] for e in contract],
-                         ['coinmarketcap:coin:1027:example-chain', 'coinmarketcap:coin:1027:example-chain-side'])
-        for evidence in details['evidence']:
-            wire.validate('evidence', evidence)
+        self.assertEqual([(item['network']['namespace'], item['network']['id'], item['network']['name'])
+                          for item in details['platform_contracts']],
+                         [('coinmarketcap:coin', '1027', 'Example Chain'), ('coinmarketcap:coin', '1027', 'Example Chain (Side)')])
+        self.assertNotIn('evidence', details)  # core owns identity evidence; details carry no legacy evidence IDs
 
     def test_quotes_share_native_requests_and_history_uses_observation_times(self):
         with registered() as (ctx, calls):
@@ -210,6 +210,33 @@ class CoinMarketCap(unittest.TestCase):
         with self.assertRaises(ValueError):
             series.samples({'quotes': [sample, conflict]}, 'USD')
 
+
+    def test_a_year_of_daily_samples_is_one_request_within_the_plan(self):
+        native = {'provider': 'coinmarketcap', 'native_scope': 'coin', 'native_id': '1'}
+        daily = series.definition(native, 'sample_daily', 'USD')
+        self.assertEqual(daily['read_support']['max_span_seconds'], 367 * 86400)
+        def answer(operation, arguments):
+            if operation != 'history':
+                return responses(operation, arguments)
+            quote = {'timestamp': arguments['time_start'], 'quote': {'USD': {'timestamp': arguments['time_start'], 'price': '2'}}}
+            return {'data': {'1': {'id': 1, 'quotes': [quote]}}, 'error': None, 'source_status': {'timestamp': '2026-01-02T00:00:05.000Z', 'credit_count': 4}}
+        now = datetime.now(timezone.utc)
+        read = {'request': {'schema_version': 1, 'operation': 'history', 'view': {'kind': 'source', 'series_id': daily['id']},
+                            'window': {'start': {'kind': 'instant', 'value': (now - timedelta(days=367)).isoformat()},
+                                       'end': {'kind': 'instant', 'value': (now + timedelta(hours=6)).isoformat()}},
+                            'limit': 1000, 'requirements': {'freshness': 'any', 'completion': 'any', 'coverage': 'any'}},
+                'source_selector': daily['source_detail']['values']['read_selector']}
+        with registered(answer) as (ctx, calls):
+            result = call(ctx, 'history', read)
+        pages = [arguments for operation, arguments in calls if operation == 'history']
+        self.assertEqual(result['outcome'], 'ok', result)
+        self.assertEqual(len(pages), 1)
+        # Read from the plan's year up to the last full hour; both edges move
+        # hourly, so a repeated read within the hour is reused.
+        first, last = (datetime.fromisoformat(pages[0][k]) for k in ('time_start', 'time_end'))
+        self.assertGreaterEqual(first, now - timedelta(days=365))
+        self.assertLessEqual(last, datetime.now(timezone.utc))
+        self.assertEqual((first.minute, first.second, last.minute, last.second), (0, 0, 0, 0))
 
 if __name__ == '__main__':
     unittest.main()

@@ -31,7 +31,7 @@ def schemas(wire):
             'items': {'type': 'string', 'minLength': 1, 'maxLength': 128}}, 'range': {'type': 'string', 'enum': ['1d', '7d', '30d']}}, ['kind', 'symbols']),
     }
     contribution = wire.validate('contribution', {'schema_version': 1, 'provider': 'coingecko', 'adapter_version': '1',
-        'subject_kinds': ['crypto'], 'cadence': {'latest': 300, 'history': 900, 'series': 300},
+        'cadence': {'latest': 300, 'history': 900, 'series': 300},
         'operations': [{'operation': op, 'tool': name, 'effect': 'read'} for op, name in TOOLS.items() if op not in UNMARKED]})
     descriptions = {
         'read_batch': 'Read bounded pinned series together. Compatible aggregate quotes share one native price response; history retains separate source windows and semantics.',

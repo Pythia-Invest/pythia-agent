@@ -215,10 +215,21 @@ installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange); the main share's primary listing (only a line flagged primary; a
-missing primary venue is not filled with another line) and a line of each
-other matched security (one the query names, else that security's primary
-listing) follow, at most three in all. A group states how many listings it has;
+exchange). Among the lead's candidates, a regulated listing comes next (an ISO
+10383 regulated-market segment, carried as `venues.category`, or a US exchange)
+over open-market trading such as a German Freiverkehr line; then the home and
+primary market; a foreign company's receipt or OTC line ranks below its other
+lines. Among the remaining lines, one an installed, usable plugin can price
+comes first (its operating MIC is in the `mic_table` of a plugin whose quote is
+addressed per listing, for the line's asset class), so a group for a company
+whose home market is out of the reference's scope leads with a line whose page
+shows a price. Remaining ties follow one stated, query-independent venue order
+(Xetra, Euronext Paris, Amsterdam and Milan, then Tradegate, Frankfurt and the
+German regional floors, then any other venue) and then the listing ID. The main
+share's primary listing (only a line flagged primary; a missing primary venue
+is not filled with another line) and a line of each other matched security
+(one the query names, else that security's primary listing) follow the lead,
+at most three in all. A group states how many listings it has;
 "All N listings" reads the rest as a separate group read, so a search answer
 stays small for the agent as well. A type filter picks groups and narrows their
 listings. Each row names its instrument, and choosing a row opens that

@@ -15,7 +15,7 @@ import re
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 from . import ranking
 from .model import fold_roots
@@ -58,9 +58,9 @@ DOC = """CREATE TABLE doc (
   id INTEGER PRIMARY KEY, listing TEXT, security TEXT, issuer TEXT, grp TEXT, kind TEXT, crypto INTEGER,
   ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
   venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
-  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT)"""
+  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER)"""
 DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind").split()
+               "currency prim home otc deriv fund dr fus size inst ikind reg").split()
 
 
 class Directory:
@@ -92,7 +92,12 @@ class Directory:
                 out.setdefault(key, []).append(value)
             return out
 
+        # Regulated listings: an ISO 10383 RMKT segment or a US exchange (whose operating MICs ISO leaves
+        # unspecified). A build from before the category column ranks no line as regulated.
+        categorised = "category" in {row[1] for row in ref.execute("PRAGMA table_info(venues)")}
         venues = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT mic, name, country FROM venues")}
+        regulated = ({row[0] for row in ref.execute("SELECT mic FROM venues WHERE category = 'RMKT'")}
+                     | set(US_LISTED)) if categorised else set()
         issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
                    " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
@@ -123,6 +128,10 @@ class Directory:
             aliases = [*names.get(issuer or "", []), *names.get(security, [])]
             label = " | ".join(dict.fromkeys(filter(None, primary_names)))
             label += " || " + " | ".join(dict.fromkeys(filter(None, aliases))) if aliases else ""
+            # A foreign company's receipt or OTC line ranks below its other lines; its own shares listed on a US
+            # exchange (Linde, Shopify) compete like any other listing.
+            foreign_us = (bool(issuer_country and issuer_country != "US" and op in (*US_LISTED, "OTCM"))
+                          and (kind == "depositary_receipt" or op == "OTCM"))
             home = crypto or bool((isin and isin[:2] == venue_country) or (issuer_country and issuer_country == venue_country)
                                   or (not issuer_country and op in US_LISTED and not isin))
             docs.append(dict(zip(DOC_COLUMNS, (
@@ -131,8 +140,8 @@ class Directory:
                 (values.get("cik") or "").lstrip("0") or None, figis, op if not crypto else None,
                 venue_name, venue_country if not crypto else None, currency, int(bool(primary)), int(home),
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
-                int(bool(issuer_country and issuer_country != "US" and op in (*US_LISTED, "OTCM"))), logrank(rank),
-                security, kind))))
+                int(foreign_us), logrank(rank),
+                security, kind, int(mic in regulated or op in regulated & set(US_LISTED))))))
         # Relations with `fold` behaviour (vocabulary.RELATIONS) make one unit of the same economic thing: a receipt
         # folds into its share (`inst`, the page's listings). A unit that is an interest in its issuer
         # (vocabulary.ISSUER_INTERESTS) groups under the issuer's company (`grp`, search's company groups); a fund,
@@ -175,17 +184,21 @@ class Directory:
         return best[1] if best else None
 
     def lines(self, query: str, prefer: str = "primary",
-              suffixes: Callable[[], dict[str, set[str]]] = dict) -> list[tuple[float, dict, tuple]]:
+              suffixes: Callable[[], dict[str, set[str]]] = dict,
+              priced: Mapping[str, frozenset[str]] = {}) -> list[tuple[float, dict, tuple]]:
         """Scored directory lines for a query: (score, line, representative key).
 
-        `suffixes` maps a provider symbol suffix (".AS") to the operating MICs it names."""
+        `suffixes` maps a provider symbol suffix (".AS") to the operating MICs it names; `priced` maps the
+        operating MICs where an installed plugin can address a quote from the line's ticker to the asset
+        classes it covers (empty: any)."""
         kind, value = classify(query)
         by_id = {"isin": "d.isin = ?", "lei": "d.lei = ?", "cik": "d.cik = ?",
                  "figi": "(' ' || d.figis || ' ') LIKE ?", "pair": "d.crypto = 1 AND d.tnorm = ?"}
         with self.lock:
             if kind in by_id:
                 argument = f"% {value} %" if kind == "figi" else value
-                return ranking.score_lines(self._fetch(by_id[kind], (argument,)), query, prefer, id_rows=True)
+                return ranking.score_lines(self._fetch(by_id[kind], (argument,)), query, prefer, id_rows=True,
+                                           priced=priced)
             tokens, hint = norm(query).split(), None
             if len(tokens) > 1:
                 for token in list(tokens):
@@ -216,7 +229,8 @@ class Directory:
                     hits, query = self._fts(fixed), " ".join(fixed)
             for hit in hits:
                 found.setdefault(hit["id"], hit)
-            return ranking.score_lines(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy)
+            return ranking.score_lines(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy,
+                                       priced=priced)
 
     def instrument_listings(self, security: str) -> list[dict]:
         """The listings of the instrument a security belongs to: its own lines, then those of each security
@@ -253,12 +267,14 @@ class Directory:
                 for inst, names, kind, listing, ticker, mic, venue, currency, _size in ordered]
 
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
-               suffixes: Callable[[], dict[str, set[str]]] = dict) -> dict[str, Any]:
+               suffixes: Callable[[], dict[str, set[str]]] = dict,
+               priced: Callable[[], Mapping[str, frozenset[str]]] = dict) -> dict[str, Any]:
         """The SearchResponse (packages/market-data/src/search.ts): core's search groups (ADR 0037). Groups compete
         by their best line; each carries its relevant listings (at most `SHOWN`) and how many it has in all."""
         allowed = set(kinds) if kinds else None
         groups: dict[str, list] = {}
-        for score, line, key in self.lines(query, prefer, suffixes):
+        venues = priced()  # read before taking the directory lock
+        for score, line, key in self.lines(query, prefer, suffixes, venues):
             if not _allowed(line, allowed):
                 continue
             group = groups.setdefault(line["grp"], [score, {}])
