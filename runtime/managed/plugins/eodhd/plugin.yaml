@@ -16,3 +16,5 @@ provides_tools:
   - pythia_eodhd_news
   - pythia_eodhd_fundamentals
   - pythia_eodhd_catalogue
+  - eodhd_news
+  - eodhd_fundamentals

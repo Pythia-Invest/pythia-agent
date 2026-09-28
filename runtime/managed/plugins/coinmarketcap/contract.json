@@ -47,6 +47,10 @@
       "url": "https://coinmarketcap.com"
     }
   },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/coinmarketcap.md"
+  },
   "limits": {
     "plan": "Basic",
     "unit": "credit",

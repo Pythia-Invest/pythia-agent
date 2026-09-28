@@ -33,7 +33,9 @@ reference, not an identifier. `details` preserves Yahoo's venue and currency
 qualifiers and asserts no identity evidence. Core addresses a Yahoo listing from
 open identifiers through this plugin's MIC suffix table
 ([ADR 0038](../../../../docs/decisions/0038-plugin-addressing-contract.md)); that
-derived symbol is an address, never evidence.
+derived symbol is an address, never evidence. The contract's `venue_codes` map
+Yahoo's exchange codes (`NMS`, `GER`) to operating MICs, so core can check the
+venue and currency a read states against the listing (ADR 0037, "Read checks").
 Yahoo `EQUITY` is not promoted to Common Stock or proof of an issuer. Name or
 ticker similarity never creates a canonical relationship.
 
@@ -67,5 +69,44 @@ in two narrow ways only:
   only, so a row never proves the other listings of a security. No tool exposes
   it yet; the plugin addressing contract adopts it as this connector's
   `resolve`.
-- research `news` accepts a validated Yahoo symbol and returns only the items
-  Yahoo tags with that exact symbol.
+- research `news` reads an issuer's news. It takes validated Yahoo symbols
+  (the listing asked for plus the issuer's other Yahoo lines, at most eight),
+  and for a crypto pair also the asset's name, and returns only the items
+  Yahoo tags with one of those symbols. The name is only a query; it never
+  widens what is kept.
+
+## News
+
+Yahoo's search is a text search and its tag is its own "main" line: ASML
+and Shell news is tagged with the US lines `ASML` and `SHEL`, Nestlé news
+with `NESN.SW`, and bitcoin news with `BTC-USD`, while the queries `ASML.AS`,
+`SHEL.L` and `NESN.SW` match no news at all (measured 2026-09-28). A news
+read is therefore per issuer, not per listing: one query for each of the
+issuer's Yahoo symbols, keeping items tagged with any of those symbols. The
+caller supplies the symbols from Pythia's identity; the connector never
+guesses them from names.
+
+A name query is accepted for a crypto pair only. "BTC-USD" finds almost no
+news while "Bitcoin" finds all of it; for equities the name query returned
+exactly the main-line symbol's answer, so it only cost a request.
+
+Yahoo answers at most about 50 items per query and has no offset, so the
+read is a dated window (default the last 7 days, at most 31) filled as far
+as Yahoo goes. A query whose oldest item is inside the window stopped there;
+`complete_from` is the newest such oldest item, and the result then carries
+`window_incomplete`. For Apple that is about two days.
+
+Unknown item fields and unknown `type` values are counted under `drift`
+with a `schema_drift` warning; unreadable items are omitted with
+`invalid_value`. Detecting a feed that goes quiet belongs to Yahoo's
+onboarding.
+
+## Markets: indexes, futures, FX and movers
+
+Core's curated market table (`identity/markets.json`) addresses indexes,
+continuous front-month futures, currency pairs and yields by their Yahoo
+symbols (`^GSPC`, `ES=F`, `EURUSD=X`, `^TNX`); the contract declares its
+`symbol` scope at those subject kinds. `movers` serves core's `market_movers`
+concept from Yahoo's predefined US screens (`most_actives`, `day_gainers`,
+`day_losers`). Its field meanings, venue table and drift alarms are in the
+[source record](../../../../docs/sources/yahoo-screener.md).

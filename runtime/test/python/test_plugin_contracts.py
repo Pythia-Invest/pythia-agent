@@ -59,8 +59,8 @@ def adapter_view():
 class ShippedContracts(unittest.TestCase):
     def test_every_contract_validates_and_its_operations_reach_the_tools_that_declare_them(self):
         shipped = sorted(path.parent.name for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE))
-        self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'eodhd', 'gleif', 'sec', 'xbrl-filings',
-                                   'yahoo-discovery'])
+        self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'eodhd', 'gleif', 'hyperliquid', 'sec',
+                                   'xbrl-filings', 'yahoo-discovery'])
         _ops, mapped = adapter_view()
         for plugin in shipped:
             with self.subTest(plugin=plugin):
@@ -106,9 +106,46 @@ class ShippedContracts(unittest.TestCase):
         self.assertFalse(any(manifest(path.parent.name).rights.hostable
                              for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE)))
 
+    def test_every_shipped_source_declares_its_signoff(self):
+        # ADR 0042: the sources in use before the standard keep their role until their turn, each pointing at the
+        # record it will be onboarded in; anything newer ships unsigned; a signed-off source links a record that exists.
+        root = PLUGINS.parents[2]
+        standing = {}
+        for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE):
+            contract = manifest(path.parent.name)
+            standing[contract.plugin] = contract.signoff
+            with self.subTest(plugin=contract.plugin):
+                if contract.signoff is identity.SignOff.SIGNED_OFF:
+                    self.assertTrue((root / contract.record).is_file())
+                elif contract.signoff is identity.SignOff.GRANDFATHERED:
+                    self.assertEqual(contract.record, f'docs/sources/{contract.provider}.md')
+        self.assertEqual({plugin for plugin, status in standing.items() if status is identity.SignOff.GRANDFATHERED},
+                         {'pythia-coingecko', 'pythia-coinmarketcap', 'pythia-eodhd', 'pythia-gleif', 'pythia-sec',
+                          'pythia-xbrl-filings', 'pythia-yahoo-discovery'})
+        self.assertEqual(standing['pythia-hyperliquid'], identity.SignOff.UNSIGNED)  # opt-in and display-only
+        self.assertEqual(set(standing), identity.BUNDLED)  # core knows every plugin Pythia ships
+
+    def test_a_plugin_pythia_does_not_bundle_cannot_vouch_for_itself(self):
+        sec = manifest('sec')
+        self.assertIs(identity.vouched(sec, 'pythia-sec').signoff, identity.SignOff.GRANDFATHERED)
+        self.assertTrue(identity.vouched(sec, 'community-sec').unaudited)
+
+    def test_the_sec_kinds_parameter_is_cores_filing_kinds(self):
+        spec = importlib.util.spec_from_file_location('sec_definition', PLUGINS / 'sec/definition.py')
+        definition = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(definition)
+        self.assertEqual(definition.FILING_KINDS, tuple(identity.concepts.FilingKind))
+
     def test_filing_sources_declare_their_authorities(self):
         self.assertEqual(manifest('sec').concepts[identity.Concept.FILINGS].authorities, ('sec',))
-        self.assertEqual(manifest('xbrl-filings').concepts[identity.Concept.FILINGS].authorities, ('esma', 'fca'))
+        # One authority per national mechanism, so a national source can serve its country alone.
+        mechanisms = manifest('xbrl-filings').concepts[identity.Concept.FILINGS].authorities
+        self.assertTrue({'fca', 'oam-fr', 'oam-nl'} <= set(mechanisms))
+        self.assertNotIn('oam-de', mechanisms)  # filings.xbrl.org collects no German reports
+        contract = json.loads((PLUGINS / 'xbrl-filings/contract.json').read_text())
+        contract['concepts']['filings']['authorities'] = ['esma']
+        with self.assertRaises(identity.ManifestError):
+            identity.validate_manifest(contract)
 
 if __name__ == '__main__':
     unittest.main()

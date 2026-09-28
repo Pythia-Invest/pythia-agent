@@ -80,7 +80,7 @@ CREATE TABLE queue (
   id TEXT PRIMARY KEY,
   key TEXT NOT NULL,               -- QueueItem.key: kind|reason|subjects|scheme|provider ref
   kind TEXT NOT NULL CHECK (kind IN ('residual', 'conflict')),
-  reason TEXT NOT NULL,
+  reason TEXT NOT NULL,            -- one of its kind's reasons (resolution.REASONS), checked by QueueItem
   subject_ids TEXT NOT NULL,
   candidate_ids TEXT NOT NULL DEFAULT '[]',
   evidence_ids TEXT NOT NULL DEFAULT '[]',
@@ -91,9 +91,7 @@ CREATE TABLE queue (
   state TEXT NOT NULL CHECK (state IN ('open', 'resolved', 'superseded', 'dismissed')),
   opened_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  resolved_by TEXT,                -- the verdict that settled it
-  CHECK ((kind = 'residual' AND reason IN ('no_key', 'underlying_identifier', 'ambiguous'))
-      OR (kind = 'conflict' AND reason IN ('identifier', 'binding', 'relation', 'guard')))
+  resolved_by TEXT                 -- the verdict that settled it
 );
 CREATE INDEX queue_open ON queue (state, opened_at);
 CREATE UNIQUE INDEX queue_open_key ON queue (key) WHERE state = 'open';
@@ -157,4 +155,22 @@ CREATE TABLE resolve_misses (
   reason TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   PRIMARY KEY (subject_id, plugin)
+);
+
+-- Added within schema 5 (additive and idempotent: every open applies what follows this line).
+-- Read checks (ADR 0037, rule read_check@1): what a source stated about itself when read for a subject (a claim
+-- about that subject), against the reference. A page label and evidence for the reference's rework, never a
+-- binding. Re-pointed through id_aliases with the other subject rows.
+CREATE TABLE IF NOT EXISTS read_checks (
+  subject_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  native_scope TEXT NOT NULL,
+  native_id TEXT NOT NULL,
+  plugin TEXT NOT NULL,
+  stated TEXT NOT NULL,            -- JSON: what the read stated, e.g. {"currency": "EUR", "venue": "MUN", "operating_mic": "XMUN"}
+  differs TEXT NOT NULL,           -- JSON list: the stated attributes the reference gives otherwise ("venue", "currency")
+  note TEXT,                       -- why the last read did not verify ("venue differs", "source not audited"); NULL if it did
+  checked_at TEXT NOT NULL,
+  verified_at TEXT,                -- the last read that agreed on all it stated, from an audited source
+  PRIMARY KEY (subject_id, provider, native_scope, native_id)
 );

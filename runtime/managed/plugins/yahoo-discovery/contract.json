@@ -10,6 +10,22 @@
         "asset_classes": [
           "equity"
         ]
+      },
+      {
+        "native_scope": "symbol",
+        "level": "market"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "index"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "fx"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "series"
       }
     ],
     "schemes": {
@@ -50,6 +66,45 @@
       "XNYS": "",
       "XCBO": "",
       "OTCM": ""
+    },
+    "venue_codes": {
+      "NMS": "XNAS",
+      "NGM": "XNAS",
+      "NCM": "XNAS",
+      "NYQ": "XNYS",
+      "ASE": "XNYS",
+      "PCX": "XNYS",
+      "BTS": "XCBO",
+      "PNK": "OTCM",
+      "OQX": "OTCM",
+      "OID": "OTCM",
+      "GER": "XETR",
+      "FRA": "XFRA",
+      "STU": "XSTU",
+      "MUN": "XMUN",
+      "DUS": "XDUS",
+      "HAM": "XHAM",
+      "HAN": "XHAN",
+      "AMS": "XAMS",
+      "BRU": "XBRU",
+      "PAR": "XPAR",
+      "LIS": "XLIS",
+      "MIL": "XMIL",
+      "ISE": "XDUB",
+      "MCE": "BMEX",
+      "OSL": "XOSL",
+      "HEL": "XHEL",
+      "STO": "XSTO",
+      "CPH": "XCSE",
+      "ICE": "XICE",
+      "TAL": "XTAL",
+      "RIS": "XRIS",
+      "LIT": "XLIT",
+      "VIE": "XWBO",
+      "WSE": "XWAR",
+      "ATH": "ASEX",
+      "BUD": "XBUD",
+      "PRA": "XPRA"
     }
   },
   "concepts": {
@@ -76,11 +131,22 @@
           ]
         }
       }
+    },
+    "market_movers": {
+      "operations": {
+        "most_active": "movers",
+        "gainers": "movers",
+        "losers": "movers"
+      }
     }
   },
   "rights": {
     "licence": "personal",
     "cache": "none",
     "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/yahoo.md"
   }
 }

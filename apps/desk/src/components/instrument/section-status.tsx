@@ -67,13 +67,17 @@ export function SectionPlaceholder({
     disabled: {
       icon: <CircleSlash />,
       title: `${section.label} is turned off`,
-      fallback: "Enable the plugin to show this section.",
+      fallback: `Enable it with \`hermes plugins enable ${section.plugin}\` for this profile, then reopen this page.`,
     },
   };
   const status = known[section.status];
-  const unsupported = !["quote", "chart", "profile", "filings"].includes(
-    section.section,
-  );
+  const unsupported = ![
+    "quote",
+    "chart",
+    "live",
+    "profile",
+    "filings",
+  ].includes(section.section);
   const shown = unsupported
     ? {
         icon: <Shapes />,
@@ -126,6 +130,7 @@ export function SourcesLine({
         {
           source: section.label,
           plugin: section.plugin,
+          unaudited: section.unaudited,
           provider:
             section.binding?.provider ??
             // Connector marks are keyed by provider, plugin ids by package.
@@ -145,6 +150,7 @@ export function SourcesLine({
             {index ? <span aria-hidden="true">+</span> : null}
             <ConnectorMark plugin={item.provider} />
             <span className="text-foreground">{item.source}</span>
+            {item.unaudited ? <span>(not yet audited)</span> : null}
           </span>
         ))}
         {section.status !== "ready" ? (
@@ -152,6 +158,13 @@ export function SourcesLine({
             ·{" "}
             {STATUS_LABELS[section.status] ??
               section.status.replaceAll("_", " ")}
+          </span>
+        ) : null}
+        {section.unverified && !chosen ? (
+          <span>· unverified ({section.unverified})</span>
+        ) : section.verified_at && !chosen ? (
+          <span title={`Checked against the reference ${section.verified_at}`}>
+            · verified
           </span>
         ) : null}
         {chosen && onUse ? (
@@ -181,11 +194,13 @@ export function SourcesLine({
                   className="underline decoration-dotted underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
                 >
                   {item.label}
+                  {item.unaudited ? " (not yet audited)" : ""}
                   {comma}
                 </button>
               ) : (
                 <span key={item.plugin}>
-                  {item.label} (
+                  {item.label}
+                  {item.unaudited ? " (not yet audited)" : ""} (
                   {STATUS_LABELS[item.status] ??
                     item.status.replaceAll("_", " ")}
                   ){comma}

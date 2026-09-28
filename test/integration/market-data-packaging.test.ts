@@ -86,6 +86,20 @@ function fixture(profile = "fixture") {
 }
 
 describe("native market-data lifecycle payload", () => {
+  it("copies every Python module a managed plugin imports", () => {
+    // A module left out of the list breaks the plugin's import in a profile.
+    for (const { source, name, files } of MANAGED_PLUGINS) {
+      const modules = readdirSync(join(repository, "runtime/managed", source), {
+        recursive: true,
+      })
+        .map(String)
+        .filter(
+          (path) => path.endsWith(".py") && !path.includes("__pycache__"),
+        );
+      expect(files, name).toEqual(expect.arrayContaining(modules));
+    }
+  });
+
   it("copies allowlisted nested inputs and preserves native choices and plugin state", () => {
     const paths = fixture("profile with spaces");
     const config = `plugins:
@@ -280,7 +294,13 @@ platform_toolsets:
     const core = MANAGED_PLUGINS.find((plugin) => plugin.name === "pythia");
     if (!core) throw new Error("Missing core payload fixture");
     const payloads = [
-      ...MANAGED_PLUGINS,
+      // ADR 0042: Hyperliquid has not signed off, so it stays off even if its
+      // payload were listed as enabled by default.
+      ...MANAGED_PLUGINS.map((plugin) =>
+        plugin.name === "pythia-hyperliquid"
+          ? { ...plugin, enabledByDefault: true }
+          : plugin,
+      ),
       {
         ...core,
         name: "optional",
@@ -303,6 +323,11 @@ platform_toolsets:
     });
     expect(
       existsSync(join(paths.profileRoot, "plugins/optional/plugin.yaml")),
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(paths.profileRoot, "plugins/pythia-hyperliquid/contract.json"),
+      ),
     ).toBe(true);
     expect(existsSync(join(paths.profileRoot, "plugins/not-installed"))).toBe(
       false,

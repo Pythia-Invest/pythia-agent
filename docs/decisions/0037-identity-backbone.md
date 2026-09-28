@@ -212,7 +212,43 @@ schema, one connection and transactional joins across claims and bindings.
 **Ingest join.** Each record is joined once, at ingest; the first match wins and
 a contradiction stops the chain: ISIN plus operating MIC and currency; ISIN
 alone (`self` only); share-class or composite FIGI; exact `ticker_mic` as a weak
-binding re-verified on page open; otherwise a provisional subject and a residual.
+binding checked on its reads (below); otherwise a provisional subject and a residual.
+
+**Read checks** (rule `read_check@1`, amended 2026-09-28). A derived address
+(a ticker plus the contract's MIC suffix) can point at the wrong instrument: a
+same-ticker company elsewhere, or another currency line. Market data already
+describes every reference before reading it, whether core routed it for a
+subject or the caller named it (the Desk page and the agent read the reference
+the page chose; core checks that for the subject it last served it for). What
+that answer states about itself, its venue code and currency, is a claim about
+the subject, kept in `read_checks` and compared with the reference in code, once
+per subject, reference and stated values per 15 minutes per process, with no
+extra provider call and no job. The venue a source states is compared, mapped to
+an operating MIC through the contract's `venue_codes`, never inferred from a
+symbol's suffix: it differs when the security has no line on that venue (the
+venues its listing rows are keyed on). The currency differs when it is not the
+listing's (minor units such as GBX count as their major currency). Names,
+instrument types, unmapped venue codes and anything unstated are never compared;
+no price source states an ISIN today, so ISINs are not compared. A read that
+agrees, from a source not marked unaudited (ADR 0042), stamps `verified_at` (on
+the check, and on a confirmed binding); otherwise the page section and the
+agent's result carry a label, `unverified` ("venue differs", "currency
+differs", "source not audited"), and the source keeps serving. No difference
+opens a Repairs item. A difference refuses the source only for an attribute in
+`ENFORCED` (`identity/page.py`), one switch per attribute: an attribute is
+added once the reference field it compares against comes from a signed-off
+source (the FIRDS sign-off is under way in the reference claims work). Until
+then both stay off: the reference's venue for SEC-fed lines can be stale, and
+its currency is FIRDS' notional currency on German venues. A refused source is
+checked again on its next read, and a read that agrees lifts the refusal. The
+recorded differences are evidence for that rework:
+`tooling/reference-builder/read_check_audit.py` counts them per venue from a
+device's store. Rejected: a background re-verification job or a verification
+call per page open (provider traffic), fuzzy name matching (never decisive),
+refusing or queueing on a reference field that is not signed off (it refused
+correct quotes on German venues and Amsterdam USD ETF lines, and a "not a
+match" answer left a refused source with no way back), and keeping checks as
+binding rows (a derived address is recomputed, never stored).
 
 **Search is a local read** of the directory: no provider call, no identity
 write, no reconciliation. Core's `identity-search` builds the directory in
@@ -319,7 +355,8 @@ A subject ID is `<kind>:<key-scheme>:<key>`, and its first segment is the
   kinds with their registered key schemes, so `security:bogus:x` is rejected.
 - Kinds, relation types and each relation's allowed kinds live in Python.
   - The persistent `identity.sqlite3` checks only the ID format (schema 4, which
-    migrates schema 3 in place).
+    migrates schema 3 in place). Schema 5 also leaves queue reasons to Python
+    and migrates schemas 3 and 4 in place.
   - The rebuilt `reference.sqlite3` keeps its instrument CHECKs but not
     relation-type ones.
 

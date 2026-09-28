@@ -39,7 +39,9 @@ not a registry: deleting the package removes the declaration.
   class (`VOLV B@XSTO` on Nasdaq Stockholm and Copenhagen); a two-letter suffix
   is refused, as `AAPL US` or `ASML NA` is a Bloomberg code, not a venue ticker. A provider symbol
   has no space, so core writes that separator as `-` (`VOLV-B.ST`), rule
-  `mic_table@2`.
+  `mic_table@2`. An optional `venue_codes` table maps the provider's own venue
+  codes to operating MICs (Yahoo `NMS` to XNAS), so core can check the venue a
+  read states; a code it does not map is not checked.
 - **`content`** maps core's page sections (`quote`, `chart`, `profile`,
   `financials`, `news`, `filings`) to a tool, the level the data is about and the level of
   the reference used to call (`via`). `via` may be narrower than `level`, never
@@ -93,7 +95,7 @@ identifiers: the MIC suffix table, a native scope named after a scheme the
 plugin accepts at that level (GLEIF by `lei`, SEC by `cik`), or core's curated
 canonical-asset table (rule `canonical_assets@1`, a confirmed binding). A derived
 reference is an address, never identifier evidence, and is recomputed rather
-than stored. Otherwise the section is `resolving`, and the Desk asks
+than stored; only its read checks are stored (ADR 0037, "Read checks"). Otherwise the section is `resolving`, and the Desk asks
 `identity-resolve` for that one plugin after rendering: core runs its declared
 `resolve` with a short timeout, applies `decide` (rule `resolve_answer@1`: the
 answer to open identifiers binds unless identifier evidence or the receipt
@@ -156,6 +158,7 @@ enforces" stands; `rights` below is declared, not yet enforced.
   "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
   "rights": {"licence": "personal", "cache": {"ttl_seconds": 86400}, "hostable": false,
              "attribution": {"text": "Powered by CoinGecko API", "url": "https://www.coingecko.com/en/api/"}},
+  "signoff": {"status": "grandfathered", "record": "docs/sources/coingecko.md"},
   "limits": {"plan": "Demo", "unit": "credit", "per_minute": 100, "per_month": 10000}
 }
 ```
@@ -194,6 +197,12 @@ enforces" stands; `rights` below is declared, not yet enforced.
   showing the data renders). Declared now; enforcing the cache lifetime and
   rendering attribution come later. Each plugin still enforces its provider's
   other terms itself.
+- **`signoff`** (required): the source's onboarding status
+  ([ADR 0042](0042-source-onboarding-standard.md)): `status` `signed_off`,
+  `grandfathered` or `unsigned`, and `record`, the source record
+  (`docs/sources/<source>.md` or an https link), required once signed off.
+  Core enforces it; ADR 0042 says how. It joined version 1 before any release
+  shipped a contract, so the version did not change.
 - **`limits`** (optional): the provider's published rate limits for a named
   plan (`unit` `call`, `credit` or `request`; per second, minute, day or
   month). A claim for that plan, not the investor's entitlement; nothing

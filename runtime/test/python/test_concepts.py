@@ -16,7 +16,8 @@ RIGHTS = {"licence": "personal", "cache": "none", "hostable": False}
 def contract(provider, concepts):
     addressing = {"native": [{"native_scope": "ref", "level": "listing"}], "mic_table": {"XAMS": ".AS", "XNAS": ""}}
     return identity.validate_manifest({"contract_version": 1, "plugin": provider, "provider": provider,
-                                       "addressing": addressing, "concepts": concepts, "rights": RIGHTS})
+                                       "addressing": addressing, "concepts": concepts, "rights": RIGHTS,
+                                       "signoff": {"status": "grandfathered"}})
 
 
 def prices(classes):
@@ -145,8 +146,9 @@ EQUITY_ADDRESS = {"asml_xams": ("ASML.AS", "ASML.AS"), "asml_nasdaq": ("ASML", "
 NOT_CRYPTO = [("coingecko", "not_covering"), ("coinmarketcap", "not_covering")]
 NOT_EQUITY = [("yahoo-discovery", "not_covering"), ("eodhd", "not_covering")]
 # Filings combine one source per authority into core's read, whatever the price configuration.
+MECHANISMS = json.loads((PLUGINS / "xbrl-filings/contract.json").read_text())["concepts"]["filings"]["authorities"]
 FILINGS = {"profile": ("gleif", "ready", [], []),
-           "filings": ("xbrl-filings", "ready", [], [], [("xbrl-filings", ["esma", "fca"]), ("sec", ["sec"])])}
+           "filings": ("xbrl-filings", "ready", [], [], [("xbrl-filings", MECHANISMS), ("sec", ["sec"])])}
 
 
 def equity(config, name):

@@ -7,19 +7,20 @@ stays the authority for discovery and enablement.
 
 Version 1 declares, per core data concept (ADR 0040), the plugin operation that
 serves each concept operation, its coverage and its qualities from core's closed
-vocabulary, plus the provider terms core must know (`rights`) and optional
-published limits. Contracts name plugin operations, never Hermes tools; the
-Hermes adapter maps an operation to the tool that declares it.
+vocabulary, plus the provider terms core must know (`rights`), the source's
+onboarding sign-off (`signoff`, ADR 0042) and optional published limits.
+Contracts name plugin operations, never Hermes tools; the Hermes adapter maps an
+operation to the tool that declares it.
 """
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Mapping
 
 from .concepts import REGISTRY, Combine, Concept, FilingAuthority, Licence
-from .schemes import MIC, NAMESPACE, SCHEME_LEVEL, Level, Scheme
+from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, SCHEME_LEVEL, Kind, Level, Scheme
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
@@ -27,6 +28,11 @@ CONTRACT_VERSION = 1  # the newest contract shape this core reads
 OPERATION = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")  # a plugin operation name, as `declare_operation` accepts
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 LIMIT_UNITS = ("call", "credit", "request")
+# Pythia's own plugins (the managed payloads in scripts/dev/managed-plugins.mjs). A plugin cannot vouch for itself:
+# core honours `signed_off` or `grandfathered` only from these; any other plugin is unsigned (ADR 0042).
+BUNDLED = frozenset({"pythia-coingecko", "pythia-coinmarketcap", "pythia-eodhd", "pythia-gleif", "pythia-hyperliquid",
+                     "pythia-sec", "pythia-xbrl-filings", "pythia-yahoo-discovery"})
+RECORD = re.compile(r"^(docs/sources/[a-z0-9][a-z0-9-]{0,63}\.md|https://\S{1,500})\Z")  # a public source record
 
 
 class CatalogueMode(StrEnum):
@@ -34,10 +40,18 @@ class CatalogueMode(StrEnum):
     RESOLVE_ONLY = "resolve_only"  # the default: only records the user picked are kept
 
 
+class SignOff(StrEnum):
+    """A source's standing under the onboarding standard (ADR 0042)."""
+
+    SIGNED_OFF = "signed_off"        # passed the four stages; its record says so
+    GRANDFATHERED = "grandfathered"  # in use before the standard: keeps its role until its turn
+    UNSIGNED = "unsigned"            # opt-in only: off in fresh profiles, never core's choice, never confirms
+
+
 @dataclass(frozen=True, slots=True)
 class NativeScope:
     native_scope: str
-    level: Level
+    level: Level | Kind  # a kind outside the hierarchy (a market) is addressed through core's curated table
     asset_classes: tuple[AssetClass, ...]
 
 
@@ -49,8 +63,9 @@ class Coverage:
 
 @dataclass(frozen=True, slots=True)
 class ConceptEntry:
-    level: Level                        # the level the data is about (fundamentals: issuer)
-    via: Level                          # the level of the reference used to call (fundamentals: a listing symbol)
+    level: Level | Kind | None          # the level the data is about (fundamentals: issuer), or a kind outside
+                                        # the hierarchy (a market), which is addressed as itself; None: market-wide
+    via: Level | Kind | None            # the level of the reference used to call (fundamentals: a listing symbol)
     operations: Mapping[str, str]       # concept operation -> plugin operation
     coverage: Coverage
     qualities: Mapping[str, Mapping[str, Any]]  # concept operation -> declared qualities (claims, not entitlements)
@@ -108,8 +123,15 @@ class Manifest:
     catalogue_scopes: tuple[str, ...]
     resolve: Resolve | None
     rights: Rights
+    signoff: SignOff
+    record: str | None              # the source record: required once signed off, pending before
     limits: Limits | None = None
     contract_version: int = CONTRACT_VERSION
+    venue_codes: Mapping[str, str] = field(default_factory=dict)  # the provider's venue code -> operating MIC ("NMS": "XNAS")
+
+    @property
+    def unaudited(self) -> bool:
+        return self.signoff is SignOff.UNSIGNED
 
     def native_scope(self, native_scope: str) -> NativeScope | None:
         return next((item for item in self.native if item.native_scope == native_scope), None)
@@ -166,6 +188,15 @@ def _enums(kind: type[StrEnum], value: Any, path: str) -> tuple[Any, ...]:
     return items
 
 
+def _place(value: Any, path: str) -> Level | Kind:
+    """An instrument level, or a registered subject kind outside the hierarchy."""
+    if value in set(Level):
+        return Level(value)
+    if value in set(Kind) and value not in INSTRUMENT_KINDS:
+        return Kind(value)
+    raise ManifestError(f"{path}: expected an instrument level or a subject kind")
+
+
 def _count(value: Any, path: str, low: int = 1) -> int:
     if type(value) is not int or not low <= value <= 10**9:
         raise ManifestError(f"{path}: expected a whole number of at least {low}")
@@ -180,18 +211,22 @@ def contract_version(document: Any) -> int:
     return version
 
 
-def _concept(key: str, item: Any, addressable: set[Level]) -> ConceptEntry:
+def _concept(key: str, item: Any, addressable: set[Level | Kind]) -> ConceptEntry:
     path = f"concepts.{key}"
     concept = _enum(Concept, key, "concepts")
     spec = REGISTRY[concept]
     per_authority = spec.combine is Combine.PER_AUTHORITY
-    entry = _object(item, path, {"level", "via", "operations"} | ({"authorities"} if per_authority else set()),
+    about = {"level", "via"} if spec.levels | spec.kinds else set()  # a market-wide concept is about no subject
+    entry = _object(item, path, about | {"operations"} | ({"authorities"} if per_authority else set()),
                     {"coverage", "qualities"})
-    level, via = _enum(Level, entry["level"], f"{path}.level"), _enum(Level, entry["via"], f"{path}.via")
-    if level not in spec.levels:
-        raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels))}")
-    if DEPTH[via] < DEPTH[level] or via not in addressable:
-        raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
+    level = via = None
+    if about:
+        level, via = _place(entry["level"], f"{path}.level"), _place(entry["via"], f"{path}.via")
+        if level not in spec.levels | spec.kinds:
+            raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels | spec.kinds))}")
+        if isinstance(level, Level) != isinstance(via, Level) or via not in addressable or (
+                DEPTH[via] < DEPTH[level] if isinstance(level, Level) else via != level):
+            raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
     operations = {}
     declared = _object(entry["operations"], f"{path}.operations", set(), set(spec.operations))
     if not declared:
@@ -256,6 +291,14 @@ def _rights(value: Any) -> Rights:
     return Rights(_enum(Licence, body["licence"], "rights.licence"), seconds, body["hostable"], attribution)
 
 
+def _signoff(value: Any) -> tuple[SignOff, str | None]:
+    body = _object(value, "signoff", {"status"}, {"record"})
+    status = _enum(SignOff, body["status"], "signoff.status")
+    if status is SignOff.SIGNED_OFF and "record" not in body:
+        raise ManifestError("signoff.record: a signed-off source links its record")
+    return status, _match(RECORD, body["record"], "signoff.record") if "record" in body else None
+
+
 def _limits(value: Any) -> Limits:
     body = _object(value, "limits", {"plan", "unit"}, {"per_second", "per_minute", "per_day", "per_month"})
     if not isinstance(body["plan"], str) or not 0 < len(body["plan"]) <= 64:
@@ -266,6 +309,11 @@ def _limits(value: Any) -> Limits:
                                                  for name in ("per_second", "per_minute", "per_day", "per_month")})
 
 
+def vouched(manifest: Manifest, key: str) -> Manifest:
+    """The contract as core trusts it for installed plugin `key`: unsigned unless Pythia bundles the plugin."""
+    return manifest if key in BUNDLED else replace(manifest, signoff=SignOff.UNSIGNED)
+
+
 def validate_manifest(document: Any) -> Manifest:
     """Validate a parsed `contract.json`; raise ManifestError naming the first bad path.
 
@@ -274,9 +322,9 @@ def validate_manifest(document: Any) -> Manifest:
     version = contract_version(document)
     if version > CONTRACT_VERSION:
         raise ManifestNeedsUpdate(version)
-    body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights"},
+    body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights", "signoff"},
                    {"concepts", "catalogue", "resolve", "limits"})
-    addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table"})
+    addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table", "venue_codes"})
     native = []
     if not isinstance(addressing.get("native", []), list):
         raise ManifestError("addressing.native: list required")
@@ -284,9 +332,11 @@ def validate_manifest(document: Any) -> Manifest:
         path = f"addressing.native[{index}]"
         entry = _object(item, path, {"native_scope", "level"}, {"asset_classes"})
         native.append(NativeScope(_match(NAMESPACE, entry["native_scope"], f"{path}.native_scope"),
-                                  _enum(Level, entry["level"], f"{path}.level"),
+                                  _place(entry["level"], f"{path}.level"),
                                   _enums(AssetClass, entry.get("asset_classes", []), f"{path}.asset_classes")))
-    if len({item.native_scope for item in native}) != len(native):
+    # One native scope may also address subjects outside the hierarchy (Yahoo's `symbol` names listings and
+    # curated indexes alike), but each place only once.
+    if len({(item.native_scope, item.level) for item in native}) != len(native):
         raise ManifestError("addressing.native: duplicate native_scope")
     schemes = {}
     for key, listed in _object(addressing.get("schemes", {}), "addressing.schemes", set(), set(Level)).items():
@@ -299,6 +349,11 @@ def validate_manifest(document: Any) -> Manifest:
     mic_table = {_match(MIC, mic, "addressing.mic_table"): code for mic, code in table.items()}
     if not all(isinstance(code, str) and len(code) <= 16 for code in mic_table.values()):
         raise ManifestError("addressing.mic_table: provider venue codes are short text")
+    codes = addressing.get("venue_codes", {})
+    codes = _object(codes, "addressing.venue_codes", set(), set(codes) if isinstance(codes, Mapping) else set())
+    if not all(0 < len(code) <= 16 for code in codes):
+        raise ManifestError("addressing.venue_codes: provider venue codes are short text")
+    venue_codes = {code: _match(MIC, mic, f"addressing.venue_codes.{code}") for code, mic in codes.items()}
 
     catalogue = _object(body.get("catalogue", {"mode": "resolve_only"}), "catalogue", {"mode"}, {"operation", "scopes"})
     mode = _enum(CatalogueMode, catalogue["mode"], "catalogue.mode")
@@ -315,14 +370,16 @@ def validate_manifest(document: Any) -> Manifest:
                           _enums(Scheme, entry["input_schemes"], "resolve.input_schemes"),
                           _enums(Scheme, entry["echoes"], "resolve.echoes"))
     for index, item in enumerate(native):
-        if not (bulk or resolve or (item.level is Level.LISTING and mic_table)):
+        # A kind outside the hierarchy (a market) takes its refs from core's curated table (markets.json).
+        if not (bulk or resolve or (item.level is Level.LISTING and mic_table) or not isinstance(item.level, Level)):
             raise ManifestError(f"addressing.native[{index}]: no catalogue, resolve or MIC table produces these refs")
 
-    addressable = {item.level for item in native} | {level for level, listed in schemes.items() if listed}
+    addressable: set[Level | Kind] = {item.level for item in native} | {level for level, listed in schemes.items() if listed}
     addressable |= {Level.LISTING} if mic_table else set()
     concepts = {Concept(key): _concept(key, item, addressable)
                 for key, item in _object(body.get("concepts", {}), "concepts", set(), set(Concept)).items()}
     return Manifest(_match(NAMESPACE, body["plugin"], "manifest.plugin"),
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
                     tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
-                    _rights(body["rights"]), _limits(body["limits"]) if "limits" in body else None, version)
+                    _rights(body["rights"]), *_signoff(body["signoff"]),
+                    _limits(body["limits"]) if "limits" in body else None, version, venue_codes)

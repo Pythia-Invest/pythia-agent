@@ -1,0 +1,56 @@
+{
+  "contract_version": 1,
+  "plugin": "pythia-hyperliquid",
+  "provider": "hyperliquid",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "perp",
+        "level": "market"
+      }
+    ]
+  },
+  "concepts": {
+    "market_data": {
+      "level": "market",
+      "via": "market",
+      "operations": {
+        "live": "live_market"
+      },
+      "coverage": {
+        "asset_classes": [
+          "crypto"
+        ]
+      },
+      "qualities": {
+        "live": {
+          "book": "snapshot",
+          "book_levels": 5,
+          "trades": true,
+          "trade_side": true,
+          "scope": "venue",
+          "venue": "hyperliquid",
+          "context": [
+            "mark",
+            "oracle",
+            "mid",
+            "funding",
+            "open_interest",
+            "prev_day",
+            "day_volume"
+          ],
+          "line": "last_trade"
+        }
+      }
+    }
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "none",
+    "hostable": false
+  },
+  "signoff": {
+    "status": "unsigned",
+    "record": "docs/sources/hyperliquid.md"
+  }
+}

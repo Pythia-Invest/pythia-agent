@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -105,6 +105,25 @@ function verifyObservation(observation, seededState, seededSession) {
   );
 }
 
+// What an api_server turn delivers, asked of the stack's prepared pinned Hermes in a disposable profile.
+function qualifyAgentTools(stack) {
+  const result = spawnSync(
+    join(stack.paths.hermesSource, ".venv", "bin", "python"),
+    [
+      join(stack.worktree, "tooling", "qualification", "agent_tools_native.py"),
+      "--hermes-source",
+      stack.paths.hermesSource,
+      "--repository",
+      stack.worktree,
+    ],
+    { encoding: "utf8", env: { PATH: process.env.PATH }, timeout: 180_000 },
+  );
+  assert(
+    result.status === 0,
+    `Agent tool qualification failed: ${(result.stderr || result.error?.message || "").slice(-2000)}`,
+  );
+}
+
 async function waitForExit(child, timeoutMs) {
   if (child.exitCode !== null || child.signalCode !== null) return;
   await new Promise((resolve, reject) => {
@@ -141,6 +160,7 @@ export async function runAssembledQualification() {
     const stack = assembled.stacks.one;
     instrumentContextProbe(root, "one");
     runAssembledCommand(root, "one", ["just", "dev-init"]);
+    qualifyAgentTools(stack);
     const seededState = seedSyntheticState(root, "one");
     const seededSession = seedNativeSession(root, "one");
     child = spawn("just", ["dev"], {
@@ -160,6 +180,7 @@ export async function runAssembledQualification() {
       seededSession.native_session,
     );
     return {
+      agent_tools: "qualified",
       context_probe: CONTEXT_PASS_TOOLSET,
       native_skills: observation.native_skills,
       provider_or_model_call: false,

@@ -23,8 +23,33 @@
         "list": "filings"
       },
       "authorities": [
-        "esma",
-        "fca"
+        "fca",
+        "oam-at",
+        "oam-be",
+        "oam-cy",
+        "oam-cz",
+        "oam-dk",
+        "oam-ee",
+        "oam-es",
+        "oam-fi",
+        "oam-fr",
+        "oam-gr",
+        "oam-hr",
+        "oam-hu",
+        "oam-is",
+        "oam-it",
+        "oam-lt",
+        "oam-lu",
+        "oam-lv",
+        "oam-mt",
+        "oam-nl",
+        "oam-no",
+        "oam-pl",
+        "oam-pt",
+        "oam-ro",
+        "oam-se",
+        "oam-si",
+        "oam-sk"
       ]
     }
   },
@@ -41,5 +66,9 @@
     "licence": "open",
     "cache": "unlimited",
     "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/xbrl-filings.md"
   }
 }

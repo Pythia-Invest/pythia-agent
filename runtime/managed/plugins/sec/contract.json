@@ -40,6 +40,10 @@
     "cache": "unlimited",
     "hostable": false
   },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/sec.md"
+  },
   "limits": {
     "plan": "EDGAR fair access",
     "unit": "request",

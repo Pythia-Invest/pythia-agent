@@ -12,7 +12,7 @@ import hashlib
 import json
 import sqlite3
 from dataclasses import replace
-from typing import Any, Iterable
+from typing import Any, Collection, Iterable
 
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
@@ -31,6 +31,7 @@ QUESTIONS = {
     "no_key": "{label}'s record {ref} has no identifier that proves which instrument it is.",
     "underlying_identifier": "{label}'s record {ref} quotes its underlying's ISIN; it may be a depositary receipt.",
     "ambiguous": "{label} answered with several records for one instrument.",
+    "unaudited": "{label} is not yet audited; its record {ref} matches the reference identifiers.",
     "identifier": "Two records claim one identifier, or one record claims two values.",
     "binding": "{label}'s record {ref} contradicts the reference identifiers.",
     "bound": "{label}'s record {ref} is already bound to another instrument.",
@@ -119,12 +120,13 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
 
 def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resolver: ResolverKind, relation: str,
            chosen_id: str | None, now: str, as_of: str, rationale: str | None = None,
-           user_turn: str | None = None) -> dict:
+           user_turn: str | None = None, unaudited: Collection[str] = ()) -> dict:
     """Decide and record one agent or user verdict.
 
     A confirmed answer binds the record, a "not a match" dismisses the question. The agent's answer is
     provisional (`agent_confirmed`): the user may still answer a question only the agent settled, and that
-    answer supersedes it, re-pointing or withdrawing the agent's binding."""
+    answer supersedes it, re-pointing or withdrawing the agent's binding. On a record from an `unaudited`
+    plugin (not yet signed off, ADR 0042) the agent only suggests: only the user confirms it."""
     resolver = ResolverKind(resolver)
     user = resolver is ResolverKind.USER
     view, row = inspect(store, ref, item_id), store.queue_item(item_id)
@@ -161,6 +163,8 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                          or (row["reason"] == "binding" and len(row["subject_ids"]) > 1))
     except ValueError as error:
         raise Refused(str(error)) from None
+    if not user and outcome is VerdictOutcome.CONFIRMED and set(item.plugins) & set(unaudited):
+        outcome = VerdictOutcome.SUGGESTED
     state, message = row["state"], _MESSAGES[outcome]
     if outcome is VerdictOutcome.BLOCKED and verdict.relation in ("unrelated", "none"):
         message = _NAMED

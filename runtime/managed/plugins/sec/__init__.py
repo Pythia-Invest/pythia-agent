@@ -4,17 +4,20 @@ It uses the market-data plugin's shared execution helpers and reads its declared
 configuration through core; identity decisions stay with Pythia's core.
 """
 import importlib
+from collections import OrderedDict
 import json
+from threading import Lock
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import financials, identity
+from . import filings, financials, identity
 from .client import Transport
 from .definition import TOOLS, schemas
 
 # Retained-copy ages per SEC resource, in seconds.
 AGES = {'directory': 86400, 'submissions': 300, 'submissions_page': 86400, 'companyfacts': 3600}
 PAGES = 3  # older submissions pages read at most, for a forms search
+REREAD_KEPT = 4  # companyfacts re-read for a newly filed report, kept per filing until the retained copy expires
 PAGING_SECONDS = 20  # one deadline for all of them
 # SEC's own contact rule, reported under core's needs_configuration code.
 INVALID_CONTACT = {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [{
@@ -51,6 +54,9 @@ class Reader:
         self.wire, self.connector, self.configuration, self.ctx = wire, connector, configuration, ctx
         self.definitions = schemas(wire)
         self.reads = connector.WorkerReads(transport or Transport(connector))
+        # A fresh companyfacts read is not retained by WorkerReads, so a re-read for a new filing is kept here, once
+        # per filing and access scope, until the retained copy it replaces would have expired.
+        self._reread, self._reread_lock = OrderedDict(), Lock()
 
     def contact(self):
         """``(contact, None)`` when usable, else ``(None, needs-configuration result)``."""
@@ -71,25 +77,25 @@ class Reader:
             budget = self.connector.connection('sec', contact, concurrency=2, per_minute=120)
             reuse = not refresh and (scope is None or scope.get('cacheable', False))
 
-            def fetch(endpoint, number=None, page=None, timeout=15):
+            def fetch(endpoint, number=None, page=None, timeout=15, fresh=False):
                 request = {'operation': endpoint, 'contact': contact, **({'cik': number} if number else {}),
                            **({'page': page} if page else {})}
                 return self.reads.read([__file__], request, {}, cancelled=cancelled, cache_scope=scope,
-                                       age=AGES[endpoint] if reuse else 0, budget=budget, timeout=timeout)
+                                       age=AGES[endpoint] if reuse and not fresh else 0, budget=budget, timeout=timeout)
 
             if operation == 'resolve':
                 return self.resolve(clean, fetch)
             number = identity.from_reference(clean['native_ref'])
             if operation == 'filings':
                 raw = fetch('submissions', number)
-                limit, forms = clean.get('limit', 20), clean.get('forms')
+                limit, forms, kinds = clean.get('limit', 20), clean.get('forms'), clean.get('kinds')
                 pages, issues = [], []
-                if forms:  # an annual report must not be crowded out: read older pages back five years, at most three
-                    first = financials.filings(raw['data'], number, raw['observed_at'], limit, forms)
+                if forms or kinds:  # an annual report must not be crowded out: read older pages back five years, at most three
+                    first = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, kinds=kinds)
                     since = (datetime.now(timezone.utc) - timedelta(days=5 * 366)).date().isoformat()
                     deadline = time.monotonic() + PAGING_SECONDS
                     if len(first['filings']) < limit and (first['coverage']['searched_back_to'] or '9') > since:
-                        for name in financials.older_pages(raw['data'], since)[:PAGES]:
+                        for name in filings.older_pages(raw['data'], since)[:PAGES]:
                             left = deadline - time.monotonic()
                             try:  # best effort: an older page never costs the filings already read
                                 if left < 1:
@@ -99,15 +105,15 @@ class Reader:
                                 issues.append({'code': 'incomplete', 'severity': 'warning', 'message':
                                                'Older SEC filings could not be searched; the list is incomplete.'})
                                 break
-                result = financials.filings(raw['data'], number, raw['observed_at'], limit, forms, pages)
+                result = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, pages, kinds)
                 if issues:
                     result['coverage']['complete'] = False
-                return envelope(result, issues)
+                return envelope(result, [*issues, *self.drift(operation, result.get('drift'))])
             if operation == 'facts' and len(set(clean['concepts'])) != len(clean['concepts']):
                 raise ValueError('invalid_request')
             raw = fetch('companyfacts', number)
             if operation == 'fundamentals':
-                return envelope(financials.fundamentals(raw['data'], number, raw['observed_at'], clean.get('limit', 20)))
+                return self.fundamentals(raw, number, fetch, clean.get('limit', 20), scope if reuse else False)
             return envelope(financials.native_facts(raw['data'], number, raw['observed_at'],
                 clean['taxonomy'], clean['concepts'], clean.get('limit', 100)))
         except (ValueError, KeyError, TypeError) as error:
@@ -117,6 +123,65 @@ class Reader:
         except (RuntimeError, OSError) as error:
             detail = self.connector.detail(error)
             return self.connector.qualify_failure(failure(detail['code'], detail['message']), getattr(error, 'raw', {}))
+
+    def drift(self, operation, drift):
+        """Unexpected SEC input, logged for maintainers; a warning only when it changes the rows."""
+        issue = filings.drift_issue(drift)
+        for kind, values in (drift or {}).items():
+            self.connector.emit('source_drift', level='info' if kind == 'unknown_form' else 'warning', provider='sec',
+                                operation=operation, code=kind, count=sum(values.values()))
+        return [] if issue is None else [issue]
+
+    def reread(self, key, fetch, number):
+        """companyfacts read fresh once for `key` (CIK, accession, scope); later calls reuse it until it expires."""
+        now = time.monotonic()
+        with self._reread_lock:
+            for stale in [item for item, (expires, _) in self._reread.items() if expires <= now]:
+                del self._reread[stale]
+            if key in self._reread:
+                return self._reread[key][1]
+        current = fetch('companyfacts', number, fresh=True)
+        with self._reread_lock:
+            self._reread[key] = (now + AGES['companyfacts'], current)
+            while len(self._reread) > REREAD_KEPT:
+                self._reread.popitem(last=False)
+        return current
+
+    def fundamentals(self, raw, number, fetch, limit, scope):
+        """Fundamentals marked stale, visibly, when companyfacts lacks the latest periodic report.
+
+        A retained companyfacts copy read before that report was accepted is read once more first, once per filing,
+        so the alarm reports SEC's lag, not the cache's. `scope` is the retained copies' access scope, or False
+        when this read retains nothing."""
+        try:
+            submissions = fetch('submissions', number)
+            state = financials.freshness(submissions['data'], raw['data'], number, submissions['observed_at'])
+            if (state and state['status'] == 'stale' and scope is not False
+                    and financials.read_before(raw['observed_at'], state['latest_filing'])):
+                try:
+                    key = (number, state['latest_filing']['accession'], json.dumps(scope, sort_keys=True, default=str))
+                    current = self.reread(key, fetch, number)
+                    state = financials.freshness(submissions['data'], current['data'], number, submissions['observed_at'])
+                    raw = current
+                except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+                    pass  # the retained copy stays, marked stale
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+            state = {'status': 'unknown', 'latest_filing': None, 'reason': 'SEC\'s filing list could not be read, '
+                     'so whether these facts include the latest report is unknown.'}
+        result = financials.fundamentals(raw['data'], number, raw['observed_at'], limit)
+        if state is None:  # nothing to check against, which is not a warning
+            result['freshness'] = {'status': 'unknown', 'latest_filing': None,
+                                   'reason': 'SEC lists no recent 10-K, 10-Q, 20-F or 40-F with XBRL for this filer.'}
+            return envelope(result)
+        result['freshness'] = state
+        if state['status'] == 'fresh':
+            return envelope(result)
+        result['limitations'].insert(0, state['reason'])
+        if state['status'] == 'stale':
+            self.connector.emit('source_drift', level='warning', provider='sec', operation='fundamentals',
+                                code='companyfacts_behind', count=1)
+        return envelope(result, [{'code': 'stale' if state['status'] == 'stale' else 'freshness_unknown',
+                                  'severity': 'warning', 'message': state['reason']}])
 
     @staticmethod
     def resolve(clean, fetch):
@@ -162,5 +227,13 @@ def register(ctx):
         return read
 
     for operation, schema in reader.definitions.items():
-        ctx.register_tool(name=TOOLS[operation], toolset='pythia-sec', schema=schema, handler=handler(operation),
+        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation),
                           check_fn=available)
+    agent = platform.platform().register_agent_tool
+    agent(ctx, 'sec_company_facts', TOOLS['facts'], 'Reported financial facts (revenue, net income) from SEC. Named '
+          'XBRL concepts of one taxonomy (us-gaap, ifrs-full, dei, srt) for a US-listed or foreign SEC filer, such as '
+          'Revenues, NetIncomeLoss or Assets, keeping periods, filing revisions and units. Use sec_fundamentals for '
+          'the standard annual set; pythia_filings lists the filings.', check_fn=available)
+    agent(ctx, 'sec_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings and balance sheet from SEC EDGAR. '
+          'Supported reported annual income, cash-flow and balance-sheet facts of a US GAAP or IFRS filer, with actual '
+          'annual periods; no TTM, quarterly subtraction or conversion.', check_fn=available)

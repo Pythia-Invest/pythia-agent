@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Callable, Mapping
 
-from .schemes import Level
+from .schemes import Kind, Level
 
 
 class Concept(StrEnum):
@@ -25,6 +25,7 @@ class Concept(StrEnum):
     FUNDAMENTALS = "fundamentals"  # registered; nothing serves it until its core result schema exists
     ESTIMATES = "estimates"        # registered; nothing serves it yet
     NEWS = "news"                  # registered; nothing serves it yet
+    MARKET_MOVERS = "market_movers"  # a market's ranked lists (most active, gainers, losers); about no one subject
 
 
 class Combine(StrEnum):
@@ -33,13 +34,35 @@ class Combine(StrEnum):
     PER_AUTHORITY = "per_authority"  # one source per filing authority; the lists merge by date
 
 
-class FilingAuthority(StrEnum):
-    """Who a filing is filed with. A source declares the authorities it serves."""
+# EEA states (ISO 3166), each with its own officially appointed mechanism for regulated information
+# (Transparency Directive 2004/109/EC, art. 21).
+EEA = ("AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU", "IE", "IS", "IT", "LI",
+       "LT", "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", "SK")
+# The mechanism a filing is filed with. A source declares the mechanisms it serves, so one national source (the AMF
+# for France) can serve its country alone. An EEA mechanism is named by its country (`oam-fr`), not its regulator:
+# regulators share names across countries (FMA in Austria and Liechtenstein, Finanstilsynet in Denmark and Norway).
+FilingAuthority = StrEnum("FilingAuthority", {
+    "SEC": "sec",      # US SEC EDGAR
+    "FCA": "fca",      # UK: the FCA National Storage Mechanism
+    "SEDAR": "sedar",  # Canada: SEDAR+
+    **{f"OAM_{code}": f"oam-{code.lower()}" for code in EEA}})
 
-    SEC = "sec"      # US SEC EDGAR
-    ESMA = "esma"    # EU/EEA issuers' ESEF reports, filed with national officially appointed mechanisms
-    FCA = "fca"      # UK issuers' reports on the FCA National Storage Mechanism
-    SEDAR = "sedar"  # Canadian SEDAR+
+
+class FilingKind(StrEnum):
+    """What a filing is, across forms and mechanisms. A source tags each filing; anything else is `other`."""
+
+    ANNUAL = "annual"                      # annual report: 10-K, 20-F, 40-F, an ESEF annual financial report
+    HALF_YEAR = "half_year"                # half-year report
+    QUARTERLY = "quarterly"                # quarterly report: 10-Q
+    EARNINGS_RELEASE = "earnings_release"  # results announcement: an 8-K with Item 2.02
+    EVENT = "event"                        # material-event disclosure: other 8-Ks, EU inside information
+    OWNERSHIP = "ownership"                # insider and major-holder filings: Forms 3, 4, 5, 144, Schedules 13D/G
+    PROSPECTUS = "prospectus"              # registration statements and prospectuses: S-1, F-3, 424B
+    OTHER = "other"
+
+
+# Kinds of periodic report: each has a report identity (`filings.report_period`, `report_key`).
+REPORT_KINDS = frozenset({FilingKind.ANNUAL, FilingKind.HALF_YEAR, FilingKind.QUARTERLY, FilingKind.EARNINGS_RELEASE})
 
 
 class Licence(StrEnum):
@@ -122,6 +145,7 @@ BASIS = {"basis": some_of("as_reported", "standardized")}
 class ConceptSpec:
     operations: Mapping[str, Mapping[str, Check]]  # operation -> its closed quality vocabulary
     levels: frozenset[Level]                        # the levels the concept's data may be about
+    kinds: frozenset[Kind] = frozenset()            # subject kinds outside the hierarchy it may be about (no `via`)
     default_order: tuple[str, ...] = ()             # providers, free before paid; used after the investor's order
     combine: Combine | None = None
 
@@ -131,7 +155,7 @@ REGISTRY: dict[Concept, ConceptSpec] = {
         operations={"quote": PRICE_TIMING, "intraday": {**PRICE_TIMING, **HISTORY},
                     "daily": {"adjustment": some_of(*ADJUSTMENT), "feed_note": text(80), **HISTORY},
                     "live": LIVE},
-        levels=frozenset({Level.LISTING, Level.COMPOSITE, Level.SECURITY}),
+        levels=frozenset({Level.LISTING, Level.COMPOSITE, Level.SECURITY}), kinds=frozenset({Kind.MARKET}),
         default_order=("yahoo", "coingecko", "eodhd", "coinmarketcap")),
     Concept.PROFILE: ConceptSpec(operations={"fields": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY}),
                                  default_order=("gleif",)),
@@ -140,6 +164,11 @@ REGISTRY: dict[Concept, ConceptSpec] = {
     Concept.FUNDAMENTALS: ConceptSpec(operations={"statements": BASIS, "metrics": BASIS}, levels=frozenset({Level.ISSUER})),
     Concept.ESTIMATES: ConceptSpec(operations={"consensus": {}, "targets": {}}, levels=frozenset({Level.ISSUER})),
     Concept.NEWS: ConceptSpec(operations={"list": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY})),
+    # About no subject (no levels or kinds): a market's lists. Each list is an operation, so a source declares the
+    # lists it has; `delay` is the rows' quote timing.
+    Concept.MARKET_MOVERS: ConceptSpec(operations={name: {"delay": one_of(*DELAY), "feed_note": text(80)}
+                                                   for name in ("most_active", "gainers", "losers")},
+                                       levels=frozenset(), default_order=("yahoo",)),
 }
 
 
@@ -148,8 +177,10 @@ REGISTRY: dict[Concept, ConceptSpec] = {
 ELIGIBLE = frozenset({"ready", "resolving"})  # resolving: a lookup runs before the first read, then it serves
 # Skips that signal something went wrong rather than the investor's own setup: they warrant a visible notice.
 NOTICE = frozenset({"conflict", "unresolved"})
-# Filing authority of an item by the filer's country, for a source serving several authorities.
-AUTHORITY_BY_COUNTRY = {"US": FilingAuthority.SEC, "GB": FilingAuthority.FCA, "CA": FilingAuthority.SEDAR}
+# Filing authority of an item by the country of the mechanism a source collected it from, for a source serving
+# several: not the filer's country (filings.xbrl.org lists TotalEnergies' report under both FR and GB).
+AUTHORITY_BY_COUNTRY = {"US": FilingAuthority.SEC, "GB": FilingAuthority.FCA, "CA": FilingAuthority.SEDAR,
+                        **{code: FilingAuthority(f"oam-{code.lower()}") for code in EEA}}
 
 
 def parse_order(text: str | None) -> tuple[str, ...]:
@@ -158,11 +189,15 @@ def parse_order(text: str | None) -> tuple[str, ...]:
 
 
 def ranked(entries: list[dict], order: tuple[str, ...], default_order: tuple[str, ...]) -> list[dict]:
-    """Entries (each with `plugin` and `provider`) in the investor's order, then core's default order, then by id."""
+    """Entries (each with `plugin` and `provider`) in the investor's order, then core's default order, then by id.
+
+    An entry marked `unaudited` (a source not yet signed off, ADR 0042) is never in core's order: it follows
+    every audited entry unless the investor's order names it."""
     def position(items: tuple[str, ...], entry: dict) -> int:
         return next((index for index, name in enumerate(items) if name in (entry["plugin"], entry["provider"])),
                     len(items))
-    return sorted(entries, key=lambda entry: (position(order, entry), position(default_order, entry), entry["plugin"]))
+    return sorted(entries, key=lambda entry: (position(order, entry), entry.get("unaudited", False),
+                                              position(default_order, entry), entry["plugin"]))
 
 
 def select(entries: list[dict], *, combine: Combine | None = None) -> tuple[list[tuple[dict, tuple[str, ...]]], list[dict], list[dict]]:

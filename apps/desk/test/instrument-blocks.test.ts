@@ -1,6 +1,7 @@
 import type { SubjectSection } from "@pythia/market-data/subject";
 import { describe, expect, it } from "vitest";
 import {
+  groupReports,
   newestPerAuthority,
   pageBlocks,
   usingSource,
@@ -73,16 +74,20 @@ describe("using an alternative source once", () => {
       status: "ready",
       binding: eodhd,
       request: null,
+      unaudited: true,
     };
     const [block] = pageBlocks([
       section("quote", { alternatives: [also], notice: null }),
-      section("chart", { alternatives: [also] }),
+      section("chart", { alternatives: [also], unaudited: false }),
     ]);
     if (!block) throw Error("expected a price card");
     const used = usingSource(block, "pythia-eodhd");
-    expect(used.sections.map((item) => [item.plugin, item.binding])).toEqual([
-      ["pythia-eodhd", eodhd],
-      ["pythia-eodhd", eodhd],
+    // The source used once carries its own sign-off label, not the lead's.
+    expect(
+      used.sections.map((item) => [item.plugin, item.binding, item.unaudited]),
+    ).toEqual([
+      ["pythia-eodhd", eodhd, true],
+      ["pythia-eodhd", eodhd, true],
     ]);
     expect(used.key).not.toEqual(block.key);
     expect(usingSource(block, null)).toBe(block);
@@ -99,8 +104,8 @@ describe("combined filings rows", () => {
         id: `6-K ${index}`,
         authority: "sec",
       })),
-      { id: "ESEF 2025", authority: "esma" },
-      { id: "ESEF 2024", authority: "esma" },
+      { id: "ESEF 2025", authority: "oam-nl" },
+      { id: "ESEF 2024", authority: "oam-nl" },
     ];
     const shown = newestPerAuthority(rows, 10);
     expect(shown).toHaveLength(10);
@@ -109,5 +114,21 @@ describe("combined filings rows", () => {
       rows.slice(0, 9).map((row) => row.id),
     );
     expect(newestPerAuthority(rows.slice(0, 3), 10)).toEqual(rows.slice(0, 3));
+  });
+});
+
+describe("filings reports", () => {
+  it("group a report's versions under its newest, never merging them", () => {
+    const annual = "issuer|annual|2025-12-31|sec";
+    const rows = [
+      { id: "8-K", report_key: null },
+      { id: "10-K/A", report_key: annual },
+      { id: "ESEF", report_key: "issuer|annual|2025-12-31|oam-nl" },
+      { id: "10-K", report_key: annual },
+      { id: "6-K", report_key: null },
+    ];
+    expect(
+      groupReports(rows).map((group) => group.map((row) => row.id)),
+    ).toEqual([["8-K"], ["10-K/A", "10-K"], ["ESEF"], ["6-K"]]);
   });
 });

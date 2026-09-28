@@ -38,8 +38,16 @@ const pluginRequestSchema = z.object({
   arguments: z.record(z.string(), z.unknown()),
 });
 
+/** Core marks a source that has not signed off (ADR 0042): "not yet audited". */
+const unaudited = z.boolean().optional();
+
 /** A source as core names it on sections and in agent results. */
-const sourceSchema = z.object({ source: text, provider: text, plugin: text });
+const sourceSchema = z.object({
+  source: text,
+  provider: text,
+  plugin: text,
+  unaudited,
+});
 
 /** Another source that could serve the section now: one click reads it
  * instead, for this view only. */
@@ -49,6 +57,7 @@ export const sectionAlternativeSchema = z.object({
   status: text,
   binding: providerRefSchema.nullish(),
   request: pluginRequestSchema.nullish(),
+  unaudited,
 });
 export type SectionAlternative = z.infer<typeof sectionAlternativeSchema>;
 
@@ -69,12 +78,17 @@ export const subjectSectionSchema = z.object({
   plugin: text,
   label: text,
   status: text,
+  unaudited,
   binding: providerRefSchema.nullish(),
   /** The read that fills a profile or filings section; null for quote/chart. */
   request: pluginRequestSchema.nullish(),
   /** Eligible sources not chosen; the investor can use one once. */
   alternatives: z.array(sectionAlternativeSchema).default([]),
   reason: optionalText,
+  /** When a read of the serving address last agreed with the reference
+   * (core's read check), or why it did not ("currency differs"); it still serves. */
+  verified_at: text.nullish(),
+  unverified: text.nullish(),
   source: sourceSchema.nullish(),
   skipped: z.array(sectionSkipSchema).default([]),
   /** Filings: the sources combined, one per filing authority. */
@@ -126,6 +140,9 @@ export const subjectPageSchema = z.object({
     /** The listing whose quote and chart this composition shows (a
      * security's or issuer's page shows one of its listings). */
     listing: text.nullish(),
+    /** A market subject's line of context from core's catalogue ("US large
+     * caps", "WTI, front month (NYMEX)"). */
+    description: optionalText,
   }),
   identifiers: z.record(z.string(), optionalText).default({}),
   issuer: z
@@ -188,10 +205,21 @@ export const filingsSchema = z.object({
   filings: z
     .array(
       z.object({
+        id: optionalText,
+        /** annual, half_year, quarterly, earnings_release, event,
+         * ownership, prospectus or other. */
+        kind: optionalText,
         title: optionalText,
         period_end: optionalText,
         filed_at: optionalText,
+        /** The exact UTC time of filing, where the source has it. */
+        filed_time: optionalText,
         form: optionalText,
+        format: optionalText,
+        /** A periodic report's identity (issuer, kind, period end,
+         * authority): items sharing it are versions of one report (format,
+         * language, amendment), shown as one row and never merged. */
+        report_key: optionalText,
         url: z.string().nullish(),
         language: optionalText,
         source: optionalText,

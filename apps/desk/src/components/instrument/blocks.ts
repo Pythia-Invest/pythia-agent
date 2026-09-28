@@ -4,7 +4,7 @@ import type { SubjectSection } from "@pythia/market-data/subject";
  * served by the same source through the same address share one market card. */
 export type PageBlock = {
   key: string;
-  type: "market" | "quote" | "chart" | "profile" | "filings" | "other";
+  type: "market" | "quote" | "chart" | "live" | "profile" | "filings" | "other";
   title: string;
   sections: SubjectSection[];
 };
@@ -13,10 +13,19 @@ const TITLES: Record<string, string> = {
   market: "Price",
   quote: "Quote",
   chart: "Chart",
+  live: "Live",
   profile: "Profile",
   filings: "Filings",
 };
-const ORDER = ["market", "quote", "chart", "profile", "filings", "other"];
+const ORDER = [
+  "market",
+  "quote",
+  "chart",
+  "live",
+  "profile",
+  "filings",
+  "other",
+];
 
 function sameAddress(a: SubjectSection, b: SubjectSection) {
   return (
@@ -67,6 +76,7 @@ export function usingSource(
       plugin: alternative.plugin,
       label: alternative.label,
       status: alternative.status,
+      unaudited: alternative.unaudited,
       binding: alternative.binding ?? null,
       request: alternative.request ?? null,
       reason: null,
@@ -75,6 +85,26 @@ export function usingSource(
     };
   });
   return { ...block, key: `${block.key}:${plugin}`, sections };
+}
+
+/** One row per report: filings sharing a `report_key` (a report's format and
+ * language versions, and its amendments) group under the newest, in core's
+ * order. Grouping is display only; every filing stays. */
+export function groupReports<T extends { report_key?: string | null }>(
+  items: readonly T[],
+): T[][] {
+  const groups: T[][] = [];
+  const byKey = new Map<string, T[]>();
+  for (const item of items) {
+    const group = item.report_key ? byKey.get(item.report_key) : undefined;
+    if (group) {
+      group.push(item);
+      continue;
+    }
+    groups.push([item]);
+    if (item.report_key) byKey.set(item.report_key, groups.at(-1) as T[]);
+  }
+  return groups;
 }
 
 /** The newest filings, keeping each authority's newest one in view so a

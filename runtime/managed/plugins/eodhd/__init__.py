@@ -12,6 +12,8 @@ from .series import MODES, STREAM_MODES, definition, selector
 from .results import envelope, base, issue, read, window
 from .catalogue_pages import catalogue_page
 
+NEWS_WARNINGS = frozenset({'schema_drift'})
+
 
 def helpers(ctx):
     from hermes_cli.plugins import get_plugin_manager
@@ -118,7 +120,8 @@ def register(ctx):
                     result['retry_after_seconds'] = raw['retry_after']
                 return failures.qualify_failure(result, raw)
             def errors(raw):
-                return [issue(code, source_code=raw.get('http_status')) for code in raw.get('issues', [])]
+                return [issue(code, 'warning' if code in NEWS_WARNINGS else 'error', source_code=raw.get('http_status'))
+                        for code in raw.get('issues', [])]
             def nonread_result(raw):
                 return nonread(raw['data'], raw)
             if operation == 'catalogue':
@@ -225,3 +228,8 @@ def register(ctx):
         specialist.register_read_command(ctx, 'eodhd-' + operation, TOOLS[operation],
             definitions[operation]['description'], cache_seconds=300,
             schema=definitions[operation], plugin='pythia-eodhd')
+    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+    agent(ctx, 'eodhd_news', TOOLS['news'], 'Company news headlines from EODHD. Recent articles EODHD tags with the '
+          'listing, with dates and links; limit, from and to narrow them. Source content, not advice.', check_fn=installed)
+    agent(ctx, 'eodhd_fundamentals', TOOLS['fundamentals'], 'Company fundamentals and financial statements from EODHD. '
+          'Statement facts for a listing where the investor\'s EODHD plan includes them.', check_fn=installed)

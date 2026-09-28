@@ -1,0 +1,9 @@
+name: pythia-hyperliquid
+version: 0.1.0
+description: Keyless, opt-in live view of Hyperliquid perpetual markets (book, trades, mark, funding)
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_hyperliquid_live_market
+  - hyperliquid_live_market

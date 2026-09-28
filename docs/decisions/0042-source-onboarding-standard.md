@@ -92,10 +92,29 @@ precision has been measured.
 - Coverage grows more slowly.
 - The builder's planned move to typed claims, reconciliation and a build-time
   judge step implements stages 2 and 4.
-- The gate is the source record and its review until core records trust status
-  per source. Until then, a new source that has not signed off ships disabled.
-  The code gate must land before the first source outside the list above is
-  merged.
+- **The code gate is built.** Each plugin's `contract.json` declares its
+  `signoff`: `signed_off` with its record, `grandfathered`, or `unsigned`. The
+  bundled plugins above are `grandfathered`, each pointing at its pending
+  record in `docs/sources/`. The builder's reference sources are not plugins;
+  their record and its review remain their gate. A plugin cannot vouch for
+  itself: core honours `signed_off` or `grandfathered` only from the plugins
+  Pythia bundles and treats every other plugin as `unsigned`, whatever its
+  contract says. For an `unsigned` source:
+  - a fresh profile never enables it, even if its payload lists it as enabled
+    by default;
+  - core's order never ranks it ahead of an audited source, so it serves a
+    section only when the investor names it in `source_order` or nothing
+    audited can serve;
+  - a resolve answer that would bind becomes an `unaudited` residual, with the
+    matching evidence, for the investor to review; the agent's answer to it
+    only suggests;
+  - pages, alternatives, filings results and market-data reads mark it
+    unaudited, which the Desk shows as "not yet audited".
+
+  The investor may still enable it; turning it on is the opt-in. A source that
+  ships opt-in and is display-only (it never confirms or creates identity), as
+  Hyperliquid's live view does ([ADR 0043](0043-live-market-view.md)), may ship
+  before sign-off as `unsigned`.
 
 ## Rejected alternatives
 

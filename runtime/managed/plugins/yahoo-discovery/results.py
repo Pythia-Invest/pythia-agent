@@ -14,7 +14,9 @@ def issue(code, severity='error'):
         'unavailable': 'Enable the Yahoo plugin/toolset and prepare its managed worker.', 'rate_limit': 'Yahoo rate limited this read; retry later.', 'timeout': 'Yahoo read timed out.',
         'output_limit': 'Yahoo result exceeded the bound; request fewer symbols/modules or a shorter window.', 'cancelled': 'Yahoo read cancelled.', 'invalid_response': 'Yahoo returned an invalid result.',
         'requirements_unmet': 'The source cannot prove requested freshness, complete coverage or bar completion.', 'truncated': 'The result exceeds the observation limit.',
-        'invalid_value': 'Invalid or duplicate source observations were omitted.', 'units_unknown': 'Price units remain unqualified; native currency metadata is available separately.'}
+        'invalid_value': 'Invalid or duplicate source observations were omitted.', 'units_unknown': 'Price units remain unqualified; native currency metadata is available separately.',
+        'schema_drift': 'Yahoo news carried fields or types Pythia does not recognise; see drift.',
+        'window_incomplete': 'Yahoo answers at most about 50 items per query, so items before complete_from may be missing from this window.'}
     code = code if code in messages else 'source_unavailable'
     return {'code': code, 'message': messages[code], 'severity': severity}
 
