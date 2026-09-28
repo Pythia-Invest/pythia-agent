@@ -179,11 +179,11 @@ class PageTest(Fixture):
         quote, profile = sections["quote"], sections["profile"]
         self.assertEqual((quote["plugin"], quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-yahoo", "ready", "ASML.AS", "derived"))
-        # EODHD comes first in core's default order; it still needs its lookup, which the Desk runs after rendering.
+        # Free sources come first in core's default order: Yahoo serves; EODHD, still needing its lookup, is listed.
         _subject, sections = self.compose(ASML, [plugin("eodhd"), plugin("yahoo")])
-        self.assertEqual((sections["quote"]["plugin"], sections["quote"]["status"]), ("pythia-eodhd", "resolving"))
+        self.assertEqual((sections["quote"]["plugin"], sections["quote"]["status"]), ("pythia-yahoo", "ready"))
         self.assertEqual(sections["quote"]["alternatives"],
-                         [{"plugin": "pythia-yahoo", "label": "Yahoo Finance", "status": "ready"}])
+                         [{"plugin": "pythia-eodhd", "label": "EODHD", "status": "resolving"}])
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
 

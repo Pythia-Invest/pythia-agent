@@ -148,8 +148,8 @@ EQUITY_ADDRESS = {"asml_xams": ("ASML.AS", "ASML.AS"), "asml_nasdaq": ("ASML", "
 def ready_equity(name):
     yahoo, eodhd = EQUITY_ADDRESS[name]
     rest = {"profile": ("gleif", "ready", []), "filings": ("xbrl-filings", "ready", [("sec", "ready")])}
-    return {"quote": ("eodhd", "ready", [("yahoo-discovery", "ready")]),
-            "chart": ("eodhd", "ready", [("yahoo-discovery", "ready")]), **rest}, [("eodhd", eodhd), ("yahoo", yahoo)]
+    return {"quote": ("yahoo-discovery", "ready", [("eodhd", "ready")]),
+            "chart": ("yahoo-discovery", "ready", [("eodhd", "ready")]), **rest}, [("yahoo", yahoo), ("eodhd", eodhd)]
 
 
 def keyless_equity(name):
@@ -160,18 +160,19 @@ def keyless_equity(name):
 
 def off_equity(_name):
     rest = {"profile": ("gleif", "ready", []), "filings": ("xbrl-filings", "ready", [("sec", "ready")])}
-    return {"quote": ("eodhd", "needs_configuration", [("yahoo-discovery", "disabled")]),
-            "chart": ("eodhd", "needs_configuration", [("yahoo-discovery", "disabled")]), **rest}, []
+    return {"quote": ("yahoo-discovery", "disabled", [("eodhd", "needs_configuration")]),
+            "chart": ("yahoo-discovery", "disabled", [("eodhd", "needs_configuration")]), **rest}, []
 
 
-# What page composition chooses on the shipped contracts. Against origin/identity-backbone f2575c1 the only change is
-# the default order putting the paid EODHD ahead of the free Yahoo: with an EODHD token EODHD serves prices, without
-# one Yahoo does, exactly as before. Profile, filings and crypto are unchanged.
+# What page composition chooses on the shipped contracts. Core's default order lists free sources first, so a
+# configured key never changes the source: Yahoo serves stocks and CoinGecko crypto, with the paid EODHD and
+# CoinMarketCap as alternatives. Against origin/identity-backbone f2575c1 only crypto changes (CoinGecko before
+# CoinMarketCap); stocks, profile and filings compose as before.
 EXPECTED = {
     "all_ready": {**{name: ready_equity(name) for name in EQUITY_ADDRESS},
-                  "btc": ({"quote": ("coinmarketcap", "ready", [("coingecko", "ready")]),
-                           "chart": ("coinmarketcap", "ready", [("coingecko", "ready")])},
-                          [("coinmarketcap", "1"), ("coingecko", "bitcoin")])},
+                  "btc": ({"quote": ("coingecko", "ready", [("coinmarketcap", "ready")]),
+                           "chart": ("coingecko", "ready", [("coinmarketcap", "ready")])},
+                          [("coingecko", "bitcoin"), ("coinmarketcap", "1")])},
     "yahoo_off_keys_missing": {**{name: off_equity(name) for name in EQUITY_ADDRESS},
                                "btc": ({"quote": ("coingecko", "ready", [("coinmarketcap", "needs_configuration")]),
                                         "chart": ("coingecko", "ready", [("coinmarketcap", "needs_configuration")])},
@@ -187,7 +188,7 @@ CONFIGS = {"all_ready": {}, "yahoo_off_keys_missing": {"yahoo-discovery": {"enab
 
 
 class PageCompositionTest(unittest.TestCase):
-    """Page sections on contract v1: paid sources first in core's default order, an unconfigured one never chosen."""
+    """Page sections on contract v1: free sources first in core's default order; a key does not change the source."""
 
     def setUp(self):
         self.ref = sqlite3.connect(":memory:")
