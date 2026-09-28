@@ -123,6 +123,10 @@ class Reader:
         except (RuntimeError, OSError) as error:
             if operation == 'resolve' and getattr(error, 'raw', {}).get('error') == 'missing_observation':
                 return envelope(None, outcome='empty')
+            if operation == 'filings' and getattr(error, 'raw', {}).get('error') == 'missing_observation':
+                # The repository does not know this entity (its filings path is 404): core's next source may serve.
+                return envelope(None, [{'code': 'not_covered', 'severity': 'warning',
+                                        'message': 'filings.xbrl.org has no reports of this entity.'}], outcome='empty')
             failure = self.connector.detail(error)
             return self.connector.qualify_failure(envelope(None, [{'code': failure['code'],
                 'severity': 'error', 'message': failure['message']}]), getattr(error, 'raw', {}))
