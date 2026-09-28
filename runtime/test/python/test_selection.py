@@ -335,7 +335,7 @@ class CoreReadsTest(Reference):
                   "issues": [{"code": "rate_limit", "severity": "error", "message": "SEC is rate limited."}]}
         body = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": failed})
         self.assertEqual((body["outcome"], body["data"]["partial"]), ("partial", True))
-        self.assertEqual([item["plugin"] for item in body["data"]["skipped"]], ["pythia-sec"])
+        self.assertEqual([item["plugin"] for item in body["data"]["skipped"]], ["pythia-sec", "pythia-nsm"])
 
     def test_a_source_pythia_may_not_run_here_is_skipped_and_cancellation_reaches_the_sources(self):
         merge = FilingsMergeTest()
@@ -343,7 +343,7 @@ class CoreReadsTest(Reference):
             body = self.read({"pythia_xbrl_filings_filings": merge.xbrl()})
         self.assertEqual(body["outcome"], "ok")
         self.assertEqual([(item["plugin"], item["code"]) for item in body["data"]["skipped"]],
-                         [("pythia-sec", "unavailable")])
+                         [("pythia-sec", "unavailable"), ("pythia-nsm", "unresolved")])
         self.assertNotIn("pythia_sec_filings", self.sent)
         body = self.read({}, cancelled=lambda: True)
         self.assertEqual((body["outcome"], self.sent), ("error", {}))
@@ -357,10 +357,10 @@ class CoreReadsTest(Reference):
         filings_section = sections["filings"]
         self.assertEqual((filings_section["status"], filings_section["plugin"]), ("ready", "pythia-xbrl-filings"))
         self.assertEqual([(item["plugin"], item["code"]) for item in filings_section["skipped"]],
-                         [("pythia-sec", "resolving")])
+                         [("pythia-sec", "resolving"), ("pythia-nsm", "unresolved")])
         body = self.read({"pythia_xbrl_filings_filings": FilingsMergeTest().xbrl()})
         self.assertEqual((body["outcome"], body["data"]["partial"]), ("ok", False))
-        self.assertEqual([item["code"] for item in body["data"]["skipped"]], ["resolving"])
+        self.assertEqual([item["code"] for item in body["data"]["skipped"]], ["resolving", "unresolved"])
 
     # ---- sources work together (ADR 0040 amendment) ----------------------------------------------------------------
 
@@ -378,7 +378,7 @@ class CoreReadsTest(Reference):
         self.assertEqual({item["plugin"] for item in body["data"]["filings"] if item["authority"] == "sec"},
                          {"pythia-secmirror"})
         self.assertEqual([(item["plugin"], item["code"]) for item in body["data"]["skipped"]],
-                         [("pythia-sec", "not_covering")])
+                         [("pythia-sec", "not_covering"), ("pythia-nsm", "unresolved")])
         failed = {"schema_version": 1, "outcome": "error", "data": None,
                   "issues": [{"code": "rate_limit", "severity": "error", "message": "SEC is rate limited."}]}
         body = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": failed,

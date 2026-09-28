@@ -59,7 +59,7 @@ def adapter_view():
 class ShippedContracts(unittest.TestCase):
     def test_every_contract_validates_and_its_operations_reach_the_tools_that_declare_them(self):
         shipped = sorted(path.parent.name for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE))
-        self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'eodhd', 'gleif', 'hyperliquid', 'sec',
+        self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'eodhd', 'gleif', 'hyperliquid', 'nsm', 'sec',
                                    'xbrl-filings', 'yahoo-discovery'])
         _ops, mapped = adapter_view()
         for plugin in shipped:
@@ -123,6 +123,7 @@ class ShippedContracts(unittest.TestCase):
                          {'pythia-coingecko', 'pythia-coinmarketcap', 'pythia-eodhd', 'pythia-gleif', 'pythia-sec',
                           'pythia-xbrl-filings', 'pythia-yahoo-discovery'})
         self.assertEqual(standing['pythia-hyperliquid'], identity.SignOff.UNSIGNED)  # opt-in and display-only
+        self.assertEqual(standing['pythia-nsm'], identity.SignOff.UNSIGNED)  # onboarding: docs/sources/nsm.md
         self.assertEqual(set(standing), identity.BUNDLED)  # core knows every plugin Pythia ships
 
     def test_a_plugin_pythia_does_not_bundle_cannot_vouch_for_itself(self):
@@ -130,14 +131,16 @@ class ShippedContracts(unittest.TestCase):
         self.assertIs(identity.vouched(sec, 'pythia-sec').signoff, identity.SignOff.GRANDFATHERED)
         self.assertTrue(identity.vouched(sec, 'community-sec').unaudited)
 
-    def test_the_sec_kinds_parameter_is_cores_filing_kinds(self):
-        spec = importlib.util.spec_from_file_location('sec_definition', PLUGINS / 'sec/definition.py')
-        definition = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(definition)
-        self.assertEqual(definition.FILING_KINDS, tuple(identity.concepts.FilingKind))
+    def test_the_filings_kinds_parameters_are_cores_filing_kinds(self):
+        for plugin in ('sec', 'nsm'):
+            spec = importlib.util.spec_from_file_location(plugin + '_definition', PLUGINS / plugin / 'definition.py')
+            definition = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(definition)
+            self.assertEqual(definition.FILING_KINDS, tuple(identity.concepts.FilingKind), plugin)
 
     def test_filing_sources_declare_their_authorities(self):
         self.assertEqual(manifest('sec').concepts[identity.Concept.FILINGS].authorities, ('sec',))
+        self.assertEqual(manifest('nsm').concepts[identity.Concept.FILINGS].authorities, ('fca',))
         # One authority per national mechanism, so a national source can serve its country alone.
         mechanisms = manifest('xbrl-filings').concepts[identity.Concept.FILINGS].authorities
         self.assertTrue({'fca', 'oam-fr', 'oam-nl'} <= set(mechanisms))

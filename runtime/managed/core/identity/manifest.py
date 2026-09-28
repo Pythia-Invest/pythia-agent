@@ -31,7 +31,7 @@ LIMIT_UNITS = ("call", "credit", "request")
 # Pythia's own plugins (the managed payloads in scripts/dev/managed-plugins.mjs). A plugin cannot vouch for itself:
 # core honours `signed_off` or `grandfathered` only from these; any other plugin is unsigned (ADR 0042).
 BUNDLED = frozenset({"pythia-coingecko", "pythia-coinmarketcap", "pythia-eodhd", "pythia-gleif", "pythia-hyperliquid",
-                     "pythia-sec", "pythia-xbrl-filings", "pythia-yahoo-discovery"})
+                     "pythia-nsm", "pythia-sec", "pythia-xbrl-filings", "pythia-yahoo-discovery"})
 RECORD = re.compile(r"^(docs/sources/[a-z0-9][a-z0-9-]{0,63}\.md|https://\S{1,500})\Z")  # a public source record
 
 

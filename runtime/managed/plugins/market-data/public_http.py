@@ -1,4 +1,4 @@
-"""Bounded public GET transport for native connector execution workers.
+"""Bounded public GET (or JSON POST search) transport for native connector execution workers.
 
 Connectors build URLs from their validated domain arguments and fixed endpoints;
 this is not a public arbitrary-URL operation. WorkerReads supplies coordination
@@ -76,6 +76,10 @@ def _https_context(provider=None):
 class Transport:
     """WorkerReads-compatible JSON GETs, with explicitly approved origins.
 
+    A request carrying a ``json`` body is sent as a POST of that body instead,
+    for a read-only search that only accepts POST (the FCA NSM). The body is
+    built by the connector from validated arguments, as its URL is.
+
     Headers and the response size bound are connector policy, never forwarded
     user input. The injectable opener has urllib's ``open(Request, timeout=...)``
     interface.
@@ -107,7 +111,10 @@ class Transport:
         if _origin(url) not in self.origins:
             raise ValueError('invalid_request')
         headers = {'Accept': 'application/json', **self.headers, 'Accept-Encoding': 'identity'}
-        return Request(url, headers=headers, method='GET')
+        if request.get('json') is None:
+            return Request(url, headers=headers, method='GET')
+        return Request(url, headers={**headers, 'Content-Type': 'application/json'}, method='POST',
+                       data=json.dumps(request['json'], allow_nan=False).encode())
 
     def run_worker(self, _command, request, _environment, *, cancelled, budget, timeout=12):
         started, status, code = self.clock(), None, None

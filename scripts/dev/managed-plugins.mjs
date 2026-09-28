@@ -1,3 +1,4 @@
+// pythia-structure-ignore: the release payload list keeps one explicit entry per shipped plugin beside the helpers that install them; splitting it would scatter the allowlist.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -164,6 +165,22 @@ export const MANAGED_PLUGINS = Object.freeze([
       "plugin.yaml",
       "README.md",
       "skills/xbrl-filings/SKILL.md",
+    ]),
+  }),
+  Object.freeze({
+    name: "pythia-nsm",
+    install: true,
+    // Unsigned (ADR 0042), reading an undocumented FCA endpoint: opt-in.
+    enabledByDefault: false,
+    doctor: false,
+    source: "plugins/nsm",
+    files: Object.freeze([
+      "__init__.py",
+      "contract.json",
+      "definition.py",
+      "records.py",
+      "plugin.yaml",
+      "README.md",
     ]),
   }),
   Object.freeze({
