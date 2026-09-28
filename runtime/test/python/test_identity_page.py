@@ -425,7 +425,8 @@ class SignOffGateTest(Fixture):
                                               page.resolve_input(eodhd, subject), now="2026-09-26T10:00:00Z",
                                               as_of="2026-09-26")
         self.assertIsNone(binding)
-        self.assertEqual((item.kind, item.candidate_ids), ("residual", (ASML,)))  # a suggestion for review
+        self.assertEqual((item.kind, item.reason, item.candidate_ids), ("residual", "unaudited", (ASML,)))
+        self.assertTrue(item.evidence_ids)  # the reviewer sees the identifiers that matched
 
 
 class ReviewFixesTest(Fixture):
@@ -514,7 +515,8 @@ class MarketPages(Fixture):
                                 stored=lambda *_: None, coins=lambda *_: None, queue=[])
         self.assertEqual([section["section"] for section in sections], ["live"])
         live = sections[0]
-        self.assertEqual((live["status"], live["binding_status"]), ("ready", "confirmed"))
+        # Unsigned (opt-in, display-only): once the investor enables it, the live view serves, labelled.
+        self.assertEqual((live["status"], live["binding_status"], live["unaudited"]), ("ready", "confirmed", True))
         self.assertEqual(live["request"], {"plugin": "pythia-hyperliquid", "operation": "live_market", "arguments": {
             "native_ref": {"provider": "hyperliquid", "native_id": "BTC", "native_scope": "perp"},
             "subject_id": self.PERP}})

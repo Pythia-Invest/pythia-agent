@@ -10,7 +10,7 @@ import unittest.mock
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity
-from test_identity_page import ASML, LEI, Fixture, plugin
+from test_identity_page import ASML, LEI, Fixture, plugin, unsigned
 from test_reference_package import make_package
 from pythia_identity_fixture import page, queue, reference_package, store  # noqa: E402
 
@@ -30,9 +30,9 @@ class QueueFixture(Fixture):
         """ASML as a device without its identifier evidence sees it: a resolve answer proves nothing."""
         return {**page.load_subject(self.ref, ASML), "evidence": [], "values": {}}
 
-    def ask(self, batch, subject=None):
+    def ask(self, batch, subject=None, eodhd=None):
         """What identity-resolve does with one answer: keep the claim, then queue what the rule cannot bind."""
-        eodhd = plugin("eodhd")
+        eodhd = eodhd or plugin("eodhd")
         subject = subject or page.load_subject(self.ref, ASML)
         for claim in identity.batch_to_json(batch)["claims"]:
             self.identity.put_claim(batch.plugin, batch.provider, claim)
@@ -52,6 +52,20 @@ class QueueFixture(Fixture):
 
 
 class VerdictTest(QueueFixture):
+    def test_a_match_from_a_source_not_yet_audited_waits_for_the_user(self):
+        # ADR 0042: the record's ISIN matches, which would bind for an audited source.
+        item = self.ask(answer(("isin", "NL0010273215")), eodhd=unsigned("eodhd"))
+        view = queue.inspect(self.identity, self.ref, item.id)
+        self.assertEqual((item.kind, item.reason, item.candidate_ids), ("residual", "unaudited", (ASML,)))
+        self.assertTrue(item.evidence_ids)
+        self.assertEqual(view["question"], "EODHD is not yet audited; its record ASML.AS matches the reference identifiers.")
+        agent = self.submit(item, "agent", unaudited={"eodhd"})
+        self.assertEqual(agent["outcome"], "suggested")  # the agent's answer is not review
+        self.assertIsNone(self.identity.binding_for(item.provider_ref))
+        user = self.submit(item, "user", user_turn="desk:identity-verdict:test", unaudited={"eodhd"})
+        self.assertEqual(user["outcome"], "confirmed")
+        self.assertEqual(self.identity.binding_for(item.provider_ref)["subject_id"], ASML)
+
     def test_no_verdict_confirms_against_identifier_proof(self):
         item = self.ask(answer(("isin", "USN070592100")))  # EODHD's record names the NASDAQ receipt's ISIN
         self.assertEqual(item.kind, "conflict")

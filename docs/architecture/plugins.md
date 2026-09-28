@@ -261,7 +261,8 @@ addressing (the full shape is in the ADR 0038 amendment):
   ADR 0042 lists, and `signed_off` with the `record` that shows it
   (`docs/sources/<source>.md` or an https link). An unsigned source is off in
   fresh profiles, never core's choice ahead of an audited one and never
-  confirms identity.
+  confirms identity. Core honours any other status only from plugins Pythia
+  bundles.
 - `coverage.operations` narrows coverage for one operation, for example a
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot

@@ -15,7 +15,7 @@ operation to the tool that declares it.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Mapping
 
@@ -28,6 +28,10 @@ CONTRACT_VERSION = 1  # the newest contract shape this core reads
 OPERATION = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")  # a plugin operation name, as `declare_operation` accepts
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 LIMIT_UNITS = ("call", "credit", "request")
+# Pythia's own plugins (the managed payloads in scripts/dev/managed-plugins.mjs). A plugin cannot vouch for itself:
+# core honours `signed_off` or `grandfathered` only from these; any other plugin is unsigned (ADR 0042).
+BUNDLED = frozenset({"pythia-coingecko", "pythia-coinmarketcap", "pythia-eodhd", "pythia-gleif", "pythia-hyperliquid",
+                     "pythia-sec", "pythia-xbrl-filings", "pythia-yahoo-discovery"})
 RECORD = re.compile(r"^(docs/sources/[a-z0-9][a-z0-9-]{0,63}\.md|https://\S{1,500})\Z")  # a public source record
 
 
@@ -299,6 +303,11 @@ def _limits(value: Any) -> Limits:
         raise ManifestError(f"limits.unit: expected one of {', '.join(LIMIT_UNITS)}")
     return Limits(body["plan"], body["unit"], **{name: _count(body[name], f"limits.{name}") if name in body else None
                                                  for name in ("per_second", "per_minute", "per_day", "per_month")})
+
+
+def vouched(manifest: Manifest, key: str) -> Manifest:
+    """The contract as core trusts it for installed plugin `key`: unsigned unless Pythia bundles the plugin."""
+    return manifest if key in BUNDLED else replace(manifest, signoff=SignOff.UNSIGNED)
 
 
 def validate_manifest(document: Any) -> Manifest:

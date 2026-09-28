@@ -96,15 +96,20 @@ precision has been measured.
   `signoff`: `signed_off` with its record, `grandfathered`, or `unsigned`. The
   bundled plugins above are `grandfathered`, each pointing at its pending
   record in `docs/sources/`. The builder's reference sources are not plugins;
-  their record and its review remain their gate. For an `unsigned` source:
+  their record and its review remain their gate. A plugin cannot vouch for
+  itself: core honours `signed_off` or `grandfathered` only from the plugins
+  Pythia bundles and treats every other plugin as `unsigned`, whatever its
+  contract says. For an `unsigned` source:
   - a fresh profile never enables it, even if its payload lists it as enabled
     by default;
   - core's order never ranks it ahead of an audited source, so it serves a
     section only when the investor names it in `source_order` or nothing
     audited can serve;
-  - a resolve answer that would bind stays a residual for review;
-  - pages, alternatives and agent results mark it `unaudited`, which the Desk
-    shows as "not yet audited".
+  - a resolve answer that would bind becomes an `unaudited` residual, with the
+    matching evidence, for the investor to review; the agent's answer to it
+    only suggests;
+  - pages, alternatives, filings results and market-data reads mark it
+    unaudited, which the Desk shows as "not yet audited".
 
   The investor may still enable it; turning it on is the opt-in. A source that
   ships opt-in and is display-only (it never confirms or creates identity), as

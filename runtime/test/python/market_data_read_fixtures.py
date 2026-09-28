@@ -34,6 +34,7 @@ class Sources:
         self.read_transform = None
         self.extra = []  # further references core routes the subject through
         self.named = []  # providers the investor names in `source_order`
+        self.unaudited = []  # providers core marks not yet signed off (ADR 0042)
 
     def definition(self, provider, suffix="daily"):
         result = copy.deepcopy(EXAMPLE["series"])
@@ -76,7 +77,8 @@ class Sources:
     def subjects(self, subject_id):
         if subject_id != SUBJECT["id"]:
             return None
-        return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra], "named": list(self.named)}
+        return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra], "named": list(self.named),
+                "unaudited": list(self.unaudited)}
 
     def backend(self, directory, canonical=True, **kwargs):
         return Backend(directory, subjects=self.subjects if canonical else lambda subject_id: None,

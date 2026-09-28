@@ -331,7 +331,8 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     `resolve_answer@1` binds it to the subject unless identifier evidence or the
     depositary-receipt guard contradicts it, or `bound_to` says the reference is already
     confirmed for another subject (a conflict, never a re-point); several references are a residual.
-    A source not yet signed off (ADR 0042) never confirms: an answer that would bind stays a residual for review.
+    A source not yet signed off (ADR 0042) never confirms: an answer that would bind is an `unaudited` residual
+    for review, with the evidence that matched.
     """
     target, plugin = subject["ids"][level], info.manifest.plugin
     records = [claim for claim in batch.claims if isinstance(claim, RecordClaim) and claim.native_ref is not None
@@ -359,9 +360,12 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
                      as_of=as_of or date.today().isoformat(), record_kind=records[0].attributes.kind,
                      subject_kind=kind if kind in set(InstrumentKind) else None)
     other = bound_to(ref)
-    confirms = outcome is VerdictOutcome.CONFIRMED and bool(evidence_ids) and not info.manifest.unaudited
+    confirms = outcome is VerdictOutcome.CONFIRMED and bool(evidence_ids)
     if confirms and other not in (None, target):
         return None, QueueItem(id=item.id, kind="conflict", reason="binding", subject_ids=(other, target),
+                               evidence_ids=evidence_ids, **base), records
+    if confirms and info.manifest.unaudited:
+        return None, QueueItem(id=item.id, kind="residual", reason="unaudited", subject_ids=local,
                                evidence_ids=evidence_ids, **base), records
     if confirms:
         return Binding(provider_ref=ref, subject_id=target, status="confirmed", authority="rule_confirmed",
