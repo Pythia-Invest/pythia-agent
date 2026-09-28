@@ -1,7 +1,9 @@
 """US lines: SEC ticker lines, SEC fund ETFs, their OpenFIGI identifiers, and CIK-to-LEI issuer links.
 
 Links are made by identifier agreement only (FIRDS US ISIN, shared share-class
-FIGI, GLEIF's EDGAR registration); a name never links a CIK to a LEI. Any
+FIGI, GLEIF's EDGAR registration). A unique name match is no link: the CIK stays
+a CIK-only issuer, and the match is kept as an open question carrying the LEI as
+its candidate (R2: unknown plus a question, never a stored guess). Any
 disagreement becomes a flag, never a merge.
 """
 
@@ -40,6 +42,7 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
 
     evidence, isins = _link_evidence(snap, entities, tickers, rows, figi_map)
     links = _decide(snap, tickers, evidence, audit)
+    _ask_name_candidates(snap, tickers, links, audit)
     _flag_suspect_links(snap, tickers, links)
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
     for ticker in tickers:
@@ -138,6 +141,37 @@ def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, l
         if entity.registered_at == SEC_EDGAR_RA and (entity.registered_as or "").isdigit():
             evidence[str(int(entity.registered_as))].append((entity.lei, "gleif_edgar_registration"))
     return evidence, isins
+
+
+NAME_QUESTION = "issuer_identity_name_candidate"
+
+
+def _ask_name_candidates(snap: Snapshot, tickers: list[SecTicker], links: dict[str, tuple[str, str]], audit: Counter) -> None:
+    """A CIK no identifier links, whose SEC title normalises to exactly one active LEI issuer's name (and no other
+    CIK's): an open issuer-identity question with that LEI as its candidate, never a link. Biofrontera Inc., a
+    Delaware company, normalises to Biofrontera AG's name.
+
+    Until the builder carries questions to core's queue (the claims work's `Snapshot.ask`), the question is a flag
+    whose detail is the candidate LEI, counted as `name_candidate_questions`."""
+    claimed = {lei for lei, _rule in links.values()}
+    by_name: dict[str, set[str]] = defaultdict(set)
+    for issuer in snap.issuers.values():
+        if issuer.lei and issuer.entity_status != "INACTIVE":
+            for name, kind, _lang, _src in issuer.names:
+                if kind != "PREVIOUS_LEGAL_NAME":
+                    by_name[rules.normalized_name(name)].add(issuer.lei)
+    ciks_by_name: dict[str, set[str]] = defaultdict(set)
+    for ticker in tickers:
+        ciks_by_name[rules.normalized_name(ticker.name)].add(ticker.cik)
+    for key, ciks in sorted(ciks_by_name.items()):
+        leis = by_name.get(key, set())
+        if len(key) < rules.MIN_NAME_KEY or len(leis) != 1 or len(ciks) != 1:
+            continue
+        cik, lei = next(iter(ciks)), next(iter(leis))
+        if cik in links or lei in claimed:
+            continue
+        snap.flag(f"cik:{cik}", NAME_QUESTION, f"lei:{lei}")
+        audit["name_candidate_questions"] += 1
 
 
 def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:

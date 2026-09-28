@@ -126,10 +126,12 @@ table under `writer_ignored`.
   Mixed-case names are kept as written.
 - **CIK to LEI.** Link only by identifier agreement: a FIRDS US ISIN mapped to
   the SEC ticker, a shared share-class FIGI, or GLEIF's SEC EDGAR registration.
-  A name never links: a CIK no identifier links stays a CIK-only issuer, which
-  `issuer_split_lei_cik` flags when a LEI issuer has its name (the name-only
-  join linked Biofrontera Inc. to Biofrontera AG). Conflicts become flags, never
-  merges. When several CIKs link one LEI by identifier, one whose SEC
+  A name never links: a CIK no identifier links stays a CIK-only issuer. When its
+  SEC title normalises to exactly one active LEI issuer's name, that match is an
+  open issuer-identity question with the LEI as its candidate
+  (`issuer_identity_name_candidate`; the name-only join once linked Biofrontera
+  Inc. to Biofrontera AG). The questions are flags until the builder carries
+  questions to core's queue. Conflicts become flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
   title matches the LEI's names wins, then CIK order (FIRDS gives Lee
   Enterprises' ISIN Berkshire Hathaway's LEI); when none matches, none links
   (`lei_contested_unnamed`: FIRDS puts venue and data-vendor LEIs such as TP

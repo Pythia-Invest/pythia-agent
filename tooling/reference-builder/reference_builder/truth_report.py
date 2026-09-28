@@ -112,6 +112,7 @@ ATTENTION = (
     ("securities_without_primary", ("schema",), "live securities without a primary listing"),
     ("issuer_split_lei_cik", ("flags",), "CIK-only issuers named like a LEI issuer (one company split in two?)"),
     ("cik_link_suspect", ("flags",), "CIK links whose SEC title shares no word with the LEI's names"),
+    ("issuer_identity_name_candidate", ("flags",), "CIK-only issuers whose name matches one LEI issuer: open questions"),
 )
 
 
