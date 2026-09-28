@@ -10,7 +10,7 @@ investor's own setting; Pythia never changes it):
   `tool_call` reaches a provider tool;
 - a hidden operation tool still runs for Desk HTTP and through `may_run`, while the model never sees it;
 - every declared Desk HTTP operation has exactly one tool, and `identity-verdict` still resolves;
-- cli and cron see no Pythia tool; the data-routing paragraph reaches Desk chat only; skill writing is off;
+- cli and cron see no Pythia tool; the data-routing paragraph reaches Desk chat only; agent-initiated skill writing is off;
 - a bad argument is named by the real JSON-Schema validator before any provider is asked;
 - a plugin `approve` directive on api_server is an instant deny at this release (no human round-trip).
 
@@ -31,12 +31,16 @@ from pathlib import Path
 CORE = ["pythia_answer_identity_question", "pythia_desk_view", "pythia_filings", "pythia_find",
         "pythia_identity_questions", "pythia_instrument", "pythia_prices"]
 PROVIDERS = {"sec_company_facts", "sec_fundamentals", "esef_fundamentals", "esef_company_facts", "gleif_legal_entity",
-             "eodhd_news", "eodhd_fundamentals", "yahoo_finance", "coinmarketcap_coin_info", "openfigi_identifiers"}
+             "eodhd_news", "eodhd_fundamentals", "yahoo_finance", "coinmarketcap_coin_info", "openfigi_identifiers",
+             "hyperliquid_live_market"}
 FIGURES = {"sec_company_facts", "sec_fundamentals", "esef_fundamentals", "esef_company_facts", "eodhd_fundamentals",
            "yahoo_finance"}
 QUERIES = {"price of ASML": {"pythia_prices"}, "10-K annual report": {"pythia_filings"}, "ISIN lookup": {"pythia_find"},
            "revenue": FIGURES, "earnings": FIGURES, "balance sheet": FIGURES, "dividend": {"yahoo_finance"},
-           "news": {"eodhd_news", "yahoo_finance"}, "legal entity": {"gleif_legal_entity"}}
+           "news": {"eodhd_news", "yahoo_finance"}, "legal entity": {"gleif_legal_entity"},
+           "price of bitcoin": {"pythia_prices"}, "perp funding rate": {"hyperliquid_live_market"}}
+# Price questions must rank the concept tool first, not a provider tool that mentions prices.
+FIRST = {"price of ASML": "pythia_prices", "price of bitcoin": "pythia_prices"}
 
 CHILD = r'''
 import json, os, sys
@@ -47,6 +51,7 @@ manager = get_plugin_manager()
 from gateway.session_context import set_session_vars
 set_session_vars(platform="api_server")
 from hermes_cli.config import load_config_readonly
+from tools import write_approval as skill_gate
 from hermes_cli.tools_config import _get_platform_tools
 import model_tools
 from tools.registry import registry
@@ -108,6 +113,8 @@ print(json.dumps({
     "duplicate_operations": {f"{key}/{operation}": tools for (key, operation), tools in declared.items() if len(tools) > 1},
     "identity_verdict_tool": verdict, "pythia_tools_on": elsewhere, "routing_prompt_on": routing,
     "skill_writing_interval": (load_config_readonly().get("skills") or {}).get("creation_nudge_interval"),
+    "skill_write_saved": skill_gate.evaluate_gate(skill_gate.SKILLS).allow,
+    "curator_enabled": (load_config_readonly().get("curator") or {}).get("enabled"),
 }))
 '''
 
@@ -168,6 +175,8 @@ def main() -> int:
          "Tool Search on: the catalogue differs from the offered tools (an operation leaked or a tool is missing)"),
         (any(not set(report["searches"][query]) & wanted for query, wanted in QUERIES.items()),
          "tool_search does not find the right tool for investor phrasing"),
+        (any((report["searches"][query] or [None])[0] != tool for query, tool in FIRST.items()),
+         "tool_search ranks another tool above pythia_prices for a price question"),
         ("unknown" in json.dumps(report["tool_call"]).lower() or "error" in report["tool_call"],
          "tool_call does not reach a provider tool"),
         (not report["byte_stable"], "the tool list changed between two assemblies"),
@@ -186,6 +195,8 @@ def main() -> int:
          "a bad argument is not named"),
         (any(report["pythia_tools_on"].values()), "cli or cron sees Pythia tools"),
         (report["skill_writing_interval"] != 0, "automatic skill writing is not off in the seeded profile"),
+        (report["skill_write_saved"] is not False, "an agent's skill_manage write would be saved without approval"),
+        (report["curator_enabled"] is not False, "the skill curator is on in the seeded profile"),
         (report["routing_prompt_on"] != {"api_server": True, "cli": False, "cron": False},
          "the data-routing paragraph reaches a platform without the data tools, or misses Desk chat"),
     ) if failed]

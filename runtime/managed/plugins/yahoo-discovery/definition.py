@@ -11,6 +11,9 @@ TOOLS = {op: 'pythia_yahoo_' + op for op in ('details', 'series', 'latest', 'his
 # Common market-data operations this connector declares on its native schemas.
 COMMON = ('details', 'series', 'latest', 'history', 'read_batch')
 METHODS = ('quote', 'chart', 'historical', 'quoteSummary', 'fundamentalsTimeSeries', 'options', 'insights', 'recommendationsBySymbol', 'screener', 'trendingSymbols', 'news')
+# What the agent's yahoo_finance offers: research nothing else provides. Prices go through pythia_prices, which reads
+# the subject in core's source order; a raw symbol never reaches Yahoo from the agent.
+RESEARCH = ('quoteSummary', 'fundamentalsTimeSeries', 'news', 'options', 'insights', 'recommendationsBySymbol')
 
 
 def schemas(wire):

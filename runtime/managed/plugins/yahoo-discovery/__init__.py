@@ -3,7 +3,7 @@ import importlib
 import json
 import os
 from pathlib import Path
-from .definition import TOOLS, TOOLSET, schemas
+from .definition import RESEARCH, TOOLS, TOOLSET, schemas
 from .identity import candidate, reference
 from .series import definition, selector, MODES
 from .results import envelope, issue, base, read, window, now
@@ -158,4 +158,5 @@ def register(ctx):
     agent(ctx, 'yahoo_finance', TOOLS['research'], 'Company profile, financials, dividends and news from Yahoo. Yahoo '
           'Finance research for a listing: quoteSummary (profile, valuation, dividends, analyst ratings, fund '
           'holdings; options_json modules), fundamentalsTimeSeries (income, balance-sheet and cash-flow statements), '
-          'news, recommendationsBySymbol and options. Personal use; source content, not advice.', check_fn=ready)
+          'news, recommendationsBySymbol, options and insights. For prices and returns use pythia_prices. Personal '
+          'use; source content, not advice.', check_fn=ready, operations=RESEARCH)

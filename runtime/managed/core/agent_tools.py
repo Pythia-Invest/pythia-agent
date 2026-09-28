@@ -169,19 +169,9 @@ def identity() -> identity_ops.Identity:
     return identity_ops.CURRENT
 
 
-# Common names for a source, as an investor or the model says them, mapped to its contract provider.
-ALIASES = {"esef": "xbrl-filings", "xbrl": "xbrl-filings", "filings.xbrl.org": "xbrl-filings", "edgar": "sec",
-           "sec edgar": "sec", "cmc": "coinmarketcap", "yahoo finance": "yahoo", "eod": "eodhd"}
-
-
 def source_key(name: Any, infos: dict[str, Any]) -> str | None:
-    """The plugin key a source name means: its key, its key without `pythia-`, its provider, its label or an alias."""
-    wanted = str(name or "").strip().lower()
-    wanted = ALIASES.get(wanted, wanted)
-    for key, info in infos.items():
-        if wanted in (key.lower(), key.lower().removeprefix("pythia-"), info.manifest.provider, info.label.lower()):
-            return key
-    return None
+    """The plugin key a source name means, as the page reads it (page.named: key, provider, label or alias)."""
+    return page.named(str(name or ""), list(infos.values()))
 
 
 def unknown_source(name: Any, infos: dict[str, Any]) -> dict:
@@ -195,9 +185,17 @@ def plugins() -> dict[str, Any]:
 
 
 def label(plugin_key: str, infos: dict[str, Any]) -> dict:
+    """A source as the page names it (page.source), marked `unaudited` until it is signed off (ADR 0042)."""
     info = infos.get(plugin_key)
-    provider = info.manifest.provider if info else plugin_key
-    return {"source": page.LABELS.get(provider, provider), "provider": provider, "plugin": plugin_key}
+    if info is None:
+        return {"source": plugin_key, "provider": plugin_key, "plugin": plugin_key}
+    return page.source({"label": info.label, "provider": info.manifest.provider, "plugin": plugin_key,
+                        "unaudited": info.manifest.unaudited})
+
+
+def serving(provider: str | None, infos: dict[str, Any]) -> str | None:
+    """The plugin key of the provider a read reports it used."""
+    return next((key for key, info in infos.items() if provider and info.manifest.provider == provider), None)
 
 
 def concept_sources(subject_id: str, section: Section, wanted: str | None, infos: dict[str, Any]

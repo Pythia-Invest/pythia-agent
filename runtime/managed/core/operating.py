@@ -52,10 +52,10 @@ provider tools that serve it), pythia_prices and pythia_filings. Provider tools
 come from the investor's installed Pythia plugins, are named after their
 source (sec_, esef_, gleif_, eodhd_, yahoo_, coinmarketcap_, openfigi_,
 hyperliquid_) and give reported figures, fundamentals, profiles, news and live
-markets for the same subject id. When
-a tool is not among your loaded tools, find it with tool_search. Use web search
-for news, commentary and what these sources lack, and label figures from the
-web as such. Cite source and as-of for figures. Scheduled jobs cannot read
+markets for the same subject id. When a tool is not among your loaded tools,
+find it with tool_search. Take news from provider tools first; use web search
+for commentary and what these sources lack, and label figures from the web as
+such. Cite source and as-of for figures. Scheduled jobs cannot read
 Pythia's data yet, so do not set up monitoring jobs that would depend on it;
 say so instead.
 """

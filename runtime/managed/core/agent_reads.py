@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from .agent_tools import (SOURCE, SUBJECT, choose, concept_sources, encode, failure, label, logger, plugins, run_tool,
-                          source_key, unknown_source)
+                          serving, source_key, unknown_source)
 from .identity.page import Section
 from .identity.schemes import Level
 
@@ -210,7 +210,9 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
         target = subject["ids"].get(Level.LISTING)
         if not target:
             return encode(failure("no_listing", "This issuer has no listing in the reference; it has no price."))
-    view_subject = chosen["binding"]  # read exactly the source core chose (or the one named), so the label is true
+    # Without a named source, market-data reads the subject in core's one source order (#60), with its read checks and
+    # "not yet audited" warnings; a named source reads exactly its own reference.
+    view_subject = chosen["binding"] if wanted else {"kind": target.split(":", 1)[0], "id": target}
     operation = "history" if start else "latest"
     head: list = []
     if anchor and (today - start).days > ONE_READ_DAYS:  # read around the start, then the recent closes
@@ -222,7 +224,8 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
     result = _read(ctx, view_subject, context, interval, start, end or today) if start else _read(
         ctx, view_subject, context)
     provenance = result.get("provenance") or {}
-    source = {**label(chosen["plugin"], infos), "as_of": (result.get("freshness") or {}).get("as_of") or provenance.get("source_time"),
+    served = (wanted or serving(provenance.get("provider"), infos) or chosen["plugin"])
+    source = {**label(served, infos), "as_of": (result.get("freshness") or {}).get("as_of") or provenance.get("source_time"),
               "retrieved_at": result.get("retrieved_at"),
               "market_data_type": (result.get("freshness") or {}).get("market_data_type"),
               "selected": "named" if wanted else "first in order"}
@@ -255,7 +258,7 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
         coverage = result.get("coverage") or {}
         if coverage.get("status") not in (None, "complete") or coverage.get("gaps"):
             out["coverage"] = {key: coverage.get(key) for key in ("status", "gaps", "truncated")}
-    out["alternatives"] = [label(answer["plugin"], infos) for answer in ready if answer is not chosen]
+    out["alternatives"] = [label(answer["plugin"], infos) for answer in ready if answer["plugin"] != served]
     out["skipped"] = skipped
     out["issues"] = [*out.get("issues", []), *result.get("issues", [])]
     if out["outcome"] == "error":

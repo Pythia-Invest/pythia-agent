@@ -84,11 +84,17 @@ Pythia plugins, and `tool_search` finds them when they are not loaded.
 
 ## How a provider tool runs
 
-`register_agent_tool(ctx, name, tool, description)` derives the tool's schema
-from the operation tool's parameters, without Pythia's `$comment` markers.
-`native_ref` becomes `subject_id`, and so does the parameter named after the
-plugin's native scope (Yahoo's `symbol`, filled together with `symbols`). A call
-then runs these steps:
+`register_agent_tool(ctx, name, tool, description, operations=None)` derives the
+tool's schema from the operation tool's parameters, without Pythia's `$comment`
+markers. A required `subject_id` replaces `native_ref` and the parameter named
+after the plugin's native scope together with its list form (Yahoo's `symbol`
+and `symbols`), so the model cannot address a source around core's lookup. An
+operation that names its subject itself (Hyperliquid's `live_market`) keeps its
+`subject_id`. `operations` narrows an `operation` enum to the reads the tool
+offers: `yahoo_finance` offers Yahoo's research (quoteSummary,
+fundamentalsTimeSeries, news, options, insights, recommendationsBySymbol) and
+not its quote, chart and history, which are `pythia_prices`'s. A call then runs
+these steps:
 
 1. Validate the arguments with the JSON-Schema validator the HTTP path uses, and
    name the first bad parameter.
@@ -100,7 +106,14 @@ then runs these steps:
 4. Run the operation tool in-process with `ctx.dispatch_tool`, forwarding
    `session_id` and `task_id`.
 5. Bound the result to 16,000 characters. A handler that raises becomes
-   `source_error`, without its exception text.
+   `source_error`, without its exception text. A source not yet signed off
+   ([ADR 0042](../decisions/0042-source-onboarding-standard.md)) adds an
+   `unaudited_source` warning, and every source label carries `unaudited`.
+
+`pythia_prices` reads the subject itself in core's one source order, so
+market-data's read checks and its "not yet audited" warning apply, and it names
+the source that answered. A named `source` reads exactly that source's
+reference.
 
 ## Permissions
 
@@ -126,18 +139,30 @@ when that changes.
     `cron`. Those sessions carry no trusted caller platform, which Pythia's reads
     require.
   - It sets no Tool Search value.
-- **Migration `0002-agent-tool-surface`:** applies the `pythia-core` and
-  `pythia-desk` choices to existing installed profiles with native `hermes tools
-  disable` commands, then reads them back.
+- **Migration `0002-agent-tool-surface`:** applies the same choices to existing
+  installed profiles with one native `hermes tools disable` command per
+  platform, then reads them back. Hermes records a plugin toolset only while
+  its plugin is enabled, so an opt-in plugin enabled later (Hyperliquid) shows
+  its provider tools on `cli` and `cron` until the investor runs `hermes tools
+  disable <plugin> --platform cli` (and `cron`); there they refuse, since those
+  sessions have no trusted caller.
 - **Development profiles**, including the demo stack, take the same commands by
   hand.
-- **Automatic skill writing is off.** Hermes would otherwise write its own skills
-  from past turns, and in the agent eval two such skills steered the agent to
-  the web.
-  - The seed sets the native `skills.creation_nudge_interval` to 0.
-  - The migration sets it to 0 only when the investor has not set it, and reads
-    it back strictly.
-  - `hermes config set skills.creation_nudge_interval 10` turns it back on.
+- **Agent-initiated skill writing is off for now** (founder decision). Hermes
+  would otherwise write and rewrite its own skills, and in the agent eval two
+  such skills steered the agent to the web. Three native keys do it:
+  - `skills.creation_nudge_interval: 0`: no background skill review;
+  - `skills.write_approval: true`: every `skill_manage` create, edit, patch or
+    delete is staged, not saved, until the investor approves it
+    (`/skills pending`);
+  - `curator.enabled: false`: the curator does not consolidate or rewrite skills.
+
+  Hermes has no per-tool switch for `skill_manage` at the pin; turning the
+  `skills` toolset off would also remove `skill_view`, which Pythia's own skills
+  need. The migration sets each key only when the investor has not, and reads it
+  back strictly. `hermes config set skills.creation_nudge_interval 10`,
+  `hermes config set skills.write_approval false` and `hermes config set
+  curator.enabled true` turn it back on.
 - **A data source is turned off by disabling its plugin** (`hermes plugins
   disable <plugin>`). That stops Desk pages, the core tools and its provider tools
   alike. Desk's "Desk tools" panel does not offer Pythia's own toolsets.

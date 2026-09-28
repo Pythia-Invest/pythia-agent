@@ -76,7 +76,8 @@ class PluginInfo:
 
 # Other names investors and agents use for a provider, beside its plugin id, provider name and label.
 ALIASES = {"sec": ("edgar", "sec edgar", "sec-edgar"), "xbrl-filings": ("esef", "xbrl", "filings.xbrl.org", "uksef"),
-           "yahoo": ("yahoo finance",), "coinmarketcap": ("cmc",), "gleif": ("lei",)}
+           "yahoo": ("yahoo finance",), "coinmarketcap": ("cmc",), "gleif": ("lei",),
+           "eodhd": ("eod",)}
 CORE_PLUGIN = "pythia"  # core's own operations (the combined filings read)
 ABSENT = frozenset({"not_covering", "not_addressable"})  # a section only these could serve is not shown
 

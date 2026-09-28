@@ -195,13 +195,13 @@ class AgentToolFixture(unittest.TestCase):
             core.register(ctx)
         return ctx.tools
 
-    def agent(self, plugin_key, name, tool, description="Test tool from a provider. Body."):
+    def agent(self, plugin_key, name, tool, description="Test tool from a provider. Body.", operations=None):
         """Register a plugin's agent tool as the plugin does, through core's platform helper."""
         ctx = Context(self.handlers)
         package = MANAGED / "plugins" / plugin_key.removeprefix("pythia-")
         ctx.plugin_id, ctx.dispatch_tool = plugin_key, self.ctx.dispatch_tool
         ctx.manifest = SimpleNamespace(name=plugin_key, path=str(package))
-        platform_module.register_agent_tool(ctx, name, tool, description)
+        platform_module.register_agent_tool(ctx, name, tool, description, operations=operations)
         entry = ctx.tools[name]
         self.schemas[name] = entry["schema"]
         self.entries[name] = SimpleNamespace(handler=entry["handler"], toolset=entry["toolset"])
@@ -222,7 +222,8 @@ class ProviderToolTest(AgentToolFixture):
         super().setUp()
         self.facts = self.agent("pythia-sec", "sec_company_facts", "pythia_sec_facts",
                                 "Reported financial facts (revenue, net income) from SEC. Named XBRL concepts.")
-        self.agent("pythia-yahoo-discovery", "yahoo_finance", "pythia_yahoo_research")
+        self.agent("pythia-yahoo-discovery", "yahoo_finance", "pythia_yahoo_research",
+                   operations=("quoteSummary", "news"))
         self.agent("pythia-gleif", "gleif_legal_entity", "pythia_gleif_profile")
 
     def test_a_a_provider_tool_is_a_native_tool_addressed_by_subject(self):
@@ -243,8 +244,15 @@ class ProviderToolTest(AgentToolFixture):
         # Yahoo's native scope is its symbol: both symbol and the one-item symbols are filled (quote reads symbols).
         self.handlers["pythia_yahoo_research"] = lambda args, **_: envelope({"symbol": args["symbol"],
                                                                              "symbols": args["symbols"]})
-        self.assertEqual(self.call("yahoo_finance", subject_id=ASML, operation="quote")["data"],
+        self.assertEqual(self.call("yahoo_finance", subject_id=ASML, operation="quoteSummary")["data"],
                          {"symbol": "ASML.AS", "symbols": ["ASML.AS"]})
+        # Only the reads the tool offers, addressed only by subject: prices are pythia_prices', never a raw symbol.
+        yahoo = self.schemas["yahoo_finance"]["parameters"]
+        self.assertEqual((yahoo["required"], yahoo["properties"]["operation"]["enum"]),
+                         (["subject_id", "operation"], ["quoteSummary", "news"]))
+        self.assertFalse({"symbol", "symbols"} & set(yahoo["properties"]))
+        refused = self.call("yahoo_finance", operation="quote", symbols=["ASML.AS"])
+        self.assertEqual(refused["issues"][0]["code"], "invalid_arguments")
         # A profile read is a provider tool: core serves no profile concept of its own.
         self.handlers["pythia_gleif_profile"] = lambda args, **_: envelope({"lei": args["native_ref"]["native_id"]})
         self.assertEqual(self.call("gleif_legal_entity", subject_id=ASML)["data"], {"lei": "724500Y6DUVHQD6OXN27"})
@@ -262,8 +270,10 @@ class ProviderToolTest(AgentToolFixture):
         self.assertIn("^market:", entry["schema"]["parameters"]["properties"]["subject_id"]["pattern"])
         self.handlers[live["name"]] = lambda args, **_: envelope(args)
         market = "market:pythia:hyperliquid-btc-perp"
-        self.assertEqual(self.call("hyperliquid_live_market", subject_id=market)["data"], {
+        read = self.call("hyperliquid_live_market", subject_id=market)
+        self.assertEqual(read["data"], {
             "subject_id": market, "native_ref": {"provider": "hyperliquid", "native_id": "BTC", "native_scope": "perp"}})
+        self.assertEqual(read["issues"][-1]["code"], "unaudited_source")  # its contract is not yet signed off
 
     def test_b_a_record_under_review_is_refused_as_on_the_page(self):
         original = identity_ops.Identity._load
@@ -276,9 +286,13 @@ class ProviderToolTest(AgentToolFixture):
                        else stored(target, provider)}
             return path, subject, lookups, issue
         self.enterContext(mock.patch.object(identity_ops.Identity, "_load", load))
-        refused = self.call("yahoo_finance", subject_id=ASML, operation="quote")
+        refused = self.call("yahoo_finance", subject_id=ASML, operation="quoteSummary")
         self.assertEqual(refused["issues"][0]["code"], "source_unavailable")
         self.assertIn("contradicts the reference", refused["issues"][0]["message"])
+        # The quarantined record cannot be read around by naming its symbol.
+        for raw in ({"symbols": ["ASML.AS"]}, {"symbol": "ASML.AS"}):
+            bypass = self.call("yahoo_finance", operation="quoteSummary", **raw)
+            self.assertEqual(bypass["issues"][0]["code"], "invalid_arguments")
         tools = [row["tool"] for row in json.loads(agent_tools.instrument({"subject_id": ASML}))["data"]["provider_tools"]]
         self.assertNotIn("yahoo_finance", tools)
         self.assertIn("sec_company_facts", tools)
@@ -397,8 +411,8 @@ class ConceptToolTest(AgentToolFixture):
         self.handlers[agent_reads.MARKET_DATA_TOOL] = market_data
         self.plugins["eodhd"] = self.contract("eodhd", enabled=False)
         result = self.call(agent_reads.prices, subject_id=ASML, start="2026-01-01", points=2)
-        yahoo = {"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol"}
-        self.assertEqual(seen[0]["request"]["view"]["subject"], yahoo)  # the source core chose, and labels
+        # The subject is read in core's one order, with market-data's read checks and audit labels.
+        self.assertEqual(seen[0]["request"]["view"]["subject"], {"kind": "listing", "id": ASML})
         self.assertEqual(seen[0]["request"]["window"]["start"], {"kind": "session_date", "value": "2026-01-01"})
         self.assertEqual((result["source"]["source"], result["source"]["selected"], result["source"]["delay_seconds"]),
                          ("Yahoo Finance", "first in order", 900))
@@ -424,15 +438,21 @@ class ConceptToolTest(AgentToolFixture):
         latest = self.call(agent_reads.prices, subject_id=ASML)
         self.assertEqual(latest["quote"], {"t": "2026-09-26T09:59:00Z", "v": "612.40"})
         company = self.call(agent_reads.prices, subject_id=ASML_ISSUER)  # a company reads its primary listing
-        self.assertEqual((company["subject_id"], self.ctx.calls[-1][1]["request"]["view"]["subject"]["native_id"]),
-                         (ASML, "ASML.AS"))
+        self.assertEqual((company["subject_id"], self.ctx.calls[-1][1]["request"]["view"]["subject"]["id"]),
+                         (ASML, ASML))
         self.assertEqual([row["source"] for row in latest["alternatives"]], ["EODHD"])
+        # The label is the source that answered, as market-data reports it.
+        self.handlers[agent_reads.MARKET_DATA_TOOL] = lambda args, **_: json.dumps(
+            self.read_result(args["request"], provider="eodhd", observations=[quote]))
+        served = self.call(agent_reads.prices, subject_id=ASML)
+        self.assertEqual((served["source"]["source"], [row["source"] for row in served["alternatives"]]),
+                         ("EODHD", ["Yahoo Finance"]))
         self.handlers[agent_reads.MARKET_DATA_TOOL] = lambda args, **_: json.dumps(self.read_result(
             args["request"], outcome="error", issues=[{"code": "source_error", "message": "Down.", "severity": "error"}]))
         failed = self.call(agent_reads.prices, subject_id=ASML)
         self.assertEqual((failed["outcome"], failed["source"]["source"]), ("error", "Yahoo Finance"))
         self.assertIn("Name one of the alternatives", failed["next"])
-        self.assertEqual(len(self.ctx.calls), 3)
+        self.assertEqual(len(self.ctx.calls), 4)
 
     def test_filings_front_core_combined_read_and_filter_by_form(self):
         xbrl = {"dataset": "filings", "provider": "xbrl-filings", "filings": filing_rows(["AFR", "IR", "AFR"])}

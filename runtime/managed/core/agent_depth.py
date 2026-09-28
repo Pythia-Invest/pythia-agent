@@ -76,17 +76,23 @@ def addressed(info: Any, properties: dict) -> str | None:
     return next((scope.native_scope for scope in info.manifest.native if scope.native_scope in properties), None)
 
 
-def agent_schema(info: Any, name: str, description: str, operation_schema: dict) -> dict:
-    """The model-facing schema: the operation's parameters without markers, subject_id for the native reference."""
+def agent_schema(info: Any, name: str, description: str, operation_schema: dict,
+                 operations: tuple[str, ...] | None = None) -> dict:
+    """The model-facing schema: the operation's parameters without markers, and a required subject_id instead of the
+    native reference (and its list form), so every read goes through core's reference lookup. `operations` narrows
+    an `operation` enum to the reads the tool offers."""
     parameters = {key: value for key, value in copy.deepcopy(operation_schema.get("parameters", {})).items()
                   if key != "$comment"}
     properties, required = parameters.setdefault("properties", {}), list(parameters.get("required", []))
+    if operations is not None and "enum" in properties.get("operation", {}):
+        properties["operation"]["enum"] = [item for item in properties["operation"]["enum"] if item in operations]
     target = addressed(info, properties)
     if target:
-        properties.pop("native_ref", None)
-        parameters["properties"] = {"subject_id": SUBJECT, **properties}
-        required = ["subject_id" if item == target else item for item in required] if target in required else required
-        parameters["required"] = list(dict.fromkeys(required))  # an operation may take subject_id itself (live_market)
+        for key in {"native_ref", target, target + "s"} - {"subject_id"}:
+            properties.pop(key, None)
+        parameters["properties"] = {"subject_id": SUBJECT, **properties}  # an operation's own subject_id wins
+        required = ["subject_id", *(item for item in required if item not in (target, target + "s"))]
+        parameters["required"] = list(dict.fromkeys(required))
     return {"name": name, "description": description, "parameters": parameters}
 
 
@@ -104,7 +110,8 @@ def read_only(schema: dict) -> bool:
     return isinstance(meta, dict) and meta.get("read_only") is True
 
 
-def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, context: dict) -> str:
+def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, context: dict,
+        operations: tuple[str, ...] | None = None) -> str:
     from tools.registry import registry
     from .platform.operations import declaration
     info = next((item for item in identity_ops.installed() if item.key == plugin_key), None)
@@ -116,12 +123,15 @@ def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, contex
         return encode(failure("needs_configuration", f"{info.label} needs configuration in the Pythia config folder: "
                                                      f"{fields}."))
     parameters = {key: value for key, value in schema.get("parameters", {}).items() if key != "$comment"}
-    offered = agent_schema(info, name, "", schema)["parameters"] if info is not None else parameters
+    offered = agent_schema(info, name, "", schema, operations)["parameters"] if info is not None else parameters
     problem = check_arguments(offered, arguments)  # the schema the model was given, before core fills anything
     if problem:
         return encode(failure("invalid_arguments", problem))
     args = dict(arguments)
     target = addressed(info, parameters.get("properties", {})) if info is not None else None
+    if target:  # the reference comes only from core's lookup, never from a caller's raw symbol
+        for key in {target, target + "s"} - {"subject_id"}:
+            args.pop(key, None)
     if "subject_id" in args and target:
         own = "subject_id" in parameters.get("properties", {})  # the operation names its subject too (live_market)
         reference, why = native_reference(info, str(args["subject_id"] if own else args.pop("subject_id")))
@@ -133,7 +143,12 @@ def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, contex
             args[target] = reference["native_id"]
             if parameters.get("properties", {}).get(target + "s", {}).get("type") == "array":
                 args.setdefault(target + "s", [reference["native_id"]])
-    return encode(run_tool(ctx, tool, args, context))
+    result = run_tool(ctx, tool, args, context)
+    if info is not None and info.manifest.unaudited:  # ADR 0042: labelled wherever its data appears
+        result = {**result, "issues": [*result.get("issues", []), {
+            "code": "unaudited_source", "severity": "warning",
+            "message": f"{info.label} is not yet audited by Pythia; say so when you use its data."}]}
+    return encode(result)
 
 
 def own_contract(ctx: Any) -> Any:
@@ -148,7 +163,8 @@ def own_contract(ctx: Any) -> Any:
     return page.PluginInfo(key=ctx.plugin_id, manifest=manifest) if manifest else None
 
 
-def register_agent_tool(ctx: Any, name: str, tool: str, description: str, check_fn: Any = None) -> None:
+def register_agent_tool(ctx: Any, name: str, tool: str, description: str, check_fn: Any = None,
+                        operations: tuple[str, ...] | None = None) -> None:
     """Expose one of the calling plugin's registered operation tools to the agent as `name`, in the plugin's own
     toolset. `description` starts with what the investor gets and from which provider, then when to use it."""
     from tools.registry import registry
@@ -157,13 +173,13 @@ def register_agent_tool(ctx: Any, name: str, tool: str, description: str, check_
     toolset = getattr(manifest, "name", None) or plugin_key
     info = own_contract(ctx)
     operation_schema = registry.get_schema(tool) or {"parameters": {}}
-    schema = agent_schema(info, name, description, operation_schema) if info else {
+    schema = agent_schema(info, name, description, operation_schema, operations) if info else {
         "name": name, "description": description, "parameters": {
             key: value for key, value in operation_schema.get("parameters", {}).items() if key != "$comment"}}
 
     def handle(arguments: dict, **context: Any) -> str:
         try:
-            return run(ctx, plugin_key, name, tool, arguments, context)
+            return run(ctx, plugin_key, name, tool, arguments, context, operations)
         except Exception:  # core or reference failures never reach the model as exception text
             logger.warning("agent tool %s failed", name, exc_info=True)
             return encode(failure("unavailable", "Pythia could not complete this request; try again."))

@@ -75,9 +75,8 @@ def register(ctx):
     ctx.register_tool(name=TOOLS['live_market'], toolset=TOOLSET, schema=schema, handler=handler)
     pythia.platform.register_agent_tool(
         ctx, 'hyperliquid_live_market', TOOLS['live_market'],
-        'Live Hyperliquid perp: book, trades, funding, open interest. A real-time snapshot of a Hyperliquid '
-        'perpetual market: the top 5 book levels per side, recent trades, the last-trade price at each minute of '
-        'the past 15, and mark, oracle, hourly funding rate and open interest (in coins). Pass the perp\'s market '
-        'subject id, which pythia_instrument of the coin lists among its related instruments. Use it for perp '
-        'funding, open interest or the live book; for a coin\'s price and returns use pythia_prices. It can take '
-        'up to 10 seconds.')
+        'Live Hyperliquid perp state: order book, trades, funding. Live market state of one Hyperliquid '
+        'perpetual only: the top 5 order-book levels per side, recent trades, the last trade at each minute of the '
+        'past 15, and mark, oracle, hourly funding rate and open interest (in coins). Pass the perp\'s market '
+        'subject id, which pythia_instrument of the coin lists among its related instruments. Not for quotes or '
+        'returns of a stock or coin; those are pythia_prices. It can take up to 10 seconds.')

@@ -89,8 +89,8 @@ def eligible_tools():
     """Plugin tools Pythia may run for a trusted caller (``may_run``), whether or not the model sees them.
 
     Authority is native: the owning plugin is enabled and the tool's availability check passes. Toolset
-    choices (a platform's list, `agent.disabled_toolsets`) only decide what the model sees; Desk, core's agent
-    tools and `pythia` still run the tool. The investor turns a source off by disabling its plugin
+    choices (a platform's list, `agent.disabled_toolsets`) only decide what the model sees; Desk, core's concept
+    tools and the plugins' provider tools still run the tool. The investor turns a source off by disabling its plugin
     (docs/architecture/agent-tools.md)."""
     from gateway.session_context import get_session_env
     from hermes_cli.config import load_config_readonly

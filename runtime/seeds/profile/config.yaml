@@ -2,9 +2,14 @@ skills:
   external_dirs:
     - "${PYTHIA_MANAGED_SKILLS_DIR}"
   disabled: []
-  # Hermes writes its own skills from past turns every N tool iterations; off until it is mature enough. The
-  # investor turns it back on with `hermes config set skills.creation_nudge_interval 10`.
+  # Agent-initiated skill writing is off for now (docs/architecture/agent-tools.md): no background skill review,
+  # every skill_manage write is staged for the investor's approval (`/skills pending`), and the curator (below)
+  # does not rewrite skills. Turn it back on with `hermes config set skills.creation_nudge_interval 10`,
+  # `hermes config set skills.write_approval false` and `hermes config set curator.enabled true`.
   creation_nudge_interval: 0
+  write_approval: true
+curator:
+  enabled: false
 plugins:
   enabled:
     - pythia
