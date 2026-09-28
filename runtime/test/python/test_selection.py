@@ -104,6 +104,15 @@ class SelectionTest(Reference):
             self.assertEqual(page.evaluate(plugins[0], quote, asml, **self.lookups())["status"], "not_covering")
             self.assertEqual(page.evaluate(plugins[0], quote, apple, **self.lookups())["status"], "ready")
 
+    def test_a_source_is_named_by_id_provider_label_or_common_name(self):
+        plugins = shipped()
+        for name, key in (("esef", "pythia-xbrl-filings"), ("filings.xbrl.org", "pythia-xbrl-filings"),
+                          ("EDGAR", "pythia-sec"), ("sec", "pythia-sec"), ("SEC EDGAR", "pythia-sec"),
+                          ("pythia-gleif", "pythia-gleif"), ("yahoo finance", "pythia-yahoo-discovery"),
+                          ("bloomberg", None)):
+            with self.subTest(name=name):
+                self.assertEqual(page.named(name, plugins), key)
+
     def test_filings_combine_one_source_per_authority_and_use_once_reads_a_mirror(self):
         mirror = json.loads((PLUGINS / "sec/contract.json").read_text())
         mirror.update(plugin="pythia-secmirror", provider="secmirror")
@@ -172,8 +181,27 @@ class FilingsMergeTest(unittest.TestCase):
                          [("6-K", "sec", "SEC EDGAR"), ("20-F", "sec", "SEC EDGAR"), ("ESEF", "esma", "filings.xbrl.org"),
                           ("UKSEF", "fca", "filings.xbrl.org")])
         self.assertEqual((merged["partial"], merged["skipped"]), (False, []))
-        self.assertEqual(set(merged["filings"][0]), {"id", "form", "title", "filed_at", "period_end", "url", "authority",
-                                                     "source", "provider", "plugin"})
+        self.assertEqual(set(merged["filings"][0]), {"id", "form", "title", "filed_at", "period_end", "date", "date_basis",
+                                                     "url", "authority", "source", "provider", "plugin"})
+
+    def test_esef_reports_sort_by_their_indexed_date_and_forms_filter_with_aliases(self):
+        xbrl = self.xbrl()
+        xbrl["data"]["filings"][0]["indexed_at"] = "2026-03-04"  # filings.xbrl.org has no filing date
+        merged = filings.merge_filings([(self.XBRL, ("esma", "fca"), xbrl, None), (self.SEC, ("sec",), self.sec(), None)])
+        self.assertEqual([(item["form"], item["date"], item["date_basis"]) for item in merged["filings"]],
+                         [("6-K", "2026-04-15", "filed"), ("ESEF", "2026-03-04", "indexed"),
+                          ("20-F", "2026-02-11", "filed"), ("UKSEF", "2024-12-31", "period_end")])
+        annual = filings.merge_filings([(self.XBRL, ("esma", "fca"), xbrl, None), (self.SEC, ("sec",), self.sec(), None)],
+                                       forms=["annual"])
+        self.assertEqual([item["form"] for item in annual["filings"]], ["ESEF", "20-F", "UKSEF"])
+        self.assertEqual([item["form"] for item in filings.merge_filings(
+            [(self.XBRL, ("esma",), xbrl, None)], forms=["AFR"])["filings"]], ["ESEF"])
+
+    def test_a_source_that_does_not_know_the_entity_lists_nothing_and_is_not_a_failure(self):
+        unknown = {"schema_version": 1, "outcome": "error", "data": None,
+                   "issues": [{"code": "missing_observation", "message": "The provider did not return an observation."}]}
+        merged = filings.merge_filings([(self.XBRL, ("esma", "fca"), unknown, None), (self.SEC, ("sec",), self.sec(), None)])
+        self.assertEqual((merged["partial"], merged["skipped"], len(merged["sources"])), (False, [], 2))
 
     def test_an_authority_another_source_serves_is_left_out(self):
         merged = filings.merge_filings([(self.XBRL, ("esma",), self.xbrl(), None)])
@@ -208,12 +236,29 @@ class CoreReadsTest(Reference):
         self.addCleanup(self.store.db.close)
         self.addCleanup(self.tmp.cleanup)
 
-    def read(self, answers):
-        registry = types.SimpleNamespace(dispatch=lambda tool, _arguments: json.dumps(answers[tool]))
+    def read(self, answers, **arguments):
+        self.sent = {}
+
+        def dispatch(tool, sent):
+            self.sent[tool] = sent
+            return json.dumps(answers[tool])
+        schemas = {"pythia_sec_filings": {"parameters": {"properties": {"native_ref": {}, "limit": {}, "forms": {}}}}}
+        registry = types.SimpleNamespace(dispatch=dispatch, get_schema=schemas.get)
         with unittest.mock.patch.dict("sys.modules", {"tools": types.ModuleType("tools"),
                                                       "tools.registry": types.SimpleNamespace(registry=registry)}), \
                 unittest.mock.patch.object(self.identity_ops, "installed", shipped):
-            return json.loads(self.reads.filings({"subject_id": SUBJECTS["asml_xams"]}))
+            return json.loads(self.reads.filings({"subject_id": SUBJECTS["asml_xams"], **arguments}))
+
+    def test_forms_reach_a_source_that_searches_by_form_and_filter_every_answer(self):
+        merge = FilingsMergeTest()
+        body = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": merge.sec()},
+                         forms=["annual"])
+        self.assertEqual(self.sent["pythia_sec_filings"]["forms"], ["10-K", "20-F", "40-F", "ESEF", "UKSEF"])
+        self.assertNotIn("forms", self.sent["pythia_xbrl_filings_filings"])  # its schema takes no forms
+        self.assertEqual([item["form"] for item in body["data"]["filings"]], ["20-F", "ESEF", "UKSEF"])
+        named = self.read({"pythia_sec_filings": merge.sec(), "pythia_xbrl_filings_filings": merge.xbrl()}, use="edgar")
+        self.assertEqual(named["outcome"], "ok")
+        self.assertEqual(self.read({}, use="bloomberg")["outcome"], "empty")
 
     def test_combined_read_is_partial_when_a_source_fails_and_remembers_a_plan_refusal(self):
         merge = FilingsMergeTest()

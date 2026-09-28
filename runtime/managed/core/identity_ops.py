@@ -159,7 +159,8 @@ class Identity:
             _status, value = configuration.value(self.ctx, SOURCE_ORDER)
         except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
             return ()
-        return parse_order(value)
+        plugins = installed()  # common names ("edgar", "esef") mean the plugin; unknown names are kept as written
+        return tuple(dict.fromkeys(page.named(name, plugins) or name for name in parse_order(value)))
 
     def _bindings(self, listing_ids: list[str]) -> dict[str, list[dict]]:
         """Confirmed bindings for search rows; optional, so a store problem only drops them."""

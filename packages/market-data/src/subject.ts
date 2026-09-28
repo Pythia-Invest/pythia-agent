@@ -187,6 +187,11 @@ export const filingsSchema = z.object({
         language: optionalText,
         source: optionalText,
         authority: optionalText,
+        /** The date that orders the list and its basis: "filed", "indexed"
+         * (the day the source indexed a report without a filing date) or
+         * "period_end". */
+        date: optionalText,
+        date_basis: optionalText,
       }),
     )
     .default([]),

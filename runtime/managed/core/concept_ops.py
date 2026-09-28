@@ -33,7 +33,12 @@ FILINGS_SCHEMA = {
                    "and authority; a source that failed is listed under skipped and the list is marked partial.",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT_ID,
-        "use": {**PLUGIN_ID, "description": "Read this source for its authorities instead of the chosen one."}},
+        "use": {**PLUGIN_ID, "description": "Read this source for its authorities instead of the chosen one: a plugin "
+                                            "id, provider or common name (sec, edgar, esef)."},
+        "forms": {"type": "array", "minItems": 1, "maxItems": 8,
+                  "items": {"type": "string", "minLength": 1, "maxLength": 16},
+                  "description": "Only these forms (10-K, 20-F, ESEF; AFR or annual for annual reports); an "
+                                 "amendment matches its form. Sources search beyond their most recent filings."}},
         "required": ["subject_id"], "additionalProperties": False},
 }
 REFUSALS_SCHEMA = {
@@ -82,6 +87,7 @@ class ConceptReads:
     def filings(self, arguments: dict, **_context: Any) -> str:
         from . import identity_ops
         subject_id, use = str(arguments.get("subject_id") or ""), arguments.get("use")
+        forms = [str(item) for item in arguments.get("forms") or []][:8]
         try:
             _path, subject, lookups, issue = self.identity._load(subject_id)
         except ValueError:
@@ -93,7 +99,10 @@ class ConceptReads:
             return _envelope("empty", None, issue)
         plugins = identity_ops.installed()
         if use:  # read the named source once: it goes first for the authorities it serves
-            lookups = {**lookups, "order": (str(use), *lookups.get("order", ()))}
+            chosen_name = page.named(str(use), plugins)
+            if chosen_name is None:
+                return _envelope("empty", None, f"No installed filings source is called {use}.")
+            lookups = {**lookups, "order": (chosen_name, *lookups.get("order", ()))}
         found = page.answers(subject, plugins, Section.FILINGS, **lookups)
         chosen, alternatives, skipped = page.select(found, combine=page.REGISTRY[page.Concept.FILINGS].combine)
         infos = {info.key: info for info in plugins}
@@ -105,7 +114,7 @@ class ConceptReads:
                 parts.append((answer, authorities, None, f"{answer['label']} is still being looked up"))
                 continue
             call = contextvars.copy_context().run
-            futures[self._pool.submit(call, self._dispatch, tool, answer["binding"])] = (answer, authorities)
+            futures[self._pool.submit(call, self._dispatch, tool, answer["binding"], forms)] = (answer, authorities)
         done, pending = concurrent.futures.wait(futures, timeout=READ_BUDGET)
         for future in futures:
             answer, authorities = futures[future]
@@ -118,7 +127,7 @@ class ConceptReads:
             if reason:
                 self.identity.store.refuse(answer["plugin"], "filings", "list", reason)
             parts.append((answer, authorities, result, failure))
-        merged = filings.merge_filings(parts)
+        merged = filings.merge_filings(parts, forms)
         rest = {entry["plugin"] for entry, _ in chosen}
         merged["skipped"] = [*merged["skipped"], *({**page.source(answer), "code": answer["status"],
                                                     "reason": answer["reason"] or answer["status"].replace("_", " ")}
@@ -130,10 +139,18 @@ class ConceptReads:
         return _envelope(outcome, merged)
 
     @staticmethod
-    def _dispatch(tool: str, binding: dict) -> tuple[dict | None, str | None]:
+    def _dispatch(tool: str, binding: dict, forms: list[str] = ()) -> tuple[dict | None, str | None]:
         from tools.registry import registry
+        arguments: dict[str, Any] = {"native_ref": binding, "limit": FILINGS_LIMIT}
         try:
-            raw = registry.dispatch(tool, {"native_ref": binding, "limit": FILINGS_LIMIT})
+            accepted = (registry.get_schema(tool) or {}).get("parameters", {}).get("properties", {})
+        except (AttributeError, TypeError):
+            accepted = {}
+        if forms and "forms" in accepted:  # a source that can search by form does; core filters every answer
+            expanded = [name for item in forms for name in filings.FORM_ALIASES.get(item.upper(), (item,))]
+            arguments["forms"] = list(dict.fromkeys(expanded))[:8]
+        try:
+            raw = registry.dispatch(tool, arguments)
             result = json.loads(raw) if isinstance(raw, str) else None
         except Exception:  # a failing source never breaks the others
             logger.warning("filings read failed for %s", tool, exc_info=True)

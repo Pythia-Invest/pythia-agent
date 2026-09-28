@@ -43,7 +43,11 @@ establish amendment order, so the connector never picks one silently:
 
 - Filing reporting dates come from source metadata. Its naive `date_added` string
   remains `source_detail.values.added_raw`; it is neither a filing date nor an
-  invented timezone-aware instant. Unknown filing dates remain absent.
+  invented timezone-aware instant. Unknown filing dates remain absent. Its date
+  part is exposed as `indexed_at`, the day the repository indexed the report:
+  a labelled proxy core uses to order ESEF reports among dated filings, never
+  shown as a filing date. The API offers no filing date (checked 2026-09-28:
+  `date_added`, `processed` and `period_end` are its only dates).
 - `accession` is the repository's report SHA-256 identity, not a checksum of the
   downloaded xBRL-JSON representation. `report_id` is its selectable API ID.
   Form and country come from the repository identifier (`fxo_id`).

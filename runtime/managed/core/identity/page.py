@@ -68,8 +68,22 @@ class PluginInfo:
         return LABELS.get(self.manifest.provider, self.manifest.provider)
 
 
+# Other names investors and agents use for a provider, beside its plugin id, provider name and label.
+ALIASES = {"sec": ("edgar", "sec edgar", "sec-edgar"), "xbrl-filings": ("esef", "xbrl", "filings.xbrl.org", "uksef"),
+           "yahoo": ("yahoo finance",), "coinmarketcap": ("cmc",), "gleif": ("lei",)}
 CORE_PLUGIN = "pythia"  # core's own operations (the combined filings read)
 ABSENT = frozenset({"not_covering", "not_addressable"})  # a section only these could serve is not shown
+
+
+def named(name: str | None, plugins: list[PluginInfo]) -> str | None:
+    """The plugin key a caller's source name means: plugin id, provider, label or a common alias; case-insensitive."""
+    wanted = (name or "").strip().lower()
+    for info in plugins:
+        provider = info.manifest.provider
+        if wanted and wanted in {info.key.lower(), info.manifest.plugin.lower(), provider, info.label.lower(),
+                                 *ALIASES.get(provider, ())}:
+            return info.key
+    return None
 
 
 def served_by(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str, str] | None:
