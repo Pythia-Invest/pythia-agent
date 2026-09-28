@@ -211,7 +211,8 @@ class Identity:
             logger.warning("identity unreadable for a market-data read", exc_info=True)
             return unrouted("no_reference_data")
         if subject is None:
-            return unrouted("unknown_subject" if path else "no_reference_data")
+            # A market needs no reference file, so an unknown one is unknown, not missing reference data.
+            return unrouted("unknown_subject" if path or subject_kind(subject_id) == Kind.MARKET else "no_reference_data")
         return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, installed(), **lookups),
                 "reason": None}
 

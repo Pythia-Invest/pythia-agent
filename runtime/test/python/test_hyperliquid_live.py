@@ -311,6 +311,18 @@ class StreamLifetime(unittest.TestCase):
             listener.close()
             owner.close()
 
+    def test_a_far_clock_is_explained_without_blaming_the_source(self):
+        socket = FakeSocket([book(now() - 3_600_000), ctx()])
+        owner, listener = streams([socket]), Listener()
+        owner.subscribe('BTC', SUBJECT, listener)
+        try:
+            event = listener.wait(lambda event: event.get('type') == 'snapshot' and any(
+                issue['code'] == 'clock_off' for issue in event['data']['data']['issues']))
+            self.assertFalse([issue for issue in event['data']['data']['issues'] if issue['code'] == 'source_drift'])
+        finally:
+            listener.close()
+            owner.close()
+
     def test_a_drifted_market_list_is_drift_not_a_lost_connection(self):
         socket = FakeSocket()
         owner, listener = streams([socket], lambda body: {'universe': [{'name': 'BTC'}]}), Listener()

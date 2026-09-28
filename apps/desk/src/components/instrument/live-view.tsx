@@ -25,7 +25,7 @@ const REFUSED: Record<string, string> = {
   unknown_market: "The source does not list this market.",
   delisted: "This market is delisted at the source.",
   source_drift:
-    "The source's market list arrived in an unexpected shape, so the live view stays off. It is checked again shortly.",
+    "The source's market list arrived in an unexpected shape, so the live view stays off. It is checked again in a few minutes.",
 };
 const MEASURES = {
   last_trade: "Last trade",
@@ -276,7 +276,7 @@ export function LiveMarketPanel({
       : null,
     ...market.issues
       .filter((issue) =>
-        ["seed_unavailable", "book_empty"].includes(issue.code),
+        ["seed_unavailable", "book_empty", "clock_off"].includes(issue.code),
       )
       .map((issue) => issue.message ?? issue.code),
   ].filter(Boolean);

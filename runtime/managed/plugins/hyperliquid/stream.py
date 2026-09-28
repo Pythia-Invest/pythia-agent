@@ -304,8 +304,13 @@ class Streams:
                     market.add_trades(feed.trades(data, market.coin, market.alarms))
                 else:
                     market.context, market.dirty = feed.context(data, market.coin, market.alarms, _now()), True
+                if channel == "l2Book":  # a timed part parsed: the clock agrees again (context carries no time)
+                    market.flag("clock_off", False, "info", "")
             except feed.Drift as drift:  # the part is dropped, never coerced; the alarm says why
                 market.alarms.drift(drift)
+                if not drift.shown:  # not the source's drift, but the investor still sees why a part is missing
+                    market.flag("clock_off", True, "info", "This computer's clock looks off, so Hyperliquid's times "
+                                "cannot be checked and the affected parts are left out.")
                 if channel == "l2Book":
                     market.book = None
                 elif channel == "activeAssetCtx":
