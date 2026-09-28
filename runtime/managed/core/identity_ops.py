@@ -213,7 +213,7 @@ class Identity:
             return unrouted("no_reference_data")
         if subject is None:
             # A market needs no reference file, so an unknown one is unknown, not missing reference data.
-            return unrouted("unknown_subject" if path or subject_kind(subject_id) == Kind.MARKET else "no_reference_data")
+            return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS else "no_reference_data")
         plugins = installed()
         named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
         unaudited = [info.manifest.provider for info in plugins if info.manifest.unaudited]
@@ -241,7 +241,7 @@ class Identity:
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject from it, with the store lookups page composition reads."""
-        if subject_kind(subject_id) == Kind.MARKET:  # a curated market needs no reference file
+        if subject_kind(subject_id) in markets.CURATED_KINDS:  # a curated market subject needs no reference file
             subject = markets.load_market(markets.curated(), subject_id)
             return (None, None, {}, "Unknown subject.") if subject is None else (None, subject, self._lookups(subject_id, subject, {}), None)
         path, ref = self.reference()

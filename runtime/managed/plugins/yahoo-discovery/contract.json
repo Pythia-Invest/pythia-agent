@@ -10,6 +10,22 @@
         "asset_classes": [
           "equity"
         ]
+      },
+      {
+        "native_scope": "symbol",
+        "level": "market"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "index"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "fx"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "series"
       }
     ],
     "schemes": {
@@ -114,6 +130,13 @@
             "split_dividend"
           ]
         }
+      }
+    },
+    "market_movers": {
+      "operations": {
+        "most_active": "movers",
+        "gainers": "movers",
+        "losers": "movers"
       }
     }
   },

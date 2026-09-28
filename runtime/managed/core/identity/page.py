@@ -205,15 +205,20 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
               **({"unaudited": True} if info.manifest.unaudited else {})}  # labelled "not yet audited"
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
-    if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes:
+    # A curated subject outside the hierarchy (a market, index, pair or series) is addressed as itself; one with
+    # no asset class (a currency pair, a yield, a commodity future) is covered wherever the plugin addresses it.
+    curated = subject["level"] not in INSTRUMENT_KINDS
+    via = subject["level"] if curated else entry.via
+    if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes and not (
+            curated and subject["asset_class"] is None):
         return {**answer, "status": "not_covering",
                 "reason": f"{info.label} does not cover {subject['asset_class'] or 'this kind of'} instruments"}
     if coverage.markets is not None and market not in coverage.markets:
         return {**answer, "status": "not_covering", "reason": f"{info.label} does not cover {market or 'this market'}"}
-    target = subject["ids"].get(entry.via)
-    row = stored(target, info.manifest.provider) if target and _addressable(info, entry.via, subject) else None
-    derived = None if row or not target or not _addressable(info, entry.via, subject) else derive(info, entry.via, subject, coins)
-    wants_resolve = (bool(target) and _addressable(info, entry.via, subject) and not row and not derived
+    target = subject["ids"].get(via)
+    row = stored(target, info.manifest.provider) if target and _addressable(info, via, subject) else None
+    derived = None if row or not target or not _addressable(info, via, subject) else derive(info, via, subject, coins)
+    wants_resolve = (bool(target) and _addressable(info, via, subject) and not row and not derived
                      and bool(resolve_input(info, subject)))
     if not (row or derived or wants_resolve):
         return {**answer, "status": "not_addressable", "reason": f"{info.label} has no address for this {subject['level']}"}

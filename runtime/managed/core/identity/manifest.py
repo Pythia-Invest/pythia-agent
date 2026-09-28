@@ -63,9 +63,9 @@ class Coverage:
 
 @dataclass(frozen=True, slots=True)
 class ConceptEntry:
-    level: Level | Kind                 # the level the data is about (fundamentals: issuer), or a kind outside
-                                        # the hierarchy (a market), which is addressed as itself
-    via: Level | Kind                   # the level of the reference used to call (fundamentals: a listing symbol)
+    level: Level | Kind | None          # the level the data is about (fundamentals: issuer), or a kind outside
+                                        # the hierarchy (a market), which is addressed as itself; None: market-wide
+    via: Level | Kind | None            # the level of the reference used to call (fundamentals: a listing symbol)
     operations: Mapping[str, str]       # concept operation -> plugin operation
     coverage: Coverage
     qualities: Mapping[str, Mapping[str, Any]]  # concept operation -> declared qualities (claims, not entitlements)
@@ -216,14 +216,17 @@ def _concept(key: str, item: Any, addressable: set[Level | Kind]) -> ConceptEntr
     concept = _enum(Concept, key, "concepts")
     spec = REGISTRY[concept]
     per_authority = spec.combine is Combine.PER_AUTHORITY
-    entry = _object(item, path, {"level", "via", "operations"} | ({"authorities"} if per_authority else set()),
+    about = {"level", "via"} if spec.levels | spec.kinds else set()  # a market-wide concept is about no subject
+    entry = _object(item, path, about | {"operations"} | ({"authorities"} if per_authority else set()),
                     {"coverage", "qualities"})
-    level, via = _place(entry["level"], f"{path}.level"), _place(entry["via"], f"{path}.via")
-    if level not in spec.levels | spec.kinds:
-        raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels | spec.kinds))}")
-    if isinstance(level, Level) != isinstance(via, Level) or via not in addressable or (
-            DEPTH[via] < DEPTH[level] if isinstance(level, Level) else via != level):
-        raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
+    level = via = None
+    if about:
+        level, via = _place(entry["level"], f"{path}.level"), _place(entry["via"], f"{path}.via")
+        if level not in spec.levels | spec.kinds:
+            raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels | spec.kinds))}")
+        if isinstance(level, Level) != isinstance(via, Level) or via not in addressable or (
+                DEPTH[via] < DEPTH[level] if isinstance(level, Level) else via != level):
+            raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
     operations = {}
     declared = _object(entry["operations"], f"{path}.operations", set(), set(spec.operations))
     if not declared:
@@ -331,7 +334,9 @@ def validate_manifest(document: Any) -> Manifest:
         native.append(NativeScope(_match(NAMESPACE, entry["native_scope"], f"{path}.native_scope"),
                                   _place(entry["level"], f"{path}.level"),
                                   _enums(AssetClass, entry.get("asset_classes", []), f"{path}.asset_classes")))
-    if len({item.native_scope for item in native}) != len(native):
+    # One native scope may also address subjects outside the hierarchy (Yahoo's `symbol` names listings and
+    # curated indexes alike), but each place only once.
+    if len({(item.native_scope, item.level) for item in native}) != len(native):
         raise ManifestError("addressing.native: duplicate native_scope")
     schemes = {}
     for key, listed in _object(addressing.get("schemes", {}), "addressing.schemes", set(), set(Level)).items():

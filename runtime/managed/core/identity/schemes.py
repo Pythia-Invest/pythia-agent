@@ -35,7 +35,7 @@ class Kind(StrEnum):
     SERIES = "series"      # a non-tradable data series (a policy rate, a yield curve point)
     INDEX = "index"        # an index level (never a security: it cannot be held)
     PROTOCOL = "protocol"  # a DeFi protocol (no legal-entity identifier)
-    MARKET = "market"      # a lending reserve, pool, vault or perp market
+    MARKET = "market"      # a lending reserve, pool, vault, perp or continuous front-month futures market
 
 
 INSTRUMENT_KINDS = frozenset(Level)

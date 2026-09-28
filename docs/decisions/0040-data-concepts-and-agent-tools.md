@@ -51,6 +51,7 @@ registry is `identity.concepts.REGISTRY`.
 | `fundamentals` | `statements`, `metrics` | issuer | first eligible |
 | `estimates` | `consensus`, `targets` | issuer | first eligible |
 | `news` | `list` | issuer, security | first eligible (later: as filings) |
+| `market_movers` | `most_active`, `gainers`, `losers` | a market, no subject | first eligible |
 
 `fundamentals`, `estimates` and `news` are registered but serve nothing until
 each has a core result schema; no contract declares them yet.
@@ -285,3 +286,20 @@ surface for plugins that need a newer Pythia, and team mode.
   from a plugin's start would also change which source serves without the
   investor acting, possibly putting a paid source first. The log names the old
   orders so the investor can put them in `source_order` themselves.
+
+## Amendment (2026-09-28): market-wide concepts
+
+`market_movers` ranks a market's shares: the most active, the day's gainers
+and its losers. Its data is about no one subject, so it is **market-wide**: the
+registry gives it no levels, and its `contract.json` entry names operations
+only (no `level` or `via`). Each list is its own operation, so a source
+declares only the lists it has. Selection is the same rule: the investor's
+order, then core's (`yahoo`); a failed read never switches source.
+
+Core's `market-movers` read returns core's row shape (rank, symbol, name,
+currency, price, change and % change against the previous close, volume,
+session, quote time, venue) with the market and universe the source states.
+Each row is named by its Pythia listing only when the reference holds exactly
+one listing for its ticker on its operating MIC (`ticker_mic`); otherwise it
+stays, unresolved, with the reason. The source's field meanings and drift
+alarms are in [the Yahoo screener record](../sources/yahoo-screener.md).

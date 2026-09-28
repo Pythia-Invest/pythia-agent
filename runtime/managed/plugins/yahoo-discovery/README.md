@@ -100,3 +100,13 @@ Unknown item fields and unknown `type` values are counted under `drift`
 with a `schema_drift` warning; unreadable items are omitted with
 `invalid_value`. Detecting a feed that goes quiet belongs to Yahoo's
 onboarding.
+
+## Markets: indexes, futures, FX and movers
+
+Core's curated market table (`identity/markets.json`) addresses indexes,
+continuous front-month futures, currency pairs and yields by their Yahoo
+symbols (`^GSPC`, `ES=F`, `EURUSD=X`, `^TNX`); the contract declares its
+`symbol` scope at those subject kinds. `movers` serves core's `market_movers`
+concept from Yahoo's predefined US screens (`most_actives`, `day_gainers`,
+`day_losers`). Its field meanings, venue table and drift alarms are in the
+[source record](../../../../docs/sources/yahoo-screener.md).

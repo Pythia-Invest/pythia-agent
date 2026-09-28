@@ -11,3 +11,5 @@ provides_tools:
   - pythia_identity_verdict
   - pythia_reference_status
   - pythia_filings_combined
+  - pythia_market_overview
+  - pythia_market_movers

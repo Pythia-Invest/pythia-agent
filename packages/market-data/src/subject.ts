@@ -140,6 +140,9 @@ export const subjectPageSchema = z.object({
     /** The listing whose quote and chart this composition shows (a
      * security's or issuer's page shows one of its listings). */
     listing: text.nullish(),
+    /** A market subject's line of context from core's catalogue ("US large
+     * caps", "WTI, front month (NYMEX)"). */
+    description: optionalText,
   }),
   identifiers: z.record(z.string(), optionalText).default({}),
   issuer: z

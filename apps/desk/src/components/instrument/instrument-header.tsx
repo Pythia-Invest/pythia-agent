@@ -207,8 +207,8 @@ export function InstrumentPageSkeleton() {
   );
 }
 
-/** A perp's underlying, and on the underlying's page its perps (`derivative_on`, related and never folded):
- * each is its own subject and page. */
+/** A derivative market's underlying, and on the underlying's page its derivative markets (perps, front-month
+ * futures; `derivative_on`, related and never folded): each is its own subject and page. */
 function DerivativeLinks({ page }: { page: SubjectPage }) {
   const links = page.related.filter((item) => item.type === "derivative_on");
   if (!links.length) return null;
@@ -224,7 +224,7 @@ function DerivativeLinks({ page }: { page: SubjectPage }) {
           className="flex min-w-0 gap-1.5"
         >
           <span className="text-foreground-secondary">
-            {item.direction === "to" ? "Underlying" : "Market"}
+            {item.direction === "to" ? "Underlying" : "Derivative"}
           </span>
           <Link
             href={instrumentHref(item.id)}
