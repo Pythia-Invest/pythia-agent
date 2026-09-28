@@ -98,13 +98,19 @@ class SearchTest(Fixture):
         self.directory = search.Directory(self.ref)
 
     def rows(self, query, **options):
-        return [row["id"] for row in self.directory.search(query, limit=5, **options)["rows"]]
+        """The lead listing of each company group."""
+        return [group["rows"][0]["id"] for group in self.directory.search(query, limit=5, **options)["groups"]]
 
-    def test_a_receipt_folds_into_the_company_row_shown_through_its_primary_listing(self):
-        row, = self.directory.search("asml", limit=5)["rows"]
-        self.assertEqual(row, {"id": ASML, "ticker": "ASML", "name": "ASML Holding N.V.", "kind": "ordinary",
-                               "mic": "XAMS", "venue": "Euronext Amsterdam", "country": "NL", "listings": 1,
-                               "bindings": []})
+    def test_a_company_groups_its_listings_receipts_included(self):
+        group, = self.directory.search("asml", limit=5)["groups"]
+        us = "listing:isin:USN070592100:XNAS:USD"
+        self.assertEqual({key: group[key] for key in ("name", "kind", "shown")},
+                         {"name": "ASML Holding N.V.", "kind": "ordinary", "shown": 2})
+        self.assertEqual(group["rows"][0], {"id": ASML, "ticker": "ASML", "name": "ASML Holding N.V.",
+                                            "kind": "ordinary", "mic": "XAMS", "venue": "Euronext Amsterdam",
+                                            "country": "NL", "currency": "EUR", "bindings": []})
+        # The registry shares are a listing row of the same company, with their own type.
+        self.assertEqual((group["rows"][1]["id"], group["rows"][1]["kind"]), (us, "depositary_receipt"))
 
     def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
         us = "listing:isin:USN070592100:XNAS:USD"
@@ -118,8 +124,12 @@ class SearchTest(Fixture):
         self.assertEqual(self.rows("SHEL")[:1], [SHEL])  # a receipt ticker that only starts the name
         self.assertEqual(self.rows("shell")[:1], [SHELL])
 
-    def test_the_page_lists_what_the_row_counts(self):
-        row = self.directory.search("shell", limit=1)["rows"][0]
+    def test_a_group_carries_all_listings_after_the_relevant_ones(self):
+        group = self.directory.search("shell", limit=1)["groups"][0]
+        # Home line, then the receipt the name starts; the OTC line waits for "all listings".
+        self.assertEqual(([row["id"] for row in group["rows"]], group["shown"]), ([SHELL, SHEL, SHELL_OTC], 2))
+
+    def test_the_page_lists_the_instruments_lines(self):
         listings = self.directory.instrument_listings("security:figi:BBG0147BN6H1")
         # The receipt carries the only primary flag; the company's home line still leads, marked primary.
         self.assertEqual([(item["id"], item["kind"], item["primary"]) for item in listings],
@@ -127,16 +137,18 @@ class SearchTest(Fixture):
                           (SHEL, "depositary_receipt", False)])
         # The page groups lines by these: the venue's country, OTC and the issuer's home country.
         self.assertEqual([(item["country"], item["otc"], item["home"]) for item in listings], [("NL", False, False), (None, True, False), ("US", False, False)])
-        self.assertEqual(row["listings"], len(listings) - 1)
 
     def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):
         bound = {BTC: [{"plugin": "coinmarketcap", "ref": "1"}]}
-        row = self.directory.search("BTC", limit=5, bindings=lambda ids: bound)["rows"][0]
-        self.assertEqual({key: row[key] for key in ("id", "mic", "country", "listings", "bindings")},
-                         {"id": BTC, "mic": None, "country": None, "listings": 0, "bindings": bound[BTC]})
+        group = self.directory.search("BTC", limit=5, bindings=lambda ids: bound)["groups"][0]
+        row, = group["rows"]  # one asset, however many chain deployments
+        self.assertEqual(group["shown"], 1)
+        self.assertEqual({key: row[key] for key in ("id", "mic", "country", "bindings")},
+                         {"id": BTC, "mic": None, "country": None, "bindings": bound[BTC]})
 
     def test_an_issuers_main_share_and_preferred_come_before_its_notes(self):
-        self.assertEqual(self.rows("bank corp"), ["listing:bank:common", "listing:bank:preferred"])
+        group, = self.directory.search("bank corp", limit=5)["groups"]
+        self.assertEqual([row["id"] for row in group["rows"]][:2], ["listing:bank:common", "listing:bank:preferred"])
 
 
 class PageTest(Fixture):

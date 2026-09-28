@@ -83,7 +83,7 @@ class Identity:
     # ---- operations ----------------------------------------------------------------------------------------------
 
     def search(self, arguments: dict, **_context: Any) -> str:
-        empty = {"rows": [], "lookup": []}
+        empty = {"groups": [], "lookup": []}
         query = str(arguments.get("query") or "").strip()[:128]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
@@ -96,7 +96,7 @@ class Identity:
         except (sqlite3.Error, OSError):  # search degrades, never errors out
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
-        return _envelope("ok" if data["rows"] else "empty", data)
+        return _envelope("ok" if data["groups"] else "empty", data)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
