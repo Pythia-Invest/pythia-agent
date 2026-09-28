@@ -1,10 +1,11 @@
 # 0040: Data concepts, source selection and the agent tool surface
 
 **Status.** Concepts, the registry, the contract declarations, the selection
-rule and the `live` operation: accepted (2026-09-28). The contract shape and
-the registry are implemented; selection is implemented as a pure core function
-that the page adopts next. The licence classes are a recommended default that
-awaits the founder's confirmation. The agent tool surface, the market-data
+rule and the `live` operation: accepted (2026-09-28). The contract shape, the
+registry and core's default order are implemented; the investor's order,
+coverage filtering, skip reasons and filings combining come with selection in
+core, the next step. The licence classes are a recommended default that awaits
+the founder's confirmation. The agent tool surface, the market-data
 split and the result envelope are **out of scope of this revision**; they
 remain a proposal (pull request #42).
 
@@ -58,7 +59,9 @@ each has a core result schema; no contract declares them yet.
 
 Each concept entry in `contract.json` (the ADR 0038 contract-v1 amendment)
 declares the plugin operation per concept operation, **coverage** (asset
-classes and, where narrower than addressing, operating MICs), **qualities**
+classes and, where narrower than addressing, operating MICs, optionally
+narrowed per operation: EODHD's live stream covers US listings only while its
+quotes and history stay global), **qualities**
 per operation from the registry's closed vocabulary, and for filings the
 **authorities** it serves (`sec`, `esma`, `fca`, `sedar`). Qualities are the
 plugin's claim, not proof of the investor's entitlement: a result reports the
@@ -69,7 +72,7 @@ quality it actually has.
 | `quote` | `delay` (`realtime`, `delayed`, `eod`, `unknown`), `delay_minutes`, `extended_hours`, `feed_note` |
 | `intraday` | as `quote`, plus `history_days` |
 | `daily` | `adjustment` (`none`, `split`, `split_dividend`, `unknown`), `history_days`, `feed_note` |
-| `live` | `book` (`top` or `snapshot`), `book_levels`, `trades`, `trade_side`, `scope` (`venue` or `consolidated`), `venue`, `context`, `line`, `min_publish_ms`, `auth`, `opt_in`, `symbol_budget` |
+| `live` | `book` (`top` or `snapshot`), `book_levels`, `trades`, `trade_side`, `scope` (`venue` or `consolidated`), `venue`, `context`, `line` |
 | `statements`, `metrics` | `basis` (`as_reported`, `standardized`) |
 
 ### One selection rule for every concept
@@ -82,14 +85,15 @@ operation:
    indexed once when contracts load, so an unsuitable source drops out without
    any setting: an investor never configures which source handles crypto.
 2. **Order.** The investor's one ordered list of plugins (across concepts)
-   comes first. Then connected sources, those with a configured credential,
-   ahead of keyless and open ones: adding a key promotes that source without
-   any other step. Then core's default order for the concept. With zero
-   configuration the open and keyless sources serve wherever they cover.
+   comes first, then core's default order for the concept, which lists paid
+   providers before free ones. A plugin that needs a key is ineligible until
+   the key is configured, so with zero configuration the open and keyless
+   sources serve wherever they cover, and adding a key promotes that source
+   with no other step.
 3. **The first eligible candidate serves.** A candidate that is disabled,
    needs configuration, cannot be addressed for this subject by identity, is
-   under an identity conflict, found nothing on lookup, or that a provider has
-   refused as not on the investor's plan, is **skipped**. Skipping is ordinary
+   under an identity conflict, found nothing on lookup, or whose provider has
+   refused that operation as not on the investor's plan, is **skipped**. Skipping is ordinary
    selection, never fallback, and each skipped source is listed with its
    reason. The other eligible candidates are listed as alternatives the
    investor can switch to.
@@ -112,18 +116,14 @@ added.
 ADR 0028's rule stands: failed observation reads do not authorize fallback.
 A labelled fallback for prices is a possible later addition, not built.
 
-**Performance.** Selection is a pure in-memory function of the indexed
-contracts, the plugins' state, identity's addressing answer and the investor's
-order: no network or disk I/O and no trial calls. Over the shipped contracts
-plus a synthetic set, 6,000 selections (1,000 subjects by six concept
-operations) take about 2.5 µs each and indexing takes about 0.2 ms; the test
-bounds a selection at 0.2 ms.
+**Performance.** Selection is a pure in-memory function of the loaded
+contracts, the plugins' state, identity's addressing answer and the
+investor's order: no network or disk I/O and no trial calls.
 
-**"Not on your plan" is remembered.** Selection takes the (plugin, concept)
-pairs a provider has refused as not entitled and skips them with
-`not_entitled`. Recording such a refusal when a read returns it is part of
-wiring selection into reads. `throttled` and `exhausted` are reserved reasons
-for when quota state exists.
+**"Not on your plan" is remembered** per plugin, concept and operation: a
+plan can include daily history but not live data. A provider's refusal on a
+read is recorded in a disposable cache and that operation is skipped as
+`not_entitled` from then on.
 
 ### Live market data
 
@@ -148,7 +148,9 @@ provider and a second provider needs no contract change.
 
 A live read is pinned to its venue: it never switches source mid-stream.
 Opening a live connection stays an explicit choice
-([ADR 0030](0030-coordinated-reads-and-live-updates.md)).
+([ADR 0030](0030-coordinated-reads-and-live-updates.md)); authentication,
+opt-in, symbol budgets and publish rates are plugin configuration, not
+declared qualities.
 
 ### Licence classes
 
@@ -163,8 +165,9 @@ Proposed in #42 and not decided here: the market-data feature split and the
 markets UI plugin, the result envelope, `may_run`, the always-visible concept
 tools, the `pythia` CLI-like tool and code mode, provider tools leaving the
 model's view, secrets isolation for the agent's code tools, and the evaluation
-set. Also later: the quota ledger and entitlement checks at connect time,
-cache-lifetime enforcement, rendering attribution, and team mode.
+set. Also later: the quota ledger with per-operation cost, entitlement checks
+at connect time, cache-lifetime enforcement, rendering attribution, a Settings
+surface for plugins that need a newer Pythia, and team mode.
 
 ## Rationale
 
@@ -183,11 +186,12 @@ cache-lifetime enforcement, rendering attribution, and team mode.
 
 ## Consequences
 
-- `identity.select` replaces page composition's hard-coded order and the
-  choice inside `page.compose` in the next step; until then the page composes
-  exactly as before, with its default order now read from the registry. The
-  combined filings read (the merged list, `partial`) comes with filings reads
-  through core.
+- Page composition already reads core's default order from the registry, so
+  an investor with an EODHD token now gets EODHD prices ahead of Yahoo; without
+  one, Yahoo serves as before. Selection in core (the investor's order,
+  coverage, skip reasons, `not_entitled`) replaces the choice inside
+  `page.compose` in the next step. The combined filings read (the merged list,
+  `partial`) comes with filings reads through core.
 - Market data's own preferences (ADR 0028) still govern reads by explicit
   provider reference; they move to the one ordered list when market-data reads
   route through core selection.

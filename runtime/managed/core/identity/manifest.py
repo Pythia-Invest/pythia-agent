@@ -14,7 +14,7 @@ Hermes adapter maps an operation to the tool that declares it.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Mapping
 
@@ -55,6 +55,11 @@ class ConceptEntry:
     coverage: Coverage
     qualities: Mapping[str, Mapping[str, Any]]  # concept operation -> declared qualities (claims, not entitlements)
     authorities: tuple[FilingAuthority, ...] = ()
+    operation_coverage: Mapping[str, Coverage] = field(default_factory=dict)  # per-operation narrowing
+
+    def coverage_for(self, operation: str) -> Coverage:
+        """The coverage of one concept operation: its own override where declared, else the concept's."""
+        return self.operation_coverage.get(operation, self.coverage)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,7 +85,7 @@ class Rights:
 
 @dataclass(frozen=True, slots=True)
 class Limits:
-    """A provider's published limits for the named plan, and each operation's cost in its units. Declared only."""
+    """A provider's published rate limits for the named plan. Declared only; nothing enforces them yet."""
 
     plan: str
     unit: str
@@ -88,7 +93,6 @@ class Limits:
     per_minute: int | None
     per_day: int | None
     per_month: int | None
-    cost: Mapping[tuple[Concept, str], int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,13 +198,14 @@ def _concept(key: str, item: Any, addressable: set[Level]) -> ConceptEntry:
         raise ManifestError(f"{path}.operations: at least one operation is required")
     for name, plugin_operation in declared.items():
         operations[name] = _match(OPERATION, plugin_operation, f"{path}.operations.{name}")
-    coverage = _object(entry.get("coverage", {}), f"{path}.coverage", set(), {"asset_classes", "markets"})
-    classes = coverage.get("asset_classes")
-    markets = coverage.get("markets")
-    if markets is not None and (not isinstance(markets, list) or not markets or len(set(markets)) != len(markets)):
-        raise ManifestError(f"{path}.coverage.markets: a list of distinct operating MICs is required")
-    coverage = Coverage(None if classes is None else frozenset(_enums(AssetClass, classes, f"{path}.coverage.asset_classes")),
-                        None if markets is None else frozenset(_match(MIC, mic, f"{path}.coverage.markets") for mic in markets))
+    body = _object(entry.get("coverage", {}), f"{path}.coverage", set(), {"asset_classes", "markets", "operations"})
+    coverage = _coverage(body, f"{path}.coverage")
+    narrowed = {}
+    for name, item in _object(body.get("operations", {}), f"{path}.coverage.operations", set(), set(operations)).items():
+        at = f"{path}.coverage.operations.{name}"
+        own = _coverage(_object(item, at, set(), {"asset_classes", "markets"}), at)
+        narrowed[name] = Coverage(own.asset_classes if "asset_classes" in item else coverage.asset_classes,
+                                  own.markets if "markets" in item else coverage.markets)
     qualities = {}
     for name, claimed in _object(entry.get("qualities", {}), f"{path}.qualities", set(), set(operations)).items():
         vocabulary = spec.operations[name]
@@ -210,10 +215,23 @@ def _concept(key: str, item: Any, addressable: set[Level]) -> ConceptEntry:
                 qualities[name][quality] = vocabulary[quality](value)
             except ValueError as error:
                 raise ManifestError(f"{path}.qualities.{name}.{quality}: {error}") from None
+    for name, claimed in qualities.items():
+        if claimed.get("delay_minutes", 0) > 0 and claimed.get("delay") != "delayed":
+            raise ManifestError(f"{path}.qualities.{name}.delay_minutes: a delay in minutes needs delay \"delayed\"")
     authorities = _enums(FilingAuthority, entry["authorities"], f"{path}.authorities") if per_authority else ()
     if per_authority and not authorities:
         raise ManifestError(f"{path}.authorities: a combining concept names the authorities the plugin serves")
-    return ConceptEntry(level, via, operations, coverage, qualities, authorities)
+    return ConceptEntry(level, via, operations, coverage, qualities, authorities, narrowed)
+
+
+def _coverage(body: Mapping[str, Any], path: str) -> Coverage:
+    classes, markets = body.get("asset_classes"), body.get("markets")
+    if classes is not None and (not isinstance(classes, list) or not classes):
+        raise ManifestError(f"{path}.asset_classes: a non-empty list is required")
+    if markets is not None and (not isinstance(markets, list) or not markets or len(set(map(str, markets))) != len(markets)):
+        raise ManifestError(f"{path}.markets: a list of distinct operating MICs is required")
+    return Coverage(None if classes is None else frozenset(_enums(AssetClass, classes, f"{path}.asset_classes")),
+                    None if markets is None else frozenset(_match(MIC, mic, f"{path}.markets") for mic in markets))
 
 
 def _rights(value: Any) -> Rights:
@@ -238,22 +256,14 @@ def _rights(value: Any) -> Rights:
     return Rights(_enum(Licence, body["licence"], "rights.licence"), seconds, body["hostable"], attribution)
 
 
-def _limits(value: Any, concepts: Mapping[Concept, ConceptEntry]) -> Limits:
-    body = _object(value, "limits", {"plan", "unit"}, {"per_second", "per_minute", "per_day", "per_month", "cost"})
+def _limits(value: Any) -> Limits:
+    body = _object(value, "limits", {"plan", "unit"}, {"per_second", "per_minute", "per_day", "per_month"})
     if not isinstance(body["plan"], str) or not 0 < len(body["plan"]) <= 64:
         raise ManifestError("limits.plan: the plan these limits describe, at most 64 characters")
     if body["unit"] not in LIMIT_UNITS:
         raise ManifestError(f"limits.unit: expected one of {', '.join(LIMIT_UNITS)}")
-    rates = {name: _count(body[name], f"limits.{name}") if name in body else None
-             for name in ("per_second", "per_minute", "per_day", "per_month")}
-    cost = {}
-    for key, units in _object(body.get("cost", {}), "limits.cost", set(), set(body.get("cost", {}))).items():
-        name, _, operation = key.partition(".")
-        entry = concepts.get(name) if name in set(Concept) else None
-        if entry is None or operation not in entry.operations:
-            raise ManifestError(f"limits.cost.{key}: not a declared concept operation")
-        cost[(Concept(name), operation)] = _count(units, f"limits.cost.{key}", 0)
-    return Limits(body["plan"], body["unit"], cost=cost, **rates)
+    return Limits(body["plan"], body["unit"], **{name: _count(body[name], f"limits.{name}") if name in body else None
+                                                 for name in ("per_second", "per_minute", "per_day", "per_month")})
 
 
 def validate_manifest(document: Any) -> Manifest:
@@ -265,7 +275,7 @@ def validate_manifest(document: Any) -> Manifest:
     if version > CONTRACT_VERSION:
         raise ManifestNeedsUpdate(version)
     body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights"},
-                   {"concepts", "catalogue", "resolve", "limits", "functions"})
+                   {"concepts", "catalogue", "resolve", "limits"})
     addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table"})
     native = []
     if not isinstance(addressing.get("native", []), list):
@@ -285,8 +295,8 @@ def validate_manifest(document: Any) -> Manifest:
             if SCHEME_LEVEL[scheme] is not Level(key):
                 raise ManifestError(f"addressing.schemes.{key}: {scheme} identifies a {SCHEME_LEVEL[scheme]}")
     table = addressing.get("mic_table", {})
-    mic_table = {_match(MIC, mic, "addressing.mic_table"): code
-                 for mic, code in _object(table, "addressing.mic_table", set(), set(table)).items()}
+    table = _object(table, "addressing.mic_table", set(), set(table) if isinstance(table, Mapping) else set())
+    mic_table = {_match(MIC, mic, "addressing.mic_table"): code for mic, code in table.items()}
     if not all(isinstance(code, str) and len(code) <= 16 for code in mic_table.values()):
         raise ManifestError("addressing.mic_table: provider venue codes are short text")
 
@@ -310,13 +320,9 @@ def validate_manifest(document: Any) -> Manifest:
 
     addressable = {item.level for item in native} | {level for level, listed in schemes.items() if listed}
     addressable |= {Level.LISTING} if mic_table else set()
-    concepts = {}
-    for key, item in _object(body.get("concepts", {}), "concepts", set(), set(body.get("concepts", {}))).items():
-        entry = _concept(key, item, addressable)
-        concepts[Concept(key)] = entry
-    if body.get("functions", []) != []:
-        raise ManifestError("functions: reserved; version 1 contracts declare no functions")
+    concepts = {Concept(key): _concept(key, item, addressable)
+                for key, item in _object(body.get("concepts", {}), "concepts", set(), set(Concept)).items()}
     return Manifest(_match(NAMESPACE, body["plugin"], "manifest.plugin"),
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
                     tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
-                    _rights(body["rights"]), _limits(body["limits"], concepts) if "limits" in body else None, version)
+                    _rights(body["rights"]), _limits(body["limits"]) if "limits" in body else None, version)

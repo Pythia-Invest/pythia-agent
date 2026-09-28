@@ -175,11 +175,15 @@ class SearchTest(Fixture):
 class PageTest(Fixture):
     def test_sections_use_derived_addresses_without_a_call(self):
         _subject, sections = self.compose(ASML, [plugin("gleif", operations={"profile": "pythia_gleif_profile"}),
-                                                 plugin("eodhd"), plugin("yahoo")])
+                                                 plugin("yahoo")])
         quote, profile = sections["quote"], sections["profile"]
         self.assertEqual((quote["plugin"], quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-yahoo", "ready", "ASML.AS", "derived"))
-        self.assertEqual(quote["alternatives"], [{"plugin": "pythia-eodhd", "label": "EODHD", "status": "resolving"}])
+        # EODHD comes first in core's default order; it still needs its lookup, which the Desk runs after rendering.
+        _subject, sections = self.compose(ASML, [plugin("eodhd"), plugin("yahoo")])
+        self.assertEqual((sections["quote"]["plugin"], sections["quote"]["status"]), ("pythia-eodhd", "resolving"))
+        self.assertEqual(sections["quote"]["alternatives"],
+                         [{"plugin": "pythia-yahoo", "label": "Yahoo Finance", "status": "ready"}])
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
 

@@ -52,6 +52,5 @@
     "unit": "credit",
     "per_minute": 50,
     "per_month": 15000
-  },
-  "functions": []
+  }
 }

@@ -283,21 +283,12 @@ def _suffixes() -> dict[str, set[str]]:
 def installed() -> list[page.PluginInfo]:
     """Every installed plugin that ships a valid contract.json, with its native enablement and configuration.
 
-    A plugin whose contract is newer than this core is listed by `needs_update()` instead."""
-    return contracts()[0]
-
-
-def needs_update() -> list[str]:
-    """Installed plugins whose contract_version is newer than this core reads: Pythia must be updated to use them."""
-    return contracts()[1]
-
-
-def contracts() -> tuple[list[page.PluginInfo], list[str]]:
+    A contract newer than this core is skipped with a distinct `needs_update` log line, never reported invalid."""
     from hermes_cli.config import load_config_readonly
     from hermes_cli.plugins import get_plugin_manager
     from .platform import configuration
     from .platform.access import native_plugin_enabled
-    config, loaded, outdated = load_config_readonly(), [], []
+    config, loaded = load_config_readonly(), []
     for key, plugin in tuple(get_plugin_manager()._plugins.items()):
         directory = Path(plugin.manifest.path) if plugin.manifest.path else None
         if directory is None or not directory.is_absolute() or not (directory / MANIFEST_FILE).is_file():
@@ -306,33 +297,38 @@ def contracts() -> tuple[list[page.PluginInfo], list[str]]:
             manifest = validate_manifest(json.loads((directory / MANIFEST_FILE).read_text(encoding="utf-8")))
         except ManifestNeedsUpdate as error:
             logger.warning("%s of %s needs a newer Pythia (needs_update): %s", MANIFEST_FILE, key, error)
-            outdated.append(key)
             continue
-        except (OSError, ValueError, ManifestError) as error:
+        except (OSError, ValueError, TypeError, ManifestError) as error:  # one bad contract never hides the others
             logger.warning("ignoring invalid %s of %s: %s", MANIFEST_FILE, key, error)
             continue
         loaded.append((key, plugin, directory, manifest))
     tools = native_operations({key for key, *_ in loaded})
-    found = [page.PluginInfo(key=key, manifest=manifest, enabled=native_plugin_enabled(key, plugin, config),
-                             missing=tuple(configuration.missing_at(directory)),
-                             operations={name: tool for name, tool in tools.get(key, {}).items()
-                                         if name in manifest.plugin_operations})
-             for key, plugin, directory, manifest in loaded]
-    return found, outdated
+    return [page.PluginInfo(key=key, manifest=manifest, enabled=native_plugin_enabled(key, plugin, config),
+                            missing=tuple(configuration.missing_at(directory)),
+                            operations={name: tool for name, tool in tools.get(key, {}).items()
+                                        if name in manifest.plugin_operations})
+            for key, plugin, directory, manifest in loaded]
 
 
 def native_operations(plugins: set[str]) -> dict[str, dict[str, str]]:
     """The Hermes adapter for contract operations: plugin key -> operation -> the native tool declaring it.
 
     A contract names plugin operations, never tools. An operation is the name a tool the plugin actually owns
-    declares, either as a protected HTTP operation (`declare_operation`) or in its market-data contribution."""
+    declares, either as a protected HTTP operation (`declare_operation`) or in its market-data contribution.
+    A name two of one plugin's tools declare is ambiguous and maps to neither."""
     from tools.registry import registry
     from .platform.access import native_tool_owners
-    from .platform.operations import MARKER
-    found: dict[str, dict[str, str]] = {}
     registered = set(registry.get_all_tool_names())
-    for name, (key, _plugin) in native_tool_owners().items():
-        schema = registry.get_schema(name) if key in plugins and name in registered else None
+    owners = {name: key for name, (key, _plugin) in native_tool_owners().items() if key in plugins and name in registered}
+    return operation_tools(owners, {name: registry.get_schema(name) for name in owners})
+
+
+def operation_tools(owners: dict[str, str], schemas: dict[str, Any]) -> dict[str, dict[str, str]]:
+    """Plugin key -> operation -> tool, from each owned tool's declarations; pure."""
+    from .platform.operations import MARKER
+    declared: dict[tuple[str, str], set[str]] = {}
+    for name, key in owners.items():
+        schema = schemas.get(name)
         try:
             comment = schema["parameters"].get("$comment") if isinstance(schema, dict) else None
             marks = json.loads(comment) if isinstance(comment, str) and len(comment) <= 16384 else {}
@@ -341,14 +337,21 @@ def native_operations(plugins: set[str]) -> dict[str, dict[str, str]]:
         if not isinstance(marks, dict):
             continue
         http = marks.get(MARKER)
-        declared = [http.get("operation")] if isinstance(http, dict) else []
+        names = [http.get("operation")] if isinstance(http, dict) else []
         contribution = marks.get("pythia_market_data")  # its owner validates it; only the tool's own entry counts
         for item in contribution.get("operations", []) if isinstance(contribution, dict) else []:
             if isinstance(item, dict) and item.get("tool") == name:
-                declared.append(item.get("operation"))
-        for operation in declared:
+                names.append(item.get("operation"))
+        for operation in names:
             if isinstance(operation, str):
-                found.setdefault(key, {}).setdefault(operation, name)
+                declared.setdefault((key, operation), set()).add(name)
+    found: dict[str, dict[str, str]] = {}
+    for (key, operation), tools in declared.items():
+        if len(tools) == 1:
+            found.setdefault(key, {})[operation] = next(iter(tools))
+        else:
+            logger.warning("%s declares operation %s on several tools (%s); it is not mapped",
+                           key, operation, ", ".join(sorted(tools)))
     return found
 
 

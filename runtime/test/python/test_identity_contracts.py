@@ -30,7 +30,6 @@ YAHOO = {
                  "news": {"level": "security", "via": "listing", "operations": {"list": "news"}}},
     "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": ["ticker_mic"]},
     "rights": {"licence": "personal", "cache": "none", "hostable": False},
-    "functions": [],
 }
 EODHD = {
     "contract_version": 1, "plugin": "eodhd", "provider": "eodhd",
@@ -42,7 +41,7 @@ EODHD = {
     "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["as", "us"]},
     "resolve": {"operation": "resolve", "input_schemes": ["isin", "figi", "lei"], "echoes": ["isin", "figi"]},
     "rights": {"licence": "personal", "cache": {"ttl_seconds": 86400}, "hostable": False},
-    "limits": {"plan": "EOD+Intraday", "unit": "call", "per_day": 100000, "cost": {"fundamentals.statements": 10}},
+    "limits": {"plan": "EOD+Intraday", "unit": "call", "per_day": 100000},
 }
 
 
@@ -216,8 +215,8 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(yahoo.concepts[identity.Concept.MARKET_DATA].qualities, {"daily": {"adjustment": ("split_dividend",)}})
         eodhd = identity.validate_manifest(EODHD)
         self.assertIs(eodhd.concepts[identity.Concept.FUNDAMENTALS].level, identity.Level.ISSUER)
-        self.assertEqual((eodhd.catalogue_operation, eodhd.rights.cache_seconds, eodhd.limits.cost),
-                         ("catalogue", 86400, {(identity.Concept.FUNDAMENTALS, "statements"): 10}))
+        self.assertEqual((eodhd.catalogue_operation, eodhd.rights.cache_seconds, eodhd.limits.per_day),
+                         ("catalogue", 86400, 100000))
         self.assertEqual(eodhd.plugin_operations, {"latest", "fundamentals", "catalogue", "resolve"})
 
     def test_rejects_contract_violations_at_their_path(self):
@@ -227,7 +226,15 @@ class ManifestTest(unittest.TestCase):
             "manifest.contract_version": lambda value: value.pop("contract_version"),
             "addressing.schemes.listing": lambda value: value["addressing"]["schemes"].update(listing=["isin"]),
             "concepts.market_data.via": lambda value: market(value).update(via="security"),
-            "concepts: expected one of": lambda value: value["concepts"].update(prices=market(value)),
+            "concepts.prices": lambda value: value["concepts"].update(prices=market(value)),
+            "concepts: object required": lambda value: value.update(concepts=5),
+            "concepts: object required ": lambda value: value.update(concepts=[{}]),
+            "limits.cost": lambda value: value.update(limits={"plan": "Free", "unit": "call", "cost": [{}]}),
+            "limits: object required": lambda value: value.update(limits=[{}]),
+            "addressing.mic_table": lambda value: value["addressing"].update(mic_table=[{}]),
+            "concepts.market_data.coverage.asset_classes": lambda value: market(value)["coverage"].update(asset_classes=[]),
+            "concepts.market_data.qualities.quote.delay_minutes": lambda value: market(value)["qualities"].update(
+                quote={"delay": "realtime", "delay_minutes": 15}),
             "concepts.market_data.operations.stream": lambda value: market(value)["operations"].update(stream="live"),
             "concepts.market_data.operations.quote": lambda value: market(value)["operations"].update(quote="Yahoo Quote"),
             "concepts.market_data.qualities.daily.speed": lambda value: market(value)["qualities"]["daily"].update(speed=1),
@@ -235,13 +242,14 @@ class ManifestTest(unittest.TestCase):
                 daily={"adjustment": ["dividend"]}),
             "concepts.market_data.qualities.intraday": lambda value: market(value)["qualities"].update(
                 intraday={"delay": "eod"}),
-            "concepts.market_data.coverage.asset_classes": lambda value: market(value)["coverage"].update(asset_classes=["bond"]),
+            "concepts.market_data.coverage.asset_classes ": lambda value: market(value)["coverage"].update(
+                asset_classes=["bond"]),
             "concepts.filings.authorities": lambda value: value["concepts"].update(
                 filings={"level": "issuer", "via": "security", "operations": {"list": "filings"}}),
             "concepts.news.tool": lambda value: value["concepts"]["news"].update(tool="yahoo_news"),
             "rights.licence": lambda value: value["rights"].update(licence="professional"),
             "rights.attribution.url": lambda value: value["rights"].update(attribution={"text": "Yahoo", "url": "http://x"}),
-            "functions": lambda value: value.update(functions=[{"name": "facts"}]),
+            "manifest.functions": lambda value: value.update(functions=[]),
             "addressing.native[0]": lambda value: (value.pop("resolve"), value["addressing"].pop("mic_table")),
             "catalogue": lambda value: value.update(catalogue={"mode": "resolve_only", "scopes": ["all"]}),
             "addressing.native": lambda value: value["addressing"].update(native=5),
@@ -253,7 +261,7 @@ class ManifestTest(unittest.TestCase):
                 with self.assertRaises(identity.ManifestError) as caught:
                     identity.validate_manifest(document)
                 self.assertNotIsInstance(caught.exception, identity.ManifestNeedsUpdate)
-                self.assertTrue(str(caught.exception).startswith(path), caught.exception)
+                self.assertTrue(str(caught.exception).startswith(path.strip()), caught.exception)
 
     def test_a_newer_contract_needs_an_update_rather_than_being_invalid(self):
         # A future shape: fields this core has never seen are not reported as invalid.

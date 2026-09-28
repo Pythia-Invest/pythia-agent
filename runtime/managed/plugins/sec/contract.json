@@ -44,6 +44,5 @@
     "plan": "EDGAR fair access",
     "unit": "request",
     "per_second": 10
-  },
-  "functions": []
+  }
 }

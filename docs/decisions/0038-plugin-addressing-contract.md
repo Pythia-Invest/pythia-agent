@@ -149,36 +149,38 @@ enforces" stands; `rights` below is declared, not yet enforced.
     }
   },
   "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
-  "rights": {"licence": "business", "cache": {"ttl_seconds": 86400}, "hostable": false,
-             "attribution": {"text": "Powered by CoinGecko", "url": "https://www.coingecko.com"}},
-  "limits": {"plan": "Demo", "unit": "credit", "per_minute": 100, "per_month": 10000,
-             "cost": {"market_data.quote": 1, "market_data.intraday": 1, "market_data.daily": 1}},
-  "functions": []
+  "rights": {"licence": "personal", "cache": {"ttl_seconds": 86400}, "hostable": false,
+             "attribution": {"text": "Powered by CoinGecko API", "url": "https://www.coingecko.com/en/api/"}},
+  "limits": {"plan": "Demo", "unit": "credit", "per_minute": 100, "per_month": 10000}
 }
 ```
 
 - **`contract_version`** is a required positive integer, read before anything
   else. A contract newer than this core is not validated further: the plugin
-  is reported as `needs_update` (`ManifestNeedsUpdate`; `identity_ops.needs_update()`
-  lists such plugins), never as invalid, and its fields are never silently
-  ignored. Any added, removed or changed field raises the version. A new value
+  is reported as `needs_update` (`ManifestNeedsUpdate`, logged distinctly),
+  never as invalid, and its fields are never silently ignored. Any added, removed or changed field raises the version. A new value
   in one of core's closed vocabularies (a concept, operation, quality,
   authority or asset class) is a core change; managed plugins always ship with
   the core that knows their values.
 - **`concepts`** replaces `content`. Each entry names a registered concept,
   its `level` and `via` (as before; the concept limits the levels), the plugin
   operation per concept operation, optional `coverage` (`asset_classes`, and
-  `markets` as operating MICs where coverage is narrower than addressing),
+  `markets` as operating MICs where coverage is narrower than addressing, and
+  `operations` narrowing either for one concept operation, as for a live
+  stream that covers fewer markets),
   optional `qualities` keyed by concept operation from the registry's closed
   vocabulary, and for a combining concept (filings) the `authorities` it serves.
   Page sections read concepts: quote is `market_data.quote`, chart
   `market_data.daily` or `intraday`, profile `profile.fields`, filings
   `filings.list`.
-- **Operations, not tools.** Every entry names a plugin operation: the name a
-  tool the plugin actually owns declares, either as a protected HTTP operation
-  or in its market-data contribution. Core's Hermes adapter
-  (`identity_ops.native_operations`) maps an operation to that tool, so
-  another harness reads the same contract.
+- **Operations, not tools.** Every concept and resolve entry names a plugin
+  operation: the name a tool the plugin actually owns declares, either as a
+  protected HTTP operation or in its market-data contribution. Core's Hermes
+  adapter (`identity_ops.native_operations`) maps an operation to that tool, so
+  another harness reads the same contract. A name two of one plugin's tools
+  declare is ambiguous and is not mapped. `catalogue.operation` names the
+  plugin's own catalogue operation, which the plugin's sync runs and core does
+  not dispatch, so the adapter does not map it.
 - **`rights`** (required): `licence` (`open`, `personal`, `business` or
   `seat`; only personal mode exists), `cache` (`none`, `{"ttl_seconds": n}`
   or `unlimited`: how long the data may stay on the device), `hostable`
@@ -187,29 +189,29 @@ enforces" stands; `rights` below is declared, not yet enforced.
   showing the data renders). Declared now; enforcing the cache lifetime and
   rendering attribution come later. Each plugin still enforces its provider's
   other terms itself.
-- **`limits`** (optional): the provider's published limits for a named plan
-  (`unit` `call`, `credit` or `request`; per second, minute, day or month)
-  and each concept operation's `cost` in those units. A claim for that plan,
-  not the investor's entitlement; nothing enforces it yet.
-- **`functions`** is reserved for the read-only provider functions proposed
-  for ADR 0040's later phases. Version 1 accepts only an empty list; the entry
-  shape comes with that work and raises the version.
+- **`limits`** (optional): the provider's published rate limits for a named
+  plan (`unit` `call`, `credit` or `request`; per second, minute, day or
+  month). A claim for that plan, not the investor's entitlement; nothing
+  enforces it yet. A per-operation cost comes with the quota ledger.
+- Provider functions (ADR 0040's later phases) are not part of version 1;
+  adding them raises the version.
 
 Consequences: `identity.validate_manifest` and `identity_ops.installed()` keep
 their names and signatures. The `Manifest` they return has `concepts` instead
-of `content`, `catalogue_operation` instead of `catalogue_tool`,
-`resolve.operation` instead of `resolve.tool`, plus `rights`, `limits`,
-`contract_version` and `plugin_operations` (every operation the contract
-names). `PluginInfo.operations` maps a plugin operation to its native tool.
-`Section` moved from the manifest to page composition. The
-`pythia_market_data` annotation remains until market-data selection moves to
-core. Page composition is unchanged: a parity test shows the same plugin,
-status and alternatives per section for ASML on Euronext Amsterdam and Nasdaq,
-Bitcoin and Apple under two configurations.
+of `content` (with `ConceptEntry.coverage_for(operation)`),
+`catalogue_operation` instead of `catalogue_tool`, `resolve.operation` instead
+of `resolve.tool`, plus `rights`, `limits`, `contract_version` and
+`plugin_operations` (every operation the contract names).
+`PluginInfo.operations` maps a plugin operation to its native tool. `Section`
+moved from the manifest to page composition. The `pythia_market_data`
+annotation remains until market-data selection moves to core. Page
+composition reads concepts; its only change is core's default order (ADR
+0040), which puts EODHD ahead of Yahoo when EODHD is configured.
 
 Rejected: adding only the version (the `content` to `concepts` and
 tool-to-operation changes break every contract anyway); keeping rights in
 READMEs (core could not render attribution or respect cache lifetimes);
 qualities flat per concept (delay and depth differ between a quote and daily
 history); free-form qualities (selection and labels need values core
-understands); defining the `functions` entry shape before anything uses it.
+understands); reserving an always-empty `functions` key (adding a field raises
+the version either way).

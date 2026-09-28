@@ -59,7 +59,6 @@
         },
         "daily": {
           "adjustment": [
-            "unknown",
             "split_dividend"
           ]
         }
@@ -70,6 +69,5 @@
     "licence": "personal",
     "cache": "none",
     "hostable": false
-  },
-  "functions": []
+  }
 }

@@ -37,26 +37,20 @@
     ]
   },
   "rights": {
-    "licence": "business",
+    "licence": "personal",
     "cache": {
       "ttl_seconds": 86400
     },
     "hostable": false,
     "attribution": {
-      "text": "Powered by CoinGecko",
-      "url": "https://www.coingecko.com"
+      "text": "Powered by CoinGecko API",
+      "url": "https://www.coingecko.com/en/api/"
     }
   },
   "limits": {
     "plan": "Demo",
     "unit": "credit",
     "per_minute": 100,
-    "per_month": 10000,
-    "cost": {
-      "market_data.quote": 1,
-      "market_data.intraday": 1,
-      "market_data.daily": 1
-    }
-  },
-  "functions": []
+    "per_month": 10000
+  }
 }

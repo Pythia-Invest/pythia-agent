@@ -253,8 +253,10 @@ addressing (the full shape is in the ADR 0038 amendment):
   `sedar`); core combines one source per authority.
 - `rights` states the licence class, how long data may stay on the device,
   whether it may be published (false for provider data) and any attribution
-  the provider requires. `limits` may state the provider's published limits
-  and each operation's cost.
+  the provider requires. `limits` may state the provider's published rate
+  limits for a named plan.
+- `coverage.operations` narrows coverage for one operation, for example a
+  live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
   (`identity.validate_live_market`).
 
