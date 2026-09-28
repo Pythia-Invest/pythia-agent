@@ -249,19 +249,6 @@ export function createFinancialDataService(
         controller.abort();
       }
     },
-    async preferences(signal: AbortSignal): Promise<{ revision: number }> {
-      const value = JSON.parse(
-        await command(args({ action: "get_preferences" }), signal),
-      );
-      if (
-        value.schema_version !== 1 ||
-        value.outcome !== "ok" ||
-        !Number.isSafeInteger(value.data?.revision) ||
-        value.data.revision < 0
-      )
-        throw Error("preferences_unavailable");
-      return { revision: value.data.revision };
-    },
   };
 }
 const key = Symbol.for("pythia.desk.financial-data");

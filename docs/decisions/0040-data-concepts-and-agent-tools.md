@@ -247,9 +247,16 @@ surface for plugins that need a newer Pythia, and team mode.
   the investor's order puts a paid source first. Filings sections read core's
   combined list, so ASML shows its ESEF reports and SEC 20-F and 6-K filings
   together.
-- Market data's own preferences (ADR 0028) still govern reads by explicit
-  provider reference; they move to the one ordered list when market-data reads
-  route through core selection.
+- `source_order` is Pythia's only source order. Market data keeps no source
+  choices of its own: its `preferences.sqlite3` and the `get_preferences` and
+  `set_preferences` actions (ADR 0028) are retired. A read of a subject through
+  market data (the markets widgets, the agent's price reads) takes core's
+  references for the subject in this order, and the page reads the reference
+  core chose, so page, chart and agent serve from the same first source.
+- A device's saved market-data orders are set aside, not migrated: on first
+  start the file is renamed `preferences-retired.sqlite3` (a pre-ADR 0037
+  `identity.sqlite3` likewise) and a warning in the Hermes log names the orders
+  it held. Nothing is deleted.
 - No new store: the order lives in `settings.json` and selection is computed
   per request.
 
@@ -266,3 +273,10 @@ surface for plugins that need a newer Pythia, and team mode.
   source per authority makes it unnecessary.
 - **Asking the investor at read time:** no product does it, and it would block
   monitoring.
+- **Migrating market data's saved orders into `source_order`:** they were
+  per operation (latest, history) and could be scoped by asset class, venue,
+  currency or series facets, none of which the one list has; core has no
+  per-subject pin to map them to ("Also:" reads once). Writing `settings.json`
+  from a plugin's start would also change which source serves without the
+  investor acting, possibly putting a paid source first. The log names the old
+  orders so the investor can put them in `source_order` themselves.

@@ -63,6 +63,28 @@ class Reference(unittest.TestCase):
         return {s["section"]: s for s in page.compose(subject, plugins or shipped(), **self.lookups(**extra))}
 
 
+class OneOrderTest(Reference):
+    def test_one_order_drives_the_page_quote_chart_and_a_subject_read_identically(self):
+        """D1: the page's quote and chart, and a subject read through market-data (the agent's and the markets
+        widgets' path) serve from the same first source of the investor's one order, else core's default."""
+        from market_data_read_fixtures import Backend, Sources, request, run_read
+        subject = page.load_subject(self.ref, SUBJECTS["asml_xams"])
+        binding = {"kind": "listing", "id": subject["id"]}
+        for order, expected in (((), "yahoo"), (("eodhd",), "eodhd")):
+            with self.subTest(order=order), tempfile.TemporaryDirectory() as directory:
+                lookups = self.lookups(order=order)
+                sections = {s["section"]: s for s in page.compose(subject, shipped(), **lookups)}
+                refs = page.price_sources(subject, shipped(), **lookups)
+                sources = Sources(refs)
+                backend = Backend(directory, subjects=lambda _id: {"asset_class": "equity", "refs": refs, "reason": None},
+                                  source_call=sources.call, source_projection=sources.project,
+                                  access_scope=lambda: sources.access)
+                read = run_read(backend, read_request=request({"kind": "pythia", "subject": binding}))
+                self.assertEqual([sections["quote"]["provider"], sections["chart"]["provider"],
+                                  read["provenance"]["provider"]], [expected] * 3)
+                self.assertEqual(read["series"]["provider_ref"]["native_id"], sections["chart"]["binding"]["native_id"])
+
+
 class SelectionTest(Reference):
     def test_the_investors_one_order_beats_core_order_across_concepts(self):
         core = self.sections("asml_xams")

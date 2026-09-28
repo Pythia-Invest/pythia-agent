@@ -19,12 +19,14 @@ CRITERIA = {"measurement": "ohlc", "interval": {"kind": "day", "count": 1}, "ses
 
 
 class Sources:
-    def __init__(self):
-        self.providers = ("ibkr", "synthetic_other")
+    def __init__(self, refs=None):
+        """Synthetic sources behind core's `refs` for the subject (default: two ibkr-shaped ones)."""
+        self.refs = {ref["provider"]: ref for ref in refs} if refs else {
+            provider: {**native(301 if provider == "ibkr" else 302), "provider": provider} for provider in ("ibkr", "synthetic_other")}
+        self.providers = tuple(self.refs)
         self.ready = {provider: True for provider in self.providers}
         self.calls = []
         self.access = {"platform": "api_server", "connection": "endpoint-a"}
-        self.refs = {provider: {**native(301 if provider == "ibkr" else 302), "provider": provider} for provider in self.providers}
         self.definitions = {provider: [self.definition(provider)] for provider in self.providers}
         self.fail = set()
         self.policies = {}
@@ -65,6 +67,10 @@ class Sources:
         if self.after_read:
             self.after_read()
         return result
+
+    def order(self, *providers):
+        """Core's one source order for the subject (the investor's `source_order`, then core's default)."""
+        self.refs = {provider: self.refs[provider] for provider in providers}
 
     def subjects(self, subject_id):
         if subject_id != SUBJECT["id"]:

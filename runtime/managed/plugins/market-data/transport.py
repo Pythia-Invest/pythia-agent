@@ -6,7 +6,7 @@ from ._platform import platform
 
 class FinancialDelivery:
     push = True
-    READ_ACTIONS = {'describe', 'call', 'details', 'series', 'read', 'read_many', 'get_preferences'}
+    READ_ACTIONS = {'describe', 'call', 'details', 'series', 'read', 'read_many'}
 
     def __init__(self, backend_factory):
         self.backend_factory = backend_factory
@@ -16,16 +16,13 @@ class FinancialDelivery:
         arguments = resource['arguments']
         # A page chart follows the series its source declares, so their list
         # is subscribable like the reads it plans.
-        if updates and arguments.get('action') not in ('read', 'read_many', 'series', 'get_preferences'):
+        if updates and arguments.get('action') not in ('read', 'read_many', 'series'):
             raise platform().admission.AdmissionError('unsupported_operation', 404)
         validate_window(resource)
         reads = arguments.get('reads', [arguments])
-        preferred = arguments.get('action') == 'get_preferences' or any(
-            item.get('request', {}).get('view', {}).get('kind') == 'pythia' for item in reads)
-        scope = None
-        if preferred:
-            owner = self.backend_factory()
-            scope = [owner.preferences.get()['revision'], owner.subject_scope(reads)]
+        # A subject read follows core's routing, which the investor's source order changes.
+        preferred = any(item.get('request', {}).get('view', {}).get('kind') == 'pythia' for item in reads)
+        scope = self.backend_factory().subject_scope(reads) if preferred else None
         history = bool(reads) and all(item.get('request', {}).get('operation') == 'history' for item in reads)
         return {'scope': scope, 'lane': 'history' if history else 'ordinary',
                 'read_only': arguments.get('action') in self.READ_ACTIONS}

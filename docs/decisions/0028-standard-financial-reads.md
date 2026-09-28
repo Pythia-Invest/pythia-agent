@@ -1,5 +1,9 @@
 # 0028: Standard widgets and agents share financial reads
 
+**Amended by [ADR 0040](0040-data-concepts-and-agent-tools.md).** Market data's
+saved source preferences are retired: core's `source_order` is the one order,
+and broker data needs an explicit native reference or pinned series.
+
 ## Context
 
 The canonical identity store and preferred/pinned reader existed, but Markets

@@ -1,20 +1,66 @@
 """Profile-bound feature operations; providers own their metadata and selectors.
 
-Identity is core's (ADR 0037): a Pythia subject reads through the native
-references core binds or derives for it, in core's order.
+Identity and source selection are core's (ADR 0037, ADR 0040): a Pythia subject
+reads through the native references core binds or derives for it, in core's one
+source order (the investor's `source_order`, then core's default order).
 """
 import copy
 from contextlib import contextmanager
 from contextvars import ContextVar
+import json
+import logging
+from pathlib import Path
+import sqlite3
 
 from .cache import ReadCache, ReadCancelled
-from .preferences import Preferences
 from .selection import CRITERIA, available, compatible_ref, fingerprint, native_access_scope, matches, permits_implicit, caches_observations
 from .wire import WireError, require, validate, validate_parameters
 
 
+logger = logging.getLogger(__name__)
 # One request loads each subject's routing once, however many checks read it.
 _ROUTES = ContextVar("market_data_routes", default=None)
+# This feature's former source choices: its own store, and the identity file it replaced (ADR 0012, retired by 0037).
+RETIRED = (("preferences.sqlite3", "preferences-retired.sqlite3"), ("identity.sqlite3", "identity-retired.sqlite3"))
+
+
+def _saved_orders(path):
+    """The per-operation orders and the count of scoped choices a retired file holds, for the log."""
+    db = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=2)
+    try:
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        orders = {row[0]: json.loads(row[1]) for row in db.execute("SELECT operation, providers FROM source_preferences")} \
+            if "source_preferences" in tables else {}
+        scoped = db.execute("SELECT count(*) FROM scoped_source_preferences").fetchone()[0] \
+            if "scoped_source_preferences" in tables else 0
+    finally:
+        db.close()
+    return orders, scoped
+
+
+def retire_source_choices(data_dir):
+    """Set aside this feature's former source choices once: core's `source_order` is the one order (ADR 0040).
+
+    Nothing is copied into settings.json and nothing is deleted. Each file is renamed, never overwriting an
+    earlier one, and the choices it held are logged so the investor can put them in `source_order`."""
+    directory = Path(data_dir)
+    for name, retired in RETIRED:
+        path, target = directory / name, directory / retired
+        if not path.is_file() or path.is_symlink() or target.exists():
+            continue
+        try:
+            orders, scoped = _saved_orders(path)
+        except (sqlite3.Error, ValueError):
+            orders, scoped = None, None
+        try:
+            path.rename(target)
+        except OSError:  # another process set it aside first
+            continue
+        logger.warning("Market-data source choices retired: Pythia now has one source order, source_order in"
+                       " settings.json (empty: free sources first). %s is kept as %s; its orders %s and %s scoped"
+                       " choices no longer apply.", name, retired,
+                       "(unreadable)" if orders is None else {op: order for op, order in orders.items() if order},
+                       "(unreadable)" if scoped is None else scoped)
 
 
 def core_price_sources(subject_id):
@@ -26,11 +72,8 @@ def core_price_sources(subject_id):
     return support.price_sources(subject_id)
 
 
-def envelope(data, *, mutation=False, issues=(), outcome="ok"):
-    result = {"schema_version": 1, "outcome": outcome, "data": data, "issues": list(issues)}
-    if mutation:
-        result["effect"] = "local_write"
-    return result
+def envelope(data, *, issues=(), outcome="ok"):
+    return {"schema_version": 1, "outcome": outcome, "data": data, "issues": list(issues)}
 
 
 ISSUER_ISSUE = {"code": "issuer_subject", "severity": "error",
@@ -46,7 +89,7 @@ class Backend:
         self._project = source_projection or project
         self._access_scope = access_scope or native_access_scope
         self._subjects = subjects or core_price_sources
-        self.preferences = Preferences(data_dir)
+        retire_source_choices(data_dir)
         self.cache = cache or ReadCache()
         self.metadata_cache = ReadCache(max_entries=128, ttl_seconds=300)
 
@@ -83,11 +126,6 @@ class Backend:
                 self.metadata_cache.put(key, result, ttl_seconds=age)
             return result
         return self.metadata_cache.coalesce(key, describe)
-
-    @contextmanager
-    def publication(self, preference_revision):
-        require(preference_revision is None or self.preferences.get()["revision"] == preference_revision, "read", "stale preference revision")
-        yield
 
     @contextmanager
     def routing(self):
@@ -131,15 +169,9 @@ class Backend:
             return envelope([], outcome="error", issues=[ISSUER_ISSUE])
         if "provider" not in binding:
             sources, _ = self.context()
-            orders = self.preferences.get()["orders"]
-            explicit = set(orders["latest"]) | set(orders["history"])
-            facts = {**criteria, "asset_class": route["asset_class"]}
-            for rule in self.preferences.get()["scopes"]:
-                if all(facts.get(key) == value for key, value in rule["scope"].items()):
-                    explicit.update(rule["providers"])
-            permitted = [ref for ref in refs if permits_implicit(sources, ref["provider"], explicit)]
+            permitted = [ref for ref in refs if permits_implicit(sources, ref["provider"])]
             if len(permitted) < len(refs):
-                issues.append({"code": "explicit_source_required", "message": "Some sources require an explicit native reference or saved source preference for discovery.", "severity": "warning"})
+                issues.append({"code": "explicit_source_required", "message": "Some sources require an explicit native reference or pinned series for discovery.", "severity": "warning"})
             refs = permitted
         if len(refs) > 8:
             return envelope([], outcome="error", issues=[{"code": "candidate_limit", "message": "Too many native bindings; choose a narrower native reference or pinned descriptor.", "severity": "error"}])
@@ -178,8 +210,7 @@ class Backend:
         action = request.get("action")
         shapes = {
             "details": ({"native_ref"}, set()), "series": ({"binding"}, {"criteria"}),
-            "read": ({"request"}, {"criteria", "series"}), "read_many": ({"reads"}, set()), "get_preferences": (set(), set()),
-            "set_preferences": ({"operation", "providers"}, {"preference_scope"}),
+            "read": ({"request"}, {"criteria", "series"}), "read_many": ({"reads"}, set()),
         }
         require(action in shapes, "backend", "unknown action")
         required, optional = shapes[action]
@@ -193,15 +224,11 @@ class Backend:
             return self.series(request["binding"], criteria)
         if action == "read":
             from .reads import read
-            key = fingerprint({"request": request, "access": self.context()[1], "preferences": self.preferences.get()["revision"]})
+            key = fingerprint({"request": request, "access": self.context()[1]})
             return self.cache.coalesce(key, lambda: read(self, request["request"], criteria, request.get("series")))
         if action == "read_many":
             from .coordinated import read_many
             return envelope(read_many(self, request["reads"]))
-        if action == "get_preferences":
-            return envelope(self.preferences.get())
-        if action == "set_preferences":
-            return envelope(self.preferences.set(request["operation"], request["providers"], request.get("preference_scope")), mutation=True)
         raise WireError("backend: unknown action")
 
     def subject_scope(self, reads):
