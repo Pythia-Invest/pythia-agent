@@ -22,7 +22,8 @@ export type InstrumentPeriodChange = {
 };
 
 /**
- * Page-scale quote: market activity and data status in words, the regular
+ * Page-scale quote: the tiles' identity row (activity dot, status icon with a
+ * plain-language hover), the regular
  * price with unit and its supplied change, an optional extended-hours quote
  * and an optional change for the selected chart period. Loading keeps the
  * geometry with static placeholders; unavailable prices stay a dash.
@@ -175,8 +176,6 @@ export function InstrumentStats({
 export type InstrumentPeriodOption = {
   id: string;
   label: string;
-  /** Why the period cannot be shown, such as a source's history limit. */
-  unavailable?: string | undefined;
 };
 
 /** Exclusive chart-period choice with roving arrow-key focus. */
@@ -210,8 +209,6 @@ export function InstrumentPeriodSelector({
           label={period.label}
           appearance="ghost"
           size="sm"
-          disabled={Boolean(period.unavailable)}
-          title={period.unavailable}
           className="h-7 px-2.5"
         />
       ))}

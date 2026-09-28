@@ -77,11 +77,13 @@ function timeTicks(g: PathGeometry, timeZone: string | undefined) {
     ? formatter(timeZone, { weekday: "short", day: "numeric" })
     : formatter(timeZone, { hour: "2-digit", minute: "2-digit" });
   // A compressed axis labels each session where it resumes.
-  if (daily && gaps.length)
-    return [start, ...gaps.map((gap) => gap.end)].map((time) => ({
-      time,
-      label: label.format(time),
-    }));
+  if (daily && gaps.length) {
+    const resumes = [start, ...gaps.map((gap) => gap.end)];
+    const every = Math.ceil(resumes.length / 7);
+    return resumes
+      .filter((_, i) => (resumes.length - 1 - i) % every === 0)
+      .map((time) => ({ time, label: label.format(time) }));
+  }
   let dayIndex = 0;
   for (let t = Math.ceil(start / HOUR) * HOUR; t <= end; t += HOUR) {
     const hour = Number(hourOf.format(t));
@@ -270,6 +272,14 @@ export function InstrumentChart({
         aria-hidden="true"
         className="relative mt-1 h-4 text-[10px] text-foreground-secondary tabular-nums"
       >
+        {g.scale.gaps.map((gap) => (
+          <span
+            key={`gap-${gap.end}`}
+            data-slot="instrument-chart-session-mark"
+            className="absolute -top-1 h-1 border-foreground-secondary/60 border-l"
+            style={{ left: left(g.scale.x(gap.end)) }}
+          />
+        ))}
         {ticks.times.map(({ time, label }) => (
           <span
             key={time}

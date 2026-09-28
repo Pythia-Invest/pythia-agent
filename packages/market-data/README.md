@@ -208,20 +208,23 @@ widget row's `subject` may be a Pythia subject or a `ProviderRef`; the latter
 reads that source only). Its `chartBinding` (input contract
 `pythia.instrument-chart.v1`: subject, symbol, name and a host-selected period
 `1D`, `5D`, `1M`, `6M`, `YTD`, `1Y`, `5Y` or `MAX`) reads the quote and the
-source's declared series, then chooses bars per period with `chartPlan`: 1D and
-5D share the finest intraday series covering five days within 2,000 points
-(extended hours preferred); longer periods use daily bars, 1M–1Y sharing one
-year that also supplies the statistics; a period beyond the declared span says
-so instead of stretching a shorter history. 1D draws the current or last
-session from supplied `session_window` evidence with its previous close as
-baseline only when the quote belongs to that session; continuous markets and
-sources without session evidence show the past 24 hours. Other periods keep
-calendar time and state their comparison basis. Open, high, low and volume come
-from the latest daily bar (with its date), the previous close only from the
-quote's `reference_close`, and the 52-week range from a year of daily bars; a
-field the source does not supply is omitted. Before the open, 1D shows the prior
-regular session from `session_window.previous_regular`, omits the closed night
-and continues with today's pre-market; otherwise the supplied day with today's
-pre-market before the open divider. A connector's `price_context.extended`
+source's declared series, then chooses bars per period with `chartPlan`, aiming
+at 200–800 drawn points: 1D prefers 2-minute bars including pre/post-market, 5D
+5-minute and 1M 30-minute regular-session bars, 6M–1Y share a year of daily
+bars that also supplies the statistics, and 5Y and Max prefer weekly bars. A
+period no declared series covers says so. Paths never exceed 800 points
+(largest-triangle downsampling of real bars), and the adjacent periods are read
+ahead. 1D draws the supplied `session_window`: the day with today's pre-market
+before the open divider, or before the open the prior session
+(`session_window.previous`, with its extended hours), the omitted night and
+today's pre-market. Its baseline is the quote's previous close when the quote
+belongs to the drawn session. Without a schedule, 1D shows the last returned
+session; continuous markets show the past 24 hours. Multi-day views join
+regular sessions and omit the closed time between them (daily views omit
+closed days); a gap inside a session stays. Their baseline and period change
+start from the close before the period. Open, high, low and volume come from the
+latest daily bar (with its date), the previous close only from the quote's
+`reference_close`, and the 52-week range from a year of daily bars; a field the
+source does not supply is omitted. A connector's `price_context.extended`
 (latest pre/post trade, qualified against the regular close) becomes the
 Pre/Post row; the regular price and change keep their own basis.

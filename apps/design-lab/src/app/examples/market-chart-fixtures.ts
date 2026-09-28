@@ -107,25 +107,13 @@ const days = [5, 6, 7, 8, 9].map((d) => ({
 const fivePoints = days.flatMap((day, i) =>
   bars(day.open, day.close - 5 * MINUTE, 5 * MINUTE, 98 + i * 0.8, 20 + i),
 );
-const fiveWindow = {
-  start: Date.parse("2026-01-04T12:00:00Z"),
-  end: Date.parse("2026-01-09T18:00:00Z"),
-};
-const fiveCalendar: InstrumentPath = {
+// Five sessions joined into one line; closed nights and the weekend omitted.
+const fiveDays: InstrumentPath = {
   points: fivePoints,
-  baseline: {
-    value: fivePoints[0]?.value ?? 98,
-    label: "First observation in this period",
-  },
-  label: "Synthetic 5-minute bars · past 5 days, calendar time",
-  intervalMs: 5 * MINUTE,
-  window: fiveWindow,
-};
-const fiveCompressed: InstrumentPath = {
-  ...fiveCalendar,
+  baseline: { value: 97.6, label: "Synthetic close before this period" },
   label:
-    "Synthetic 5-minute bars · five sessions; closed nights and the weekend are omitted",
-  window: undefined,
+    "Synthetic 5-minute bars · five regular sessions; closed time between sessions omitted",
+  intervalMs: 5 * MINUTE,
   session: { start: days[0]?.open ?? 0, end: days[4]?.close ?? 0 },
   sessionGaps: days
     .slice(1)
@@ -182,8 +170,7 @@ export const chartExamples = {
     },
     path: { ...preMarket, live: true },
   },
-  fiveCalendar: { ...base, path: fiveCalendar },
-  fiveCompressed: { ...base, path: fiveCompressed },
+  fiveDays: { ...base, path: fiveDays },
   year: { ...base, path: year },
   loading: { ...base, path: undefined, pathState: "loading" },
 } satisfies Record<string, InstrumentDisplay>;

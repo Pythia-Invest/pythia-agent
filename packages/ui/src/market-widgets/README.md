@@ -15,9 +15,9 @@ for ownership, data semantics, loading and chart rules.
 | `InstrumentPathView` | Activity-aware path with independent `loading` and fixed `height`; unavailable history retains its region and accessible explanation. |
 | `InstrumentSparkline` | Standalone bounded path; `height`, `muted`, `dot` and `className` control presentation. The supplied label/baseline describe its meaning. |
 | `InstrumentChart` | Page-scale path with price/time axes and a pointer readout; `height`, `loading` and `emptyLabel` (why no path, such as an unsupported period). |
-| `InstrumentQuoteHeader` | Activity in words, large regular price and change, extended quote and an optional supplied `periodChange`. |
+| `InstrumentQuoteHeader` | The tiles' identity row (dot, ticker, status icon), large regular price and change, extended quote and an optional supplied `periodChange`. |
 | `InstrumentStats` | Supplied statistics (value or low–high range, price or quantity format), each with its provenance `detail`. |
-| `InstrumentPeriodSelector` | Exclusive period choice; an `unavailable` reason disables a period. |
+| `InstrumentPeriodSelector` | Exclusive period choice with roving arrow-key focus. |
 
 All parts use existing semantic tokens in both themes. Status controls support
 hover, keyboard and touch; color has a textual equivalent. Motion respects

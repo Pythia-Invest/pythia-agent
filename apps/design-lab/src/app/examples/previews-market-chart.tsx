@@ -12,15 +12,8 @@ import { DemoNote, Specimen, SpecimenGrid } from "./specimen";
 
 const periods = [
   { id: "1D", label: "1D", item: chartExamples.euDay },
-  { id: "5D", label: "5D", item: chartExamples.fiveCalendar },
+  { id: "5D", label: "5D", item: chartExamples.fiveDays },
   { id: "1Y", label: "1Y", item: chartExamples.year },
-  {
-    id: "5Y",
-    label: "5Y",
-    item: chartExamples.loading,
-    unavailable:
-      "The synthetic source provides at most one year of daily bars.",
-  },
 ] as const;
 
 function PriceSection({
@@ -92,20 +85,11 @@ export function MarketChartPreview() {
         </Specimen>
       </div>
       <div className="col-span-full">
-        <Specimen label="5D comparison · A: calendar time (current market-widget rule)">
-          <PriceSection item={chartExamples.fiveCalendar} />
+        <Specimen label="5D · five regular sessions joined, closed time omitted">
+          <PriceSection item={chartExamples.fiveDays} />
           <DemoNote>
-            Nights and the weekend keep their elapsed width; the product uses
-            this variant.
-          </DemoNote>
-        </Specimen>
-      </div>
-      <div className="col-span-full">
-        <Specimen label="5D comparison · B: session-compressed (omitted closed hours)">
-          <PriceSection item={chartExamples.fiveCompressed} />
-          <DemoNote>
-            Closed intervals are omitted and marked; timestamps are unchanged.
-            Shown for comparison only, not adopted.
+            Each session resumes where the previous one ended; small axis marks
+            show the day boundaries. Timestamps are unchanged.
           </DemoNote>
         </Specimen>
       </div>

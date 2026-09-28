@@ -64,11 +64,11 @@ rejected. Choosing suitable sampling or aggregation belongs before rendering.
 are subdued and dashed boundaries separate them. `sessionGap` may omit a known
 closed interval between the prior regular session and pre-market; timestamps are
 unchanged, and the supplied accessible chart description must explain that
-omission. `sessionGaps` applies the same rule to several intervals; product
-multi-day views keep calendar time, and the Design Lab compares that with a
-session-compressed axis for a pending decision. An absent baseline stays neutral
-instead of inventing a gain/loss basis. `timeZone` names the zone for axis
-labels (normally the exchange's), and `dates` marks session-date coordinates.
+omission. `sessionGaps` applies the same rule to several intervals.
+Multi-day charts may compress closed-market time between sessions; a gap inside a session (a halt or a missing bar) stays visible. Page charts join multi-day
+regular sessions into one line and mark the day boundaries on the axis. An
+absent baseline stays neutral instead of inventing a gain/loss basis. Axis and
+readout times use the viewer's zone; `dates` marks session-date coordinates.
 
 `InstrumentPathView` reserves chart height during loading and unavailable states.
 It can display its small loading indicator while the price is already visible.
@@ -86,7 +86,8 @@ Public exports are `InstrumentIdentity`, `InstrumentStatusDot`,
 `InstrumentPathView` and `InstrumentSparkline`, plus their display types.
 Page-scale parts share the same drawing: `InstrumentChart` adds price and time
 axes and a pointer readout to the sparkline's path, `InstrumentQuoteHeader`
-shows activity in words, the regular price and change, an extended quote and an
+shows the tiles' identity row (activity dot and status icon), the regular price
+and change, an extended quote and an
 optional labelled period change, `InstrumentStats` renders supplied statistics
 with their provenance, and `InstrumentPeriodSelector` is an exclusive period
 choice. They add no palette and compute no returns.
