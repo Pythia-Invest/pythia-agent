@@ -272,7 +272,7 @@ class SubjectOperationTest(QueueFixture):
         ops.store.db.close()
         self.assertEqual([(item["id"], item["ticker"]) for item in view["other_securities"]], [(other, "ASMLC")])
         self.assertEqual(view["related"], [])
-        self.assertEqual((status["outcome"], status["data"]["build_id"]), ("ok", "reference-20260926"))
+        self.assertEqual((status["outcome"], status["data"]["installed"]["build_id"]), ("ok", "reference-20260926"))
         del core
 
 

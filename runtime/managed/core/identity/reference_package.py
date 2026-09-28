@@ -6,7 +6,7 @@ builder) and consumption (core) meet only here: core reads the package installed
 `<core data dir>/reference/`, never a builder's output folder.
 
 Standard library only, with no package-relative imports, so the lifecycle can run it with Hermes's Python:
-`python -P reference_package.py install <package> --data-dir <core data dir>` (also `status`, `rollback`).
+`python -P reference_package.py install <package> --data-dir <core data dir>` (also `status`).
 """
 from __future__ import annotations
 
@@ -26,7 +26,8 @@ from pathlib import Path
 FORMAT = "pythia-reference-package"
 FORMAT_VERSION = 2       # the one number core checks: package layout and the SQLite's release.schema_version
 PACKAGE_FILE = "package.json"
-INSTALLED_FILE = "installed.json"  # which installed package is current, and the previous one kept for rollback
+INSTALLED_FILE = "installed.json"  # which package under packages/ is installed; packages/ is the installer's own
+REFUSED_FILE = "refused.json"      # the last package the installer refused, until one installs
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _DATABASE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.sqlite3")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -34,7 +35,8 @@ _STAGING = ".staging-"
 STATUS_SCHEMA = {  # core's read-only `reference-status` operation (identity_ops)
     "name": "pythia_reference_status",
     "description": "Describe the reference data installed on this device: its build, as-of date, and each source "
-                   "with its as-of date, licence and the notice to show when citing it. Local only.",
+                   "with its as-of date, licence and the notice to show when citing it; also the last package "
+                   "that was refused, and why. Local only.",
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
 
@@ -59,18 +61,18 @@ def current(data_dir: Path) -> Path | None:
     return path if manifest["format_version"] == FORMAT_VERSION and path.is_file() else None
 
 
-def status(data_dir: Path) -> dict | None:
-    """What is installed, for the Desk and the agent: build, dates, sources and notices; None when nothing is."""
+def status(data_dir: Path) -> dict:
+    """For the Desk and the agent: the installed package (build, dates, sources and notices) or None, and the last
+    refused package or None."""
     root = reference_dir(data_dir)
-    found = _installed(root)
-    if found is None:
-        return None
-    directory, manifest = found
-    pointer = _pointer(root) or {}
-    previous = _package(root, pointer.get("previous"))
-    return {**_summary(manifest), "installed_at": pointer.get("installed_at"),
-            "compatible": manifest["format_version"] == FORMAT_VERSION,
-            "previous": _summary(previous[1]) if previous else None}
+    found, pointer = _installed(root), _pointer(root) or {}
+    installed = {**_summary(found[1]), "installed_at": pointer.get("installed_at"),
+                 "compatible": found[1]["format_version"] == FORMAT_VERSION} if found else None
+    try:
+        refused = json.loads((root / REFUSED_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        refused = None
+    return {"installed": installed, "refused": refused if isinstance(refused, dict) else None}
 
 
 def _summary(manifest: dict) -> dict:
@@ -191,16 +193,6 @@ def _verify(sha256: str, size: int, path: Path, manifest: dict) -> None:
                            f"{manifest['build_id']}. Nothing was installed.")
 
 
-def _intact(directory: Path) -> bool:
-    try:
-        manifest = read_manifest(directory)
-        path = directory / manifest["database"]["file"]
-        _verify(*_sha256_file(path), path, manifest)
-    except (OSError, PackageError):
-        return False
-    return True
-
-
 def _sha256_file(path: Path) -> tuple[str, int]:
     digest, size = hashlib.sha256(), 0
     with path.open("rb") as handle:
@@ -213,65 +205,69 @@ def _sha256_file(path: Path) -> tuple[str, int]:
 # ---- installing -------------------------------------------------------------------------------------------------
 
 def install(package: Path, data_dir: Path) -> dict:
-    """Verify a package and make it the installed one, atomically; the replaced package is kept for rollback.
+    """Verify a package and make it the installed one with one atomic switch, then drop the one it replaced.
 
-    Installing the package that is already current changes nothing; one that is kept as the previous package is
-    switched back without copying. Raises PackageError, and changes nothing, for a package this core cannot read
-    or whose file does not match its checksum."""
+    Installing the package that is already installed changes nothing. A package this core cannot read, or whose
+    file does not match its checksum, raises PackageError, changes nothing and is recorded as the last refusal."""
+    root = reference_dir(data_dir)
+    try:
+        result = _install(Path(package), root)
+    except PackageError as error:
+        _write(root / REFUSED_FILE, {"at": _now(), "package": str(package), "message": str(error)}, make=True)
+        raise
+    (root / REFUSED_FILE).unlink(missing_ok=True)
+    return {**result, **status(data_dir)}
+
+
+def _install(package: Path, root: Path) -> dict:
     manifest = read_manifest(package)
     _compatible(manifest)
-    source_dir = Path(package) if Path(package).is_dir() else Path(package).parent
+    source_dir = package if package.is_dir() else package.parent
     source = source_dir / manifest["database"]["file"]
-    try:  # the package given is always checked, even when an intact copy of it is already installed
+    try:  # the package given is always checked, even when it is the one installed
         _verify(*_sha256_file(source), source, manifest)
     except FileNotFoundError:
         raise PackageError(f"The package names {source.name}, which is not in {source_dir}.") from None
-    root = reference_dir(data_dir)
     name = f"{manifest['build_id']}-{manifest['database']['sha256'][:12]}"
     with _lock(root):
-        pointer = _pointer(root) or {}
-        target = root / "packages" / name
-        if pointer.get("current") == name and _package(root, name):
-            return {"changed": False, **status(data_dir)}
-        if target.is_dir() and not _intact(target):  # a kept package, installed again, that was since damaged
-            shutil.rmtree(target)
-        if not target.is_dir():
-            staging = root / "packages" / f"{_STAGING}{uuid.uuid4().hex}"
-            staging.mkdir(mode=0o700)
-            try:
-                _copy_verified(source, staging / manifest["database"]["file"], manifest)
-                _write(staging / PACKAGE_FILE, manifest)
-                staging.replace(target)
-            except BaseException:
-                shutil.rmtree(staging, ignore_errors=True)  # only this call's own staging directory
-                raise
-        previous = pointer.get("current") if pointer.get("current") != name else pointer.get("previous")
-        _point(root, current=name, previous=previous if _package(root, previous) else None)
-    return {"changed": True, **status(data_dir)}
+        installed = (_pointer(root) or {}).get("current")
+        if installed == name and _package(root, name):
+            return {"changed": False}
+        _sweep(root, keep=installed)  # leftovers of an interrupted install
+        staging = root / "packages" / f"{_STAGING}{uuid.uuid4().hex}"
+        staging.mkdir(mode=0o700)
+        try:
+            _copy_verified(source, staging / manifest["database"]["file"], manifest)
+            _write(staging / PACKAGE_FILE, manifest)
+            staging.replace(root / "packages" / name)
+        except BaseException:
+            shutil.rmtree(staging, ignore_errors=True)  # only this call's own staging directory
+            raise
+        _write(root / INSTALLED_FILE, {"current": name, "installed_at": _now()})  # the atomic switch
+        _sweep(root, keep=name)
+    return {"changed": True}
 
 
-def rollback(data_dir: Path) -> dict:
-    """Swap the current package with the previous one."""
-    root = reference_dir(data_dir)
-    with _lock(root):
-        pointer = _pointer(root) or {}
-        if not _package(root, pointer.get("previous")):
-            raise PackageError("There is no previous reference package to roll back to.")
-        _point(root, current=pointer["previous"], previous=pointer.get("current"))
-    return {"changed": True, **status(data_dir)}
-
-
-def _point(root: Path, *, current: str, previous: str | None) -> None:
-    """Switch packages with one atomic rename, then drop installed packages that are neither current nor previous
-    (they are copies this installer made, rebuildable from their source) and leftover staging directories."""
-    stamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    _write(root / INSTALLED_FILE, {"current": current, "previous": previous, "installed_at": stamp})
+def _sweep(root: Path, keep: str | None) -> None:
+    """Drop everything in the installer's own packages/ directory but the installed package."""
     for entry in (root / "packages").iterdir():
-        if entry.is_dir() and not entry.is_symlink() and entry.name not in (current, previous):
+        if entry.name == keep:
+            continue
+        if entry.is_dir() and not entry.is_symlink():
             shutil.rmtree(entry)
+        else:
+            entry.unlink()
+    for entry in root.glob(f".{INSTALLED_FILE}.*"):  # a pointer write that was interrupted
+        entry.unlink()
 
 
-def _write(path: Path, value: dict) -> None:
+def _now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _write(path: Path, value: dict, make: bool = False) -> None:
+    if make:
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     staging = path.with_name(f".{path.name}.{uuid.uuid4().hex}")
     with staging.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(value, indent=2) + "\n")
@@ -285,7 +281,8 @@ def _write(path: Path, value: dict) -> None:
 def _lock(root: Path):
     """One installer at a time per data directory; readers never wait."""
     import fcntl
-    (root / "packages").mkdir(parents=True, exist_ok=True, mode=0o700)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    (root / "packages").mkdir(exist_ok=True, mode=0o700)
     with (root / ".install.lock").open("a") as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
         try:
@@ -298,19 +295,17 @@ def _lock(root: Path):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="reference_package", description="Install or inspect the reference package.")
-    parser.add_argument("command", choices=("install", "status", "rollback"))
+    parser.add_argument("command", choices=("install", "status"))
     parser.add_argument("package", nargs="?", type=Path, help="install: the package directory or its package.json")
     parser.add_argument("--data-dir", type=Path, required=True, help="the core plugin's data directory")
     args = parser.parse_args(argv)
+    if args.command == "status":
+        print(json.dumps(status(args.data_dir), indent=2))
+        return 0
+    if args.package is None:
+        parser.error("install needs the package directory")
     try:
-        if args.command == "install":
-            if args.package is None:
-                parser.error("install needs the package directory")
-            result = install(args.package, args.data_dir)
-        elif args.command == "rollback":
-            result = rollback(args.data_dir)
-        else:
-            result = status(args.data_dir)  # null when nothing is installed
+        result = install(args.package, args.data_dir)
     except PackageError as error:
         print(f"Reference package refused: {error}", file=sys.stderr)
         return 2

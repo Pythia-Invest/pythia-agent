@@ -39,7 +39,7 @@ export function coreDataDirectory(paths) {
   return python(paths, ["-c", DATA_DIRECTORY]);
 }
 
-/** Run core's installer: `install <package>`, `status` or `rollback`. */
+/** Run core's installer: `install <package>` or `status`. */
 export function referencePackage(paths, command, packagePath) {
   const args = [
     join(paths.managedCore, "identity", "reference_package.py"),
@@ -70,7 +70,7 @@ export function installLocalReference(paths, options = {}) {
   }
   try {
     const result = referencePackage(paths, "install", source);
-    const build = `${result.build_id} (as of ${result.as_of})`;
+    const build = `${result.installed.build_id} (as of ${result.installed.as_of})`;
     log(
       result.changed
         ? `Reference data: installed ${build}.`
@@ -78,7 +78,13 @@ export function installLocalReference(paths, options = {}) {
     );
     return result;
   } catch (error) {
-    log(`Reference data: ${error.message}`);
+    // Core records the refusal; Settings -> Reference data shows it beside the package still in use.
+    let kept = "No reference data is installed.";
+    try {
+      const { installed } = referencePackage(paths, "status");
+      if (installed) kept = `Still in use: ${installed.build_id}.`;
+    } catch {}
+    log(`Reference data: ${error.message} ${kept}`);
     return null;
   }
 }

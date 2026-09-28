@@ -64,17 +64,13 @@ test-e2e desk_url:
 reference-snapshot *args:
     python3 tooling/reference-builder/run.py {{args}}
 
-# Verify a reference package (directory or package.json) and install it for this worktree's stack; keeps the previous one.
+# Verify a reference package (directory or package.json) and install it for this worktree's stack.
 reference-install package:
     node scripts/dev/cli.mjs reference-install "{{package}}"
 
 # Show the reference package installed for this worktree's stack.
 reference-status:
     node scripts/dev/cli.mjs reference-status
-
-# Swap the installed reference package with the previous one.
-reference-rollback:
-    node scripts/dev/cli.mjs reference-rollback
 
 # Score a reference snapshot against the identity truth set; fails on regressions against the committed baseline.
 reference-audit *args:

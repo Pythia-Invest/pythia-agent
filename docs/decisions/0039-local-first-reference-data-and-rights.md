@@ -120,7 +120,7 @@ would also tie forks and self-hosters to Pythia's uptime.
 **Context.** Core found the builder's SQLite file by scanning the builder's
 output folder, or a folder named by `PYTHIA_REFERENCE_DIR`. It depended on
 how the builder happened to lay out its files, and it offered no checksum,
-compatibility check or rollback. A later automated workflow should be able to
+compatibility check. A later automated workflow should be able to
 supply the catalogue without changing core.
 
 **Ruling.** The builder generates a *reference package*. Core consumes only a
@@ -136,10 +136,11 @@ Pythia data. The contract is in
   this amendment does not define.
 - The import step (`just reference-install`, core's
   `identity/reference_package.py`) refuses an incompatible format or a checksum
-  mismatch and changes nothing when it does. It installs with an atomic switch,
-  keeps the previous package for rollback, and reports what is installed. Core
-  exposes the installed package through the read-only `reference-status`
-  operation, which Desk shows under Settings.
+  mismatch, leaves the installed package in place and records the refusal. It
+  installs with an atomic switch and keeps one package: going back to an older
+  build is an ordinary install. Core exposes the installed package and the last
+  refusal through the read-only `reference-status` operation, which Desk shows
+  under Settings.
 - Core no longer reads the builder's output folder, and `PYTHIA_REFERENCE_DIR`
   is removed. Development startup installs the checkout's own build
   automatically.
@@ -151,13 +152,17 @@ package. Pythia publishes no package.
 **Consequences.** Automation later adds only "download the latest package" in
 front of the import step. Where that package is hosted, how it is signed and
 how often devices check for updates need their own decision under "If Pythia
-later publishes a snapshot" below. An installed Pythia has no lifecycle command
+later publishes a snapshot" above. An installed Pythia has no lifecycle command
 for the import step yet, so it runs core's installer directly with `--data-dir`.
 A core release that changes the reference schema bumps the format version.
 Until the investor installs a matching package, core reports no reference data.
 
 **Rejected alternatives.** *Keep scanning the builder's folder* couples core
-to the builder's layout and gives no integrity or rollback. *A core operation
+to the builder's layout and gives no integrity check. *Keep the previous
+package for rollback* would double the installed data (a full EU build is
+about 200 MB) and, after going back, leave local rows re-keyed by the newer
+release pointing at IDs the older one lacks; reinstalling the older package
+goes through the same release change as any other install. *A core operation
 that installs from a model-supplied path* would let a tool call name arbitrary
 files. The import step remains a lifecycle action, and the agent only reads the
 status.

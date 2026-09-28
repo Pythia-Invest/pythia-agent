@@ -24,7 +24,7 @@ class PackageTest(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.out = Path(self.tmp.name) / "out"
 
-    def build(self):
+    def build(self, canaries=()):
         build_id = "reference-20260925"
         sources = [{"source": "esma_firds:FULINS_E_1", "url": "https://example.invalid/f", "version": "20260920",
                     "retrieved_at": "2026-09-25T06:00:00Z", "sha256": "0" * 64, "bytes": 1, "licence": "x"},
@@ -36,8 +36,9 @@ class PackageTest(unittest.TestCase):
             "build_id": build_id, "schema_version": schema.SCHEMA_VERSION, "builder_version": "1",
             "as_of": "2026-09-25", "started_at": "2026-09-25T06:00:00Z", "finished_at": "2026-09-25T08:00:00Z",
             "scope": {"mics": ["XAMS"], "sec": True}, "snapshot": writer.describe(path), "tables": counts,
-            "sources": sources, "audit": self.snap.audit, "canaries": [], "truth_audit": None})
-        return json.loads((self.out / "package.json").read_text(encoding="utf-8"))
+            "sources": sources, "audit": self.snap.audit, "canaries": list(canaries), "truth_audit": None})
+        path = self.out / "package.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
     def test_the_output_directory_installs_as_a_package(self):
         package = self.build()
@@ -48,10 +49,16 @@ class PackageTest(unittest.TestCase):
         self.assertTrue(all(s["notice"] for s in package["sources"]))
         self.assertIn("listings", package["quality"]["tables"])
         data = Path(self.tmp.name) / "core"
-        installed = installer.install(self.out, data)
+        installed = installer.install(self.out, data)["installed"]
         self.assertEqual((installed["build_id"], installed["as_of"], len(installed["notices"])),
                          ("reference-20260925", "2026-09-25", 2))
         self.assertTrue(installer.current(data).is_file())
+
+
+    def test_a_build_with_a_failed_canary_is_not_a_package(self):
+        self.build()
+        self.assertIsNone(self.build(canaries=[{"name": "ASML on Euronext Amsterdam", "ok": False}]))
+        self.assertTrue((self.out / "reference-20260925.sqlite3").exists())  # written for inspection (--no-gates)
 
 
 if __name__ == "__main__":

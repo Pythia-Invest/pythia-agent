@@ -30,8 +30,13 @@ def notice(source: str) -> str | None:
     return NOTICES.get(source.split(":")[0])
 
 
-def write(out_dir: Path, manifest: dict) -> Path:
-    """Write `package.json` beside the snapshot from the build manifest, atomically."""
+def write(out_dir: Path, manifest: dict) -> Path | None:
+    """Write `package.json` beside the snapshot from the build manifest, atomically. A build whose canaries failed
+    (written with --no-gates for inspection) is not a package: an earlier `package.json` is removed."""
+    path = out_dir / "package.json"
+    if not all(canary.get("ok") for canary in manifest.get("canaries") or []):
+        path.unlink(missing_ok=True)
+        return None
     package = {
         "format": FORMAT,
         "format_version": int(manifest["schema_version"]),
@@ -49,7 +54,6 @@ def write(out_dir: Path, manifest: dict) -> Path:
         ],
         "quality": {key: manifest.get(key) for key in ("tables", "canaries", "audit", "truth_audit")},
     }
-    path = out_dir / "package.json"
     staging = path.with_name(".package.json.part")
     staging.write_text(json.dumps(package, indent=2) + "\n", encoding="utf-8")
     os.replace(staging, path)

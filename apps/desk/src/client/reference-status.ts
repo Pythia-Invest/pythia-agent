@@ -15,29 +15,37 @@ const optionalText = z
   .nullish()
   .transform((value) => value || null);
 
-const summary = z.object({
-  build_id: z.string().min(1),
-  as_of: z.string().min(1),
-  built_at: z.string().min(1),
-  format_version: z.number().int(),
-});
-
 export const referenceStatusSchema = z.object({
-  data: summary
-    .extend({
-      installed_at: optionalText,
-      compatible: z.boolean(),
-      sources: z
-        .array(
-          z.object({
-            source: z.string().min(1),
-            as_of: optionalText,
-            licence: optionalText,
-          }),
-        )
-        .default([]),
-      notices: z.array(z.string().min(1)).default([]),
-      previous: summary.nullish(),
+  data: z
+    .object({
+      installed: z
+        .object({
+          build_id: z.string().min(1),
+          as_of: z.string().min(1),
+          built_at: z.string().min(1),
+          format_version: z.number().int(),
+          installed_at: optionalText,
+          compatible: z.boolean(),
+          sources: z
+            .array(
+              z.object({
+                source: z.string().min(1),
+                as_of: optionalText,
+                licence: optionalText,
+              }),
+            )
+            .default([]),
+          notices: z.array(z.string().min(1)).default([]),
+        })
+        .nullish(),
+      /** The last package the installer refused; cleared once one installs. */
+      refused: z
+        .object({
+          at: optionalText,
+          package: optionalText,
+          message: z.string().min(1),
+        })
+        .nullish(),
     })
     .nullish(),
   issues: z.array(z.object({ message: z.string() })).default([]),

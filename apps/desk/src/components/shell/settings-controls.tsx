@@ -254,11 +254,13 @@ export function UpdateSettings() {
 }
 
 /** The installed reference package: which build search and instrument pages
- * read, and the notices its sources require wherever the data is shown. */
+ * read, the notices its sources require wherever the data is shown, and a
+ * package the installer last refused. */
 export function ReferenceSettings() {
   const query = useReferenceStatus();
   const time = useLocalTime();
-  const reference = query.data?.data;
+  const reference = query.data?.data?.installed;
+  const refused = query.data?.data?.refused;
   return (
     <div data-slot="reference-settings">
       {query.isPending ? <p role="status">Reading reference data…</p> : null}
@@ -268,21 +270,29 @@ export function ReferenceSettings() {
           void query.refetch();
         }}
       />
+      {refused ? (
+        <Alert
+          className="wrap-anywhere mb-2"
+          tone="warning"
+          title={
+            reference
+              ? `A reference package was refused; ${reference.build_id} stays in use.`
+              : "A reference package was refused."
+          }
+        >
+          {refused.message}
+          {refused.at ? ` (${time(refused.at, "compact")})` : ""}
+        </Alert>
+      ) : null}
       {query.data && !reference ? (
-        <>
-          <SettingRow
-            label="Not installed"
-            description={
-              query.data.issues[0]?.message ??
-              "No reference data on this device yet."
-            }
-            control={null}
-          />
-          <p className="text-body text-foreground-secondary">
-            Run <code>just reference-install &lt;package&gt;</code> in the
-            Pythia checkout to install one.
-          </p>
-        </>
+        <SettingRow
+          label="Not installed"
+          description={
+            query.data.issues[0]?.message ??
+            "No reference data on this device yet."
+          }
+          control={null}
+        />
       ) : null}
       {reference ? (
         <>
@@ -300,15 +310,6 @@ export function ReferenceSettings() {
                   : `Format ${reference.format_version}: not readable by this Pythia`}
               </span>
             }
-          />
-          <SettingRow
-            label="Previous package"
-            description={
-              reference.previous
-                ? `${reference.previous.build_id}, as of ${reference.previous.as_of}. Kept for rollback.`
-                : "None kept."
-            }
-            control={null}
           />
           {reference.notices.length ? (
             <div className="py-4">

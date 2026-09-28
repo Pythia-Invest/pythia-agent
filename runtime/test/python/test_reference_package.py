@@ -68,9 +68,10 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(path.parent.parent, self.data / "reference" / "packages")
         self.assertTrue((loose / "reference-20260926.sqlite3").exists())  # never removed
         status = reference_package.status(self.data)
-        self.assertEqual((status["build_id"], status["as_of"], status["compatible"], status["previous"]),
+        installed = status["installed"]
+        self.assertEqual((installed["build_id"], installed["as_of"], installed["compatible"], status["refused"]),
                          ("reference-20260926", "2026-09-26", True, None))
-        self.assertEqual(status["notices"], ["LEI records from GLEIF under CC0 1.0. GLEIF does not endorse this data.",
+        self.assertEqual(installed["notices"], ["LEI records from GLEIF under CC0 1.0. GLEIF does not endorse this data.",
                                              "Source: ESMA FIRDS."])
 
     def test_reinstalling_the_current_package_changes_nothing(self):
@@ -79,18 +80,19 @@ class InstallTest(unittest.TestCase):
         self.assertFalse(reference_package.install(source / "package.json", self.data)["changed"])
         self.assertEqual(len(self.installed_packages()), 1)
 
-    def test_the_previous_package_is_kept_for_rollback_and_older_ones_dropped(self):
-        for day in ("24", "25", "26"):
-            reference_package.install(make_package(self.root / day, f"reference-202609{day}"), self.data)
-        status = reference_package.status(self.data)
-        self.assertEqual((status["build_id"], status["previous"]["build_id"]), ("reference-20260926", "reference-20260925"))
-        self.assertEqual([name[:18] for name in self.installed_packages()], ["reference-20260925", "reference-20260926"])
-        rolled = reference_package.rollback(self.data)
-        self.assertEqual((rolled["build_id"], rolled["previous"]["build_id"]), ("reference-20260925", "reference-20260926"))
-        self.assertIn("reference-20260925", str(store.reference_path(self.data)))
-        # Installing the package that is now previous again swaps back without copying.
-        again = reference_package.install(self.root / "26", self.data)
-        self.assertEqual((again["build_id"], again["previous"]["build_id"]), ("reference-20260926", "reference-20260925"))
+    def test_a_new_package_replaces_the_installed_one_and_leftovers_are_swept(self):
+        reference_package.install(make_package(self.root / "25", "reference-20260925"), self.data)
+        packages = self.data / "reference" / "packages"
+        (packages / ".staging-interrupted").mkdir()  # an install that was killed mid-copy
+        (self.data / "reference" / ".installed.json.interrupted").write_text("{}")
+        result = reference_package.install(make_package(self.root / "26", "reference-20260926"), self.data)
+        self.assertEqual((result["changed"], result["installed"]["build_id"]), (True, "reference-20260926"))
+        self.assertEqual([name[:18] for name in self.installed_packages()], ["reference-20260926"])
+        self.assertEqual(list((self.data / "reference").glob(".installed.json.*")), [])
+        # Going back to an older build is an ordinary install.
+        older = reference_package.install(self.root / "25", self.data)
+        self.assertEqual(older["installed"]["build_id"], "reference-20260925")
+        self.assertEqual(len(self.installed_packages()), 1)
 
     def test_a_bad_checksum_is_refused_and_nothing_changes(self):
         reference_package.install(make_package(self.root / "good"), self.data)
@@ -104,6 +106,10 @@ class InstallTest(unittest.TestCase):
             reference_package.install(bad, self.data)
         self.assertEqual(store.reference_path(self.data), before)
         self.assertEqual(len(self.installed_packages()), 1)  # no staging left behind
+        status = reference_package.status(self.data)  # the refusal is visible beside the package still in use
+        self.assertEqual(status["installed"]["build_id"], "reference-20260926")
+        self.assertEqual(status["refused"]["package"], str(bad))
+        self.assertIn("Checksum mismatch", status["refused"]["message"])
         # A damaged copy of the installed package is refused too, though an intact copy is installed.
         copy = self.root / "copy"
         shutil.copytree(self.root / "good", copy)
@@ -112,6 +118,8 @@ class InstallTest(unittest.TestCase):
             handle.write(b"\xff")
         with self.assertRaisesRegex(reference_package.PackageError, "Checksum mismatch"):
             reference_package.install(copy, self.data)
+        reference_package.install(self.root / "good", self.data)  # an install clears the refusal
+        self.assertIsNone(reference_package.status(self.data)["refused"])
 
     def test_an_incompatible_format_is_refused(self):
         newer = make_package(self.root / "newer", format_version=reference_package.FORMAT_VERSION + 1)
@@ -120,7 +128,9 @@ class InstallTest(unittest.TestCase):
         older = make_package(self.root / "older", format_version=reference_package.FORMAT_VERSION - 1)
         with self.assertRaisesRegex(reference_package.PackageError, "Rebuild it"):
             reference_package.install(older, self.data)
-        self.assertIsNone(reference_package.status(self.data))
+        status = reference_package.status(self.data)
+        self.assertIsNone(status["installed"])
+        self.assertIn("Rebuild it", status["refused"]["message"])
 
     def test_a_database_that_disagrees_with_its_manifest_is_refused(self):
         source = make_package(self.root / "out")
@@ -140,7 +150,7 @@ class InstallTest(unittest.TestCase):
         self.assertIn("Reference package refused: Checksum mismatch", result.stderr)
         result = subprocess.run([sys.executable, "-P", str(script), "install", str(make_package(self.root / "ok")),
                                  "--data-dir", str(self.data)], capture_output=True, text=True, check=True)
-        self.assertEqual(json.loads(result.stdout)["build_id"], "reference-20260926")
+        self.assertEqual(json.loads(result.stdout)["installed"]["build_id"], "reference-20260926")
 
 
 if __name__ == "__main__":

@@ -248,9 +248,8 @@ one by hand:
 
 ```sh
 just reference-snapshot                  # build a package (network; see tooling/reference-builder)
-just reference-install <package>         # verify its checksum and format, install it, keep the previous one
-just reference-status                    # what is installed
-just reference-rollback                  # swap back to the previous package
+just reference-install <package>         # verify its checksum and format, then install it
+just reference-status                    # what is installed, and the last refusal
 ```
 
 ## Optional Tailscale access

@@ -36,7 +36,9 @@ A package is a directory with two files:
 The builder writes `package.json` into its output directory
 (`.local/reference-builder/out/`, or `--out`) after each build, beside the
 SQLite file and its fuller build record `manifest.json`. That output directory
-is a package. Older SQLite files left in it are not part of the package.
+is a package. Older SQLite files left in it are not part of the package. A
+build whose canaries failed (written with `--no-gates` for inspection) is not a
+package: the builder writes no `package.json` for it and removes an earlier one.
 
 ## Installing
 
@@ -45,8 +47,7 @@ uses only the standard library.
 
 ```sh
 just reference-install <package>   # a package directory or its package.json, relative to the checkout
-just reference-status              # what is installed, as JSON
-just reference-rollback            # swap back to the previous package
+just reference-status              # what is installed, and the last refusal, as JSON
 ```
 
 These recipes run core's installer with the stack's Hermes Python and install
@@ -59,21 +60,28 @@ into the core plugin's native data directory,
 2. Copies the database into a staging directory, hashing it as it copies, and
    refuses the package if the checksum or size differs from `package.json`,
    or if the database's schema version or build ID disagrees with it. A refusal
-   leaves the installed package untouched.
+   leaves the installed package untouched and is recorded in `refused.json`
+   until a package installs, so Settings can show it.
 3. Moves the verified copy to `packages/<build_id>-<sha256 prefix>/`, then
-   switches `installed.json` (`current`, `previous`, `installed_at`) with one
-   atomic rename. Readers see either the old package or the new one.
-4. Keeps the replaced package as `previous` for rollback and drops installed
-   copies older than that. Reinstalling the current package changes nothing.
+   switches `installed.json` (`current`, `installed_at`) with one atomic
+   rename. Readers see either the old package or the new one.
+4. Drops the replaced package. Reinstalling the installed package changes
+   nothing.
 
-One installer runs at a time per data directory. Search and pages never wait
-for it.
+One package is installed at a time; there is no separate rollback. Going back
+to an older build is an ordinary install of that package, a release change
+like any other. `packages/` belongs to the
+installer: it removes anything else there, including leftovers of an
+interrupted install, so never point it at a package inside that directory. One
+installer runs at a time per data directory. Search and pages never wait for
+it.
 
 In development, `just dev-init`, `just dev` and `just dev-refresh` install this
 checkout's builder output automatically when it has a `package.json`.
 `PYTHIA_DEV_REFERENCE_PACKAGE` points them at another package directory.
 Startup never fails over reference data: a missing or refused package is
-reported in one line.
+reported in one line that names the package still in use, and a refusal also
+shows in Settings.
 
 ## Reading
 
@@ -85,8 +93,8 @@ core does not read counts as no reference data. Loose files left in the old
 
 The `reference-status` operation (tool `pythia_reference_status`) reports the
 installed build, format, dates, sources with their as-of dates and licences,
-the deduplicated notices, and the previous build. Desk shows it under
-**Settings → Reference data**.
+the deduplicated notices, and the last refused package with its reason. Desk
+shows it under **Settings → Reference data**.
 
 ## Later: automated packages
 

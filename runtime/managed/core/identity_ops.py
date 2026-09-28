@@ -114,8 +114,8 @@ class Identity:
         return _envelope("ok" if data["groups"] else "empty", data)
 
     def reference_status(self, _arguments: dict, **_context: Any) -> str:
-        installed_package = reference_package.status(self.data_dir)  # an unreadable package reads as none
-        return _envelope("ok", installed_package) if installed_package else _envelope("empty", None, issue=NO_REFERENCE)
+        data = reference_package.status(self.data_dir)  # an unreadable package reads as none installed
+        return _envelope("ok", data) if data["installed"] else _envelope("empty", data, issue=NO_REFERENCE)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
