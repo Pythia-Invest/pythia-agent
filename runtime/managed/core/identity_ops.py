@@ -213,8 +213,7 @@ class Identity:
             return unrouted("no_reference_data")
         if subject is None:
             # A market needs no reference file, so an unknown one is unknown, not missing reference data.
-            return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS
-                            else "no_reference_data")
+            return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS else "no_reference_data")
         plugins = installed()
         named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
         unaudited = [info.manifest.provider for info in plugins if info.manifest.unaudited]
@@ -397,6 +396,5 @@ def register(ctx: Any) -> None:
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])
-    from . import concept_ops, markets_ops
+    from . import concept_ops
     concept_ops.register(ctx, identity)
-    markets_ops.register(ctx, identity)
