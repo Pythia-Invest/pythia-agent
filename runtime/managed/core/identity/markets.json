@@ -1,0 +1,13 @@
+{
+  "rule_id": "native_markets@1",
+  "note": "Curated, Pythia-authored. A venue market (a perp) is its own `market` subject with a Pythia-curated key; no open identifier names it. `derivative_on` names and links to its underlying as a related subject, never folded (ADR 0037). `refs` are the native references of the plugins that serve it.",
+  "markets": [
+    {
+      "id": "market:pythia:hyperliquid-btc-perp",
+      "name": "BTC perp · Hyperliquid",
+      "asset_class": "crypto",
+      "derivative_on": {"id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0", "name": "Bitcoin"},
+      "refs": [{"provider": "hyperliquid", "native_scope": "perp", "native_id": "BTC"}]
+    }
+  ]
+}
