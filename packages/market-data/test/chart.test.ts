@@ -8,6 +8,7 @@ import {
   type ChartWidgetInput,
   type InstrumentChartData,
 } from "../src/widgets";
+import { downsample, periodPath } from "../src/widgets/chart-path";
 
 const NOW = Date.parse("2026-09-26T10:00:00Z");
 const subject = {
@@ -49,25 +50,29 @@ function declared(
 }
 
 describe("chart periods follow the series a source declares", () => {
-  it("chooses the finest bounded intraday bars and shares one year of daily bars", () => {
+  it("chooses bars per period: extended 1D, regular multi-day, daily and weekly", () => {
     const plan = chartPlan(
       [
         declared("m1", { kind: "minute", count: 1 }, 7),
-        declared("m5", { kind: "minute", count: 5 }, 7),
-        declared("m5x", { kind: "minute", count: 5 }, 7, "extended"),
-        declared("d1", { kind: "day", count: 1 }, 3660),
+        declared("m2x", { kind: "minute", count: 2 }, 60, "extended"),
+        declared("m5", { kind: "minute", count: 5 }, 60),
+        declared("m30", { kind: "minute", count: 30 }, 60),
+        declared("d1", { kind: "day", count: 1 }, 36600),
+        declared("w1", { kind: "day", count: 7 }, 36600),
       ],
       NOW,
     );
-    // One-minute bars over five days exceed the drawing bound; extended
-    // hours win among equal intervals.
-    expect(plan.reads.get("1D")?.series.id).toBe("series:m5x");
-    expect(plan.reads.get("5D")?.series.id).toBe("series:m5x");
-    for (const period of ["1M", "6M", "YTD", "1Y"] as const)
+    expect(plan.reads.get("1D")?.series.id).toBe("series:m2x");
+    // Multi-day views use regular sessions only.
+    expect(plan.reads.get("5D")?.series.id).toBe("series:m5");
+    expect(plan.reads.get("1M")?.series.id).toBe("series:m30");
+    for (const period of ["6M", "YTD", "1Y"] as const)
       expect(plan.reads.get(period)).toBe(plan.year);
-    expect(plan.year?.days).toBe(370);
-    expect(plan.reads.get("5Y")?.days).toBeGreaterThan(1826);
-    expect(plan.reads.get("MAX")?.days).toBe(3660);
+    expect(plan.reads.get("5Y")?.series.id).toBe("series:w1");
+    expect(plan.reads.get("MAX")).toMatchObject({
+      series: { id: "series:w1" },
+      days: 36600,
+    });
     expect(plan.unavailable.size).toBe(0);
   });
 
@@ -78,7 +83,10 @@ describe("chart periods follow the series a source declares", () => {
         declared("d1", { kind: "day", count: 1 }, 90),
       ],
       NOW,
+      true,
     );
+    // 15-minute bars cover 5D; a month falls back to daily bars.
+    expect(plan.reads.get("5D")?.series.id).toBe("series:m15");
     expect(plan.reads.get("1M")?.days).toBe(90);
     expect(plan.reads.get("MAX")?.days).toBe(90);
     for (const period of ["6M", "YTD", "1Y", "5Y"] as const)
@@ -131,7 +139,7 @@ function render(
 }
 
 describe("the default 1D view", () => {
-  const intraday = declared("m5", { kind: "minute", count: 5 }, 7);
+  const intraday = declared("m5", { kind: "minute", count: 5 }, 60);
   const session = {
     date: "2026-09-25",
     timezone: "Europe/Amsterdam",
@@ -196,9 +204,12 @@ describe("the default 1D view", () => {
       timezone: "America/New_York",
       regular: { start: "2026-09-25T13:30:00Z", end: "2026-09-25T20:00:00Z" },
       extended: { start: "2026-09-25T08:00:00Z", end: "2026-09-26T00:00:00Z" },
-      previous_regular: {
-        start: "2026-09-24T13:30:00Z",
-        end: "2026-09-24T20:00:00Z",
+      previous: {
+        regular: { start: "2026-09-24T13:30:00Z", end: "2026-09-24T20:00:00Z" },
+        extended: {
+          start: "2026-09-24T08:00:00Z",
+          end: "2026-09-25T00:00:00Z",
+        },
       },
     };
     const bars = read(
@@ -207,10 +218,13 @@ describe("the default 1D view", () => {
       { session_window: early },
     );
     const data = render(input, quote("2026-09-24T20:00:00Z"), [extended], bars);
-    // The previous evening's after-hours bar falls in the omitted interval.
-    expect(data.item.path?.points.map((p) => p.value)).toEqual([100, 102]);
+    // The prior session keeps its after-hours trades before the omitted night.
+    expect(data.item.path?.points.map((p) => p.value)).toEqual([100, 101, 102]);
+    expect(data.item.path?.regularSession?.end).toBe(
+      Date.parse("2026-09-24T20:00:00Z"),
+    );
     expect(data.item.path?.sessionGap).toEqual({
-      start: Date.parse("2026-09-24T20:00:00Z"),
+      start: Date.parse("2026-09-25T00:00:00Z"),
       end: Date.parse("2026-09-25T08:00:00Z"),
     });
     expect(data.item.path?.session?.end).toBe(
@@ -229,20 +243,51 @@ describe("the default 1D view", () => {
     expect(data.item.path?.baseline).toBeUndefined();
   });
 
-  it("uses elapsed time and states the basis for other periods", () => {
+  it("joins the last five regular sessions and measures from the close before them", () => {
+    const days = ["17", "18", "21", "22", "23", "24"].flatMap((d) => [
+      `2026-09-${d}T08:00:00Z`,
+      `2026-09-${d}T15:00:00Z`,
+    ]);
+    const bars = read(intraday, days, { session_window: session });
     const data = render(
       { ...input, period: "5D" },
       quote("2026-09-25T15:35:00Z"),
       [intraday],
-      history,
+      bars,
     );
-    expect(data.item.path?.window?.end).toBe(
-      Date.parse("2026-09-26T10:00:00Z"),
-    );
-    expect(data.item.path?.points).toHaveLength(3);
+    const path = data.item.path;
+    // Five sessions from the 18th; the 17th's last bar is the baseline.
+    expect(path?.points).toHaveLength(10);
+    expect(path?.baseline?.value).toBe(101);
+    expect(path?.sessionGaps).toHaveLength(4);
+    expect(path?.window).toBeUndefined();
     expect(data.periodChange).toMatchObject({
-      absolute: 2,
+      absolute: 10,
       label: "Past 5 days",
     });
+  });
+});
+
+describe("drawing budget and missing schedules", () => {
+  it("downsamples to real observations, keeping both ends", () => {
+    const list = Array.from({ length: 3000 }, (_, i) => ({
+      time: i,
+      value: Math.sin(i / 50),
+    }));
+    const kept = downsample(list);
+    expect(kept).toHaveLength(800);
+    expect([kept[0], kept.at(-1)]).toEqual([list[0], list.at(-1)]);
+    expect(kept.every((p) => list[p.time] === p)).toBe(true);
+  });
+
+  it("shows the last returned session when the source has no schedule", () => {
+    const series = declared("m5", { kind: "minute", count: 5 }, 60);
+    const bars = read(series, [
+      "2026-09-24T14:00:00Z",
+      "2026-09-25T14:00:00Z",
+      "2026-09-25T15:00:00Z",
+    ]);
+    const path = periodPath("1D", bars, undefined, false);
+    expect(path.path?.points.map((p) => p.value)).toEqual([101, 102]);
   });
 });

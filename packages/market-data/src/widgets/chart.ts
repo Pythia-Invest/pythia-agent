@@ -1,7 +1,6 @@
 import type {
   InstrumentDisplay,
   InstrumentPeriodChange,
-  InstrumentPeriodOption,
   InstrumentStat,
 } from "@pythia/widget-sdk";
 import { financialQueries } from "./binding";
@@ -9,7 +8,6 @@ import type { FinancialRead } from "./contract";
 import { financialInstrument } from "./display";
 import type { WidgetBinding, WidgetQuery } from "./types";
 import {
-  CHART_PERIOD_LABELS,
   CHART_PERIODS,
   chartInputSchema,
   chartPlan,
@@ -18,10 +16,13 @@ import {
   seriesQuery,
   type ChartPeriod,
   type ChartResult,
+  type PlannedRead,
   type ChartWidgetInput,
   type SeriesList,
 } from "./chart-plan";
-import { periodChange, periodPath, statistics } from "./chart-view";
+import type { ReadResult, Series } from "../index";
+import { periodPath } from "./chart-path";
+import { periodChange, statistics } from "./chart-view";
 
 export {
   CHART_PERIOD_LABELS,
@@ -35,7 +36,6 @@ export {
 export type InstrumentChartData = {
   item: InstrumentDisplay;
   period: ChartPeriod;
-  periods: InstrumentPeriodOption[];
   periodChange?: InstrumentPeriodChange | undefined;
   chartMessage?: string | undefined;
   chartLoading: boolean;
@@ -49,10 +49,42 @@ function isRead(value: ChartResult | undefined): value is FinancialRead {
   return Boolean(value && "result" in value);
 }
 
+/** The history reads for a period, in a fixed order that render mirrors:
+ * the period's bars, the year of daily bars for statistics, then the
+ * adjacent periods' bars so switching to them is immediate. */
+function plannedReads(
+  input: ChartWidgetInput,
+  list: Series[],
+  quote: ReadResult | undefined,
+  now: number,
+) {
+  const continuous = quote?.price_context?.session?.state === "continuous";
+  const plan = chartPlan(list, now, continuous);
+  const at = CHART_PERIODS.indexOf(input.period);
+  const neighbours = [CHART_PERIODS[at - 1], CHART_PERIODS[at + 1]].flatMap(
+    (period) => (period ? [plan.reads.get(period)] : []),
+  );
+  const queries: WidgetQuery<ChartResult>[] = [];
+  const index = (read: PlannedRead | undefined) => {
+    if (!read) return -1;
+    const query = readQuery(read, now);
+    const key = JSON.stringify(query.key);
+    const found = queries.findIndex((q) => JSON.stringify(q.key) === key);
+    if (found >= 0) return found;
+    queries.push(query);
+    return queries.length - 1;
+  };
+  const chart = index(plan.reads.get(input.period));
+  const year = index(plan.year);
+  for (const read of neighbours) index(read);
+  return { plan, queries, chart, year, continuous };
+}
+
 /**
  * Page chart binding: a quote and the source's declared series first, then
- * the selected period's bars and one year of daily bars for the statistics.
- * The host owns the selected period; this adapter owns its financial meaning.
+ * the selected period's bars, a year of daily bars for the statistics and the
+ * adjacent periods. The host owns the selected period; this adapter owns its
+ * financial meaning.
  */
 export const chartBinding: WidgetBinding<
   ChartWidgetInput,
@@ -65,39 +97,24 @@ export const chartBinding: WidgetBinding<
     if (!quote) throw Error("No quote request is configured.");
     return [quote as WidgetQuery<ChartResult>, seriesQuery(parsed)];
   },
-  deferred(input, [, list]) {
+  deferred(input, [quote, list]) {
     const series = (list?.data as SeriesList | undefined)?.series;
-    if (!series) return [];
-    const now = Date.now();
-    const plan = chartPlan(series, now);
-    const selected = plan.reads.get(input.period);
-    const reads = [selected, plan.year].map((read) =>
-      read ? readQuery(read, now) : undefined,
-    );
-    // One query when the period is served by the year of daily bars.
-    const [chart, year] = reads;
-    return [
-      ...(chart ? [chart] : []),
-      ...(year && JSON.stringify(year.key) !== JSON.stringify(chart?.key)
-        ? [year]
-        : []),
-    ];
+    // The market's session kind chooses the windows, so wait for the quote.
+    if (!series || !isRead(quote?.data)) return [];
+    return plannedReads(input, series, quote.data.result, Date.now()).queries;
   },
   render(input, [quoteQuery, listQuery], deferred, { formatTimestamp }) {
     const quoteRead = isRead(quoteQuery?.data)
       ? quoteQuery.data.result
       : undefined;
     const series = (listQuery?.data as SeriesList | undefined)?.series;
-    const plan = series ? chartPlan(series, Date.now()) : undefined;
-    const selected = plan?.reads.get(input.period);
-    const chartQuery = selected ? deferred[0] : undefined;
-    // Mirrors deferred(): the chart read first, then the year unless shared.
-    const shared = selected === plan?.year;
-    const yearQuery = !plan?.year
-      ? undefined
-      : shared || !selected
-        ? deferred[0]
-        : deferred[1];
+    const planned =
+      series && quoteRead
+        ? plannedReads(input, series, quoteRead, Date.now())
+        : undefined;
+    const plan = planned?.plan;
+    const chartQuery = planned ? deferred[planned.chart] : undefined;
+    const yearQuery = planned ? deferred[planned.year] : undefined;
     const chartRead = isRead(chartQuery?.data)
       ? chartQuery.data.result
       : undefined;
@@ -116,8 +133,7 @@ export const chartBinding: WidgetBinding<
       false,
       formatTimestamp,
     );
-    const continuous =
-      quoteRead?.price_context?.session?.state === "continuous";
+    const continuous = planned?.continuous ?? false;
     const drawn = chartRead
       ? periodPath(input.period, chartRead, quoteRead, continuous)
       : {};
@@ -146,13 +162,6 @@ export const chartBinding: WidgetBinding<
             : { pathState: chartMessage ? "unavailable" : "loading" }),
         },
         period: input.period,
-        periods: CHART_PERIODS.map((id) => ({
-          id,
-          label: CHART_PERIOD_LABELS[id],
-          ...(plan?.unavailable.get(id)
-            ? { unavailable: plan.unavailable.get(id) }
-            : {}),
-        })),
         periodChange: periodChange(input.period, drawn.path),
         chartMessage,
         chartLoading: !chartMessage && !drawn.path,

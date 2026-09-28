@@ -63,13 +63,9 @@ export type SeriesList = { series: Series[] };
 export type ChartResult = FinancialRead | SeriesList;
 
 /** A read the plan needs: one pinned series over one window. Reads of up to
- * 90 days use a rolling native window so keys stay stable; longer daily reads
- * use explicit session dates that move once a day. */
-type PlannedRead = {
-  series: Series;
-  days: number;
-  role: "intraday" | "daily";
-};
+ * 90 days use a rolling native window so keys stay stable; longer reads use
+ * explicit session dates that move once a day. */
+export type PlannedRead = { series: Series; days: number };
 
 function priceSeries(series: Series) {
   const field = seriesField(series);
@@ -92,13 +88,17 @@ export function intervalMs(series: Series) {
   ];
   return unit ? unit * series.interval.count : 0;
 }
-/** Finer bars first; then extended over regular hours, then OHLC over closes. */
-function preference(a: Series, b: Series) {
-  const rank = (s: Series) =>
-    (s.session === "extended" || s.session === "all" ? 0 : 2) +
-    (s.shape === "ohlc" ? 0 : 1);
-  return intervalMs(a) - intervalMs(b) || rank(a) - rank(b);
-}
+/** Bar sizes in minutes, most suitable first, and the read's lookback in
+ * days (it reaches the close before the period). About 200–800 bars per view. */
+const INTRADAY: Partial<
+  Record<ChartPeriod, { minutes: number[]; days: number; continuous: number }>
+> = {
+  "1D": { minutes: [2, 1, 5, 15, 30, 60], days: 4, continuous: 2 },
+  "5D": { minutes: [5, 15, 2, 30, 60], days: 9, continuous: 6 },
+  "1M": { minutes: [30, 60, 15], days: 35, continuous: 32 },
+};
+const minutes = (s: Series) => intervalMs(s) / 60_000;
+
 export function periodStart(period: ChartPeriod, now: number) {
   const today = new Date(now);
   const y = today.getUTCFullYear(),
@@ -121,61 +121,82 @@ export function periodStart(period: ChartPeriod, now: number) {
 }
 
 /**
- * Chooses bars for every period from the series the source declares: 1D and
- * 5D share the finest intraday series that covers five days within the point
- * bound; longer periods use daily bars. 1M–1Y share one year of daily bars,
- * which also supply the statistics. An unsupported period says why.
+ * Chooses bars for every period from the series the source declares. 1D
+ * prefers bars that include pre/post-market; multi-day views use regular
+ * sessions. 6M, YTD and 1Y share one year of daily bars, which also supply the
+ * statistics; 5Y and Max prefer weekly bars. A period no series covers says why.
  */
-export function chartPlan(list: readonly Series[], now: number) {
+export function chartPlan(
+  list: readonly Series[],
+  now: number,
+  continuous = false,
+) {
   const usable = list.filter(priceSeries);
-  const intraday = usable
-    .filter(
-      (s) =>
-        s.interval.kind !== "day" &&
-        spanDays(s) >= 5 &&
-        (5 * DAY) / intervalMs(s) <= MAX_POINTS,
-    )
-    .sort(preference)[0];
+  const covers = (s: Series, days: number) => spanDays(s) >= days;
+  const ohlc = (s: Series) => (s.shape === "ohlc" ? 0 : 1);
   const daily = usable
     .filter((s) => s.interval.kind === "day" && s.interval.count === 1)
-    .sort(
-      (a, b) =>
-        spanDays(b) - spanDays(a) ||
-        (a.shape === "ohlc" ? 0 : 1) - (b.shape === "ohlc" ? 0 : 1),
-    )[0];
-  const longest = daily ? spanDays(daily) : 0;
+    .sort((a, b) => spanDays(b) - spanDays(a) || ohlc(a) - ohlc(b))[0];
+  const weekly = usable
+    .filter((s) => s.interval.kind === "day" && s.interval.count === 7)
+    .sort((a, b) => spanDays(b) - spanDays(a) || ohlc(a) - ohlc(b))[0];
   const year: PlannedRead | undefined = daily
-    ? { series: daily, days: Math.min(370, longest), role: "daily" }
+    ? { series: daily, days: Math.min(380, spanDays(daily)) }
     : undefined;
   const reads = new Map<ChartPeriod, PlannedRead>();
   const unavailable = new Map<ChartPeriod, string>();
   for (const period of CHART_PERIODS) {
-    if (period === "1D" || period === "5D") {
-      if (intraday)
-        reads.set(period, { series: intraday, days: 5, role: "intraday" });
-      else unavailable.set(period, "The source declares no intraday bars.");
-      continue;
-    }
-    if (!daily || !year) {
-      unavailable.set(period, "The source declares no daily history.");
+    const intraday = INTRADAY[period];
+    if (intraday) {
+      const days = continuous ? intraday.continuous : intraday.days;
+      const session = (s: Series) =>
+        (s.session === "extended" || s.session === "all") === (period === "1D")
+          ? 0
+          : 1;
+      const bars = usable
+        .filter(
+          (s) =>
+            (s.interval.kind === "minute" || s.interval.kind === "hour") &&
+            intraday.minutes.includes(minutes(s)) &&
+            covers(s, days),
+        )
+        .sort(
+          (a, b) =>
+            session(a) - session(b) ||
+            intraday.minutes.indexOf(minutes(a)) -
+              intraday.minutes.indexOf(minutes(b)) ||
+            ohlc(a) - ohlc(b),
+        )[0];
+      if (bars) reads.set(period, { series: bars, days });
+      else if (period === "1M" && year && covers(year.series, 35))
+        reads.set(period, year);
+      else unavailable.set(period, "The source declares no suitable bars.");
       continue;
     }
     const start = periodStart(period, now);
     const needed =
-      start === undefined ? longest : Math.ceil((now - start) / DAY) + 1;
-    if (period === "MAX" || needed <= year.days)
+      start === undefined ? 0 : Math.ceil((now - start) / DAY) + 14;
+    const long = period === "5Y" || period === "MAX" ? weekly : undefined;
+    const series = long && covers(long, needed) ? long : daily;
+    if (!series) {
+      unavailable.set(period, "The source declares no daily history.");
+      continue;
+    }
+    if (period === "MAX")
       reads.set(
         period,
-        period === "MAX" && longest > year.days
-          ? { series: daily, days: longest, role: "daily" }
-          : year,
+        spanDays(series) <= (year?.days ?? 0) && year
+          ? year
+          : { series, days: spanDays(series) },
       );
-    else if (needed <= longest)
-      reads.set(period, { series: daily, days: needed + 1, role: "daily" });
+    else if (series === daily && year && needed <= year.days)
+      reads.set(period, year);
+    else if (covers(series, needed))
+      reads.set(period, { series, days: needed });
     else
       unavailable.set(
         period,
-        `The source provides at most ${longest} days of daily history.`,
+        `The source provides at most ${spanDays(series)} days of daily history.`,
       );
   }
   return { reads, unavailable, year };

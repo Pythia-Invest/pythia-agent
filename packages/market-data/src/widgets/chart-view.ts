@@ -4,19 +4,15 @@ import type {
   InstrumentStat,
 } from "@pythia/widget-sdk";
 import type { ReadResult } from "../index";
-import { decimalNumber, seriesField, seriesSemantics } from "./display";
-import {
-  DAY,
-  MAX_POINTS,
-  WORDS,
-  intervalMs,
-  periodStart,
-  type ChartPeriod,
-} from "./chart-plan";
+import { decimalNumber, seriesField } from "./display";
+import { DAY, WORDS, type ChartPeriod } from "./chart-plan";
 
 /** Paths, period changes and statistics from supplied reads only. */
 export type Point = { time: number; value: number };
-function points(result: ReadResult, field: "close" | "high" | "low" = "close") {
+export function points(
+  result: ReadResult,
+  field: "close" | "high" | "low" = "close",
+) {
   const scale = result.series ? seriesField(result.series).unit.scale : "1";
   return result.observations.flatMap((o) => {
     const time =
@@ -28,155 +24,6 @@ function points(result: ReadResult, field: "close" | "high" | "low" = "close") {
     return Number.isFinite(time) && value !== null ? [{ time, value }] : [];
   });
 }
-function day(time: number) {
-  return new Date(time).toISOString().slice(0, 10);
-}
-function localDate(time: number, zone: string) {
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(time);
-  } catch {
-    return undefined;
-  }
-}
-/** Keep real observations only: every k-th close plus the latest one. */
-function thin(list: Point[]) {
-  if (list.length <= MAX_POINTS) return { list, step: 1 };
-  const step = Math.ceil(list.length / (MAX_POINTS - 1));
-  const kept = list.filter((_, i) => (list.length - 1 - i) % step === 0);
-  return { list: kept, step };
-}
-
-/** The selected period's path; session evidence narrows 1D to one session. */
-export function periodPath(
-  period: ChartPeriod,
-  result: ReadResult,
-  quote: ReadResult | undefined,
-  continuous: boolean,
-): { path?: InstrumentPath; message?: string } {
-  const series = result.series;
-  if (!series || result.outcome === "error") return {};
-  const all = points(result);
-  const detail = `${seriesSemantics(series)} · ${result.coverage.status} coverage`;
-  const quoteClose = quote?.price_context?.reference_close;
-  if (series.interval.kind !== "day") {
-    const interval = intervalMs(series);
-    const end = Date.parse(
-      result.request.window.end?.kind === "instant"
-        ? result.request.window.end.value
-        : result.retrieved_at,
-    );
-    const session = result.price_context?.session_window;
-    if (period === "1D" && session && !continuous) {
-      const span = (bounds: { start: string; end: string }) => ({
-        start: Date.parse(bounds.start),
-        end: Date.parse(bounds.end),
-      });
-      const today = span(session.regular);
-      const extended = span(session.extended);
-      const previous = session.previous_regular
-        ? span(session.previous_regular)
-        : undefined;
-      // Before the open: the prior regular session, its closed night omitted,
-      // then today's pre-market up to the open (ADR 0027 on the tile).
-      const pre =
-        previous &&
-        series.session !== "regular" &&
-        previous.end < extended.start
-          ? previous
-          : undefined;
-      const regular = pre ?? today;
-      const bounds = pre
-        ? { start: pre.start, end: today.start }
-        : series.session === "regular"
-          ? today
-          : extended;
-      const gap = pre ? { start: pre.end, end: extended.start } : undefined;
-      const inSession = all.filter(
-        (p) =>
-          p.time >= bounds.start &&
-          p.time <= bounds.end &&
-          !(gap && p.time > gap.start && p.time < gap.end),
-      );
-      const date = pre ? localDate(pre.start, session.timezone) : session.date;
-      const close = result.price_context?.reference_close ?? quoteClose;
-      const observed = quote?.observations.at(-1)?.time;
-      // A quote's previous close is the baseline of the regular session drawn
-      // only when the quote belongs to that exchange-local session.
-      const sameSession =
-        result.price_context?.reference_close ||
-        (observed?.kind === "instant" &&
-          localDate(Date.parse(observed.value), session.timezone) === date);
-      const baseline =
-        close && sameSession
-          ? decimalNumber(close.value, close.unit.scale)
-          : null;
-      if (!inSession.length)
-        return { message: `No trades yet in the ${session.date} session.` };
-      return {
-        path: {
-          points: inSession,
-          label: pre
-            ? `${detail} · Regular session ${date}, then pre-market ${session.date} (${session.timezone}); closed hours omitted`
-            : `${detail} · Session ${session.date} (${session.timezone}), ${series.session === "regular" ? "regular" : "regular and extended"} hours`,
-          session: bounds,
-          regularSession: regular,
-          ...(gap ? { sessionGap: gap } : {}),
-          intervalMs: interval,
-          ...(baseline !== null && close
-            ? {
-                baseline: {
-                  value: baseline,
-                  label: `Previous close · ${close.dataset}`,
-                },
-              }
-            : {}),
-        },
-      };
-    }
-    const days = period === "1D" ? 1 : 5;
-    const window = { start: end - days * DAY, end };
-    const inWindow = all.filter(
-      (p) => p.time >= window.start && p.time <= window.end,
-    );
-    const first = inWindow[0];
-    if (!first) return { message: "No observations in this period." };
-    return {
-      path: {
-        points: inWindow,
-        label: `${detail} · Past ${days === 1 ? "24 hours" : "5 days"}, calendar time`,
-        window,
-        intervalMs: interval,
-        baseline: {
-          value: first.value,
-          label: "First observation in this period",
-        },
-      },
-    };
-  }
-  const start = periodStart(period, Date.now());
-  const selected = all.filter((p) => start === undefined || p.time >= start);
-  const { list, step } = thin(selected);
-  const first = list[0],
-    last = list.at(-1);
-  if (!first || !last) return { message: "No daily closes in this period." };
-  const today = Date.parse(day(Date.now()));
-  return {
-    path: {
-      points: list,
-      label: `${detail} · Session dates${step > 1 ? ` · every ${step} closes shown` : ""}`,
-      window: {
-        start: start ?? first.time,
-        end: Math.max(today, last.time),
-      },
-      dates: series.time_anchor === "session_date",
-      baseline: {
-        value: first.value,
-        label: `First close in this period (${day(first.time)})`,
-      },
-    },
-  };
-}
-
 export function periodChange(
   period: ChartPeriod,
   path: InstrumentPath | undefined,
