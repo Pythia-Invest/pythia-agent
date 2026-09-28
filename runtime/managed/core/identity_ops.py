@@ -91,9 +91,8 @@ class Identity:
             return self._store
 
     def reference_path(self, *, again: bool = False) -> Path | None:
-        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A), so every
-        read and write after it sees current IDs; a failure is retried on the next use. `again` carries rows
-        written meanwhile under an older build's IDs."""
+        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A) and then
+        queues the build's open questions once; a failure is retried on the next use. `again` carries rows written meanwhile under an older build's IDs."""
         path = store.reference_path(self.data_dir)
         if path is not None and (again or path != self._rekeyed):
             try:
@@ -105,7 +104,6 @@ class Identity:
                 if done:
                     logger.info("identity store carried to reference %(release)s: %(moved)d subject IDs re-keyed,"
                                 " %(rows)d rows re-pointed, %(vanished)d subjects vanished", done)
-                    # The questions the build left open join the queue once per release, after its re-key.
                     queue.import_build(self.store, reference_package.questions(path), store.now())
                 self._rekeyed = path
             except (sqlite3.Error, OSError, ValueError):
