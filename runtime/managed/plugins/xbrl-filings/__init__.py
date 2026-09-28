@@ -145,6 +145,8 @@ def register(ctx):
     agent(ctx, 'esef_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings and balance sheet from ESEF '
           'reports. IFRS figures of an EU or UK company\'s latest annual report on filings.xbrl.org, or an explicit '
           'report_id, with exact periods, units and precision; several reports for one period come back as '
-          'candidates to choose from.')
+          'candidates to choose from. It gives the report\'s own year; for the prior-year comparative, read the '
+          'concept (such as ifrs-full:Revenue) with esef_company_facts on the same report_id.')
     agent(ctx, 'esef_company_facts', TOOLS['facts'], 'Reported IFRS facts from one ESEF annual report. Named concepts '
-          'of an explicit report_id (esef_fundamentals names it), with dimensions, periods and precision.')
+          'of an explicit report_id (esef_fundamentals names it), with every period the report tags, including the '
+          'prior-year comparatives, and dimensions and precision.')
