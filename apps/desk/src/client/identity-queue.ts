@@ -1,13 +1,13 @@
 "use client";
-import { SUBJECT_PLUGIN, subjectQueryKey } from "@pythia/market-data/subject";
+import { SUBJECT_PLUGIN } from "@pythia/market-data/subject";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { busyRetry } from "./busy-retry";
 import { useDeskApi } from "./providers";
 
 /*
- * Client side of core's resolution queue: `identity-queue` lists a subject's
- * open identity questions and `identity-verdict` answers one. Core owns both
+ * Client side of core's resolution queue: `identity-queue` lists the open
+ * identity questions and `identity-verdict` answers one. Core owns both
  * shapes and decides who answers from the transport: a Desk call is the
  * user's own attestation, still refused when identifier evidence contradicts
  * it. Answering is optional; rules, and the agent when asked, work the same
@@ -27,6 +27,9 @@ export const identityQuestionSchema = z.object({
   reason: text,
   label: text,
   question: text,
+  state: text,
+  opened_at: text,
+  plugins: z.array(text).default([]),
   /** What the provider's record says, shown before anyone answers. */
   record: z
     .object({
@@ -69,30 +72,28 @@ const verdictSchema = z.object({
 });
 export type IdentityVerdict = z.infer<typeof verdictSchema>["data"];
 
-function questionsKey(subjectId: string) {
-  return ["plugin", SUBJECT_PLUGIN, "identity-queue", subjectId] as const;
-}
+const questionsKey = ["plugin", SUBJECT_PLUGIN, "identity-queue"] as const;
 
-/** Open identity questions about one subject and its listing, security and
- * issuer; apart from them, those only the agent answered (provisional). */
-export function useIdentityQuestions(subjectId: string) {
+/** The device's open identity questions and, apart from them, those only the
+ * agent answered (provisional). The queue op caps a list at 50. */
+export function useIdentityQuestions() {
   const api = useDeskApi();
   return useQuery({
-    queryKey: questionsKey(subjectId),
+    queryKey: questionsKey,
     queryFn: async () =>
       listSchema.parse(
         await api.pluginRead({
           plugin: SUBJECT_PLUGIN,
           operation: "identity-queue",
-          arguments: { subject_id: subjectId, answered: true },
+          arguments: { answered: true, limit: 50 },
         }),
       ).data ?? { items: [], answered: [] },
     ...busyRetry,
   });
 }
 
-/** The user's answer to one question; the page recomposes afterwards. */
-export function useAnswerQuestion(subjectId: string) {
+/** The user's answer to one question; instrument pages recompose afterwards. */
+export function useAnswerQuestion() {
   const api = useDeskApi();
   const client = useQueryClient();
   return useMutation({
@@ -114,8 +115,10 @@ export function useAnswerQuestion(subjectId: string) {
       ).data,
     onSettled: () =>
       Promise.all([
-        client.invalidateQueries({ queryKey: questionsKey(subjectId) }),
-        client.invalidateQueries({ queryKey: subjectQueryKey(subjectId) }),
+        client.invalidateQueries({ queryKey: questionsKey }),
+        client.invalidateQueries({
+          queryKey: ["plugin", SUBJECT_PLUGIN, "identity-subject"],
+        }),
       ]),
     retry: false,
   });

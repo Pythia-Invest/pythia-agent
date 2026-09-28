@@ -149,7 +149,11 @@ that subject's items, and for every open item on the first write after the
 reference build changed. It runs inside write operations only, with no
 scheduler, and nothing triggers the agent: it works the queue when asked. While
 a plugin has an open conflict for a subject, its section shows the conflict and
-a ready plugin serves the section instead. Rejected: attesting through an
+a ready plugin serves the section instead. The instrument page shows no queue
+note; the Desk lists issues on one generic page, Settings → Repairs (modelled on
+Home Assistant's Repairs), outside the main navigation and counted in Settings
+only while issues are open, with the agent's answers in a collapsed history.
+Rejected: attesting through an
 argument (the agent could supply it), a confidence threshold on the agent's own
 number (uncalibrated), a separate agent-only path (two write paths to audit),
 and a background drain (events and jobs are undecided).

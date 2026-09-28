@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Badge,
   Tab,
   TabPanel,
   Tabs,
@@ -15,7 +16,9 @@ import {
   SelectValue,
   useThemePreference,
 } from "@pythia/ui";
+import Link from "next/link";
 import { useState } from "react";
+import { useRepairs } from "@/client/repairs";
 import {
   CapabilitySettings,
   ModelSettings,
@@ -43,6 +46,12 @@ const sections = [
     id: "updates",
     label: "Updates",
     description: "Check the installed channel. Desk never applies an update.",
+  },
+  {
+    id: "repairs",
+    label: "Repairs",
+    description:
+      "Issues Pythia could not settle on its own. The agent normally fixes these.",
   },
 ] as const;
 
@@ -88,6 +97,7 @@ function ThemeChoice() {
 /** Existing Settings layout, with native controls in their corresponding panels. */
 export function SettingsView() {
   const [section, setSection] = useState("appearance");
+  const open = useRepairs().open.length;
   return (
     <Tabs
       orientation="vertical"
@@ -107,6 +117,16 @@ export function SettingsView() {
             className="min-h-control rounded-control border-0 px-2 text-start text-body data-active:bg-interaction-active data-active:font-medium"
           >
             {item.label}
+            {/* The count is repeated in the panel; the tab keeps its name. */}
+            {item.id === "repairs" && open ? (
+              <Badge
+                tone="warning"
+                className="ms-2"
+                aria-hidden="true"
+              >
+                {open}
+              </Badge>
+            ) : null}
           </Tab>
         ))}
       </TabsList>
@@ -159,6 +179,24 @@ export function SettingsView() {
                 {item.id === "models" ? <ModelSettings /> : null}
                 {item.id === "capabilities" ? <CapabilitySettings /> : null}
                 {item.id === "updates" ? <UpdateSettings /> : null}
+                {item.id === "repairs" ? (
+                  <SettingRow
+                    control={
+                      <Link
+                        href="/settings/repairs"
+                        className="font-medium text-body text-foreground underline-offset-2 hover:underline"
+                      >
+                        Open repairs
+                      </Link>
+                    }
+                    description={
+                      open
+                        ? `${open} open ${open === 1 ? "issue" : "issues"}.`
+                        : "Nothing needs attention."
+                    }
+                    label="Open issues"
+                  />
+                ) : null}
               </div>
             </TabPanel>
           ))}

@@ -190,6 +190,16 @@ header. Users may select another complete native plugin top bar, or
 Invalid or unavailable selections retain the core header and navigation actions
 and say so.
 
+`/settings/repairs` (Settings → Repairs, not in the main navigation) lists the
+issues Pythia could not settle on its own, modelled on Home Assistant's Repairs.
+Rules and the agent normally fix them, so the Settings tab shows a count only
+while issues are open. An issue is generic (kind, title, description, subject,
+plugin, time, status); its kind is only the renderer of its detail and fix flow
+(`components/repairs/`). Today the only kind is an identity question from core's
+`identity-queue`, showing the provider's record beside the instrument, with
+`identity-verdict` as the user's answer. Questions the agent answered sit in a
+collapsed history, provisional until the user confirms or overrides them.
+
 `/instrument/[subject]` is one subject's page (URL-encoded subject id). The
 shell routes `pythia:open-subject` window events there. The page renders core's
 local `pythia`/`identity-subject` composition at once, then loads each section
@@ -198,13 +208,6 @@ because core stores the resulting binding), quote and chart through the
 market-data `instrument-panel` widget bound to the section's provider reference,
 and profile and filings through the section's own read. Sections that cannot be
 served show why and which configuration key would change that.
-A collapsed "Identity questions (N)" note lists the subject's open identity
-questions (`identity-queue`), each with what the provider's record says and the
-candidate, and apart from them, uncounted, those only the agent answered, to
-confirm or override. The user may answer one
-(`identity-verdict`, recorded as the user's attestation, which overrides a
-provisional agent answer). Rules, and the agent when asked, work the same queue,
-so answering is never required.
 A separate toolbar inside the Workspace page, beneath the shell header, owns
 Back/Forward, Up, Workspace home, the current folder path and a folder-scoped
 search field.

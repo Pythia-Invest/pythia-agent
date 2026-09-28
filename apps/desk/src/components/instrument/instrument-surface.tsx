@@ -16,7 +16,6 @@ import {
 } from "@/client/instrument-queries";
 import { BoundWidget } from "@/components/widgets/bound-widget";
 import { type PageBlock, pageBlocks } from "./blocks";
-import { IdentityIssues } from "./identity-issues";
 import {
   InstrumentHeader,
   InstrumentPageSkeleton,
@@ -137,7 +136,6 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
           );
         })}
       </div>
-      <IdentityIssues page={view} />
       {view.sections.length === 0 ? (
         <p className="text-body text-foreground-secondary">
           No installed plugin can show data for this{" "}
