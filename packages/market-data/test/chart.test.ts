@@ -76,6 +76,26 @@ describe("chart periods follow the series a source declares", () => {
     expect(plan.unavailable.size).toBe(0);
   });
 
+  it("serves EODHD-like spans: 7 days intraday, 366 days daily", () => {
+    const plan = chartPlan(
+      [
+        declared("m1", { kind: "minute", count: 1 }, 7, "unknown"),
+        declared("m5", { kind: "minute", count: 5 }, 7, "unknown"),
+        declared("h1", { kind: "hour", count: 1 }, 7, "unknown"),
+        declared("d1", { kind: "day", count: 1 }, 366),
+      ],
+      NOW,
+    );
+    expect(plan.reads.get("5D")).toMatchObject({
+      series: { id: "series:m5" },
+      days: 7,
+    });
+    for (const period of ["1M", "6M", "YTD", "1Y"] as const)
+      expect(plan.reads.get(period)).toBe(plan.year);
+    expect(plan.year?.days).toBe(366);
+    expect(plan.unavailable.get("5Y")).toMatch(/at most 366 days/u);
+  });
+
   it("names periods beyond a short daily history instead of stretching it", () => {
     const plan = chartPlan(
       [

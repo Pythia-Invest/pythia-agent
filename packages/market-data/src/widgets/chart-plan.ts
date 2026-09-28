@@ -13,8 +13,6 @@ import type { WidgetQuery } from "./types";
 /** Period and read planning for the page chart. */
 export const PLUGIN = "pythia-market-data";
 export const DAY = 86_400_000;
-/** Drawing and request bound shared with the path renderer. */
-export const MAX_POINTS = 2000;
 
 export const CHART_PERIODS = [
   "1D",
@@ -88,14 +86,18 @@ export function intervalMs(series: Series) {
   ];
   return unit ? unit * series.interval.count : 0;
 }
-/** Bar sizes in minutes, most suitable first, and the read's lookback in
- * days (it reaches the close before the period). About 200–800 bars per view. */
+/** Bar sizes in minutes, most suitable first; the read's preferred lookback
+ * in days (it reaches the close before the period) and the least that still
+ * covers the period. About 200–800 bars per view. */
 const INTRADAY: Partial<
-  Record<ChartPeriod, { minutes: number[]; days: number; continuous: number }>
+  Record<
+    ChartPeriod,
+    { minutes: number[]; days: number; least: number; continuous: number }
+  >
 > = {
-  "1D": { minutes: [2, 1, 5, 15, 30, 60], days: 4, continuous: 2 },
-  "5D": { minutes: [5, 15, 2, 30, 60], days: 9, continuous: 6 },
-  "1M": { minutes: [30, 60, 15], days: 35, continuous: 32 },
+  "1D": { minutes: [2, 1, 5, 15, 30, 60], days: 4, least: 4, continuous: 2 },
+  "5D": { minutes: [5, 15, 2, 30, 60], days: 9, least: 7, continuous: 6 },
+  "1M": { minutes: [30, 60, 15], days: 35, least: 31, continuous: 32 },
 };
 const minutes = (s: Series) => intervalMs(s) / 60_000;
 
@@ -149,6 +151,7 @@ export function chartPlan(
     const intraday = INTRADAY[period];
     if (intraday) {
       const days = continuous ? intraday.continuous : intraday.days;
+      const least = continuous ? intraday.continuous : intraday.least;
       const session = (s: Series) =>
         (s.session === "extended" || s.session === "all") === (period === "1D")
           ? 0
@@ -158,7 +161,7 @@ export function chartPlan(
           (s) =>
             (s.interval.kind === "minute" || s.interval.kind === "hour") &&
             intraday.minutes.includes(minutes(s)) &&
-            covers(s, days),
+            covers(s, least),
         )
         .sort(
           (a, b) =>
@@ -167,17 +170,23 @@ export function chartPlan(
               intraday.minutes.indexOf(minutes(b)) ||
             ohlc(a) - ohlc(b),
         )[0];
-      if (bars) reads.set(period, { series: bars, days });
+      // A shorter span still serves the period; its baseline may then be
+      // the first observation instead of the close before the period.
+      if (bars)
+        reads.set(period, {
+          series: bars,
+          days: Math.min(days, spanDays(bars)),
+        });
       else if (period === "1M" && year && covers(year.series, 35))
         reads.set(period, year);
       else unavailable.set(period, "The source declares no suitable bars.");
       continue;
     }
     const start = periodStart(period, now);
-    const needed =
-      start === undefined ? 0 : Math.ceil((now - start) / DAY) + 14;
+    const least = start === undefined ? 0 : Math.floor((now - start) / DAY) + 1;
+    const needed = start === undefined ? 0 : least + 13;
     const long = period === "5Y" || period === "MAX" ? weekly : undefined;
-    const series = long && covers(long, needed) ? long : daily;
+    const series = long && covers(long, least) ? long : daily;
     if (!series) {
       unavailable.set(period, "The source declares no daily history.");
       continue;
@@ -189,10 +198,13 @@ export function chartPlan(
           ? year
           : { series, days: spanDays(series) },
       );
-    else if (series === daily && year && needed <= year.days)
+    else if (series === daily && year && least <= year.days)
       reads.set(period, year);
-    else if (covers(series, needed))
-      reads.set(period, { series, days: needed });
+    else if (covers(series, least))
+      reads.set(period, {
+        series,
+        days: Math.min(needed, spanDays(series)),
+      });
     else
       unavailable.set(
         period,
