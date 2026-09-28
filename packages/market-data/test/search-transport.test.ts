@@ -22,17 +22,25 @@ function transport(reply: unknown) {
 
 const signal = new AbortController().signal;
 const response: SearchResponse = {
-  rows: [
+  groups: [
     {
-      id: "listing:isin:NL0010273215:XAMS:EUR",
-      ticker: "ASML",
+      id: "issuer:lei:724500Y6DUVHQD6OXN27",
       name: "ASML Holding N.V.",
       kind: "ordinary",
-      mic: "XAMS",
-      venue: "Euronext Amsterdam",
-      country: "NL",
       listings: 1,
-      bindings: [],
+      rows: [
+        {
+          id: "listing:isin:NL0010273215:XAMS:EUR",
+          instrument: "security:isin:NL0010273215",
+          ticker: "ASML",
+          name: "ASML Holding N.V.",
+          kind: "ordinary",
+          mic: "XAMS",
+          venue: "Euronext Amsterdam",
+          country: "NL",
+          currency: "EUR",
+        },
+      ],
     },
   ],
   lookup: [],
@@ -50,15 +58,28 @@ describe("search transport", () => {
     expect(requests[0]?.arguments).not.toMatchObject({ action: "search" });
   });
 
+  it("passes a group read through as the same core operation", async () => {
+    const { value, requests } = transport({ outcome: "ok", data: response });
+    await transportSearch(value)(
+      { query: "asml", group: "issuer:lei:724500Y6DUVHQD6OXN27", limit: 1 },
+      signal,
+    );
+    expect(requests[0]).toMatchObject({
+      plugin: "pythia",
+      operation: "identity-search",
+      arguments: { group: "issuer:lei:724500Y6DUVHQD6OXN27" },
+    });
+  });
+
   it("rejects failed or malformed results instead of showing them", async () => {
     const failed = transport({ outcome: "error", issues: [] }).value;
     await expect(
       transportSearch(failed)({ query: "asml", limit: 20 }, signal),
     ).rejects.toThrow();
-    const [row] = response.rows;
+    const [group] = response.groups;
     const malformed = transport({
       outcome: "ok",
-      data: { ...response, rows: [{ ...row, listings: -1 }] },
+      data: { ...response, groups: [{ ...group, listings: 0 }] },
     }).value;
     await expect(
       transportSearch(malformed)({ query: "asml", limit: 20 }, signal),
