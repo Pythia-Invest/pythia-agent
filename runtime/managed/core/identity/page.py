@@ -84,9 +84,10 @@ def ordered(plugins: list[PluginInfo], section: Section) -> list[PluginInfo]:
 
 # ---- the subject from the reference file ------------------------------------------------------------------------
 
-def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | None:
+def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None = None) -> dict[str, Any] | None:
     """The subject with its listing, security and issuer (whichever exist), or None if unknown. The reference
-    holds instruments only: a subject of another kind is unknown here.
+    holds instruments only: a subject of another kind is unknown here. A security or issuer subject is priced
+    through `listing_id` when that is one of its security's lines, else through its primary (else first) line.
 
     An ID the reference no longer holds (an older key rule, a re-key, another build path)
     resolves through `id_aliases` (ADR 0037); the result carries the current ID.
@@ -109,6 +110,8 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
                                   " rank IS NULL, rank LIMIT 1", subject_id)
     if (listing or security or issuer) is None:
         return None
+    if security is not None and listing is None and listing_id:
+        listing = one("SELECT * FROM listings WHERE id = ? AND security_id = ?", listing_id, security["id"])
     if security is not None and listing is None:
         listing = one("SELECT * FROM listings WHERE security_id = ? ORDER BY is_primary DESC, status <> 'active', id LIMIT 1",
                       security["id"])
@@ -137,7 +140,8 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
         "kind": security["kind"] if security else None,
         "listing": listing,
         "view": {
-            "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None},
+            "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None,
+                        "listing": listing["id"] if listing else None},
             "identifiers": {key: value for key, value in identifiers.items() if value},
             "issuer": {"id": issuer["id"], "name": issuer["name"], "lei": values.get("lei"), "cik": values.get("cik")}
             if issuer else None,
@@ -233,7 +237,8 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     wants_resolve = not row and not derived and bool(resolve_input(info, subject))
     if not (row or derived or wants_resolve):
         return None
-    answer = {"section": str(section), "plugin": info.key, "label": info.label, "status": "ready", "binding": None,
+    answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "label": info.label, "status": "ready",
+              "binding": None,
               "binding_status": None, "request": None, "alternatives": [], "reason": None}
     missing = info.missing[0] if info.missing else None
     queued = next((item for item in queue if item["plugin"] == info.manifest.plugin), None)

@@ -36,12 +36,16 @@ PREFERENCE = "search_listing_preference"  # declared in configuration.json
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
     "description": "Search the device's local directory of securities, listings and crypto assets by name, ticker "
-                   "or identifier (ISIN, LEI, FIGI, CIK). Local only; no provider is called.",
+                   "or identifier (ISIN, LEI, FIGI, CIK). Answers groups (a company, a fund or a crypto asset), "
+                   "each with its most relevant listings and its total listing count. Pass `group` with a group's "
+                   f"id instead of `query` to list its listings, up to {search.GROUP_ROWS}; `limit` (groups, "
+                   "default 20) does not apply there. Local only; no provider is called.",
     "parameters": {"type": "object", "properties": {
         "query": {"type": "string", "minLength": 1, "maxLength": 128},
+        "group": {"type": "string", "minLength": 1, "maxLength": 256},
         "kinds": {"type": "array", "items": {"type": "string", "enum": list(search.KINDS)}, "maxItems": 16},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
-        "required": ["query", "limit"], "additionalProperties": False},
+        "additionalProperties": False},
 }
 SUBJECT_SCHEMA = {
     "name": "pythia_identity_subject",
@@ -88,20 +92,23 @@ class Identity:
     # ---- operations ----------------------------------------------------------------------------------------------
 
     def search(self, arguments: dict, **_context: Any) -> str:
-        empty = {"rows": [], "lookup": []}
+        empty = {"groups": [], "lookup": []}
         query = str(arguments.get("query") or "").strip()[:128]
+        group = str(arguments.get("group") or "").strip()[:256]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
             path = store.reference_path(self.data_dir)
             if path is None:
                 return _envelope("empty", empty, issue=NO_REFERENCE)
             directory = search.directory(path, store.open_reference)
-            data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), prefer=self._preference(),
-                                    suffixes=_suffixes, bindings=self._bindings) if query else empty
+            kinds = arguments.get("kinds")
+            data = (directory.group(group, kinds=kinds) if group
+                    else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
+                                          suffixes=_suffixes) if query else empty)
         except (sqlite3.Error, OSError):  # search degrades, never errors out
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
-        return _envelope("ok" if data["rows"] else "empty", data)
+        return _envelope("ok" if data["groups"] else "empty", data)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -149,18 +156,6 @@ class Identity:
             return "primary"
         return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
 
-    def _bindings(self, listing_ids: list[str]) -> dict[str, list[dict]]:
-        """Confirmed bindings for search rows; optional, so a store problem only drops them."""
-        out: dict[str, list[dict]] = {}
-        try:
-            rows = self.store.bindings(listing_ids)
-        except sqlite3.Error:
-            logger.warning("identity store unreadable; search rows carry no bindings", exc_info=True)
-            return out
-        for row in rows:
-            out.setdefault(row["subject_id"], []).append({"plugin": row["plugin"], "ref": row["native_id"]})
-        return out
-
     # ---- internals -----------------------------------------------------------------------------------------------
 
     def price_sources(self, subject_id: str) -> dict:
@@ -185,7 +180,7 @@ class Identity:
         security = subject["ids"].get(Level.SECURITY)
         view = subject["view"]
         view["other_securities"] = []
-        if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
+        if subject["asset_class"] == "equity" and security:  # the instrument's lines, receipts folded in
             directory = search.directory(path, store.open_reference)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
             # The company's other instruments; a share class listed there is not repeated under `related`.
@@ -204,6 +199,9 @@ class Identity:
             subject = page.load_subject(ref, subject_id)
             if subject is None:
                 return path, None, {}, "Unknown subject."
+            default = self._default_listing(path, subject)
+            if default and default != (subject["listing"] or {"id": None})["id"]:
+                subject = page.load_subject(ref, subject_id, default)
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
         finally:
             ref.close()
@@ -215,6 +213,18 @@ class Identity:
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id)}
         return path, subject, lookups, None
+
+    @staticmethod
+    def _default_listing(path: Path, subject: dict) -> str | None:
+        """The line an equity security or issuer subject is priced through: the first of the instrument's own
+        lines in the listing selector's order (a flagged primary, else the best exchange line), so the page
+        and market-data reads agree with the selector. None for a listing subject or anything else."""
+        security = subject["ids"].get(Level.SECURITY)
+        if subject["level"] == Level.LISTING or subject["asset_class"] != "equity" or not security:
+            return None
+        own = [line for line in search.directory(path, store.open_reference).instrument_listings(security)
+               if not line["folded"]]
+        return own[0]["id"] if own else None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
         """Run the plugin's resolve once; store what the authority rule decides.

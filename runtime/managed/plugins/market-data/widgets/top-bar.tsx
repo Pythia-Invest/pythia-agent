@@ -32,23 +32,25 @@ export default function InvestmentTopBar({ data }: TopBarProps) {
         query={query}
         onQueryChange={setQuery}
         search={transportSearch(data.transport)}
-        // The page composition is a fast local read: warm it for the row under
-        // the pointer or keyboard highlight so the click opens on cached data.
-        onHighlight={(subjectId) =>
-          void queryClient.prefetchQuery({
-            queryKey: subjectQueryKey(subjectId),
-            queryFn: ({ signal }) =>
-              readSubject(data.transport, subjectId, signal),
-            staleTime: SUBJECT_STALE_MS,
-          })
-        }
-        // The host shell routes the chosen subject to its instrument page; the
-        // next search starts empty instead of appending to this query.
-        onSelect={(subjectId) => {
+        // The page compositions are fast local reads: warm the instrument's
+        // and the listing's for the row under the pointer or keyboard
+        // highlight so the click opens on cached data.
+        onHighlight={(subjectId, listingId) => {
+          for (const id of new Set([subjectId, listingId]))
+            void queryClient.prefetchQuery({
+              queryKey: subjectQueryKey(id),
+              queryFn: ({ signal }) => readSubject(data.transport, id, signal),
+              staleTime: SUBJECT_STALE_MS,
+            });
+        }}
+        // The host shell routes the chosen instrument to its page, showing
+        // the chosen listing; the next search starts empty instead of
+        // appending to this query.
+        onSelect={(subjectId, listingId) => {
           setQuery("");
           window.dispatchEvent(
             new CustomEvent("pythia:open-subject", {
-              detail: { subject_id: subjectId },
+              detail: { subject_id: subjectId, listing_id: listingId },
             }),
           );
         }}
