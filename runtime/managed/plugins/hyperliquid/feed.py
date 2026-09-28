@@ -28,31 +28,51 @@ UNIVERSE_KEYS = {"name", "szDecimals", "maxLeverage", "marginTableId", "isDelist
 
 
 class Drift(ValueError):
-    """The source contradicts its documented and audited shape; `path` names where."""
+    """The source contradicts its documented and audited shape; `path` names where. `shown` is false when the
+    cause may be local (this machine's clock): logged, not shown to the investor as the source's drift."""
 
-    def __init__(self, path: str, detail: str):
+    def __init__(self, path: str, detail: str, *, shown: bool = True):
         super().__init__(f"{path}: {detail}")
-        self.path = path
+        self.path, self.shown = path, shown
+
+
+SHOWN_S = 300  # a drift warning shows until this long after its last occurrence; the count and log line stay
 
 
 @dataclass
 class Alarms:
-    """Counted drift, with the first example of each path; surfaced in snapshots and logged once."""
+    """Drift per path: counted and logged once for good, shown in snapshots only while recent.
+
+    `dropped` drift broke a part, which was left out (`source_drift`); an unknown extra field was only reported and
+    nothing was left out (`source_extra`)."""
 
     counts: dict[str, int] = field(default_factory=dict)
     examples: dict[str, str] = field(default_factory=dict)
+    seen: dict[str, tuple[float, bool]] = field(default_factory=dict)  # path -> (last shown occurrence, dropped)
     log: Callable[[str], None] = lambda message: None
+    clock: Callable[[], float] = time.monotonic
 
-    def note(self, path: str, detail: str) -> None:
+    def note(self, path: str, detail: str, *, dropped: bool = False, shown: bool = True) -> None:
         if path not in self.counts:
             self.examples[path] = detail[:200]
             self.log(f"hyperliquid source drift at {path}: {detail[:200]}")
         self.counts[path] = self.counts.get(path, 0) + 1
+        if shown:
+            self.seen[path] = (self.clock(), dropped)
+
+    def drift(self, error: "Drift") -> None:
+        self.note(error.path, str(error), dropped=True, shown=error.shown)
 
     def issues(self) -> list[dict]:
-        return [{"code": "source_drift", "severity": "warning",
-                 "message": f"Hyperliquid sent something unexpected at {path} ({count}x): {self.examples[path]}"[:300]}
-                for path, count in sorted(self.counts.items())][:10]
+        now, out = self.clock(), []
+        for path, (at, dropped) in sorted(self.seen.items()):
+            if now - at > SHOWN_S:
+                continue
+            kind = "left out" if dropped else "reported, nothing left out"
+            out.append({"code": "source_drift" if dropped else "source_extra", "severity": "warning" if dropped else "info",
+                        "message": f"Hyperliquid sent something unexpected at {path} ({self.counts[path]}x, {kind}): "
+                                   f"{self.examples[path]}"[:300]})
+        return out[:10]
 
 
 def _object(value: Any, path: str, required: set[str], optional: set[str], alarms: Alarms) -> dict:
@@ -81,8 +101,10 @@ def _positive(value: Any, path: str) -> str:
 
 
 def _time(value: Any, path: str, now_ms: int, earliest: int | None = None) -> int:
-    if type(value) is not int or not (earliest or now_ms - CLOCK_SKEW_MS) <= value <= now_ms + CLOCK_SKEW_MS:
-        raise Drift(path, "epoch milliseconds near the local clock expected")
+    if type(value) is not int:
+        raise Drift(path, "epoch milliseconds expected")
+    if not (earliest or now_ms - CLOCK_SKEW_MS) <= value <= now_ms + CLOCK_SKEW_MS:  # the local clock may be off
+        raise Drift(path, "a time far from the local clock", shown=False)
     return value
 
 

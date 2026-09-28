@@ -1,4 +1,4 @@
-"""Curated market subjects (rule `native_markets@1`, ADR 0048): `markets.json`.
+"""Curated market subjects (rule `native_markets@1`, ADR 0043): `markets.json`.
 
 A venue market such as a perp is its own `market` subject with a Pythia-curated
 key; no open identifier names it. The table names its underlying (`derivative_on`,

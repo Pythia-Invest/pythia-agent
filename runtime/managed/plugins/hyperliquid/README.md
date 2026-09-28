@@ -44,6 +44,10 @@ arguments, so the agent replays it for a one-shot read (it waits up to 10 s).
   after 20 s without a connection the snapshot turns stale and the platform
   retries.
 - Buyer and seller addresses in trades are dropped on receipt.
-- Unexpected shapes raise drift alarms (`issues` code `source_drift`) and drop
-  the affected part. Field meanings, the audit and the alarms are in the
+- Unexpected shapes raise drift alarms: logged once, and shown for five minutes
+  after the last occurrence (`source_drift` when a part was dropped,
+  `source_extra` when an unknown field was only reported). A changed `meta`
+  refuses the view instead of looking like a lost connection.
+- A one-shot read (the agent) gets the line at one point a minute, with its
+  first, last, high and low in `line_summary`. Field meanings, the audit and the alarms are in the
   [source record](../../../../docs/sources/hyperliquid.md).

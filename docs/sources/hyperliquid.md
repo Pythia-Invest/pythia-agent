@@ -1,11 +1,13 @@
 # Hyperliquid source record
 
-This record follows the source onboarding method (field semantics, a defensive
-adapter, drift alarms, a data audit). The standard itself is being written on
-the `identity-backbone-source-onboarding` branch; link it here when it lands.
+[Source onboarding](../architecture/source-onboarding.md) defines the stages
+([ADR 0042](../decisions/0042-source-onboarding-standard.md)).
 
-- **Status:** in onboarding (stage 4). Opt-in, keyless, live display only. It
-  confirms no identity and is not a default source for anything.
+- **Status:** not signed off; ships opt-in; display only. The plugin is
+  installed disabled, and it never confirms or creates identity: its only
+  subject is core's curated market. That is why it complies with ADR 0042
+  without the code gate. It is not counted as the source in onboarding (FIRDS
+  is); this record documents its stages 1 to 3 so far.
 - **Owner:** `runtime/managed/plugins/hyperliquid/` (`feed.py` parses, `stream.py`
   owns the socket). Core's `identity/markets.json` names the one market it serves.
 - **Scope:** the public websocket `wss://api.hyperliquid.xyz/ws` (`l2Book` with
@@ -15,9 +17,13 @@ the `identity-backbone-source-onboarding` branch; link it here when it lands.
 - **Measured on:** 2026-09-28, from one machine: a 150-second websocket session
   on BTC (plus one resubscription), a 40-second session per edge case, and the
   info reads below, then a live run through the dev stack: 2.5 to 2.9 snapshots a
-  second of 4.5 to 5.6 KB over the update channel, the first after 1.4 s cold, and
-  no upstream connection before or 6 s after the last viewer. Nothing was stored
-  in the repository.
+  second over the update channel, the first after 1.4 s cold, and no upstream
+  connection before or 6 s after the last viewer. A snapshot measured 4.5 to
+  5.6 KB in the first minute of a view; the line gains about 41 one-second
+  points a minute (about 26 bytes each), so a full 15-minute window reaches
+  about 20 KB. The agent's one-shot read keeps one point a minute. Nothing was
+  stored in the repository.
+- **Changes to other sources' adapters:** none.
 
 Citations:
 
@@ -59,24 +65,27 @@ Relevant fields not read:
 - `bbo`: best bid and offer about every 76 ms. The fast book already carries it.
 - `l2Book` `nSigFigs`/`mantissa` grouping: no grouping control in this version.
 
-## 2. Adapter
+## 2. Adapter and drift alarms
 
 - [x] Every field in the table has one parse and one meaning (`feed.py`).
 - [x] Claims keyed by a global identifier: not applicable, the source makes no
   identity claims. Its market is keyed by core's curated `market:pythia:…` ID.
 - [x] Picks no winner and reads no other source. An empty book is shown as empty.
-- [x] Unknown fields and channels are counted, logged once and shown in the
-  snapshot's `issues` (`source_drift`); the parsed fields keep working.
+- [x] Unexpected input is counted and logged once per path, never coerced. It
+  shows in the snapshot's `issues` for five minutes after its last occurrence:
+  `source_drift` when a part was left out, `source_extra` when an unknown field
+  was only reported. A time far from the local clock and a connection closed
+  right after subscribing may be local or the network, so they are logged, not
+  shown. A changed `meta` refuses the view with `source_drift`; it is not
+  reported as a lost connection.
 - [x] A structural break (a missing field, a number where a string is expected,
   an unordered or crossed book, a funding rate past the cap, a clock far off)
   drops that part of the snapshot and says why. Nothing is coerced.
 - [x] Network-free tests use synthetic fixtures shaped like the documentation
   (`runtime/test/python/test_hyperliquid_live.py`).
 
-## 3. Drift alarms
-
-A live source has no build, so the checks run on every message and surface in
-the snapshot and the Hermes log instead of a manifest.
+A live source has no build, so the fingerprint checks run on every message
+and surface in the snapshot and the Hermes log instead of a manifest.
 
 | Check | Baseline | Alarm |
 | --- | --- | --- |
@@ -84,13 +93,14 @@ the snapshot and the Hermes log instead of a manifest.
 | Field sets | The table above | Missing field breaks the part; an extra field is reported |
 | Value types | Decimal strings (the documentation types context values as numbers; the source sends strings) | Any other type |
 | Book shape | ≤ 5 levels, bids falling, asks rising, not crossed | Break |
-| Times | Within 10 minutes of the local clock; books never go back | Break, or the older book is dropped and counted |
+| Times | Within 10 minutes of the local clock; books never go back | Break (logged only), or the older book is dropped and counted |
 | Funding | \|rate\| ≤ 4% an hour | Break |
 | Trade side | `A`, `B` | Break |
-| `error` messages and refused subscriptions | None | Reported |
+| `error` messages | None | Reported |
+| `meta` universe | `name`, `szDecimals`, `maxLeverage` and the audited optional keys | The view is refused (`source_drift`) and checked again after a minute |
 | Our own output | Core's `validate_live_market` | Not published, reported |
 
-## 4. Data audit
+## 3. Data audit
 
 A random, labelled sample is not applicable yet: the source is one market's
 live state, not a record set. The audit was a measurement of the live feed.
@@ -99,7 +109,7 @@ live state, not a record set. The audit was a measurement of the live feed.
 
 | Case | Count | Example | Explanation | Handling | Status |
 | --- | --- | --- | --- | --- | --- |
-| A bad subscription closes the whole connection | 5 of 5 cases | An unknown coin, `btc` in lower case, `nSigFigs: 7`, `mantissa: 3`: close code 1006 after about 0.8 s, no `error` message | Undocumented | Coins are checked against `meta` first; a close right after subscribing is an alarm | Handled |
+| A bad subscription closes the whole connection | 5 of 5 cases | An unknown coin, `btc` in lower case, `nSigFigs: 7`, `mantissa: 3`: close code 1006 after about 0.8 s, no `error` message | Undocumented | Coins are checked against `meta` first; a close right after subscribing is logged | Handled |
 | An unknown method or type gets an `error` message and the connection stays | 2 cases | `l3Book`, `method: bogus` | Documented error channel | Alarm | Handled |
 | A duplicate subscription is refused | 1 | "Already subscribed" | — | Not sent | Handled |
 | The subscription ack replays recent trades without `isSnapshot` | Every subscription | 30 trades | WS says the ack carries a snapshot; the flag is absent | Replays removed by (time, tid) | Handled |
@@ -118,12 +128,12 @@ market that still lists, out-of-order books or trades. The adapter handles each
 (reconnect with a gap, an explicit empty book, a dropped older book), but they
 need a longer capture to measure.
 
-## 5. Judgement cases
+## 4. Judgement cases
 
 None: the source asks no identity question. Which perp is a derivative on which
 asset is core's curated table (`native_markets@1`), reviewed like code.
 
-## 6. Sign-off
+## Sign-off
 
 - [ ] Every stage meets its exit criteria.
 - [ ] A longer capture that includes a server disconnect.

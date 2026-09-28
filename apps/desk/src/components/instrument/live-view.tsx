@@ -24,6 +24,8 @@ const QUIET_MS = 5_000;
 const REFUSED: Record<string, string> = {
   unknown_market: "The source does not list this market.",
   delisted: "This market is delisted at the source.",
+  source_drift:
+    "The source's market list arrived in an unexpected shape, so the live view stays off. It is checked again shortly.",
 };
 const MEASURES = {
   last_trade: "Last trade",
@@ -143,7 +145,8 @@ export function LiveMarketPanel({
   const provenance = `${label}${venueOnly ? ` (${market.source.venue} only)` : ""}, real time. Last update ${clock(market.retrieved_at)}.`;
   const header: InstrumentDisplay = {
     id: `${market.subject.subject_id}:live`,
-    ticker: mark !== null ? "Mark price" : "Last trade",
+    ticker: unit ?? market.source.venue,
+    priceLabel: mark !== null ? "Mark price" : "Last trade",
     price,
     precision,
     status: "live",
@@ -262,6 +265,7 @@ export function LiveMarketPanel({
     tape.push({ id: `${key}:${nth}`, time, price: tradePrice, size, side });
   }
   const drift = market.issues.filter((issue) => issue.code === "source_drift");
+  const extra = market.issues.filter((issue) => issue.code === "source_extra");
   const gap = market.gaps.at(-1);
   const notes = [
     stale
@@ -282,7 +286,7 @@ export function LiveMarketPanel({
       {stats.length ? (
         <InstrumentStats stats={stats} precision={precision} />
       ) : null}
-      {notes.length || drift.length ? (
+      {notes.length || drift.length || extra.length ? (
         <div className="flex flex-col gap-0.5 text-foreground-secondary text-xs">
           {notes.map((note) => (
             <p key={note}>{note}</p>
@@ -296,6 +300,11 @@ export function LiveMarketPanel({
               left out.
             </p>
           ) : null}
+          {extra.length ? (
+            <p title={extra.map((issue) => issue.message).join("\n")}>
+              {label} sent fields Pythia does not read; nothing was left out.
+            </p>
+          ) : null}
         </div>
       ) : null}
       <div
@@ -306,7 +315,7 @@ export function LiveMarketPanel({
       >
         <InstrumentChart
           item={chart}
-          height={260}
+          height={380}
           className="@3xl:col-span-2"
           emptyLabel="No trades in the past 15 minutes yet."
         />

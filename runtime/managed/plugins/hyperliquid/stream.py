@@ -17,7 +17,7 @@ import uuid
 from typing import Any, Callable
 
 from . import feed
-from .market import WINDOW_MS, Market
+from .market import WINDOW_MS, Market, brief
 
 logger = logging.getLogger(__name__)
 URL = "wss://api.hyperliquid.xyz/ws"
@@ -62,7 +62,8 @@ class Streams:
     def __init__(self, validate: Callable[[Any], Any], *, open_socket=connect, read_info=info,
                  clock: Callable[[], float] = time.monotonic, log=logger.warning):
         self.validate, self.open_socket, self.read_info, self.clock = validate, open_socket, read_info, clock
-        self.alarms = feed.Alarms(log=log)
+        self.log = log
+        self.alarms = feed.Alarms(log=log)  # drift no one market can own (message envelopes, `meta`, errors)
         self.lock = threading.RLock()
         self.listeners: dict[str, dict] = {}
         self.markets: dict[str, Market] = {}
@@ -121,7 +122,7 @@ class Streams:
                 stop()
         event = result.get("event")
         if event and event.get("type") == "snapshot":
-            return event["data"]
+            return brief(event["data"])
         code = (event or {}).get("code") or ("cancelled" if cancelled and cancelled() else "timeout")
         return {"schema_version": 1, "outcome": "error", "data": None,
                 "issues": [{"code": code, "severity": "error", "message": f"No Hyperliquid snapshot: {code}."}]}
@@ -152,24 +153,30 @@ class Streams:
             return {row["coin"] for row in self.listeners.values()}
 
     def _prepare(self, coin: str) -> str | None:
-        """Why the coin cannot be watched (unknown or delisted per `meta`), else None; seeds the line once."""
+        """Why the coin cannot be watched (unknown or delisted per `meta`, or `meta` drifted), else None; seeds the
+        line once. A network failure raises: that is a connection problem, retried as one."""
         checked = self.checked.get(coin)
-        if checked is None or self.clock() - checked[0] > 600:
-            checked = (self.clock(), feed.market(self.read_info({"type": "meta"}), coin, self.alarms))
+        if checked is None or self.clock() - checked[0] > (60 if checked[1] == "source_drift" else 600):
+            try:
+                reason = feed.market(self.read_info({"type": "meta"}), coin, self.alarms)
+            except (feed.Drift, ValueError) as error:  # a changed or unreadable `meta` is drift, not a lost connection
+                self.alarms.drift(error if isinstance(error, feed.Drift) else feed.Drift("meta", str(error)))
+                reason = "source_drift"
+            checked = (self.clock(), reason)
             self.checked[coin] = checked
         if checked[1] is not None:
             return checked[1]
         with self.lock:
-            market = self.markets.setdefault(coin, Market(coin, self.alarms))
+            market = self.markets.setdefault(coin, Market(coin, feed.Alarms(log=self.log), self.alarms))
         if not market.seed and not market.buckets:
             now = _now()
             try:
                 raw = self.read_info({"type": "candleSnapshot", "req": {"coin": coin, "interval": "1m",
                                                                         "startTime": now - WINDOW_MS, "endTime": now}})
-                market.seed = feed.candles(raw, coin, self.alarms, now)
+                market.seed = feed.candles(raw, coin, market.alarms, now)
                 market.flag("seed_unavailable", False, "info", "")
             except feed.Drift as drift:
-                self.alarms.note(drift.path, str(drift))
+                market.alarms.drift(drift)
             except (OSError, ValueError):
                 market.flag("seed_unavailable", True, "info",
                             "The minutes before this view opened could not be read from Hyperliquid.")
@@ -236,7 +243,9 @@ class Streams:
                 socket.close()
             except Exception as error:  # a lost connection, a refused subscription or a transport error
                 if subscribed_at is not None and not received and self.clock() - subscribed_at < REJECTED_S:
-                    self.alarms.note("subscription", f"Hyperliquid closed the connection after a subscription: {error}")
+                    # A guess (a drop soon after subscribing may be the network): logged, never shown.
+                    self.alarms.note("subscription", f"Hyperliquid closed the connection after a subscription: {error}",
+                                     shown=False)
                 if down_since is None:
                     down_since = _now()
                     self._interrupted()
@@ -271,11 +280,14 @@ class Streams:
         """Apply one message; True when it carried market data."""
         try:
             channel, data = feed.envelope(json.loads(raw), self.alarms)
-        except (ValueError, feed.Drift) as error:
-            self.alarms.note(getattr(error, "path", "message"), str(error))
+        except feed.Drift as error:
+            self.alarms.drift(error)
+            return False
+        except ValueError as error:
+            self.alarms.drift(feed.Drift("message", f"not JSON: {error}"))
             return False
         if channel == "error":
-            self.alarms.note("error", str(data))
+            self.alarms.note("error", str(data), dropped=True)
             return False
         if channel in ("pong", "subscriptionResponse"):
             return False
@@ -287,13 +299,13 @@ class Streams:
                 return False
             try:
                 if channel == "l2Book":
-                    market.add_book(feed.book(data, market.coin, self.alarms))
+                    market.add_book(feed.book(data, market.coin, market.alarms))
                 elif channel == "trades":
-                    market.add_trades(feed.trades(data, market.coin, self.alarms))
+                    market.add_trades(feed.trades(data, market.coin, market.alarms))
                 else:
-                    market.context, market.dirty = feed.context(data, market.coin, self.alarms, _now()), True
+                    market.context, market.dirty = feed.context(data, market.coin, market.alarms, _now()), True
             except feed.Drift as drift:  # the part is dropped, never coerced; the alarm says why
-                self.alarms.note(drift.path, str(drift))
+                market.alarms.drift(drift)
                 if channel == "l2Book":
                     market.book = None
                 elif channel == "activeAssetCtx":
@@ -329,7 +341,7 @@ class Streams:
             try:
                 self.validate(document)
             except ValueError as error:  # our own output failed core's schema: report, never publish it
-                self.alarms.note("live_market", str(error))
+                self.alarms.note("live_market", str(error), dropped=True)
                 continue
             event = {"type": "snapshot", "state": "ready",
                      "data": {"schema_version": 1, "outcome": "ok", "data": document, "issues": []}}

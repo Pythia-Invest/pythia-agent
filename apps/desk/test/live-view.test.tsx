@@ -90,13 +90,17 @@ describe("live market section", () => {
       {
         ...market,
         gaps: [{ start: now - 60_000, end: now - 48_000 }],
-        issues: [{ code: "source_drift", severity: "warning", message: "x" }],
+        issues: [
+          { code: "source_drift", severity: "warning", message: "x" },
+          { code: "source_extra", severity: "info", message: "y" },
+        ],
       },
       true,
     );
     expect(html).toContain("Updates from Synthetic are paused");
     expect(html).toContain("for 12 s");
     expect(html).toContain("unexpected shape");
+    expect(html).toContain("nothing was left out");
     expect(html).toContain("opacity-70");
   });
 

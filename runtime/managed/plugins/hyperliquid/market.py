@@ -14,8 +14,9 @@ SOURCE = {"plugin": "pythia-hyperliquid", "venue": "hyperliquid", "scope": "venu
 class Market:
     """Latest state of one perp: book, recent trades, the 15-minute line and context. Never a tick archive."""
 
-    def __init__(self, coin: str, alarms: feed.Alarms):
-        self.coin, self.alarms = coin, alarms
+    def __init__(self, coin: str, alarms: feed.Alarms, shared: feed.Alarms | None = None):
+        self.coin, self.alarms = coin, alarms  # this market's own drift
+        self.shared = shared or feed.Alarms()   # the stream's, which no one market owns
         self.book: dict | None = None
         self.context: dict | None = None
         self.tape: list[tuple] = []                 # (time, tid, price, size, side), oldest first
@@ -29,7 +30,7 @@ class Market:
 
     def add_book(self, value: dict) -> None:
         if self.book and value["time"] < self.book["time"]:
-            self.alarms.note("l2Book.time", "a book older than the previous one; dropped")
+            self.alarms.note("l2Book.time", "a book older than the previous one", dropped=True)
             return
         self.book, self.dirty = value, True
         self.flag("book_empty", not value["bids"] and not value["asks"], "info", "Hyperliquid's book is empty.")
@@ -70,7 +71,7 @@ class Market:
                        "dropped": sum(1 for key in self.fresh if key not in shown)},
             "line": {"measure": "last_trade", "bucket_ms": 1000, "points": points,
                      **({"seeded_from": "candle_1m"} if points and points[0][0] < first else {})},
-            "gaps": list(self.gaps), "issues": [*self.issues.values(), *self.alarms.issues()][:20],
+            "gaps": list(self.gaps), "issues": [*self.issues.values(), *self.alarms.issues(), *self.shared.issues()][:20],
             "retrieved_at": now_ms,
         }
         if self.book:
@@ -78,3 +79,20 @@ class Market:
         if self.context:
             document["context"] = self.context
         return document
+
+
+def brief(answer: dict) -> dict:
+    """A one-shot answer for the agent: the line at one point per minute (its last), with the full-resolution
+    first, last, high and low beside it, so a 15-minute window stays about 16 points instead of up to 900."""
+    document = answer.get("data") or {}
+    points = (document.get("line") or {}).get("points") or []
+    if not points:
+        return answer
+    minutes: dict[int, list] = {}
+    for point in points:
+        minutes[point[0] // 60_000] = point
+    prices = [(float(point[1]), point) for point in points]
+    line = {**document["line"], "bucket_ms": 60_000, "points": [minutes[key] for key in sorted(minutes)]}
+    summary = {"from": points[0][0], "to": points[-1][0], "first": points[0][1], "last": points[-1][1],
+               "high": max(prices)[1][1], "low": min(prices)[1][1], "points": len(points)}
+    return {**answer, "data": {**document, "line": line}, "line_summary": summary}

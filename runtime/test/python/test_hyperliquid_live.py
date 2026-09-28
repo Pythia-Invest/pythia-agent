@@ -24,6 +24,7 @@ if 'hyperliquid_fixture' not in sys.modules:
     spec.loader.exec_module(sys.modules[spec.name])
 feed = importlib.import_module('hyperliquid_fixture.feed')
 stream = importlib.import_module('hyperliquid_fixture.stream')
+market = importlib.import_module('hyperliquid_fixture.market')
 plugin = importlib.import_module('hyperliquid_fixture')
 SUBJECT = 'market:pythia:hyperliquid-btc-perp'
 
@@ -146,7 +147,7 @@ class Parses(unittest.TestCase):
                  'at most 5': book(now(), bids=tuple((100 - i, 1) for i in range(6))),
                  'decimal string': {'channel': 'l2Book', 'data': {**book(now())['data'], 'levels': [
                      [{'px': 100.0, 'sz': '1', 'n': 1}], []]}},
-                 'near the local clock': book(now() // 1000)}
+                 'far from the local clock': book(now() // 1000)}
         for message, value in cases.items():
             with self.subTest(message), self.assertRaisesRegex(feed.Drift, message):
                 feed.book(value['data'], 'BTC', self.alarms)
@@ -161,7 +162,25 @@ class Parses(unittest.TestCase):
         parsed = feed.book(book(now(), spread='0.5')['data'], 'BTC', self.alarms)
         self.assertEqual(len(parsed['asks']), 2)
         self.assertEqual(self.alarms.counts, {'l2Book.spread': 1})
-        self.assertEqual(self.alarms.issues()[0]['code'], 'source_drift')
+        issue = self.alarms.issues()[0]
+        self.assertEqual((issue['code'], issue['severity']), ('source_extra', 'info'))
+        self.assertIn('nothing left out', issue['message'])
+
+    def test_drift_warnings_clear_after_a_clean_period_but_stay_recorded(self):
+        clock = [1000.0]
+        alarms = feed.Alarms(clock=lambda: clock[0])
+        with self.assertRaises(feed.Drift) as caught:
+            feed.book(book(now(), bids=((101.0, 1),))['data'], 'BTC', alarms)
+        alarms.drift(caught.exception)
+        self.assertEqual([issue['code'] for issue in alarms.issues()], ['source_drift'])
+        clock[0] += feed.SHOWN_S + 1
+        self.assertEqual((alarms.issues(), alarms.counts), ([], {'l2Book.levels': 1}))
+
+    def test_a_far_clock_is_logged_not_shown_as_the_sources_drift(self):
+        with self.assertRaises(feed.Drift) as caught:
+            feed.book(book(now() - 3_600_000)['data'], 'BTC', self.alarms)
+        self.alarms.drift(caught.exception)
+        self.assertEqual((self.alarms.issues(), self.alarms.counts), ([], {'l2Book.time': 1}))
 
     def test_trades_keep_the_aggressor_side_and_drop_addresses(self):
         rows = feed.trades([trade(now(), 7, side='A')], 'BTC', self.alarms)
@@ -275,6 +294,7 @@ class StreamLifetime(unittest.TestCase):
             self.assertIn('book', document)
             self.assertEqual(sorted(issue['message'].split(' at ')[1].split(' ')[0] for issue in document['issues']),
                              ['ctx.markPx', 'message.channel'])
+            self.assertTrue(all('left out' in issue['message'] for issue in document['issues']))
         finally:
             listener.close()
             owner.close()
@@ -291,16 +311,33 @@ class StreamLifetime(unittest.TestCase):
             listener.close()
             owner.close()
 
-    def test_a_refused_subscription_is_an_alarm(self):
+    def test_a_drifted_market_list_is_drift_not_a_lost_connection(self):
+        socket = FakeSocket()
+        owner, listener = streams([socket], lambda body: {'universe': [{'name': 'BTC'}]}), Listener()
+        owner.subscribe('BTC', SUBJECT, listener)
+        try:
+            event = listener.wait(lambda event: event.get('type') == 'reset')
+            self.assertEqual((event['state'], event['code']), ('unavailable', 'source_drift'))
+            self.assertEqual(owner.alarms.counts, {'meta.universe[0].maxLeverage': 1})
+            self.assertFalse([item for item in socket.sent if item.get('method') == 'subscribe'])
+            self.assertNotIn('stale', [event.get('state') for event in listener.events])
+        finally:
+            listener.close()
+            owner.close()
+
+    def test_a_refused_subscription_is_logged_not_shown(self):
         at = now()
         first = FakeSocket(then=ConnectionError('closed by server'))
         second = FakeSocket([book(at), ctx()])
         owner, listener = streams([first, second]), Listener()
         owner.subscribe('BTC', SUBJECT, listener)
         try:
-            event = listener.wait(lambda event: event.get('type') == 'snapshot' and any(
-                'subscription' in issue['message'] for issue in event['data']['data']['issues']))
+            event = listener.wait(lambda event: full(event) or (event.get('type') == 'snapshot'
+                                                                and 'context' in event['data']['data']
+                                                                and event['data']['data']['gaps']))
             self.assertEqual(event['state'], 'ready')
+            self.assertEqual(owner.alarms.counts, {'subscription': 1})
+            self.assertFalse([issue for issue in event['data']['data']['issues'] if 'subscription' in issue['message']])
         finally:
             listener.close()
             owner.close()
@@ -335,8 +372,19 @@ class StreamLifetime(unittest.TestCase):
             result = owner.snapshot('BTC', SUBJECT, timeout=3)
             self.assertEqual(result['outcome'], 'ok')
             identity.validate_live_market(result['data'])
+            self.assertEqual(result['data']['line']['bucket_ms'], 60_000)
         finally:
             owner.close()
+
+    def test_the_agent_gets_a_minute_line_with_its_summary(self):
+        start = (now() // 60_000 - 15) * 60_000
+        points = [[start + second * 1000, f'{100 + (second % 97) / 10:.1f}'] for second in range(900)]
+        answer = market.brief({'outcome': 'ok', 'data': {'line': {'measure': 'last_trade', 'bucket_ms': 1000,
+                                                                   'points': points}}})
+        self.assertLessEqual(len(answer['data']['line']['points']), 16)
+        self.assertEqual(answer['line_summary'], {'from': points[0][0], 'to': points[-1][0], 'first': '100.0',
+                                                  'last': points[-1][1], 'high': '109.6', 'low': '100.0',
+                                                  'points': 900})
 
     def test_arguments_name_one_perp(self):
         self.assertEqual(plugin.target({'subject_id': SUBJECT, 'native_ref': {

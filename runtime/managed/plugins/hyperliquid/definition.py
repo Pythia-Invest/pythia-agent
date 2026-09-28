@@ -21,7 +21,8 @@ def schemas(_wire=None):
     return {'live_market': {
         'name': TOOLS['live_market'],
         'description': 'Read one real-time snapshot of a Hyperliquid perpetual market: the top 5 book levels per '
-                       'side, recent trades, a 15-minute last-trade line, and mark, oracle, hourly funding rate and '
+                       'side, recent trades, the last-trade price at each minute of the past 15 (with first, last, high and '
+                       'low in line_summary), and mark, oracle, hourly funding rate and '
                        'open interest (in coins). Hyperliquid data only; it can take up to 10 seconds. Pass the '
                        'arguments of the `live` section request that pythia_identity_subject returns for the market.',
         'parameters': parameters}}

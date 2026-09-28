@@ -59,6 +59,11 @@ export function InstrumentQuoteHeader({
           <>
             <span className="text-3xl leading-none">
               <InstrumentPrice item={item} />
+              {item.priceLabel && (
+                <span className="ml-1.5 font-normal text-foreground-secondary text-sm">
+                  {item.priceLabel}
+                </span>
+              )}
               {item.unit && (
                 <span className="ml-1.5 font-normal text-foreground-secondary text-sm">
                   {item.unit}

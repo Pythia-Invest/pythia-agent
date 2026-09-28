@@ -217,7 +217,7 @@ export function TradeTape({
       className={cn("flex min-w-0 flex-col gap-1 text-xs", className)}
     >
       {trades.length ? (
-        <div className="max-h-80 overflow-y-auto">
+        <div className="max-h-64 overflow-y-auto">
           <table className="w-full border-collapse tabular-nums">
             <thead className="sticky top-0 bg-container">
               <tr className="text-foreground-secondary">
@@ -245,7 +245,7 @@ export function TradeTape({
                       trade.side === "sell" && "text-market-down",
                     )}
                   >
-                    <span aria-hidden="true" className="mr-1 text-[10px]">
+                    <span aria-hidden="true" className="mr-1">
                       {trade.side === "buy"
                         ? "▲"
                         : trade.side === "sell"

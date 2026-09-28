@@ -1,4 +1,4 @@
-# 0048: The Live market view and Hyperliquid as its first source
+# 0043: The Live market view and Hyperliquid as its first source
 
 **Status.** Accepted (2026-09-28). Implemented for the Hyperliquid BTC perp.
 
@@ -45,9 +45,12 @@ composition and contracts handled instrument levels only.
   about every 5 seconds; its `fast` book carries 5 levels about every 530 ms. A
   live ladder needs the second.
 - **Opt-in is native enablement.** The plugin ships disabled; enabling it is the
-  choice to connect. No separate setting exists.
-- **The agent gets a one-shot snapshot** through the same native tool; there is
-  no agent subscription.
+  choice to connect. No separate setting exists. Because it ships disabled and is display-only, it
+  complies with ADR 0042 without the code gate; its source record is not
+  signed off.
+- **The agent gets a one-shot snapshot** through the same native tool, with the
+  line at one point a minute and its first, last, high and low; there is no
+  agent subscription.
 
 ## Consequences
 
