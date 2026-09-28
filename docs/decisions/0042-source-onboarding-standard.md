@@ -106,7 +106,10 @@ precision has been measured.
   - pages, alternatives and agent results mark it `unaudited`, which the Desk
     shows as "not yet audited".
 
-  The investor may still enable it; turning it on is the opt-in.
+  The investor may still enable it; turning it on is the opt-in. A source that
+  ships opt-in and is display-only (it never confirms or creates identity), as
+  Hyperliquid's live view does ([ADR 0043](0043-live-market-view.md)), may ship
+  before sign-off as `unsigned`.
 
 ## Rejected alternatives
 

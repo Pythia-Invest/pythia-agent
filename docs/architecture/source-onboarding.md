@@ -47,9 +47,11 @@ subject or relation without review. A source that has not signed off:
 Core enforces this from the `signoff` each plugin declares in `contract.json`
 (`signed_off` with its record, `grandfathered` or `unsigned`); ADR 0042 lists
 what the gate does. An `unsigned` source can still be enabled by the investor,
-and is then labelled "not yet audited". The sources in use before this standard
-are listed in ADR 0042 and declared `grandfathered`. They keep their current role while they are onboarded in
-turn, starting with FIRDS.
+and is then labelled "not yet audited". An opt-in, display-only source such as
+Hyperliquid's live view ([ADR 0043](../decisions/0043-live-market-view.md))
+ships `unsigned`. The sources in use before this standard are listed in ADR
+0042 and declared `grandfathered`. They keep their current role while they are
+onboarded in turn, starting with FIRDS.
 
 ## Stages
 
@@ -130,8 +132,10 @@ trips an alarm.
 - every stage 1 field has a parse, a counter and a fingerprint check;
 - no field feeds two meanings.
 
-The reference builder does not write claims yet. Until it does, carry each
-meaning in names and types in the same way.
+The reference builder emits claims for FIRDS, in shadow mode
+(`tooling/reference-builder/reference_builder/claims.py`); its other sources do
+not yet. Until a source does, carry each meaning in names and types in the same
+way.
 
 ### 3. A full data audit
 

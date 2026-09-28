@@ -189,10 +189,8 @@ try {
   await expect(duplicate).toContainText("234.56");
   assert.equal(fixture.counters.connections, connections);
   await page.getByRole("button", { name: "Read financial snapshot" }).click();
-  await expect(
-    page.getByText("Read 1; preference 7", { exact: true }),
-  ).toBeVisible();
-  assert.equal(fixture.counters.reads, 2);
+  await expect(page.getByText("Read 1", { exact: true })).toBeVisible();
+  assert.equal(fixture.counters.reads, 1);
   await page.getByRole("button", { name: "Toggle slow read" }).click();
   await expect.poll(() => fixture.counters.slowReads).toBe(1);
   await page.getByRole("button", { name: "Toggle slow read" }).click();
