@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 
 from . import rules
 from .assemble import FigiMap, Inputs
-from .model import GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot
+from .model import GleifEntity, Issuer, Listing, Relationship, Security, SecTicker, Snapshot
 from .sec import EXCHANGE_MIC, LISTED_MICS
 
 SEC_EDGAR_RA = "RA000665"
@@ -182,3 +182,31 @@ def _mark_us_primaries(snap: Snapshot) -> None:
         if listed:
             listed[0].is_primary = True
             security.primary_mic, security.primary_rule = listed[0].mic, "sec_exchange_listing"
+
+
+RECEIPT_RULE = "receipt_issuer_share@1"
+
+
+def link_receipts(snap: Snapshot) -> None:
+    """A receipt no source links to its underlying (SEC ADRs and New York registry shares; OpenFIGI names no
+    underlying) is `depositary_receipt_of` its issuer's one active ordinary share. Several candidates narrow to the
+    ones FIRDS lists (an ISIN); an issuer with a preferred share, or still several candidates, gets no edge: a
+    receipt of a preferred or of another class is never guessed."""
+    audit = snap.audit.setdefault("relations", Counter())
+    stated = {item.from_id for item in snap.relationships if item.relation == "depositary_receipt_of"}
+    by_issuer: dict[str, list[Security]] = defaultdict(list)
+    for security in snap.securities.values():
+        if security.issuer_id:
+            by_issuer[security.issuer_id].append(security)
+    for security in snap.securities.values():
+        if security.kind != "dr" or security.security_id in stated or not security.issuer_id:
+            continue
+        siblings = by_issuer[security.issuer_id]
+        shares = [item for item in siblings if item.kind == "share" and item.activity == "active"]
+        shares = shares if len(shares) <= 1 else [item for item in shares if item.isin]
+        if len(shares) != 1 or any(item.kind == "preferred" for item in siblings):
+            audit["receipt_without_underlying"] += 1
+            continue
+        snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", shares[0].security_id,
+                                               "pythia", RECEIPT_RULE))
+        audit[RECEIPT_RULE] += 1

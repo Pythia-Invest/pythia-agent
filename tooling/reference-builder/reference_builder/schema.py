@@ -178,7 +178,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
                     listing.ticker_source or listing.source, **span)
         name(subject, listing.name, listing.source)
     for relation in snap.relationships:
-        source, target = ids.securities.get(relation.from_id), f"security:{relation.to_id}"
+        # The target is a working ID: a security of this build (mapped to its subject ID) or a FIRDS underlying ISIN.
+        source, target = ids.securities.get(relation.from_id), ids.securities.get(relation.to_id, f"security:{relation.to_id}")
         try:
             item = identity.Relation(type=relation.relation, from_id=source, to_id=target, authority="snapshot",
                                      provenance={"plugin": relation.source, "source": relation.source,
