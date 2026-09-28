@@ -1,8 +1,9 @@
-"""Pythia identity backbone contracts (ADR 0037, ADR 0038).
+"""Pythia identity backbone and data contracts (ADR 0037, ADR 0038, ADR 0040).
 
 Core-owned meaning shared by every plugin: subject kinds and levels, identifier schemes,
 evidence tiers, typed claims, the resolution queue and its authority rule, the
-store schemas and the plugin contract manifest. Plugins reach
+store schemas, the plugin contract manifest, the data-concept registry with its
+source selection, and the `live_market` snapshot schema. Plugins reach
 it through the loaded core module's `identity` attribute. Pure standard
 library; no I/O at import.
 """
@@ -16,7 +17,15 @@ from .claims import (
     RecordAttributes,
     RecordClaim, RelationClaim, batch_from_json, batch_to_json, check_batch,
 )
-from .manifest import MANIFEST_FILE, CatalogueMode, Manifest, ManifestError, Section, validate_manifest
+from .concepts import (
+    REGISTRY, Choice, Combine, Concept, ConceptSpec, FilingAuthority, Index, Licence, Selection, Skip, SkipReason,
+    Source, SourceState, build_index, select,
+)
+from .live_market import LiveMarketError, validate_live_market
+from .manifest import (
+    CONTRACT_VERSION, MANIFEST_FILE, CatalogueMode, ConceptEntry, Manifest, ManifestError, ManifestNeedsUpdate,
+    contract_version, validate_manifest,
+)
 from .model import (
     Binding, Composite, IdentifierAssertion, Issuer, Listing, Provenance, ProviderRef, Relation, Security,
     Subject, Validity, evidence_id, fold_roots,

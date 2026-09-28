@@ -38,7 +38,9 @@ source-series identity distinct. Core owns identity ([ADR 0037](../../docs/decis
 
 Register through Hermes and declare implemented common operations on the native
 tool schemas. Discovery/enablement remain native, not a second inventory. Declare
-coverage, supported series and access requirements honestly; local readiness and
+concepts, coverage, qualities, filing authorities and provider rights in
+`contract.json` from core's closed vocabularies ([ADR 0040](../../docs/decisions/0040-data-concepts-and-agent-tools.md)).
+Declare coverage, supported series and access requirements honestly; local readiness and
 capability declarations do not prove account entitlements. Do not probe every
 provider during startup or each refresh to infer them.
 

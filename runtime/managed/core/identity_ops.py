@@ -18,7 +18,9 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from .identity import MANIFEST_FILE, ClaimError, Level, ManifestError, check_batch, validate_manifest
+from .identity import (
+    MANIFEST_FILE, ClaimError, Level, ManifestError, ManifestNeedsUpdate, check_batch, validate_manifest,
+)
 from . import queue_ops
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, page, search, store
@@ -220,11 +222,12 @@ class Identity:
         Returns (reason when unresolved, whether the failure is transient)."""
         from tools.registry import registry
         sent = page.resolve_input(info, subject)
-        levels = {entry.via for entry in info.manifest.content.values()} & {level for level in Level if subject["ids"].get(level)}
-        if not sent or not levels:
+        levels = {entry.via for entry in info.manifest.concepts.values()} & {level for level in Level if subject["ids"].get(level)}
+        tool = info.operations.get(info.manifest.resolve.operation)
+        if not sent or not levels or tool is None:
             return f"{info.label} cannot look up this subject", False
         call = contextvars.copy_context().run
-        future = self._pool.submit(call, registry.dispatch, info.manifest.resolve.tool, {"identifiers": sent})
+        future = self._pool.submit(call, registry.dispatch, tool, {"identifiers": sent})
         try:
             raw = future.result(timeout=RESOLVE_TIMEOUT)
         except concurrent.futures.TimeoutError:
@@ -278,31 +281,74 @@ def _suffixes() -> dict[str, set[str]]:
 
 
 def installed() -> list[page.PluginInfo]:
-    """Every installed plugin that ships a valid contract.json, with its native enablement and configuration."""
+    """Every installed plugin that ships a valid contract.json, with its native enablement and configuration.
+
+    A plugin whose contract is newer than this core is listed by `needs_update()` instead."""
+    return contracts()[0]
+
+
+def needs_update() -> list[str]:
+    """Installed plugins whose contract_version is newer than this core reads: Pythia must be updated to use them."""
+    return contracts()[1]
+
+
+def contracts() -> tuple[list[page.PluginInfo], list[str]]:
     from hermes_cli.config import load_config_readonly
     from hermes_cli.plugins import get_plugin_manager
-    from tools.registry import registry
     from .platform import configuration
     from .platform.access import native_plugin_enabled
-    from .platform.operations import declaration
-    config, found = load_config_readonly(), []
+    config, loaded, outdated = load_config_readonly(), [], []
     for key, plugin in tuple(get_plugin_manager()._plugins.items()):
         directory = Path(plugin.manifest.path) if plugin.manifest.path else None
         if directory is None or not directory.is_absolute() or not (directory / MANIFEST_FILE).is_file():
             continue
         try:
             manifest = validate_manifest(json.loads((directory / MANIFEST_FILE).read_text(encoding="utf-8")))
+        except ManifestNeedsUpdate as error:
+            logger.warning("%s of %s needs a newer Pythia (needs_update): %s", MANIFEST_FILE, key, error)
+            outdated.append(key)
+            continue
         except (OSError, ValueError, ManifestError) as error:
             logger.warning("ignoring invalid %s of %s: %s", MANIFEST_FILE, key, error)
             continue
-        operations = {}
-        for entry in manifest.content.values():
-            schema = registry.get_schema(entry.tool) if entry.tool in registry.get_all_tool_names() else None
-            meta = declaration(schema) if schema else None
-            if isinstance(meta, dict):
-                operations[entry.tool] = meta["operation"]
-        found.append(page.PluginInfo(key=key, manifest=manifest, enabled=native_plugin_enabled(key, plugin, config),
-                                     missing=tuple(configuration.missing_at(directory)), operations=operations))
+        loaded.append((key, plugin, directory, manifest))
+    tools = native_operations({key for key, *_ in loaded})
+    found = [page.PluginInfo(key=key, manifest=manifest, enabled=native_plugin_enabled(key, plugin, config),
+                             missing=tuple(configuration.missing_at(directory)),
+                             operations={name: tool for name, tool in tools.get(key, {}).items()
+                                         if name in manifest.plugin_operations})
+             for key, plugin, directory, manifest in loaded]
+    return found, outdated
+
+
+def native_operations(plugins: set[str]) -> dict[str, dict[str, str]]:
+    """The Hermes adapter for contract operations: plugin key -> operation -> the native tool declaring it.
+
+    A contract names plugin operations, never tools. An operation is the name a tool the plugin actually owns
+    declares, either as a protected HTTP operation (`declare_operation`) or in its market-data contribution."""
+    from tools.registry import registry
+    from .platform.access import native_tool_owners
+    from .platform.operations import MARKER
+    found: dict[str, dict[str, str]] = {}
+    registered = set(registry.get_all_tool_names())
+    for name, (key, _plugin) in native_tool_owners().items():
+        schema = registry.get_schema(name) if key in plugins and name in registered else None
+        try:
+            comment = schema["parameters"].get("$comment") if isinstance(schema, dict) else None
+            marks = json.loads(comment) if isinstance(comment, str) and len(comment) <= 16384 else {}
+        except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
+            continue
+        if not isinstance(marks, dict):
+            continue
+        http = marks.get(MARKER)
+        declared = [http.get("operation")] if isinstance(http, dict) else []
+        contribution = marks.get("pythia_market_data")  # its owner validates it; only the tool's own entry counts
+        for item in contribution.get("operations", []) if isinstance(contribution, dict) else []:
+            if isinstance(item, dict) and item.get("tool") == name:
+                declared.append(item.get("operation"))
+        for operation in declared:
+            if isinstance(operation, str):
+                found.setdefault(key, {}).setdefault(operation, name)
     return found
 
 

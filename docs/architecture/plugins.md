@@ -10,8 +10,9 @@ the native Hermes extension hook under the `pythia` identity; `plugins/` contain
 the pluggable features and connectors. Core supplies operating guidance, Desk
 context, shared transport and the investment identity backbone, not
 provider-specific research tools. A plugin that serves investment data declares
-what it can address in a static `contract.json`
-([ADR 0038](../decisions/0038-plugin-addressing-contract.md)). See
+what it can address and serve in a static `contract.json`
+([ADR 0038](../decisions/0038-plugin-addressing-contract.md)); see
+[Declaring data concepts](#declaring-data-concepts-contractjson) below and
 [ADR 0034](../decisions/0034-core-and-optional-features.md).
 
 The package owns its tools, domain implementation, bundled skills and explicitly
@@ -222,6 +223,44 @@ Rejected: a Desk-owned field allowlist (a Desk change per provider), a settings
 UI or writer in the POC, and a block in Hermes's `plugin.yaml` (Hermes owns that
 schema). Hermes `requires_env` and `.env` custody were rejected because they
 keep provider secrets in the Hermes environment instead of Pythia custody.
+
+## Declaring data concepts (`contract.json`)
+
+Core owns the data concepts (`market_data`, `profile`, `filings`, and later
+`fundamentals`, `estimates` and `news`), their operations and the qualities a
+plugin may claim ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md)).
+A plugin that serves one declares it in `contract.json` version 1, beside its
+addressing (the full shape is in the ADR 0038 amendment):
+
+```json
+"concepts": {
+  "market_data": {
+    "level": "listing", "via": "listing",
+    "operations": {"quote": "latest", "intraday": "history", "daily": "history"},
+    "coverage": {"asset_classes": ["equity"]},
+    "qualities": {"quote": {"delay": "delayed"}, "daily": {"adjustment": ["none", "split_dividend"]}}
+  }
+},
+"rights": {"licence": "personal", "cache": "unlimited", "hostable": false}
+```
+
+- Operations name the plugin's own operations (its HTTP operation or
+  market-data contribution names), never Hermes tools.
+- Coverage decides where the source can serve: selection drops a source whose
+  coverage excludes the subject, so investors never configure it. Declare
+  honestly; qualities are claims, not proof of an account's entitlements.
+- A filings source lists the `authorities` it serves (`sec`, `esma`, `fca`,
+  `sedar`); core combines one source per authority.
+- `rights` states the licence class, how long data may stay on the device,
+  whether it may be published (false for provider data) and any attribution
+  the provider requires. `limits` may state the provider's published limits
+  and each operation's cost.
+- A `live` operation returns core's `live_market` snapshot
+  (`identity.validate_live_market`).
+
+Core validates the file with `identity.validate_manifest`; a contract newer
+than the installed Pythia shows as `needs_update`. A bundled plugin lists
+`contract.json` among its copied files in `scripts/dev/managed-plugins.mjs`.
 
 ## Skills and contracts
 

@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "plugin": "pythia-sec",
   "provider": "sec",
   "addressing": {
@@ -14,19 +15,35 @@
       ]
     }
   },
-  "content": {
+  "concepts": {
     "filings": {
       "level": "issuer",
       "via": "issuer",
-      "tool": "pythia_sec_filings"
+      "operations": {
+        "list": "filings"
+      },
+      "authorities": [
+        "sec"
+      ]
     }
   },
   "resolve": {
-    "tool": "pythia_sec_resolve",
+    "operation": "resolve",
     "input_schemes": [
       "cik",
       "ticker_mic"
     ],
     "echoes": []
-  }
+  },
+  "rights": {
+    "licence": "open",
+    "cache": "unlimited",
+    "hostable": false
+  },
+  "limits": {
+    "plan": "EDGAR fair access",
+    "unit": "request",
+    "per_second": 10
+  },
+  "functions": []
 }

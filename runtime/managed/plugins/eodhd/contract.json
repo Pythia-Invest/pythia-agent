@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "plugin": "pythia-eodhd",
   "provider": "eodhd",
   "addressing": {
@@ -37,16 +38,37 @@
       "OTCM": ".US"
     }
   },
-  "content": {
-    "quote": {
+  "concepts": {
+    "market_data": {
       "level": "listing",
       "via": "listing",
-      "tool": "pythia_eodhd_latest"
-    },
-    "chart": {
-      "level": "listing",
-      "via": "listing",
-      "tool": "pythia_eodhd_history"
+      "operations": {
+        "quote": "latest",
+        "intraday": "history",
+        "daily": "history"
+      },
+      "coverage": {
+        "asset_classes": [
+          "equity"
+        ]
+      },
+      "qualities": {
+        "quote": {
+          "delay": "delayed"
+        },
+        "daily": {
+          "adjustment": [
+            "none",
+            "split_dividend"
+          ]
+        }
+      }
     }
-  }
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "unlimited",
+    "hostable": false
+  },
+  "functions": []
 }

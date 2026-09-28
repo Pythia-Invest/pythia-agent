@@ -1,4 +1,4 @@
-"""Instrument page composition (ADR 0038): the subject, its listings and one plugin per section.
+"""Instrument page composition (ADR 0038, ADR 0040): the subject, its listings and one plugin per section.
 
 `subject_view` is local only: it reads the reference file, the identity store and
 the installed plugins' contracts, and never calls a plugin. A plugin whose
@@ -15,19 +15,35 @@ import sqlite3
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
+from enum import StrEnum
 from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
-from .manifest import Manifest, Section
+from .concepts import REGISTRY, Concept
+from .manifest import ConceptEntry, Manifest
 from .model import Binding, IdentifierAssertion, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
 from .schemes import INSTRUMENT_KINDS, Level, provisional_id, subject_kind, subject_level
 from .vocabulary import KIND_OF_RECORD, RELATIONS, Grouping, InstrumentKind, VerdictRelation
 
+
+
+class Section(StrEnum):
+    """Instrument page sections. Each is served by one concept operation (ADR 0040); the Desk renders sections."""
+
+    QUOTE = "quote"
+    CHART = "chart"
+    PROFILE = "profile"
+    FINANCIALS = "financials"
+    NEWS = "news"
+    FILINGS = "filings"
+
+
+# The concept operations that can fill each section, preferred first.
+SERVES = {Section.QUOTE: (Concept.MARKET_DATA, ("quote",)), Section.CHART: (Concept.MARKET_DATA, ("daily", "intraday")),
+          Section.PROFILE: (Concept.PROFILE, ("fields",)), Section.FILINGS: (Concept.FILINGS, ("list",)),
+          Section.FINANCIALS: (Concept.FUNDAMENTALS, ("statements",)), Section.NEWS: (Concept.NEWS, ("list",))}
 SECTIONS = (Section.QUOTE, Section.CHART, Section.PROFILE, Section.FILINGS)
-ORDER = {Section.QUOTE: ("yahoo", "eodhd", "coinmarketcap", "coingecko"),
-         Section.CHART: ("yahoo", "eodhd", "coinmarketcap", "coingecko"),
-         Section.PROFILE: ("gleif",), Section.FILINGS: ("xbrl-filings", "sec")}
 LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMarketCap", "coingecko": "CoinGecko",
           "gleif": "GLEIF", "xbrl-filings": "filings.xbrl.org", "sec": "SEC EDGAR", "openfigi": "OpenFIGI"}
 SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
@@ -44,15 +60,24 @@ class PluginInfo:
     manifest: Manifest
     enabled: bool = True
     missing: tuple[Mapping[str, str], ...] = ()  # required configuration not configured
-    operations: Mapping[str, str] = field(default_factory=dict)  # native tool -> declared HTTP operation
+    operations: Mapping[str, str] = field(default_factory=dict)  # plugin operation -> the native tool declaring it
 
     @property
     def label(self) -> str:
         return LABELS.get(self.manifest.provider, self.manifest.provider)
 
 
+def serving(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str] | None:
+    """The plugin's concept entry for a section and the plugin operation that serves it, or None."""
+    concept, operations = SERVES[section]
+    entry = manifest.concepts.get(concept)
+    name = entry and next((name for name in operations if name in entry.operations), None)
+    return (entry, entry.operations[name]) if name else None
+
+
 def ordered(plugins: list[PluginInfo], section: Section) -> list[PluginInfo]:
-    preferred = ORDER.get(section, ())
+    """Core's default order for the section's concept (the registry's), then plugin key."""
+    preferred = REGISTRY[SERVES[section][0]].default_order
     rank = {name: index for index, name in enumerate(preferred)}
     return sorted(plugins, key=lambda info: (rank.get(info.manifest.provider, len(preferred)), info.key))
 
@@ -198,7 +223,8 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
              coins: Callable[[str, str], str | None], queue: list[dict],
              misses: Mapping[str, str] = {}) -> dict | None:
     """One plugin's answer for one section, or None when it cannot address the subject."""
-    entry = info.manifest.content.get(section)
+    served = serving(info.manifest, section)
+    entry, operation = served if served else (None, None)
     target = entry and subject["ids"].get(entry.via)
     if not target or not _addressable(info, entry.via, subject):
         return None
@@ -231,8 +257,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         state = "confirmed" if rule == NATIVE_COINS_RULE else "derived"
     request = None
     if section in (Section.PROFILE, Section.FILINGS):
-        operation = info.operations.get(entry.tool)
-        if operation is None:
+        if operation not in info.operations:  # the contract names it, but no native tool declares it
             return {**answer, "status": "unresolved", "reason": f"{info.label} exposes no {section} operation"}
         request = {"plugin": info.key, "operation": operation, "arguments": {"native_ref": ref.wire()}}
     return {**answer, "binding": ref.wire(), "binding_status": state, "request": request}

@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "plugin": "pythia-coingecko",
   "provider": "coingecko",
   "addressing": {
@@ -12,23 +13,50 @@
       }
     ]
   },
-  "content": {
-    "quote": {
+  "concepts": {
+    "market_data": {
       "level": "security",
       "via": "security",
-      "tool": "pythia_coingecko_latest"
-    },
-    "chart": {
-      "level": "security",
-      "via": "security",
-      "tool": "pythia_coingecko_history"
+      "operations": {
+        "quote": "latest",
+        "intraday": "history",
+        "daily": "history"
+      },
+      "coverage": {
+        "asset_classes": [
+          "crypto"
+        ]
+      }
     }
   },
   "catalogue": {
     "mode": "bulk",
-    "tool": "pythia_coingecko_catalogue",
+    "operation": "catalogue",
     "scopes": [
       "coins"
     ]
-  }
+  },
+  "rights": {
+    "licence": "business",
+    "cache": {
+      "ttl_seconds": 86400
+    },
+    "hostable": false,
+    "attribution": {
+      "text": "Powered by CoinGecko",
+      "url": "https://www.coingecko.com"
+    }
+  },
+  "limits": {
+    "plan": "Demo",
+    "unit": "credit",
+    "per_minute": 100,
+    "per_month": 10000,
+    "cost": {
+      "market_data.quote": 1,
+      "market_data.intraday": 1,
+      "market_data.daily": 1
+    }
+  },
+  "functions": []
 }
