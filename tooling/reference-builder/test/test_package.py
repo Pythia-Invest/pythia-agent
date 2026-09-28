@@ -1,5 +1,6 @@
 """The builder's output directory is a reference package that core's installer accepts."""
 
+import contextlib
 import importlib
 import json
 import tempfile
@@ -54,6 +55,25 @@ class PackageTest(unittest.TestCase):
                          ("reference-20260925", "2026-09-25", 2))
         self.assertTrue(installer.current(data).is_file())
 
+
+    def test_first_read_of_a_format_3_package_carries_provisional_coins_to_their_curated_ids(self):
+        identity, store = schema.identity, importlib.import_module("pythia_core_identity.store")
+        lifecycle = importlib.import_module("pythia_core_identity.lifecycle")
+        data = Path(self.tmp.name) / "core"
+        local = store.IdentityStore(data)  # a binding made before USDC was curated, on its provisional ID
+        old = identity.provisional_id("security", "coingecko", "coin", "usd-coin")
+        local.put_binding(identity.Binding(
+            provider_ref=identity.ProviderRef("coingecko", "usd-coin", "coin"), subject_id=old, status="confirmed",
+            authority="user_attested", evidence_ids=("ev:" + "0" * 64,), plugin="pythia-coingecko"))
+        self.assertEqual(self.build()["format_version"], 3)
+        installer.install(self.out, data)
+        path = store.reference_path(data)  # what core's first read does (identity_ops.Identity.reference_path)
+        with contextlib.closing(store.open_reference(path)) as ref:
+            done = lifecycle.rekey(local, ref, installer.release_key(path))
+        usdc = "security:caip19:eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        self.assertEqual((done["moved"], done["vanished"]), (1, 0))
+        self.assertEqual([row["provider"] for row in local.bindings([usdc])], ["coingecko"])
+        self.assertEqual(local.bindings([old]), [])
 
     def test_a_build_with_a_failed_canary_is_not_a_package(self):
         self.build()

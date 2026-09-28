@@ -192,7 +192,7 @@ class PageCompositionTest(unittest.TestCase):
         for fixture in (load("asml.json"), load("crypto.json"), APPLE):
             load_reference(self.ref, fixture)
         self.ref.row_factory = sqlite3.Row
-        self.coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+        self.coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
 
     def tearDown(self):
         self.ref.close()

@@ -243,7 +243,7 @@ class Identity:
             default = self._default_listing(path, subject)
             if default and default != (subject["listing"] or {"id": None})["id"]:
                 subject = page.load_subject(ref, subject_id, default)
-            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         finally:
             ref.close()
         identity_store = self.store
