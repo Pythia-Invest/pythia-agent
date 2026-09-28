@@ -23,11 +23,14 @@ export function IdentityIssues({ page }: { page: SubjectPage }) {
   const answer = useAnswerQuestion(subjectId);
   const items = questions.data?.items ?? [];
   const answered = questions.data?.answered ?? [];
-  if (!items.length && !answered.length && !questions.isError) return null;
+  const notice = questions.data?.notice;
+  if (!items.length && !answered.length && !notice && !questions.isError)
+    return null;
   return (
     <details
       data-slot="identity-issues"
       className="rounded-container border border-border/60 px-4 py-3 text-xs"
+      {...(notice ? { open: true } : {})}
     >
       <summary className="cursor-pointer font-semibold text-body text-foreground">
         Identity questions ({items.length})
@@ -42,6 +45,11 @@ export function IdentityIssues({ page }: { page: SubjectPage }) {
         Source records that disagree with the reference data, or that could not
         be placed. You can answer one yourself, or ask the agent to review them.
       </p>
+      {notice ? (
+        <p role="status" className="mt-2 text-foreground">
+          {notice}
+        </p>
+      ) : null}
       {questions.isError ? (
         <p role="alert" className="mt-2 text-error">
           The questions could not be read. {questions.error.message}

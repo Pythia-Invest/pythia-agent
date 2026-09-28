@@ -164,6 +164,23 @@ class StoreTest(QueueFixture):
         self.assertEqual(self.identity.misses(ASML), {"pythia-eodhd": "EODHD found no match"})
 
 
+    def test_an_older_store_is_kept_aside_with_a_warning_and_reported_once(self):
+        directory = Path(self.tmp.name) / "older"
+        directory.mkdir()
+        with sqlite3.connect(directory / "identity.sqlite3") as db:
+            db.executescript("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+                             "INSERT INTO metadata VALUES ('schema_version', '2');")
+        (directory / "identity.sqlite3-journal").write_bytes(b"")  # a leftover (empty) rollback journal
+        with self.assertLogs(store.logger, "WARNING"):
+            fresh = store.IdentityStore(directory)
+        [kept] = directory.glob("identity.v2-*.sqlite3")
+        self.assertTrue(kept.with_name(kept.name + "-journal").exists())
+        self.assertEqual((fresh.set_aside, fresh.metadata("schema_version")), (kept.name, store.SCHEMA_VERSION))
+        told = queue.listing(fresh, self.ref, subject_id=None, kind=None, plugins=None, limit=20, answered=False, notice=True)
+        self.assertIn(kept.name, told["notice"])
+        fresh.db.close()
+
+
 class RulesTest(QueueFixture):
     def test_new_identifier_proof_settles_an_item_and_contradictions_stay_open(self):
         # Asked while the device had no ISIN evidence for ASML: the ISIN proves nothing yet.

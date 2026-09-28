@@ -54,6 +54,8 @@ const listSchema = z.object({
     .object({
       items: z.array(identityQuestionSchema).default([]),
       answered: z.array(identityQuestionSchema).default([]),
+      /** Once per runtime: an older identity store was kept aside. */
+      notice: z.string().nullish(),
     })
     .nullish(),
 });

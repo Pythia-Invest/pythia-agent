@@ -61,6 +61,21 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
 
+def listing(store: IdentityStore, ref: sqlite3.Connection, *, subject_id: str | None, kind: str | None,
+            plugins: set[str] | None, limit: int, answered: bool, notice: bool) -> dict:
+    """Open items, newest first; with `answered`, apart and uncounted, the ones only the agent answered. With
+    `notice`, says so when this process started a fresh store and kept an incompatible one aside."""
+    filters = {"subject_ids": family(ref, subject_id) if subject_id else None, "kind": kind, "plugins": plugins}
+    items, size = store.queue_items(**filters), max(1, min(50, limit))
+    data: dict[str, Any] = {"items": [summary(store, ref, item) for item in items[:size]], "total": len(items)}
+    if answered:
+        data["answered"] = [summary(store, ref, item) for item in store.queue_items(**filters, answered=True)[:size]]
+    if notice and store.set_aside:
+        data["notice"] = (f"The identity store was reset for a new format; the previous one is kept as "
+                          f"{store.set_aside}. Confirmed matches and answers start over.")
+    return data
+
+
 def family(ref: sqlite3.Connection, subject_id: str) -> list[str]:
     """The subject and its listing, security, issuer and composite, as the page groups its questions."""
     try:

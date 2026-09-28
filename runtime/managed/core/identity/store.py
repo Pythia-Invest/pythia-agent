@@ -10,6 +10,7 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
+import logging
 import os
 import sqlite3
 import threading
@@ -24,6 +25,7 @@ from .model import Binding, ProviderRef
 from .vocabulary import PROVISIONAL
 from .resolution import QueueItem, Verdict, VerdictOutcome
 
+logger = logging.getLogger(__name__)
 REFERENCE_DIR_ENV = "PYTHIA_REFERENCE_DIR"
 SCHEMA_VERSION = "3"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed)
 REFERENCE_SCHEMA_VERSION = "2"  # reference-*.sqlite3 release.schema_version, written by the builder
@@ -79,9 +81,19 @@ class IdentityStore:
         directory = Path(data_dir)
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = directory / "identity.sqlite3"
-        if self.path.exists() and not self._readable():
-            # Never delete device state: keep the unreadable file aside and start a fresh store.
-            self.path.replace(self.path.with_name(f"identity.unreadable-{uuid.uuid4().hex[:8]}.sqlite3"))
+        self.set_aside: str | None = None  # the file name an incompatible store was kept under, this process
+        version = self._version() if self.path.exists() else SCHEMA_VERSION
+        if version != SCHEMA_VERSION:
+            # Never delete device state: keep the old file (and its journal) aside and start a fresh store.
+            kept = self.path.with_name(f"identity.{'v' + version if version else 'unreadable'}-{uuid.uuid4().hex[:8]}.sqlite3")
+            for suffix in ("-journal", "-wal", "-shm"):
+                sibling = self.path.with_name(self.path.name + suffix)
+                if sibling.exists():
+                    sibling.replace(kept.with_name(kept.name + suffix))
+            self.path.replace(kept)
+            self.set_aside = kept.name
+            logger.warning("identity store schema %s is not %s: kept as %s; bindings, answers and claims start empty",
+                           version or "unreadable", SCHEMA_VERSION, kept.name)
         if not self.path.exists():
             staging = self.path.with_name(f"identity.{uuid.uuid4().hex}.part")
             setup = sqlite3.connect(staging)
@@ -97,7 +109,8 @@ class IdentityStore:
         self.db.row_factory = sqlite3.Row
         self._writing = threading.RLock()  # one connection serves every thread: one user of it at a time
 
-    def _readable(self) -> bool:
+    def _version(self) -> str | None:
+        """The stored schema version, or None when the file is not a readable identity store."""
         try:
             connection = sqlite3.connect(f"{self.path.resolve().as_uri()}?mode=ro", uri=True)
             try:
@@ -105,8 +118,8 @@ class IdentityStore:
             finally:
                 connection.close()
         except sqlite3.Error:
-            return False
-        return row is not None and row[0] == SCHEMA_VERSION
+            return None
+        return str(row[0]) if row is not None else None
 
     @_locked
     def bindings(self, subject_ids: Iterable[str], statuses: Iterable[str] = ("confirmed",)) -> list[sqlite3.Row]:

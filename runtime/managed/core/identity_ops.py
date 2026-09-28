@@ -103,6 +103,7 @@ class Identity:
     def __init__(self, ctx: Any):
         self.ctx = ctx
         self._store: store.IdentityStore | None = None
+        self._told = False  # whether a set-aside store was reported (once per process)
         self._lock = threading.Lock()
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="pythia-resolve")
 
@@ -186,21 +187,18 @@ class Identity:
                 if arguments.get("item_id"):
                     view = queue.inspect(self.store, ref, str(arguments["item_id"]))
                     return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown queue item.")
-                subject, plugin = arguments.get("subject_id"), arguments.get("plugin")
-                filters = {"subject_ids": queue.family(ref, str(subject)) if subject else None, "kind": arguments.get("kind"),
-                           "plugins": {plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
-                           if plugin else None}
-                items, size = self.store.queue_items(**filters), max(1, min(50, limit))
-                data = {"items": [queue.summary(self.store, ref, item) for item in items[:size]], "total": len(items)}
-                if arguments.get("answered") is True:
-                    data["answered"] = [queue.summary(self.store, ref, item)
-                                        for item in self.store.queue_items(**filters, answered=True)[:size]]
+                plugin = arguments.get("plugin")
+                data = queue.listing(self.store, ref, subject_id=arguments.get("subject_id"), kind=arguments.get("kind"),
+                                     plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
+                                     if plugin else None, limit=limit, answered=arguments.get("answered") is True,
+                                     notice=not self._told)
+                self._told = self._told or "notice" in data
             finally:
                 ref.close()
         except (sqlite3.Error, OSError):
             logger.warning("identity queue unavailable", exc_info=True)
             return _envelope("empty", None, issue="The identity store could not be read.")
-        return _envelope("ok" if items else "empty", data)
+        return _envelope("ok" if data["items"] or data.get("notice") else "empty", data)
 
     def verdict(self, arguments: dict, **_context: Any) -> str:
         from .platform.request_context import usage
