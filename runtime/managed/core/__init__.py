@@ -5,7 +5,7 @@ from typing import Any
 
 from . import identity  # noqa: F401  (contracts plugins reach as the loaded core's `identity`)
 from .desk_view import SCHEMA as DESK_VIEW_SCHEMA, desk_view
-from .operating import OPERATING_CONTEXT
+from .operating import operating_context
 
 
 def register(ctx: Any) -> None:
@@ -15,19 +15,23 @@ def register(ctx: Any) -> None:
     from . import identity_ops
 
     identity_ops.register(ctx)
+    from . import agent_tools
+
+    agent_tools.register(ctx)
+
     from . import markets_ops
 
     markets_ops.register(ctx, identity_ops.CURRENT)
     ctx.register_tool(
         name="pythia_desk_view",
-        toolset="pythia-desk",
+        toolset=agent_tools.TOOLSET,
         schema=DESK_VIEW_SCHEMA,
         handler=desk_view,
         description="Current Pythia Desk page and observable selection",
     )
     ctx.register_system_prompt_section(
         "pythia.operating",
-        OPERATING_CONTEXT,
+        operating_context,
         position="after_memory",
         max_chars=4000,
     )

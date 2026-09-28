@@ -1,7 +1,7 @@
 """Native provider schemas; separate toolset preserves legacy daily tool choice."""
 import json
 
-TOOLSET = 'pythia-eodhd-market-data'
+TOOLSET = 'pythia-core'  # core's one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
 # Shared market-data contributions. Provider search is deliberately absent:
 # discovery is a local directory read owned by Pythia, not a connector call.
 SHARED = ('details', 'series', 'latest', 'history', 'read_batch')

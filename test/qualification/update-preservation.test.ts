@@ -172,7 +172,7 @@ function installedFixture() {
       join(paths.checkout, "runtime", "managed", "core"),
       pluginDestination,
     );
-    applyMigrations(paths);
+    applyMigrations(paths, { hermes });
     installUnits(paths, renderUnits(paths, executables));
   }
 
@@ -189,7 +189,7 @@ function installedFixture() {
     if (stage === "plugin") {
       throw new Error("synthetic plugin interruption");
     }
-    applyMigrations(paths);
+    applyMigrations(paths, { hermes });
     if (stage === "migration") {
       throw new Error("synthetic migration interruption");
     }
@@ -208,6 +208,21 @@ function installedFixture() {
     release,
     unitBefore,
   };
+}
+
+// A native Hermes stand-in whose readback shows the migration's toolset and Tool Search choices.
+function hermes(args: string[]) {
+  const key = args.at(-2);
+  if (args.includes("get") && key === "known_plugin_toolsets")
+    return JSON.stringify({
+      api_server: ["pythia-core"],
+      cli: ["pythia-core", "pythia-desk"],
+      cron: ["pythia-core", "pythia-desk"],
+    });
+  if (args.includes("get") && key === "platform_toolsets") return "{}";
+  if (args.includes("get") && key === "skills.creation_nudge_interval")
+    return "0";
+  return args.includes("get") ? JSON.stringify("off") : "";
 }
 
 describe("signed A-to-B state preservation", () => {
@@ -308,7 +323,10 @@ describe("signed A-to-B state preservation", () => {
         phase: "complete",
         services: "running",
       });
-      expect(applyMigrations(fixture.paths)).toEqual(["0001-device-state-v1"]);
+      expect(applyMigrations(fixture.paths, { hermes })).toEqual([
+        "0001-device-state-v1",
+        "0002-agent-tool-surface",
+      ]);
     },
     15_000,
   );

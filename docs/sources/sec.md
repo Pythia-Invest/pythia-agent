@@ -272,7 +272,7 @@ raises an alarm.
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |
 | --- | --- | --- | --- | --- |
 | Q1 `sec_registrant_lei@1`: is the SEC registrant (CIK, names and former names, incorporation, tickers) the same legal entity as LEI X (legal and other names, jurisdiction, registration)? Options: same entity; its parent; its subsidiary or financing vehicle; its predecessor or successor; unrelated, such as a venue or data vendor; cannot tell. Asked for identifier links with no shared name word (14), name-only links (7) and contested LEIs (6 conflicts) | Whether two records name one company needs judgement once identifiers and GLEIF relationships leave a residual | Not written; owner `tooling/reference-builder/judge/` | Not done | Suggest-only; answers go to Repairs |
-| Q2 `sec_6k_kind@1`: is this 6-K an interim or annual report, an earnings release, a statutory annual report, other regulatory news, or other? | The native form says nothing; the filings kinds (P5) need it | Not written; owner: the SEC plugin | Not done | Suggest-only |
+| Q2 `sec_6k_kind@1`: is this 6-K an interim or annual report, an earnings release, a statutory annual report, other regulatory news, or other? | The native form says nothing, so the filings kinds list every 6-K as `other` today; a 6-K's kind is in its exhibits | Not written; owner: the SEC plugin | Not done | Suggest-only |
 
 Classes assigned to code or to Repairs instead:
 

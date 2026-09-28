@@ -204,6 +204,11 @@ class SecFormsSearch(unittest.TestCase):
         named = instance.invoke('filings', {'native_ref': REF, 'limit': 20, 'forms': ['4', 'SCHEDULE 13G']})
         self.assertEqual({row['form'] for row in named['data']['filings']}, {'4', '4/A', 'SCHEDULE 13G/A', 'SCHEDULE 13G'})
         self.assertIsNone(named['data']['coverage']['omitted_forms'])
+        by_kind = instance.invoke('filings', {'native_ref': REF, 'limit': 20, 'kinds': ['ownership']})
+        self.assertEqual({row['kind'] for row in by_kind['data']['filings']}, {'ownership'})
+        self.assertEqual((len(by_kind['data']['filings']), by_kind['data']['coverage']['omitted_forms']), (20, None))
+        annual = instance.invoke('filings', {'native_ref': REF, 'limit': 5, 'kinds': ['annual']})
+        self.assertEqual([row['form'] for row in annual['data']['filings']], ['10-K'])
 
     def test_older_pages_are_read_back_five_years_at_most_three(self):
         recent = submissions_block(['4'] * 60, 2026)  # the recent list reaches back only a few months
@@ -271,6 +276,19 @@ class SecFilingFields(unittest.TestCase):
         late = filings.filings(self.block(filingDate=['2004-08-23', '2004-08-19', '2004-08-18'], items=['5', '', '']),
                                CIK, STAMP)
         self.assertEqual(late['drift'], {'unknown_8k_item': {'5': 1}})
+
+    def test_kind_format_and_filer_follow_the_form(self):
+        eight_k, effect, annual = filings.filings(self.block(), CIK, STAMP)['filings']
+        self.assertEqual([(row['kind'], row['format']) for row in (eight_k, effect, annual)],
+                         [('earnings_release', 'ixbrl'), ('other', 'xml'), ('annual', 'ixbrl')])
+        self.assertEqual(annual['parties'], [{'role': 'filer', 'scheme': 'cik', 'id': CIK}])
+        self.assertEqual((annual['basis'], eight_k['basis']), ('us_gaap', None))
+        event = filings.filings(self.block(items=['5.02', '', '']), CIK, STAMP)['filings'][0]
+        self.assertEqual(event['kind'], 'event')
+        insider = filings.filings(self.block(form=['4', 'EFFECT', '10-K/A']), CIK, STAMP, kinds=['ownership', 'annual'])
+        # EDGAR does not say whether the listed company filed a Form 4 or is its subject: no party is claimed.
+        self.assertEqual([(row['kind'], row['parties']) for row in insider['filings']],
+                         [('ownership', []), ('annual', [{'role': 'filer', 'scheme': 'cik', 'id': CIK}])])
 
     def test_after_eastern_midnight_the_previous_days_acceptance_time_is_left_out(self):
         # SEC rewrites Eastern times to UTC at an unknown hour after midnight; until 06:00 ET only the date is sure.
@@ -410,7 +428,8 @@ class SecConfiguration(unittest.TestCase):
         tools = {}
         ctx = SimpleNamespace(register_tool=lambda **tool: tools.update({tool['name']: tool}))
         selection = SimpleNamespace(native_access_scope=lambda: {'cacheable': True, 'scope': 'fixture'})
-        platform = SimpleNamespace(platform=lambda: SimpleNamespace(configuration=settings('missing')))
+        platform = SimpleNamespace(platform=lambda: SimpleNamespace(configuration=settings('missing'),
+                                                                    register_agent_tool=lambda *_args, **_kwargs: None))
         self.enterContext(patch.object(plugin, 'helpers', return_value=(wire, connector, selection, platform)))
         plugin.register(ctx)
         self.assertTrue(all(tool['check_fn']() for tool in tools.values()))

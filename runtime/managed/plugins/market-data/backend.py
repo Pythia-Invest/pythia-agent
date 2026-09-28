@@ -97,7 +97,7 @@ def unverified_issue(provider, label):
     return {"code": "unverified_source", "severity": "warning",
             "message": f"{provider} is unverified for this instrument: {label} (its own record against the reference data)."}
 ISSUER_ISSUE = {"code": "issuer_subject", "severity": "error",
-                "message": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them."}
+                "message": "An issuer has no price. Read one of its securities or listings; pythia_instrument lists them."}
 
 
 class Backend:

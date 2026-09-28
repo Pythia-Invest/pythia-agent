@@ -11,8 +11,11 @@ import re
 from .identity import PROVIDER, reference
 from .reports import detail
 
+# Standard ifrs-full concepts per metric, preferred first: a report reports revenue under one of these, and when it
+# tags several, the first present is the metric (the others are not a conflict).
 METRICS = {
     'Revenue': ('revenue', 'Revenue', 'duration'),
+    'RevenueFromContractsWithCustomers': ('revenue', 'Revenue', 'duration'),
     'ProfitLoss': ('profit_loss', 'Profit (loss)', 'duration'),
     'ProfitLossFromOperatingActivities': ('operating_profit_loss', 'Operating profit (loss)', 'duration'),
     'CashFlowsFromUsedInOperatingActivities': ('operating_cash_flow', 'Operating cash flow', 'duration'),
@@ -165,6 +168,11 @@ def read(raw, identifier, report, observed_at, limit=30, concepts=None):
 
 
 def summaries(rows):
+    rank = {concept: index for index, concept in enumerate(METRICS)}
+    best = {}
+    for row in rows:
+        best[row['metric']] = min(best.get(row['metric'], len(rank)), rank[row['concept']])
+    rows = [row for row in rows if rank[row['concept']] == best[row['metric']]]
     grouped, selected, warnings = {}, [], []
     for row in rows:
         key = (row['metric'], row['unit'])

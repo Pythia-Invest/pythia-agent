@@ -1,9 +1,16 @@
 """Filing metadata keeps reporting dates separate from repository ingestion."""
+from collections import Counter
 from datetime import date
+import json
+from pathlib import Path
 import re
 
 from .identity import ORIGIN, PROVIDER, entity_url, reference, report_url, reports_url
 
+# The mechanisms this plugin declares (contract.json): GB is the FCA's, every other country its `oam-<cc>`.
+DECLARED = frozenset(json.loads((Path(__file__).parent / 'contract.json').read_text())
+                     ['concepts']['filings']['authorities'])
+ANNUAL_FORMS = ('ESEF', 'UKSEF')  # the EU and UK annual financial report formats
 LINKS = (('viewer', 'viewer_url'), ('report', 'report_url'), ('package', 'package_url'), ('json', 'json_url'))
 
 
@@ -67,7 +74,9 @@ def records(raw, identifier):
 
 def filings(raw, identifier, observed_at, limit):
     rows, total = records(raw, identifier)
-    return {'dataset': 'filings', 'provider': PROVIDER, 'provider_ref': reference(identifier),
+    year_end = fiscal_year_end(rows)
+    undeclared = Counter(row['country'] for row in rows if mechanism(row['country']) not in DECLARED)
+    result = {'dataset': 'filings', 'provider': PROVIDER, 'provider_ref': reference(identifier),
         'observed_at': observed_at, 'source_url': reports_url(identifier),
         'source': {'label': 'filings.xbrl.org', 'url': ORIGIN},
         # The repository indexes neither a regulator filing date (date_added is its own ingestion) nor a language.
@@ -75,11 +84,39 @@ def filings(raw, identifier, observed_at, limit):
             'country': row['country'], 'title': row['form'] + ' report', 'period_end': row['period_end'],
             # Not a filing date: the day filings.xbrl.org indexed the report, a documented proxy for ordering.
             'filed_at': None, 'indexed_at': indexed(row['added_raw']), 'language': None,
+            # Inline XBRL filed by the entity. The accounting basis is not in the index (ESEF can use a national
+            # taxonomy for issuers without consolidated statements), so it is not stated.
+            'kind': kind(row, year_end), 'format': 'ixbrl', 'basis': None,
+            'parties': [{'role': 'filer', 'scheme': 'lei', 'id': identifier}],
             'url': row['url'], 'links': row['links'], 'machine_readable': available(row),
             'source_detail': detail(row)} for row in rows[:limit]],
         'latest': latest(rows, total),
         'coverage': {'scope': 'indexed_reports', 'returned': min(limit, len(rows)),
                      'total_available': total, 'complete': total <= limit}}
+    if undeclared:  # rows of a mechanism the contract does not declare are left out by core: counted, never absorbed
+        result['drift'] = {'undeclared_country': dict(undeclared)}
+    return result
+
+
+def mechanism(country):
+    return 'fca' if country == 'GB' else 'oam-' + country.lower()
+
+
+def fiscal_year_end(rows):
+    """The entity's most frequent annual-report period end (MM-DD), or None when there is no single one."""
+    ends = Counter(row['period_end'][5:] for row in rows if row['form'] in ANNUAL_FORMS).most_common(2)
+    return ends[0][0] if ends and (len(ends) == 1 or ends[0][1] > ends[1][1]) else None
+
+
+def kind(row, year_end):
+    """annual, or half_year for a report ending six months from the entity's fiscal year end.
+
+    The index has no period start or report type, so the period-end pattern is the evidence: a December filer's
+    June report is its half-year report. With one report, or no single year end, a report stays annual."""
+    if row['form'] not in ANNUAL_FORMS:
+        return 'other'
+    half = year_end and (int(row['period_end'][5:7]) - int(year_end[:2])) % 12 == 6
+    return 'half_year' if half else 'annual'
 
 
 def indexed(value):

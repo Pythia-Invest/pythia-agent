@@ -5,9 +5,12 @@ rule and the `live` operation: accepted (2026-09-28) and implemented: the
 contract shape and registry, and selection in page composition with the
 investor's order, coverage, skip reasons and combined filings. Remembering
 "not on your plan" is decided but not built (see below). The licence classes are a recommended default that awaits
-the founder's confirmation. The agent tool surface, the market-data
-split and the result envelope are **out of scope of this revision**; they
-remain a proposal (pull request #42).
+the founder's confirmation. The agent tool surface (`may_run`, the concept
+tools in `pythia-desk` and each data plugin's provider tools in its own
+toolset) is decided in [agent tools](../architecture/agent-tools.md), which also
+records why a single `pythia` meta-tool and code mode were rejected for now. The market-data split and the
+result envelope are **out of scope of this revision**; they remain a proposal
+(pull request #42).
 
 ## Context
 
@@ -64,7 +67,8 @@ classes and, where narrower than addressing, operating MICs, optionally
 narrowed per operation: EODHD's live stream covers US listings only while its
 quotes and history stay global), **qualities**
 per operation from the registry's closed vocabulary, and for filings the
-**authorities** it serves (`sec`, `esma`, `fca`, `sedar`). Qualities are the
+**authorities** it serves (`sec`, `fca`, `sedar`, and `oam-fr`, `oam-nl`… for
+the EEA's national mechanisms; see the amendment below). Qualities are the
 plugin's claim, not proof of the investor's entitlement: a result reports the
 quality it actually has.
 
@@ -153,9 +157,11 @@ market-data read path knows plugin, operation and item, and selection must
 evaluate the operation a chart period actually reads. That is the next step
 for this item.
 
-**Core's filing item** is `{id, form, title, filed_at, period_end, date,
-date_basis, url, authority, source, provider, plugin}`: dates are ISO or
-null, `id` is the accession number or report hash. `date` orders the list:
+**Core's filing item** is `{id, kind, form, title, filed_at, filed_time,
+period_end, date, date_basis, event_codes, basis, language, format, parties,
+url, authority, report_period, report_key, source, provider, plugin}` (the v2
+fields are in the amendment below): dates are ISO or null, `id` is the
+accession number or report hash. `date` orders the list:
 the filing date (`date_basis: filed`), else the day the source indexed the
 report (`indexed`: filings.xbrl.org publishes no filing date, only when it
 indexed a report), else the period end. The Desk labels an indexed date as
@@ -172,7 +178,8 @@ ownership filings (Forms 3, 4, 5, 144 and Schedule 13G), so a default read shows
 the reports; naming one of those forms reads it (`13G` matches both SEC names).
 `use` names one source, by plugin id, provider, label or
 a common name (sec, edgar, esef). A source serving several authorities
-(filings.xbrl.org: ESMA and FCA) tags each item by the filer's country. Each
+(filings.xbrl.org: the FCA and most EEA mechanisms) tags each item by the
+country of the mechanism it was collected from, not the filer's. Each
 source runs only if Pythia may run its native tool for this caller
 (`eligible_tools`), with the caller's cancellation; one Pythia may not run is
 skipped as unavailable. A source still to be looked up is listed as skipped,
@@ -184,6 +191,75 @@ the Desk chat model sees (toolset `pythia-desk`), and so is `filings`
 (`pythia_filings_combined`). The agent-tools work separates "may run" from
 "visible to the model" (a hidden `pythia-core` toolset); `filings` moves there
 with it, and the agent's filings tool calls this read.
+
+### Amendment (2026-09-28): filings item v2, one authority per mechanism, report identity
+
+**One authority per national mechanism.** `esma` was one authority for every
+EEA country, so a national source (the AMF for France) could only replace
+filings.xbrl.org everywhere or nowhere. Each EEA state's officially appointed
+mechanism is now its own authority, named by its country (`oam-fr`, `oam-nl`),
+beside `sec`, `fca` and `sedar`; regulators' names are not used because they
+repeat across countries (FMA in Austria and Liechtenstein, Finanstilsynet in
+Denmark and Norway). filings.xbrl.org declares the mechanisms it collects from
+(26 EEA countries and the UK; not Germany, Ireland, Bulgaria or Liechtenstein,
+measured 2026-09-28), and its country is the mechanism's, not the filer's:
+TotalEnergies' report is listed under both FR and GB. The selection rule is
+unchanged: one source per authority, so a France-only source put first serves
+France and leaves Belgium to filings.xbrl.org.
+
+**Filing item v2.** Each item carries `kind` (`annual`, `half_year`,
+`quarterly`, `earnings_release`, `event`, `ownership`, `prospectus`,
+`other`; the source tags it, core keeps only these), `filed_time` (the exact
+UTC time of filing, as SEC's acceptance time), `event_codes` (8-K items),
+`basis`, `language`, `format` (`ixbrl`, `html`, `pdf`, `xml`, `text`),
+`report_period`, `report_key` (below) and `parties`
+(`{role, scheme, id}`; only what the source states: SEC names the company as
+filer of its reports and claims no party for an ownership form, whose filer or
+subject EDGAR does not say). An 8-K is an `earnings_release` with Item 2.02,
+otherwise an `event`, the kind that also holds EU inside information. The
+combined read and the SEC plugin take `kinds`; `ownership` reads Forms 3, 4,
+5, 144 and Schedule 13G, which a default read leaves out.
+
+**Report identity and parallel reports.** A company can report one period
+under two regimes, as an instrument has several listings: ASML files a 20-F
+with the SEC and an ESEF annual report with the AFM for the same year. The
+backbone models this explicitly. A periodic report (annual, half-year,
+quarterly, earnings release) is identified by `report_key` = issuer, kind,
+period end and **authority**; `report_period` = issuer, kind and period end is
+what it reports on.
+- **Versions** share one `report_key`: the format and language versions of one
+  document, and its amendments (a 10-K/A). The Desk shows them as one row, with
+  the authority and source, and a chip per version.
+- **Parallel reports** share `report_period` under different authorities: the
+  20-F and the ESEF report, and also one ESEF report collected by two
+  mechanisms (TotalEnergies in France and the UK). They stay separate reports
+  and rows; how the Desk and the agent present them is decided separately.
+- **Basis** (`us_gaap`, `ifrs`) is an attribute of the report, null where the
+  source does not state it, never part of its identity: SEC states US GAAP for
+  10-K and 10-Q; a 20-F's basis (`dei:DocumentAccountingStandard`) needs the
+  filing instance read planned with SEC onboarding, and ESEF can use a national
+  taxonomy, so filings.xbrl.org states none. Learning a basis later never
+  changes a report's key.
+
+filings.xbrl.org's index has no period start or report type. A report ending
+six months from the entity's most frequent annual period end is tagged
+`half_year` (a December filer's June report); with a single report or no
+single year end, a report stays `annual`. Rows of a country the plugin does not
+declare are counted as `undeclared_country` drift and logged; core leaves them
+out.
+
+Grouping and linking are exact equality and never merge or pick: every item
+keeps its id and link. Fundamentals (P8) reuse the identity: each statement
+figure's provenance carries the `report_key` of the report it was read from,
+with the basis as the figure's own attribute, so a statement column is one
+report and parallel statements are told apart by authority.
+
+Rejected: grouping on `(issuer, period_end, kind)` alone (it folds a 20-F into
+the ESEF report); the accounting basis in the key (sometimes unknown, so the
+key would change when it is learned, and the authority already separates the
+reports seen); a list of parallel keys per item (it depends on the rows in the
+window; the shared `report_period` does not); fuzzy grouping without a period
+(a later, calibrated Jev question); naming mechanisms by regulator.
 
 ### Live market data
 
@@ -222,10 +298,14 @@ because adding it later would change every contract; a team mode that refuses
 ## Out of scope of this revision
 
 Proposed in #42 and not decided here: the market-data feature split and the
-markets UI plugin, the result envelope, `may_run`, the always-visible concept
-tools, the `pythia` CLI-like tool and code mode, provider tools leaving the
-model's view, secrets isolation for the agent's code tools, and the evaluation
-set. Also later: the quota ledger with per-operation cost, entitlement checks
+markets UI plugin, the result envelope, secrets isolation for the agent's code
+tools, and the evaluation set. `may_run`, the concept tools, per-plugin provider
+tools and operation tools leaving the model's view are decided in
+[agent tools](../architecture/agent-tools.md). Rejected for now there: a single
+`pythia` meta-tool with a CLI grammar (it hid provider depth behind a second
+discovery step that Hermes's Tool Search already provides, and needed its own
+help and dispatcher), and code mode (most questions take one to three calls,
+and it needs a real sandbox). Also later: the quota ledger with per-operation cost, entitlement checks
 at connect time, cache-lifetime enforcement, rendering attribution, a Settings
 surface for plugins that need a newer Pythia, and team mode.
 

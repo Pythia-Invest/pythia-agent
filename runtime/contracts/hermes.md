@@ -234,12 +234,20 @@ hermes -p <profile> tools disable <toolset> --platform api_server
 
 The fresh profile seed explicitly configures identical `cli`, `cron`, and
 `api_server` toolset lists: `cronjob`, `delegation`, `file`, `memory`,
-`session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. This
-replaces each platform's broad implicit Hermes default and intentionally omits
-`computer_use`, the retired lab-only `kanban`, and every other unselected
-toolset. Pythia's plugin toolsets remain native plugin state rather than entries
-in this base list. Because the profile seed is create-if-absent, later native
-tool changes and direct user edits are preserved rather than reconciled.
+`session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`, plus core's
+`pythia-desk` on `api_server` only. This replaces each platform's broad implicit
+Hermes default and intentionally omits `computer_use`, the retired lab-only
+`kanban`, and every other unselected toolset. Every managed plugin registers its
+operation tools in core's `pythia-core` toolset, which native
+`known_plugin_toolsets` records as off for all three platforms, so those tools
+stay registered but out of the model's view. A data plugin's provider tools live
+in a toolset named after the plugin (`pythia-sec`, `pythia-gleif`, ...); Hermes
+enables a new plugin toolset by default, and the seed records `pythia-desk` and
+every provider toolset as off for `cli` and `cron`. Tool Search stays the
+investor's own setting in either mode; see
+[agent tools](../../docs/architecture/agent-tools.md). Because the profile seed
+is create-if-absent, later native tool changes and direct user edits are
+preserved rather than reconciled.
 
 These commands preserve other platforms' state. Restart Hermes and require the
 named entry in authenticated `GET /v1/toolsets` to carry the requested

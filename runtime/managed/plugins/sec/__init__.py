@@ -88,10 +88,10 @@ class Reader:
             number = identity.from_reference(clean['native_ref'])
             if operation == 'filings':
                 raw = fetch('submissions', number)
-                limit, forms = clean.get('limit', 20), clean.get('forms')
+                limit, forms, kinds = clean.get('limit', 20), clean.get('forms'), clean.get('kinds')
                 pages, issues = [], []
-                if forms:  # an annual report must not be crowded out: read older pages back five years, at most three
-                    first = filings.filings(raw['data'], number, raw['observed_at'], limit, forms)
+                if forms or kinds:  # an annual report must not be crowded out: read older pages back five years, at most three
+                    first = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, kinds=kinds)
                     since = (datetime.now(timezone.utc) - timedelta(days=5 * 366)).date().isoformat()
                     deadline = time.monotonic() + PAGING_SECONDS
                     if len(first['filings']) < limit and (first['coverage']['searched_back_to'] or '9') > since:
@@ -105,7 +105,7 @@ class Reader:
                                 issues.append({'code': 'incomplete', 'severity': 'warning', 'message':
                                                'Older SEC filings could not be searched; the list is incomplete.'})
                                 break
-                result = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, pages)
+                result = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, pages, kinds)
                 if issues:
                     result['coverage']['complete'] = False
                 return envelope(result, [*issues, *self.drift(operation, result.get('drift'))])
@@ -227,5 +227,13 @@ def register(ctx):
         return read
 
     for operation, schema in reader.definitions.items():
-        ctx.register_tool(name=TOOLS[operation], toolset='pythia-sec', schema=schema, handler=handler(operation),
+        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation),
                           check_fn=available)
+    agent = platform.platform().register_agent_tool
+    agent(ctx, 'sec_company_facts', TOOLS['facts'], 'Reported financial facts (revenue, net income) from SEC. Named '
+          'XBRL concepts of one taxonomy (us-gaap, ifrs-full, dei, srt) for a US-listed or foreign SEC filer, such as '
+          'Revenues, NetIncomeLoss or Assets, keeping periods, filing revisions and units. Use sec_fundamentals for '
+          'the standard annual set; pythia_filings lists the filings.', check_fn=available)
+    agent(ctx, 'sec_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings and balance sheet from SEC EDGAR. '
+          'Supported reported annual income, cash-flow and balance-sheet facts of a US GAAP or IFRS filer, with actual '
+          'annual periods; no TTM, quarterly subtraction or conversion.', check_fn=available)

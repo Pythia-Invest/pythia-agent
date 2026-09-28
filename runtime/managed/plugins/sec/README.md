@@ -8,7 +8,7 @@ Pythia's directory, and the reference builder ingests SEC's ticker file itself.
 | Operation | Tool | Source | Returns |
 | --- | --- | --- | --- |
 | `resolve` | `pythia_sec_resolve` | ticker file or `submissions/CIK##########.json` | `identifiers.cik`, or `identifiers.ticker_mic` (`TICKER@MIC`, operating MIC): a `ClaimBatch` in core's wire form (ADR 0038), one issuer claim (name, CIK, native reference) per matching filer. Several filers for one ticker are all claimed with an `ambiguous` warning; a MIC SEC does not list (anything but XNAS, XNYS, XCBO, OTCM) is `empty` without a request. |
-| `filings` | `pythia_sec_filings` | submissions | Recent filings with form, filing date, acceptance time, report period, document link and description, including 20-F, 40-F and 6-K. Insider and major-holder ownership filings (Forms 3, 4, 5, 144, Schedule 13G) are left out unless `forms` names them. The Desk's filings section reads it through its declared read-only operation `pythia-sec`/`filings`. |
+| `filings` | `pythia_sec_filings` | submissions | Recent filings with form, filing date, acceptance time, report period, document link and description, including 20-F, 40-F and 6-K. Insider and major-holder ownership filings (Forms 3, 4, 5, 144, Schedule 13G) are left out unless `forms` names them or `kinds` asks for `ownership`; `kinds` filters like `forms`. The Desk's filings section reads it through its declared read-only operation `pythia-sec`/`filings`. |
 | `fundamentals` | `pythia_sec_fundamentals` | `api/xbrl/companyfacts` and submissions | Latest annual US GAAP or IFRS (`ifrs-full`, used by foreign private issuers) facts with exact periods, units and filing provenance, and their `freshness`. |
 | `facts` | `pythia_sec_facts` | companyfacts | Native facts for explicit concepts of one taxonomy. |
 
@@ -25,6 +25,10 @@ Each filing keeps these submissions fields (see the
 | `description` | `primaryDocDescription` | The filer's description of the primary document, often only the form name. |
 | `inline_xbrl` | `isInlineXBRL` | Whether the primary document is Inline XBRL. |
 | `submission_bytes` | `size` | The whole submission in bytes, every document included, not the primary document. |
+| `kind` | `form`, `items` | Pythia's filing kind (ADR 0040): 10-K, 20-F and 40-F `annual`, 10-Q `quarterly`, 8-K `earnings_release` with Item 2.02 else `event`, Forms 3/4/5/144, Schedules 13D/G and 13F-HR `ownership`, registrations, 424B and FWP `prospectus`, anything else `other`. |
+| `basis` | `form` | `us_gaap` for 10-K and 10-Q (Regulation S-X, Rule 4-01(a)(1)); otherwise null, because a foreign issuer's basis is not in the submissions list. |
+| `format` | `isInlineXBRL`, `primaryDocument` | `ixbrl`, else the primary document's type (`html`, `xml`, `text`, `pdf`). |
+| `parties` | none | The company as `filer` of its reports. EDGAR lists an ownership filing under both its filer and its subject without saying which, so none is claimed for one. |
 
 **Drift.** An unknown 8-K item, a missing column or a malformed value is
 counted under the result's `drift` and returned as a `drift` warning. A form
