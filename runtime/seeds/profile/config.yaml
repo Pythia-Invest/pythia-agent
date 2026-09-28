@@ -57,6 +57,7 @@ known_plugin_toolsets:
     - pythia-yahoo-discovery
     - pythia-coinmarketcap
     - pythia-openfigi
+    - pythia-hyperliquid
   cron:
     - pythia-core
     - pythia-desk
@@ -67,6 +68,7 @@ known_plugin_toolsets:
     - pythia-yahoo-discovery
     - pythia-coinmarketcap
     - pythia-openfigi
+    - pythia-hyperliquid
   api_server:
     - pythia-core
 auxiliary:

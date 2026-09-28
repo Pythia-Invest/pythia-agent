@@ -249,6 +249,22 @@ class ProviderToolTest(AgentToolFixture):
         self.handlers["pythia_gleif_profile"] = lambda args, **_: envelope({"lei": args["native_ref"]["native_id"]})
         self.assertEqual(self.call("gleif_legal_entity", subject_id=ASML)["data"], {"lei": "724500Y6DUVHQD6OXN27"})
 
+    def test_j_an_operation_that_names_its_subject_keeps_it(self):
+        # Hyperliquid's live_market takes the market subject and the perp's reference; core fills only the reference.
+        live = definitions("hyperliquid")["live_market"]
+        self.schemas[live["name"]] = live
+        self.owners[live["name"]] = ("pythia-hyperliquid", SimpleNamespace(manifest=SimpleNamespace(
+            name="pythia-hyperliquid")))
+        self.plugins["hyperliquid"] = self.contract("hyperliquid")
+        self.eligible.add(live["name"])
+        entry = self.agent("pythia-hyperliquid", "hyperliquid_live_market", live["name"])
+        self.assertEqual(entry["schema"]["parameters"]["required"], ["subject_id"])
+        self.assertIn("^market:", entry["schema"]["parameters"]["properties"]["subject_id"]["pattern"])
+        self.handlers[live["name"]] = lambda args, **_: envelope(args)
+        market = "market:pythia:hyperliquid-btc-perp"
+        self.assertEqual(self.call("hyperliquid_live_market", subject_id=market)["data"], {
+            "subject_id": market, "native_ref": {"provider": "hyperliquid", "native_id": "BTC", "native_scope": "perp"}})
+
     def test_b_a_record_under_review_is_refused_as_on_the_page(self):
         original = identity_ops.Identity._load
 
@@ -547,7 +563,7 @@ class DeliveredViewTest(unittest.TestCase):
                   for platform, body in re.findall(r"^  (\w+):\n((?:    - \S+\n)+)", block + "\n", re.M)}
         # Plugin operations share core's hidden toolset; Pythia's and the plugins' agent tools serve Desk chat only.
         providers = ["pythia-sec", "pythia-xbrl-filings", "pythia-gleif", "pythia-eodhd", "pythia-yahoo-discovery",
-                     "pythia-coinmarketcap", "pythia-openfigi"]
+                     "pythia-coinmarketcap", "pythia-openfigi", "pythia-hyperliquid"]
         elsewhere = [identity_ops.TOOLSET, agent_tools.TOOLSET, *providers]
         self.assertEqual(hidden, {"api_server": [identity_ops.TOOLSET], "cli": elsewhere, "cron": elsewhere})
         for plugin in (MANAGED / "plugins").iterdir():

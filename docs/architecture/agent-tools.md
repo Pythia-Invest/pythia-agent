@@ -49,6 +49,7 @@ tool gives and from which source.
 | `yahoo_finance` | `pythia-yahoo-discovery` | Profile, valuation, dividends, analysts, statements, news | depth Yahoo publishes |
 | `coinmarketcap_coin_info` | `pythia-coinmarketcap` | A coin's project profile and links | crypto background |
 | `openfigi_identifiers` | `pythia-openfigi` | FIGIs for an ISIN or ticker | identifiers `pythia_find` lacks |
+| `hyperliquid_live_market` | `pythia-hyperliquid` | A perp's live book, trades, mark, funding and open interest | perp depth; the plugin is installed disabled |
 
 A provider tool is available only while its plugin is enabled and its
 availability check passes, exactly as Hermes decides for any plugin tool. A new
@@ -67,7 +68,7 @@ agent.
 ## Naming convention
 
 - **Provider tools** are `<source>_<what>`: the source as investors know it
-  (`sec`, `esef`, `gleif`, `eodhd`, `yahoo`, `coinmarketcap`, `openfigi`) and what
+  (`sec`, `esef`, `gleif`, `eodhd`, `yahoo`, `coinmarketcap`, `openfigi`, `hyperliquid`) and what
   the tool gives (`fundamentals`, `company_facts`, `legal_entity`, `news`).
 - **The first sentence** (at most 60 characters) says what the investor gets and
   from which provider: "Annual revenue, earnings and balance sheet from SEC

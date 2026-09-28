@@ -49,9 +49,10 @@ tools before the web: they read the investor's connected sources and return
 source and as-of. Start with pythia_find for any name, ticker or code and pass
 its subject id on to pythia_instrument (identifiers, listings, sources and the
 provider tools that serve it), pythia_prices and pythia_filings. Provider tools
-come from the investor's installed Pythia plugins, are named after their source
-(sec_, esef_, gleif_, eodhd_, yahoo_, coinmarketcap_, openfigi_) and give
-reported figures, fundamentals, profiles and news for the same subject id. When
+come from the investor's installed Pythia plugins, are named after their
+source (sec_, esef_, gleif_, eodhd_, yahoo_, coinmarketcap_, openfigi_,
+hyperliquid_) and give reported figures, fundamentals, profiles, news and live
+markets for the same subject id. When
 a tool is not among your loaded tools, find it with tool_search. Use web search
 for news, commentary and what these sources lack, and label figures from the
 web as such. Cite source and as-of for figures. Scheduled jobs cannot read

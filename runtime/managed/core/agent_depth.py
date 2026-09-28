@@ -85,8 +85,8 @@ def agent_schema(info: Any, name: str, description: str, operation_schema: dict)
     if target:
         properties.pop("native_ref", None)
         parameters["properties"] = {"subject_id": SUBJECT, **properties}
-        parameters["required"] = ["subject_id" if item == target else item for item in required] if (
-            target in required) else required
+        required = ["subject_id" if item == target else item for item in required] if target in required else required
+        parameters["required"] = list(dict.fromkeys(required))  # an operation may take subject_id itself (live_market)
     return {"name": name, "description": description, "parameters": parameters}
 
 
@@ -123,7 +123,8 @@ def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, contex
     args = dict(arguments)
     target = addressed(info, parameters.get("properties", {})) if info is not None else None
     if "subject_id" in args and target:
-        reference, why = native_reference(info, str(args.pop("subject_id")))
+        own = "subject_id" in parameters.get("properties", {})  # the operation names its subject too (live_market)
+        reference, why = native_reference(info, str(args["subject_id"] if own else args.pop("subject_id")))
         if reference is None:
             return encode(failure("source_unavailable", why))
         if target == "native_ref":

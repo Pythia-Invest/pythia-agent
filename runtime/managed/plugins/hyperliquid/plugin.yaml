@@ -6,3 +6,4 @@ requires_plugins:
   - pythia
 provides_tools:
   - pythia_hyperliquid_live_market
+  - hyperliquid_live_market
