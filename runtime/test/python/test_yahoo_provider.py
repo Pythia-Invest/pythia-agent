@@ -66,14 +66,14 @@ class Yahoo(unittest.TestCase):
                 details = json.loads(ctx.tools[provider.TOOLS['details']]({'native_ref': native}))['data'][0]
                 # Exact metadata adds Yahoo's venue/currency but asserts no identity evidence.
                 self.assertEqual(details['provider_ref']['qualifiers'], {'currency': 'EUR', 'venue': 'AMS'})
-                self.assertEqual(details['evidence'], [])
+                self.assertNotIn('evidence', details)
         self.assertEqual(calls, [{'operation': 'news', 'arguments': {'symbol': 'SYNTH.AS', 'options': {}}},
                                  {'operation': 'quote_bundle', 'arguments': {'symbols': ['SYNTH.AS']}}])
 
     def test_identity_and_units_do_not_infer_equivalence_or_index_currency(self):
         metadata = {'symbol': 'SYNTH', 'type': 'EQUITY', 'currency': 'USD', 'exchange': 'SYN'}
         candidate = identity.candidate(metadata)
-        self.assertEqual(candidate['evidence'], [])
+        self.assertNotIn('evidence', candidate)
         self.assertEqual((candidate['symbol'], candidate['kind']), ('SYNTH', 'listing'))
         self.assertEqual(candidate['metadata']['product_type'], 'Equity')
         receipt = identity.candidate({**metadata, 'short_name': 'Synthetic CEDEAR',

@@ -11,8 +11,6 @@ export type MarketDataType =
   | "delayed_frozen"
   | "eod"
   | "unknown";
-/** Coverage kinds a source declares and connector detail evidence scopes; not subjects. */
-export type Scope = "company" | "instrument" | "listing" | "crypto";
 /** Backbone subject levels (ADR 0037): the instrument kinds. */
 export type SubjectLevel = "issuer" | "security" | "composite" | "listing";
 /** A subject's kind: an instrument level or another kind (`index`, `fx`, ...),
@@ -45,29 +43,6 @@ export type ObservationTime =
 export interface Window {
   start: ObservationTime | null;
   end: ObservationTime | null;
-}
-export interface Evidence {
-  schema_version: 1;
-  id: string;
-  provider_ref: ProviderRef;
-  scope: Scope;
-  scheme:
-    | "isin"
-    | "figi"
-    | "lei"
-    | "cik"
-    | "cusip"
-    | "native"
-    | "ticker"
-    | "name"
-    | "contract_address";
-  value: string;
-  qualifiers: Qualifiers;
-  adapter_version: string;
-  observed_at: Instant | null;
-  retrieved_at: Instant;
-  effective: Window;
-  authority: "source_asserted" | "query_only" | "unknown";
 }
 export type Unit =
   | { kind: "currency"; code: string; scale: Decimal }
@@ -241,7 +216,6 @@ export interface Provenance {
   retrieved_at: Instant;
   source_time: Instant | null;
   revision_vintage: string | null;
-  mapping_revision: number | null;
   source_detail: SourceDetail | null;
 }
 export interface Selection {
@@ -309,7 +283,6 @@ export interface Contribution {
     tool: string;
     effect: "read";
   }[];
-  subject_kinds: Scope[];
   requires_broker_app?: boolean;
   observation_cache?: "default" | "disabled";
   cadence?: Partial<Record<"latest" | "history" | "series", number>>;
@@ -317,7 +290,6 @@ export interface Contribution {
 export interface WireTypes {
   subject: Subject;
   provider_ref: ProviderRef;
-  evidence: Evidence;
   series: Series;
   observation: Observation;
   read_request: ReadRequest;

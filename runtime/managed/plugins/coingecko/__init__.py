@@ -153,8 +153,6 @@ def register(ctx):
             item = candidate(raw['data'], details=True)
             if item['provider_ref'] != native:
                 raise ValueError('invalid_response')
-            for evidence in item['evidence']:
-                wire.validate('evidence', evidence)
             if operation == 'details':
                 return envelope([item])
             return envelope([wire.validate('series', definition(native, mode, currency)) for mode in modes(access)])

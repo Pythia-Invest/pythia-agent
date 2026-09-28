@@ -187,7 +187,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -406,7 +405,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -550,7 +548,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -694,7 +691,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -913,7 +909,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -1131,7 +1126,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -1350,7 +1344,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -1569,7 +1562,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -1788,7 +1780,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -2007,7 +1998,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -2226,7 +2216,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -2442,7 +2431,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -2661,7 +2649,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -2880,7 +2867,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -2912,71 +2898,6 @@
     "structural": false
   },
   {
-    "name": "isin_listing_claim",
-    "kind": "evidence",
-    "value": {
-      "schema_version": 1,
-      "id": "evidence:synthetic-1",
-      "provider_ref": {
-        "provider": "synthetic_equity",
-        "native_id": "contract-17",
-        "native_scope": "contract",
-        "qualifiers": {
-          "currency": "USD",
-          "route": "SMART"
-        }
-      },
-      "scope": "listing",
-      "scheme": "isin",
-      "value": "ZZ0000000017",
-      "qualifiers": {
-        "share_class": "class-a"
-      },
-      "adapter_version": "synthetic-1",
-      "observed_at": null,
-      "retrieved_at": "2026-01-06T15:00:00Z",
-      "effective": {
-        "start": null,
-        "end": null
-      },
-      "authority": "source_asserted"
-    },
-    "structural": false
-  },
-  {
-    "name": "unsupported_network_qualifier",
-    "kind": "evidence",
-    "value": {
-      "schema_version": 1,
-      "id": "evidence:synthetic-1",
-      "provider_ref": {
-        "provider": "synthetic_equity",
-        "native_id": "contract-17",
-        "native_scope": "contract",
-        "qualifiers": {
-          "currency": "USD",
-          "route": "SMART",
-          "network": "fictional-chain"
-        }
-      },
-      "scope": "instrument",
-      "scheme": "isin",
-      "value": "ZZ0000000017",
-      "qualifiers": {
-        "share_class": "class-a"
-      },
-      "adapter_version": "synthetic-1",
-      "observed_at": null,
-      "retrieved_at": "2026-01-06T15:00:00Z",
-      "effective": {
-        "start": null,
-        "end": null
-      },
-      "authority": "source_asserted"
-    },
-    "structural": false
-  },
-  {
     "name": "unsafe_effect",
     "kind": "contribution",
     "value": {
@@ -2989,8 +2910,7 @@
           "tool": "synthetic_history",
           "effect": "trade"
         }
-      ],
-      "subject_kinds": ["instrument", "listing"]
+      ]
     },
     "structural": true
   },
@@ -3007,8 +2927,7 @@
           "tool": "synthetic_history",
           "effect": "read"
         }
-      ],
-      "subject_kinds": ["instrument", "listing"]
+      ]
     },
     "structural": true
   },
@@ -3203,7 +3122,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -3422,7 +3340,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -3648,7 +3565,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -3867,7 +3783,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -4086,7 +4001,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -4304,7 +4218,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -4523,7 +4436,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -4582,7 +4494,6 @@
           "effect": "read"
         }
       ],
-      "subject_kinds": ["instrument"],
       "requires_broker_app": "true"
     },
     "structural": true
@@ -4601,7 +4512,6 @@
           "effect": "read"
         }
       ],
-      "subject_kinds": ["instrument"],
       "observation_cache": "forever"
     },
     "structural": true

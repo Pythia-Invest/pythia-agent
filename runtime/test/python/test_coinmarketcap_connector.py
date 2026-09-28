@@ -186,12 +186,11 @@ class CoinMarketCap(unittest.TestCase):
         self.assertEqual(profile['links'], {'website': ['https://example.invalid'], 'explorer': ['https://explorer.example.invalid/0xabc']})
         self.assertEqual(profile['source']['retrieved_at'], '2026-01-02T00:00:05.000Z')
         self.assertEqual(profile['deployments'][0]['network']['namespace'], 'coinmarketcap:coin')
-        contract = [e for e in details['evidence'] if e['scheme'] == 'contract_address']
         # Two chains sharing one native coin stay distinct networks.
-        self.assertEqual([e['qualifiers']['network'] for e in contract],
-                         ['coinmarketcap:coin:1027:example-chain', 'coinmarketcap:coin:1027:example-chain-side'])
-        for evidence in details['evidence']:
-            wire.validate('evidence', evidence)
+        self.assertEqual([(item['network']['namespace'], item['network']['id'], item['network']['name'])
+                          for item in details['platform_contracts']],
+                         [('coinmarketcap:coin', '1027', 'Example Chain'), ('coinmarketcap:coin', '1027', 'Example Chain (Side)')])
+        self.assertNotIn('evidence', details)  # core owns identity evidence; details carry no legacy evidence IDs
 
     def test_quotes_share_native_requests_and_history_uses_observation_times(self):
         with registered() as (ctx, calls):

@@ -1,6 +1,4 @@
 """Native coin and source network/address facts; no wrapped-asset equivalence."""
-import uuid
-from datetime import datetime, timezone
 
 
 def native_id(value):
@@ -21,13 +19,7 @@ def candidate(row, details=False):
     native = {'provider': 'coingecko', 'native_scope': 'coin', 'native_id': row['id']}
     reference(native)
     result = {'provider_ref': native, 'name': row.get('name'), 'symbol': row.get('symbol') or None, 'kind': 'crypto', 'category': 'crypto',
-              'metadata': {'product_type': 'Crypto'}, 'evidence': [], 'issues': []}
-    now = datetime.now(timezone.utc).isoformat()
-    def evidence(scheme, value, qualifiers):
-        return {'schema_version': 1, 'id': 'evidence:' + uuid.uuid4().hex, 'provider_ref': native, 'scope': 'crypto',
-                'scheme': scheme, 'value': value, 'qualifiers': qualifiers, 'authority': 'source_asserted',
-                'adapter_version': '1', 'observed_at': None, 'retrieved_at': now, 'effective': {'start': None, 'end': None}}
-    result['evidence'].append(evidence('native', native['native_id'], {}))
+              'metadata': {'product_type': 'Crypto'}, 'issues': []}
     if details:
         platforms = row.get('platforms') or {}
         if type(platforms) is not dict or len(platforms) > 64:
@@ -39,6 +31,5 @@ def candidate(row, details=False):
             if not isinstance(network, str) or not isinstance(address, str) or max(len(network), len(address)) > 512:
                 raise ValueError('invalid_response')
             pairs.append({'network': network, 'address': address})
-            result['evidence'].append(evidence('contract_address', address, {'network': network}))
         result['platform_contracts'] = pairs
     return result

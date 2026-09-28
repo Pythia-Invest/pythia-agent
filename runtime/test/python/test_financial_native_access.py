@@ -40,8 +40,7 @@ class NativeAccessTests(unittest.TestCase):
         self.add_plugin(self.feature_key, 'pythia-market-data', definition.TOOL_NAME)
         self.add_plugin(self.provider_key, 'synthetic', 'synthetic_search')
         marker = {'schema_version': 1, 'provider': 'synthetic', 'adapter_version': 'test-1',
-                  'operations': [{'operation': 'details', 'tool': 'synthetic_search', 'effect': 'read'}],
-                  'subject_kinds': ['instrument']}
+                  'operations': [{'operation': 'details', 'tool': 'synthetic_search', 'effect': 'read'}]}
         self.schemas['synthetic_search'] = {'name': 'synthetic_search', 'parameters': {
             'type': 'object', 'properties': {}, 'additionalProperties': False,
             '$comment': json.dumps({contributions.MARKER: marker, operations.MARKER: {

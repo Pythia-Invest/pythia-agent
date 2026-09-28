@@ -133,7 +133,7 @@ def read_result(request, series=None, observations=(), issues=()):
             'request': request, 'series': series, 'observations': values,
             'selection': {'view': request['view'], 'reason': 'pinned' if series else 'unavailable', 'preference_revision': None, 'alternatives': []},
             'provenance': {'provider': PROVIDER, 'native_ref': series['provider_ref'], 'adapter_version': '1', 'retrieved_at': stamp,
-                           'source_time': known[-1]['value'] if known else None, 'revision_vintage': None, 'mapping_revision': None,
+                           'source_time': known[-1]['value'] if known else None, 'revision_vintage': None,
                            'source_detail': None} if series else None,
             'retrieved_at': stamp, 'returned_window': {'start': known[0] if known else None, 'end': known[-1] if known else None},
             'coverage': {'status': 'partial' if truncated else 'unknown', 'gaps': [], 'truncated': truncated, 'continuation': None},
