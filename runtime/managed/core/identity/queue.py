@@ -15,7 +15,7 @@ from typing import Any, Iterable
 
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
-from .page import LABELS, READ_RULE, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_subject, resolve_input
+from .page import LABELS, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_subject, resolve_input
 from .resolution import RELATION_LEVEL, QueueItem, ResolverKind, Verdict, VerdictOutcome, decide
 from .schemes import subject_kind, subject_level
 from .store import IdentityStore
@@ -30,7 +30,7 @@ QUESTIONS = {
     "underlying_identifier": "{label}'s record {ref} quotes its underlying's ISIN; it may be a depositary receipt.",
     "ambiguous": "{label} answered with several records for one instrument.",
     "identifier": "Two records claim one identifier, or one record claims two values.",
-    "binding": "{label}'s record {ref} contradicts the reference data.",
+    "binding": "{label}'s record {ref} contradicts the reference identifiers.",
     "bound": "{label}'s record {ref} is already bound to another instrument.",
     "relation": "A typed relation contradicts the identifiers.",
     "guard": "A verdict would make a depositary receipt and its share the same instrument.",
@@ -223,8 +223,6 @@ def _settle_one(store: IdentityStore, ref: sqlite3.Connection, info: PluginInfo 
     if subject is None:
         return False
     record = _claim(raw)
-    if record.provenance.adapter_version == READ_RULE:  # a read check is not a resolve answer: nothing to re-ask
-        return False
     batch = ClaimBatch(plugin=record.provenance.plugin, provider=record.native_ref.provider,
                        adapter_version=record.provenance.adapter_version, origin="resolve", claims=(record,))
     level = subject_level(target)
@@ -282,8 +280,7 @@ def _record(raw: dict) -> dict:
     attributes = raw.get("attributes") or {}
     return {"native_ref": raw.get("native_ref"), "level": raw.get("level"),
             "identifiers": raw.get("identifiers") or [],
-            **{key: attributes.get(key) for key in ("name", "ticker", "mic", "operating_mic", "provider_venue", "currency",
-                                                    "kind")}}
+            **{key: attributes.get(key) for key in ("name", "ticker", "mic", "currency", "kind")}}
 
 
 def _describe(ref: sqlite3.Connection, subject_id: str) -> dict:

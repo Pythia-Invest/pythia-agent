@@ -74,12 +74,9 @@ def core_price_sources(subject_id):
 
 def core_check_read(subject_id, native_ref, stated):
     from ._platform import platform
-    try:
-        support = platform()
-    except (RuntimeError, ImportError):  # no enabled core with platform support v1
-        return "unchecked"
+    support = platform()
     check = getattr(support, "check_read", None)  # an older core has no read check
-    return check(subject_id, native_ref, stated) if check else "unchecked"
+    return check(subject_id, native_ref, stated) if check else None
 
 
 def stated(series):
@@ -93,7 +90,12 @@ def envelope(data, *, issues=(), outcome="ok"):
 
 
 CONFLICT_ISSUE = {"code": "binding_conflict", "severity": "warning",
-                  "message": "A source's own record contradicts this instrument's reference data; it is queued for review."}
+                  "message": "A source's own record states another venue or currency than this instrument's reference data; it is not used."}
+
+
+def unverified_issue(provider, label):
+    return {"code": "unverified_source", "severity": "warning",
+            "message": f"{provider} is unverified for this instrument: {label} (its own record against the reference data)."}
 ISSUER_ISSUE = {"code": "issuer_subject", "severity": "error",
                 "message": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them."}
 
@@ -178,14 +180,17 @@ class Backend:
             memo[binding["id"]] = route
         return route
 
-    def refused(self, binding, native, response):
-        """Whether core refuses a reference it routed for a subject once the source described it: what the series
-        state about themselves contradicts the subject's reference data (ADR 0037). An explicit reference is the
-        caller's own choice and is not checked."""
-        if "provider" in binding or response.get("outcome") != "ok":
-            return False
-        said = stated(response.get("data") or [])
-        return bool(said) and self._check_read(binding["id"], native, said) == "refused"
+    def check(self, binding, native, response):
+        """Core's read check of what the series a source described state about themselves (ADR 0037), for the
+        subject read or, for an explicit reference, the subject core last served it for: {"status", "label"}.
+        A check never fails the read."""
+        said = stated(response.get("data") or []) if response.get("outcome") == "ok" else {}
+        try:
+            outcome = self._check_read(None if "provider" in binding else binding["id"], native, said) if said else None
+        except Exception:
+            logger.warning("read check unavailable", exc_info=True)
+            outcome = None
+        return outcome if isinstance(outcome, dict) else {"status": "unchecked", "label": None}
 
     def details(self, native_ref):
         native = validate("provider_ref", native_ref)
@@ -210,9 +215,12 @@ class Backend:
             issues.extend(response.get("issues", []))
             if response.get("outcome") not in ("ok", "empty", "partial"):
                 continue
-            if self.refused(binding, native, response):
+            checked = self.check(binding, native, response)
+            if checked["status"] == "refused":
                 issues.append(CONFLICT_ISSUE)
                 continue
+            if checked["status"] == "unverified":
+                issues.append(unverified_issue(native["provider"], checked["label"]))
             for value in response.get("data", []):
                 series = validate("series", value)
                 require(compatible_ref(native, series["provider_ref"]), "series", "source binding differs")

@@ -29,6 +29,7 @@ from .resolution import QueueItem, Verdict, VerdictOutcome
 
 logger = logging.getLogger(__name__)
 SCHEMA_VERSION = "4"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds)
+ADDED = "-- Added within schema 4"  # identity.sql: the idempotent statements every open applies
 REFERENCE_SCHEMA_VERSION = str(reference_package.FORMAT_VERSION)  # the reference SQLite's release.schema_version
 
 
@@ -89,6 +90,7 @@ class IdentityStore:
             self._create(lambda setup: None)
         self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
+        self.db.executescript(schema_sql(Store.IDENTITY).partition(ADDED)[2].partition("\n")[2])  # added in version
         self._writing = threading.RLock()  # one connection serves every thread: one user of it at a time
 
     def _create(self, fill) -> None:
@@ -96,8 +98,10 @@ class IdentityStore:
         staging = self.path.with_name(f"identity.{uuid.uuid4().hex}.part")
         setup = sqlite3.connect(staging)
         try:
-            setup.executescript(schema_sql(Store.IDENTITY))
+            versioned, _marker, added = schema_sql(Store.IDENTITY).partition(ADDED)
+            setup.executescript(versioned)
             fill(setup)
+            setup.executescript(added.partition("\n")[2])
             setup.execute("INSERT INTO metadata (key, value) VALUES ('schema_version', ?)"
                           " ON CONFLICT (key) DO UPDATE SET value = excluded.value", (SCHEMA_VERSION,))
             setup.commit()
@@ -176,9 +180,8 @@ class IdentityStore:
     @_locked
     def put_binding(self, binding: Binding, verdict_id: str | None = None) -> bool:
         """One current binding per provider reference. A newer decision for the same subject replaces it. A
-        reference bound to another subject is re-pointed only from a row that is not confirmed (rejected, or a read
-        check of a derived address) or from a provisional (agent) binding by a stronger answer, which supersedes the
-        agent's item; otherwise it returns False: that is a conflict."""
+        reference bound to another subject is re-pointed only from a rejected or provisional (agent) binding by a
+        stronger answer, which supersedes the agent's item; otherwise it returns False: that is a conflict."""
         ref = binding.provider_ref
         registered_kind(binding.subject_id)  # the store keeps registered kinds and key schemes only
         before = self.binding_for(ref)
@@ -189,7 +192,7 @@ class IdentityStore:
             " subject_id=excluded.subject_id, kind=excluded.kind, status=excluded.status,"
             " authority=excluded.authority, rule_id=excluded.rule_id, evidence_ids=excluded.evidence_ids,"
             " verified_at=excluded.verified_at, verdict_id=excluded.verdict_id WHERE bindings.subject_id = excluded.subject_id"
-            " OR bindings.status <> 'confirmed'"
+            " OR bindings.status = 'rejected'"
             " OR (bindings.authority = 'agent_confirmed' AND excluded.authority <> 'agent_confirmed')",
             (uuid.uuid4().hex, binding.plugin, ref.provider, ref.native_id, ref.native_scope, binding.subject_id,
              binding.kind, binding.status, binding.authority, binding.rule_id, json.dumps(list(binding.evidence_ids)),
@@ -201,30 +204,30 @@ class IdentityStore:
         return changed
 
     @_locked
-    def put_check(self, ref: ProviderRef, subject_id: str, plugin: str, rule_id: str, evidence_ids: Iterable[str],
-                  outcome: str) -> None:
-        """Record a read check of the reference a subject is served through (ADR 0037): `verified` stamps
-        `verified_at`. A derived address has no binding, so its check is its own row, decided by `rule_id`:
-        `candidate` while its reads agree (`verified_at` set) or differ only in what is not enforced
-        (`unverified`: `verified_at` cleared), `conflicting` once one contradicts the reference. A confirmed
-        binding is never changed by a check beyond its stamp, and a row of another subject or a rejected one is
-        left alone."""
-        kind, stamp = registered_kind(subject_id), now()
-        row = self.binding_for(ref)
-        if row is not None and (row["subject_id"] != subject_id or row["status"] in ("confirmed", "rejected")):
-            if outcome == "verified" and row["subject_id"] == subject_id and row["status"] == "confirmed":
-                self.db.execute("UPDATE bindings SET verified_at = ? WHERE id = ?", (stamp, row["id"]))
-            return
-        verified = {"verified": stamp, "unverified": None}.get(outcome)
+    def put_read_check(self, subject_id: str, ref: ProviderRef, plugin: str, stated: dict, differs: list[str],
+                       note: str | None) -> None:
+        """Record one read check (ADR 0037): no `note` means the read verified, which also stamps the subject's
+        confirmed binding. A check never changes a binding otherwise."""
+        stamp, key = now(), (ref.provider, ref.native_scope, ref.native_id)
         self.db.execute(
-            "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, kind, status, authority,"
-            " rule_id, evidence_ids, verified_at) VALUES (?,?,?,?,?,?,?,?,'rule_confirmed',?,?,?)"
-            " ON CONFLICT (provider, native_scope, native_id) DO UPDATE SET status = excluded.status,"
-            " evidence_ids = excluded.evidence_ids, verified_at = CASE WHEN excluded.status = 'conflicting'"
-            " THEN bindings.verified_at ELSE excluded.verified_at END",
-            (uuid.uuid4().hex, plugin, ref.provider, ref.native_id, ref.native_scope, subject_id, kind,
-             "conflicting" if outcome == "conflicting" else "candidate", rule_id, json.dumps(list(evidence_ids)),
-             verified))
+            "INSERT INTO read_checks (subject_id, provider, native_scope, native_id, plugin, stated, differs, note,"
+            " checked_at, verified_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (subject_id, provider, native_scope,"
+            " native_id) DO UPDATE SET plugin = excluded.plugin, stated = excluded.stated, differs = excluded.differs,"
+            " note = excluded.note, checked_at = excluded.checked_at,"
+            " verified_at = COALESCE(excluded.verified_at, read_checks.verified_at)",
+            (subject_id, *key, plugin, json.dumps(stated, sort_keys=True), json.dumps(differs), note, stamp,
+             None if note else stamp))
+        if note is None:
+            self.db.execute("UPDATE bindings SET verified_at = ? WHERE provider = ? AND native_scope = ? AND native_id = ?"
+                            " AND subject_id = ? AND status = 'confirmed'", (stamp, *key, subject_id))
+
+    @_locked
+    def read_checks(self, subject_ids: Iterable[str]) -> dict[tuple[str, str, str, str], sqlite3.Row]:
+        """The subjects' last read checks by (subject, provider, native scope, native id)."""
+        subjects = list(subject_ids)
+        rows = self.db.execute(f"SELECT * FROM read_checks WHERE subject_id IN ({','.join('?' * len(subjects))})",
+                               subjects).fetchall() if subjects else []
+        return {(row["subject_id"], row["provider"], row["native_scope"], row["native_id"]): row for row in rows}
 
     @_locked
     def bound_subject(self, ref: ProviderRef) -> str | None:

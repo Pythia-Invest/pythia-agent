@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from .selection import (available, caches_observations, compatible_ref, fingerprint, matches, permits_implicit,
                         selector, supports_read)
+from .backend import unverified_issue
 from .wire import require, validate, validate_read_result, WireError
 
 
@@ -87,7 +88,7 @@ def _choose(backend, request, criteria, descriptor, sources):
     eligible = [ref for ref in eligible if all(
         key not in criteria or key not in ref.get("qualifiers", {}) or
         ref["qualifiers"][key] == criteria[key] for key in ("currency", "venue", "route"))]
-    refused = None
+    refused, labels = None, {}
     for candidate_provider in ordered:
         if sum(ref["provider"] == candidate_provider for ref in eligible) > 8:
             return None, "ambiguous_series", candidate_provider, []
@@ -98,9 +99,12 @@ def _choose(backend, request, criteria, descriptor, sources):
             response = backend.describe_series(ref, criteria)
             if response.get("outcome") not in ("ok", "empty"):
                 return None, "source_error", candidate_provider, response.get("issues", [])
-            if backend.refused(binding, ref, response):  # the source's own record contradicts the subject
+            checked = backend.check(binding, ref, response)  # what the source says of itself, against the reference
+            if checked["status"] == "refused":
                 refused = candidate_provider
                 continue
+            if checked["status"] == "unverified":
+                labels[candidate_provider] = checked["label"]
             for value in response.get("data", []):
                 series = validate("series", value)
                 # A reference may omit qualifiers the source adds (Yahoo's venue and
@@ -119,7 +123,8 @@ def _choose(backend, request, criteria, descriptor, sources):
             selected = next(iter(unique.values()))
             if explicit and not compatible_ref(binding, selected["provider_ref"]):
                 return None, "incompatible_series", candidate_provider, []
-            return selected, None, candidate_provider, []
+            label = labels.get(candidate_provider)
+            return selected, None, candidate_provider, [unverified_issue(candidate_provider, label)] if label else []
     if refused:
         return None, "binding_conflict", refused, []
     return None, "incompatible_series", ordered[0], []
@@ -191,6 +196,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                 or semantic_series(result["series"]) != semantic_series(selected)):
             return read_failure(request, "invalid_response", alternatives=alternatives, provider=provider, selected=selected)
     result = copy.deepcopy(result)
+    result["issues"] += source_issues  # an unverified source is labelled on the result it served
     if result["outcome"] == "error":
         result["issues"].append({"code": "selected_source", "severity": "warning",
                                  "message": f"Selected source: {provider}. Requested series: {selected['id']}. Alternatives require a separate read."})

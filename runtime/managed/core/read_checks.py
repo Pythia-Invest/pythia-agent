@@ -1,148 +1,126 @@
 """Read checks (ADR 0037): what a source's own read states about the reference it served, against the reference.
 
 Core serves a subject through addresses it derives (a ticker and MIC suffix table) or
-binds. Market-data already describes each routed reference before reading it; what that
-answer states about itself (its ISIN, currency, venue) is checked here, once per window,
-with rule `read_check@1`. A match stamps the binding's `verified_at`; another ISIN or venue
-opens a conflict in Repairs and the page stops serving a derived address. Another currency
-only leaves the address unverified while the reference's listing currency is not a
-signed-off fact (`ENFORCE_CURRENCY`). Nothing here calls a provider.
+binds. Market data describes each reference before reading it, whether core routed it for
+a subject or the caller named it (the Desk page and the agent read the reference the page
+chose). The currency and venue that answer states are checked here, once per window, with
+rule `read_check@1`, and kept per subject in `read_checks`. A read that agrees, from an
+audited source, stamps `verified_at`; otherwise the page and the agent see a label ("venue
+differs"). A difference refuses the source only for an attribute in `page.ENFORCED`, which
+stays empty until the reference field it compares against is signed off. Nothing here
+calls a provider or opens a Repairs item, and a failure never fails the read.
 """
 from __future__ import annotations
 
-import dataclasses
-import json
 import logging
-import sqlite3
 import time
-import uuid
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from .identity import Level, page, store
-from .identity.claims import RecordClaim
 from .identity.model import ProviderRef
-from .identity.resolution import QueueItem
-from .identity.schemes import CURRENCY, IdentifierError, Scheme, normalize_identifier
+from .identity.schemes import CURRENCY
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
 
 logger = logging.getLogger(__name__)
 CHECK_EVERY = 15 * 60  # seconds: one check per subject, reference and stated values in this window, per process
-STATED = ("isin", "currency", "venue", "name")  # what a read may state about itself
+STATED = ("currency", "venue")  # what a read states about itself; no price source states an ISIN today
 MINOR_UNITS = {"GBX": "GBP", "ILA": "ILS", "ZAC": "ZAR"}  # a price in minor units trades in the major currency
-# The reference's listing currency is not yet a signed-off fact (FIRDS carries the notional currency), so another
-# currency only marks the address unverified. Set True once it comes from a signed-off source (ADR 0037).
-ENFORCE_CURRENCY = False
+UNCHECKED = {"status": "unchecked", "label": None}
+_BOUND = 4096  # entries each per-process map keeps before it starts over
 
 
-def check_read(identity: Identity, subject_id: str, native_ref: dict, stated: dict) -> str:
-    """Check what one read of a reference routed for a subject states about itself against the subject.
+class State:
+    """Per process: recent checks, and the subject each reference was last served for (so an explicit read of it
+    is checked against that subject)."""
 
-    Returns `verified` (a match stamps `verified_at`), `unverified` (only the currency differs, not enforced:
-    served, labelled, no Repairs item), `refused` (a mismatch: a conflict opens in Repairs and the page stops
-    serving the reference), `questioned` (a mismatch on a confirmed binding: the question opens, the binding keeps
-    serving) or `unchecked` (nothing comparable, or not a reference core serves now)."""
+    def __init__(self) -> None:
+        self.checked: dict[tuple, tuple[dict, float]] = {}
+        self.served: dict[tuple[str, str, str], str] = {}
+
+    def lookups(self, identity_store: store.IdentityStore, subject_ids: list[str]) -> dict[str, Any]:
+        """Page composition's view of the subjects' read checks, and where it records what it serves."""
+        rows = identity_store.read_checks(subject_ids)
+
+        def serve(ref: ProviderRef, subject_id: str) -> None:
+            if len(self.served) > _BOUND:
+                self.served.clear()
+            self.served[_key(ref)] = subject_id
+        return {"checked": lambda subject_id, ref: rows.get((subject_id, *_key(ref))), "serves": serve}
+
+
+def check_read(identity: Identity, subject_id: str | None, native_ref: dict, stated: dict) -> dict:
+    """Check what one read of a reference states about itself against the subject it serves.
+
+    Returns {"status", "label"}: `verified`, `unverified` (served; `label` says why), `refused` (an enforced
+    difference: the source is not used) or `unchecked` (nothing comparable, or no subject it serves)."""
     try:
         ref = ProviderRef(native_ref["provider"], native_ref["native_id"], native_ref["native_scope"])
-    except (KeyError, TypeError, ValueError):
-        return "unchecked"
-    said = {key: value for key, value in (stated or {}).items() if key in STATED and isinstance(value, str) and value}
-    key = (subject_id, ref.provider, ref.native_scope, ref.native_id, tuple(sorted(said.items())))
-    known = identity.checked.get(key)
-    if known and known[1] > time.monotonic():
-        return known[0]
-    try:
-        outcome = _check(identity, subject_id, ref, said) if said else "unchecked"
-    except (sqlite3.Error, OSError, ValueError):
-        logger.warning("read check of %s failed", ref.native_id, exc_info=True)
-        return "unchecked"
-    if outcome != "refused":  # a refused reference is not routed again until a verdict confirms it: check it then
-        if len(identity.checked) > 4096:
-            identity.checked.clear()
-        identity.checked[key] = (outcome, time.monotonic() + CHECK_EVERY)
+        said = {key: value for key, value in (stated or {}).items() if key in STATED and isinstance(value, str) and value}
+        subject_id = subject_id or identity.reads.served.get(_key(ref))
+        if not (said and subject_id):
+            return UNCHECKED
+        key = (subject_id, *_key(ref), tuple(sorted(said.items())))
+        known = identity.reads.checked.get(key)
+        if known and known[1] > time.monotonic():
+            return known[0]
+        outcome = _check(identity, subject_id, ref, said)
+    except Exception:  # a check never fails the read it rides on
+        logger.warning("read check of %s failed", native_ref, exc_info=True)
+        return UNCHECKED
+    if len(identity.reads.checked) > _BOUND:
+        identity.reads.checked.clear()
+    identity.reads.checked[key] = (outcome, time.monotonic() + CHECK_EVERY)
     return outcome
 
 
-def compare(info: page.PluginInfo, subject: dict, ref: ProviderRef, stated: Mapping[str, str], *,
-            now: str) -> tuple[RecordClaim, dict[str, str], bool]:
-    """What one read states about `ref`, as the plugin's record, the mismatches with the subject's reference
-    data by rule (`isin`, `venue`, `currency`), and whether anything could be compared.
-
-    Mismatches: another ISIN than the security's; a venue, through the contract's `venue_codes`, where the
-    security has no line (the venues its listing rows are keyed on); another currency than the listing's
-    (minor units count as their major currency). Names, instrument types, venue codes the contract does not
-    map and anything the read does not state are never compared."""
-    listing, values = subject["listing"], {key: value.strip() for key, value in stated.items()}
-    try:
-        isin = normalize_identifier(Scheme.ISIN, values["isin"].upper()) if values.get("isin") else None
-    except IdentifierError:  # a malformed ISIN states nothing
-        isin = None
-    currency = {"GBp": "GBX", "ZAc": "ZAC"}.get(values.get("currency", ""), values.get("currency", "").upper())
-    venue = values.get("venue", "")[:16]
-    level = info.manifest.native_scope(ref.native_scope).level
-    record = RecordClaim(
-        level=level, native_ref=ref,
-        identifiers=[{"scheme": "isin", "value": isin}] if isin and level != Level.ISSUER else [],
-        attributes={"name": values.get("name", "")[:200] or None, "currency": currency if CURRENCY.match(currency) else None,
-                    "provider_venue": venue or None, "operating_mic": info.manifest.venue_codes.get(venue)},
-        provenance={"plugin": info.manifest.plugin, "source": info.manifest.provider, "adapter_version": page.READ_RULE,
-                    "retrieved_at": now})
-    mismatches, compared = {}, False
-    isins = {item.value for item in subject["evidence"] if item.scheme == "isin"}
-    if record.identifiers and isins:
-        compared = True
-        if isin not in isins:
-            mismatches["isin"] = f"ISIN {isin}, not {', '.join(sorted(isins))}"
-    trading, stated_currency = listing and listing["currency"], record.attributes.currency
-    if stated_currency and trading:
-        compared = True
-        if MINOR_UNITS.get(stated_currency, stated_currency) != MINOR_UNITS.get(trading, trading):
-            mismatches["currency"] = f"currency {stated_currency}, not {trading}"
-    mic = record.attributes.operating_mic
+def compare(info: page.PluginInfo, subject: dict, stated: Mapping[str, str]) -> tuple[dict, list[str]]:
+    """What one read states (its venue code mapped through the contract's `venue_codes`) and which stated
+    attributes the subject's reference gives otherwise: `venue`, a venue where the security has no line (the
+    venues its listing rows are keyed on); `currency`, another currency than the listing's (minor units count
+    as their major). The venue a source states is compared, never inferred from a symbol's suffix. Names,
+    instrument types, unmapped venue codes and anything unstated are never compared."""
+    listing = subject["listing"]
+    code = stated.get("currency", "").strip()
+    currency = {"GBp": "GBX", "ZAc": "ZAC"}.get(code, code.upper())
+    venue = stated.get("venue", "").strip()[:16]
+    said = {key: value for key, value in (("currency", currency if CURRENCY.match(currency) else None),
+                                           ("venue", venue or None),
+                                           ("operating_mic", info.manifest.venue_codes.get(venue))) if value}
+    differs = []
     lines = {line["mic"] for line in subject["view"]["listings"]} | (
         {listing["operating_mic"] or listing["mic"]} if listing else set())
-    if mic and lines - {None}:
-        compared = True
-        if mic not in lines:
-            mismatches["venue"] = f"venue {venue} ({mic}), where this security has no line"
-    return record, mismatches, compared
+    if said.get("operating_mic") and lines - {None} and said["operating_mic"] not in lines:
+        differs.append("venue")
+    trading = listing and listing["currency"]
+    if said.get("currency") and trading and MINOR_UNITS.get(currency, currency) != MINOR_UNITS.get(trading, trading):
+        differs.append("currency")
+    return said, differs
 
 
-def _check(identity: Identity, subject_id: str, ref: ProviderRef, said: dict) -> str:
+def _check(identity: Identity, subject_id: str, ref: ProviderRef, said: dict) -> dict:
     from .identity_ops import installed
     _path, subject, lookups, _issue = identity._load(subject_id)
     plugins = installed()
     served = next((answer for section in (page.Section.QUOTE, page.Section.CHART)
                    for answer in page.answers(subject, plugins, section, **lookups)
-                   if answer["status"] == "ready" and answer["binding"]
-                   and ProviderRef(**answer["binding"]) == ref), None) if subject else None
-    if served is None:  # not a reference core serves this subject through now
-        return "unchecked"
+                   if answer["binding"] and ProviderRef(**answer["binding"]) == ref), None) if subject else None
+    if served is None:  # not a reference core serves this subject through
+        return UNCHECKED
     info = next(item for item in plugins if item.key == served["plugin"])
-    target, now = subject["ids"][Level(served["via"])], store.now()
-    record, mismatches, compared = compare(info, subject, ref, said, now=now)
-    if not compared:
-        return "unchecked"
-    differs = mismatches.pop("currency", None) if not ENFORCE_CURRENCY else None
-    mismatch = "; ".join(mismatches.values()) or None
-    evidence = tuple(dict.fromkeys(item.evidence_id for item in subject["evidence"]))
-    identity_store = identity.store
-    with identity_store.transaction():
-        kept = identity_store.claim(info.manifest.plugin, ref)
-        if kept is None or kept["provenance"]["adapter_version"] == page.READ_RULE:  # never over a resolve record
-            identity_store.put_claim(info.manifest.plugin, ref.provider, json.loads(json.dumps(dataclasses.asdict(record))))
-        outcome = "conflicting" if mismatch else "unverified" if differs else "verified"
-        identity_store.put_check(ref, target, info.manifest.plugin, page.READ_RULE, evidence, outcome)
-        if not mismatch:
-            return "unverified" if differs else "verified"
-        row = identity_store.binding_for(ref)
-        bound = row is not None and row["subject_id"] == target and row["status"] == "confirmed"
-        item = QueueItem(id=uuid.uuid4().hex, kind="conflict", reason="binding", subject_ids=(target,),
-                         candidate_ids=(target,), evidence_ids=evidence, state="open", opened_at=now,
-                         plugins=(info.manifest.plugin,), provider_ref=ref) if evidence else None
-        # A verdict already answered this question for the binding; a dismissal holds for the same evidence.
-        if item and not (bound and row["verdict_id"]) and not identity_store.dismissed(item.key, item.evidence_ids):
-            identity_store.put_queue_item(item)
-    logger.warning("%s states %s for %s: queued for review", info.label, mismatch, target)
-    return "questioned" if bound else "refused"
+    stated, differs = compare(info, subject, said)
+    comparable = ("operating_mic" in stated and subject["view"]["listings"]) or ("currency" in stated and subject["listing"])
+    if not comparable:
+        return UNCHECKED
+    note = (" and ".join(differs) + (" differ" if len(differs) > 1 else " differs") if differs
+            else "source not audited" if getattr(info.manifest, "unaudited", False) else None)  # ADR 0042 sign-off
+    identity.store.put_read_check(subject["ids"][Level(served["via"])], ref, info.manifest.plugin, stated, differs, note)
+    if note:
+        logger.info("%s read of %s for %s: unverified (%s)", info.label, ref.native_id, subject_id, note)
+    status = "refused" if set(differs) & page.ENFORCED else "unverified" if note else "verified"
+    return {"status": status, "label": note}
+
+
+def _key(ref: ProviderRef) -> tuple[str, str, str]:
+    return ref.provider, ref.native_scope, ref.native_id

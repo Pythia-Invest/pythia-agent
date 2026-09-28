@@ -216,38 +216,39 @@ binding checked on its reads (below); otherwise a provisional subject and a resi
 
 **Read checks** (rule `read_check@1`, amended 2026-09-28). A derived address
 (a ticker plus the contract's MIC suffix) can point at the wrong instrument: a
-same-ticker company elsewhere, or another currency line. So what a source
-states about itself in a read that already happens (market data describes each
-routed reference before reading it) becomes that plugin's record in `claims`
-and is compared with the subject's reference data, in code, with no extra
-provider call and no job. Two mismatches are enforced: another ISIN than the
-security's, and a venue, mapped through the contract's `venue_codes`, where the
-security has no line (the venues its listing rows are keyed on, a direct
-identifier fact). A third, another currency than the listing's (minor units
-such as GBX count as their major currency), is recorded but not enforced: the
-reference's listing currency is not yet a signed-off fact (FIRDS carries the
-notional currency, and the trading-currency rework is open), so the address
-keeps serving, marked `unverified: "currency differs"`, with no Repairs item.
-`ENFORCE_CURRENCY` in `runtime/managed/core/read_checks.py` is the one switch
-that makes it a conflict; turn it on once the listing currency comes from a
-signed-off source. The recorded differences are evidence for that rework:
+same-ticker company elsewhere, or another currency line. Market data already
+describes every reference before reading it, whether core routed it for a
+subject or the caller named it (the Desk page and the agent read the reference
+the page chose; core checks that for the subject it last served it for). What
+that answer states about itself, its venue code and currency, is a claim about
+the subject, kept in `read_checks` and compared with the reference in code, once
+per subject, reference and stated values per 15 minutes per process, with no
+extra provider call and no job. The venue a source states is compared, mapped to
+an operating MIC through the contract's `venue_codes`, never inferred from a
+symbol's suffix: it differs when the security has no line on that venue (the
+venues its listing rows are keyed on). The currency differs when it is not the
+listing's (minor units such as GBX count as their major currency). Names,
+instrument types, unmapped venue codes and anything unstated are never compared;
+no price source states an ISIN today, so ISINs are not compared. A read that
+agrees, from a source not marked unaudited (ADR 0042), stamps `verified_at` (on
+the check, and on a confirmed binding); otherwise the page section and the
+agent's result carry a label, `unverified` ("venue differs", "currency
+differs", "source not audited"), and the source keeps serving. No difference
+opens a Repairs item. A difference refuses the source only for an attribute in
+`ENFORCED` (`identity/page.py`), one switch per attribute: an attribute is
+added once the reference field it compares against comes from a signed-off
+source (the FIRDS sign-off is under way in the reference claims work). Until
+then both stay off: the reference's venue for SEC-fed lines can be stale, and
+its currency is FIRDS' notional currency on German venues. A refused source is
+checked again on its next read, and a read that agrees lifts the refusal. The
+recorded differences are evidence for that rework:
 `tooling/reference-builder/read_check_audit.py` counts them per venue from a
-device's store. Names, instrument types, unmapped venue codes and anything
-unstated are never compared, so a name variant is not a conflict. A match
-stamps `verified_at`: on the binding, or for a derived address on its own check
-row (`candidate`), which the page shows as the section's `verified_at`. An
-enforced mismatch on a derived address marks that row `conflicting` and opens a
-`binding` conflict in Repairs, citing the subject's evidence; the page and every
-market-data read (the Desk's and the agent's) then refuse that source like any
-conflict, and a user's `same_listing` confirms it. An enforced mismatch on a
-confirmed binding opens the question once but does not unbind it: identifier
-evidence or a verdict decided it. The rules resolver never re-asks a read check
-(it is no resolve answer). Each subject, reference and stated value is checked
-once per 15 minutes per process. Rejected: a background re-verification job and
-a verification call per page open (extra provider traffic), fuzzy name matching
-(never decisive), refusing a confirmed binding on a content difference, and
-enforcing the currency before the reference's currency is signed off (it
-refused correct quotes on German venues and Amsterdam USD ETF lines).
+device's store. Rejected: a background re-verification job or a verification
+call per page open (provider traffic), fuzzy name matching (never decisive),
+refusing or queueing on a reference field that is not signed off (it refused
+correct quotes on German venues and Amsterdam USD ETF lines, and a "not a
+match" answer left a refused source with no way back), and keeping checks as
+binding rows (a derived address is recomputed, never stored).
 
 **Search is a local read** of the directory: no provider call, no identity
 write, no reconciliation. Core's `identity-search` builds the directory in
