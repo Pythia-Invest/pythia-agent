@@ -63,7 +63,11 @@ profiles naming a provider that their native inventory could not resolve.
 The selected definition's supported non-secret fields are written and read
 back through Hermes before model selection; existing profile choices win.
 Both native keyed and legacy-list definitions are accepted, with legacy rows
-projected through the native compatible keyed form. Unsupported fields require
+translated as Hermes translates them. Settings under a built-in provider's
+`providers.<id>` block are not a definition and are not copied. Hermes returns
+`${VAR}` references already expanded, so templated fields are copied with their
+current values; reading unexpanded configuration would mean Pythia parsing
+Hermes's file itself, which was not adopted. Unsupported fields require
 explicit native profile setup. General root-config synchronization and copying
 `.env`, inline keys or auth stores were rejected because they would broaden
 credential custody and overwrite profile ownership. Model selection and

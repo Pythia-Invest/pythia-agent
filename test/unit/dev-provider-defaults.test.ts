@@ -99,7 +99,15 @@ describe("shared custom provider inheritance", () => {
     );
     expect(f.run()).toBe(true);
     expect(f.local.custom_providers).toEqual([existing]);
-    expect(f.local.providers).toEqual({ "lab-proxy": selected });
+    // Hermes's own keyed translation of a legacy row.
+    expect(f.local.providers).toEqual({
+      "lab-proxy": {
+        name: "Lab Proxy",
+        api: "https://models.example/v1",
+        transport: "chat_completions",
+        models: ["small", { id: "large", context_length: 64000 }],
+      },
+    });
     const writes = f.execute.mock.calls
       .map(([, args]) => args)
       .filter((args) => args[3] === "set");
@@ -118,7 +126,62 @@ describe("shared custom provider inheritance", () => {
       custom_providers: [selected],
     });
     expect(f.run()).toBe(true);
-    expect(f.local.providers).toEqual({ lab: selected });
+    expect(f.local.providers).toEqual({
+      lab: {
+        name: "Lab",
+        api: "https://models.example/v1",
+        default_model: "small",
+      },
+    });
+  });
+
+  it.each([
+    { request_timeout_seconds: 600 },
+    { models: { "gpt-large": { timeout_seconds: 900 } } },
+    { api_key: "built-in-secret" },
+  ])(
+    "leaves settings for a built-in provider alone and inherits only its model (%j)",
+    (settings) => {
+      const f = fixture({
+        model: { provider: "openrouter", default: "gpt-large" },
+        providers: { openrouter: settings },
+      });
+      expect(f.run()).toBe(true);
+      expect(f.local.providers).toBeUndefined();
+      expect(f.local.model).toEqual({
+        provider: "openrouter",
+        default: "gpt-large",
+      });
+      expect(JSON.stringify(f.execute.mock.calls)).not.toContain(
+        "built-in-secret",
+      );
+    },
+  );
+
+  it("ignores a disabled definition, as Hermes's resolver does", () => {
+    const f = fixture({
+      model: { provider: "custom:lab", default: "small" },
+      providers: {
+        lab: { api: "https://old.example/v1", enabled: false },
+      },
+      custom_providers: [
+        { name: "Lab", base_url: "https://models.example/v1" },
+      ],
+    });
+    expect(f.run()).toBe(true);
+    expect(f.local.providers).toEqual({
+      lab: { name: "Lab", api: "https://models.example/v1" },
+    });
+  });
+
+  it("keeps the target profile's own definition even when the root has none", () => {
+    const own = { api: "https://own.example/v1" };
+    const f = fixture(
+      { model: { provider: "custom:lab", default: "small" } },
+      { model: "", providers: { lab: own } },
+    );
+    expect(f.run()).toBe(true);
+    expect(f.local.providers).toEqual({ lab: own });
   });
 
   it("preserves an existing provider definition and unrelated profile configuration", () => {

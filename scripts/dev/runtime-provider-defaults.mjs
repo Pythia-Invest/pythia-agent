@@ -79,9 +79,20 @@ function aliases(...names) {
   });
 }
 
+// A custom definition names an endpoint. `providers.<id>` may also hold settings
+// for a built-in provider (timeouts, per-model options); Hermes never lets those
+// shadow the built-in, so they are not candidates. Disabled entries are skipped
+// as Hermes's resolver skips them (`is_provider_enabled`).
+function isCustomDefinition(entry) {
+  return (
+    record(entry) &&
+    entry.enabled !== false &&
+    [...endpointFields].some((field) => entry[field])
+  );
+}
+
 function candidates(providers, legacy, selection) {
   const requested = selection.provider.trim().toLowerCase();
-  // Hermes resolves the legacy list before its keyed compatibility entries.
   return [
     ...(legacy ?? []).map((entry) => ({ entry })),
     ...Object.entries(providers ?? {}).map(([key, entry]) => ({
@@ -90,7 +101,27 @@ function candidates(providers, legacy, selection) {
     })),
   ].filter(
     ({ key, entry }) =>
-      record(entry) && aliases(key, entry.name).includes(requested),
+      isCustomDefinition(entry) && aliases(key, entry.name).includes(requested),
+  );
+}
+
+// Hermes's own legacy-to-keyed translation
+// (`config.py:_custom_provider_entry_to_provider_config`): the endpoint becomes
+// `api`, `model` becomes `default_model` and `api_mode` becomes `transport`.
+function keyedForm(entry) {
+  const renamed = {
+    base_url: "api",
+    baseUrl: "api",
+    url: "api",
+    model: "default_model",
+    api_mode: "transport",
+    apiMode: "transport",
+  };
+  return Object.fromEntries(
+    Object.entries(entry).map(([field, value]) => [
+      renamed[field] ?? field,
+      value,
+    ]),
   );
 }
 
@@ -180,6 +211,9 @@ function definitions(read, profile) {
 
 /** Seed only the selected native provider; never copy secrets or unrelated rows. */
 export function inheritCustomProvider(selection, profile, read, write) {
+  // A definition the target profile already has wins, whatever the root holds.
+  const local = definitions(read, profile);
+  if (candidates(local.providers, local.legacy, selection).length) return false;
   const shared = definitions(read, "default");
   const matches = candidates(shared.providers, shared.legacy, selection);
   if (!matches.length) {
@@ -196,14 +230,14 @@ export function inheritCustomProvider(selection, profile, read, write) {
     throw new Error(
       "Shared custom provider selection is ambiguous. Configure the target profile through Hermes.",
     );
-  const local = definitions(read, profile);
-  if (candidates(local.providers, local.legacy, selection).length) return false;
-  const { entry, key: sharedKey } = matches[0];
-  validateDefinition(entry);
+  const { entry: sharedEntry, key: sharedKey } = matches[0];
+  validateDefinition(sharedEntry);
   // Native dotted setters cannot append a list item. Project legacy entries
   // through Hermes's compatible keyed form so no existing list (which may
   // contain credentials) needs to pass through config-set argv.
-  const key = sharedKey ?? entry.name.trim().toLowerCase().replaceAll(" ", "-");
+  const entry = sharedKey ? sharedEntry : keyedForm(sharedEntry);
+  const key =
+    sharedKey ?? sharedEntry.name.trim().toLowerCase().replaceAll(" ", "-");
   // A conflicting raw key remains user-owned, even if its value is malformed.
   if (Object.hasOwn(local.providers ?? {}, key))
     throw new Error(
