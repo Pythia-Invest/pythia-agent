@@ -493,7 +493,7 @@ test("intraday equity reads carry the current or last started session; crypto ke
         operation: "price_read",
         arguments: {
           symbol: "SYN",
-          mode: "five_minute_extended",
+          mode: "two_minute_extended",
           start: "2026-01-01T00:00:00Z",
           end: "2026-01-05T23:00:00Z",
         },

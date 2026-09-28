@@ -119,8 +119,12 @@ class Yahoo(unittest.TestCase):
     def test_intraday_reads_carry_session_evidence_and_quotes_their_previous_close(self):
         meta = {'symbol': 'SYNTH', 'type': 'EQUITY', 'currency': 'USD'}
         native = identity.candidate(meta)['provider_ref']
-        extended = series.definition(native, 'five_minute_extended', meta)
-        self.assertEqual((extended['session'], extended['interval']), ('extended', {'kind': 'minute', 'count': 5}))
+        extended = series.definition(native, 'two_minute_extended', meta)
+        self.assertEqual((extended['session'], extended['interval']), ('extended', {'kind': 'minute', 'count': 2}))
+        # Declared spans are Yahoo's own interval limits.
+        spans = {mode: series.definition(native, mode, meta)['read_support']['max_span_seconds'] // 86400
+                 for mode in ('minute', 'two_minute_extended', 'thirty_minute', 'hour', 'weekly')}
+        self.assertEqual(spans, {'minute': 7, 'two_minute_extended': 60, 'thirty_minute': 60, 'hour': 730, 'weekly': 36600})
         self.assertNotEqual(extended['id'], series.definition(native, 'five_minute', meta)['id'])
         request = {'schema_version': 1, 'operation': 'history', 'view': {'kind': 'source', 'series_id': extended['id']},
                    'window': {'start': {'kind': 'instant', 'value': '2026-01-05T00:00:00Z'}, 'end': {'kind': 'instant', 'value': '2026-01-06T00:00:00Z'}},
@@ -129,13 +133,13 @@ class Yahoo(unittest.TestCase):
                    'regular': {'start': '2026-01-05T14:30:00.000Z', 'end': '2026-01-05T21:00:00.000Z'},
                    'extended': {'start': '2026-01-05T09:00:00.000Z', 'end': '2026-01-06T01:00:00.000Z'}}
         row = {'time': '2026-01-05T09:05:00+00:00', 'open': 1, 'high': 2, 'low': 1, 'close': 2}
-        read = wire.validate_read_result(results.read(request, extended, 'five_minute_extended',
+        read = wire.validate_read_result(results.read(request, extended, 'two_minute_extended',
                                                       {'data': {'rows': [row], 'session': session}, 'issues': []}))
         self.assertEqual(read['price_context'], {'session_window': session})
         # Schedules that contradict themselves fail validation instead of drawing.
         broken = {**session, 'regular': {'start': session['regular']['end'], 'end': session['regular']['start']}}
         with self.assertRaises(wire.WireError):
-            wire.validate_read_result(results.read(request, extended, 'five_minute_extended',
+            wire.validate_read_result(results.read(request, extended, 'two_minute_extended',
                                                    {'data': {'rows': [row], 'session': broken}, 'issues': []}))
         latest = series.definition(native, 'latest', meta)
         request = {**request, 'operation': 'latest', 'view': {'kind': 'source', 'series_id': latest['id']},

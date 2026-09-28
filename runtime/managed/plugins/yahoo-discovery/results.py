@@ -1,6 +1,7 @@
 """Common reads preserve decimals, session dates, bounds and unknown finality."""
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal, InvalidOperation
+from .series import BARS
 
 
 def now():
@@ -37,7 +38,7 @@ def instant(value):
 
 
 def window(request, mode):
-    daily = mode in ('daily', 'adjusted')
+    daily = mode in ('daily', 'adjusted', 'weekly')
     kind = 'session_date' if daily else 'instant'
     edges = request['window']
     if any(edge and edge['kind'] != kind for edge in edges.values()):
@@ -48,7 +49,7 @@ def window(request, mode):
         raise ValueError('invalid_window')
     start, end = (edges[k]['value'] for k in ('start', 'end'))
     span = ((datetime.fromisoformat(end) - datetime.fromisoformat(start)) if daily else (instant(end) - instant(start))).total_seconds()
-    if span < 0 or span > (3660 if daily else 7) * 86400:
+    if span < 0 or span > BARS[mode][2] * 86400:
         raise ValueError('invalid_window')
     return {'start': start, 'end': end}
 
@@ -61,7 +62,7 @@ def read(request, series, mode, raw):
     result['provenance'] = {'provider': 'yahoo', 'native_ref': series['provider_ref'], 'adapter_version': '1', 'retrieved_at': result['retrieved_at'], 'source_time': None,
         'revision_vintage': None, 'mapping_revision': None, 'source_detail': {'namespace': 'yahoo', 'values': {'adapter': 'yahoo-finance2:4.0.2'}}}
     observations, seen = [], set()
-    daily = mode in ('daily', 'adjusted')
+    daily = mode in ('daily', 'adjusted', 'weekly')
     for row in (raw.get('data') or {}).get('rows', []):
         try:
             value = row['time']
@@ -92,7 +93,7 @@ def read(request, series, mode, raw):
                 values['volume'] = format(Decimal(str(volume)), 'f')
             if len(fields) > 1 and (float(values['low']) > min(float(values['open']), float(values['close'])) or float(values['high']) < max(float(values['open']), float(values['close']))):
                 raise ValueError()
-            interval = None if daily or mode == 'latest' else {'start': time, 'end': {'kind': 'instant', 'value': (point + timedelta(seconds={'minute': 60, 'five_minute': 300, 'five_minute_extended': 300, 'hour': 3600}[mode])).isoformat()}}
+            interval = None if daily or mode == 'latest' else {'start': time, 'end': {'kind': 'instant', 'value': (point + timedelta(seconds=BARS[mode][1] * {'minute': 60, 'hour': 3600}[BARS[mode][0]])).isoformat()}}
             observations.append({'shape': series['shape'], 'time': time, 'interval': interval, 'completion': {'state': 'unknown', 'basis': 'unknown'}, **values})
         except (ValueError, TypeError, KeyError, InvalidOperation, OverflowError):
             if not any(i['code'] == 'invalid_value' for i in issues): issues.append(issue('invalid_value'))
@@ -153,7 +154,7 @@ def read(request, series, mode, raw):
         result['price_context'] = context
     # Intraday history carries the schedule of the current or last session.
     session = (raw.get('data') or {}).get('session')
-    if mode not in ('latest', 'daily', 'adjusted') and observations and isinstance(session, dict):
+    if mode not in ('latest', 'daily', 'adjusted', 'weekly') and observations and isinstance(session, dict):
         result['price_context'] = {'session_window': session}
     result['issues'] = issues
     result['outcome'] = ('partial' if issues else 'ok') if observations else ('error' if any(i['severity'] == 'error' for i in issues) else 'empty')

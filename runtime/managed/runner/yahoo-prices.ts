@@ -228,32 +228,36 @@ export async function yahooPrices(
   if (operation !== "price_read") throw Error("invalid_request");
   const s = symbol(args.symbol),
     mode = String(args.mode);
+  // Yahoo interval and the longest window it serves that interval for, in days.
   const intervals = {
-    daily: "1d",
-    adjusted: "1d",
-    minute: "1m",
-    five_minute: "5m",
-    five_minute_extended: "5m",
-    hour: "1h",
+    daily: ["1d", 36600],
+    adjusted: ["1d", 36600],
+    weekly: ["1wk", 36600],
+    minute: ["1m", 7],
+    two_minute_extended: ["2m", 60],
+    five_minute: ["5m", 60],
+    thirty_minute: ["30m", 60],
+    hour: ["1h", 730],
   } as const;
   if (!(mode in intervals)) throw Error("invalid_request");
-  const interval = intervals[mode as keyof typeof intervals];
+  const [interval, days] = intervals[mode as keyof typeof intervals];
+  const dated = interval === "1d" || interval === "1wk";
   const start = Date.parse(String(args.start)),
     end = Date.parse(String(args.end));
   if (
     !Number.isFinite(start) ||
     !Number.isFinite(end) ||
     end < start ||
-    end - start > (interval === "1d" ? 3660 : 7) * 86400000
+    end - start > days * 86400000
   )
     throw Error("invalid_window");
   const d = await sdk.chart(s, {
     // Date-only windows are exchange-local. Pad the transport window and let
     // the shared reader filter session dates, including sessions east of UTC.
-    period1: new Date(start - (interval === "1d" ? 86400000 : 0)),
-    period2: new Date(end + (interval === "1d" ? 86400000 : 1000)),
+    period1: new Date(start - (dated ? 86400000 : 0)),
+    period2: new Date(end + (dated ? 86400000 : 1000)),
     interval,
-    includePrePost: mode === "five_minute_extended",
+    includePrePost: mode.endsWith("_extended"),
     events: "div,splits",
   });
   const meta = metadata(d.meta, s);
@@ -267,12 +271,12 @@ export async function yahooPrices(
     // Intraday equity reads carry the schedule of the current or last session;
     // continuous markets keep elapsed time, not Yahoo's UTC daily bucket.
     session:
-      interval !== "1d" &&
+      !dated &&
       (d.meta.instrumentType === "EQUITY" || d.meta.instrumentType === "ETF")
         ? lastSession(record(d.meta), Date.parse(retrieved_at))
         : null,
     rows: d.quotes.map((q) => ({
-      time: interval === "1d" ? day(q.date) : q.date,
+      time: dated ? day(q.date) : q.date,
       open: q.open,
       high: q.high,
       low: q.low,

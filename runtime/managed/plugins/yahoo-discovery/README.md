@@ -37,10 +37,13 @@ ticker similarity never creates a canonical relationship.
 
 ## Price series
 
-`series` declares one quote series and bar series: daily and dividend-adjusted
-daily closes (up to ten years), and 1-minute, 5-minute and hourly bars of the
-regular session (up to seven days). `five_minute_extended` adds 5-minute bars
-including Yahoo's pre- and post-market trades where the venue has them. Intraday
+`series` declares one quote series and bar series, each with the longest window
+Yahoo serves for its interval: daily OHLC and dividend-adjusted daily closes and
+weekly OHLC (full history), hourly bars (730 days), 5- and 30-minute bars (60
+days) and 1-minute bars (7 days) of the regular session, and
+`two_minute_extended` (60 days) including Yahoo's pre- and post-market trades
+where the venue has them. Adding the bar `volume` field changed the ids of the
+OHLC series; a view pinned to an older Yahoo OHLC id must be pinned again. Intraday
 equity and fund reads carry `price_context.session_window`: the current or last
 started session's regular and extended bounds from Yahoo's trading periods,
 never assumed hours. Continuous markets carry none and keep elapsed time. Quotes
