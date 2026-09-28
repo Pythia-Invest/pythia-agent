@@ -16,7 +16,7 @@ import re
 import sqlite3
 from typing import Any
 
-from .identity import market_catalogue, page
+from .identity import markets, page
 from .identity.concepts import REGISTRY, Concept, ranked, select
 from .identity.schemes import SUBJECT_ID as SUBJECT_PATTERN
 
@@ -25,9 +25,9 @@ CARDS, WATCHLIST = "markets_cards", "markets_watchlist"  # declared in configura
 MAX_SUBJECTS = 24
 # A global default (docs/architecture/markets-overview.md): US, Europe and Asia, a rate, FX, commodities and crypto.
 DEFAULT_CARDS = (
-    "index:pythia:sp500", "index:pythia:nasdaq100", "future:pythia:XCME.ES", "index:pythia:euro-stoxx-50",
+    "index:pythia:sp500", "index:pythia:nasdaq100", "market:pythia:cme-es-front-month", "index:pythia:euro-stoxx-50",
     "index:pythia:ftse100", "index:pythia:nikkei225", "index:pythia:hang-seng", "series:pythia:us-treasury-10y-yield",
-    "fx:pythia:EURUSD", "future:pythia:XCEC.GC", "future:pythia:XNYM.CL",
+    "fx:pythia:EURUSD", "market:pythia:comex-gc-front-month", "market:pythia:nymex-cl-front-month",
     "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
 )
 DEFAULT_WATCHLIST = (
@@ -188,8 +188,8 @@ class MarketReads:
 
 
 def _group(subject: str) -> str:
-    """The overview group a card sits in: the catalogue's, else crypto or stocks."""
-    item = market_catalogue.entries().get(subject)
+    """The overview group a card sits in: the curated table's, else crypto or stocks."""
+    item = markets.curated().get(subject)
     return item["group"] if item else "Crypto" if subject.startswith("security:caip19:") else "Stocks"
 
 
@@ -204,6 +204,9 @@ def register(ctx: Any, identity: Any) -> None:
     reads = MarketReads(identity)
     for schema, handler, operation in ((OVERVIEW_SCHEMA, reads.overview, "market-overview"),
                                        (MOVERS_SCHEMA, reads.movers, "market-movers")):
-        declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=True)
+        # The lists are cached for a minute at the protected read route: one source call per list per minute,
+        # whatever the number of open pages.
+        declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=True,
+                          cache_seconds=60 if operation == "market-movers" else 0)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])

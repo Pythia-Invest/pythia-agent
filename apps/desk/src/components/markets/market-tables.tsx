@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useLocalTime } from "@/client/local-time";
 import { useMarketMovers } from "@/client/market-queries";
 import { instrumentHref } from "@/components/instrument/instrument-href";
-import { openByLink, type SubjectDay } from "./market-card";
+import type { SubjectDay } from "./market-card";
 import { Block } from "./markets-overview";
 import { moverItem } from "./market-subjects";
 
@@ -50,7 +50,16 @@ function LinkedTable({
     // biome-ignore lint/a11y/useKeyWithClickEvents: as above
     <div
       className="[&_[data-slot=instrument-row]:hover]:bg-interaction-hover [&_[data-slot=instrument-row]]:cursor-pointer"
-      onClick={openByLink(router.push)}
+      onClick={(event) => {
+        // A click on a row opens what its link names; the row's own controls keep their clicks.
+        const target = event.target as Element;
+        if (target.closest("a, button")) return;
+        const href = target
+          .closest("[data-slot=instrument-row]")
+          ?.querySelector("[data-slot=market-open]")
+          ?.getAttribute("href");
+        if (href) router.push(href);
+      }}
     >
       <InstrumentTable
         read={read}
@@ -114,17 +123,9 @@ export function MoversTable({
           rows: [],
           message: failure,
         };
-  const drift = query.data?.issues.find(
-    (issue) => issue.code === "source_drift",
-  );
   return (
     <Block title={title}>
       <LinkedTable read={read} path={false} links={links} />
-      {drift ? (
-        <p role="status" className="mt-1.5 text-[11px] text-warning">
-          {drift.message}
-        </p>
-      ) : null}
     </Block>
   );
 }

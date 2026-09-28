@@ -2,12 +2,11 @@
 
 Field meanings, the venue table and the audit are in docs/sources/yahoo-screener.md.
 The adapter reads a few documented fields and checks every answer against the
-fields and vocabularies the audit found. A row missing a read field, or holding
-a value outside its vocabulary, is dropped or flagged and counted; a field the
-SDK schema and the audit do not know is reported. Either is returned as a
-`source_drift` issue, so a change at Yahoo shows on the page instead of being
-absorbed. Nothing here is identity evidence: core resolves each row's
-ticker and operating MIC against the reference.
+fields and vocabularies the audit found. An unknown field, venue, market state
+or instrument type is logged for the maintainer; a row missing a read field or
+holding an unreadable value is left out, counted and returned as a
+`source_drift` issue. Nothing here is identity evidence: core resolves each
+row's ticker and operating MIC against the reference.
 """
 import logging
 from datetime import datetime, timezone
@@ -93,7 +92,7 @@ def _row(rank, quote, drift):
 
 
 def adapt(payload, list_name, limit):
-    """Core's market_movers data from the worker's screener answer, with any drift as issues."""
+    """Core's market_movers data from the worker's screener answer, with any structural break as an issue."""
     result = payload.get('result') if isinstance(payload, dict) else None
     quotes = result.get('quotes') if isinstance(result, dict) else None
     if not isinstance(quotes, list):
@@ -109,15 +108,18 @@ def adapt(payload, list_name, limit):
         row = _row(len(rows) + 1, quote, drift)
         if row is not None and len(rows) < limit:
             rows.append(row)
-    found = [f"{label} {', '.join(sorted(values)[:6])}" for label, values in (
+    # Additive changes (new fields, venues, states) are the maintainer's signal only: a row still shows, at worst
+    # without its link. A structural break (rows that cannot be read) is also an issue on the answer.
+    changed = [f"{label} {', '.join(sorted(values)[:6])}" for label, values in (
         ('unknown fields', drift['fields']), ('unknown venues', drift['venues']),
         ('unknown market states', drift['states']), ('non-equity rows', drift['kinds'])) if values]
+    if changed:
+        logger.warning('yahoo screener drift (%s): %s', list_name, '; '.join(changed))
+    issues = []
     if drift['malformed_rows']:
         count = drift['malformed_rows']
-        found.append(f"{count} row{'' if count == 1 else 's'} without a readable symbol, price, change or time left out")
-    issues = []
-    if found:
-        message = "Yahoo's screener answer has changed: " + '; '.join(found) + '.'
+        message = (f"Yahoo's screener answer has changed: {count} row{'' if count == 1 else 's'} without a readable "
+                   "symbol, price, change or time left out.")
         logger.warning('yahoo screener drift (%s): %s', list_name, message)
         issues.append({'code': 'source_drift', 'severity': 'warning', 'message': message})
     data = {'list': list_name, 'market': 'US', 'universe': UNIVERSE, 'retrieved_at': payload.get('retrieved_at'),

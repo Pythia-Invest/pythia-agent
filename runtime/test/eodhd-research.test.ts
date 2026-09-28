@@ -80,7 +80,7 @@ test("Euronext Amsterdam catalogue keeps the exchange namespace and source ISIN"
   }
 });
 
-test("news retains publications and multiple symbols, excludes bodies and unsafe links", async () => {
+test("news keeps only requested and bound tickers, excludes bodies by default and unsafe links", async () => {
   const sdk = fake({
     news: async (args) => {
       expect(args).toEqual({
@@ -119,12 +119,71 @@ test("news retains publications and multiple symbols, excludes bodies and unsafe
     articles: [
       {
         published_at: "2026-01-02T13:00:00.000Z",
-        symbols: ["SYNTH.US", "OTHER.US"],
+        symbols: ["SYNTH.US"],
+        other_symbols: 1,
       },
     ],
   });
   expect(JSON.stringify(result)).not.toContain("Private full text");
+  expect(result.data).not.toHaveProperty("articles.0.content");
   expect(result.issues).toEqual(["invalid_value"]);
+});
+
+test("news decodes character references, returns text only on request and reports drift", async () => {
+  const tags = Array.from({ length: 50 }, (_, index) => `T${index}.US`);
+  const sdk = fake({
+    news: async () =>
+      [
+        {
+          title:
+            "Synthetic &amp; Other agree M&amp;A &#8211; &#x27;deal&#x27; &quot;done&quot;",
+          link: "https://example.test/story?a=1&amp;b=2",
+          date: "2026-01-02T15:00:00Z",
+          symbols: ["SYNTH.US", "SYNTH.AS", ...tags],
+          content: "Line one &amp; more\nLine two\u0007",
+          sentiment: { polarity: 0.1 },
+          tags: ["synthetic"],
+        },
+        {
+          title: "Unknown &madeup; reference",
+          link: "https://example.test/other",
+          date: "2026-01-02T16:00:00Z",
+          symbols: ["SYNTH.US"],
+          topic: "new field",
+        },
+      ] as never,
+  });
+  const result = await execute(sdk, "news", {
+    native_ref: reference,
+    symbols: ["SYNTH.AS"],
+    content: true,
+  });
+  expect(result.data).toMatchObject({
+    symbols: ["SYNTH.US", "SYNTH.AS"],
+    articles: [
+      {
+        title: "Synthetic & Other agree M&A \u2013 'deal' \"done\"",
+        url: "https://example.test/story?a=1&b=2",
+        symbols: ["SYNTH.US", "SYNTH.AS"],
+        other_symbols: 50,
+        content: "Line one & more\nLine two",
+        content_truncated: false,
+      },
+      { title: "Unknown &madeup; reference" },
+    ],
+    drift: { unknown_fields: ["topic"], undecoded_entities: 1 },
+  });
+  expect(result.issues).toEqual(["schema_drift"]);
+  for (const bad of [
+    { symbols: [] },
+    { symbols: ["SYNTH.AS", "SYNTH.AS"] },
+    { symbols: ["free text"] },
+    { symbols: tags.slice(0, 8) },
+    { content: "yes" },
+  ])
+    await expect(
+      execute(sdk, "news", { native_ref: reference, ...bad }),
+    ).rejects.toThrow("invalid_request");
 });
 
 test("recent news sends a bounded UTC calendar window before any provider work", async () => {
@@ -180,7 +239,10 @@ test("invalid news siblings do not poison a valid shared research result", async
     native_ref: reference,
     limit: 3,
   });
-  expect(result.data).toMatchObject({ articles: [{ symbols: ["SYNTH.US"] }] });
+  expect(result.data).toMatchObject({
+    articles: [{ symbols: ["SYNTH.US"] }],
+    drift: { unreadable_items: 2 },
+  });
   expect(result.issues).toEqual(["invalid_value"]);
 });
 

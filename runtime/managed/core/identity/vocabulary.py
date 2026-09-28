@@ -47,14 +47,6 @@ PROVISIONAL = frozenset({Authority.AGENT_CONFIRMED})
 class AssetClass(StrEnum):
     EQUITY = "equity"
     CRYPTO = "crypto"
-    # The market subjects of core's curated catalogue (market_catalogue.json): never a security's class.
-    INDEX = "index"
-    FUTURE = "future"
-    FX = "fx"
-    RATE = "rate"
-
-
-SECURITY_CLASSES = frozenset({AssetClass.EQUITY, AssetClass.CRYPTO})
 
 
 class InstrumentKind(StrEnum):

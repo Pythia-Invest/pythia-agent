@@ -3,7 +3,7 @@ import type { MarketOverview } from "@pythia/market-data/markets";
 import { Button, cn } from "@pythia/ui";
 import type { ReactNode } from "react";
 import { useMarketOverview } from "@/client/market-queries";
-import { DayCard, type SubjectDay, useSubjectDays } from "./market-card";
+import { MarketCard, type SubjectDay, useSubjectDays } from "./market-card";
 import { MoversCaption, MoversTable, WatchlistTable } from "./market-tables";
 
 /** One titled card of the overview (the Markets page design of September:
@@ -71,10 +71,17 @@ function MarketGroups({
   return (
     <div className="flex @min-[520px]:flex-row flex-col @min-[520px]:flex-wrap gap-x-6 gap-y-4">
       {[...found].map(([group, members]) => (
-        <Block key={group} title={group}>
+        <Block
+          key={group}
+          title={group}
+          // Provenance beside the values (docs/design.md): the sources core chose for this group's cards.
+          meta={[...new Set(members.flatMap((day) => day.source ?? []))].join(
+            " · ",
+          )}
+        >
           <div className="@min-[520px]:flex grid grid-cols-2 @min-[520px]:flex-wrap items-start gap-2">
             {members.map((day) => (
-              <DayCard key={day.subject} day={day} />
+              <MarketCard key={day.subject} day={day} />
             ))}
           </div>
         </Block>

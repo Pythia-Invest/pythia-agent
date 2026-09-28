@@ -19,7 +19,7 @@ from enum import StrEnum
 from typing import Any, Mapping
 
 from .concepts import REGISTRY, Combine, Concept, FilingAuthority, Licence
-from .schemes import MIC, NAMESPACE, SCHEME_LEVEL, Level, Scheme
+from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, SCHEME_LEVEL, Kind, Level, Scheme
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
@@ -37,7 +37,7 @@ class CatalogueMode(StrEnum):
 @dataclass(frozen=True, slots=True)
 class NativeScope:
     native_scope: str
-    level: Level
+    level: Level | Kind  # a kind outside the hierarchy (a market) is addressed through core's curated table
     asset_classes: tuple[AssetClass, ...]
 
 
@@ -49,8 +49,9 @@ class Coverage:
 
 @dataclass(frozen=True, slots=True)
 class ConceptEntry:
-    level: Level | None                 # the level the data is about (fundamentals: issuer); None: market-wide
-    via: Level | None                   # the level of the reference used to call (fundamentals: a listing symbol)
+    level: Level | Kind | None          # the level the data is about (fundamentals: issuer), or a kind outside
+                                        # the hierarchy (a market), which is addressed as itself; None: market-wide
+    via: Level | Kind | None            # the level of the reference used to call (fundamentals: a listing symbol)
     operations: Mapping[str, str]       # concept operation -> plugin operation
     coverage: Coverage
     qualities: Mapping[str, Mapping[str, Any]]  # concept operation -> declared qualities (claims, not entitlements)
@@ -166,6 +167,15 @@ def _enums(kind: type[StrEnum], value: Any, path: str) -> tuple[Any, ...]:
     return items
 
 
+def _place(value: Any, path: str) -> Level | Kind:
+    """An instrument level, or a registered subject kind outside the hierarchy."""
+    if value in set(Level):
+        return Level(value)
+    if value in set(Kind) and value not in INSTRUMENT_KINDS:
+        return Kind(value)
+    raise ManifestError(f"{path}: expected an instrument level or a subject kind")
+
+
 def _count(value: Any, path: str, low: int = 1) -> int:
     if type(value) is not int or not low <= value <= 10**9:
         raise ManifestError(f"{path}: expected a whole number of at least {low}")
@@ -180,20 +190,21 @@ def contract_version(document: Any) -> int:
     return version
 
 
-def _concept(key: str, item: Any, addressable: set[Level]) -> ConceptEntry:
+def _concept(key: str, item: Any, addressable: set[Level | Kind]) -> ConceptEntry:
     path = f"concepts.{key}"
     concept = _enum(Concept, key, "concepts")
     spec = REGISTRY[concept]
     per_authority = spec.combine is Combine.PER_AUTHORITY
-    about = {"level", "via"} if spec.levels else set()  # a market-wide concept is about no subject
+    about = {"level", "via"} if spec.levels | spec.kinds else set()  # a market-wide concept is about no subject
     entry = _object(item, path, about | {"operations"} | ({"authorities"} if per_authority else set()),
                     {"coverage", "qualities"})
     level = via = None
-    if spec.levels:
-        level, via = _enum(Level, entry["level"], f"{path}.level"), _enum(Level, entry["via"], f"{path}.via")
-        if level not in spec.levels:
-            raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels))}")
-        if DEPTH[via] < DEPTH[level] or via not in addressable:
+    if about:
+        level, via = _place(entry["level"], f"{path}.level"), _place(entry["via"], f"{path}.via")
+        if level not in spec.levels | spec.kinds:
+            raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels | spec.kinds))}")
+        if isinstance(level, Level) != isinstance(via, Level) or via not in addressable or (
+                DEPTH[via] < DEPTH[level] if isinstance(level, Level) else via != level):
             raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
     operations = {}
     declared = _object(entry["operations"], f"{path}.operations", set(), set(spec.operations))
@@ -287,9 +298,11 @@ def validate_manifest(document: Any) -> Manifest:
         path = f"addressing.native[{index}]"
         entry = _object(item, path, {"native_scope", "level"}, {"asset_classes"})
         native.append(NativeScope(_match(NAMESPACE, entry["native_scope"], f"{path}.native_scope"),
-                                  _enum(Level, entry["level"], f"{path}.level"),
+                                  _place(entry["level"], f"{path}.level"),
                                   _enums(AssetClass, entry.get("asset_classes", []), f"{path}.asset_classes")))
-    if len({item.native_scope for item in native}) != len(native):
+    # One native scope may also address subjects outside the hierarchy (Yahoo's `symbol` names listings and
+    # curated indexes alike), but each place only once.
+    if len({(item.native_scope, item.level) for item in native}) != len(native):
         raise ManifestError("addressing.native: duplicate native_scope")
     schemes = {}
     for key, listed in _object(addressing.get("schemes", {}), "addressing.schemes", set(), set(Level)).items():
@@ -318,10 +331,11 @@ def validate_manifest(document: Any) -> Manifest:
                           _enums(Scheme, entry["input_schemes"], "resolve.input_schemes"),
                           _enums(Scheme, entry["echoes"], "resolve.echoes"))
     for index, item in enumerate(native):
-        if not (bulk or resolve or (item.level is Level.LISTING and mic_table)):
+        # A kind outside the hierarchy (a market) takes its refs from core's curated table (markets.json).
+        if not (bulk or resolve or (item.level is Level.LISTING and mic_table) or not isinstance(item.level, Level)):
             raise ManifestError(f"addressing.native[{index}]: no catalogue, resolve or MIC table produces these refs")
 
-    addressable = {item.level for item in native} | {level for level, listed in schemes.items() if listed}
+    addressable: set[Level | Kind] = {item.level for item in native} | {level for level, listed in schemes.items() if listed}
     addressable |= {Level.LISTING} if mic_table else set()
     concepts = {Concept(key): _concept(key, item, addressable)
                 for key, item in _object(body.get("concepts", {}), "concepts", set(), set(Concept)).items()}

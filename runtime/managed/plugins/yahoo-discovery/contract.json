@@ -10,6 +10,22 @@
         "asset_classes": [
           "equity"
         ]
+      },
+      {
+        "native_scope": "symbol",
+        "level": "market"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "index"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "fx"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "series"
       }
     ],
     "schemes": {
@@ -63,11 +79,7 @@
       },
       "coverage": {
         "asset_classes": [
-          "equity",
-          "index",
-          "future",
-          "fx",
-          "rate"
+          "equity"
         ]
       },
       "qualities": {

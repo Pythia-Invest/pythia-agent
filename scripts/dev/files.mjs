@@ -64,6 +64,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/lifecycle.py",
   "identity/live_market.py",
   "identity/manifest.py",
+  "identity/markets.py",
   "identity/model.py",
   "identity/page.py",
   "identity/queue.py",
@@ -78,8 +79,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/sql/identity.sql",
   "identity/sql/reference.sql",
   "identity/canonical_assets.json",
-  "identity/market_catalogue.py",
-  "identity/market_catalogue.json",
+  "identity/markets.json",
 ]);
 
 export function ensurePrivateDirectory(path) {

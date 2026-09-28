@@ -1,44 +1,13 @@
 "use client";
 import { dayBinding } from "@pythia/market-data/widgets";
-import { cn, InstrumentTile } from "@pythia/ui";
-import { ArrowUpRight } from "lucide-react";
-import Link from "next/link";
+import { InstrumentTile } from "@pythia/ui";
 import { useRouter } from "next/navigation";
-import type { MouseEvent, ReactNode } from "react";
 import { useSubjectPages } from "@/client/market-queries";
 import { instrumentHref } from "@/components/instrument/instrument-href";
 import { useBindingSnapshot } from "@/components/widgets/bound-widget";
 import { subjectLabel, subjectQuote, unavailableItem } from "./market-subjects";
 
 const TILE = { name: true, change: "both" } as const;
-
-/** A click anywhere on a card or table row opens the page its own link
- * names; its controls (status explanations, the link) keep their clicks. The
- * link is the keyboard path. */
-export function openByLink(push: (href: string) => void) {
-  return (event: MouseEvent) => {
-    const target = event.target as Element;
-    if (target.closest("a, button")) return;
-    const href = target
-      .closest("[data-slot=market-card], [data-slot=instrument-row]")
-      ?.querySelector("[data-slot=market-open]")
-      ?.getAttribute("href");
-    if (href) push(href);
-  };
-}
-
-/** A quote time short enough for a card: the time today, else the weekday
- * too, in the viewer's zone; the tile's status explains the full time. */
-function shortTime(value: string) {
-  const date = new Date(value);
-  const today = date.toDateString() === new Date().toDateString();
-  return new Intl.DateTimeFormat(undefined, {
-    ...(today ? {} : { weekday: "short" }),
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(date);
-}
 
 /** Each subject's display: its page composition, core's quote source and one
  * shared quote-and-path read for all of them. Reads start once every
@@ -75,7 +44,6 @@ export function useSubjectDays(subjects: readonly string[]) {
       item,
       label,
       source: quote?.row ? quote.source : undefined,
-      asOf: at >= 0 ? (snapshot?.data.times[at] ?? null) : null,
       loading: Boolean(
         page?.isPending ||
           (quote?.row && (at < 0 || snapshot?.data.pending[at] !== false)),
@@ -88,83 +56,37 @@ export function useSubjectDays(subjects: readonly string[]) {
 export type SubjectDay = ReturnType<typeof useSubjectDays>[number];
 
 /**
- * One market at a glance: its name, last value, change, today's path, market
- * and data state, and the source core chose for the instrument page's quote.
- * Clicking the card opens that page. A subject no source can serve still
- * shows, with the reason.
+ * One market at a glance, the September tile itself: its name, last value,
+ * change, today's path, and market and data state (the status explains the
+ * quote time and source). Clicking or pressing Enter opens the instrument
+ * page; the tile's own status controls keep their clicks. A subject no source
+ * can serve still shows, with the reason.
  */
-export function DayCard({ day }: { day: SubjectDay }) {
+export function MarketCard({ day }: { day: SubjectDay }) {
   const router = useRouter();
+  const open = () => router.push(instrumentHref(day.subject));
   return (
-    <Frame
-      href={instrumentHref(day.subject)}
-      name={day.label?.symbol ?? day.subject}
-      onClick={openByLink(router.push)}
-      footer={
-        day.source ? (
-          <>
-            {day.source}
-            {day.asOf ? ` · ${shortTime(day.asOf)}` : ""}
-          </>
-        ) : day.known ? (
-          <span className="text-warning">{day.item.statusLabel}</span>
-        ) : (
-          "Loading…"
-        )
-      }
+    // biome-ignore lint/a11y/useSemanticElements: an <a> may not contain the tile's status buttons
+    <div
+      role="link"
+      tabIndex={0}
+      data-slot="market-card"
+      aria-label={`Open ${day.label?.symbol ?? day.subject}`}
+      className="@min-[520px]:w-44 w-full min-w-0 max-w-full shrink-0 cursor-pointer rounded-control outline-ring focus-visible:outline-2"
+      onClick={(event) => {
+        if (!(event.target as Element).closest("button")) open();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && event.target === event.currentTarget)
+          open();
+      }}
     >
       <InstrumentTile
         item={day.item}
         options={TILE}
         loading={day.loading}
-        className="border-0 bg-transparent p-0"
+        className="w-full border-border/55"
       />
-    </Frame>
-  );
-}
-
-/** One market card from its subject ID alone. */
-export function MarketCard({ subject }: { subject: string }) {
-  const [day] = useSubjectDays([subject]);
-  return day ? <DayCard day={day} /> : null;
-}
-
-function Frame({
-  href,
-  name,
-  onClick,
-  footer,
-  children,
-}: {
-  href: string;
-  name: string;
-  onClick: (event: MouseEvent) => void;
-  footer: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: a pointer shortcut; the card's link is the keyboard path
-    <article
-      data-slot="market-card"
-      aria-label={name}
-      onClick={onClick}
-      className={cn(
-        "flex @min-[520px]:w-44 w-full min-w-0 max-w-full shrink-0 cursor-pointer flex-col gap-1 rounded-control border border-border/55 bg-raised px-2.5 pt-2 pb-1",
-        "motion-fast transition-colors hover:border-border-strong",
-      )}
-    >
-      {children}
-      <footer className="flex min-h-5 items-center justify-between gap-2 text-[10px] text-foreground-secondary">
-        <span className="min-w-0 truncate">{footer}</span>
-        <Link
-          href={href}
-          data-slot="market-open"
-          aria-label={`Open ${name}`}
-          className="-mr-1 grid size-5 shrink-0 place-items-center rounded-sm outline-ring hover:text-foreground focus-visible:outline-2"
-        >
-          <ArrowUpRight aria-hidden="true" className="size-3.5" />
-        </Link>
-      </footer>
-    </article>
+    </div>
   );
 }

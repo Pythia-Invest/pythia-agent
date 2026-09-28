@@ -21,10 +21,9 @@ import type { WidgetBinding, WidgetQuery, WidgetQueryResult } from "./types";
 /** One instrument by its explicit source address (a page section's binding). */
 export type DayRow = Omit<ChartWidgetInput, "period">;
 export type DayInput = { rows: readonly DayRow[] };
-/** Each row's display with today's path, and the time of its quote. */
+/** Each row's display with today's path. */
 export type DayData = {
   rows: InstrumentDisplay[];
-  times: (string | null)[];
   /** Rows whose quote read has not answered yet. */
   pending: boolean[];
   state: "loading" | "ready" | "empty" | "error";
@@ -90,11 +89,6 @@ function histories(input: DayInput, primary: WidgetQueryResult<DayResult>[]) {
   };
 }
 
-function quoteTime(read: ReadResult | undefined) {
-  const time = read?.observations.at(-1)?.time;
-  return time && time.kind !== "unknown" ? time.value : null;
-}
-
 /**
  * Quotes with today's path for a list of instruments, as the markets overview
  * shows them: one read for every quote, each source's declared series, then
@@ -140,11 +134,9 @@ export const dayBinding: WidgetBinding<DayInput, DayResult, DayData> = {
       bars.set(index, data?.result);
       if (query?.error) failed.add(index);
     });
-    const times: (string | null)[] = [];
     const pending: boolean[] = [];
     const rows = input.rows.map((row, index): InstrumentDisplay => {
       const quote = quotes?.[index];
-      times.push(quoteTime(quote));
       pending.push(Boolean(quoteQuery?.isPending));
       if (quoteQuery?.isPending)
         // Known identity, no values yet: never a failure while the read runs.
@@ -189,7 +181,7 @@ export const dayBinding: WidgetBinding<DayInput, DayResult, DayData> = {
     return {
       state,
       ...(message ? { message } : {}),
-      data: { rows, times, pending, state, ...(message ? { message } : {}) },
+      data: { rows, pending, state, ...(message ? { message } : {}) },
     };
   },
 };

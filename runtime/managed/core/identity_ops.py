@@ -20,14 +20,13 @@ from pathlib import Path
 from typing import Any
 
 from .identity import (
-    MANIFEST_FILE, ClaimError, Level, ManifestError, ManifestNeedsUpdate, check_batch, validate_manifest,
+    MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch, subject_kind,
+    validate_manifest,
 )
 from . import queue_ops, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import (
-    batch_from_json, batch_to_json, lifecycle, market_catalogue, page, reference_package, search, store,
-)
+from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -213,7 +212,9 @@ class Identity:
             logger.warning("identity unreadable for a market-data read", exc_info=True)
             return unrouted("no_reference_data")
         if subject is None:
-            return unrouted("unknown_subject" if path else "no_reference_data")
+            # A market needs no reference file, so an unknown one is unknown, not missing reference data.
+            return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS
+                            else "no_reference_data")
         plugins = installed()
         named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
         return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, plugins, **lookups),
@@ -226,6 +227,8 @@ class Identity:
         security = subject["ids"].get(Level.SECURITY)
         view = subject["view"]
         view["other_securities"] = []
+        if subject["level"] is not Kind.MARKET:  # the curated markets that are derivatives on it, as links
+            view["related"] += markets.markets_on(markets.curated(), [value for value in subject["ids"].values() if value])
         if subject["asset_class"] == "equity" and security:  # the instrument's lines, receipts folded in
             directory = search.directory(path, store.open_reference)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
@@ -237,15 +240,10 @@ class Identity:
         return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
-        """The reference path and the subject from it, with the store lookups page composition reads.
-
-        A subject of core's market catalogue (an index, a continuous future, a currency pair, a yield) needs no
-        reference file: it has no reference path, and its curated addresses stand in for bindings."""
-        market = market_catalogue.load(subject_id)
-        if market is not None:
-            lookups = {"stored": lambda target, provider: None, "coins": lambda provider, caip19: None, "queue": [],
-                       "misses": {}, "order": self.order()}
-            return None, market, lookups, None
+        """The reference path and the subject from it, with the store lookups page composition reads."""
+        if subject_kind(subject_id) in markets.CURATED_KINDS:  # a curated market subject needs no reference file
+            subject = markets.load_market(markets.curated(), subject_id)
+            return (None, None, {}, "Unknown subject.") if subject is None else (None, subject, self._lookups(subject_id, subject, {}), None)
         path, ref = self.reference()
         if ref is None:
             return None, None, {}, NO_REFERENCE
@@ -259,6 +257,10 @@ class Identity:
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         finally:
             ref.close()
+        return path, subject, self._lookups(subject_id, subject, coins), None
+
+    def _lookups(self, subject_id: str, subject: dict, coins: dict) -> dict:
+        """The store lookups page composition reads for a subject."""
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row
@@ -267,7 +269,7 @@ class Identity:
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
                    "order": self.order()}
-        return path, subject, lookups, None
+        return lookups
 
     @staticmethod
     def _default_listing(path: Path, subject: dict) -> str | None:

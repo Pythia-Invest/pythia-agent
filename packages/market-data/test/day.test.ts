@@ -81,7 +81,6 @@ describe("the markets overview's quotes and paths", () => {
       true,
     ]);
     expect(data.rows[0]?.price).not.toBeNull();
-    expect(data.times[0]).not.toBeNull();
     expect(data.pending).toEqual([false, false]);
   });
 });

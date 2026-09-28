@@ -3,12 +3,14 @@
 `subject_view` is local only: it reads the reference file, the identity store and
 the installed plugins' contracts, and never calls a plugin. A plugin whose
 contract lets core build its native reference from open identifiers (a MIC
-suffix table, an identifier-named native scope, the curated canonical-asset table
-or core's market catalogue)
+suffix table, an identifier-named native scope, the curated canonical-asset table)
 is addressed at once; that derived reference is an address, never identifier
 evidence. Only when core cannot derive the address is the section `resolving`:
 the Desk then asks for that plugin's resolve (`identity-resolve`), which
 `apply_resolve` decides with the one authority rule.
+
+A `market` subject (a perp) comes from core's curated table (`markets.py`); its
+page needs no reference file.
 """
 from __future__ import annotations
 
@@ -19,13 +21,13 @@ from datetime import date
 from enum import StrEnum
 from typing import Any, Callable, Mapping
 
-from . import market_catalogue
 from .claims import ClaimBatch, RecordClaim
 from .concepts import NOTICE, REGISTRY, Combine, Concept, ranked, select
 from .manifest import ConceptEntry, Manifest
+from .markets import MARKETS_RULE
 from .model import Binding, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
-from .schemes import CANONICAL_ASSETS_RULE, Level, provisional_id
+from .schemes import CANONICAL_ASSETS_RULE, INSTRUMENT_KINDS, Kind, Level, provisional_id
 from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
 from .vocabulary import KIND_OF_RECORD, AssetClass, InstrumentKind, VerdictRelation
 
@@ -40,15 +42,18 @@ class Section(StrEnum):
     FINANCIALS = "financials"
     NEWS = "news"
     FILINGS = "filings"
+    LIVE = "live"  # a `live_market` snapshot stream (ADR 0040), subscribed only while the page shows it
 
 
 # The concept operations that can fill each section, preferred first.
 SERVES = {Section.QUOTE: (Concept.MARKET_DATA, ("quote",)), Section.CHART: (Concept.MARKET_DATA, ("daily", "intraday")),
           Section.PROFILE: (Concept.PROFILE, ("fields",)), Section.FILINGS: (Concept.FILINGS, ("list",)),
-          Section.FINANCIALS: (Concept.FUNDAMENTALS, ("statements",)), Section.NEWS: (Concept.NEWS, ("list",))}
-SECTIONS = (Section.QUOTE, Section.CHART, Section.PROFILE, Section.FILINGS)
+          Section.FINANCIALS: (Concept.FUNDAMENTALS, ("statements",)), Section.NEWS: (Concept.NEWS, ("list",)),
+          Section.LIVE: (Concept.MARKET_DATA, ("live",))}
+SECTIONS = (Section.QUOTE, Section.CHART, Section.LIVE, Section.PROFILE, Section.FILINGS)
 LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMarketCap", "coingecko": "CoinGecko",
-          "gleif": "GLEIF", "xbrl-filings": "filings.xbrl.org", "sec": "SEC EDGAR", "openfigi": "OpenFIGI"}
+          "gleif": "GLEIF", "xbrl-filings": "filings.xbrl.org", "sec": "SEC EDGAR", "openfigi": "OpenFIGI",
+          "hyperliquid": "Hyperliquid"}
 SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
         Level.SECURITY: VerdictRelation.SAME_SECURITY, Level.ISSUER: VerdictRelation.SAME_ISSUER}
 RESOLVE_RULE = "resolve_answer@1"  # a resolve answer to open identifiers binds unless identifier evidence contradicts it
@@ -109,9 +114,13 @@ def ordered(plugins: list[PluginInfo], section: Section, order: tuple[str, ...] 
 
 # ---- addressing -------------------------------------------------------------------------------------------------
 
-def derive(info: PluginInfo, level: Level, subject: dict, coins: Callable[[str, str], str | None]) -> tuple[ProviderRef, str] | None:
+def derive(info: PluginInfo, level: Level | Kind, subject: dict, coins: Callable[[str, str], str | None]) -> tuple[ProviderRef, str] | None:
     """A native reference core builds without a call, with the rule that built it, or None."""
     manifest, values, listing = info.manifest, subject["values"], subject["listing"]
+    if level not in INSTRUMENT_KINDS:  # a market: the curated table names each serving plugin's reference
+        ref = subject.get("refs", {}).get(manifest.provider)
+        served = ref and any(scope.level is level and scope.native_scope == ref.native_scope for scope in manifest.native)
+        return (ref, MARKETS_RULE) if served else None
     for scope in manifest.native:
         if scope.level is not level or (scope.asset_classes and subject["asset_class"] not in scope.asset_classes):
             continue
@@ -163,7 +172,7 @@ def resolve_input(info: PluginInfo, subject: dict) -> dict[str, str]:
     return {scheme: values[scheme] for scheme in info.manifest.resolve.input_schemes if values.get(scheme)}
 
 
-def _addressable(info: PluginInfo, level: Level, subject: dict) -> bool:
+def _addressable(info: PluginInfo, level: Level | Kind, subject: dict) -> bool:
     return any(scope.level is level and (not scope.asset_classes or subject["asset_class"] in scope.asset_classes)
                for scope in info.manifest.native)
 
@@ -188,18 +197,20 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
               "authorities": [str(item) for item in entry.authorities]}
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
-    if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes:
+    # A curated subject outside the hierarchy (a market, index, pair or series) is addressed as itself; one with
+    # no asset class (a currency pair, a yield, a commodity future) is covered wherever the plugin addresses it.
+    curated = subject["level"] not in INSTRUMENT_KINDS
+    via = subject["level"] if curated else entry.via
+    if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes and not (
+            curated and subject["asset_class"] is None):
         return {**answer, "status": "not_covering",
                 "reason": f"{info.label} does not cover {subject['asset_class'] or 'this kind of'} instruments"}
     if coverage.markets is not None and market not in coverage.markets:
         return {**answer, "status": "not_covering", "reason": f"{info.label} does not cover {market or 'this market'}"}
-    target = subject["ids"].get(entry.via)
-    row = stored(target, info.manifest.provider) if target and _addressable(info, entry.via, subject) else None
-    derived = None if row or not target or not _addressable(info, entry.via, subject) else derive(info, entry.via, subject, coins)
-    curated = subject.get("bindings", {}).get(info.manifest.provider) if concept is Concept.MARKET_DATA else None
-    if curated:  # a market-catalogue subject: its curated address, whatever the plugin's native levels
-        derived = (curated, market_catalogue.RULE)
-    wants_resolve = (bool(target) and _addressable(info, entry.via, subject) and not row and not derived
+    target = subject["ids"].get(via)
+    row = stored(target, info.manifest.provider) if target and _addressable(info, via, subject) else None
+    derived = None if row or not target or not _addressable(info, via, subject) else derive(info, via, subject, coins)
+    wants_resolve = (bool(target) and _addressable(info, via, subject) and not row and not derived
                      and bool(resolve_input(info, subject)))
     if not (row or derived or wants_resolve):
         return {**answer, "status": "not_addressable", "reason": f"{info.label} has no address for this {subject['level']}"}
@@ -222,12 +233,15 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         ref, state = ProviderRef(row["provider"], row["native_id"], row["native_scope"]), row["status"]
     else:
         ref, rule = derived
-        state = "confirmed" if rule in (CANONICAL_ASSETS_RULE, market_catalogue.RULE) else "derived"
+        state = "confirmed" if rule in (CANONICAL_ASSETS_RULE, MARKETS_RULE) else "derived"
     request = None
-    if section in (Section.PROFILE, Section.FILINGS):
+    if section in (Section.PROFILE, Section.FILINGS, Section.LIVE):
         if operation not in info.operations:  # the contract names it, but no native tool declares it
             return {**answer, "status": "unresolved", "reason": f"{info.label} exposes no {section} operation"}
-        request = {"plugin": info.key, "operation": operation, "arguments": {"native_ref": ref.wire()}}
+        arguments = {"native_ref": ref.wire()}
+        if section is Section.LIVE:  # a live_market snapshot names its subject
+            arguments["subject_id"] = subject["id"]
+        request = {"plugin": info.key, "operation": operation, "arguments": arguments}
     return {**answer, "binding": ref.wire(), "binding_status": state, "request": request}
 
 

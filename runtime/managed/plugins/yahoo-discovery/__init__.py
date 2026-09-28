@@ -9,6 +9,14 @@ from .identity import candidate, reference
 from .series import definition, selector, MODES
 from .results import envelope, issue, base, read, window, now
 
+NEWS_WARNINGS = frozenset({'schema_drift', 'window_incomplete', 'truncated', 'invalid_value'})
+
+
+def compatible(actual, native):
+    """The same symbol, carrying every qualifier the pinned reference names (Yahoo may add others)."""
+    return actual['native_id'] == native['native_id'] and all(
+        actual.get('qualifiers', {}).get(key) == value for key, value in native.get('qualifiers', {}).items())
+
 
 def register(ctx):
     from hermes_cli.plugins import get_plugin_manager
@@ -112,7 +120,9 @@ def register(ctx):
                     args['options'] = json.loads(args.pop('options_json', '{}'))
                     if not isinstance(args['options'], dict): raise ValueError('invalid_request')
                 raw = call(clean['operation'] if operation == 'research' else 'dashboard', args)
-                return failures.qualify_items(failures.qualify_failure(envelope(raw['data'], [issue(code) for code in raw['issues']]), raw))
+                reading_news = operation == 'research' and clean['operation'] == 'news'
+                return failures.qualify_items(failures.qualify_failure(envelope(raw['data'], [
+                    issue(code, 'warning' if reading_news and code in NEWS_WARNINGS else 'error') for code in raw['issues']]), raw))
             if request:
                 native, mode = selector(clean['source_selector'])
                 wire.validate('provider_ref', native)
@@ -129,7 +139,7 @@ def register(ctx):
             exact = candidate(raw['data'])
             # Bare references may be enriched once during describe; pinned reads
             # require the exact retained reference, including venue/currency.
-            if any(exact['provider_ref'].get('qualifiers', {}).get(k) != v for k, v in native.get('qualifiers', {}).items()): raise ValueError('binding_mismatch')
+            if not compatible(exact['provider_ref'], native): raise ValueError('binding_mismatch')
             if operation == 'details': return envelope([exact])
             if operation == 'series':
                 return envelope([wire.validate('series', definition(exact['provider_ref'], m, raw['data'])) for m in MODES])
@@ -138,7 +148,8 @@ def register(ctx):
             view = request['view']
             if (view['kind'] == 'source' and view['series_id'] != series['id']) or (view['kind'] == 'pythia' and view['subject'] != native): raise ValueError('binding_mismatch')
             raw = call('price_read', {'symbol': symbol, 'mode': mode, **controls})
-            if raw.get('data') and candidate(raw['data']['metadata'])['provider_ref'] != native: raise ValueError('binding_mismatch')
+            # Chart metadata may add a qualifier the quote lacks (^STOXX50E's currency): only the pinned ones must match.
+            if raw.get('data') and not compatible(candidate(raw['data']['metadata'])['provider_ref'], native): raise ValueError('binding_mismatch')
             if raw.get('data') and definition(native, mode, raw['data']['metadata'])['id'] != series['id']: raise ValueError('binding_mismatch')
             return wire.validate_read_result(failures.qualify_failure(read(request, series, mode, raw), raw))
         except failures.SourceFailure as error:

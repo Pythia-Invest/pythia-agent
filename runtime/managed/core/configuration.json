@@ -17,7 +17,7 @@
       "key": "markets_cards",
       "kind": "identity",
       "label": "Markets overview cards",
-      "description": "The subjects the Markets page shows as cards, in order, separated by commas or spaces: subject IDs such as index:pythia:sp500, future:pythia:cl, fx:pythia:EURUSD or a listing's ID from its page. Leave empty for Pythia's global default."
+      "description": "The subjects the Markets page shows as cards, in order, separated by commas or spaces: subject IDs such as index:pythia:sp500, market:pythia:nymex-cl-front-month, fx:pythia:EURUSD or a listing's ID from its page. Leave empty for Pythia's global default."
     },
     {
       "key": "markets_watchlist",

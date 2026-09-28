@@ -10,9 +10,8 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from test_identity_contracts import identity
 from test_selection import shipped
-from pythia_identity_fixture import market_catalogue, page  # noqa: E402
+from pythia_identity_fixture import markets, page  # noqa: E402
 
 MOVERS = Path(__file__).parents[2] / "managed/plugins/yahoo-discovery/movers.py"
 SPEC = importlib.util.spec_from_file_location("pythia_yahoo_movers_fixture", MOVERS)
@@ -35,30 +34,33 @@ def screen(*quotes):
     return {"source": "yahoo.screener", "retrieved_at": "2026-09-28T12:00:00Z", "result": {"quotes": list(quotes)}}
 
 
-class CatalogueTest(unittest.TestCase):
-    def test_a_market_subject_is_priced_through_its_curated_address(self):
-        subject = market_catalogue.load(SP500)
-        self.assertEqual((subject["asset_class"], subject["view"]["subject"]["name"]), ("index", "S&P 500"))
+class CuratedSubjectTest(unittest.TestCase):
+    def test_an_index_is_priced_through_its_curated_yahoo_symbol(self):
+        subject = markets.load_market(markets.curated(), SP500)
+        self.assertEqual((subject["level"], subject["view"]["subject"]["name"]), ("index", "S&P 500"))
         sections = {item["section"]: item for item in page.compose(subject, shipped(), **LOOKUPS)}
         quote_section = sections["quote"]
         self.assertEqual((quote_section["plugin"], quote_section["binding"], quote_section["binding_status"]),
                          ("pythia-yahoo-discovery", {"provider": "yahoo", "native_id": "^GSPC", "native_scope": "symbol"},
                           "confirmed"))
-        # EODHD has a curated code but does not declare index coverage: skipped, never silently used.
-        self.assertIn(("pythia-eodhd", "not_covering"), [(item["plugin"], item["code"]) for item in quote_section["skipped"]])
         self.assertEqual(set(sections), {"quote", "chart"})  # no profile or filings for an index
 
-    def test_a_disabled_source_leaves_the_subject_without_a_price_and_says_why(self):
-        subject = market_catalogue.load(SP500)
-        sections = page.compose(subject, shipped(**{"yahoo-discovery": {"enabled": False}}), **LOOKUPS)
-        self.assertEqual({item["status"] for item in sections}, {"disabled"})
-        self.assertEqual(page.price_sources(subject, shipped(**{"yahoo-discovery": {"enabled": False}}), **LOOKUPS), [])
+    def test_a_pair_without_an_asset_class_is_served_where_a_plugin_addresses_it(self):
+        subject = markets.load_market(markets.curated(), "fx:pythia:EURUSD")
+        self.assertEqual(page.price_sources(subject, shipped(), **LOOKUPS),
+                         [{"provider": "yahoo", "native_id": "EURUSD=X", "native_scope": "symbol"}])
+        disabled = shipped(**{"yahoo-discovery": {"enabled": False}})
+        self.assertEqual(page.price_sources(subject, disabled, **LOOKUPS), [])
+        self.assertEqual({item["status"] for item in page.compose(subject, disabled, **LOOKUPS)}, {"disabled"})
 
-    def test_the_catalogue_holds_only_pythia_keyed_market_subjects(self):
-        self.assertIsNone(market_catalogue.load("security:isin:NL0010273215"))
-        for subject_id, item in market_catalogue.entries().items():
-            self.assertIn(identity.registered_kind(subject_id), {"index", "future", "fx", "series"})
-            self.assertTrue(item.get("yahoo"), subject_id)
+    def test_a_front_month_future_is_a_market_on_its_index(self):
+        subject = markets.load_market(markets.curated(), "market:pythia:cme-es-front-month")
+        self.assertEqual(subject["view"]["related"][0]["id"], SP500)
+        self.assertIn("market:pythia:cme-es-front-month",
+                      [item["id"] for item in markets.markets_on(markets.curated(), [SP500])])
+        perp = markets.load_market(markets.curated(), "market:pythia:hyperliquid-btc-perp")
+        # Yahoo addresses markets, but does not cover a crypto perp (and has no symbol for it).
+        self.assertEqual(page.price_sources(perp, shipped(), **LOOKUPS), [])
 
 
 class ScreenerAdapterTest(unittest.TestCase):
@@ -72,14 +74,16 @@ class ScreenerAdapterTest(unittest.TestCase):
         self.assertEqual((second["mic"], second["name"]), ("XNYS", "Denison"))  # NYSE American is a segment of XNYS
         self.assertEqual((data["market"], data["retrieved_at"]), ("US", "2026-09-28T12:00:00Z"))
 
-    def test_a_changed_answer_raises_a_visible_drift_issue(self):
-        data, issues = movers.adapt(screen(quote(newYahooField=1), quote("OTC", exchange="XYZ"),
-                                           quote("GONE", regularMarketPrice=None)), "gainers", 25)
+    def test_additive_changes_are_logged_and_unreadable_rows_are_an_issue(self):
+        with self.assertLogs(movers.logger, "WARNING") as logged:
+            data, issues = movers.adapt(screen(quote(newYahooField=1), quote("OTC", exchange="XYZ"),
+                                               quote("GONE", regularMarketPrice=None)), "gainers", 25)
         self.assertEqual([row["symbol"] for row in data["rows"]], ["NVDA", "OTC"])
         self.assertIsNone(data["rows"][1]["mic"])  # an unknown venue is never guessed
-        self.assertEqual([issue["code"] for issue in issues], ["source_drift"])
-        for part in ("newYahooField", "XYZ", "1 row "):
-            self.assertIn(part, issues[0]["message"])
+        self.assertTrue(any("newYahooField" in line and "XYZ" in line for line in logged.output))
+        self.assertEqual([issue["code"] for issue in issues], ["source_drift"])  # only the left-out row
+        self.assertIn("1 row ", issues[0]["message"])
+        self.assertNotIn("newYahooField", issues[0]["message"])
         self.assertEqual(movers.adapt({"result": {}}, "losers", 25)[0], None)
 
 
@@ -125,7 +129,7 @@ class MarketReadsTest(unittest.TestCase):
                          [self.ops.UNRESOLVED["ambiguous"], self.ops.UNRESOLVED["not_in_reference"],
                           self.ops.UNRESOLVED["no_venue"]])
         self.assertEqual(body["data"]["source"]["source"], "Yahoo Finance")
-        self.assertEqual([issue["code"] for issue in body["issues"]], ["source_drift"])
+        self.assertNotIn("issues", body)  # an unknown venue is the maintainer's signal, not an issue
 
     def test_a_failed_source_is_named_and_nothing_else_is_read(self):
         failed = {"schema_version": 1, "outcome": "error", "data": None,

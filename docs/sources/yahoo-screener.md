@@ -59,15 +59,16 @@ stocks with a market cap of $2B or more".
 
 | Check (every answer) | Baseline | Alarm |
 | --- | --- | --- |
-| Field set against the SDK schema plus the fields the audit saw | none unknown | `source_drift` issue naming the new fields |
-| A read field missing or of the wrong type | none | row left out and counted in the issue |
-| `exchange` outside the venue table | none | row kept without a MIC (unresolved), venue named in the issue |
-| `marketState` outside the vocabulary | none | named in the issue |
-| `quoteType` other than `EQUITY` | none | named in the issue |
+| Field set against the SDK schema plus the fields the audit saw | none unknown | logged for the maintainer, naming the new fields |
+| A read field missing or of the wrong type | none | row left out; logged and returned as a `source_drift` issue |
+| `exchange` outside the venue table | none | row kept without a MIC (unresolved, marked on the page); logged |
+| `marketState` outside the vocabulary | none | logged |
+| `quoteType` other than `EQUITY` | none | logged |
 | No `quotes` list | – | the read fails with `source_drift` |
 
-A `source_drift` issue reaches the Markets page as a warning under the table
-and is logged by the plugin. Rows still show when the change is additive.
+Only a structural break (rows that cannot be read) becomes an issue on the
+answer, which the agent and developers see; the Markets page shows none of
+them. Additive changes leave every shown value intact.
 
 ## 3. Data audit
 
