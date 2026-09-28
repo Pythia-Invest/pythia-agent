@@ -114,7 +114,7 @@ def _check(identity: Identity, subject_id: str, ref: ProviderRef, said: dict) ->
     if not comparable:
         return UNCHECKED
     note = (" and ".join(differs) + (" differ" if len(differs) > 1 else " differs") if differs
-            else "source not audited" if getattr(info.manifest, "unaudited", False) else None)  # ADR 0042 sign-off
+            else "source not audited" if info.manifest.unaudited else None)  # ADR 0042 sign-off
     identity.store.put_read_check(subject["ids"][Level(served["via"])], ref, info.manifest.plugin, stated, differs, note)
     if note:
         logger.info("%s read of %s for %s: unverified (%s)", info.label, ref.native_id, subject_id, note)

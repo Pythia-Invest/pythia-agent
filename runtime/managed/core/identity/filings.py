@@ -18,7 +18,8 @@ from .page import source
 # A source that answers "no such entity" lists nothing for it; that is an empty list, not a failed source.
 NOTHING_LISTED = frozenset({"missing_observation"})
 # Form names an investor or agent uses for a form a source lists under another name.
-FORM_ALIASES = {"AFR": ("ESEF", "UKSEF"), "ANNUAL": ("10-K", "20-F", "40-F", "ESEF", "UKSEF")}
+FORM_ALIASES = {"AFR": ("ESEF", "UKSEF"), "ANNUAL": ("10-K", "20-F", "40-F", "ESEF", "UKSEF"),
+                "13G": ("SC 13G", "SCHEDULE 13G")}  # SEC renamed Schedule 13G in 2024; both names occur
 
 
 def form_matches(form: str | None, forms: Collection[str]) -> bool:

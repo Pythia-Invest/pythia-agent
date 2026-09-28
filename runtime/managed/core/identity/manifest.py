@@ -7,14 +7,15 @@ stays the authority for discovery and enablement.
 
 Version 1 declares, per core data concept (ADR 0040), the plugin operation that
 serves each concept operation, its coverage and its qualities from core's closed
-vocabulary, plus the provider terms core must know (`rights`) and optional
-published limits. Contracts name plugin operations, never Hermes tools; the
-Hermes adapter maps an operation to the tool that declares it.
+vocabulary, plus the provider terms core must know (`rights`), the source's
+onboarding sign-off (`signoff`, ADR 0042) and optional published limits.
+Contracts name plugin operations, never Hermes tools; the Hermes adapter maps an
+operation to the tool that declares it.
 """
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any, Mapping
 
@@ -27,11 +28,24 @@ CONTRACT_VERSION = 1  # the newest contract shape this core reads
 OPERATION = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")  # a plugin operation name, as `declare_operation` accepts
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 LIMIT_UNITS = ("call", "credit", "request")
+# Pythia's own plugins (the managed payloads in scripts/dev/managed-plugins.mjs). A plugin cannot vouch for itself:
+# core honours `signed_off` or `grandfathered` only from these; any other plugin is unsigned (ADR 0042).
+BUNDLED = frozenset({"pythia-coingecko", "pythia-coinmarketcap", "pythia-eodhd", "pythia-gleif", "pythia-hyperliquid",
+                     "pythia-sec", "pythia-xbrl-filings", "pythia-yahoo-discovery"})
+RECORD = re.compile(r"^(docs/sources/[a-z0-9][a-z0-9-]{0,63}\.md|https://\S{1,500})\Z")  # a public source record
 
 
 class CatalogueMode(StrEnum):
     BULK = "bulk"                  # pages typed records onto the device
     RESOLVE_ONLY = "resolve_only"  # the default: only records the user picked are kept
+
+
+class SignOff(StrEnum):
+    """A source's standing under the onboarding standard (ADR 0042)."""
+
+    SIGNED_OFF = "signed_off"        # passed the four stages; its record says so
+    GRANDFATHERED = "grandfathered"  # in use before the standard: keeps its role until its turn
+    UNSIGNED = "unsigned"            # opt-in only: off in fresh profiles, never core's choice, never confirms
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,9 +123,15 @@ class Manifest:
     catalogue_scopes: tuple[str, ...]
     resolve: Resolve | None
     rights: Rights
+    signoff: SignOff
+    record: str | None              # the source record: required once signed off, pending before
     limits: Limits | None = None
     contract_version: int = CONTRACT_VERSION
     venue_codes: Mapping[str, str] = field(default_factory=dict)  # the provider's venue code -> operating MIC ("NMS": "XNAS")
+
+    @property
+    def unaudited(self) -> bool:
+        return self.signoff is SignOff.UNSIGNED
 
     def native_scope(self, native_scope: str) -> NativeScope | None:
         return next((item for item in self.native if item.native_scope == native_scope), None)
@@ -268,6 +288,14 @@ def _rights(value: Any) -> Rights:
     return Rights(_enum(Licence, body["licence"], "rights.licence"), seconds, body["hostable"], attribution)
 
 
+def _signoff(value: Any) -> tuple[SignOff, str | None]:
+    body = _object(value, "signoff", {"status"}, {"record"})
+    status = _enum(SignOff, body["status"], "signoff.status")
+    if status is SignOff.SIGNED_OFF and "record" not in body:
+        raise ManifestError("signoff.record: a signed-off source links its record")
+    return status, _match(RECORD, body["record"], "signoff.record") if "record" in body else None
+
+
 def _limits(value: Any) -> Limits:
     body = _object(value, "limits", {"plan", "unit"}, {"per_second", "per_minute", "per_day", "per_month"})
     if not isinstance(body["plan"], str) or not 0 < len(body["plan"]) <= 64:
@@ -278,6 +306,11 @@ def _limits(value: Any) -> Limits:
                                                  for name in ("per_second", "per_minute", "per_day", "per_month")})
 
 
+def vouched(manifest: Manifest, key: str) -> Manifest:
+    """The contract as core trusts it for installed plugin `key`: unsigned unless Pythia bundles the plugin."""
+    return manifest if key in BUNDLED else replace(manifest, signoff=SignOff.UNSIGNED)
+
+
 def validate_manifest(document: Any) -> Manifest:
     """Validate a parsed `contract.json`; raise ManifestError naming the first bad path.
 
@@ -286,7 +319,7 @@ def validate_manifest(document: Any) -> Manifest:
     version = contract_version(document)
     if version > CONTRACT_VERSION:
         raise ManifestNeedsUpdate(version)
-    body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights"},
+    body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights", "signoff"},
                    {"concepts", "catalogue", "resolve", "limits"})
     addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table", "venue_codes"})
     native = []
@@ -343,4 +376,5 @@ def validate_manifest(document: Any) -> Manifest:
     return Manifest(_match(NAMESPACE, body["plugin"], "manifest.plugin"),
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
                     tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
-                    _rights(body["rights"]), _limits(body["limits"]) if "limits" in body else None, version, venue_codes)
+                    _rights(body["rights"]), *_signoff(body["signoff"]),
+                    _limits(body["limits"]) if "limits" in body else None, version, venue_codes)

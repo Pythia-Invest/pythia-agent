@@ -34,6 +34,7 @@ class Sources:
         self.read_transform = None
         self.extra = []  # further references core routes the subject through
         self.named = []  # providers the investor names in `source_order`
+        self.unaudited = []  # providers core marks not yet signed off (ADR 0042)
         self.checks = []  # (subject id, reference, stated) core was asked to check
         self.refuse = set()  # providers whose reads core refuses for the subject
         self.unverified = set()  # providers core labels unverified
@@ -79,7 +80,8 @@ class Sources:
     def subjects(self, subject_id):
         if subject_id != SUBJECT["id"]:
             return None
-        return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra], "named": list(self.named)}
+        return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra], "named": list(self.named),
+                "unaudited": list(self.unaudited)}
 
     def check_read(self, subject_id, native_ref, stated):
         self.checks.append((subject_id, native_ref, stated))

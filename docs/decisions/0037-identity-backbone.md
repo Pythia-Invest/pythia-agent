@@ -355,7 +355,8 @@ A subject ID is `<kind>:<key-scheme>:<key>`, and its first segment is the
   kinds with their registered key schemes, so `security:bogus:x` is rejected.
 - Kinds, relation types and each relation's allowed kinds live in Python.
   - The persistent `identity.sqlite3` checks only the ID format (schema 4, which
-    migrates schema 3 in place).
+    migrates schema 3 in place). Schema 5 also leaves queue reasons to Python
+    and migrates schemas 3 and 4 in place.
   - The rebuilt `reference.sqlite3` keeps its instrument CHECKs but not
     relation-type ones.
 

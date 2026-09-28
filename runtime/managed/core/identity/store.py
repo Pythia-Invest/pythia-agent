@@ -28,8 +28,8 @@ from .vocabulary import PROVISIONAL
 from .resolution import QueueItem, Verdict, VerdictOutcome
 
 logger = logging.getLogger(__name__)
-SCHEMA_VERSION = "4"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds)
-ADDED = "-- Added within schema 4"  # identity.sql: the idempotent statements every open applies
+SCHEMA_VERSION = "5"  # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds; 5: open queue reasons)
+ADDED = "-- Added within schema 5"  # identity.sql: the idempotent statements every open applies
 REFERENCE_SCHEMA_VERSION = str(reference_package.FORMAT_VERSION)  # the reference SQLite's release.schema_version
 
 
@@ -67,13 +67,13 @@ class IdentityStore:
         self.path = directory / "identity.sqlite3"
         self.set_aside: str | None = None  # the file name an incompatible store was kept under, this process
         version = self._version() if self.path.exists() else SCHEMA_VERSION
-        if version == "3":
+        if version in ("3", "4"):
             try:
-                self._migrate_v3()
+                self._migrate(version)
                 version = SCHEMA_VERSION
             except sqlite3.Error:
                 # Another process may have migrated it meanwhile; otherwise it is kept aside below like any other.
-                logger.warning("identity store schema 3 could not be migrated", exc_info=True)
+                logger.warning("identity store schema %s could not be migrated", version, exc_info=True)
                 version = self._version()
         if version != SCHEMA_VERSION:
             # Never delete device state: keep the old file (and its journal) aside and start a fresh store.
@@ -113,25 +113,28 @@ class IdentityStore:
         os.chmod(staging, 0o600)
         staging.replace(self.path)
 
-    def _migrate_v3(self) -> None:
-        """v3 -> v4 keeps every row: v4 only drops the level and relation-type CHECKs and names the subject's kind
-        `kind` (SQLite cannot alter a CHECK, so the tables are copied into a fresh store that replaces the file).
-        The v3 file is kept as `identity.before-v4-<id>.sqlite3`. Processes share no lock: a second process that
-        starts during the migration fails its own copy and re-reads the migrated version."""
+    def _migrate(self, version: str) -> None:
+        """v3 or v4 -> the current schema keeps every row: v4 dropped the level and relation-type CHECKs and named
+        the subject's kind `kind`; v5 drops the queue-reason CHECK (SQLite cannot alter a CHECK, so the tables are
+        copied into a fresh store that replaces the file). The old file is kept as
+        `identity.before-v5-<id>.sqlite3`. Processes share no lock: a second process that starts during the
+        migration fails its own copy and re-reads the migrated version."""
+        renamed = _V3_COLUMNS if version == "3" else {}
+
         def fill(setup: sqlite3.Connection) -> None:
             setup.execute("ATTACH DATABASE ? AS old", (str(self.path),))
             for (table,) in setup.execute("SELECT name FROM main.sqlite_master WHERE type = 'table'").fetchall():
                 columns = [row[1] for row in setup.execute(f"PRAGMA main.table_info({table})")]
-                source = [_V3_COLUMNS.get((table, name), name) for name in columns]
+                source = [renamed.get((table, name), name) for name in columns]
                 setup.execute(f"INSERT INTO main.{table} ({','.join(columns)})"
                               f" SELECT {','.join(source)} FROM old.{table}")
             setup.commit()
             setup.execute("DETACH DATABASE old")
-        kept = self.path.with_name(f"identity.before-v4-{uuid.uuid4().hex[:8]}.sqlite3")
+        kept = self.path.with_name(f"identity.before-v{SCHEMA_VERSION}-{uuid.uuid4().hex[:8]}.sqlite3")
         shutil.copy2(self.path, kept)
         os.chmod(kept, 0o600)
         self._create(fill)
-        logger.info("identity store migrated from schema 3 to %s", SCHEMA_VERSION)
+        logger.info("identity store migrated from schema %s to %s", version, SCHEMA_VERSION)
 
     def _version(self) -> str | None:
         """The stored schema version, or None when the file is not a readable identity store."""

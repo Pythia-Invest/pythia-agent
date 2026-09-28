@@ -77,7 +77,7 @@ class ReadCheckTest(Fixture):
         self.assertEqual(self.quote()["status"], "ready")
 
     def test_an_unaudited_source_never_stamps_verified(self):
-        patch = unittest.mock.patch.object(type(self.yahoo.manifest), "unaudited", True, create=True)
+        patch = unittest.mock.patch.object(type(self.yahoo.manifest), "unaudited", True)
         patch.start()
         self.addCleanup(patch.stop)
         self.assertEqual(self.check(currency="EUR", venue="AMS"), "unverified")

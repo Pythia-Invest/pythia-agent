@@ -121,5 +121,9 @@
     "licence": "personal",
     "cache": "none",
     "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/yahoo.md"
   }
 }

@@ -159,11 +159,15 @@ def parse_order(text: str | None) -> tuple[str, ...]:
 
 
 def ranked(entries: list[dict], order: tuple[str, ...], default_order: tuple[str, ...]) -> list[dict]:
-    """Entries (each with `plugin` and `provider`) in the investor's order, then core's default order, then by id."""
+    """Entries (each with `plugin` and `provider`) in the investor's order, then core's default order, then by id.
+
+    An entry marked `unaudited` (a source not yet signed off, ADR 0042) is never in core's order: it follows
+    every audited entry unless the investor's order names it."""
     def position(items: tuple[str, ...], entry: dict) -> int:
         return next((index for index, name in enumerate(items) if name in (entry["plugin"], entry["provider"])),
                     len(items))
-    return sorted(entries, key=lambda entry: (position(order, entry), position(default_order, entry), entry["plugin"]))
+    return sorted(entries, key=lambda entry: (position(order, entry), entry.get("unaudited", False),
+                                              position(default_order, entry), entry["plugin"]))
 
 
 def select(entries: list[dict], *, combine: Combine | None = None) -> tuple[list[tuple[dict, tuple[str, ...]]], list[dict], list[dict]]:

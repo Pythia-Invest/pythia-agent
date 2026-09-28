@@ -158,6 +158,7 @@ enforces" stands; `rights` below is declared, not yet enforced.
   "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
   "rights": {"licence": "personal", "cache": {"ttl_seconds": 86400}, "hostable": false,
              "attribution": {"text": "Powered by CoinGecko API", "url": "https://www.coingecko.com/en/api/"}},
+  "signoff": {"status": "grandfathered", "record": "docs/sources/coingecko.md"},
   "limits": {"plan": "Demo", "unit": "credit", "per_minute": 100, "per_month": 10000}
 }
 ```
@@ -196,6 +197,12 @@ enforces" stands; `rights` below is declared, not yet enforced.
   showing the data renders). Declared now; enforcing the cache lifetime and
   rendering attribution come later. Each plugin still enforces its provider's
   other terms itself.
+- **`signoff`** (required): the source's onboarding status
+  ([ADR 0042](0042-source-onboarding-standard.md)): `status` `signed_off`,
+  `grandfathered` or `unsigned`, and `record`, the source record
+  (`docs/sources/<source>.md` or an https link), required once signed off.
+  Core enforces it; ADR 0042 says how. It joined version 1 before any release
+  shipped a contract, so the version did not change.
 - **`limits`** (optional): the provider's published rate limits for a named
   plan (`unit` `call`, `credit` or `request`; per second, minute, day or
   month). A claim for that plan, not the investor's entitlement; nothing
