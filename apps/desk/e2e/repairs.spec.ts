@@ -113,9 +113,17 @@ test("repairs list issues in the back-office table and record the user's fix wit
     .getByRole("button", { name: "Match", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "Same instrument" });
+  // The dialog sits inside the viewport at every width (a phone included).
+  const box = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+  expect(
+    box && viewport && box.x >= 0 && box.x + box.width <= viewport.width,
+  ).toBe(true);
   await dialog.getByRole("textbox").fill("Same synthetic line.");
   await dialog.getByRole("button", { name: "Confirm match" }).click();
-  await expect(page.getByRole("status").first()).toContainText("Confirmed");
+  await expect(
+    page.locator('[data-slot="repairs"]').getByRole("status"),
+  ).toContainText("Confirmed");
   expect(verdicts).toEqual([
     {
       item_id: "q-open",

@@ -16,7 +16,7 @@ const cell = "px-3 py-2 text-start align-middle public:px-4 public:py-3";
 export function Table({ className, ...props }: TableProps) {
   return (
     <div
-      className="w-full overflow-x-auto rounded-container border border-border"
+      className="relative w-full overflow-x-auto rounded-container border border-border"
       data-slot="table-viewport"
     >
       <table
