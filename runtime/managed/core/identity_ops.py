@@ -201,8 +201,9 @@ class Identity:
     # ---- internals -----------------------------------------------------------------------------------------------
 
     def price_sources(self, subject_id: str) -> dict:
-        """Where market data for a subject comes from: its asset class and the native references
-        that serve its quote and chart, in core's order, or the reason there are none. Local only."""
+        """Where market data for a subject comes from: its asset class, the native references that serve
+        its quote and chart in core's order and the providers the investor named in `source_order`, or the
+        reason there are none. Local only."""
         try:
             path, subject, lookups, _issue = self._load(subject_id)
         except ValueError:  # a malformed subject id
@@ -213,8 +214,10 @@ class Identity:
         if subject is None:
             # A market needs no reference file, so an unknown one is unknown, not missing reference data.
             return unrouted("unknown_subject" if path or subject_kind(subject_id) == Kind.MARKET else "no_reference_data")
-        return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, installed(), **lookups),
-                "reason": None}
+        plugins = installed()
+        named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
+        return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, plugins, **lookups),
+                "named": named, "reason": None}
 
     def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
         path, subject, lookups, issue = self._load(subject_id)

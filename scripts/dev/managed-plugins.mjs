@@ -52,7 +52,6 @@ export const MANAGED_PLUGINS = Object.freeze([
       "public_http.py",
       "definition.py",
       "execution.py",
-      "preferences.py",
       "process.py",
       "reads.py",
       "selection.py",

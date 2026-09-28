@@ -26,7 +26,7 @@ dependencies, not competing feature installations.
 Market-data supplies standard widgets backed by canonical financial operations.
 Connectors may supply specialist widgets backed by their own declared operations.
 Both reuse the public widget SDK and UI components, and users may mix them on one
-page. A canonical widget can follow source preferences or pin a compatible series;
+page. A canonical widget can follow core's source order or pin a compatible series;
 a specialist widget remains explicitly bound to its provider operation.
 
 Package widget entry points, input contracts, data bindings and explicit assets
@@ -143,9 +143,9 @@ and applicable tool enablement before execution and publication.
 Automatic widget reads add `read_only: true` to the request envelope. This is a
 requirement, not a grant: the backend checks the operation's declaration, or its
 domain-owned classifier for a mixed operation, before dispatch. SSE resources
-always require read-only support. For example, market-data's query operation can
-still expose explicitly requested preference changes to authorized callers, while
-an automatically refreshed widget cannot invoke that mutation. Authors must not
+always require read-only support. A mixed operation may still expose explicitly
+requested changes to authorized callers, while an automatically refreshed widget
+cannot invoke that mutation. Authors must not
 label an operation read-only if it performs user-directed mutations.
 
 For coordinated financial data, use the feature's existing connector helpers

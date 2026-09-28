@@ -63,9 +63,10 @@ def available(sources, provider, operation):
                for source in sources)
 
 
-def permits_implicit(sources, provider, explicit_providers=()):
-    """Broker-dependent sources require native intent or a saved source choice."""
-    return provider in explicit_providers or not any(
+def permits_implicit(sources, provider, named=()):
+    """A broker-dependent source serves a subject read only when the investor names it in `source_order`
+    (as the page does); explicit native references and pinned series always read it."""
+    return provider in named or not any(
         source["contribution"]["provider"] == provider and source["contribution"].get("requires_broker_app", False)
         for source in sources)
 

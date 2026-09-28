@@ -21,6 +21,7 @@ class Venue:
     country: str
     category: str | None
     status: str
+    lei: str | None = None  # the operating entity's LEI (ISO 10383 `LEI` column)
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,11 @@ class FirdsRecord:
     first_trade: str | None
     termination: str | None
     underlying_isin: str | None = None
+    issuer_requested: bool | None = None  # RTS 23 field 8; None when the element is missing
+    approval_date: str | None = None  # field 9
+    request_date: str | None = None  # field 10
+    published: str | None = None  # publication date of the file the record came from
+    digest: str | None = None  # of the record's source bytes
 
 
 @dataclass(frozen=True)

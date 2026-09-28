@@ -132,8 +132,10 @@ trips an alarm.
 - every stage 1 field has a parse, a counter and a fingerprint check;
 - no field feeds two meanings.
 
-The reference builder does not write claims yet. Until it does, carry each
-meaning in names and types in the same way.
+The reference builder emits claims for FIRDS, in shadow mode
+(`tooling/reference-builder/reference_builder/claims.py`); its other sources do
+not yet. Until a source does, carry each meaning in names and types in the same
+way.
 
 ### 3. A full data audit
 

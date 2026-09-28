@@ -19,7 +19,7 @@ test("shared and specialist operations use the authenticated profile route witho
     {
       plugin: "pythia-market-data",
       operation: "query",
-      arguments: { action: "get_preferences" },
+      arguments: { action: "describe" },
     },
     signal,
   );
@@ -51,7 +51,7 @@ test("shared and specialist operations use the authenticated profile route witho
   );
   expect(options.redirect).toBe("error");
   expect(JSON.parse(String(options.body))).toEqual({
-    arguments: { action: "get_preferences" },
+    arguments: { action: "describe" },
   });
   expect(JSON.parse(String(fetcher.mock.calls[2]?.[1]?.body))).toEqual({
     arguments: {},

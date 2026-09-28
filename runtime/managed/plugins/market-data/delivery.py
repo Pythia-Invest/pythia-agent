@@ -22,12 +22,10 @@ def _deliver(request, backend_factory, reuse_scope):
             validate_input(item)
         backend = backend_factory()
         sources, _access = backend.context()
-        preferred = any(item['request']['view']['kind'] == 'pythia' for item in reads)
 
         def current_scope():
             native = backend.context()[1]
-            return fingerprint({'access': native, 'preferences': backend.preferences.get()['revision'] if preferred else None,
-                                'subjects': backend.subject_scope(reads)}) if native['cacheable'] else None
+            return fingerprint({'access': native, 'subjects': backend.subject_scope(reads)}) if native['cacheable'] else None
         scope = current_scope()
     if scope and reuse_scope == scope:
         return {'schema_version': 1, 'reuse': scope}

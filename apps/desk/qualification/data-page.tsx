@@ -98,14 +98,9 @@ function Harness() {
         onClick={() => {
           const request = financialInput(row, "latest", Date.now());
           if (request)
-            void Promise.all([
-              api.financialRead([request]),
-              api.financialPreferences(),
-            ]).then(([reads, preferences]) =>
-              setRead(
-                `Read ${reads.length}; preference ${preferences.revision}`,
-              ),
-            );
+            void api
+              .financialRead([request])
+              .then((reads) => setRead(`Read ${reads.length}`));
         }}
       >
         Read financial snapshot
