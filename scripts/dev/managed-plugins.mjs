@@ -92,7 +92,12 @@ export const MANAGED_PLUGINS = Object.freeze([
       "series.py",
       "results.py",
     ]),
-    workers: Object.freeze(["yahoo.ts", "yahoo-prices.ts", "yahoo-options.ts"]),
+    workers: Object.freeze([
+      "yahoo.ts",
+      "yahoo-prices.ts",
+      "yahoo-sessions.ts",
+      "yahoo-options.ts",
+    ]),
   }),
   Object.freeze({
     name: "pythia-sec",
