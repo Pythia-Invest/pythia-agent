@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
-from typing import Any, Callable, Collection, Mapping
+from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
 from .concepts import NOTICE, REGISTRY, Combine, Concept, ranked, select
@@ -101,7 +101,7 @@ def serving(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str] | 
 
 
 def ordered(plugins: list[PluginInfo], section: Section, order: tuple[str, ...] = ()) -> list[PluginInfo]:
-    """The investor's order, then core's default order for the section's concept (paid before free), then key."""
+    """The investor's order, then core's default order for the section's concept (free before paid), then key."""
     entries = [{"plugin": info.key, "provider": info.manifest.provider, "info": info} for info in plugins]
     return [entry["info"] for entry in ranked(entries, order, REGISTRY[SERVES[section][0]].default_order)]
 
@@ -145,12 +145,12 @@ def _addressable(info: PluginInfo, level: Level, subject: dict) -> bool:
 
 def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Callable[[str, str], sqlite3.Row | None],
              coins: Callable[[str, str], str | None], queue: list[dict],
-             misses: Mapping[str, str] = {}, refused: Collection[tuple[str, str, str]] = ()) -> dict | None:
+             misses: Mapping[str, str] = {}) -> dict | None:
     """One plugin's answer for one section, or None when its contract does not declare the section's concept.
 
     A declaring plugin that cannot serve this subject answers with the reason as its status: `not_covering`
-    (its coverage excludes the asset class or market), `not_entitled` (the provider refused this operation as
-    not on the plan), `not_addressable`, `disabled`, `needs_configuration`, `conflict` or `unresolved`."""
+    (its coverage excludes the asset class or market), `not_addressable`, `disabled`, `needs_configuration`,
+    `conflict` or `unresolved`."""
     served = served_by(info.manifest, section)
     if served is None:
         return None
@@ -167,9 +167,6 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
                 "reason": f"{info.label} does not cover {subject['asset_class'] or 'this kind of'} instruments"}
     if coverage.markets is not None and market not in coverage.markets:
         return {**answer, "status": "not_covering", "reason": f"{info.label} does not cover {market or 'this market'}"}
-    if (info.key, str(concept), concept_operation) in refused:
-        return {**answer, "status": "not_entitled", "reason": f"Not on your {info.label} plan: it refused "
-                f"{str(concept).replace('_', ' ')} ({concept_operation}) before"}
     target = subject["ids"].get(entry.via)
     row = stored(target, info.manifest.provider) if target and _addressable(info, entry.via, subject) else None
     derived = None if row or not target or not _addressable(info, entry.via, subject) else derive(info, entry.via, subject, coins)
@@ -216,7 +213,7 @@ def price_sources(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> l
     """The native references that serve the subject's quote and chart now, in selection order.
 
     Market-data reads of a subject route through these: confirmed bindings and addresses core
-    derives. A plugin that is disabled, unconfigured, not covering, refused, contradicted or still
+    derives. A plugin that is disabled, unconfigured, not covering, contradicted or still
     needs a resolve contributes none."""
     refs: list[dict] = []
     for section in (Section.QUOTE, Section.CHART):
@@ -249,12 +246,18 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
             continue
         combine = REGISTRY[SERVES[section][0]].combine
         chosen, alternatives, skipped = select(found, combine=combine)
+        # A combined section reads its ready sources at once; one still to be looked up is listed, not awaited. It
+        # is looked up (by the Desk, as for any section) only when no combined source is ready yet.
+        ready = [(answer, served) for answer, served in chosen if answer["status"] == "ready"]
+        combined = combine is Combine.PER_AUTHORITY and bool(ready)
+        waiting = [answer for answer, _ in chosen if answer["status"] != "ready"] if combined else []
+        if combined:
+            chosen = ready
         lead = dict(chosen[0][0]) if chosen else next(a for a in found if a["status"] not in ABSENT)
         rest = [answer for answer in skipped if answer["plugin"] != lead["plugin"]]
         lead["source"] = source(lead)
         lead["skipped"] = [{**source(answer), "label": answer["label"], "code": answer["status"],
-                            "reason": answer["reason"] or answer["status"].replace("_", " ")} for answer in rest]
-        combined = combine is Combine.PER_AUTHORITY and chosen
+                            "reason": answer["reason"] or answer["status"].replace("_", " ")} for answer in waiting + rest]
         lead["alternatives"] = [{**source(answer), "label": answer["label"], "status": answer["status"],
                                  "binding": answer["binding"],
                                  "request": filings_request(subject["id"], answer["plugin"]) if combined
@@ -264,13 +267,9 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
             lead["sources"] = [{**source(answer), "authorities": list(served), "status": answer["status"]}
                                for answer, served in chosen]
             lead["label"] = " + ".join(answer["label"] for answer, _ in chosen)
-            waiting = next((answer for answer, _ in chosen if answer["status"] == "resolving"), None)
-            if waiting is not None:  # the Desk resolves this source first, then reads the combination
-                lead.update(plugin=waiting["plugin"], status="resolving", reason=waiting["reason"])
-            else:
-                lead.update(status="ready", reason=None, request=filings_request(subject["id"]))
+            lead.update(status="ready", reason=None, request=filings_request(subject["id"]))
         # Amber only when a source ranked ahead of the one serving could have served and did not: the investor
-        # named it, or something went wrong (refused, contradicted, not found). Setup states are not warnings.
+        # named it, or something went wrong (contradicted, not found). Setup states are not warnings.
         served = {entry["plugin"] for entry, _ in chosen} or {lead["plugin"]}
         position = min(index for index, answer in enumerate(found) if answer["plugin"] in served)
         notice = next((answer for answer in found[:position] if answer["status"] not in ABSENT

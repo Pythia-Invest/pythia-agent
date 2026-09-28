@@ -2,6 +2,7 @@
 
 import { ExternalLink } from "lucide-react";
 import type { Filings, Profile } from "@pythia/market-data/subject";
+import { newestPerAuthority } from "./blocks";
 
 function address(value: Profile["legal_address"]) {
   if (!value) return null;
@@ -103,7 +104,7 @@ export function FilingsView({ filings }: { filings: Filings }) {
       </div>
     );
   const combined = filings.sources.length > 1;
-  const shown = filings.filings.slice(0, MAX_FILINGS);
+  const shown = newestPerAuthority(filings.filings, MAX_FILINGS);
   // Some sources report no filing date; a report's indexed date stands in,
   // labelled, never shown as a filing date.
   const filed = shown.some(

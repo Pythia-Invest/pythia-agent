@@ -1,6 +1,10 @@
 import type { SubjectSection } from "@pythia/market-data/subject";
 import { describe, expect, it } from "vitest";
-import { pageBlocks, usingSource } from "../src/components/instrument/blocks";
+import {
+  newestPerAuthority,
+  pageBlocks,
+  usingSource,
+} from "../src/components/instrument/blocks";
 const yahoo = {
   provider: "yahoo",
   native_scope: "symbol",
@@ -85,5 +89,25 @@ describe("using an alternative source once", () => {
     expect(usingSource(block, "pythia-unknown").sections).toEqual(
       block.sections,
     );
+  });
+});
+
+describe("combined filings rows", () => {
+  it("keep each authority's newest filing in view, newest first", () => {
+    const rows = [
+      ...Array.from({ length: 12 }, (_, index) => ({
+        id: `6-K ${index}`,
+        authority: "sec",
+      })),
+      { id: "ESEF 2025", authority: "esma" },
+      { id: "ESEF 2024", authority: "esma" },
+    ];
+    const shown = newestPerAuthority(rows, 10);
+    expect(shown).toHaveLength(10);
+    expect(shown.at(-1)?.id).toBe("ESEF 2025");
+    expect(shown.slice(0, 9).map((row) => row.id)).toEqual(
+      rows.slice(0, 9).map((row) => row.id),
+    );
+    expect(newestPerAuthority(rows.slice(0, 3), 10)).toEqual(rows.slice(0, 3));
   });
 });

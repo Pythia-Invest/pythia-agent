@@ -147,7 +147,7 @@ REGISTRY: dict[Concept, ConceptSpec] = {
 
 ELIGIBLE = frozenset({"ready", "resolving"})  # resolving: a lookup runs before the first read, then it serves
 # Skips that signal something went wrong rather than the investor's own setup: they warrant a visible notice.
-NOTICE = frozenset({"not_entitled", "conflict", "unresolved"})
+NOTICE = frozenset({"conflict", "unresolved"})
 # Filing authority of an item by the filer's country, for a source serving several authorities.
 AUTHORITY_BY_COUNTRY = {"US": FilingAuthority.SEC, "GB": FilingAuthority.FCA, "CA": FilingAuthority.SEDAR}
 

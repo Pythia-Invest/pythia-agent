@@ -3,8 +3,8 @@
 **Status.** Concepts, the registry, the contract declarations, the selection
 rule and the `live` operation: accepted (2026-09-28) and implemented: the
 contract shape and registry, and selection in page composition with the
-investor's order, coverage, skip reasons, remembered plan refusals and
-combined filings. The licence classes are a recommended default that awaits
+investor's order, coverage, skip reasons and combined filings. Remembering
+"not on your plan" is decided but not built (see below). The licence classes are a recommended default that awaits
 the founder's confirmation. The agent tool surface, the market-data
 split and the result envelope are **out of scope of this revision**; they
 remain a proposal (pull request #42).
@@ -95,8 +95,7 @@ operation:
    configured.
 3. **The first eligible candidate serves.** A candidate that is disabled,
    needs configuration, cannot be addressed for this subject by identity, is
-   under an identity conflict, found nothing on lookup, or whose provider has
-   refused that operation as not on the investor's plan, is **skipped**. Skipping is ordinary
+   under an identity conflict or found nothing on lookup is **skipped**. Skipping is ordinary
    selection, never fallback, and each skipped source is listed with its
    reason. The other eligible candidates are listed as alternatives the
    investor can switch to.
@@ -130,10 +129,11 @@ listed as skipped.
 
 **Amber only when something went wrong.** `notice` names the first source
 ranked ahead of the one serving that could have served and did not, and only
-when the investor named it or it was refused, contradicted or not found. A
+when the investor named it or it was contradicted or not found. A
 source the investor has not set up is not a warning. The Desk shows
-alternatives as "Also:" links that read that source once, for the view only;
-core's choice is not changed.
+alternatives that are ready as "Also:" links that read that source once, for
+the view only; core's choice is not changed. An alternative still to be looked
+up is shown with its state, not as a link.
 
 **Performance.** Selection is a plain filter over the few declaring sources,
 in memory: no network or disk I/O and no trial calls. Composing every section
@@ -141,24 +141,45 @@ of 1,000 page opens over the shipped contracts takes about 50 µs per page
 (about 15 µs per section), with file, socket and SQLite access blocked in the
 test.
 
-**"Not on your plan" is remembered** per plugin, concept and operation: a
-plan can include daily history but not intraday. A plugin result with a
-`not_entitled` issue, or `access_denied` with source code 402 or 403, seen by
-the protected HTTP adapter or by core's combined read, is recorded in
-identity.sqlite3 (`plan_refusals`); that operation is then skipped as
-`not_entitled`. A 401 is a key problem and is not remembered. The investor
-clears refusals with `source-refusals-clear` (all, or one plugin's), for
-example after upgrading a plan; `source-refusals` lists them. A market-data
-read is attributed from its answer (provider, latest or history and the
-series interval); when that cannot be told, nothing is recorded.
+**"Not on your plan" should be remembered** per plugin, concept and operation
+(a plan can include daily history but not intraday), and that source skipped
+until the investor clears it. It is **not built yet**: a first version was
+removed in review because it could not work simply. The Desk's price reads
+are batched market-data reads that report a refusal per item, the plugins
+send the provider status as text, and the page's one chart section spans
+intraday and daily periods, so a refusal must be recorded where the
+market-data read path knows plugin, operation and item, and selection must
+evaluate the operation a chart period actually reads. That is the next step
+for this item.
 
-**Core's filing item** is `{id, form, title, filed_at, period_end, url,
-authority, source, provider, plugin}`: dates are ISO or null (filings.xbrl.org
-has no filing date), `id` is the accession number or report hash. The
-combined read is core's `filings` operation; its answer has `filings`,
-`sources`, `skipped`, `alternatives` and `partial`. A source serving several
-authorities (filings.xbrl.org: ESMA and FCA) tags each item by the filer's
-country. Items sort by filing date, else period end.
+**Core's filing item** is `{id, form, title, filed_at, period_end, date,
+date_basis, url, authority, source, provider, plugin}`: dates are ISO or
+null, `id` is the accession number or report hash. `date` orders the list:
+the filing date (`date_basis: filed`), else the day the source indexed the
+report (`indexed`: filings.xbrl.org publishes no filing date, only when it
+indexed a report), else the period end. The Desk labels an indexed date as
+such and keeps each authority's newest filing in view, so a yearly ESEF report
+is not pushed out by frequent SEC 6-Ks.
+
+The combined read is core's `filings` operation; its answer has `filings`,
+`sources`, `skipped`, `alternatives` and `partial`. It takes `forms` (AFR and
+"annual" stand for the annual forms): a source whose schema accepts `forms`
+searches by form (SEC scans its whole recent list and up to three older pages
+back five years, so a 10-K is not crowded out by Forms 4 and 8-K) and core
+filters every answer. `use` names one source, by plugin id, provider, label or
+a common name (sec, edgar, esef). A source serving several authorities
+(filings.xbrl.org: ESMA and FCA) tags each item by the filer's country. Each
+source runs only if Pythia may run its native tool for this caller
+(`eligible_tools`), with the caller's cancellation; one Pythia may not run is
+skipped as unavailable. A source still to be looked up is listed as skipped,
+not awaited, and does not make the list partial; a source that does not know
+the entity lists nothing.
+
+**Model visibility.** On this base every core Desk operation is also a tool
+the Desk chat model sees (toolset `pythia-desk`), and so is `filings`
+(`pythia_filings_combined`). The agent-tools work separates "may run" from
+"visible to the model" (a hidden `pythia-core` toolset); `filings` moves there
+with it, and the agent's filings tool calls this read.
 
 ### Live market data
 

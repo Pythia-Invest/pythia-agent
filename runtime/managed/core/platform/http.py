@@ -35,12 +35,6 @@ def execute(plugin, operation, arguments, reuse_scope, cancelled, *, read_only=F
         if access != native_access_scope() or name not in eligible_tools():
             raise Rejected('access_changed', 409)
         failures = result_issues(result, support_for(name))
-        try:  # core remembers a provider's "not on your plan" answer; the platform alone (in tests) has no core
-            from ..concept_ops import observe
-        except ImportError:
-            observe = None
-        if observe is not None:
-            observe(plugin, operation, arguments, result)
         if age:
             if failures:
                 terminal = {'authentication_failed', 'access_denied', 'invalid_request', 'unsupported_window'}
