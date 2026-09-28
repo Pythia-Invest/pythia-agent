@@ -114,3 +114,50 @@ maintain.
 **A Pythia cloud service.** It would add a runtime dependency, contrary to the
 rule that Pythia adds no cloud dependency, under the same content limits. It
 would also tie forks and self-hosters to Pythia's uptime.
+
+## Amendment (2026-09-28): generating and consuming reference data are split
+
+**Context.** Core found the builder's SQLite file by scanning the builder's
+output folder, or a folder named by `PYTHIA_REFERENCE_DIR`. It depended on
+how the builder happened to lay out its files, and it offered no checksum,
+compatibility check or rollback. A later automated workflow should be able to
+supply the catalogue without changing core.
+
+**Ruling.** The builder generates a *reference package*. Core consumes only a
+package that one import step has verified and installed into the device's
+Pythia data. The contract is in
+[reference packages](../architecture/reference-package.md):
+
+- One versioned SQLite file, plus a `package.json` that carries the format
+  version core checks, the build ID and build time, and the source list with
+  as-of dates, licences and the notices each source requires. It also carries
+  the SQLite file's SHA-256 and the builder's quality summary. A `claims` key
+  is reserved for the builder's typed claims, open questions and verdicts, which
+  this amendment does not define.
+- The import step (`just reference-install`, core's
+  `identity/reference_package.py`) refuses an incompatible format or a checksum
+  mismatch and changes nothing when it does. It installs with an atomic switch,
+  keeps the previous package for rollback, and reports what is installed. Core
+  exposes the installed package through the read-only `reference-status`
+  operation, which Desk shows under Settings.
+- Core no longer reads the builder's output folder, and `PYTHIA_REFERENCE_DIR`
+  is removed. Development startup installs the checkout's own build
+  automatically.
+
+The ruling above still holds. The builder runs on the device, a local rebuild is
+always possible, and subject IDs are derived the same way whoever builds the
+package. Pythia publishes no package.
+
+**Consequences.** Automation later adds only "download the latest package" in
+front of the import step. Where that package is hosted, how it is signed and
+how often devices check for updates need their own decision under "If Pythia
+later publishes a snapshot" below. An installed Pythia has no lifecycle command
+for the import step yet, so it runs core's installer directly with `--data-dir`.
+A core release that changes the reference schema bumps the format version.
+Until the investor installs a matching package, core reports no reference data.
+
+**Rejected alternatives.** *Keep scanning the builder's folder* couples core
+to the builder's layout and gives no integrity or rollback. *A core operation
+that installs from a model-supplied path* would let a tool call name arbitrary
+files. The import step remains a lifecycle action, and the agent only reads the
+status.

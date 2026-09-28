@@ -236,6 +236,23 @@ receipt and removes only that named partial profile before a clean retry.
 An intent-only `started` receipt cannot prove ownership of a profile that later
 appears, so that case fails closed for manual inspection instead of deleting it.
 
+## Reference data
+
+Search and instrument pages read the reference package installed for the
+stack, never the builder's output folder
+([reference packages](architecture/reference-package.md)). `just dev-init`,
+`just dev` and `just dev-refresh` install this checkout's
+`.local/reference-builder/out/` package when there is one; set
+`PYTHIA_DEV_REFERENCE_PACKAGE` to use another package directory. To install
+one by hand:
+
+```sh
+just reference-snapshot                  # build a package (network; see tooling/reference-builder)
+just reference-install <package>         # verify its checksum and format, install it, keep the previous one
+just reference-status                    # what is installed
+just reference-rollback                  # swap back to the previous package
+```
+
 ## Optional Tailscale access
 
 Desk can be reached through native Tailscale Serve during development. It still
