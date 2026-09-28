@@ -225,9 +225,11 @@ needs a table rebuild; the rebuilt `reference.sqlite3` may keep its checks.
 ### Search groups by investable entity; relations declare grouping behaviour
 
 Relations never merge subjects. Search groups results by **investable
-entity**: the company for its equity securities; the product itself for a
-fund, ETF, ETN or ETC, so a product is never buried under its issuer; the asset
-for crypto. A group shows its name, a compact set of relevant listings (the one
+entity**: the company for its equity securities; the product for a fund, ETF,
+ETN or ETC, so a product is never buried under its issuer or manager; the asset
+for crypto. For a fund the product is the sub-fund (for example Vanguard FTSE
+All-World UCITS ETF), and its share classes (distributing, accumulating,
+hedged) are rows in that group. A group shows its name, a compact set of relevant listings (the one
 the query names, the preferred market or currency, the primary line) and an
 entry that expands to all of them. A company's share classes and preferreds
 group under it as distinct instruments.
@@ -240,9 +242,9 @@ Each relation type declares one behaviour:
 | `related` | Different things: shown nearby as links, never folded | `share_class_of`, `wraps`, `bridged_from`, `staked_as`, `tracks`, `successor_of`; later, for example, `derivative_on` and `tokenized_from` |
 
 A **group** is the investable entity's subjects closed under `fold` relations.
-Search and pages derive grouping from these declarations, not from rules per
-asset class: a new relation type states its behaviour when it is added, so an
-unforeseen case groups without new code. The instrument page's listing
+Search and pages derive grouping from one general rule, the investable
+entity, applied per kind, plus these declarations: a new relation type states
+its behaviour when it is added, so an unforeseen case groups without new code. The instrument page's listing
 selector lists the security plus everything folded into it (receipts, registry
 lines, native deployments), not the whole company group; the company's other
 securities, such as share classes and preferreds, appear as "other securities
