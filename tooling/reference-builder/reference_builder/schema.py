@@ -281,9 +281,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         if listing.name != titles.get(listing.security_id):  # the security row already carries its title
             name(subject, listing.name, listing.source)
     for relation in snap.relationships:
-        source = ids.securities.get(relation.from_id)
-        isin = relation.to_id.split(":", 1)[1]
-        target = ids.securities.get(relation.to_id) or derive("security", {"isin": isin}) or local_security(isin)
+        # linking.link_receipts keeps only targets this build holds; anything else is skipped and counted below.
+        source, target = ids.securities.get(relation.from_id), ids.securities.get(relation.to_id)
         try:
             item = identity.Relation(type=relation.relation, from_id=source, to_id=target, authority="snapshot",
                                      provenance={"plugin": relation.source, "source": relation.source,

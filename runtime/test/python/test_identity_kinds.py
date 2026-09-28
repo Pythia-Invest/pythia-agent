@@ -32,13 +32,13 @@ class KindTest(Fixture):
 
     def test_a_provider_index_record_is_never_provisionally_a_security(self):
         eodhd = plugin("eodhd")
-        subject = {**page.load_subject(self.ref, ASML), "evidence": [], "values": {}}
+        subject = page.load_subject(self.ref, ASML)  # with its identifier evidence: no false conflict
         record = {"level": "listing", "provenance": PROVENANCE, "attributes": {"name": "S&P 500", "kind": "index"}, "identifiers": [],
                   "native_ref": {"provider": "eodhd", "native_id": "GSPC.INDX", "native_scope": "catalogue"}}
         batch = identity.batch_from_json({"plugin": "eodhd", "provider": "eodhd", "adapter_version": "1",
                                           "origin": "resolve", "claims": [record]})
         _binding, item, _ = page.apply_resolve(batch, eodhd, identity.Level.LISTING, subject, {}, now="2026-09-26T10:00:00Z")
-        self.assertEqual(item.subject_ids, (INDEX,))
+        self.assertEqual((item.kind, item.reason, item.subject_ids), ("residual", "no_key", (INDEX,)))
         with self.assertRaises(ValueError):
             model.Security(id="security:isin:US78378X1072", name="S&P 500", asset_class="equity", kind="index")
         self.assertTrue(identity.guarded("same_listing", "index", "ordinary"))  # no verdict binds it to an instrument

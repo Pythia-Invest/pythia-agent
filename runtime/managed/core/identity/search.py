@@ -262,11 +262,11 @@ class Directory:
             rows = self.db.execute(
                 "SELECT inst, names, ikind, listing, ticker, mic, venue, currency, size FROM doc d JOIN"
                 " (SELECT grp, inst AS own FROM doc WHERE security = ? LIMIT 1) me ON d.grp = me.grp AND d.inst <> me.own"
-                " WHERE d.crypto = 0 ORDER BY d.inst, d.security <> d.inst, -d.prim, d.otc, -d.home, d.mic, d.listing",
+                " WHERE d.crypto = 0 ORDER BY d.inst, d.security <> d.inst, -d.prim, d.fus, d.otc, -d.home, d.mic, d.listing",
                 (security,)).fetchall()
         seen: dict[str, tuple] = {}
         for row in rows:
-            seen.setdefault(row[0], row)  # the instrument's first line: its own primary, else exchange, line
+            seen.setdefault(row[0], row)  # the instrument's first line in the listing selector's order
         ordered = sorted(seen.values(), key=lambda row: (-(row[8] or 0), row[0]))
         return [{"id": inst, "name": _own(names), "kind": kind, "listing": listing, "ticker": ticker, "mic": mic,
                  "venue": venue, "currency": currency}

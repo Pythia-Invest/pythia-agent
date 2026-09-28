@@ -300,6 +300,8 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
         return None, QueueItem(id=uuid.uuid4().hex, kind="residual", reason="ambiguous", subject_ids=local,
                                evidence_ids=(), **base), records
     item = QueueItem(id=uuid.uuid4().hex, kind="residual", reason="no_key", subject_ids=local, evidence_ids=(), **base)
+    if records[0].attributes.kind in KIND_OF_RECORD:  # an index or FX record: its own subject, never this instrument
+        return None, item, records
     verdict = Verdict(item_id=item.id, resolver="rules", authority="rule_confirmed", relation=SAME[level],
                       chosen_id=target, rule_id=RESOLVE_RULE,
                       provenance={"plugin": "pythia", "source": "pythia", "adapter_version": "1", "retrieved_at": now})

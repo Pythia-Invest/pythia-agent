@@ -114,7 +114,8 @@ table under `writer_ignored`.
   such an edge is dropped and counted (`firds_underlying_outside_build`). SEC
   ADRs and New York registry shares name no underlying (neither does
   OpenFIGI), so rule `receipt_issuer_share@1` links a receipt to its issuer's
-  one active ordinary share, preferring the FIRDS share when the issuer also has
+  one active ordinary share with an active ticker line (a share search cannot
+  show folds nothing in), preferring the FIRDS share when the issuer also has
   a SEC-only line (counted). An issuer with a preferred share or several
   candidate shares gets no edge (`receipt_without_underlying`). No source
   states share classes, so the builder writes no `share_class_of`. Core's

@@ -286,6 +286,8 @@ def link_receipts(snap: Snapshot) -> None:
         kept.append(item)
     snap.relationships[:] = kept
     stated = {item.from_id for item in kept if item.relation == "depositary_receipt_of"}
+    # Search keeps only active lines with a ticker; a share with none of them folds nothing in.
+    lined = {listing.security_id for listing in snap.listings.values() if listing.ticker and listing.status == "active"}
     by_issuer: dict[str, list[Security]] = defaultdict(list)
     for security in snap.securities.values():
         if security.issuer_id:
@@ -294,7 +296,7 @@ def link_receipts(snap: Snapshot) -> None:
         if security.kind != "dr" or security.security_id in stated or not security.issuer_id:
             continue
         siblings = by_issuer[security.issuer_id]
-        shares = [item for item in siblings if item.kind == "share" and item.activity == "active"]
+        shares = [item for item in siblings if item.kind == "share" and item.activity == "active" and item.security_id in lined]
         narrowed = len(shares) > 1
         shares = [item for item in shares if item.isin] if narrowed else shares
         if len(shares) != 1 or any(item.kind == "preferred" for item in siblings):
