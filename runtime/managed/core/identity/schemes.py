@@ -30,8 +30,9 @@ class Kind(StrEnum):
     SECURITY = "security"
     COMPOSITE = "composite"
     LISTING = "listing"
-    SERIES = "series"      # a non-tradable data series (a policy rate, a yield curve point)
+    CURRENCY = "currency"  # an ISO 4217 currency
     FX = "fx"              # a currency pair
+    SERIES = "series"      # a non-tradable data series (a policy rate, a yield curve point)
     INDEX = "index"        # an index level (never a security: it cannot be held)
     PROTOCOL = "protocol"  # a DeFi protocol (no legal-entity identifier)
     MARKET = "market"      # a lending reserve, pool, vault or perp market
