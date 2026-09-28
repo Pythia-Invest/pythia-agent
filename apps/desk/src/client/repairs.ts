@@ -4,8 +4,8 @@ import { type IdentityQuestion, useIdentityQuestions } from "./identity-queue";
 /*
  * Repairs (modelled on Home Assistant's): issues Pythia could not settle on
  * its own. Rules and the agent normally fix them, so the page sits under
- * Settings. An issue is generic; its `kind` picks the renderer of its detail
- * and fix flow. Today the only source is core's identity queue; another kind
+ * Settings. An issue is generic; its `kind` picks the renderer of its context
+ * and actions. Today the only source is core's identity queue; another kind
  * (a plugin needing configuration, a data package update, a broken binding)
  * adds a source here and a renderer beside the page.
  */
@@ -22,7 +22,10 @@ export interface Repair<Data = unknown> {
   /** The plugin (source) involved, by its label. */
   plugin: string | null;
   created: string;
+  resolved: string | null;
   status: RepairStatus;
+  /** Text the page's search matches. */
+  search: string;
   /** Kind-specific payload for its renderer. */
   data: Data;
 }
@@ -30,41 +33,61 @@ export interface Repair<Data = unknown> {
 export type IdentityRepair = Repair<IdentityQuestion>;
 
 const IDENTITY_TITLES: Record<string, string> = {
-  residual: "A source record could not be matched",
-  conflict: "A source record disagrees with the reference data",
+  residual: "Record not matched",
+  conflict: "Record conflicts with reference",
 };
 
 function identityRepair(item: IdentityQuestion): IdentityRepair {
   const candidate = item.candidates[0];
-  const settled = item.agent_answer
-    ? "agent"
-    : item.state === "open"
+  const status: RepairStatus =
+    item.state === "open"
       ? "open"
-      : item.state === "dismissed"
-        ? "dismissed"
-        : "resolved";
+      : item.agent_answer
+        ? "agent"
+        : item.state === "dismissed"
+          ? "dismissed"
+          : "resolved";
+  const record = item.record;
   return {
     id: `identity:${item.id}`,
     kind: "identity",
-    title: IDENTITY_TITLES[item.kind] ?? "An identity question is open",
+    title: IDENTITY_TITLES[item.kind] ?? "Identity question",
     description: item.question,
     subject: candidate ? { id: candidate.id, name: candidate.name } : null,
     plugin: item.label,
     created: item.opened_at,
-    status: settled,
+    resolved: status === "open" ? null : item.updated_at,
+    status,
+    search: [
+      item.question,
+      item.label,
+      candidate?.name,
+      record?.name,
+      record?.native_ref?.native_id,
+      ...(record?.identifiers ?? []).map((entry) => entry.value),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase(),
     data: item,
   };
 }
 
-/** Open issues, and apart from them the history of those the agent answered
- * (provisional until the user confirms or overrides them). */
+/** Every issue the sources report, open or settled; the page filters them. */
 export function useRepairs() {
   const identity = useIdentityQuestions();
+  const data = identity.data;
+  const all = [
+    ...(data?.items ?? []),
+    ...(data?.answered ?? []),
+    ...(data?.settled ?? []),
+  ].map(identityRepair);
   return {
-    open: (identity.data?.items ?? []).map(identityRepair),
-    history: (identity.data?.answered ?? []).map(identityRepair),
-    notice: identity.data?.notice ?? null,
+    all,
+    open: all.filter((repair) => repair.status === "open"),
+    notice: data?.notice ?? null,
     isPending: identity.isPending,
+    isFetching: identity.isFetching,
     error: identity.error,
     refetch: () => void identity.refetch(),
   };
