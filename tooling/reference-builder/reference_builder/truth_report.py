@@ -96,6 +96,7 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
     for (check, reason), members in sorted(patterns.items(), key=lambda item: -len(item[1]))[:top]:
         examples = ", ".join(dict.fromkeys(members))
         lines.append(f"  {len(members):>4}  {check} / {reason}: {examples[:110]}{'...' if len(examples) > 110 else ''}")
+    lines += ["", fold_odd(report.fold_odd)]
     if baseline is not None:
         lines += ["", f"Regressions against the baseline ({baseline.get('reference', '?')}): {len(regressed) or 'none'}"]
         lines += [f"  {item}" for item in regressed]
@@ -144,6 +145,14 @@ def manifest_audit(reference: Path) -> dict | None:
     return data.get("audit") if data.get("snapshot", {}).get("file") == reference.name else None
 
 
+def fold_odd(odd: list[tuple[str, str]], limit: int = 20) -> str:
+    """Fold relations core kept apart (a second target, a cycle): surfaced, never silently resolved."""
+    if not odd:
+        return "Fold relations: no second targets or cycles."
+    listed = ", ".join(f"{subject} ({kind})" for kind, subject in odd[:limit])
+    return f"Fold relations kept apart: {len(odd)}: {listed}{', ...' if len(odd) > limit else ''}"
+
+
 def load_baseline(path: Path | None = None) -> dict | None:
     path = path or TRUTH_DIR / "baseline.json"
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
@@ -172,8 +181,11 @@ def build_report(reference: Path, cfi: tuple[str, ...], log, build_audit: dict |
         " (details: just reference-audit)")
     for item in regressed[:10]:
         log(f"  regression {item}")
+    if report.fold_odd:
+        log(fold_odd(report.fold_odd, limit=10))
     return {"truth_version": report.truth_version, "key_rule": key_rule(), "entries_in_scope": report.in_scope, "scores": scores,
-            "regressions": len(regressed), "attention": counts}
+            "regressions": len(regressed), "attention": counts,
+            "fold_odd": dict(Counter(kind for kind, _ in report.fold_odd))}
 
 
 def newest_reference(out_dir: Path) -> Path | None:

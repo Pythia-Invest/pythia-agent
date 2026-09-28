@@ -244,7 +244,7 @@ update calls enforce read-only eligibility; call `invoke` only from a deliberate
 user action. Native ownership and permission checks are authoritative for each
 operation. Transport requests are cancelled when the contribution is withdrawn.
 
-The SDK exports Desk's actual `useQuery`, `useMutation`, `useQueryClient`, `Button`,
+The SDK exports Desk's actual `useQuery`, `useQueries`, `useMutation`, `useQueryClient`, `Button`,
 `EmptyState`, `Popover`, `Skeleton`, `Toggle`, `ToggleGroup`, a `Combobox` or
 `Autocomplete` root and the shared combobox parts (`ComboboxInputGroup`,
 `ComboboxInput`, `ComboboxPortal`, `ComboboxPositioner`, `ComboboxPopup`,

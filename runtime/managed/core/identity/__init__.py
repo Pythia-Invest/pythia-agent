@@ -1,8 +1,8 @@
-"""Pythia identity backbone contracts (ADR 0037, ADR 0038).
+"""Pythia identity backbone and data contracts (ADR 0037, ADR 0038, ADR 0040).
 
-Core-owned meaning shared by every plugin: subject levels, identifier schemes,
+Core-owned meaning shared by every plugin: subject kinds and levels, identifier schemes,
 evidence tiers, typed claims, the resolution queue and its authority rule, the
-store schemas and the plugin contract manifest. Plugins reach
+store schemas, the plugin contract manifest, the data-concept registry and the `live_market` snapshot schema. Plugins reach
 it through the loaded core module's `identity` attribute. Pure standard
 library; no I/O at import.
 """
@@ -16,10 +16,15 @@ from .claims import (
     RecordAttributes,
     RecordClaim, RelationClaim, batch_from_json, batch_to_json, check_batch,
 )
-from .manifest import MANIFEST_FILE, CatalogueMode, Manifest, ManifestError, Section, validate_manifest
+from .concepts import REGISTRY, Combine, Concept, ConceptSpec, FilingAuthority, Licence
+from .live_market import LiveMarketError, validate_live_market
+from .manifest import (
+    CONTRACT_VERSION, MANIFEST_FILE, CatalogueMode, ConceptEntry, Coverage, Manifest, ManifestError,
+    ManifestNeedsUpdate, contract_version, validate_manifest,
+)
 from .model import (
     Binding, Composite, IdentifierAssertion, Issuer, Listing, Provenance, ProviderRef, Relation, Security,
-    Subject, Validity, evidence_id,
+    Subject, Validity, evidence_id, fold_roots,
 )
 from .resolution import (
     QueueItem, QueueItemKind, QueueReason, QueueState, ResolverKind, Verdict, VerdictOutcome, contradicts, corroborates,
@@ -27,12 +32,12 @@ from .resolution import (
     guarded,
 )
 from .schemes import (
-    CGS_AREA, KEY_RULE, SCHEME_LEVEL, IdentifierError, Level, Scheme, normalize_identifier, provisional_id, subject_id,
-    subject_level, ticker_mic,
+    CGS_AREA, INSTRUMENT_KINDS, KEY_RULE, SCHEME_LEVEL, IdentifierError, Kind, Level, Scheme, normalize_identifier,
+    provisional_id, registered_kind, subject_id, subject_kind, subject_level, ticker_mic,
 )
 from .vocabulary import (
-    AUTHORITY_TIER, AssetClass, Authority, BindingStatus, EvidenceTier, IdentifierRole, InstrumentKind, RelationType,
-    SubjectStatus, VerdictRelation,
+    AUTHORITY_TIER, RELATIONS, AssetClass, Authority, BindingStatus, EvidenceTier, Grouping, IdentifierRole,
+    InstrumentKind, RelationRule, RelationType, SubjectStatus, VerdictRelation,
 )
 
 class Store(StrEnum):

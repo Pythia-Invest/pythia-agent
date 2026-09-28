@@ -35,15 +35,16 @@ DATE = {"type": "string", "format": "date", "pattern": r"^[0-9]{4}-[0-9]{2}-[0-9
 POSITIVE = {"type": "integer", "minimum": 1}
 # Coverage kinds a source declares and connector detail evidence scopes; not subjects.
 SCOPE = enum("company", "instrument", "listing", "crypto")
-# A subject is a backbone subject (ADR 0037): its level and its deterministic subject ID.
-LEVEL = enum("issuer", "security", "composite", "listing")
-SUBJECT_ID = {"type": "string", "maxLength": 320,
-              "pattern": r"^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/%-]{4,300}$"}
+# A subject is a backbone subject (ADR 0037): its kind (an instrument level or another kind, open) and its
+# deterministic subject ID `<kind>:<key scheme>:<key>`; the format mirrors core's identity.schemes.SUBJECT_ID.
+KIND = {"type": "string", "pattern": r"^[a-z][a-z0-9_]{0,31}$"}
+SUBJECT_ID = {"type": "string", "maxLength": 370,
+              "pattern": r"^[a-z][a-z0-9_]{0,31}:[a-z][a-z0-9_]{0,31}:[A-Za-z0-9._:/%-]{1,300}$"}
 VERSION = enum(1)
 
 DEFS = {
     "market_data_type": enum("realtime", "delayed", "frozen", "delayed_frozen", "eod", "unknown"),
-    "subject": obj({"kind": LEVEL, "id": SUBJECT_ID}),
+    "subject": obj({"kind": KIND, "id": SUBJECT_ID}),
     "provider_ref": obj({"provider": NAMESPACE, "native_id": TEXT,
                          "native_scope": TEXT}, {"qualifiers": ref("qualifiers")}),
     "qualifiers": obj({}, {"currency": {"type": "string", "pattern": "^[A-Z]{3}$"},

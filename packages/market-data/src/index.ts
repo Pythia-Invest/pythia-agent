@@ -13,12 +13,15 @@ export type MarketDataType =
   | "unknown";
 /** Coverage kinds a source declares and connector detail evidence scopes; not subjects. */
 export type Scope = "company" | "instrument" | "listing" | "crypto";
-/** Backbone subject levels (ADR 0037). */
+/** Backbone subject levels (ADR 0037): the instrument kinds. */
 export type SubjectLevel = "issuer" | "security" | "composite" | "listing";
+/** A subject's kind: an instrument level or another kind (`index`, `fx`, ...),
+ * passed through as text when this client does not know it. */
+export type SubjectKind = SubjectLevel | (string & {});
 /** A backbone subject: its deterministic subject ID (for example
- * `listing:isin:NL0010273215:XAMS:EUR`) and the level that ID names. */
+ * `listing:isin:NL0010273215:XAMS:EUR`) and the kind that ID names. */
 export interface Subject {
-  kind: SubjectLevel;
+  kind: SubjectKind;
   id: string;
 }
 export interface Qualifiers {

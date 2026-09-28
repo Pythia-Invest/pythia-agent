@@ -66,6 +66,11 @@ def run(config: BuildConfig) -> int:
 
     inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes(), funds)
     snap = build_snapshot(inputs, gleif.fetch, figi.map)
+    dropped = [f"{f.subject_id} ({f.flag.removeprefix('firds_underlying_')})" for f in snap.flags
+               if f.flag in ("firds_underlying_inactive", "firds_underlying_outside_build")]
+    if dropped:
+        log(f"receipts whose FIRDS underlying is inactive or outside the build: {len(dropped)}: {', '.join(dropped[:10])}"
+            f"{', ...' if len(dropped) > 10 else ''}")
     snap.audit["firds_records"] = dict(sorted(record_counts.items()))
     snap.audit["fitrs_isins"] = len(transparency) if transparency is not None else None
 

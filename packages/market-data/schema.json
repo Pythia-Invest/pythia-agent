@@ -16,12 +16,13 @@
       "type": "object",
       "properties": {
         "kind": {
-          "enum": ["issuer", "security", "composite", "listing"]
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
         },
         "id": {
           "type": "string",
-          "maxLength": 320,
-          "pattern": "^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/%-]{4,300}$"
+          "maxLength": 370,
+          "pattern": "^[a-z][a-z0-9_]{0,31}:[a-z][a-z0-9_]{0,31}:[A-Za-z0-9._:/%-]{1,300}$"
         }
       },
       "required": ["kind", "id"],
