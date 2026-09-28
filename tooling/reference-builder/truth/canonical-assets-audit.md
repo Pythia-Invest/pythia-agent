@@ -34,8 +34,8 @@ issues the asset, plus ETH on rollups through their canonical bridge.
 | --- | --- | --- | --- |
 | BTC | `bip122:000000000019d6689c085ae165831e93/slip44:0` | | bip122 profile, SLIP-44 0 |
 | ETH | `eip155:1/slip44:60` | OP Mainnet, Base, Arbitrum One (`slip44:60`) | SLIP-44 60. L2 ETH is minted by deposits through each rollup's canonical bridge: docs.arbitrum.io (l1-to-l2-messaging, "use ETH as their native token"), docs.optimism.io (standard-bridge), docs.base.org (standard-bridges). `ethereum-lists` gives Ether as the native currency of chains 10, 8453 and 42161 |
-| USDT | `eip155:1/erc20:0xdac17f958d2ee523a2206206994597c13d831ec7` | Avalanche C-Chain, Solana | tether.to/en/supported-protocols. Ethereum is canonical because it is Tether's first-listed deployment and CoinGecko's platform |
-| BNB | `eip155:56/slip44:714` | | BSC chain id 56 (`ethereum-lists`, native currency BNB), SLIP-44 714 (BNB). BSC is the home chain, where BNB is the native currency |
+| USDT | `eip155:1/erc20:0xdac17f958d2ee523a2206206994597c13d831ec7` | Avalanche C-Chain, Solana | tether.to/en/supported-protocols (contracts). Key rule: USDT was first issued on Omni (property #31), which Tether has discontinued ("no longer issuing or obligated to redeem Tether Tokens on the … Omni Layer", same page); the earliest deployment Tether still supports is Ethereum ERC-20 (tether.io, "USD₮ and EUR₮ now supported on Ethereum", 2017), before TRON (tether.io, "USDT Introduced to TRON Blockchain", 2019) |
+| BNB | `eip155:56/slip44:714` | | BSC chain id 56 (`ethereum-lists`, native currency BNB), SLIP-44 714 (BNB). Key rule (native coin): BNB Smart Chain's protocol issues BNB |
 | XRP | `xrpl:0/slip44:144` | | xrpl CAIP-2 and CAIP-19 profiles |
 | USDC | `eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48` | OP Mainnet, Polygon PoS, Base, Arbitrum One, Avalanche C-Chain, Solana | developers.circle.com/stablecoins/usdc-contract-addresses (native USDC only; bridged USDC.e is excluded) |
 | SOL | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501` | | solana profile, SLIP-44 501 |
@@ -52,7 +52,7 @@ issues the asset, plus ETH on rollups through their canonical bridge.
 | LTC | `bip122:12a765e31ffd4059bada1e25190f6e98/slip44:2` | | bip122 profile, SLIP-44 2 |
 | WETH | `eip155:1/erc20:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2` | | ethereum.org/en/wrapped-eth (canonical WETH). `wraps` ETH |
 | HBAR | `hedera:mainnet/slip44:3030` | | hedera profile, SLIP-44 3030 |
-| AVAX | `eip155:43114/slip44:9000` | | C-Chain id 43114 (`ethereum-lists`, native currency AVAX), SLIP-44 9000 |
+| AVAX | `eip155:43114/slip44:9000` | | C-Chain id 43114 (`ethereum-lists`, native currency AVAX), SLIP-44 9000. Curator choice: AVAX is native on the X, P and C chains; the C-Chain is the one with an asset profile wallets use (`eip155`) |
 | SUI | `sui:mainnet/slip44:784` | | sui CAIP-2 profile (draft), SLIP-44 784 |
 | GRAM | `tvm:-239/slip44:607` | | tvm profile, SLIP-44 607. ton.org/media: "Gram … formerly known as Toncoin or TON" |
 | DAI | `eip155:1/erc20:0x6b175474e89094c44da98b954eedeac495271d0f` | | chainlog.sky.money (`MCD_DAI`) |

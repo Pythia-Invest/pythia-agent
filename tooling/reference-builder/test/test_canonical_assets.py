@@ -65,29 +65,24 @@ class ReferenceTest(unittest.TestCase):
         cls.ref.close()
         cls.tmp.cleanup()
 
-    def lookup(self, provider, native_id):
-        return self.canonical.get((provider, native_id))
-
-    def test_coingecko_only_and_coinmarketcap_only_installs_name_every_curated_asset_alike(self):
+    def test_coingecko_only_and_coinmarketcap_only_installs_address_one_subject_per_curated_asset(self):
         coins = {(provider, caip19): native for (provider, native), caip19 in self.canonical.items()}
         for asset in SEED["assets"]:
             with self.subTest(asset=asset["symbol"]):
-                minted = {provider: identity.coin_subject(provider, asset[provider], self.lookup) for provider in drift.PROVIDERS}
-                self.assertEqual(set(minted.values()), {f"security:caip19:{asset['caip19']}"})
-                for provider, subject_id in minted.items():  # one installed coin plugin addresses that subject itself
-                    subject = page.load_subject(self.ref, subject_id)
+                subject_id = f"security:caip19:{asset['caip19']}"  # built with no provider installed
+                self.assertEqual({self.canonical[(provider, asset[provider])] for provider in drift.PROVIDERS},
+                                 {asset["caip19"]})
+                subject = page.load_subject(self.ref, subject_id)
+                for provider in drift.PROVIDERS:  # one installed coin plugin addresses that same subject
                     quote = next(section for section in page.compose(
                         subject, [self.contracts[provider]], stored=lambda *_: None, queue=[],
                         coins=lambda p, caip19: coins.get((p, caip19))) if section["section"] == "quote")
                     self.assertEqual((quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
                                      ("ready", asset[provider], "confirmed"))
 
-    def test_an_uncurated_coin_is_provisional_until_curation_aliases_it(self):
-        gecko = identity.coin_subject("coingecko", "some-new-token", self.lookup)
-        self.assertEqual(gecko, "security:provisional:coingecko:coin:some-new-token")
-        self.assertNotEqual(gecko, identity.coin_subject("coinmarketcap", "999999", self.lookup))  # not portable
+    def test_an_id_minted_before_curation_aliases_to_the_curated_subject(self):
         for provider, native_id in (("coingecko", "usd-coin"), ("coinmarketcap", "3408")):
-            earlier = identity.provisional_id("security", provider, "coin", native_id)
+            earlier = identity.provisional_id("security", provider, "coin", native_id)  # as a resolve residual mints it
             self.assertEqual(page.load_subject(self.ref, earlier)["id"], f"security:caip19:{USDC}")
 
     def test_deployments_are_listings_of_one_security_and_a_wrapped_asset_stays_apart(self):

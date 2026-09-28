@@ -38,7 +38,7 @@ reference `release` table):
 | Level | ID, first available key wins |
 | --- | --- |
 | Issuer | `issuer:lei:<LEI>`, else `issuer:cik:<CIK>` |
-| Security | `security:isin:<ISIN>`, else `security:figi:<share-class FIGI>`, else `security:caip19:<home deployment>` |
+| Security | `security:isin:<ISIN>`, else `security:figi:<share-class FIGI>`, else `security:caip19:<canonical deployment>` of a curated crypto asset (see the crypto-keys amendment) |
 | Composite | the security key plus country, e.g. `composite:figi:BBG001SCG0R3:US` |
 | Listing | `listing:isin:<ISIN>:<operating MIC>:<currency>`, else `listing:figi:<FIGI>`, else `listing:caip19:<deployment>` |
 
@@ -90,10 +90,10 @@ as a conflict. A record has at most one `self` value per single-valued scheme
 (every scheme but `ticker_mic`).
 
 **Crypto.** Provider coin ids are bindings; symbols and names never join.
-Tokens join on CAIP-2 chain plus contract. Native coins share no identifier
-across providers, so they join only through core's curated native-coin table
-(rule `native_coins@1`) or a queue verdict. A chain's fee coin is not identity,
-and wrapped tokens are separate assets linked by `wraps`.
+A crypto security's key comes only from core's curated canonical-asset table
+(rule `canonical_assets@1`, see the crypto-keys amendment); a token deployment
+(a listing) joins on CAIP-2 chain plus contract. A chain's fee coin is not
+identity, and wrapped tokens are separate assets linked by `wraps`.
 
 **Authorities.** Plugins never choose a tier; core derives it from the
 authority.
@@ -357,9 +357,15 @@ and the native-coin table (`native_coins@1`) under "Crypto".
   `runtime/managed/core/identity/canonical_assets.json` (rule
   `canonical_assets@1`) is the only source of a portable crypto key. It is
   Pythia-authored, versioned and open-hostable. Each row gives:
-  - the asset's **canonical issuance deployment**, which is its key:
-    `security:caip19:<deployment>`. The key is chosen once and never follows
-    supply to another chain.
+  - the asset's **canonical deployment**, which is its key:
+    `security:caip19:<deployment>`. It is chosen from issuer facts only,
+    never from a provider's opinion (primary platform, platform order, rank):
+    - a token: the issuer's original deployment; if the issuer has
+      discontinued it, the earliest deployment the issuer still supports;
+    - a native coin: the chain whose protocol issues it; where several chains
+      do (AVAX), a curator choice recorded in the audit.
+    Only a deployment with a published CAIP-19 profile can be the key. Once
+    chosen, the key never follows supply to another chain.
   - the **deployments that are the same security**: the issuer's own issuance
     on other chains (Circle's native USDC, Paxos's PYUSD), and ETH on a rollup
     through its canonical bridge. They are listings
@@ -370,8 +376,10 @@ and the native-coin table (`native_coins@1`) under "Crypto".
   tokens) are never deployments. They are separate assets linked by `wraps`
   or `bridged_from`.
 - **Uncurated coins.** A coin that no row names gets
-  `security:provisional:<provider>:coin:<id>` (`coin_subject`). That ID is
-  declared non-portable. When the asset is curated, the build writes each of
+  `security:provisional:<provider>:coin:<id>` (as a resolve residual mints
+  it today). That ID is declared non-portable. Only the reference build mints
+  a security-level `caip19` key, from this table; claim ingestion must keep
+  that rule in code when it lands. When the asset is curated, the build writes each of
   its provider IDs to `id_aliases`, so the old ID still resolves.
 - **Provider groupings are claims.** A provider's platform list and primary
   chain may conflict with the table, and they never set a key. Symbols and

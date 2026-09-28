@@ -33,8 +33,7 @@ from .resolution import (
 )
 from .schemes import (
     CANONICAL_ASSETS_RULE, CGS_AREA, INSTRUMENT_KINDS, KEY_RULE, SCHEME_LEVEL, IdentifierError, Kind, Level, Scheme,
-    coin_subject, normalize_identifier, provisional_id, registered_kind, subject_id, subject_kind, subject_level,
-    ticker_mic,
+    normalize_identifier, provisional_id, registered_kind, subject_id, subject_kind, subject_level, ticker_mic,
 )
 from .vocabulary import (
     AUTHORITY_TIER, RELATIONS, AssetClass, Authority, BindingStatus, EvidenceTier, Grouping, IdentifierRole,
