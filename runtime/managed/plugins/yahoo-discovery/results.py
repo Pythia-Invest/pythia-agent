@@ -60,7 +60,7 @@ def read(request, series, mode, raw):
     result['series'] = series
     result['selection']['reason'] = 'pinned' if request['view']['kind'] == 'source' else 'preference'
     result['provenance'] = {'provider': 'yahoo', 'native_ref': series['provider_ref'], 'adapter_version': '1', 'retrieved_at': result['retrieved_at'], 'source_time': None,
-        'revision_vintage': None, 'mapping_revision': None, 'source_detail': {'namespace': 'yahoo', 'values': {'adapter': 'yahoo-finance2:4.0.2'}}}
+        'revision_vintage': None, 'source_detail': {'namespace': 'yahoo', 'values': {'adapter': 'yahoo-finance2:4.0.2'}}}
     observations, seen = [], set()
     daily = mode in ('daily', 'adjusted', 'weekly')
     for row in (raw.get('data') or {}).get('rows', []):

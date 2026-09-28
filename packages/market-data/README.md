@@ -4,7 +4,7 @@ This increment ships shared contracts and the native owner. Concrete connectors
 are separate additions; an enabled feature does not establish provider coverage.
 
 This package exports portable TypeScript backend types and `schema.json` (JSON
-Schema Draft 2020-12). It defines references, evidence, series and read results;
+Schema Draft 2020-12). It defines references, series and read results;
 it does not discover providers, match investments, execute reads or store data.
 
 This is the consumer library of the `pythia-market-data` feature, not a second
@@ -77,9 +77,9 @@ its deterministic subject id (`listing:isin:…`, `security:caip19:…`,
 names. A provider reference instead has `provider`, `native_id`, and
 source-owned `native_scope` (for example `contract`, `coin`, `catalogue`, or
 `unknown`). It is usable without any binding. Names and tickers are evidence
-assertions, never proof of equivalence. Connector detail evidence records keep
-their own coverage scope and authority; they inform core's decisions and are
-not identity decisions themselves.
+assertions, never proof of equivalence. Connector details describe a source's
+own reference (names, typed identifiers, listed contracts); identity evidence and
+its `ev:` IDs belong to core, so the wire carries no evidence records.
 
 A `series:…` ID identifies one source's measurement semantics, not an investment.
 The series owner must assign a new ID when the actual native binding, dataset,
@@ -88,8 +88,7 @@ adjustments/anchor or transformation methodology changes. Read windows,
 retrieval times, adapter releases unrelated to semantics and current capability
 lists are excluded. When a subject read selects a source through core's
 bindings, the shared owner projects `series.subject` to the requested subject
-while retaining the native series ID and `provider_ref`;
-`provenance.mapping_revision` stays `null`. This projection does not change the
+while retaining the native series ID and `provider_ref`. This projection does not change the
 underlying native series identity. The shared owner first executes and validates
 a source-pinned native request, then projects its request/selection/subject.
 A provider's unknown/current adjustment vintage is read

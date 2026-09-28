@@ -103,10 +103,6 @@ def _semantics(kind, value, path):
         require(value["kind"] != "unknown" or value["scale"] == "1", path, "unknown scale preserves raw numeric value")
     elif kind == "adjustment":
         require(value["anchor"] is None or (value["kind"] in ("split", "split_dividend") and value["anchor"]["kind"] != "unknown"), path, "unsupported adjustment anchor")
-    elif kind == "evidence":
-        allowed = {"isin": {"instrument"}, "cusip": {"instrument"}, "lei": {"company"}, "cik": {"company"}, "contract_address": {"crypto"}}
-        require(value["scope"] in allowed.get(value["scheme"], {value["scope"]}), path, "identifier scheme scope differs")
-        require(value["scheme"] != "contract_address" or "network" in value["qualifiers"], path, "contract address needs network")
     elif kind == "series":
         _series(value, path)
     elif kind == "completion":

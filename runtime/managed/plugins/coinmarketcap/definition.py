@@ -31,7 +31,7 @@ def schemas(wire):
         'read_batch': ({'reads': {'type': 'array', 'minItems': 1, 'maxItems': 32, 'items': wire.parameter_schema('source_read')}}, ['reads']),
     }
     contribution = wire.validate('contribution', {
-        'schema_version': 1, 'provider': 'coinmarketcap', 'adapter_version': '1', 'subject_kinds': ['crypto'],
+        'schema_version': 1, 'provider': 'coinmarketcap', 'adapter_version': '1',
         'cadence': {'latest': 600, 'history': 900, 'series': 3600},
         'operations': [{'operation': op, 'tool': TOOLS[op], 'effect': 'read'} for op in COMMON]})
     descriptions = {

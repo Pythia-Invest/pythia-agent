@@ -124,8 +124,6 @@ def register(ctx):
                 item = candidate(row)
                 if item['provider_ref'] != clean['native_ref']:
                     raise ValueError('invalid_response')
-                for evidence in item['evidence']:
-                    wire.validate('evidence', evidence)
                 return envelope([item])
             if operation == 'series':
                 reference(clean['native_ref'])

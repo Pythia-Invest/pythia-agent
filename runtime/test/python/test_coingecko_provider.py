@@ -356,11 +356,11 @@ class Provider(unittest.TestCase):
             self.assertNotIn('SYNTHETIC', json.dumps(result))
             error.close()
 
-    def test_network_evidence_keeps_each_coin_and_network_distinct(self):
+    def test_platform_contracts_keep_each_network_distinct(self):
         one = identity.candidate({'id':'synthetic-coin','name':'Same','symbol':'same','platforms': {'ethereum':'0xAbC','solana':'0xAbC','':''}}, True)
-        for evidence in one['evidence']: wire.validate('evidence', evidence)
-        contracts = [e['qualifiers']['network'] for e in one['evidence'] if e['scheme'] == 'contract_address']
-        self.assertEqual(len(contracts), len(set(contracts)))
+        self.assertEqual(one['platform_contracts'], [{'network': 'ethereum', 'address': '0xAbC'},
+                                                     {'network': 'solana', 'address': '0xAbC'}])
+        self.assertNotIn('evidence', one)  # core owns identity evidence; details carry no legacy evidence IDs
 
     def test_stable_selectors_windows_and_actual_shapes(self):
         now = datetime.now(timezone.utc)
