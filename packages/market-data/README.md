@@ -163,8 +163,9 @@ the native reader remains responsible for semantic validation.
 
 `@pythia/market-data/search` is the provisional contract of the core local
 directory `search` operation and the only place its types live. The response
-holds ranked groups: a company with all its listings (share classes, receipts
-and registry shares included), a fund or ETF, or a crypto asset. A group
+holds ranked groups, core's search groups (ADR 0037): a company with all its
+equity listings (share classes, receipts and registry shares included), a fund,
+ETF, ETN or ETC on its own, or a crypto asset. A group
 carries its subject id, name, main kind, its listing rows and `shown`, how many
 of them are the relevant ones; the rest are for "all listings". A row carries
 the listing's subject `id`, ticker, the listed security's own name and kind,

@@ -7,6 +7,8 @@ import { expect, type Page, test } from "@playwright/test";
  */
 const primary = "listing:isin:XS0000000001:XAMS:EUR";
 const secondary = "listing:isin:XS0000000001:XETR:EUR";
+/** Registry shares that fold into the instrument: a line of its own security. */
+const receipt = "listing:figi:BBG0SYNTHADR";
 const lei = "529900SYNTHETIC00001";
 
 function page_(subject: string) {
@@ -15,17 +17,22 @@ function page_(subject: string) {
     ticker,
     mic,
     venue,
-    currency: "EUR",
+    currency: id === receipt ? "USD" : "EUR",
     primary: id === primary,
+    kind: id === receipt ? "depositary_receipt" : "ordinary",
+    folded: id === receipt,
   });
+  const ofReceipt = subject === receipt;
   return {
     subject: {
       id: subject,
       level: "listing",
       name: "Synthetic Holding N.V.",
-      kind: "ordinary",
+      kind: ofReceipt ? "depositary_receipt" : "ordinary",
     },
-    identifiers: { isin: "XS0000000001", lei, ticker: "SYN", mic: "XAMS" },
+    identifiers: ofReceipt
+      ? { isin: "US0000000002", lei, ticker: "SYNY", mic: "XNAS" }
+      : { isin: "XS0000000001", lei, ticker: "SYN", mic: "XAMS" },
     issuer: { id: `issuer:lei:${lei}`, name: "Synthetic Holding N.V.", lei },
     security: {
       id: "security:isin:XS0000000001",
@@ -35,12 +42,13 @@ function page_(subject: string) {
     listings: [
       listing(primary, "SYN", "XAMS", "Euronext Amsterdam"),
       listing(secondary, "SYN1", "XETR", "Xetra"),
+      listing(receipt, "SYNY", "XNAS", "Nasdaq"),
     ],
     sections: [
       {
         section: "quote",
-        plugin: "pythia-yahoo-discovery",
-        label: "Yahoo Finance",
+        plugin: ofReceipt ? "pythia-eodhd" : "pythia-yahoo-discovery",
+        label: ofReceipt ? "EODHD" : "Yahoo Finance",
         status: "ready",
         binding: {
           provider: "yahoo",
@@ -344,4 +352,35 @@ test("a listing that is not this instrument's falls back to the page's subject",
     page.getByRole("button", { name: /^Listing: SYN · Euronext Amsterdam/ }),
   ).toBeVisible();
   expect(asked).not.toContain("listing:other:instrument");
+});
+
+test("the header stays the instrument's while a receipt's price is shown", async ({
+  page,
+}) => {
+  await routeIdentity(page);
+  await page.goto(`/instrument/${encodeURIComponent(primary)}`);
+  await page
+    .getByRole("button", { name: /^Listing: SYN · Euronext Amsterdam/ })
+    .click();
+  // Core's fold: the security's own listings, then its receipts.
+  await expect(page.getByRole("group", { name: "Listings" })).toBeVisible();
+  await page
+    .getByRole("group", { name: "Depositary receipts" })
+    .getByRole("menuitemradio", { name: /SYNY/ })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /^Listing: SYNY · Nasdaq · USD/ }),
+  ).toBeVisible();
+  // The receipt's own composition drives the price card...
+  await expect(
+    page
+      .getByRole("region", { name: "Quote" })
+      .locator('[data-slot="instrument-sources"]'),
+  ).toContainText("EODHD");
+  // ...while the kind badge and identifiers remain the instrument's.
+  const header = page.locator('[data-slot="instrument-header"]');
+  await expect(header.getByText("Depositary receipt")).toHaveCount(0);
+  await expect(
+    header.locator('[data-slot="instrument-identifiers"]'),
+  ).toContainText("XS0000000001");
 });

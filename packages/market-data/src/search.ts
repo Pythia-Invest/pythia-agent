@@ -50,8 +50,9 @@ export const searchRowSchema = z.object({
 export type SearchRow = z.infer<typeof searchRowSchema>;
 export type SearchBinding = SearchRow["bindings"][number];
 
-/** One company (its share classes, receipts and registry lines), a fund or
- * ETF, or a crypto asset, with its listings. The first `shown` rows are the
+/** One of core's search groups (ADR 0037): a company (its share classes,
+ * receipts and registry lines), a fund, ETF or ETN, or a crypto asset, with
+ * its listings. The first `shown` rows are the
  * relevant ones (a listing the query names, the preferred market, the
  * primary listing, other classes and receipts); the rest are for "all
  * listings". */

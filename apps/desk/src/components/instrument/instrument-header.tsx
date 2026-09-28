@@ -26,7 +26,9 @@ export function currentListing(page: SubjectPage): SubjectListing | undefined {
   );
 }
 
-/** The page is the instrument; `subjectId` is its route subject. */
+/** The page is the instrument; `subjectId` is its route subject and `page`
+ * its composition, so the kind badge, name and identifiers stay the
+ * instrument's while the selector follows the chosen listing. */
 export function InstrumentHeader({
   page,
   subjectId,
@@ -85,9 +87,9 @@ export function InstrumentHeader({
 }
 
 /** `TICKER · Venue · CCY ▾`: which line of the instrument the price and
- * chart follow. Every line of the instrument, grouped home market, other
- * exchanges, then OTC and receipts. Choosing one keeps the page (profile and
- * filings are the issuer's) and records the listing in the URL. */
+ * chart follow. Every line of the instrument as core folds it: the security's
+ * own listings, then its depositary receipts. Choosing one keeps the page
+ * (profile and filings are the issuer's) and records the listing in the URL. */
 function ListingSelector({
   page,
   subjectId,
@@ -140,9 +142,11 @@ function ListingSelector({
                 )
               }
             >
-              {listingGroups(page.listings).map((group) => (
+              {listingGroups(page.listings).map((group, _index, groups) => (
                 <Menu.Group key={group.key}>
-                  <Menu.GroupLabel>{group.label}</Menu.GroupLabel>
+                  {groups.length > 1 ? (
+                    <Menu.GroupLabel>{group.label}</Menu.GroupLabel>
+                  ) : null}
                   {group.listings.map((listing) => (
                     <Menu.RadioItem
                       key={listing.id}

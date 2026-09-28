@@ -183,7 +183,7 @@ class Identity:
         security = subject["ids"].get(Level.SECURITY)
         view = subject["view"]
         view["other_securities"] = []
-        if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
+        if subject["asset_class"] == "equity" and security:  # the instrument's lines, receipts folded in
             directory = search.directory(path, store.open_reference)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
             # The company's other instruments; a share class listed there is not repeated under `related`.

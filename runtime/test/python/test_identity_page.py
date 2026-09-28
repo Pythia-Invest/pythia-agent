@@ -118,6 +118,14 @@ class SearchTest(Fixture):
         # The registry shares are a listing row of the same company, with their own type.
         self.assertEqual((group["rows"][1]["id"], group["rows"][1]["kind"]), (us, "depositary_receipt"))
 
+    def test_another_securitys_row_is_its_own_primary_listing(self):
+        # A registry share line elsewhere would win on the foreign-on-US penalty; the row shows the primary.
+        with sqlite3.connect(self.path) as db:
+            db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                       " VALUES ('listing:asml-nyrs:XMUN', 'security:figi:BBG001SCG0R3', 'XMUN', 'XMUN', 'ASMF', 'USD', 0)")
+        group, = search.Directory(self.ref).search("asml", limit=5)["groups"]
+        self.assertEqual([row["id"] for row in group["rows"][:group["shown"]]], [ASML, "listing:figi:BBG000K6N6G7"])
+
     def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
         us = "listing:figi:BBG000K6N6G7"
         self.assertEqual(self.rows("asml", prefer="US"), [us])
@@ -141,8 +149,8 @@ class SearchTest(Fixture):
         self.assertEqual([(item["id"], item["kind"], item["primary"]) for item in listings],
                          [(SHELL, "ordinary", True), (SHELL_OTC, "ordinary", False),
                           (SHEL, "depositary_receipt", False)])
-        # The page groups lines by these: the venue's country, OTC and the issuer's home country.
-        self.assertEqual([(item["country"], item["otc"], item["home"]) for item in listings], [("NL", False, False), (None, True, False), ("US", False, False)])
+        # The receipt's line is folded in: the page sets it apart from the share's own lines.
+        self.assertEqual([item["folded"] for item in listings], [False, False, True])
 
     def test_only_a_fold_relation_folds_a_receipt_and_the_issuer_still_groups_it(self):
         with sqlite3.connect(self.path) as db:

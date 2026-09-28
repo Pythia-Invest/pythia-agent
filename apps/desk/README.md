@@ -205,10 +205,12 @@ Status filter.
 
 `/instrument/[subject]` is one instrument's page (URL-encoded subject id);
 `?listing=` names the listing whose quote and chart it shows. The header's
-listing selector (`TICKER · Venue · CCY ▾`) lists every line of the instrument,
-grouped home market, other exchanges, then OTC & ADRs; choosing one updates
-`?listing=` in place (`history.replaceState`), so profile and filings, which
-are the issuer's, keep their reads. The shell routes `pythia:open-subject`
+listing selector (`TICKER · Venue · CCY ▾`) lists every line of the instrument
+as core folds it (ADR 0037): the security's own listings, then those of its
+depositary receipts and registry shares. Choosing one updates `?listing=` in
+place (`history.replaceState`); only the price and chart follow it, while the
+header and the issuer's profile and filings stay and keep their reads. A
+`?listing=` that is not one of the instrument's lines is ignored. The shell routes `pythia:open-subject`
 window events there. The page renders core's
 local `pythia`/`identity-subject` composition at once, then loads each section
 on its own: `resolving` sections through `identity-resolve` (an explicit invoke,

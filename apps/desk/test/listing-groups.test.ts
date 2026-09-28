@@ -17,9 +17,7 @@ function line(
     currency: "EUR",
     primary: false,
     kind: "ordinary",
-    country: null,
-    otc: false,
-    home: null,
+    folded: false,
     ...fields,
   };
 }
@@ -31,33 +29,24 @@ const groups = (listings: SubjectListing[]) =>
   ]);
 
 describe("instrument listing groups", () => {
-  it("puts home lines first, other exchanges next, OTC and receipts last", () => {
+  it("lists the security's own lines, then what folds into it, in core's order", () => {
     expect(
       groups([
-        line("xams", { primary: true, home: true, country: "NL" }),
-        line("xetr", { home: false, country: "DE" }),
-        line("asmlf", { home: false, otc: true, country: "US" }),
-        line("adr", { home: false, kind: "depositary_receipt", country: "US" }),
-        line("xnas", { home: false, country: "US" }),
+        line("xams", { primary: true }),
+        line("xetr"),
+        line("asmlf"),
+        line("xnas", { kind: "depositary_receipt", folded: true }),
+        line("asmf", { kind: "depositary_receipt", folded: true }),
       ]),
     ).toEqual([
-      ["home", ["xams"]],
-      ["exchanges", ["xetr", "xnas"]],
-      ["otc", ["asmlf", "adr"]],
+      ["own", ["xams", "xetr", "asmlf"]],
+      ["folded", ["xnas", "asmf"]],
     ]);
   });
 
-  it("keeps the primary line at home even away from the issuer's country", () => {
-    // Shell's primary line is in Amsterdam while the issuer is British
-    // (core: home=false); it still leads the selector.
-    expect(
-      groups([
-        line("shell", { primary: true, home: false, country: "NL" }),
-        line("shel", { kind: "depositary_receipt", country: "US" }),
-      ]),
-    ).toEqual([
-      ["home", ["shell"]],
-      ["otc", ["shel"]],
+  it("leaves out an empty group", () => {
+    expect(groups([line("googl", { primary: true }), line("abea")])).toEqual([
+      ["own", ["googl", "abea"]],
     ]);
   });
 

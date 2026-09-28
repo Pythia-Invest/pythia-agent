@@ -123,13 +123,16 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
       </div>
     );
   const view = { ...page.data, sections: resolved.sections };
+  // The header is the instrument's (the route subject's kind, name and
+  // identifiers); only the price and chart follow the chosen listing.
+  const header = instrument.data ?? view;
   return (
     <article
       data-slot="instrument-page"
-      aria-label={view.subject.name}
+      aria-label={header.subject.name}
       className="@container mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-5 min-[600px]:px-6"
     >
-      <InstrumentHeader page={view} subjectId={subjectId} />
+      <InstrumentHeader page={header} subjectId={subjectId} />
       <div className="grid @3xl:grid-cols-3 grid-cols-1 gap-3">
         {pageBlocks(view.sections).map((block) => {
           const retry = block.sections

@@ -1,40 +1,32 @@
 import type { SubjectListing } from "@pythia/market-data/subject";
 
 export type ListingGroup = {
-  key: "home" | "exchanges" | "otc";
+  key: "own" | "folded";
   label: string;
   listings: SubjectListing[];
 };
 
-/** Over-the-counter lines and depositary receipts trade the same economic
- * shares away from the home exchange. */
-function offExchange(listing: SubjectListing) {
-  return listing.otc === true || listing.kind === "depositary_receipt";
-}
-
 /**
- * An instrument's listings for the page's selector: the home market (core's
- * `home` flag, a venue in the issuer's country, and always the primary line),
- * other exchanges, then OTC lines and receipts. Supplied order is kept within
- * each group; empty groups are left out.
+ * An instrument's listings for the page's selector, as core folds them: the
+ * security's own lines, then the lines of what folds into it (depositary
+ * receipts and registry shares). Core's order is kept within each group;
+ * an empty group is left out.
  */
 export function listingGroups(
   listings: readonly SubjectListing[],
 ): ListingGroup[] {
-  const primary = listings.find((listing) => listing.primary) ?? listings[0];
   const groups: ListingGroup[] = [
-    { key: "home", label: "Home market", listings: [] },
-    { key: "exchanges", label: "Other exchanges", listings: [] },
-    { key: "otc", label: "OTC & ADRs", listings: [] },
+    {
+      key: "own",
+      label: "Listings",
+      listings: listings.filter((listing) => !listing.folded),
+    },
+    {
+      key: "folded",
+      label: "Depositary receipts",
+      listings: listings.filter((listing) => listing.folded),
+    },
   ];
-  for (const listing of listings) {
-    const group = offExchange(listing)
-      ? groups[2]
-      : listing.home === true || listing === primary
-        ? groups[0]
-        : groups[1];
-    group?.listings.push(listing);
-  }
   return groups.filter((group) => group.listings.length > 0);
 }
 

@@ -172,7 +172,9 @@ export function SearchPanel(props: SearchPanelProps) {
           aria-label="Investments"
           aria-busy={status === "ready" && !fresh}
           hidden={!shown.length}
-          className="grid max-h-none overflow-visible"
+          // One shrinkable column: a long listing detail truncates instead of
+          // widening every row past the panel.
+          className="grid max-h-none grid-cols-1 overflow-visible"
         >
           {directory.map(renderRow)}
           {found.length && lookup ? (

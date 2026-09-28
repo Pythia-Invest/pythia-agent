@@ -202,19 +202,22 @@ memory (FTS5) from the newest reference file and ranks with one versioned,
 gold-calibrated additive score (exact ticker or identifier, name match,
 notability from each security's source `rank`, primary and home line,
 penalties for OTC lines and derivatives); issuers compete by their best line.
-Results are grouped per company (founder decision 2026-09-28, superseding one
-row per instrument): a group is an issuer with all its listings, including share
-classes, preferreds, depositary receipts and registry shares; a fund or ETF is
-its own group (never its umbrella's), and so is a crypto asset. Groups compete
-by their best line. A group first shows a few relevant listings, then offers all
-of them: the lead listing is the one
+Results are grouped per search group (founder decision 2026-09-28, superseding
+one row per instrument), the investable entity of the amendment below: a
+company with all its equity listings, including share classes, preferreds,
+depositary receipts and registry shares; a fund, ETF, ETN or ETC on its own,
+never under its issuer or umbrella; a crypto asset on its own. Core derives the
+group; the search response only orders it. Groups compete by their best line.
+A group first shows a few relevant listings, then offers all of them: the lead
+listing is the one
 the query names (a venue word, a provider symbol such as `ASML.AS` through the
 installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange); the main share's primary listing and the best line of each other
-matched security follow (at most three), then the rest. Core declares the key
+exchange); the main share's primary listing and a line of each other matched
+security (one the query names, else that security's primary listing) follow,
+at most three in all, then the rest. Core declares the key
 in its `configuration.json`. "Look up in X"
 explicitly calls one provider's `resolve`, and the result joins like any other
 claim.

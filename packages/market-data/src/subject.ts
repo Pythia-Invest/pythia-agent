@@ -63,12 +63,9 @@ export const subjectListingSchema = z.object({
   primary: z.boolean().default(false),
   /** The listed security's kind: a folded receipt is labelled as one. */
   kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
-  /** ISO 3166 country of the venue. */
-  country: optionalText,
-  /** Traded over the counter rather than on an exchange. */
-  otc: z.boolean().nullish(),
-  /** On a venue in the issuer's home country. */
-  home: z.boolean().nullish(),
+  /** A line of a security that folds into the instrument (a receipt), not
+   * of the instrument's own security. */
+  folded: z.boolean().default(false),
 });
 export type SubjectListing = z.infer<typeof subjectListingSchema>;
 
