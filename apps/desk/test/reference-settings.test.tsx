@@ -23,7 +23,7 @@ vi.mock("@/client/local-time", () => ({
 // The envelope core's `reference-status` returns (identity_ops._envelope).
 const summary = {
   build_id: "reference-20260928",
-  format_version: 2,
+  format_version: 3,
   built_at: "2026-09-28T09:00:00Z",
   as_of: "2026-09-28",
   installed_at: "2026-09-28T10:00:00Z",

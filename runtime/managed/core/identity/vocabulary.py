@@ -84,8 +84,6 @@ class BindingStatus(StrEnum):
 class RelationType(StrEnum):
     DEPOSITARY_RECEIPT_OF = "depositary_receipt_of"  # receipt or registry share -> underlying security
     SHARE_CLASS_OF = "share_class_of"                # another class of a company's shares -> its main class
-    NATIVE_DEPLOYMENT_OF = "native_deployment_of"    # a per-chain native issuance keyed as its own security -> the
-                                                     # canonical asset (endpoints settle with M2's curated assets)
     WRAPS = "wraps"                                  # wrapped crypto asset -> underlying asset
     BRIDGED_FROM = "bridged_from"                    # lock-and-mint bridged token -> the asset it bridges
     STAKED_AS = "staked_as"                          # staked asset -> its liquid staking token
@@ -119,7 +117,6 @@ _UNDERLYING = frozenset({Kind.SECURITY, Kind.INDEX, Kind.SERIES})
 RELATIONS: dict[RelationType, RelationRule] = {
     RelationType.DEPOSITARY_RECEIPT_OF: RelationRule((_SECURITY, _SECURITY), Grouping.FOLD),
     RelationType.SHARE_CLASS_OF: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
-    RelationType.NATIVE_DEPLOYMENT_OF: RelationRule((_SECURITY, _SECURITY), Grouping.FOLD),
     RelationType.WRAPS: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
     RelationType.BRIDGED_FROM: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
     RelationType.STAKED_AS: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),

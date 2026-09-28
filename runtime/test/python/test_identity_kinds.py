@@ -52,7 +52,7 @@ class KindTest(Fixture):
             with self.subTest(type=type), self.assertRaises(ValueError):
                 relation(type, start, end)
         fold = {type for type, rule in identity.RELATIONS.items() if rule.grouping is identity.Grouping.FOLD}
-        self.assertEqual(fold, {"depositary_receipt_of", "native_deployment_of"})
+        self.assertEqual(fold, {"depositary_receipt_of"})  # a crypto deployment is a listing
 
     def test_fold_edges_lead_to_one_unit_whatever_their_order(self):
         edges = [("depositary_receipt_of", "security:adr", "security:a"),
