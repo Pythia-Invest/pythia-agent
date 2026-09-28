@@ -36,5 +36,6 @@ def parse(data: bytes) -> dict[str, Venue]:
             country=(row.get("ISO COUNTRY CODE (ISO 3166)") or "").strip(),
             category=(row.get("MARKET CATEGORY CODE") or "").strip() or None,
             status=(row.get("STATUS") or "").strip(),
+            lei=(row.get("LEI") or "").strip() or None,
         )
     return venues
