@@ -246,7 +246,12 @@ class IdentityStore:
         where = {"open": "q.state = 'open'",
                  "answered": "q.state IN ('resolved', 'dismissed') AND v.resolver = 'agent'",
                  "settled": "q.state IN ('resolved', 'dismissed') AND (v.resolver IS NULL OR v.resolver <> 'agent')"}[which]
-        rows = self.db.execute(f"{_ITEMS} WHERE {where} ORDER BY q.opened_at DESC, q.id").fetchall()
+        args: list[str] = []
+        if subjects is not None:  # in SQL: the reference build asks thousands of questions, a page wants a few
+            where = f"({where}) AND EXISTS (SELECT 1 FROM (SELECT value FROM json_each(q.subject_ids) UNION ALL" \
+                    f" SELECT value FROM json_each(q.candidate_ids)) WHERE value IN (SELECT value FROM json_each(?)))"
+            args.append(json.dumps(sorted(subjects)))
+        rows = self.db.execute(f"{_ITEMS} WHERE {where} ORDER BY q.opened_at DESC, q.id", args).fetchall()
         items = [_item(row) for row in rows]
         return [item for item in items if (kind is None or item["kind"] == kind)
                 and (names is None or names & set(item["plugins"]))
