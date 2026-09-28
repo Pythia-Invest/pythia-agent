@@ -1,6 +1,5 @@
 import { ComboboxItem } from "@pythia/widget-sdk";
 import { ChevronDown, ChevronUp, Plug } from "lucide-react";
-import type { SearchBinding } from "../search";
 import { connectors } from "./connector-icons";
 import { KIND_LABELS, ROW_LABELS, type SearchOption } from "./search-model";
 
@@ -42,13 +41,6 @@ function countryFlag(country: string): string {
   );
 }
 
-function onePerPlugin(bindings: readonly SearchBinding[]) {
-  return bindings.filter(
-    (binding, index) =>
-      bindings.findIndex((other) => other.plugin === binding.plugin) === index,
-  );
-}
-
 /** What a listing is beyond its company: a share class or registry shares
  * named after the company ("Class C"), else nothing. */
 function ownDetail({ group, row }: SearchOption) {
@@ -58,7 +50,7 @@ function ownDetail({ group, row }: SearchOption) {
     : row.name;
 }
 
-function optionLabel(option: SearchOption, bindings: readonly SearchBinding[]) {
+function optionLabel(option: SearchOption) {
   const { group, row } = option;
   if (!row) return group.name;
   return [
@@ -68,9 +60,6 @@ function optionLabel(option: SearchOption, bindings: readonly SearchBinding[]) {
     row.venue ?? row.mic,
     row.currency,
     KIND_LABELS[row.kind],
-    bindings.length
-      ? `via ${bindings.map((binding) => connectorName(binding.plugin)).join(", ")}`
-      : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -97,8 +86,8 @@ export function GroupHeading({ option }: { option: SearchOption }) {
 
 /** One listing of a group on one line: ticker, the venue with its country
  * flag, what the listing is when it is not the plain share (a class, registry
- * shares), currency and type. Logos appear only for connectors bound to that
- * listing. No prices. */
+ * shares), currency and type. No prices and no provider logos: search shows
+ * what exists; sources belong on the instrument page. */
 export function SearchRowOption({
   option,
   onChoose,
@@ -108,13 +97,12 @@ export function SearchRowOption({
 }) {
   const { row } = option;
   if (!row) return null;
-  const bindings = onePerPlugin(row.bindings);
   const venue = row.venue ?? row.mic;
   const detail = ownDetail(option);
   return (
     <ComboboxItem
       value={option}
-      aria-label={optionLabel(option, bindings)}
+      aria-label={optionLabel(option)}
       // Base UI clicks the highlighted row on Enter, so this is the one path
       // for pointer and keyboard choices.
       onClick={onChoose}
@@ -135,21 +123,6 @@ export function SearchRowOption({
           <span className="flex-none text-foreground">{venue}</span>
         ) : null}
         {detail ? <span className="min-w-0 truncate">· {detail}</span> : null}
-        {bindings.length ? (
-          <span
-            aria-hidden="true"
-            data-slot="investment-search-connectors"
-            className="flex flex-none items-center gap-1"
-          >
-            {bindings.slice(0, 4).map((binding) => (
-              <ConnectorMark
-                key={binding.plugin}
-                plugin={binding.plugin}
-                title={`${connectorName(binding.plugin)} · ${binding.ref}`}
-              />
-            ))}
-          </span>
-        ) : null}
       </span>
       <span className="w-9 flex-none text-foreground-secondary">
         {row.currency}

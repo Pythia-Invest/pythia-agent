@@ -186,8 +186,8 @@ and type. A group with more listings ends in an "All N listings" option that
 reveals every listing in place ("Fewer listings" hides them again); the arrow
 keys reach it like any listing and Enter toggles it. Type pills ask the
 directory for their instrument kinds and
-never take focus from the field. Tiny connector logos appear only for bindings
-on that listing; rows carry no prices. The panel is anchored below the field
+never take focus from the field. Rows carry no prices and no provider logos:
+search shows what exists, and sources belong on the instrument page. The panel is anchored below the field
 with fixed geometry, keeps the previous answer while the next loads, and reopens
 instantly from `['plugin', 'pythia', 'search', …]`, the query cache of core's
 serving `pythia`/`identity-search` operation. A query the directory does not
