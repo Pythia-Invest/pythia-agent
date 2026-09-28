@@ -4,18 +4,20 @@ from datetime import datetime, timezone
 
 from .selection import (available, caches_observations, compatible_ref, fingerprint, matches, permits_implicit,
                         selector, supports_read)
+from .backend import unverified_issue
 from .wire import require, validate, validate_read_result, WireError
 
 
 def read_failure(request, code, *, reason="unavailable", alternatives=(), provider=None, selected=None, source_issues=()):
     # A key's text before ":" is the issue code; the rest picks the explanation.
-    messages = {"unresolved_identity": "No installed source serves this subject yet. Check it with pythia_identity_subject; pythia_identity_resolve asks a source that needs a lookup.",
-                "unresolved_identity:unknown_subject": "This subject id is not in the device's reference data. Find the investment with pythia_identity_search.",
+    messages = {"unresolved_identity": "No installed source serves this subject yet. pythia_instrument shows each source's state for it.",
+                "unresolved_identity:unknown_subject": "This subject id is not in the device's reference data. Find the investment with pythia_find.",
                 "unresolved_identity:no_reference_data": "This device has no readable reference data yet, so no subject can be routed. Explicit source references still read.",
                 "unresolved_identity:core_unavailable": "Pythia core identity is not loaded, so no subject can be routed. Explicit source references still read.",
-                "issuer_subject": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them.",
+                "issuer_subject": "An issuer has no price. Read one of its securities or listings; pythia_instrument lists them.",
                 "ambiguous_series": "Several source series match; specify more criteria or pin a descriptor.",
                 "incompatible_series": "The selected source has no compatible series.",
+                "binding_conflict": "The source's own record states another venue or currency than this instrument's reference data, and that difference is enforced; the source is not used.",
                 "unavailable": "The selected source is unavailable in this native caller context.",
                 "explicit_source_required": "Available broker data requires an explicit native reference, a pinned series or a place in source_order.",
                 "source_error": "The selected source read failed; alternatives require a separate read.",
@@ -86,6 +88,7 @@ def _choose(backend, request, criteria, descriptor, sources):
     eligible = [ref for ref in eligible if all(
         key not in criteria or key not in ref.get("qualifiers", {}) or
         ref["qualifiers"][key] == criteria[key] for key in ("currency", "venue", "route"))]
+    refused, labels = None, {}
     for candidate_provider in ordered:
         if sum(ref["provider"] == candidate_provider for ref in eligible) > 8:
             return None, "ambiguous_series", candidate_provider, []
@@ -96,6 +99,12 @@ def _choose(backend, request, criteria, descriptor, sources):
             response = backend.describe_series(ref, criteria)
             if response.get("outcome") not in ("ok", "empty"):
                 return None, "source_error", candidate_provider, response.get("issues", [])
+            checked = backend.check(binding, ref, response)  # what the source says of itself, against the reference
+            if checked["status"] == "refused":
+                refused = candidate_provider
+                continue
+            if checked["status"] == "unverified":
+                labels[candidate_provider] = checked["label"]
             for value in response.get("data", []):
                 series = validate("series", value)
                 # A reference may omit qualifiers the source adds (Yahoo's venue and
@@ -114,7 +123,10 @@ def _choose(backend, request, criteria, descriptor, sources):
             selected = next(iter(unique.values()))
             if explicit and not compatible_ref(binding, selected["provider_ref"]):
                 return None, "incompatible_series", candidate_provider, []
-            return selected, None, candidate_provider, []
+            label = labels.get(candidate_provider)
+            return selected, None, candidate_provider, [unverified_issue(candidate_provider, label)] if label else []
+    if refused:
+        return None, "binding_conflict", refused, []
     return None, "incompatible_series", ordered[0], []
 
 
@@ -148,7 +160,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                     if available(sources, source["contribution"]["provider"], request["operation"])]
     selected, error, chosen_provider, source_issues = _choose(backend, request, criteria, descriptor, sources)
     if error:
-        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error in ("incompatible_series", "ambiguous_series", "issuer_subject") else "unavailable"
+        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error in ("incompatible_series", "ambiguous_series", "issuer_subject", "binding_conflict") else "unavailable"
         alternatives = [item for item in alternatives if item != "provider:" + (chosen_provider or "")]
         return read_failure(request, error, reason=reason, alternatives=alternatives, provider=chosen_provider, source_issues=source_issues)
     provider = selected["provider_ref"]["provider"]
@@ -184,6 +196,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                 or semantic_series(result["series"]) != semantic_series(selected)):
             return read_failure(request, "invalid_response", alternatives=alternatives, provider=provider, selected=selected)
     result = copy.deepcopy(result)
+    result["issues"] += source_issues  # an unverified source is labelled on the result it served
     if preferred and provider in backend.route(request["view"]["subject"])["unaudited"]:
         result["issues"].append({"code": "unaudited_source", "severity": "warning",
                                  "message": f"{provider} is not yet audited: Pythia has not checked this source's data."})

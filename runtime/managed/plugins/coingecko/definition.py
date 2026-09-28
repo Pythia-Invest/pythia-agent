@@ -6,7 +6,7 @@ is no provider search operation.
 """
 import json
 
-TOOLSET = 'pythia-coingecko-market-data'
+TOOLSET = 'pythia-core'  # core's one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
 OPERATIONS = ('catalogue', 'details', 'series', 'latest', 'history', 'dashboard', 'read_batch')
 TOOLS = {operation: 'pythia_coingecko_' + operation for operation in OPERATIONS}
 UNMARKED = ('catalogue', 'dashboard')

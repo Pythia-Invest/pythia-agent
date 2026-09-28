@@ -25,6 +25,7 @@ class Concept(StrEnum):
     FUNDAMENTALS = "fundamentals"  # registered; nothing serves it until its core result schema exists
     ESTIMATES = "estimates"        # registered; nothing serves it yet
     NEWS = "news"                  # registered; nothing serves it yet
+    MARKET_MOVERS = "market_movers"  # a market's ranked lists (most active, gainers, losers); about no one subject
 
 
 class Combine(StrEnum):
@@ -163,6 +164,11 @@ REGISTRY: dict[Concept, ConceptSpec] = {
     Concept.FUNDAMENTALS: ConceptSpec(operations={"statements": BASIS, "metrics": BASIS}, levels=frozenset({Level.ISSUER})),
     Concept.ESTIMATES: ConceptSpec(operations={"consensus": {}, "targets": {}}, levels=frozenset({Level.ISSUER})),
     Concept.NEWS: ConceptSpec(operations={"list": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY})),
+    # About no subject (no levels or kinds): a market's lists. Each list is an operation, so a source declares the
+    # lists it has; `delay` is the rows' quote timing.
+    Concept.MARKET_MOVERS: ConceptSpec(operations={name: {"delay": one_of(*DELAY), "feed_note": text(80)}
+                                                   for name in ("most_active", "gainers", "losers")},
+                                       levels=frozenset(), default_order=("yahoo",)),
 }
 
 

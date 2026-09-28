@@ -18,3 +18,5 @@ export type {
   ChartWidgetInput,
   InstrumentChartData,
 } from "./chart";
+export { dayBinding } from "./day";
+export type { DayData, DayInput, DayRow } from "./day";

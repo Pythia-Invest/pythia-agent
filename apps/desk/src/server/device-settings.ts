@@ -24,6 +24,10 @@ import { hermesClient } from "./hermes";
 import type { HermesToolset } from "./types";
 import { initializeProfileModel } from "./model-initialization";
 
+// Pythia's own toolsets are not agent choices: core shows `pythia-desk` and keeps every plugin operation in
+// hidden `pythia-core`. A data source is turned off by disabling its plugin (docs/architecture/agent-tools.md).
+const PYTHIA_TOOLSETS = new Set(["pythia-core", "pythia-desk"]);
+
 export {
   DeviceSettingsError,
   type DeviceSettingsService,
@@ -210,7 +214,9 @@ export function createDeviceSettingsService(
         skillsStatus = "unavailable";
       }
       try {
-        toolsets = await client.listToolsets();
+        toolsets = (await client.listToolsets()).filter(
+          (item) => !PYTHIA_TOOLSETS.has(item.name),
+        );
       } catch {
         toolsetsStatus = "unavailable";
       }
@@ -293,6 +299,13 @@ export function createDeviceSettingsService(
 
     async setToolsetEnabled(rawName, enabled) {
       const name = safeIdentifier(rawName, "toolset name");
+      if (PYTHIA_TOOLSETS.has(name)) {
+        throw new DeviceSettingsError(
+          "Pythia's own tools are not switched here; disable a data source's plugin instead.",
+          409,
+          "pythia_toolset",
+        );
+      }
       const profile = profileFrom(environment, options.profile);
       return withFileLock(paths().lock, async () => {
         const before = await client.listToolsets();

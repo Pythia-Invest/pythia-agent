@@ -29,6 +29,7 @@ from .resolution import QueueItem, Verdict, VerdictOutcome
 
 logger = logging.getLogger(__name__)
 SCHEMA_VERSION = "5"  # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds; 5: open queue reasons)
+ADDED = "-- Added within schema 5"  # identity.sql: the idempotent statements every open applies
 REFERENCE_SCHEMA_VERSION = str(reference_package.FORMAT_VERSION)  # the reference SQLite's release.schema_version
 
 
@@ -89,6 +90,7 @@ class IdentityStore:
             self._create(lambda setup: None)
         self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
+        self.db.executescript(schema_sql(Store.IDENTITY).partition(ADDED)[2].partition("\n")[2])  # added in version
         self._writing = threading.RLock()  # one connection serves every thread: one user of it at a time
 
     def _create(self, fill) -> None:
@@ -96,8 +98,10 @@ class IdentityStore:
         staging = self.path.with_name(f"identity.{uuid.uuid4().hex}.part")
         setup = sqlite3.connect(staging)
         try:
-            setup.executescript(schema_sql(Store.IDENTITY))
+            versioned, _marker, added = schema_sql(Store.IDENTITY).partition(ADDED)
+            setup.executescript(versioned)
             fill(setup)
+            setup.executescript(added.partition("\n")[2])
             setup.execute("INSERT INTO metadata (key, value) VALUES ('schema_version', ?)"
                           " ON CONFLICT (key) DO UPDATE SET value = excluded.value", (SCHEMA_VERSION,))
             setup.commit()
@@ -201,6 +205,32 @@ class IdentityStore:
             self.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE resolved_by = ?"
                             " AND state = 'resolved'", (now(), before["verdict_id"]))
         return changed
+
+    @_locked
+    def put_read_check(self, subject_id: str, ref: ProviderRef, plugin: str, stated: dict, differs: list[str],
+                       note: str | None) -> None:
+        """Record one read check (ADR 0037): no `note` means the read verified, which also stamps the subject's
+        confirmed binding. A check never changes a binding otherwise."""
+        stamp, key = now(), (ref.provider, ref.native_scope, ref.native_id)
+        self.db.execute(
+            "INSERT INTO read_checks (subject_id, provider, native_scope, native_id, plugin, stated, differs, note,"
+            " checked_at, verified_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (subject_id, provider, native_scope,"
+            " native_id) DO UPDATE SET plugin = excluded.plugin, stated = excluded.stated, differs = excluded.differs,"
+            " note = excluded.note, checked_at = excluded.checked_at,"
+            " verified_at = COALESCE(excluded.verified_at, read_checks.verified_at)",
+            (subject_id, *key, plugin, json.dumps(stated, sort_keys=True), json.dumps(differs), note, stamp,
+             None if note else stamp))
+        if note is None:
+            self.db.execute("UPDATE bindings SET verified_at = ? WHERE provider = ? AND native_scope = ? AND native_id = ?"
+                            " AND subject_id = ? AND status = 'confirmed'", (stamp, *key, subject_id))
+
+    @_locked
+    def read_checks(self, subject_ids: Iterable[str]) -> dict[tuple[str, str, str, str], sqlite3.Row]:
+        """The subjects' last read checks by (subject, provider, native scope, native id)."""
+        subjects = list(subject_ids)
+        rows = self.db.execute(f"SELECT * FROM read_checks WHERE subject_id IN ({','.join('?' * len(subjects))})",
+                               subjects).fetchall() if subjects else []
+        return {(row["subject_id"], row["provider"], row["native_scope"], row["native_id"]): row for row in rows}
 
     @_locked
     def bound_subject(self, ref: ProviderRef) -> str | None:

@@ -86,6 +86,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "identity.py",
       "series.py",
       "results.py",
+      "movers.py",
     ]),
     workers: Object.freeze([
       "yahoo.ts",

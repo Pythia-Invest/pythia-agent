@@ -14,6 +14,7 @@ page needs no reference file.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
@@ -57,6 +58,9 @@ LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMark
 SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
         Level.SECURITY: VerdictRelation.SAME_SECURITY, Level.ISSUER: VerdictRelation.SAME_ISSUER}
 RESOLVE_RULE = "resolve_answer@1"  # a resolve answer to open identifiers binds unless identifier evidence contradicts it
+# Read checks (ADR 0037): the stated attributes whose difference from the reference refuses the source. Empty while
+# no reference field they compare against is signed off; add "venue" or "currency" once its field is.
+ENFORCED: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -76,7 +80,8 @@ class PluginInfo:
 
 # Other names investors and agents use for a provider, beside its plugin id, provider name and label.
 ALIASES = {"sec": ("edgar", "sec edgar", "sec-edgar"), "xbrl-filings": ("esef", "xbrl", "filings.xbrl.org", "uksef"),
-           "yahoo": ("yahoo finance",), "coinmarketcap": ("cmc",), "gleif": ("lei",)}
+           "yahoo": ("yahoo finance",), "coinmarketcap": ("cmc",), "gleif": ("lei",),
+           "eodhd": ("eod",)}
 CORE_PLUGIN = "pythia"  # core's own operations (the combined filings read)
 ABSENT = frozenset({"not_covering", "not_addressable"})  # a section only these could serve is not shown
 
@@ -181,7 +186,8 @@ def _addressable(info: PluginInfo, level: Level | Kind, subject: dict) -> bool:
 
 def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Callable[[str, str], sqlite3.Row | None],
              coins: Callable[[str, str], str | None], queue: list[dict],
-             misses: Mapping[str, str] = {}) -> dict | None:
+             misses: Mapping[str, str] = {}, checked: Callable[[str, ProviderRef], Mapping | None] = lambda *_: None,
+             serves: Callable[[ProviderRef, str], None] = lambda *_: None) -> dict | None:
     """One plugin's answer for one section, or None when its contract does not declare the section's concept.
 
     A declaring plugin that cannot serve this subject answers with the reason as its status: `not_covering`
@@ -195,20 +201,25 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "provider": info.manifest.provider,
               "label": info.label,
               "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
-              "binding_status": None, "request": None, "alternatives": [], "reason": None,
-              "authorities": [str(item) for item in entry.authorities],
+              "binding_status": None, "verified_at": None, "unverified": None, "request": None, "alternatives": [],
+              "reason": None, "authorities": [str(item) for item in entry.authorities],
               **({"unaudited": True} if info.manifest.unaudited else {})}  # labelled "not yet audited"
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
-    if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes:
+    # A curated subject outside the hierarchy (a market, index, pair or series) is addressed as itself; one with
+    # no asset class (a currency pair, a yield, a commodity future) is covered wherever the plugin addresses it.
+    curated = subject["level"] not in INSTRUMENT_KINDS
+    via = subject["level"] if curated else entry.via
+    if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes and not (
+            curated and subject["asset_class"] is None):
         return {**answer, "status": "not_covering",
                 "reason": f"{info.label} does not cover {subject['asset_class'] or 'this kind of'} instruments"}
     if coverage.markets is not None and market not in coverage.markets:
         return {**answer, "status": "not_covering", "reason": f"{info.label} does not cover {market or 'this market'}"}
-    target = subject["ids"].get(entry.via)
-    row = stored(target, info.manifest.provider) if target and _addressable(info, entry.via, subject) else None
-    derived = None if row or not target or not _addressable(info, entry.via, subject) else derive(info, entry.via, subject, coins)
-    wants_resolve = (bool(target) and _addressable(info, entry.via, subject) and not row and not derived
+    target = subject["ids"].get(via)
+    row = stored(target, info.manifest.provider) if target and _addressable(info, via, subject) else None
+    derived = None if row or not target or not _addressable(info, via, subject) else derive(info, via, subject, coins)
+    wants_resolve = (bool(target) and _addressable(info, via, subject) and not row and not derived
                      and bool(resolve_input(info, subject)))
     if not (row or derived or wants_resolve):
         return {**answer, "status": "not_addressable", "reason": f"{info.label} has no address for this {subject['level']}"}
@@ -240,7 +251,14 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         if section is Section.LIVE:  # a live_market snapshot names its subject
             arguments["subject_id"] = subject["id"]
         request = {"plugin": info.key, "operation": operation, "arguments": arguments}
-    return {**answer, "binding": ref.wire(), "binding_status": state, "request": request}
+    serves(ref, target)  # an explicit read of this reference is checked for this subject
+    check = checked(target, ref)
+    refused = sorted(set(json.loads(check["differs"])) & ENFORCED) if check else []
+    if refused:
+        return {**answer, "status": "conflict", "binding": ref.wire(),
+                "reason": f"{info.label} states another {' and '.join(refused)} than the reference; not used"}
+    return {**answer, "binding": ref.wire(), "binding_status": state, "request": request,
+            "verified_at": check["verified_at"] if check else None, "unverified": check["note"] if check else None}
 
 
 def answers(subject: dict, plugins: list[PluginInfo], section: Section, *, order: tuple[str, ...] = (),

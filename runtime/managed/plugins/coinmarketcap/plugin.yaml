@@ -12,3 +12,4 @@ provides_tools:
   - pythia_coinmarketcap_latest
   - pythia_coinmarketcap_history
   - pythia_coinmarketcap_read_batch
+  - coinmarketcap_coin_info

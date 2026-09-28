@@ -11,6 +11,7 @@ from importlib import import_module
 import sqlite3
 import tempfile
 import unittest
+import unittest.mock
 
 from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, read_module, request, run_read, wire
 from market_data_fixture import native
@@ -245,6 +246,33 @@ class SharedReadsTests(unittest.TestCase):
             self.assertIn("ibkr", result["issues"][0]["message"])
             self.assertEqual(result["observations"], [])
 
+    def test_every_read_is_checked_and_an_unverified_source_is_labelled(self):
+        self.sources.unverified.add("ibkr")
+        result = run_read(self.backend)
+        self.assertEqual((result["outcome"], result["series"]["provider_ref"]["provider"]), ("ok", "ibkr"))
+        self.assertIn(("unverified_source", "warning"), [(item["code"], item["severity"]) for item in result["issues"]])
+        # An explicit reference (the Desk page and the agent read the one core chose) is checked too: core
+        # finds the subject it serves.
+        self.sources.checks.clear()
+        explicit = run_read(self.backend, read_request=request({"kind": "pythia", "subject": self.sources.refs["ibkr"]}))
+        self.assertEqual(explicit["outcome"], "ok")
+        self.assertEqual([(subject, ref["provider"], stated) for subject, ref, stated in self.sources.checks],
+                         [(None, "ibkr", {"currency": "USD", "venue": "VENUE_A"})])
+
+    def test_an_enforced_difference_passes_the_source_over_and_a_failing_check_never_fails_the_read(self):
+        self.sources.refuse.add("ibkr")
+        result = run_read(self.backend)
+        self.assertEqual(result["series"]["provider_ref"]["provider"], "synthetic_other")
+        self.assertEqual([provider for provider, _, _ in self.price_calls()], ["synthetic_other"])
+        self.sources.refuse.add("synthetic_other")
+        self.backend.cache.entries.clear()
+        self.sources.calls.clear()
+        refused = run_read(self.backend)
+        self.assertEqual((refused["outcome"], refused["issues"][0]["code"]), ("error", "binding_conflict"))
+        self.assertEqual(self.price_calls(), [])
+        broken = self.sources.backend(self.directory.name, check_read=unittest.mock.Mock(side_effect=RuntimeError))
+        self.assertEqual(run_read(broken)["outcome"], "ok")
+
     def test_series_ambiguity_and_qualifiers_do_not_choose_arbitrary_listing(self):
         extra = self.sources.definition("ibkr", "second-route")
         extra["route"] = "DIRECT"
@@ -417,7 +445,7 @@ class BackendMutationTests(unittest.TestCase):
     def test_a_subject_core_does_not_route_is_unresolved_without_source_calls(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = Sources()
-            for reason, words in ((None, "No installed source"), ("unknown_subject", "pythia_identity_search"),
+            for reason, words in ((None, "No installed source"), ("unknown_subject", "pythia_find"),
                                   ("no_reference_data", "no readable reference data"), ("core_unavailable", "not loaded")):
                 backend = Backend(directory, subjects=lambda _id, reason=reason: {"refs": [], "reason": reason},
                                   source_call=sources.call, source_projection=sources.project, access_scope=lambda: sources.access)

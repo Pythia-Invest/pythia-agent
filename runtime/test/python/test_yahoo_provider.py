@@ -123,6 +123,15 @@ class Yahoo(unittest.TestCase):
         self.assertEqual(read['observations'], [])
         self.assertFalse(read['requirements_satisfied'])
 
+    def test_chart_metadata_may_add_a_qualifier_the_quote_lacks(self):
+        """^STOXX50E: the quote has no currency, the chart's metadata says EUR; its bars still belong to the pin."""
+        provider = importlib.import_module('test_yahoo.__init__')
+        quote = identity.candidate({'symbol': '^STOXX50E', 'type': 'INDEX', 'exchange': 'STOXX'})['provider_ref']
+        chart = identity.candidate({'symbol': '^STOXX50E', 'type': 'INDEX', 'exchange': 'STOXX', 'currency': 'EUR'})['provider_ref']
+        self.assertTrue(provider.compatible(chart, quote))
+        self.assertFalse(provider.compatible(quote, chart))  # a pinned qualifier must be present
+        self.assertFalse(provider.compatible({**chart, 'native_id': '^FTSE'}, quote))
+
     def test_intraday_reads_carry_session_evidence_and_quotes_their_previous_close(self):
         meta = {'symbol': 'SYNTH', 'type': 'EQUITY', 'currency': 'USD'}
         native = identity.candidate(meta)['provider_ref']

@@ -74,3 +74,34 @@ composition and contracts handled instrument levels only.
   and Hyperliquid disconnects without notice.
 - **Showing the perp on the Bitcoin page:** a perp's price is not the asset's
   price; the backbone keeps them separate subjects.
+
+## Amendment (2026-09-28): indexes, pairs, yields and futures in the same table
+
+The markets overview shows index levels, currency pairs, yields and index and
+commodity futures. No open identifier names them either, so they join
+`markets.json` rather than a second table.
+
+- **One table, several kinds.** Rows may be `market`, `index`, `fx` or `series`
+  subjects with a `pythia` key (`index:pythia:sp500`, `fx:pythia:EURUSD`,
+  `series:pythia:us-treasury-10y-yield`). `derivative_on` stays optional and
+  applies to markets only. `group` and `description` are display text for the
+  overview.
+- **A continuous front-month future is a `market`**, like a perp:
+  `market:pythia:cme-es-front-month`, `derivative_on` the S&P 500 index. The
+  provider rolls its contract; the contract month is read-time data, never
+  identity. A commodity future names no underlying until a subject for the
+  commodity exists.
+- **A contract addresses these kinds through a native scope at the kind.**
+  One native scope may be declared at several places (Yahoo's `symbol` at
+  `listing`, `market`, `index`, `fx` and `series`), each once. Page
+  composition addresses a curated subject as itself, whatever the concept
+  entry's own `via`, and takes its reference from the table.
+- **Asset-class coverage applies when a row states an asset class.** Equity
+  indexes and their futures are `equity`, a perp `crypto`; pairs, yields and
+  commodity futures state none, so the contract's addressing decides.
+
+Rejected: a new `future` kind (a rolling venue market is what `market`
+already models); a second curated table (two rules and loaders for one idea);
+new asset classes for indexes, pairs and rates (they would also describe no
+security); EODHD codes in the table before EODHD declares coverage for these
+kinds.

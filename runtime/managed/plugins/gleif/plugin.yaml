@@ -7,3 +7,4 @@ requires_plugins:
 provides_tools:
   - pythia_gleif_resolve
   - pythia_gleif_profile
+  - gleif_legal_entity

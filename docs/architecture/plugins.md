@@ -153,6 +153,31 @@ instead of copying this demonstration's handler. The loaded core also exports
 `platform.declare_operation` for code that needs declaration helpers and
 handler-bound coordination hooks; neither mechanism creates another inventory.
 
+## Reaching the agent
+
+Core's tools read a plugin's contract concepts (quote, chart, filings) for the
+agent. For provider depth, such as reported figures, profiles or news, a data
+plugin offers its own provider tools. Register the operation tool as usual in
+core's hidden `pythia-core` toolset, then expose it:
+
+```python
+platform.register_agent_tool(ctx, "example_summary", "example_research_summary",
+    "Research summary of a company from Example. Use it for Example's own view; "
+    "pythia_instrument lists what other sources hold.")
+```
+
+The agent tool lands in a toolset named after your plugin, so Hermes offers it
+directly or behind Tool Search like any plugin or MCP tool. Its schema is your
+operation's parameters without Pythia's markers. `native_ref`, or the parameter
+named after your native scope, becomes `subject_id`, and core fills it with the
+reference the Desk page uses. Only an operation declared `read_only: true`
+runs, through `may_run`, and the result is bounded. Name the tool
+`<source>_<what>`, and start its description with what the investor gets and
+from which provider, in at most 60 characters.
+[Agent tools](agent-tools.md) owns the placement rule and the naming
+convention. The [source onboarding standard](source-onboarding.md) covers how a
+new source earns its place.
+
 ## Plugin configuration
 
 A plugin that needs a credential or a provider contact ships a static
@@ -253,6 +278,9 @@ addressing (the full shape is in the ADR 0038 amendment):
 - A filings source lists the `authorities` it serves (`sec`, `fca`, `sedar`,
   and `oam-<country>` per EEA national mechanism); core combines one source per
   authority. Its rows tag each filing's `kind` from core's vocabulary.
+- A market-wide concept (`market_movers`) is about no subject, so its entry
+  names `operations` only, without `level` or `via`:
+  `"market_movers": {"operations": {"gainers": "movers", "losers": "movers"}}`.
 - `rights` states the licence class, how long data may stay on the device,
   whether it may be published (false for provider data) and any attribution
   the provider requires. `limits` may state the provider's published rate

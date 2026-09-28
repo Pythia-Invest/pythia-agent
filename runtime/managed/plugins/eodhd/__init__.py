@@ -228,3 +228,8 @@ def register(ctx):
         specialist.register_read_command(ctx, 'eodhd-' + operation, TOOLS[operation],
             definitions[operation]['description'], cache_seconds=300,
             schema=definitions[operation], plugin='pythia-eodhd')
+    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+    agent(ctx, 'eodhd_news', TOOLS['news'], 'Company news headlines from EODHD. Recent articles EODHD tags with the '
+          'listing, with dates and links; limit, from and to narrow them. Source content, not advice.', check_fn=installed)
+    agent(ctx, 'eodhd_fundamentals', TOOLS['fundamentals'], 'Company fundamentals and financial statements from EODHD. '
+          'Statement facts for a listing where the investor\'s EODHD plan includes them.', check_fn=installed)

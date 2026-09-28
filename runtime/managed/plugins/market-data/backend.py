@@ -72,16 +72,37 @@ def core_price_sources(subject_id):
     return support.price_sources(subject_id)
 
 
+def core_check_read(subject_id, native_ref, stated):
+    from ._platform import platform
+    support = platform()
+    check = getattr(support, "check_read", None)  # an older core has no read check
+    return check(subject_id, native_ref, stated) if check else None
+
+
+def stated(series):
+    """What a source's own series say about the reference they describe: its currency and venue code."""
+    qualifiers = next((value["provider_ref"].get("qualifiers") or {} for value in series), {})
+    return {key: qualifiers[key] for key in ("currency", "venue") if qualifiers.get(key)}
+
+
 def envelope(data, *, issues=(), outcome="ok"):
     return {"schema_version": 1, "outcome": outcome, "data": data, "issues": list(issues)}
 
 
+CONFLICT_ISSUE = {"code": "binding_conflict", "severity": "warning",
+                  "message": "A source's own record states another venue or currency than this instrument's reference data; it is not used."}
+
+
+def unverified_issue(provider, label):
+    return {"code": "unverified_source", "severity": "warning",
+            "message": f"{provider} is unverified for this instrument: {label} (its own record against the reference data)."}
 ISSUER_ISSUE = {"code": "issuer_subject", "severity": "error",
-                "message": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them."}
+                "message": "An issuer has no price. Read one of its securities or listings; pythia_instrument lists them."}
 
 
 class Backend:
-    def __init__(self, data_dir, *, source_call=None, source_projection=None, access_scope=None, subjects=None, cache=None):
+    def __init__(self, data_dir, *, source_call=None, source_projection=None, access_scope=None, subjects=None, cache=None,
+                 check_read=None):
         # Injection is an ordinary code/test boundary, never part of native args.
         from .execution import call_source
         from .contributions import project
@@ -89,6 +110,7 @@ class Backend:
         self._project = source_projection or project
         self._access_scope = access_scope or native_access_scope
         self._subjects = subjects or core_price_sources
+        self._check_read = check_read or core_check_read
         retire_source_choices(data_dir)
         self.cache = cache or ReadCache()
         self.metadata_cache = ReadCache(max_entries=128, ttl_seconds=300)
@@ -160,6 +182,18 @@ class Backend:
             memo[binding["id"]] = route
         return route
 
+    def check(self, binding, native, response):
+        """Core's read check of what the series a source described state about themselves (ADR 0037), for the
+        subject read or, for an explicit reference, the subject core last served it for: {"status", "label"}.
+        A check never fails the read."""
+        said = stated(response.get("data") or []) if response.get("outcome") == "ok" else {}
+        try:
+            outcome = self._check_read(None if "provider" in binding else binding["id"], native, said) if said else None
+        except Exception:
+            logger.warning("read check unavailable", exc_info=True)
+            outcome = None
+        return outcome if isinstance(outcome, dict) else {"status": "unchecked", "label": None}
+
     def details(self, native_ref):
         native = validate("provider_ref", native_ref)
         return self.source(native["provider"], "details", {"native_ref": native})
@@ -183,6 +217,12 @@ class Backend:
             issues.extend(response.get("issues", []))
             if response.get("outcome") not in ("ok", "empty", "partial"):
                 continue
+            checked = self.check(binding, native, response)
+            if checked["status"] == "refused":
+                issues.append(CONFLICT_ISSUE)
+                continue
+            if checked["status"] == "unverified":
+                issues.append(unverified_issue(native["provider"], checked["label"]))
             for value in response.get("data", []):
                 series = validate("series", value)
                 require(compatible_ref(native, series["provider_ref"]), "series", "source binding differs")

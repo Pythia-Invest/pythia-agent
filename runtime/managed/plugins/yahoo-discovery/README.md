@@ -33,7 +33,9 @@ reference, not an identifier. `details` preserves Yahoo's venue and currency
 qualifiers and asserts no identity evidence. Core addresses a Yahoo listing from
 open identifiers through this plugin's MIC suffix table
 ([ADR 0038](../../../../docs/decisions/0038-plugin-addressing-contract.md)); that
-derived symbol is an address, never evidence.
+derived symbol is an address, never evidence. The contract's `venue_codes` map
+Yahoo's exchange codes (`NMS`, `GER`) to operating MICs, so core can check the
+venue and currency a read states against the listing (ADR 0037, "Read checks").
 Yahoo `EQUITY` is not promoted to Common Stock or proof of an issuer. Name or
 ticker similarity never creates a canonical relationship.
 
@@ -98,3 +100,13 @@ Unknown item fields and unknown `type` values are counted under `drift`
 with a `schema_drift` warning; unreadable items are omitted with
 `invalid_value`. Detecting a feed that goes quiet belongs to Yahoo's
 onboarding.
+
+## Markets: indexes, futures, FX and movers
+
+Core's curated market table (`identity/markets.json`) addresses indexes,
+continuous front-month futures, currency pairs and yields by their Yahoo
+symbols (`^GSPC`, `ES=F`, `EURUSD=X`, `^TNX`); the contract declares its
+`symbol` scope at those subject kinds. `movers` serves core's `market_movers`
+concept from Yahoo's predefined US screens (`most_actives`, `day_gainers`,
+`day_losers`). Its field meanings, venue table and drift alarms are in the
+[source record](../../../../docs/sources/yahoo-screener.md).

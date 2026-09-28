@@ -31,5 +31,5 @@ def register(ctx):
             'Market-data widget presentations are unavailable: the selected Pythia core lacks widget support. '
             'The financial backend remains available; update or reconcile the preserved core package explicitly.')
         return
-    register_widgets(ctx, tool_name='pythia_market_data_widgets', toolset='pythia-market-data',
+    register_widgets(ctx, tool_name='pythia_market_data_widgets', toolset='pythia-core',
                      widgets=WIDGETS, assets=ASSETS)

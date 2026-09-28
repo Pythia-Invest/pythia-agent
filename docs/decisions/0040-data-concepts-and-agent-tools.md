@@ -5,9 +5,12 @@ rule and the `live` operation: accepted (2026-09-28) and implemented: the
 contract shape and registry, and selection in page composition with the
 investor's order, coverage, skip reasons and combined filings. Remembering
 "not on your plan" is decided but not built (see below). The licence classes are a recommended default that awaits
-the founder's confirmation. The agent tool surface, the market-data
-split and the result envelope are **out of scope of this revision**; they
-remain a proposal (pull request #42).
+the founder's confirmation. The agent tool surface (`may_run`, the concept
+tools in `pythia-desk` and each data plugin's provider tools in its own
+toolset) is decided in [agent tools](../architecture/agent-tools.md), which also
+records why a single `pythia` meta-tool and code mode were rejected for now. The market-data split and the
+result envelope are **out of scope of this revision**; they remain a proposal
+(pull request #42).
 
 ## Context
 
@@ -51,6 +54,7 @@ registry is `identity.concepts.REGISTRY`.
 | `fundamentals` | `statements`, `metrics` | issuer | first eligible |
 | `estimates` | `consensus`, `targets` | issuer | first eligible |
 | `news` | `list` | issuer, security | first eligible (later: as filings) |
+| `market_movers` | `most_active`, `gainers`, `losers` | a market, no subject | first eligible |
 
 `fundamentals`, `estimates` and `news` are registered but serve nothing until
 each has a core result schema; no contract declares them yet.
@@ -286,10 +290,14 @@ because adding it later would change every contract; a team mode that refuses
 ## Out of scope of this revision
 
 Proposed in #42 and not decided here: the market-data feature split and the
-markets UI plugin, the result envelope, `may_run`, the always-visible concept
-tools, the `pythia` CLI-like tool and code mode, provider tools leaving the
-model's view, secrets isolation for the agent's code tools, and the evaluation
-set. Also later: the quota ledger with per-operation cost, entitlement checks
+markets UI plugin, the result envelope, secrets isolation for the agent's code
+tools, and the evaluation set. `may_run`, the concept tools, per-plugin provider
+tools and operation tools leaving the model's view are decided in
+[agent tools](../architecture/agent-tools.md). Rejected for now there: a single
+`pythia` meta-tool with a CLI grammar (it hid provider depth behind a second
+discovery step that Hermes's Tool Search already provides, and needed its own
+help and dispatcher), and code mode (most questions take one to three calls,
+and it needs a real sandbox). Also later: the quota ledger with per-operation cost, entitlement checks
 at connect time, cache-lifetime enforcement, rendering attribution, a Settings
 surface for plugins that need a newer Pythia, and team mode.
 
@@ -350,3 +358,20 @@ surface for plugins that need a newer Pythia, and team mode.
   from a plugin's start would also change which source serves without the
   investor acting, possibly putting a paid source first. The log names the old
   orders so the investor can put them in `source_order` themselves.
+
+## Amendment (2026-09-28): market-wide concepts
+
+`market_movers` ranks a market's shares: the most active, the day's gainers
+and its losers. Its data is about no one subject, so it is **market-wide**: the
+registry gives it no levels, and its `contract.json` entry names operations
+only (no `level` or `via`). Each list is its own operation, so a source
+declares only the lists it has. Selection is the same rule: the investor's
+order, then core's (`yahoo`); a failed read never switches source.
+
+Core's `market-movers` read returns core's row shape (rank, symbol, name,
+currency, price, change and % change against the previous close, volume,
+session, quote time, venue) with the market and universe the source states.
+Each row is named by its Pythia listing only when the reference holds exactly
+one listing for its ticker on its operating MIC (`ticker_mic`); otherwise it
+stays, unresolved, with the reason. The source's field meanings and drift
+alarms are in [the Yahoo screener record](../sources/yahoo-screener.md).

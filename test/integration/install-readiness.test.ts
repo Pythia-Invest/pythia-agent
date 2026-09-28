@@ -394,12 +394,103 @@ describe("installed readiness and recovery", () => {
     for (const path of [paths.configRoot, paths.stateRoot, paths.dataRoot]) {
       mkdirSync(path, { recursive: true, mode: 0o700 });
     }
-    expect(applyMigrations(paths)).toEqual(["0001-device-state-v1"]);
-    expect(applyMigrations(paths)).toEqual(["0001-device-state-v1"]);
+    const commands: string[][] = [];
+    // Skill-writing keys are unset until the migration sets them; `config get` fails for an unset key.
+    const settings = new Map<string, string>();
+    const skillKeys = [
+      "skills.creation_nudge_interval",
+      "skills.write_approval",
+      "curator.enabled",
+    ];
+    const hermes = (args: string[]) => {
+      commands.push(args);
+      const key = args.at(-2);
+      if (args.includes("set"))
+        settings.set(args.at(-2) ?? "", args.at(-1) ?? "");
+      if (args.includes("get") && skillKeys.includes(key ?? "")) {
+        if (!settings.has(key ?? "")) throw new Error("unset");
+        return settings.get(key ?? "");
+      }
+      if (args.includes("get") && key === "plugins.enabled")
+        return JSON.stringify(["pythia", "pythia-sec"]);
+      if (args.includes("get") && key === "known_plugin_toolsets")
+        return JSON.stringify({
+          api_server: ["pythia-core"],
+          cli: ["pythia-core", "pythia-desk", "pythia-sec"],
+          cron: ["pythia-core", "pythia-desk", "pythia-sec"],
+        });
+      if (args.includes("get") && key === "platform_toolsets")
+        return JSON.stringify({ api_server: ["pythia-desk", "web"] });
+      return "";
+    };
+    const applied = ["0001-device-state-v1", "0002-agent-tool-surface"];
+    expect(applyMigrations(paths, { hermes })).toEqual(applied);
+    expect(applyMigrations(paths, { hermes })).toEqual(applied);
     const ledger = JSON.parse(
       readFileSync(join(paths.stateRoot, "migrations.json"), "utf8"),
     );
-    expect(ledger.applied).toEqual(["0001-device-state-v1"]);
+    expect(ledger.applied).toEqual(applied);
+    // Native commands only, once: Hermes records the toolsets as known and off.
+    expect(commands).toContainEqual([
+      "-p",
+      paths.profile,
+      "tools",
+      "disable",
+      "pythia-core",
+      "--platform",
+      "api_server",
+    ]);
+    // Provider tools serve Desk chat only: one native command per platform hides them on cli and cron.
+    expect(commands).toContainEqual([
+      "-p",
+      paths.profile,
+      "tools",
+      "disable",
+      "pythia-core",
+      "pythia-desk",
+      "pythia-sec",
+      "pythia-xbrl-filings",
+      "pythia-gleif",
+      "pythia-eodhd",
+      "pythia-yahoo-discovery",
+      "pythia-coinmarketcap",
+      "pythia-openfigi",
+      "pythia-hyperliquid",
+      "--platform",
+      "cron",
+    ]);
+    expect([...settings]).toEqual([
+      ["skills.creation_nudge_interval", "0"],
+      ["skills.write_approval", "true"],
+      ["curator.enabled", "false"],
+    ]);
+    expect(
+      commands.some((args) => args.includes("tools.tool_search.enabled")),
+    ).toBe(false); // the investor's choice
+    expect(commands).toHaveLength(15);
+    // An investor's own skill-writing choice is kept, not overwritten.
+    const { paths: chosen } = fixture();
+    for (const path of [chosen.configRoot, chosen.stateRoot, chosen.dataRoot]) {
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+    }
+    commands.length = 0;
+    settings.set("skills.creation_nudge_interval", "5");
+    settings.set("skills.write_approval", "false");
+    settings.set("curator.enabled", "true");
+    applyMigrations(chosen, { hermes });
+    expect(commands.some((args) => args.includes("set"))).toBe(false);
+    expect(settings.get("skills.creation_nudge_interval")).toBe("5");
+    // A readback that shows the toolset still visible fails the migration.
+    const { paths: other } = fixture();
+    for (const path of [other.configRoot, other.stateRoot, other.dataRoot]) {
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+    }
+    expect(() =>
+      applyMigrations(other, {
+        hermes: (args: string[]) =>
+          args.includes("get") ? JSON.stringify({}) : "",
+      }),
+    ).toThrow(/did not record pythia-core/);
   });
 
   it("uninstalls managed files, retains user data, and makes reinstall possible", () => {

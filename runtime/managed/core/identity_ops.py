@@ -23,14 +23,14 @@ from .identity import (
     MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch, subject_kind,
     validate_manifest, vouched,
 )
-from . import queue_ops, search_venues
+from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
-TOOLSET = "pythia-desk"
+TOOLSET = "pythia-core"  # operations for Desk and core; the agent reaches them through agent_tools
 PLUGIN = "pythia"  # the core plugin (plugin.yaml)
 NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
 MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes
@@ -213,7 +213,7 @@ class Identity:
             return unrouted("no_reference_data")
         if subject is None:
             # A market needs no reference file, so an unknown one is unknown, not missing reference data.
-            return unrouted("unknown_subject" if path or subject_kind(subject_id) == Kind.MARKET else "no_reference_data")
+            return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS else "no_reference_data")
         plugins = installed()
         named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
         unaudited = [info.manifest.provider for info in plugins if info.manifest.unaudited]
@@ -241,7 +241,7 @@ class Identity:
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject from it, with the store lookups page composition reads."""
-        if subject_kind(subject_id) == Kind.MARKET:  # a curated market needs no reference file
+        if subject_kind(subject_id) in markets.CURATED_KINDS:  # a curated market subject needs no reference file
             subject = markets.load_market(markets.curated(), subject_id)
             return (None, None, {}, "Unknown subject.") if subject is None else (None, subject, self._lookups(subject_id, subject, {}), None)
         path, ref = self.reference()
@@ -268,7 +268,7 @@ class Identity:
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
-                   "order": self.order()}
+                   "order": self.order(), **read_checks.lookups(self, subject_ids)}
         return lookups
 
     @staticmethod

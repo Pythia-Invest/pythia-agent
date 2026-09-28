@@ -1,0 +1,252 @@
+[
+  {
+    "name": "pythia_find",
+    "description": "Find a stock, fund or crypto asset by name, ticker or ISIN. Searches the investor's local reference of companies, securities, listings and crypto assets by name, ticker, ISIN, LEI, CIK or FIGI. Start here for any investment the user names. Results are grouped per company or instrument; each row is a listing with its subject id (pass it to the other tools), ticker, venue and currency. Local only; no provider is called. A row is a candidate: check name and venue before relying on it.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "kinds": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional instrument kinds, such as ordinary, etf, fund or coin."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "pythia_instrument",
+    "description": "Identifiers, listings and data sources of an investment. Everything Pythia knows locally about one investment: identifiers (ISIN, LEI, CIK, FIGI), issuer, its listings and related instruments, and which source serves each concept (quote, chart, profile, filings) or why none does. Use it to pick a listing, find an issuer's LEI or CIK, or see which sources are connected. Local only.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370,
+          "description": "A subject id from pythia_find, such as listing:… or security:…"
+        }
+      },
+      "required": ["subject_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "pythia_prices",
+    "description": "Price of a stock, fund or crypto: quote, history, returns. The latest quote or price history for a listing, security or crypto asset from the investor's connected market-data sources, with the source, as-of time and delay. Without start it returns the latest quote; with start (and optional end) it returns daily bars, or intraday bars with interval, plus a summary with the first and last close and the percentage change over the returned bars. For a period's return (1D to 5Y) pass period. For a company (issuer) it reads the primary listing.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370,
+          "description": "A subject id from pythia_find, such as listing:… or security:…"
+        },
+        "start": {
+          "type": "string",
+          "format": "date",
+          "description": "First date (YYYY-MM-DD) for history."
+        },
+        "end": {
+          "type": "string",
+          "format": "date",
+          "description": "Last date (YYYY-MM-DD); default today."
+        },
+        "interval": {
+          "type": "string",
+          "enum": ["1d", "1h", "30m", "5m", "1m"],
+          "description": "Bar size; default 1d."
+        },
+        "period": {
+          "type": "string",
+          "enum": ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y"],
+          "description": "Return over a standard period instead of start/end: from the daily close before the period's start to the latest daily close (5D: five daily bars; 1D: the source's change). The Desk chart may draw 5D and 1M from intraday and 5Y from weekly bars, so those can differ slightly."
+        },
+        "points": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 400,
+          "description": "How many of the most recent bars to list (default 10); the summary covers all."
+        },
+        "source": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64,
+          "description": "Read only this source (a provider name such as yahoo or sec). Without it, the first source in Pythia's order that serves the subject is used; nothing falls back."
+        }
+      },
+      "required": ["subject_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "pythia_filings",
+    "description": "Company filings: annual report, 10-K, 20-F, ESEF. Regulatory filings of a company, newest first, from one connected source per filing authority (SEC EDGAR; ESEF reports on filings.xbrl.org), with form, filing date, period end, document link and source. Filter by kind (annual, quarterly, earnings_release…), form (10-K, 20-F, AFR…) and date. Items sharing a report_key are versions of one report; parallel names the same period's reports under another authority or accounting basis. Pass any subject of the company. For reported numbers inside a filing, use that source's provider tool (sec_fundamentals, esef_fundamentals).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370,
+          "description": "A subject id from pythia_find, such as listing:… or security:…"
+        },
+        "forms": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "description": "Only these forms (10-K, 20-F, ESEF; AFR or annual for annual reports); an amendment matches its form. Sources search beyond their most recent filings."
+        },
+        "kinds": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "enum": [
+              "annual",
+              "half_year",
+              "quarterly",
+              "earnings_release",
+              "event",
+              "ownership",
+              "prospectus",
+              "other"
+            ]
+          },
+          "description": "Only these kinds. Insider and major-holder filings are left out unless ownership is named."
+        },
+        "since": {
+          "type": "string",
+          "format": "date",
+          "description": "Only filings dated on or after this date."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "source": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64,
+          "description": "Read only this source (a provider name such as yahoo or sec). Without it, the first source in Pythia's order that serves the subject is used; nothing falls back."
+        }
+      },
+      "required": ["subject_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "pythia_identity_questions",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370
+        },
+        "plugin": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["residual", "conflict"]
+        },
+        "answered": {
+          "type": "boolean"
+        },
+        "settled": {
+          "type": "boolean"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      },
+      "additionalProperties": false
+    },
+    "description": "Open identity questions in Repairs, for review. Provider records the device could not place on a subject (residuals) and records that contradict the reference identifiers (conflicts). Filter by subject, plugin or kind. With answered, also lists the questions the agent already answered (agent_answer): they route provisionally until the user confirms or overrides them and are no longer open. With settled, also lists questions rules or the user settled (history). With item_id, returns one question in full: the provider record, the candidate subjects, the cited reference evidence and earlier verdicts. Local only."
+  },
+  {
+    "name": "pythia_answer_identity_question",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "relation": {
+          "type": "string",
+          "enum": [
+            "same_listing",
+            "same_composite",
+            "same_security",
+            "same_issuer",
+            "depositary_receipt_of",
+            "unrelated",
+            "none",
+            "ambiguous"
+          ]
+        },
+        "chosen_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 400
+        }
+      },
+      "required": ["item_id", "relation"],
+      "additionalProperties": false
+    },
+    "description": "Answer an open identity question in Repairs. Read it in full first with pythia_identity_questions. A match names the relation and one of the question's candidates; 'unrelated' says the record is a different instrument than that candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the record's own identifiers disprove, is refused. An accepted answer takes effect provisionally: a match routes the record to the subject until the user or identifier evidence overrides it. Accepted and refused answers are recorded."
+  },
+  {
+    "name": "pythia_desk_view",
+    "description": "Read the current Pythia Desk page and observable file selection for the view reference supplied with this turn. This is a brief description, not browser control or full document content. If unavailable, use explicit references or ask the user.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "view_reference": {
+          "type": "string",
+          "description": "The view reference supplied with the current turn.",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": ["view_reference"],
+      "additionalProperties": false
+    }
+  }
+]

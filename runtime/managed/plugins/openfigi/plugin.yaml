@@ -6,3 +6,4 @@ requires_plugins:
   - pythia-market-data
 provides_tools:
   - pythia_openfigi_resolve
+  - openfigi_identifiers

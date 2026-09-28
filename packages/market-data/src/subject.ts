@@ -85,6 +85,10 @@ export const subjectSectionSchema = z.object({
   /** Eligible sources not chosen; the investor can use one once. */
   alternatives: z.array(sectionAlternativeSchema).default([]),
   reason: optionalText,
+  /** When a read of the serving address last agreed with the reference
+   * (core's read check), or why it did not ("currency differs"); it still serves. */
+  verified_at: text.nullish(),
+  unverified: text.nullish(),
   source: sourceSchema.nullish(),
   skipped: z.array(sectionSkipSchema).default([]),
   /** Filings: the sources combined, one per filing authority. */
@@ -136,6 +140,9 @@ export const subjectPageSchema = z.object({
     /** The listing whose quote and chart this composition shows (a
      * security's or issuer's page shows one of its listings). */
     listing: text.nullish(),
+    /** A market subject's line of context from core's catalogue ("US large
+     * caps", "WTI, front month (NYMEX)"). */
+    description: optionalText,
   }),
   identifiers: z.record(z.string(), optionalText).default({}),
   issuer: z

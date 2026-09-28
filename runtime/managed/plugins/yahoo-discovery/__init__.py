@@ -3,12 +3,19 @@ import importlib
 import json
 import os
 from pathlib import Path
-from .definition import TOOLS, TOOLSET, schemas
+from . import movers
+from .definition import RESEARCH, TOOLS, TOOLSET, schemas
 from .identity import candidate, reference
 from .series import definition, selector, MODES
 from .results import envelope, issue, base, read, window, now
 
 NEWS_WARNINGS = frozenset({'schema_drift', 'window_incomplete', 'truncated', 'invalid_value'})
+
+
+def compatible(actual, native):
+    """The same symbol, carrying every qualifier the pinned reference names (Yahoo may add others)."""
+    return actual['native_id'] == native['native_id'] and all(
+        actual.get('qualifiers', {}).get(key) == value for key, value in native.get('qualifiers', {}).items())
 
 
 def register(ctx):
@@ -101,6 +108,12 @@ def register(ctx):
                     replies = call('price_batch', {'symbols': sorted(symbols)})['data']
                 parallel = importlib.import_module(wire.__package__ + '.coordinated').parallel
                 return envelope(parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies if item['request']['operation'] == 'latest' else None), clean['reads']))
+            if operation == 'movers':
+                raw = call('screener', {'options': {'scrIds': movers.SCREENS[clean['list']], 'count': movers.LIMIT}})
+                if raw['issues'] or not raw.get('data'):
+                    return failures.qualify_failure(envelope(None, [issue(code) for code in raw['issues'] or ['source_unavailable']]), raw)
+                data, drift = movers.adapt(raw['data'], clean['list'], clean.get('limit', movers.LIMIT))
+                return envelope(data, drift)
             if operation in ('research', 'dashboard'):
                 args = {k: v for k, v in clean.items() if k != 'operation'}
                 if operation == 'research':
@@ -126,7 +139,7 @@ def register(ctx):
             exact = candidate(raw['data'])
             # Bare references may be enriched once during describe; pinned reads
             # require the exact retained reference, including venue/currency.
-            if any(exact['provider_ref'].get('qualifiers', {}).get(k) != v for k, v in native.get('qualifiers', {}).items()): raise ValueError('binding_mismatch')
+            if not compatible(exact['provider_ref'], native): raise ValueError('binding_mismatch')
             if operation == 'details': return envelope([exact])
             if operation == 'series':
                 return envelope([wire.validate('series', definition(exact['provider_ref'], m, raw['data'])) for m in MODES])
@@ -135,7 +148,8 @@ def register(ctx):
             view = request['view']
             if (view['kind'] == 'source' and view['series_id'] != series['id']) or (view['kind'] == 'pythia' and view['subject'] != native): raise ValueError('binding_mismatch')
             raw = call('price_read', {'symbol': symbol, 'mode': mode, **controls})
-            if raw.get('data') and candidate(raw['data']['metadata'])['provider_ref'] != native: raise ValueError('binding_mismatch')
+            # Chart metadata may add a qualifier the quote lacks (^STOXX50E's currency): only the pinned ones must match.
+            if raw.get('data') and not compatible(candidate(raw['data']['metadata'])['provider_ref'], native): raise ValueError('binding_mismatch')
             if raw.get('data') and definition(native, mode, raw['data']['metadata'])['id'] != series['id']: raise ValueError('binding_mismatch')
             return wire.validate_read_result(failures.qualify_failure(read(request, series, mode, raw), raw))
         except failures.SourceFailure as error:
@@ -154,3 +168,9 @@ def register(ctx):
         ctx.register_tool(name=TOOLS[operation], toolset=TOOLSET, schema=schema, handler=handler, check_fn=ready)
     specialist.register_read_command(ctx, 'yahoo-finance', TOOLS['research'], 'Read public Yahoo Finance research', schema=definitions['research'], plugin='pythia-yahoo-discovery')
     specialist.register_read_command(ctx, 'yahoo-dashboard', TOOLS['dashboard'], 'Read Yahoo quotes or intraday charts', cache_seconds=60, schema=definitions['dashboard'], plugin='pythia-yahoo-discovery')
+    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+    agent(ctx, 'yahoo_finance', TOOLS['research'], 'Company profile, financials, dividends and news from Yahoo. Yahoo '
+          'Finance research for a listing: quoteSummary (profile, valuation, dividends, analyst ratings, fund '
+          'holdings; options_json modules), fundamentalsTimeSeries (income, balance-sheet and cash-flow statements), '
+          'news, recommendationsBySymbol, options and insights. For prices and returns use pythia_prices. Personal '
+          'use; source content, not advice.', check_fn=ready, operations=RESEARCH)
