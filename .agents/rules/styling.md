@@ -26,12 +26,14 @@ Use theme names, not raw values or token variables:
 - Surfaces `bg-canvas`, `bg-raised`, `bg-subtle`, `bg-overlay`, `bg-container`.
 - Text `text-foreground`, `text-foreground-secondary`,
   `text-foreground-disabled`; type `text-body`, `text-reading`, `text-xs`;
-  `font-reading` only for conversation text, never for chrome.
+  `font-reading` only for Pythia's answer prose, never for chrome or what the
+  person types.
 - Borders and interaction `border-border`, `border-border-strong`,
   `bg-interaction-hover`, `bg-interaction-active`, `outline-ring`.
 - Actions `bg-primary` with `text-primary-foreground`.
 - Status `info|success|warning|error` as `text-*`, `border-*-border`,
-  `bg-*-surface`. Signal Amber is `signal` and marks only a Pythia signal.
+  `bg-*-surface`. Signal Amber is `signal` and marks only a Pythia signal,
+  apart from the "Pythia is working" dot described in docs/design.md.
 - Geometry `rounded-control`, `rounded-container`, `rounded-pill`,
   `h-control`, `px-gutter`, `max-w-measure`; motion `motion-fast`,
   `motion-standard`; disabled `opacity-disabled`; elevation `shadow-popup`,

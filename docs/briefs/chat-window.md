@@ -18,8 +18,9 @@ activity should remain secondary.
 
 Use [design.md](../design.md) for visual direction and existing `@pythia/ui`
 components/Design Lab for component foundations. Do not create a second design
-system for chat. Use IBM Plex Sans for interface chrome and Inter for the
-composer and conversation. The accepted chat reading baseline is 14px, rather
+system for chat. Use IBM Plex Sans for interface chrome, the composer and the
+person's messages, and IBM Plex Serif for Pythia's answers
+([ADR 0022](../decisions/0022-serif-reading-face-for-answers.md)). The accepted chat reading baseline is 14px, rather
 than making all chat content 16px. Exact responsive treatment belongs to the
 designer, subject to legibility and accessibility.
 

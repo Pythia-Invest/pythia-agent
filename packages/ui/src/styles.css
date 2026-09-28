@@ -46,7 +46,7 @@
   src: url("./assets/IBMPlexSans-Bold.woff2") format("woff2");
 }
 
-/* Pythia's editorial serif, as on pythiainvest.com: answer prose and headings. */
+/* Pythia's editorial serif, as on pythiainvest.com: the reading face for Pythia's answers (ADR 0022). */
 @font-face {
   font-family: "IBM Plex Serif";
   font-style: normal;

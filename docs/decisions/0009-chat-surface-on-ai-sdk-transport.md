@@ -65,7 +65,9 @@ about 175 kB gzipped. Conversation text (user bubbles, assistant
 prose, the composer) is set at the compact 14px product reading size in Inter
 through the `font-reading` role, the
 single typeface exception the design direction allows; interface chrome stays
-IBM Plex Sans. Regenerate is hidden
+IBM Plex Sans. ([ADR 0022](0022-serif-reading-face-for-answers.md) later
+set Pythia's answers in IBM Plex Serif and what the person types in IBM Plex
+Sans.) Regenerate is hidden
 because Hermes sessions are append-only. Approvals bypass the SDK's boolean
 approval helpers. Live-profile browser smoke tests cover history, the empty
 state and composer gating without sending a prompt.
