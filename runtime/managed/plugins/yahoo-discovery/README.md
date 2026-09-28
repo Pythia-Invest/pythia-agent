@@ -45,7 +45,10 @@ equity and fund reads carry `price_context.session_window`: the current or last
 started session's regular and extended bounds from Yahoo's trading periods,
 never assumed hours. Continuous markets carry none and keep elapsed time. Quotes
 carry the previous close their change is measured against, and bars keep the
-reported volume (shares for equities and funds).
+reported volume (shares for equities and funds). Stocks and funds report
+PRE/POST as pre/post sessions with the latest pre/post trade when it follows
+the regular observation; a post-market result stays after the close until a
+new session supersedes it. Cash indexes keep their regular interpretation.
 
 ## No provider search
 

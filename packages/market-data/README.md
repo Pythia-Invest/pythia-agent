@@ -219,4 +219,9 @@ sources without session evidence show the past 24 hours. Other periods keep
 calendar time and state their comparison basis. Open, high, low and volume come
 from the latest daily bar (with its date), the previous close only from the
 quote's `reference_close`, and the 52-week range from a year of daily bars; a
-field the source does not supply is omitted.
+field the source does not supply is omitted. Before the open, 1D shows the prior
+regular session from `session_window.previous_regular`, omits the closed night
+and continues with today's pre-market; otherwise the supplied day with today's
+pre-market before the open divider. A connector's `price_context.extended`
+(latest pre/post trade, qualified against the regular close) becomes the
+Pre/Post row; the regular price and change keep their own basis.
