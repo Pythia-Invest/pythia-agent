@@ -67,6 +67,7 @@ describe("live market section", () => {
         binding: null,
         request: null,
         alternatives: [],
+        skipped: [],
         reason: null,
       },
     ]);
