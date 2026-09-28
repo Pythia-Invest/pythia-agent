@@ -643,7 +643,7 @@ Recorded 2026-09-23. Recheck on every upgrade and remove resolved entries.
 Every place Pythia depends on Hermes behavior has one row here. An upgrade
 walks this table against the new release; a change that adds or alters a
 dependency updates its row and coverage in the same change
-([rule](../../.agents/rules/hermes-touchpoints.md)). Locations name files, not
+([contributor guidance](../../AGENTS.md)). Locations name files, not
 lines. Anchors name the file and symbol at the pin. Desk source paths are
 relative to `apps/desk/src/` and Desk test paths to `apps/desk/`.
 

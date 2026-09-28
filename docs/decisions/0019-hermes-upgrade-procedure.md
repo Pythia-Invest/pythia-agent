@@ -23,7 +23,7 @@ whole integration from memory.
   repeats release, commit and archive; `just check` fails when they disagree.
 - The contract `runtime/contracts/hermes.md` carries one touchpoint index: each
   Pythia dependency on Hermes behavior, its source anchor at the pin, how
-  loudly it fails, and what covers it. A builder rule asks every Hermes-facing
+  loudly it fails, and what covers it. Root contributor guidance asks every Hermes-facing
   change to keep its row and coverage current. The contract also lists known
   defects at the pin, to recheck on each upgrade.
 - Upgrading is the explicit-only `upgrade-hermes` builder workflow: choose a
