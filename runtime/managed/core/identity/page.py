@@ -68,8 +68,7 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
     """
     if subject_kind(subject_id) not in INSTRUMENT_KINDS:
         return None
-    alias = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone()
-    subject_id = alias[0] if alias else subject_id
+    subject_id = current_id(ref, subject_id)
     level = subject_level(subject_id)
     one = lambda sql, *args: ref.execute(sql, args).fetchone()  # noqa: E731
     listing = security = issuer = None
@@ -123,6 +122,16 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
             "related": related(ref, subjects),
         },
     }
+
+
+def current_id(ref: sqlite3.Connection, subject_id: str) -> str:
+    """The ID this reference gives a subject: `id_aliases` followed to its end (a cycle stops where it repeats)."""
+    seen = {subject_id}
+    while (alias := ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone()) \
+            and alias[0] not in seen:
+        subject_id = alias[0]
+        seen.add(subject_id)
+    return subject_id
 
 
 RELATED = tuple(type for type, rule in RELATIONS.items() if rule.grouping is Grouping.RELATED)

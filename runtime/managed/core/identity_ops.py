@@ -21,7 +21,7 @@ from typing import Any
 from .identity import MANIFEST_FILE, ClaimError, Level, ManifestError, check_batch, validate_manifest
 from . import queue_ops
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import batch_from_json, batch_to_json, page, search, store
+from .identity import batch_from_json, batch_to_json, lifecycle, page, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -64,6 +64,7 @@ class Identity:
     def __init__(self, ctx: Any):
         self.ctx = ctx
         self._store: store.IdentityStore | None = None
+        self._rekeyed: Path | None = None  # the reference build local rows were carried to, this process
         self.reset_told = False  # whether a set-aside store was reported (once per process)
         self._lock = threading.Lock()
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="pythia-resolve")
@@ -79,8 +80,27 @@ class Identity:
                 self._store = store.IdentityStore(self.data_dir)
             return self._store
 
-    def reference(self):
+    def reference_path(self) -> Path | None:
+        """The newest reference build. Its first use carries local rows to its subject IDs (Lifecycle A), so every
+        read and write after it sees current IDs; a failure is retried on the next use."""
         path = store.reference_path(self.data_dir)
+        if path is not None and path != self._rekeyed:
+            try:
+                ref = store.open_reference(path)
+                try:
+                    done = lifecycle.rekey(self.store, ref, lifecycle.release_id(ref, path.stem))
+                finally:
+                    ref.close()
+                if done:
+                    logger.info("identity store carried to reference %(release)s: %(moved)d subject IDs re-keyed,"
+                                " %(rows)d rows re-pointed, %(vanished)d subjects vanished", done)
+                self._rekeyed = path
+            except (sqlite3.Error, OSError, ValueError):
+                logger.warning("identity store could not be carried to %s", path.name, exc_info=True)
+        return path
+
+    def reference(self):
+        path = self.reference_path()
         return (path, store.open_reference(path)) if path else (None, None)
 
     # ---- operations ----------------------------------------------------------------------------------------------
@@ -90,7 +110,7 @@ class Identity:
         query = str(arguments.get("query") or "").strip()[:128]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
-            path = store.reference_path(self.data_dir)
+            path = self.reference_path()
             if path is None:
                 return _envelope("empty", empty, issue=NO_REFERENCE)
             directory = search.directory(path, store.open_reference)

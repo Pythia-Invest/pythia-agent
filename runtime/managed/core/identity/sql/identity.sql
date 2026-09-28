@@ -12,14 +12,15 @@
 -- format checks only.
 
 CREATE TABLE metadata (
-  key TEXT PRIMARY KEY,           -- schema_version, generation, reference_release
+  key TEXT PRIMARY KEY,           -- schema_version, generation, reference_release, rekeyed_release, vanished_subjects
   value TEXT NOT NULL
 );
 
 -- Subjects no reference build knows yet: IDs derived from their open identifiers,
 -- or provisional IDs derived from the provider reference that introduced them.
 -- Descriptive provider fields stay in the plugin-tagged claims table below.
--- Re-keyed through the reference id_aliases.
+-- Like every row here that names a subject, re-pointed through the reference id_aliases
+-- once per new release (identity/lifecycle.py).
 CREATE TABLE subjects (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,              -- the ID's first segment (schemes.Kind)
