@@ -9,8 +9,11 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from .rules import HOME
+
 US_MICS = frozenset({"XNAS", "XNYS", "XCBO", "OTCM"})
-HOME_MICS = frozenset({"XLON", "XSWX", "XTSE", "XASX", "XSES", "XTAE", "XTKS", "XHKG", "XJSE"})
+HOME_MICS = frozenset({"XLON", "XSWX", "XTSE", "XASX", "XSES", "XTAE", "XJPX", "XTKS", "XHKG", "XJSE", "XTAI"})
+HOME_COUNTRIES = frozenset(HOME) - {"US"}  # an ISIN from elsewhere (KY, BM, JE) may have its home on any of them
 EEA = frozenset("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split())
 
 
@@ -32,9 +35,14 @@ class Scope:
         mic = listing["mic"]
         if mic in US_MICS:
             return self.us
-        if mic in HOME_MICS:  # written for a security the build lists in the EEA, on its ISIN country's venue
-            return self.home and venues.get(mic, {}).get("country") == entry["security"].get("isin", "")[:2] and any(
-                self.covers(entry, other, venues) for other in entry["listings"] if other.get("mic") not in HOME_MICS)
+        # A home line is written for a security the build lists in the EEA (FIRDS, `cfi`), on its ISIN country's
+        # venue, or on any home venue for an offshore ISIN.
+        if mic in HOME_MICS:
+            isin_country = entry["security"].get("isin", "")[:2]
+            same = venues.get(mic, {}).get("country") == isin_country or (isin_country and isin_country not in HOME_COUNTRIES)
+            in_firds = bool(entry.get("cfi")) and self.eea and (self.cfi is None or entry["cfi"].startswith(self.cfi))
+            return self.home and same and (in_firds or any(
+                self.covers(entry, other, venues) for other in entry["listings"] if other.get("mic") not in HOME_MICS))
         if venues.get(mic, {}).get("country") in EEA and (self.eea or mic in self.mics):
             return self.cfi is None or not entry.get("cfi") or entry["cfi"].startswith(self.cfi)
         return mic in self.mics

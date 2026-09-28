@@ -176,6 +176,36 @@ class SearchTest(Fixture):
             row = directory.search(query, limit=1, priced=lambda: priced)["rows"][0]["id"]
             self.assertEqual(row, "listing:shelf:xetb" if query == "SHF0" else "listing:shelf:xams", query)
 
+    def insert(self, venues, issuers, securities, lines):
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR REPLACE INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
+                           venues)
+            db.executemany("INSERT INTO issuers (id, name, country) VALUES (?, ?, ?)", issuers)
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'x', 'equity', ?)",
+                           securities)
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?, ?, ?, ?, ?, ?, ?)", lines)
+        return search.Directory(self.ref)
+
+    def test_a_receipt_ranks_below_the_companys_own_priceable_regulated_line_on_any_venue(self):
+        directory = self.insert(
+            [("XHKG", "XHKG", "Hong Kong", "HK", "NSPD"), ("XSES", "XSES", "Singapore", "SG", "RMKT")],
+            [("issuer:lei:TENC", "Tencent Holdings Ltd", "KY")],
+            [("security:tenc", "issuer:lei:TENC", "ordinary"), ("security:tenc-sr", "issuer:lei:TENC", "depositary_receipt")],
+            [("listing:tenc:hk", "security:tenc", "XHKG", "XHKG", "0700", "HKD", 1),
+             ("listing:tenc:sg", "security:tenc-sr", "XSES", "XSES", "TENCT-SR", "SGD", 1)])
+        row = lambda priced: directory.search("tencent", limit=1, priced=lambda: priced)["rows"][0]["id"]  # noqa: E731
+        self.assertEqual(row({"XHKG": frozenset(), "XSES": frozenset()}), "listing:tenc:hk")
+        self.assertEqual(directory.search("TENCT-SR", limit=1)["rows"][0]["id"], "listing:tenc:sg")  # a typed ticker
+
+    def test_an_eea_operator_mic_with_an_unspecified_category_is_no_listing(self):
+        directory = self.insert(
+            [("XFRA", "XFRA", "Frankfurt", "DE", "NSPD"), ("XETB", "XETR", "Xetra", "DE", "MLTF")],
+            [("issuer:lei:OPER", "Opco plc", "GB")], [("security:opco", "issuer:lei:OPER", "ordinary")],
+            [("listing:opco:fra", "security:opco", "XFRA", "XFRA", "OPC", "EUR", 0),
+             ("listing:opco:xetb", "security:opco", "XETB", "XETR", "OPC", "EUR", 0)])
+        self.assertEqual(directory.search("opco", limit=1)["rows"][0]["id"], "listing:opco:xetb")  # Xetra first
+
     def test_a_build_without_venue_categories_ranks_no_line_as_regulated(self):
         with contextlib.closing(sqlite3.connect(self.path)) as db, db:
             db.execute("ALTER TABLE venues DROP COLUMN category")

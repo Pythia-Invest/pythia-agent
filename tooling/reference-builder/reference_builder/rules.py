@@ -18,11 +18,17 @@ HOME = {
     "AU": (("AU", "AT"), "XASX"),
     "SG": (("SP",), "XSES"),
     "IL": (("IT",), "XTAE"),
-    "JP": (("JT",), "XTKS"),
+    "JP": (("JP", "JT"), "XTKS"),  # JP: the Japan line the truth set records (its FIGI is also the composite)
     "HK": (("HK",), "XHKG"),
     "ZA": (("SJ",), "XJSE"),
+    "TW": (("TT",), "XTAI"),
     "US": (("UN", "UW", "UQ", "UR", "UA", "UP"), None),
 }
+# Home venues tried, in order, for an ISIN from a country with no home venue of its own: Cayman and Bermuda
+# companies mostly list in Hong Kong (Tencent, Alibaba), Jersey and Guernsey ones in London (Glencore, WPP).
+OFFSHORE_HOMES = ("HK", "GB", "SG", "CA", "AU", "CH", "JP", "ZA", "IL", "TW")
+# The country of each home venue.
+HOME_VENUE_COUNTRY = {mic: country for country, (_codes, mic) in HOME.items() if mic}
 # German floor exchanges: FIRDS often names one as the relevant venue of a share whose German
 # main market is Xetra (Fresenius on Düsseldorf).
 GERMAN_FLOORS = frozenset({"XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER"})
@@ -32,7 +38,7 @@ SPACED_CLASS_VENUES = frozenset({"XSTO", "XCSE"})
 # The trading currency of ordinary shares on a home venue, for home lines OpenFIGI shows outside FIRDS (FIRDS
 # carries a currency, OpenFIGI's line does not). London quotes in pence; the listing's currency is GBP.
 HOME_CURRENCY = {"XLON": "GBP", "XSWX": "CHF", "XTSE": "CAD", "XASX": "AUD", "XSES": "SGD", "XTAE": "ILS",
-                 "XTKS": "JPY", "XHKG": "HKD", "XJSE": "ZAR", "XNYS": "USD", "XNAS": "USD", "XASE": "USD", "ARCX": "USD"}
+                 "XTKS": "JPY", "XHKG": "HKD", "XJSE": "ZAR", "XTAI": "TWD", "XNYS": "USD", "XNAS": "USD", "XASE": "USD", "ARCX": "USD"}
 # The currency lines trade in on an EEA exchange: its country's. FIRDS gives each admission the instrument's
 # notional currency (Apple is USD on Xetra, where it trades in EUR). Venues that trade several currencies
 # (the pan-European trading-only venues, systematic internalisers, OTFs) keep the notional one.
@@ -189,10 +195,17 @@ def _unaccented(text: str) -> str:
     return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
 
 
-def home_ticker(ticker: str) -> str:
+def home_ticker(ticker: str, mic: str | None = None) -> str:
     """OpenFIGI writes home tickers the Bloomberg way: a padding slash (`BP/`) and a slash before a share class
-    (`BT/A`, `RCI/B`). The line keeps `BP`, and the class after `-` as SEC tickers do (`RCI-B`, Yahoo `RCI-B.TO`)."""
-    return (ticker.rstrip("/") or ticker).replace("/", "-")
+    (`BT/A`, `RCI/B`). The line keeps `BP`, and the class after `-` as SEC tickers do (`RCI-B`, Yahoo `RCI-B.TO`).
+    Hong Kong writes its numeric codes with four digits (`0700`, not `700`)."""
+    ticker = (ticker.rstrip("/") or ticker).replace("/", "-")
+    return ticker.zfill(4) if mic == "XHKG" and ticker.isdigit() else ticker
+
+
+def _exch(row: dict) -> str:
+    """OpenFIGI's exchange code; a few answers append the exchange's name (`TT (Taiwan Stock Exchange)`)."""
+    return (row.get("exchCode") or "").split(" ")[0]
 
 
 def exchange_ticker(root: str, klass: str | None, operating_mic: str | None) -> str | None:
@@ -249,21 +262,27 @@ def primary_venue(
     relevant_operating_mic: str | None,
     xetra_live: bool,
     fanout: list[dict],
+    listed_in_eea: bool = False,
 ) -> tuple[str | None, str, dict | None]:
     """FIRDS relevant venue, corrected for non-EEA home markets and the German floor exchanges.
 
+    An ISIN from a country with no home venue of its own (the Cayman Islands, Bermuda, Jersey) takes the first
+    home venue in `OFFSHORE_HOMES` that OpenFIGI shows, unless FIRDS' relevant venue is an EEA regulated market
+    (`listed_in_eea`: Aegon and Flow Traders stay on Euronext Amsterdam).
     Returns (operating MIC, rule, OpenFIGI home row when the home line is outside FIRDS).
     """
     country = isin[:2]
-    if country in HOME and country not in EEA:
-        codes, home_mic = HOME[country]
+    offshore = country not in HOME and country not in EEA
+    homes = [HOME[country]] if country in HOME else [HOME[c] for c in OFFSHORE_HOMES] if offshore and not listed_in_eea else []
+    for codes, home_mic in homes if country not in EEA else []:
         home = [
             r for r in fanout
-            if r.get("exchCode") in codes and r.get("ticker") and not LSE_ORDER_BOOK.match(r["ticker"])
+            if _exch(r) in codes and r.get("ticker") and not LSE_ORDER_BOOK.match(r["ticker"])
         ]
         if home:
-            row = sorted(home, key=lambda r: (codes.index(r["exchCode"]), r.get("ticker") or ""))[0]
-            return home_mic or US_EXCHANGE_MIC[row["exchCode"]], "home_listing_evidence", row
+            # Hong Kong's second-currency counters (`89988`) sort after the main line (`9988`).
+            row = sorted(home, key=lambda r: (codes.index(_exch(r)), len(r.get("ticker") or ""), r.get("ticker") or ""))[0]
+            return home_mic or US_EXCHANGE_MIC[_exch(row)], "home_listing_evidence", row
     if relevant_operating_mic in GERMAN_FLOORS and xetra_live:
         return "XETR", "german_floor_to_xetra", None
     if relevant_operating_mic:

@@ -111,13 +111,14 @@ class Directory:
                 out.setdefault(key, []).append(value)
             return out
 
-        # Listings, not open-market trading: an ISO 10383 regulated market (RMKT), or an exchange whose ISO record
-        # leaves the category unspecified (NSPD: NYSE, Cboe, Tokyo, Toronto, the ASX). Lines on an MTF, an OTF, a
-        # systematic internaliser or OTC Markets are trading. A build from before the category column ranks none.
+        # Listings, not open-market trading: an ISO 10383 regulated market (RMKT), or an exchange outside the EEA
+        # whose ISO record leaves the category unspecified (NSPD: NYSE, Cboe, Tokyo, Toronto, the ASX). In the EEA,
+        # NSPD marks operator MICs (Xetra, Frankfurt, Borsa Italiana, BME), never a listing. Lines on an MTF, an
+        # OTF, a systematic internaliser or OTC Markets are trading. A build from before the category column ranks none.
         categorised = "category" in {row[1] for row in ref.execute("PRAGMA table_info(venues)")}
         venues = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT mic, name, country FROM venues")}
-        regulated = {row[0] for row in ref.execute("SELECT mic FROM venues WHERE category IN ('RMKT', 'NSPD')")
-                     } if categorised else set()
+        regulated = {mic for mic, category, country in ref.execute("SELECT mic, category, country FROM venues")
+                     if category == "RMKT" or (category == "NSPD" and country not in EEA)} if categorised else set()
         issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
                    " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
@@ -178,6 +179,10 @@ class Directory:
         # Other listings per instrument (a crypto asset's deployments are one row).
         self.listings = {inst: count - 1 for inst, count in self.db.execute(
             "SELECT inst, count(DISTINCT listing) FROM doc GROUP BY inst")}
+        # The venues of each instrument's own shares listed on a regulated market: a receipt ranks below them.
+        self.share_venues: dict[str, set[str]] = {}
+        for inst, mic in self.db.execute("SELECT inst, mic FROM doc WHERE reg = 1 AND dr = 0 AND crypto = 0"):
+            self.share_venues.setdefault(inst, set()).add(mic)
 
     # ---- query side ------------------------------------------------------------------------------------------
 
@@ -208,7 +213,8 @@ class Directory:
 
     def lines(self, query: str, prefer: str = "primary",
               suffixes: Callable[[], dict[str, set[str]]] = dict,
-              priced: Mapping[str, frozenset[str]] = {}) -> list[tuple[float, dict, tuple]]:
+              priced: Mapping[str, frozenset[str]] = {},
+           share_venues: Mapping[str, set[str]] = {}) -> list[tuple[float, dict, tuple]]:
         """Scored directory lines for a query: (score, line, representative key).
 
         `suffixes` maps a provider symbol suffix (".AS") to the operating MICs it names; `priced` maps the
@@ -220,7 +226,8 @@ class Directory:
         with self.lock:
             if kind in by_id:
                 argument = f"% {value} %" if kind == "figi" else value
-                return _score(self._fetch(by_id[kind], (argument,)), query, prefer, id_rows=True, priced=priced)
+                return _score(self._fetch(by_id[kind], (argument,)), query, prefer, id_rows=True, priced=priced,
+                              share_venues=self.share_venues)
             tokens, hint = norm(query).split(), None
             if len(tokens) > 1:
                 for token in list(tokens):
@@ -251,7 +258,8 @@ class Directory:
                     hits, query = self._fts(fixed), " ".join(fixed)
             for hit in hits:
                 found.setdefault(hit["id"], hit)
-            return _score(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy, priced=priced)
+            return _score(found.values(), query, prefer, exact=exact, hint=hint, fuzzy=fuzzy, priced=priced,
+                          share_venues=self.share_venues)
 
     def instrument_listings(self, security: str) -> list[dict]:
         """The listings of the instrument a security belongs to, receipts folded in as in search: the ones
@@ -309,7 +317,8 @@ def _instrument_order(members: list) -> tuple:
 
 def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None = None, hint: set[str] | None = None,
            id_rows: bool = False, fuzzy: bool = False,
-           priced: Mapping[str, frozenset[str]] = {}) -> list[tuple[float, dict, tuple]]:
+           priced: Mapping[str, frozenset[str]] = {},
+           share_venues: Mapping[str, set[str]] = {}) -> list[tuple[float, dict, tuple]]:
     wanted_core, wanted = core_name(query), norm(query)
     out = []
     for line in lines:
@@ -337,15 +346,17 @@ def _score(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None 
             score += W["fuzzy"]
         # The representative listing of an instrument: lexicographic, not additive. A listing the query names
         # first (its venue, or its exact ticker unless the query is also the name: "relx", "ing"), then
-        # the preferred region, then a regulated listing over open-market trading (ARM's Nasdaq line over its
-        # Stuttgart open-market line), then the home and primary market, then a line an installed plugin can
-        # price, then a fixed venue order (VENUE_ORDER) and the listing ID, so the pick never depends on hit order.
+        # the preferred region, then the company's own shares over a receipt when a regulated line of them can be
+        # priced (Tencent in Hong Kong), then a regulated listing over open-market trading, then home and primary,
+        # then a line a plugin can price, then VENUE_ORDER and the listing ID: never the hit order.
         preferred = (prefer == "EU" and line["country"] in EEA) or (prefer == "US" and line["country"] == "US"
                                                                      and not line["otc"])
-        classes = priced.get(line["mic"] or "")
-        priceable = classes is not None and (not classes or ("crypto" if line["crypto"] else "equity") in classes)
+        asset = "crypto" if line["crypto"] else "equity"
+        can_price = lambda mic: (classes := priced.get(mic or "")) is not None and (not classes or asset in classes)  # noqa: E731
+        priceable = can_price(line["mic"])
+        demoted = bool(line["dr"]) and any(can_price(mic) for mic in share_venues.get(line["inst"], ()))
         venue = -VENUE_ORDER.index(line["mic"]) if line["mic"] in VENUE_ORDER else -len(VENUE_ORDER)
-        key = (int(venue_hit), int(exact_hit and not named), int(preferred), line["reg"], -line["fus"], -line["deriv"],
+        key = (int(venue_hit), int(exact_hit and not named), int(preferred), -int(demoted), line["reg"], -line["fus"], -line["deriv"],
                -line["otc"], line["home"], line["prim"], int(priceable), -line["dr"], line["size"] or 0, venue,
                line["listing"])
         out.append((score, line, key))
