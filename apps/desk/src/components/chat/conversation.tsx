@@ -47,7 +47,7 @@ function UserMessage({ message }: { message: DeskUIMessage }) {
       ) : null}
       <WorkspaceReferenceCards context={userWorkspaceContext(message)} />
       {text ? (
-        <div className="min-w-0 whitespace-pre-wrap break-words font-reading text-foreground text-reading leading-reading">
+        <div className="min-w-0 whitespace-pre-wrap break-words text-foreground text-reading leading-reading">
           {text}
         </div>
       ) : null}

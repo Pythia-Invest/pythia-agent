@@ -1,11 +1,18 @@
 import { syntheticCompositionFixture } from "../../../composition-fixture";
 
 /**
- * Reading faces compared for the Desk conversation. Inter was chosen and is
- * self-hosted in `packages/ui`; the other candidates still load from Google
- * Fonts so the comparison stays readable.
+ * Reading faces compared for Pythia's answers. IBM Plex Serif was chosen
+ * (ADR 0022) and, like Inter before it, is self-hosted in `packages/ui`; the
+ * other candidates still load from Google Fonts so the comparison stays readable.
  */
 const candidates = [
+  {
+    id: "plex-serif",
+    name: "IBM Plex Serif",
+    family: '"IBM Plex Serif", Georgia, serif',
+    note: "Chosen (ADR 0022). Self-hosted from @pythia/ui as the font-reading role.",
+    size: "14px",
+  },
   {
     id: "source-serif",
     name: "Source Serif 4",
@@ -17,7 +24,7 @@ const candidates = [
     id: "inter",
     name: "Inter",
     family: 'Inter, "Helvetica Neue", Arial, sans-serif',
-    note: "Chosen. Self-hosted from @pythia/ui as the font-reading role.",
+    note: "The previous choice (ADR 0009); self-hosted for this comparison.",
     size: "14px",
   },
   {
@@ -31,9 +38,9 @@ const candidates = [
 
 const reference = {
   id: "plex",
-  name: "IBM Plex Sans (current)",
+  name: "IBM Plex Sans (interface)",
   family: '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif',
-  note: "What the chat renders in today, for comparison.",
+  note: "The interface face, also used for what the person types.",
   size: "16px",
 } as const;
 

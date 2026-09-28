@@ -20,8 +20,9 @@ Style with Tailwind utilities in the component, following the
 `src/styles.css` is the only stylesheet: it owns the `--py-*` tokens and maps
 them into Tailwind's theme. Use those theme names, merge classes with `cn`,
 and give every root a `data-slot`. Do not add consumer palettes or make color
-the only status cue. Signal Amber identifies a Pythia signal; warnings and
-general interaction use their own semantic roles.
+the only status cue. Signal Amber identifies a Pythia signal (and, as the one
+documented exception, the "Pythia is working" dot); warnings and general
+interaction use their own semantic roles.
 
 This package is exported to a Claude Design project so that tool composes
 screens from the real components; re-sync after changing it, and keep the

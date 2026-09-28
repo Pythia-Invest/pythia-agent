@@ -99,7 +99,7 @@ export function DatePicker({
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Positioner align="start" className="z-50" sideOffset={8}>
-            <Popover.Popup className="rounded-container bg-overlay shadow-overlay outline-none">
+            <Popover.Popup className="rounded-container bg-overlay shadow-popup outline-none">
               <Calendar
                 disabled={disabled}
                 disabledDates={disabledDates}

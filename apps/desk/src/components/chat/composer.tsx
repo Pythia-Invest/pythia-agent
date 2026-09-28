@@ -245,7 +245,7 @@ export function Composer({
         />
         <textarea
           aria-label="Message Pythia"
-          className="field-sizing-content max-h-[min(12.5rem,25dvh)] min-h-[1.375rem] min-w-0 resize-none border-0 bg-transparent px-1 pt-0.5 font-reading text-foreground text-reading leading-reading outline-hidden placeholder:text-foreground-disabled"
+          className="field-sizing-content max-h-[min(12.5rem,25dvh)] min-h-[1.375rem] min-w-0 resize-none border-0 bg-transparent px-1 pt-0.5 text-foreground text-reading leading-reading outline-hidden placeholder:text-foreground-disabled"
           disabled={disabled || submitting}
           id={id}
           onChange={(event) => setValue(event.target.value)}
