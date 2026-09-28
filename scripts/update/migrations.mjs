@@ -40,6 +40,33 @@ const MIGRATIONS = [
         ]);
       }
       hermes([...profile, "config", "set", "tools.tool_search.enabled", "off"]);
+      // `tools disable` exits 0 on a toolset it does not know; require the result, not the exit code.
+      const read = (key) =>
+        JSON.parse(
+          hermes([...profile, "config", "get", key, "--json"]) || "null",
+        );
+      const known = read("known_plugin_toolsets") ?? {};
+      const shown = read("platform_toolsets") ?? {};
+      const search = String(read("tools.tool_search.enabled")).toLowerCase();
+      for (const platform of ["api_server", "cli", "cron"]) {
+        const hidden =
+          platform === "api_server"
+            ? ["pythia-core"]
+            : ["pythia-core", "pythia-desk"];
+        for (const name of hidden) {
+          if (
+            !known[platform]?.includes(name) ||
+            shown[platform]?.includes(name)
+          ) {
+            throw new Error(
+              `Hermes did not record ${name} as off for ${platform}.`,
+            );
+          }
+        }
+      }
+      if (search !== "off" && search !== "false") {
+        throw new Error("Hermes did not turn Tool Search off.");
+      }
     },
   },
 ];

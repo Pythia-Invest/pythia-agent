@@ -12,7 +12,9 @@ With the seeded profile, an `api_server` (Desk chat) turn delivers Hermes's kept
 built-ins and seven Pythia tools, all in core's `pythia-desk` toolset. Tool Search
 is off, so there is no `tool_search` bridge and no catalogue line to decode. The
 `cli` and `cron` platforms see no Pythia tool: their sessions carry no trusted
-caller platform, which Pythia's reads require.
+caller platform, which Pythia's reads require. The operating prompt's data-routing
+paragraph is rendered for `api_server` sessions only, and tells the Desk agent
+that scheduled jobs cannot read Pythia's data yet.
 
 | Tool | Answers | Effect |
 | --- | --- | --- |
@@ -156,8 +158,10 @@ and records `pythia-core` as known and off for `api_server`, `cli` and `cron`, a
 (`scripts/update/migrations.mjs`) applies the same choices to an existing
 installed profile with native commands: `hermes -p <profile> tools disable
 pythia-core --platform <platform>` for each platform, `tools disable pythia-desk`
-for `cli` and `cron`, and `config set tools.tool_search.enabled off`. A
-development profile takes the same commands by hand.
+for `cli` and `cron`, and `config set tools.tool_search.enabled off`, then reads
+the configuration back and fails unless Hermes recorded each choice (`tools
+disable` exits 0 even for a toolset it does not know). A development profile
+takes the same commands by hand.
 
 A data source is turned off by disabling its plugin (`hermes plugins disable
 <plugin>`): that stops Desk pages, the agent tools and `pythia` alike. A toolset

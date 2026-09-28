@@ -5,7 +5,7 @@ from typing import Any
 
 from . import identity  # noqa: F401  (contracts plugins reach as the loaded core's `identity`)
 from .desk_view import SCHEMA as DESK_VIEW_SCHEMA, desk_view
-from .operating import OPERATING_CONTEXT
+from .operating import operating_context
 
 
 def register(ctx: Any) -> None:
@@ -27,7 +27,7 @@ def register(ctx: Any) -> None:
     )
     ctx.register_system_prompt_section(
         "pythia.operating",
-        OPERATING_CONTEXT,
+        operating_context,
         position="after_memory",
         max_chars=4000,
     )

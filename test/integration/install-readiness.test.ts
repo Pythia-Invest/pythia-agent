@@ -397,6 +397,16 @@ describe("installed readiness and recovery", () => {
     const commands: string[][] = [];
     const hermes = (args: string[]) => {
       commands.push(args);
+      const key = args.at(-2);
+      if (args.includes("get") && key === "known_plugin_toolsets")
+        return JSON.stringify({
+          api_server: ["pythia-core"],
+          cli: ["pythia-core", "pythia-desk"],
+          cron: ["pythia-core", "pythia-desk"],
+        });
+      if (args.includes("get") && key === "platform_toolsets")
+        return JSON.stringify({ api_server: ["pythia-desk", "web"] });
+      if (args.includes("get")) return JSON.stringify("off");
       return "";
     };
     const applied = ["0001-device-state-v1", "0002-agent-tool-surface"];
@@ -416,7 +426,7 @@ describe("installed readiness and recovery", () => {
       "--platform",
       "api_server",
     ]);
-    expect(commands.at(-1)).toEqual([
+    expect(commands).toContainEqual([
       "-p",
       paths.profile,
       "config",
@@ -424,7 +434,18 @@ describe("installed readiness and recovery", () => {
       "tools.tool_search.enabled",
       "off",
     ]);
-    expect(commands).toHaveLength(6);
+    expect(commands).toHaveLength(9);
+    // A readback that shows the toolset still visible fails the migration.
+    const { paths: other } = fixture();
+    for (const path of [other.configRoot, other.stateRoot, other.dataRoot]) {
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+    }
+    expect(() =>
+      applyMigrations(other, {
+        hermes: (args: string[]) =>
+          args.includes("get") ? JSON.stringify({}) : "",
+      }),
+    ).toThrow(/did not record pythia-core/);
   });
 
   it("uninstalls managed files, retains user data, and makes reinstall possible", () => {

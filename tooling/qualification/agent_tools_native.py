@@ -73,6 +73,8 @@ for name, (key, _plugin) in core.platform.access.native_tool_owners().items():
     if isinstance(meta, dict):
         declared.setdefault((key, meta.get("operation")), []).append(name)
 verdict = core.platform.operations.resolve("pythia", "identity-verdict", {"item_id": "probe", "relation": "none"})[0]
+routing = {platform: "pythia_find" in "".join(section.content for section in manager.render_system_prompt_sections(
+    {"platform": platform}) if section.id == "pythia.operating") for platform in ("api_server", "cli", "cron")}
 elsewhere = {}
 for platform in ("cli", "cron"):
     model_tools._clear_tool_defs_cache()
@@ -98,6 +100,7 @@ print(json.dumps({
     "identity_verdict_tool": verdict,
     "bad_argument": (bad.get("issues") or [{}])[0].get("message", ""),
     "pythia_tools_on": elsewhere,
+    "routing_prompt_on": routing,
 }))
 '''
 
@@ -160,6 +163,8 @@ def main() -> int:
         (report["identity_verdict_tool"] != "pythia_identity_verdict", "Desk's identity-verdict no longer resolves"),
         (not report["bad_argument"].startswith("args.limit:"), "a bad argument is not named"),
         (any(report["pythia_tools_on"].values()), "cli or cron sees Pythia tools"),
+        (report["routing_prompt_on"] != {"api_server": True, "cli": False, "cron": False},
+         "the data-routing paragraph reaches a platform without the data tools, or misses Desk chat"),
     ) if failed]
     for problem in problems:
         print("FAILED:", problem, file=sys.stderr)
