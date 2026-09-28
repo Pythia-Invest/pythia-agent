@@ -78,7 +78,6 @@ class Identity:
         self.reset_told = False  # whether a set-aside store was reported (once per process)
         self._lock = threading.Lock()
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="pythia-resolve")
-        self.reads = read_checks.State()  # recent read checks and the subject each served reference is for
 
     @property
     def data_dir(self) -> Path:
@@ -267,10 +266,9 @@ class Identity:
         stored = {(row["subject_id"], row["provider"]): row
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),
-                   **self.reads.lookups(identity_store, subject_ids),
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
-                   "order": self.order()}
+                   "order": self.order(), **read_checks.lookups(self, subject_ids)}
         return lookups
 
     @staticmethod

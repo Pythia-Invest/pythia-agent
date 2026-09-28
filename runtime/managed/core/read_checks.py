@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import logging
 import time
+import weakref
 from typing import TYPE_CHECKING, Any, Mapping
 
-from .identity import Level, page, store
+from .identity import Level, page
 from .identity.model import ProviderRef
 from .identity.schemes import CURRENCY
 
@@ -32,22 +33,30 @@ _BOUND = 4096  # entries each per-process map keeps before it starts over
 
 
 class State:
-    """Per process: recent checks, and the subject each reference was last served for (so an explicit read of it
-    is checked against that subject)."""
+    """Per core identity (process): recent checks, and the subject each reference was last served for (so an
+    explicit read of it is checked against that subject)."""
 
     def __init__(self) -> None:
         self.checked: dict[tuple, tuple[dict, float]] = {}
         self.served: dict[tuple[str, str, str], str] = {}
 
-    def lookups(self, identity_store: store.IdentityStore, subject_ids: list[str]) -> dict[str, Any]:
-        """Page composition's view of the subjects' read checks, and where it records what it serves."""
-        rows = identity_store.read_checks(subject_ids)
 
-        def serve(ref: ProviderRef, subject_id: str) -> None:
-            if len(self.served) > _BOUND:
-                self.served.clear()
-            self.served[_key(ref)] = subject_id
-        return {"checked": lambda subject_id, ref: rows.get((subject_id, *_key(ref))), "serves": serve}
+_STATES: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+def state(identity: Identity) -> State:
+    return _STATES.setdefault(identity, State())
+
+
+def lookups(identity: Identity, subject_ids: list[str]) -> dict[str, Any]:
+    """Page composition's view of the subjects' read checks, and where it records what it serves."""
+    rows, served = identity.store.read_checks(subject_ids), state(identity).served
+
+    def serve(ref: ProviderRef, subject_id: str) -> None:
+        if len(served) > _BOUND:
+            served.clear()
+        served[_key(ref)] = subject_id
+    return {"checked": lambda subject_id, ref: rows.get((subject_id, *_key(ref))), "serves": serve}
 
 
 def check_read(identity: Identity, subject_id: str | None, native_ref: dict, stated: dict) -> dict:
@@ -58,20 +67,20 @@ def check_read(identity: Identity, subject_id: str | None, native_ref: dict, sta
     try:
         ref = ProviderRef(native_ref["provider"], native_ref["native_id"], native_ref["native_scope"])
         said = {key: value for key, value in (stated or {}).items() if key in STATED and isinstance(value, str) and value}
-        subject_id = subject_id or identity.reads.served.get(_key(ref))
+        subject_id = subject_id or state(identity).served.get(_key(ref))
         if not (said and subject_id):
             return UNCHECKED
         key = (subject_id, *_key(ref), tuple(sorted(said.items())))
-        known = identity.reads.checked.get(key)
+        known = state(identity).checked.get(key)
         if known and known[1] > time.monotonic():
             return known[0]
         outcome = _check(identity, subject_id, ref, said)
     except Exception:  # a check never fails the read it rides on
         logger.warning("read check of %s failed", native_ref, exc_info=True)
         return UNCHECKED
-    if len(identity.reads.checked) > _BOUND:
-        identity.reads.checked.clear()
-    identity.reads.checked[key] = (outcome, time.monotonic() + CHECK_EVERY)
+    if len(state(identity).checked) > _BOUND:
+        state(identity).checked.clear()
+    state(identity).checked[key] = (outcome, time.monotonic() + CHECK_EVERY)
     return outcome
 
 
