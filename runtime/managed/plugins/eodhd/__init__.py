@@ -12,6 +12,8 @@ from .series import MODES, STREAM_MODES, definition, selector
 from .results import envelope, base, issue, read, window
 from .catalogue_pages import catalogue_page
 
+NEWS_WARNINGS = frozenset({'schema_drift'})
+
 
 def helpers(ctx):
     from hermes_cli.plugins import get_plugin_manager
@@ -118,7 +120,8 @@ def register(ctx):
                     result['retry_after_seconds'] = raw['retry_after']
                 return failures.qualify_failure(result, raw)
             def errors(raw):
-                return [issue(code, source_code=raw.get('http_status')) for code in raw.get('issues', [])]
+                return [issue(code, 'warning' if code in NEWS_WARNINGS else 'error', source_code=raw.get('http_status'))
+                        for code in raw.get('issues', [])]
             def nonread_result(raw):
                 return nonread(raw['data'], raw)
             if operation == 'catalogue':

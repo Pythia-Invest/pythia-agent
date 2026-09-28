@@ -91,6 +91,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "yahoo-prices.ts",
       "yahoo-sessions.ts",
       "yahoo-options.ts",
+      "yahoo-news.ts",
     ]),
   }),
   Object.freeze({
