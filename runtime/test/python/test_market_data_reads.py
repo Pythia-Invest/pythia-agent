@@ -8,6 +8,7 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 from importlib import import_module
+import sqlite3
 import tempfile
 import unittest
 
@@ -158,6 +159,13 @@ class SharedReadsTests(unittest.TestCase):
         pinned = run_read(self.backend, direct["series"], read_request=request({"kind": "source", "series_id": direct["series"]["id"]}))
         self.assertEqual(pinned["outcome"], "ok")
 
+    def test_a_broker_source_the_investor_names_serves_subject_reads_as_it_serves_the_page(self):
+        self.sources.policies["ibkr"] = {"requires_broker_app": True}
+        self.sources.named = ["ibkr"]  # source_order = ibkr: core puts it first and the page reads it
+        self.assertEqual(run_read(self.backend)["provenance"]["provider"], "ibkr")
+        self.assertEqual([item["provider_ref"]["provider"] for item in self.backend.series(SUBJECT, CRITERIA)["data"]],
+                         ["ibkr", "synthetic_other"])
+
     def test_metadata_and_generic_read_failures_preserve_safe_source_issues(self):
         issue = {"code": "broker_unreachable", "message": "Check the configured broker endpoint.", "severity": "error", "source_code": "502"}
         for operation in ("series", "history"):
@@ -187,7 +195,7 @@ class SharedReadsTests(unittest.TestCase):
         run_read(self.backend)
         self.assertEqual(len([call for call in self.price_calls() if call[0] == "synthetic_other"]), 1)
 
-    def test_a_subject_read_carries_no_preference_revision(self):
+    def test_a_subject_read_needs_no_saved_choice(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = Sources()
             sources.providers = ("ibkr",)
@@ -195,7 +203,8 @@ class SharedReadsTests(unittest.TestCase):
             first = run_read(backend)
             self.assertEqual(first["outcome"], "ok")
             self.assertEqual(first["series"]["subject"], SUBJECT)
-            self.assertIsNone(first["selection"]["preference_revision"])
+            self.assertEqual(first["selection"]["reason"], "preference")
+            self.assertNotIn("preference_revision", first["selection"])
             wire.validate_read_result(first)
             self.assertEqual(run_read(backend), first)
             self.assertEqual(len([call for call in sources.calls if call[1] == "history"]), 1)
@@ -418,7 +427,6 @@ class BackendMutationTests(unittest.TestCase):
                 run_read(sources.backend(directory), read_request=request({"kind": "pythia", "subject": {"kind": "instrument", "id": "instrument:x"}}))
 
     def choices_file(self, path, scoped_kind):
-        import sqlite3
         os.chmod(path.parent, 0o700)
         with closing(sqlite3.connect(path)) as db, db:
             db.executescript("""CREATE TABLE source_preferences (operation TEXT PRIMARY KEY, providers TEXT NOT NULL);
@@ -447,6 +455,14 @@ class BackendMutationTests(unittest.TestCase):
             self.assertEqual(run_read(backend)["provenance"]["provider"], "ibkr")  # core's order, not the old choice
             with self.assertNoLogs(level="WARNING"):
                 sources.backend(directory)
+            # An empty store (every device's, in practice) is set aside without a warning.
+            empty = root / "empty"
+            empty.mkdir(mode=0o700)
+            with closing(sqlite3.connect(empty / "preferences.sqlite3")) as db:
+                db.execute("CREATE TABLE source_preferences (operation TEXT PRIMARY KEY, providers TEXT NOT NULL)")
+            with self.assertNoLogs(level="WARNING"):
+                sources.backend(str(empty))
+            self.assertTrue((empty / "preferences-retired.sqlite3").is_file())
             # A file set aside earlier is never overwritten.
             self.choices_file(root / "identity.sqlite3", "subject_kind")
             with self.assertNoLogs(level="WARNING"):

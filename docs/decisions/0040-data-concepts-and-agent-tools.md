@@ -252,11 +252,13 @@ surface for plugins that need a newer Pythia, and team mode.
   `set_preferences` actions (ADR 0028) are retired. A read of a subject through
   market data (the markets widgets, the agent's price reads) takes core's
   references for the subject in this order, and the page reads the reference
-  core chose, so page, chart and agent serve from the same first source.
+  core chose, so page, chart and agent serve from the same first source. A
+  source that needs the investor's broker app serves a subject read once the
+  investor names it in `source_order`, as it serves the page.
 - A device's saved market-data orders are set aside, not migrated: on first
   start the file is renamed `preferences-retired.sqlite3` (a pre-ADR 0037
   `identity.sqlite3` likewise) and a warning in the Hermes log names the orders
-  it held. Nothing is deleted.
+  it held, when it held any. Nothing is deleted.
 - No new store: the order lives in `settings.json` and selection is computed
   per request.
 

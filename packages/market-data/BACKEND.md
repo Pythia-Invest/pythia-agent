@@ -45,8 +45,9 @@ history stitching.
 
 Native contributions optionally declare `requires_broker_app` (default false)
 and `observation_cache` (`default` or `disabled`, default `default`). Implicit
-canonical reads exclude broker-dependent sources. Explicit native references
-and pinned descriptors retain access. An excluded-only read
+canonical reads exclude a broker-dependent source unless the investor names it
+in `source_order`; then a subject read serves it where the page would. Explicit
+native references and pinned descriptors retain access. An excluded-only read
 returns `explicit_source_required` without contacting Broker. Validated source
 issues survive metadata and generic read failures alongside selection context.
 
@@ -65,8 +66,7 @@ request/view and requested subject. It preserves native provider reference and
 series ID; it does not rewrite previously returned values. Only core's current
 references route a subject. Native reads need no binding.
 
-Read selection always reports `preference_revision: null`; the field stays on
-the wire for compatibility. The feature keeps no source choices of its own.
+The feature keeps no source choices of its own.
 Observations have no durable archive. The process-local cache defaults to 32
 entries and 4 MiB, with a 15-second default TTL overridden by declared provider
 cadence, and returns detached copies. Keys include complete

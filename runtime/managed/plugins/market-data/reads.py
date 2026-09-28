@@ -17,7 +17,7 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
                 "ambiguous_series": "Several source series match; specify more criteria or pin a descriptor.",
                 "incompatible_series": "The selected source has no compatible series.",
                 "unavailable": "The selected source is unavailable in this native caller context.",
-                "explicit_source_required": "Available broker data requires an explicit native reference or pinned series.",
+                "explicit_source_required": "Available broker data requires an explicit native reference, a pinned series or a place in source_order.",
                 "source_error": "The selected source read failed; alternatives require a separate read.",
                 "invalid_response": "The selected source returned different or invalid series semantics.",
                 "selection_changed": "Access changed during this read; retry explicitly."}
@@ -29,7 +29,7 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
         message += f" Requested series: {selected['id']}."
     return validate_read_result({"schema_version": 1, "outcome": "error", "request": request,
         "series": None, "observations": [], "selection": {"view": request["view"], "reason": reason,
-        "preference_revision": None, "alternatives": list(alternatives)}, "provenance": None,
+        "alternatives": list(alternatives)}, "provenance": None,
         "retrieved_at": datetime.now(timezone.utc).isoformat(), "returned_window": {"start": None, "end": None},
         "coverage": {"status": "unknown", "gaps": [], "truncated": False, "continuation": None},
         "freshness": {"status": "unknown", "as_of": None, "basis": "unknown", "market_data_type": "unknown"},
@@ -72,7 +72,7 @@ def _choose(backend, request, criteria, descriptor, sources):
     explicit = "provider" in binding
     readable = [ref for ref in bindings if available(sources, ref["provider"], operation)
                 and available(sources, ref["provider"], "series")]
-    eligible = [ref for ref in readable if explicit or permits_implicit(sources, ref["provider"])]
+    eligible = [ref for ref in readable if explicit or permits_implicit(sources, ref["provider"], route["named"])]
     if route["reason"] == "issuer_subject":
         return None, "issuer_subject", None, []
     if not bindings:
@@ -188,9 +188,8 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
         result["issues"].append({"code": "selected_source", "severity": "warning",
                                  "message": f"Selected source: {provider}. Requested series: {selected['id']}. Alternatives require a separate read."})
     result["request"] = utc_days(request, selected)  # whole UTC days stay instants
-    # `preference_revision` stays on the wire, always null: the one order is core's `source_order`.
     result["selection"] = {"view": request["view"], "reason": "preference" if preferred else "pinned",
-                           "preference_revision": None, "alternatives": alternatives}
+                           "alternatives": alternatives}
     if preferred and "provider" not in request["view"]["subject"] and result["series"] is not None:
         result["series"]["subject"] = request["view"]["subject"]
     result = validate_read_result(_completed_only(result))

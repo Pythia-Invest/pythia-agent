@@ -25,7 +25,7 @@ RETIRED = (("preferences.sqlite3", "preferences-retired.sqlite3"), ("identity.sq
 
 
 def _saved_orders(path):
-    """The per-operation orders and the count of scoped choices a retired file holds, for the log."""
+    """The non-empty per-operation orders and the count of scoped choices a retired file holds."""
     db = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=2)
     try:
         tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -35,14 +35,15 @@ def _saved_orders(path):
             if "scoped_source_preferences" in tables else 0
     finally:
         db.close()
-    return orders, scoped
+    return {operation: order for operation, order in orders.items() if order}, scoped
 
 
 def retire_source_choices(data_dir):
     """Set aside this feature's former source choices once: core's `source_order` is the one order (ADR 0040).
 
     Nothing is copied into settings.json and nothing is deleted. Each file is renamed, never overwriting an
-    earlier one, and the choices it held are logged so the investor can put them in `source_order`."""
+    earlier one; a warning names the choices a file held, so the investor can put them in `source_order`.
+    An empty (or unreadable) file is renamed silently."""
     directory = Path(data_dir)
     for name, retired in RETIRED:
         path, target = directory / name, directory / retired
@@ -51,16 +52,15 @@ def retire_source_choices(data_dir):
         try:
             orders, scoped = _saved_orders(path)
         except (sqlite3.Error, ValueError):
-            orders, scoped = None, None
+            orders, scoped = {}, 0
         try:
             path.rename(target)
         except OSError:  # another process set it aside first
             continue
-        logger.warning("Market-data source choices retired: Pythia now has one source order, source_order in"
-                       " settings.json (empty: free sources first). %s is kept as %s; its orders %s and %s scoped"
-                       " choices no longer apply.", name, retired,
-                       "(unreadable)" if orders is None else {op: order for op, order in orders.items() if order},
-                       "(unreadable)" if scoped is None else scoped)
+        if orders or scoped:
+            logger.warning("Market-data source choices retired: Pythia now has one source order, source_order in"
+                           " settings.json (empty: free sources first). %s is kept as %s; its orders %s and %s"
+                           " scoped choices no longer apply.", name, retired, orders, scoped)
 
 
 def core_price_sources(subject_id):
@@ -140,19 +140,20 @@ class Backend:
     def route(self, binding):
         """What a binding reads: an explicit reference itself, or core's references for a subject.
 
-        Returns {"asset_class", "refs", "reason"}; `reason` says why a subject has no refs:
+        Returns {"asset_class", "refs", "named", "reason"}; `named` lists the providers the investor named in
+        `source_order`, and `reason` says why a subject has no refs:
         "issuer_subject", "no_reference_data", "unknown_subject" or "core_unavailable"."""
         validate("binding", binding)
         if "provider" in binding:
-            return {"asset_class": None, "refs": [binding], "reason": None}
+            return {"asset_class": None, "refs": [binding], "named": [], "reason": None}
         if binding["kind"] == "issuer":  # an issuer has no price; never ask a source
-            return {"asset_class": None, "refs": [], "reason": "issuer_subject"}
+            return {"asset_class": None, "refs": [], "named": [], "reason": "issuer_subject"}
         memo = _ROUTES.get()
         if memo is not None and binding["id"] in memo:
             return memo[binding["id"]]
         found = self._subjects(binding["id"]) or {}
         route = {"asset_class": found.get("asset_class"), "refs": list(found.get("refs") or []),
-                 "reason": found.get("reason")}
+                 "named": list(found.get("named") or []), "reason": found.get("reason")}
         if memo is not None:
             memo[binding["id"]] = route
         return route
@@ -169,9 +170,9 @@ class Backend:
             return envelope([], outcome="error", issues=[ISSUER_ISSUE])
         if "provider" not in binding:
             sources, _ = self.context()
-            permitted = [ref for ref in refs if permits_implicit(sources, ref["provider"])]
+            permitted = [ref for ref in refs if permits_implicit(sources, ref["provider"], route["named"])]
             if len(permitted) < len(refs):
-                issues.append({"code": "explicit_source_required", "message": "Some sources require an explicit native reference or pinned series for discovery.", "severity": "warning"})
+                issues.append({"code": "explicit_source_required", "message": "Some sources require an explicit native reference, a pinned series or a place in source_order for discovery.", "severity": "warning"})
             refs = permitted
         if len(refs) > 8:
             return envelope([], outcome="error", issues=[{"code": "candidate_limit", "message": "Too many native bindings; choose a narrower native reference or pinned descriptor.", "severity": "error"}])
