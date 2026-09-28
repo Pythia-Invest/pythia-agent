@@ -104,14 +104,17 @@ class MarketReadsTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def movers(self, answer, **arguments):
+    def movers(self, answer, *more, **arguments):
         self.calls = []
 
         def dispatch(tool, sent, cancelled=None):
             self.calls.append((tool, sent))
-            return json.dumps(answer)
+            return json.dumps(answer if tool == "pythia_yahoo_movers" else more[0])
         plugins = [info if info.key != "pythia-yahoo-discovery" else page.PluginInfo(
             key=info.key, manifest=info.manifest, operations={"movers": "pythia_yahoo_movers"}) for info in shipped()]
+        yahoo = next(info for info in plugins if info.key == "pythia-yahoo-discovery")
+        plugins += [page.PluginInfo(key="pythia-other", manifest=yahoo.manifest, operations={"movers": "other_movers"})
+                    for _ in more]
         registry = types.SimpleNamespace(dispatch=dispatch)
         with unittest.mock.patch.dict("sys.modules", {"tools": types.ModuleType("tools"),
                                                       "tools.registry": types.SimpleNamespace(registry=registry)}), \
@@ -137,6 +140,16 @@ class MarketReadsTest(unittest.TestCase):
         body = self.movers(failed)
         self.assertEqual((body["outcome"], body["data"]["rows"], len(self.calls)), ("error", [], 1))
         self.assertIn("Yahoo Finance", body["issues"][0]["message"])
+
+    def test_a_source_that_does_not_cover_the_list_gives_way_to_the_next(self):
+        data, issues = movers.adapt(screen(quote()), "most_active", 25)
+        uncovered = {"schema_version": 1, "outcome": "empty", "data": None, "issues": [
+            {"code": "not_covered", "severity": "warning", "message": "Yahoo has no such list here."}]}
+        self.reads.identity.order = lambda: ("pythia-yahoo-discovery", "pythia-other")
+        body = self.movers(uncovered, {"schema_version": 1, "outcome": "ok", "data": data, "issues": issues})
+        self.assertEqual([tool for tool, _ in self.calls], ["pythia_yahoo_movers", "other_movers"])
+        self.assertEqual((body["outcome"], body["data"]["source"]["plugin"], body["data"]["skipped"][-1]["code"]),
+                         ("ok", "pythia-other", "not_covering"))
 
     def test_the_overview_lists_configured_subjects_or_the_defaults(self):
         from pythia_core_queue_fixture.platform import configuration

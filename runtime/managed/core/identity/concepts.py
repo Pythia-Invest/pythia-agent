@@ -5,8 +5,9 @@ a plugin may claim for each operation, and core's default source order. Plugins
 only declare what they serve (`contract.json`, ADR 0038); they never define a
 concept. One selection rule serves every concept (ADR 0040): the investor's
 order, then this default order; the first eligible source serves, and a
-combining concept (filings) takes one source per filing authority. Pure
-standard library.
+combining concept takes one source per filing authority (filings) or every
+eligible source (news; estimates and fundamentals side by side). A source that
+answers `not_covered` gives way to the next. Pure standard library.
 """
 from __future__ import annotations
 
@@ -22,9 +23,9 @@ class Concept(StrEnum):
     MARKET_DATA = "market_data"
     PROFILE = "profile"
     FILINGS = "filings"
-    FUNDAMENTALS = "fundamentals"  # registered; nothing serves it until its core result schema exists
-    ESTIMATES = "estimates"        # registered; nothing serves it yet
-    NEWS = "news"                  # registered; nothing serves it yet
+    FUNDAMENTALS = "fundamentals"  # registered; its statements read is the parallel-reports work (P8)
+    ESTIMATES = "estimates"        # side by side through core's combined read; no bundled plugin declares it yet
+    NEWS = "news"                  # one merged feed through core's combined read; no bundled plugin declares it yet
     MARKET_MOVERS = "market_movers"  # a market's ranked lists (most active, gainers, losers); about no one subject
 
 
@@ -32,6 +33,8 @@ class Combine(StrEnum):
     """How a concept that does not pick one source combines several. Core-owned; never a user setting."""
 
     PER_AUTHORITY = "per_authority"  # one source per filing authority; the lists merge by date
+    MERGE = "merge"                  # lists: every eligible source; one feed without exact or near-exact duplicates
+    SIDE_BY_SIDE = "side_by_side"    # single values: every eligible source, one labelled row each; never blended
 
 
 class FilingAuthority(StrEnum):
@@ -139,9 +142,12 @@ REGISTRY: dict[Concept, ConceptSpec] = {
                                  default_order=("gleif",)),
     Concept.FILINGS: ConceptSpec(operations={"list": {}, "read": {}}, levels=frozenset({Level.ISSUER}),
                                  default_order=("xbrl-filings", "sec"), combine=Combine.PER_AUTHORITY),
-    Concept.FUNDAMENTALS: ConceptSpec(operations={"statements": BASIS, "metrics": BASIS}, levels=frozenset({Level.ISSUER})),
-    Concept.ESTIMATES: ConceptSpec(operations={"consensus": {}, "targets": {}}, levels=frozenset({Level.ISSUER})),
-    Concept.NEWS: ConceptSpec(operations={"list": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY})),
+    Concept.FUNDAMENTALS: ConceptSpec(operations={"statements": BASIS, "metrics": BASIS}, levels=frozenset({Level.ISSUER}),
+                                      combine=Combine.SIDE_BY_SIDE),
+    Concept.ESTIMATES: ConceptSpec(operations={"consensus": {}, "targets": {}}, levels=frozenset({Level.ISSUER}),
+                                   default_order=("yahoo", "eodhd"), combine=Combine.SIDE_BY_SIDE),
+    Concept.NEWS: ConceptSpec(operations={"list": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY}),
+                              default_order=("yahoo", "eodhd"), combine=Combine.MERGE),
     # About no subject (no levels or kinds): a market's lists. Each list is an operation, so a source declares the
     # lists it has; `delay` is the rows' quote timing.
     Concept.MARKET_MOVERS: ConceptSpec(operations={name: {"delay": one_of(*DELAY), "feed_note": text(80)}
@@ -153,6 +159,10 @@ REGISTRY: dict[Concept, ConceptSpec] = {
 # ---- selection ---------------------------------------------------------------------------------------------------
 
 ELIGIBLE = frozenset({"ready", "resolving"})  # resolving: a lookup runs before the first read, then it serves
+# The issue code of a read answer that says "I do not cover this subject for this concept": not an error, so the
+# next eligible source serves (a failed read never switches source). A plugin answers
+# {"outcome": "empty", "issues": [{"code": "not_covered", "severity": "warning", "message": ...}]}.
+NOT_COVERED = "not_covered"
 # Skips that signal something went wrong rather than the investor's own setup: they warrant a visible notice.
 NOTICE = frozenset({"conflict", "unresolved"})
 # Filing authority of an item by the filer's country, for a source serving several authorities.
@@ -176,12 +186,24 @@ def ranked(entries: list[dict], order: tuple[str, ...], default_order: tuple[str
                                               position(default_order, entry), entry["plugin"]))
 
 
-def select(entries: list[dict], *, combine: Combine | None = None) -> tuple[list[tuple[dict, tuple[str, ...]]], list[dict], list[dict]]:
+def not_covered(result: Any) -> str | None:
+    """The source's message when a read answer says it does not cover the subject (`NOT_COVERED`), else None."""
+    if not isinstance(result, dict) or result.get("outcome") == "error":
+        return None
+    issue = next((item for item in result.get("issues") or [] if isinstance(item, dict)
+                  and item.get("code") == NOT_COVERED), None)
+    return None if issue is None else str(issue.get("message") or "does not cover this subject")
+
+
+def select(entries: list[dict], *, combine: Combine | None = None, order: tuple[str, ...] = ()
+           ) -> tuple[list[tuple[dict, tuple[str, ...]]], list[dict], list[dict]]:
     """(chosen with the authorities each serves, alternatives, skipped) from ranked entries. Pure: no I/O.
 
     Each entry has `plugin`, `status` and, for a combining concept, `authorities`. The first eligible entry
-    serves; under `per_authority` the first eligible entry serving each authority serves it. The other eligible
-    entries are alternatives; the rest are skipped with their status as the reason."""
+    serves; under `per_authority` the first eligible entry serving each authority serves it; under `merge` and
+    `side_by_side` every eligible entry serves, except that a source not yet signed off (`unaudited`) serves only
+    when the investor's `order` names it or no audited entry is eligible. The other eligible entries are
+    alternatives; the rest are skipped with their status as the reason."""
     eligible = [entry for entry in entries if entry["status"] in ELIGIBLE]
     skipped = [entry for entry in entries if entry["status"] not in ELIGIBLE]
     if combine is Combine.PER_AUTHORITY:
@@ -191,6 +213,10 @@ def select(entries: list[dict], *, combine: Combine | None = None) -> tuple[list
                 served.setdefault(authority, entry["plugin"])
         chosen = [(entry, tuple(a for a, plugin in served.items() if plugin == entry["plugin"]))
                   for entry in eligible if entry["plugin"] in served.values()]
+    elif combine in (Combine.MERGE, Combine.SIDE_BY_SIDE):
+        audited = [entry for entry in eligible if not entry.get("unaudited")
+                   or {entry["plugin"], entry.get("provider")} & set(order)]
+        chosen = [(entry, ()) for entry in audited or eligible]
     else:
         chosen = [(eligible[0], ())] if eligible else []
     taken = {entry["plugin"] for entry, _ in chosen}

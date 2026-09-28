@@ -17,7 +17,7 @@ import sqlite3
 from typing import Any
 
 from .identity import markets, page
-from .identity.concepts import REGISTRY, Concept, ranked, select
+from .identity.concepts import REGISTRY, Concept, not_covered, ranked, select
 from .identity.schemes import SUBJECT_ID as SUBJECT_PATTERN
 
 logger = logging.getLogger(__name__)
@@ -129,12 +129,20 @@ class MarketReads:
                 "skipped": [{**page.source(item), "code": item["status"]} for item in skipped]}
         if not chosen:
             return _envelope("empty", data, [{"code": "unavailable", "message": "No enabled source serves this list."}])
-        answer = chosen[0][0]
-        data["source"] = page.source(answer)
-        result, failure = self._dispatch(answer["tool"], {"list": name, "limit": max(1, min(25, limit))},
-                                         context.get("cancelled") or (lambda: False))
-        if failure:  # the chosen source failed: say so, never read another
-            return _envelope("error", data, [{"code": "source_failed", "message": f"{answer['label']}: {failure}"}])
+        for answer in (chosen[0][0], *alternatives):  # a source that does not cover this list gives way to the next
+            data["source"] = page.source(answer)
+            data["alternatives"] = [item for item in data["alternatives"] if item["plugin"] != answer["plugin"]]
+            result, failure = self._dispatch(answer["tool"], {"list": name, "limit": max(1, min(25, limit))},
+                                             context.get("cancelled") or (lambda: False))
+            if failure:  # the chosen source failed: say so, never read another
+                return _envelope("error", data, [{"code": "source_failed", "message": f"{answer['label']}: {failure}"}])
+            reason = not_covered(result)
+            if reason is None:
+                break
+            data["skipped"].append({**page.source(answer), "code": "not_covering", "reason": reason})
+        else:
+            data["source"] = None
+            return _envelope("empty", data, [{"code": "not_covered", "message": "No enabled source covers this list."}])
         body = result.get("data") if isinstance(result.get("data"), dict) else {}
         rows = [row for row in body.get("rows", []) if _valid(row)][:limit]
         issues = [item for item in result.get("issues", []) if isinstance(item, dict) and isinstance(item.get("message"), str)]

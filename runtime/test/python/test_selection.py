@@ -256,19 +256,20 @@ class CoreReadsTest(Reference):
         self.addCleanup(self.store.db.close)
         self.addCleanup(self.tmp.cleanup)
 
-    def read(self, answers, cancelled=None, **arguments):
+    def read(self, answers, cancelled=None, plugins=shipped, handler="filings", **arguments):
         self.sent = {}
 
         def dispatch(tool, sent, cancelled=None):
             self.sent[tool] = sent
             return json.dumps(answers[tool])
-        schemas = {"pythia_sec_filings": {"parameters": {"properties": {"native_ref": {}, "limit": {}, "forms": {}}}}}
+        schemas = {"pythia_sec_filings": {"parameters": {"properties": {"native_ref": {}, "limit": {"maximum": 50},
+                                                                        "forms": {}}}}}
         registry = types.SimpleNamespace(dispatch=dispatch, get_schema=schemas.get)
         with unittest.mock.patch.dict("sys.modules", {"tools": types.ModuleType("tools"),
                                                       "tools.registry": types.SimpleNamespace(registry=registry)}), \
-                unittest.mock.patch.object(self.identity_ops, "installed", shipped):
+                unittest.mock.patch.object(self.identity_ops, "installed", plugins):
             context = {"cancelled": cancelled} if cancelled else {}
-            return json.loads(self.reads.filings({"subject_id": SUBJECTS["asml_xams"], **arguments}, **context))
+            return json.loads(getattr(self.reads, handler)({"subject_id": SUBJECTS["asml_xams"], **arguments}, **context))
 
     def test_forms_reach_a_source_that_searches_by_form_and_filter_every_answer(self):
         merge = FilingsMergeTest()
@@ -313,6 +314,93 @@ class CoreReadsTest(Reference):
         body = self.read({"pythia_xbrl_filings_filings": FilingsMergeTest().xbrl()})
         self.assertEqual((body["outcome"], body["data"]["partial"]), ("ok", False))
         self.assertEqual([item["code"] for item in body["data"]["skipped"]], ["resolving"])
+
+    # ---- sources work together (ADR 0040 amendment) ----------------------------------------------------------------
+
+    def test_not_covered_moves_to_the_next_source_and_an_error_does_not(self):
+        mirror = json.loads((PLUGINS / "sec/contract.json").read_text())
+        mirror.update(plugin="pythia-secmirror", provider="secmirror")
+        plugins = lambda: [*shipped(), page.PluginInfo(key="pythia-secmirror", manifest=identity.validate_manifest(
+            mirror), operations={"filings": "mirror_filings"})]
+        merge = FilingsMergeTest()
+        uncovered = {"schema_version": 1, "outcome": "empty", "data": None, "issues": [
+            {"code": "not_covered", "severity": "warning", "message": "SEC EDGAR does not list this company."}]}
+        body = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": uncovered,
+                          "mirror_filings": merge.sec()}, plugins=plugins)
+        self.assertEqual((body["outcome"], body["data"]["partial"]), ("ok", False))
+        self.assertEqual({item["plugin"] for item in body["data"]["filings"] if item["authority"] == "sec"},
+                         {"pythia-secmirror"})
+        self.assertEqual([(item["plugin"], item["code"]) for item in body["data"]["skipped"]],
+                         [("pythia-sec", "not_covering")])
+        failed = {"schema_version": 1, "outcome": "error", "data": None,
+                  "issues": [{"code": "rate_limit", "severity": "error", "message": "SEC is rate limited."}]}
+        body = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": failed,
+                          "mirror_filings": merge.sec()}, plugins=plugins)
+        self.assertNotIn("mirror_filings", self.sent)  # a failure never switches source: the mirror stays "Also:"
+        self.assertEqual((body["outcome"], [item["plugin"] for item in body["data"]["alternatives"]]),
+                         ("partial", ["pythia-secmirror"]))
+
+    def test_news_from_two_sources_is_one_feed_without_the_exact_duplicate(self):
+        plugins = lambda: [provider("pythia-yahoo-discovery", "yahoo"), provider("pythia-eodhd", "eodhd")]
+        yahoo = news(("Q3 results beat", "https://example.com/asml-q3", "2026-09-27T08:00:00Z"),
+                     ("ASML ships", "https://example.com/ship", "2026-09-26T08:00:00Z"))
+        eodhd = news(("Q3 results beat", "https://EXAMPLE.com/asml-q3/", "2026-09-27T08:00:00Z"),  # the same link
+                     ("Q3 Results Beat!", "https://other.example/q3", "2026-09-27T10:00:00Z"),  # the same headline
+                     ("Chip demand rises", "https://other.example/demand", "2026-09-28T07:00:00Z"))
+        body = self.read({"yahoo_news": yahoo, "eodhd_news": eodhd}, plugins=plugins, handler="combined",
+                         section="news")
+        self.assertEqual(body["outcome"], "ok")
+        self.assertEqual([(item["title"], item["plugin"]) for item in body["data"]["news"]],
+                         [("Chip demand rises", "pythia-eodhd"), ("Q3 results beat", "pythia-yahoo-discovery"),
+                          ("ASML ships", "pythia-yahoo-discovery")])
+        self.assertEqual([item["plugin"] for item in body["data"]["sources"]], ["pythia-yahoo-discovery", "pythia-eodhd"])
+
+    def test_estimates_from_two_sources_stand_side_by_side_never_blended(self):
+        operations = {"consensus": "consensus"}
+        plugins = lambda: [provider("pythia-yahoo-discovery", "yahoo", "estimates", operations),
+                           provider("pythia-eodhd", "eodhd", "estimates", operations)]
+        answers = {"yahoo_consensus": estimate({"eps": "5.10"}, 31), "eodhd_consensus": estimate({"eps": "4.90"}, 27)}
+        body = self.read(answers, plugins=plugins, handler="combined", section="estimates")
+        self.assertEqual([(row["source"], row["value"], row["analysts"], row["basis"]) for row in body["data"]["rows"]],
+                         [("Yahoo Finance", {"eps": "5.10"}, 31, "adjusted"), ("EODHD", {"eps": "4.90"}, 27, "adjusted")])
+
+    def test_an_unaudited_source_is_labelled_and_not_in_the_default_order(self):
+        plugins = [provider("pythia-yahoo-discovery", "yahoo"), provider("acme", "acme", signoff="unsigned")]
+        answers = {"yahoo_news": news(("A", "https://example.com/a", "2026-09-27T08:00:00Z")),
+                   "acme_news": news(("B", "https://example.com/b", "2026-09-27T09:00:00Z"))}
+        body = self.read(answers, plugins=lambda: plugins, handler="combined", section="news")
+        self.assertEqual([item["plugin"] for item in body["data"]["news"]], ["pythia-yahoo-discovery"])
+        self.assertEqual(body["data"]["alternatives"], [{"source": "acme", "provider": "acme", "plugin": "acme",
+                                                         "unaudited": True, "status": "ready"}])
+        self.reads.identity._load = lambda _id: (None, page.load_subject(self.ref, SUBJECTS["asml_xams"]),
+                                                 self.lookups(order=("acme",)), None)
+        named = self.read(answers, plugins=lambda: plugins, handler="combined", section="news")
+        self.assertEqual([(item["plugin"], item.get("unaudited")) for item in named["data"]["news"]],
+                         [("acme", True), ("pythia-yahoo-discovery", None)])
+
+
+def provider(plugin, name, concept="news", operations=None, signoff="grandfathered"):
+    """A plugin that serves one issuer-level concept through a listing symbol (Amsterdam: `.AS`), built with the
+    loaded core's own identity modules, since core compares levels by identity."""
+    from pythia_core_queue_fixture.identity import page, validate_manifest
+    operations = operations or {"list": "news"}
+    document = {"contract_version": 1, "plugin": plugin, "provider": name, "rights": RIGHTS,
+                "addressing": {"native": [{"native_scope": "symbol", "level": "listing"}], "mic_table": {"XAMS": ".AS"}},
+                "concepts": {concept: {"level": "issuer", "via": "listing", "operations": operations}},
+                "signoff": {"status": signoff}}
+    return page.PluginInfo(key=plugin, manifest=validate_manifest(document),
+                           operations={operation: f"{name}_{operation}" for operation in operations.values()})
+
+
+def news(*items):
+    return {"schema_version": 1, "outcome": "ok", "data": {"news": [
+        {"title": title, "url": url, "published_at": at} for title, url, at in items]}}
+
+
+def estimate(value, analysts):
+    return {"schema_version": 1, "outcome": "ok",
+            "data": {"value": value, "date": "2026-09-28", "basis": "adjusted", "analysts": analysts}}
+
 
 if __name__ == "__main__":
     unittest.main()

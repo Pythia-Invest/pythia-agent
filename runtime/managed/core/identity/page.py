@@ -42,6 +42,8 @@ class Section(StrEnum):
     PROFILE = "profile"
     FINANCIALS = "financials"
     NEWS = "news"
+    ESTIMATES = "estimates"
+    TARGETS = "targets"
     FILINGS = "filings"
     LIVE = "live"  # a `live_market` snapshot stream (ADR 0040), subscribed only while the page shows it
 
@@ -50,6 +52,7 @@ class Section(StrEnum):
 SERVES = {Section.QUOTE: (Concept.MARKET_DATA, ("quote",)), Section.CHART: (Concept.MARKET_DATA, ("daily", "intraday")),
           Section.PROFILE: (Concept.PROFILE, ("fields",)), Section.FILINGS: (Concept.FILINGS, ("list",)),
           Section.FINANCIALS: (Concept.FUNDAMENTALS, ("statements",)), Section.NEWS: (Concept.NEWS, ("list",)),
+          Section.ESTIMATES: (Concept.ESTIMATES, ("consensus",)), Section.TARGETS: (Concept.ESTIMATES, ("targets",)),
           Section.LIVE: (Concept.MARKET_DATA, ("live",))}
 SECTIONS = (Section.QUOTE, Section.CHART, Section.LIVE, Section.PROFILE, Section.FILINGS)
 LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMarketCap", "coingecko": "CoinGecko",
@@ -305,7 +308,7 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
         if not any(answer["status"] not in ABSENT for answer in found):
             continue
         combine = REGISTRY[SERVES[section][0]].combine
-        chosen, alternatives, skipped = select(found, combine=combine)
+        chosen, alternatives, skipped = select(found, combine=combine, order=order)
         # A combined section reads its ready sources at once; one still to be looked up is listed, not awaited. It
         # is looked up (by the Desk, as for any section) only when no combined source is ready yet.
         ready = [(answer, served) for answer, served in chosen if answer["status"] == "ready"]

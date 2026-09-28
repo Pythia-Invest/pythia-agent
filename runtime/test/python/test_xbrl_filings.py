@@ -292,6 +292,11 @@ class XbrlSemantics(unittest.TestCase):
             result = reader.invoke(operation, arguments)
             self.assertEqual(result['outcome'], 'empty' if operation == 'resolve' else 'error')
         self.assertEqual(result['issues'][0]['code'], 'missing_observation')
+        # An entity the repository does not know is not covered, not an error: core reads the next source.
+        reader = plugin.Reader(wire, connector, transport=FakeTransport([
+            connector.SourceFailure({'error': 'missing_observation'})]))
+        result = reader.invoke('filings', {'native_ref': REF})
+        self.assertEqual((result['outcome'], result['issues'][0]['code']), ('empty', 'not_covered'))
 
     def test_invalid_arguments_never_reach_provider(self):
         transport = FakeTransport([])
