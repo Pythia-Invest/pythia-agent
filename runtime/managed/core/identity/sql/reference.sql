@@ -86,10 +86,12 @@ CREATE TABLE assertions (
 CREATE INDEX assertions_key ON assertions (scheme, value);
 CREATE INDEX assertions_subject ON assertions (subject_id);
 
--- Typed edges between distinct subjects. Relations never merge subjects.
+-- Typed edges between distinct subjects. Relations never merge subjects. The type's
+-- kinds, ratio rule and grouping (fold or related) are vocabulary.RELATIONS, so a
+-- new relation type needs no schema change.
 CREATE TABLE relations (
   evidence_id TEXT PRIMARY KEY CHECK (evidence_id LIKE 'ev:%'),
-  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'wraps', 'successor_of')),
+  type TEXT NOT NULL,
   from_id TEXT NOT NULL,
   to_id TEXT NOT NULL,
   ratio TEXT,
@@ -103,8 +105,6 @@ CREATE TABLE relations (
   adapter_version TEXT NOT NULL,
   retrieved_at TEXT NOT NULL,
   CHECK (from_id <> to_id),
-  CHECK (type = 'successor_of' OR (from_id LIKE 'security:%' AND to_id LIKE 'security:%')),
-  CHECK (ratio IS NULL OR type = 'depositary_receipt_of'),
   CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to)
 );
 CREATE INDEX relations_from ON relations (from_id, type);

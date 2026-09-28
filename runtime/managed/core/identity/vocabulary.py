@@ -1,9 +1,10 @@
 """Closed vocabularies of the backbone: tiers, authorities, kinds, statuses, relations."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 
-from .schemes import Level
+from .schemes import Kind
 
 
 class EvidenceTier(StrEnum):
@@ -59,6 +60,12 @@ class InstrumentKind(StrEnum):
     OTHER = "other"  # warrants, rights, units and lines no source classifies
     COIN = "coin"
     TOKEN = "token"
+    INDEX = "index"  # a provider record of an index or FX pair names a subject of that kind, never a security
+    FX = "fx"
+
+
+# Record kinds that name a subject outside the instrument hierarchy (schemes.Kind).
+KIND_OF_RECORD: dict[InstrumentKind, Kind] = {InstrumentKind.INDEX: Kind.INDEX, InstrumentKind.FX: Kind.FX}
 
 
 class SubjectStatus(StrEnum):
@@ -75,18 +82,57 @@ class BindingStatus(StrEnum):
 
 
 class RelationType(StrEnum):
-    DEPOSITARY_RECEIPT_OF = "depositary_receipt_of"  # receipt security -> underlying security
+    DEPOSITARY_RECEIPT_OF = "depositary_receipt_of"  # receipt or registry share -> underlying security
+    SHARE_CLASS_OF = "share_class_of"                # another class of a company's shares -> its main class
+    NATIVE_DEPLOYMENT_OF = "native_deployment_of"    # a per-chain native issuance keyed as its own security -> the
+                                                     # canonical asset (endpoints settle with M2's curated assets)
     WRAPS = "wraps"                                  # wrapped crypto asset -> underlying asset
+    BRIDGED_FROM = "bridged_from"                    # lock-and-mint bridged token -> the asset it bridges
+    STAKED_AS = "staked_as"                          # staked asset -> its liquid staking token
+    TRACKS = "tracks"                                # fund, ETC or ETN -> the index or asset it tracks
+    DERIVATIVE_ON = "derivative_on"                  # leveraged, inverse or structured product, or a perp market
+                                                     # -> its underlying
+    TOKENIZED_FROM = "tokenized_from"                # tokenized security -> the security it represents
     SUCCESSOR_OF = "successor_of"                    # new subject -> old one after a natural key changed
                                                      # (new ISIN after a corporate action, LEI merger)
 
 
-# None: both ends at the same level, any level.
-RELATION_LEVELS: dict[RelationType, tuple[Level, Level] | None] = {
-    RelationType.DEPOSITARY_RECEIPT_OF: (Level.SECURITY, Level.SECURITY),
-    RelationType.WRAPS: (Level.SECURITY, Level.SECURITY),
-    RelationType.SUCCESSOR_OF: None,
+class Grouping(StrEnum):
+    """How a relation presents its two subjects. Neither ever merges them."""
+
+    FOLD = "fold"        # sameness across subjects: one instrument, its lines listed together (the page's listings)
+    RELATED = "related"  # related but different: each its own instrument (a share class stays one within its
+                         # company's search group)
+
+
+@dataclass(frozen=True, slots=True)
+class RelationRule:
+    """The kinds each end may name (None: both ends of one kind, any kind) and how the relation groups."""
+
+    ends: tuple[frozenset[str], frozenset[str]] | None
+    grouping: Grouping
+
+
+_SECURITY = frozenset({Kind.SECURITY})
+_UNDERLYING = frozenset({Kind.SECURITY, Kind.INDEX, Kind.SERIES})
+# The relation vocabulary: a new relation type is one entry here, no store change.
+RELATIONS: dict[RelationType, RelationRule] = {
+    RelationType.DEPOSITARY_RECEIPT_OF: RelationRule((_SECURITY, _SECURITY), Grouping.FOLD),
+    RelationType.SHARE_CLASS_OF: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
+    RelationType.NATIVE_DEPLOYMENT_OF: RelationRule((_SECURITY, _SECURITY), Grouping.FOLD),
+    RelationType.WRAPS: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
+    RelationType.BRIDGED_FROM: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
+    RelationType.STAKED_AS: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
+    RelationType.TRACKS: RelationRule((_SECURITY, _UNDERLYING), Grouping.RELATED),
+    RelationType.DERIVATIVE_ON: RelationRule((frozenset({Kind.SECURITY, Kind.MARKET}), _UNDERLYING), Grouping.RELATED),
+    RelationType.TOKENIZED_FROM: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
+    RelationType.SUCCESSOR_OF: RelationRule(None, Grouping.RELATED),
 }
+FOLD = frozenset(type for type, rule in RELATIONS.items() if rule.grouping is Grouping.FOLD)
+# The search group is the investable entity: the company for its equity (these kinds group under their issuer), the
+# product itself for funds, ETFs, ETNs and ETCs, the asset for crypto.
+ISSUER_INTERESTS = frozenset({InstrumentKind.ORDINARY, InstrumentKind.PREFERRED, InstrumentKind.DEPOSITARY_RECEIPT,
+                              InstrumentKind.OTHER})
 
 
 class IdentifierRole(StrEnum):

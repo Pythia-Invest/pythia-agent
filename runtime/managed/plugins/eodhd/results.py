@@ -88,7 +88,7 @@ def read(request, series, mode, raw):
     result['series'] = series
     result['selection']['reason'] = 'pinned' if request['view']['kind'] == 'source' else 'preference'
     result['provenance'] = {'provider': 'eodhd', 'native_ref': series['provider_ref'], 'adapter_version': '1',
-        'retrieved_at': result['retrieved_at'], 'source_time': None, 'revision_vintage': None, 'mapping_revision': None,
+        'retrieved_at': result['retrieved_at'], 'source_time': None, 'revision_vintage': None,
         'source_detail': {'namespace': 'eodhd', 'values': {'numeric_basis': 'sdk_parsed_js_number',
             'retry_after_seconds': str(raw['retry_after']) if raw.get('retry_after') is not None else None}}}
     rows = raw.get('data') or []

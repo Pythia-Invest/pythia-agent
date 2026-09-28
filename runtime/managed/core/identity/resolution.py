@@ -15,8 +15,8 @@ from typing import Iterable, Sequence
 
 from .claims import DIGEST, IdentifierValue
 from .model import IdentifierAssertion, Provenance, ProviderRef, _coerce, _require
-from .schemes import INSTANT, NAMESPACE, SCHEME_LEVEL, SINGLE_VALUED, Level, Scheme, subject_level
-from .vocabulary import Authority, EvidenceTier, IdentifierRole, InstrumentKind, VerdictRelation
+from .schemes import INSTANT, NAMESPACE, SCHEME_LEVEL, SINGLE_VALUED, Level, Scheme, subject_kind, subject_level
+from .vocabulary import KIND_OF_RECORD, Authority, EvidenceTier, IdentifierRole, InstrumentKind, VerdictRelation
 
 
 class QueueItemKind(StrEnum):
@@ -95,7 +95,7 @@ class QueueItem:
             object.__setattr__(self, name, tuple(getattr(self, name)))
         _require(self.reason in REASONS[self.kind], f"queue item: {self.reason} is not a {self.kind} reason")
         for subject in (*self.subject_ids, *self.candidate_ids):
-            subject_level(subject)
+            subject_kind(subject)
         _require(len(self.subject_ids) == 1 if self.kind is QueueItemKind.RESIDUAL else len(self.subject_ids) >= 1,
                  "queue item: a residual concerns one subject; a conflict at least one")
         _require(self.kind is QueueItemKind.RESIDUAL or bool(self.evidence_ids), "queue item: conflicts cite evidence")
@@ -141,10 +141,10 @@ class Verdict:
         _require((self.chosen_id is None) == (self.relation in (VerdictRelation.NONE, VerdictRelation.AMBIGUOUS)),
                  "verdict: chosen_id is required exactly for a definite answer")
         if self.relation in RELATION_LEVEL:
-            _require(subject_level(self.chosen_id) is RELATION_LEVEL[self.relation],
+            _require(subject_kind(self.chosen_id) == RELATION_LEVEL[self.relation],
                      f"verdict: {self.relation} chooses a {RELATION_LEVEL[self.relation]}")
         elif self.chosen_id is not None:
-            subject_level(self.chosen_id)
+            subject_kind(self.chosen_id)
         model = self.authority in MODEL_AUTHORITIES
         _require(model == (self.confidence is not None), "verdict: confidence is required exactly for model authorities")
         _require((model or self.authority is Authority.AGENT_CONFIRMED)
@@ -189,8 +189,10 @@ def corroborates(claimed: Iterable[IdentifierValue], evidence: Iterable[Identifi
 
 
 def guarded(relation: VerdictRelation, record_kind: InstrumentKind | None, subject_kind: InstrumentKind | None) -> bool:
-    """The depositary-receipt guard: a receipt and a share are never the same instrument,
-    and only a receipt is a receipt of a share. Unknown kinds trip nothing."""
+    """The kind guards: an index or FX record is never an instrument (its subject has its own kind); a receipt and
+    a share are never the same instrument, and only a receipt is a receipt of a share. Unknown kinds trip nothing."""
+    if record_kind in KIND_OF_RECORD:
+        return True  # every verdict relation names an instrument
     if record_kind is None or subject_kind is None:
         return False
     receipt = (InstrumentKind(record_kind) is InstrumentKind.DEPOSITARY_RECEIPT,

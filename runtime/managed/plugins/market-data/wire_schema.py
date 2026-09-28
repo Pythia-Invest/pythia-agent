@@ -33,17 +33,16 @@ DECIMAL = {"type": "string", "pattern": r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$", "maxL
 INSTANT = {"type": "string", "format": "date-time", "pattern": r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"}
 DATE = {"type": "string", "format": "date", "pattern": r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
 POSITIVE = {"type": "integer", "minimum": 1}
-# Coverage kinds a source declares and connector detail evidence scopes; not subjects.
-SCOPE = enum("company", "instrument", "listing", "crypto")
-# A subject is a backbone subject (ADR 0037): its level and its deterministic subject ID.
-LEVEL = enum("issuer", "security", "composite", "listing")
-SUBJECT_ID = {"type": "string", "maxLength": 320,
-              "pattern": r"^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/%-]{4,300}$"}
+# A subject is a backbone subject (ADR 0037): its kind (an instrument level or another kind, open) and its
+# deterministic subject ID `<kind>:<key scheme>:<key>`; the format mirrors core's identity.schemes.SUBJECT_ID.
+KIND = {"type": "string", "pattern": r"^[a-z][a-z0-9_]{0,31}$"}
+SUBJECT_ID = {"type": "string", "maxLength": 370,
+              "pattern": r"^[a-z][a-z0-9_]{0,31}:[a-z][a-z0-9_]{0,31}:[A-Za-z0-9._:/%-]{1,300}$"}
 VERSION = enum(1)
 
 DEFS = {
     "market_data_type": enum("realtime", "delayed", "frozen", "delayed_frozen", "eod", "unknown"),
-    "subject": obj({"kind": LEVEL, "id": SUBJECT_ID}),
+    "subject": obj({"kind": KIND, "id": SUBJECT_ID}),
     "provider_ref": obj({"provider": NAMESPACE, "native_id": TEXT,
                          "native_scope": TEXT}, {"qualifiers": ref("qualifiers")}),
     "qualifiers": obj({}, {"currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
@@ -55,13 +54,6 @@ DEFS = {
         obj({"kind": enum("session_date"), "value": DATE}),
         obj({"kind": enum("unknown")})),
     "window": obj({"start": nullable(ref("time")), "end": nullable(ref("time"))}),
-    "evidence": obj({
-        "schema_version": VERSION, "id": ID, "provider_ref": ref("provider_ref"),
-        "scope": SCOPE, "scheme": enum("isin", "figi", "lei", "cik", "cusip", "native", "ticker", "name", "contract_address"),
-        "value": TEXT, "qualifiers": ref("qualifiers"), "adapter_version": TEXT,
-        "observed_at": nullable(INSTANT), "retrieved_at": INSTANT,
-        "effective": ref("window"), "authority": enum("source_asserted", "query_only", "unknown"),
-    }),
     "unit": union(
         obj({"kind": enum("currency"), "code": {"type": "string", "pattern": "^[A-Z]{3}$"}, "scale": DECIMAL}),
         obj({"kind": enum("shares", "count", "ratio", "percent", "unknown"), "scale": DECIMAL}),
@@ -132,7 +124,7 @@ DEFS = {
     }),
     "provenance": obj({"provider": NAMESPACE, "native_ref": ref("provider_ref"), "adapter_version": TEXT,
                        "retrieved_at": INSTANT, "source_time": nullable(INSTANT), "revision_vintage": nullable(TEXT),
-                       "mapping_revision": nullable(POSITIVE), "source_detail": nullable(ref("source_detail"))}),
+                       "source_detail": nullable(ref("source_detail"))}),
     "selection": obj({"view": ref("view"), "reason": enum("pinned", "preference", "unresolved", "incompatible", "disabled", "unconfigured", "unavailable"),
                       "preference_revision": nullable(POSITIVE), "alternatives": array(ID)}),
     "coverage": obj({"status": enum("complete", "partial", "unknown"), "gaps": array(ref("window")),
@@ -148,8 +140,7 @@ DEFS = {
         {"price_context": ref("price_context")}),
     "contribution": obj({"schema_version": VERSION, "provider": NAMESPACE, "adapter_version": TEXT,
         "operations": array(obj({"operation": enum("details", "series", "latest", "history", "read_batch"),
-                                 "tool": NAMESPACE, "effect": enum("read")}), 1),
-        "subject_kinds": array(SCOPE, 1)}, {"requires_broker_app": {"type": "boolean"},
+                                 "tool": NAMESPACE, "effect": enum("read")}), 1)}, {"requires_broker_app": {"type": "boolean"},
         "observation_cache": enum("default", "disabled"),
         "cadence": obj({}, {key: {"type": "integer", "minimum": 1, "maximum": 86400} for key in ("latest", "history", "series")})}),
 }

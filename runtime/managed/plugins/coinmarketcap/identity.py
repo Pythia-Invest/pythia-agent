@@ -6,8 +6,6 @@ token's platform by a platform ID (Ethereum is platform 1), while
 (Ethereum is coin 1027). Both stay source-scoped network keys; mapping them to
 CAIP-2 chains belongs to the core, not to this connector.
 """
-import uuid
-from datetime import datetime, timezone
 import re
 
 PROVIDER = 'coinmarketcap'
@@ -80,30 +78,12 @@ def info_contracts(row):
     return result
 
 
-def network_key(network):
-    """Compact wire qualifier: namespace, source ID and the platform name as a slug.
-
-    Two chains can share a coin ID (BNB Beacon Chain and BNB Smart Chain are both
-    coin 1839), so the name keeps them apart, e.g. coinmarketcap:coin:1027:ethereum.
-    """
-    name = re.sub(r'[^a-z0-9]+', '-', (network['name'] or '').lower()).strip('-')
-    return network['namespace'] + ':' + network['id'] + (':' + name if name else '')
-
-
 def candidate(row):
-    """Details evidence from one info row: exact native ID plus listed contracts."""
+    """Details from one info row: exact native reference plus listed contracts."""
     ref = native(row_id(row))
-    retrieved = datetime.now(timezone.utc).isoformat()
-    def evidence(scheme, value, qualifiers):
-        return {'schema_version': 1, 'id': 'evidence:' + uuid.uuid4().hex, 'provider_ref': ref, 'scope': 'crypto',
-                'scheme': scheme, 'value': value, 'qualifiers': qualifiers, 'authority': 'source_asserted',
-                'adapter_version': '1', 'observed_at': None, 'retrieved_at': retrieved, 'effective': {'start': None, 'end': None}}
-    contracts = info_contracts(row)
-    records = [evidence('native', ref['native_id'], {})]
-    records += [evidence('contract_address', item['address'], {'network': network_key(item['network'])}) for item in contracts]
     return {'provider_ref': ref, 'name': text(row.get('name')), 'symbol': text(row.get('symbol')), 'kind': 'crypto',
-            'category': 'crypto', 'metadata': {'product_type': 'Crypto'}, 'evidence': records,
-            'platform_contracts': contracts, 'issues': []}
+            'category': 'crypto', 'metadata': {'product_type': 'Crypto'},
+            'platform_contracts': info_contracts(row), 'issues': []}
 
 
 def identifiers(row, platform):

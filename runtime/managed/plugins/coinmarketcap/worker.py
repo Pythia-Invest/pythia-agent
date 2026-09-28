@@ -72,7 +72,7 @@ def request_spec(value):
     if operation == 'history':
         times = [datetime.fromisoformat(args[k].replace('Z', '+00:00')) for k in ('time_start', 'time_end')]
         span = (times[1] - times[0]).total_seconds() if all(t.tzinfo for t in times) else -1
-        if not 0 <= span <= (90 if args['interval'] == 'daily' else 7) * 86400:
+        if not 0 <= span <= (367 if args['interval'] == 'daily' else 7) * 86400:
             raise ValueError('unsupported_window')
     headers = {'Accept': 'application/json', 'User-Agent': 'pythia-agent (github.com/Pythia-Invest)', 'X-CMC_PRO_API_KEY': token}
     query = urlencode({**args, **fixed})
