@@ -81,10 +81,13 @@ export function instrumentPathGeometry(series: InstrumentPath) {
   const segments: { path: string; startX: number; endX: number }[] = [];
   for (const [i, p] of points.entries()) {
     const previous = points[i - 1];
+    // Buckets count on the drawn axis: omitted closed time between sessions
+    // joins the line; a missing bar inside a session still breaks it.
     const gap =
       !previous ||
       (interval !== undefined &&
-        Math.floor(p.time / interval) - Math.floor(previous.time / interval) >
+        Math.floor((p.time - skipped(p.time)) / interval) -
+          Math.floor((previous.time - skipped(previous.time)) / interval) >
           1);
     const segment = segments.at(-1);
     if (gap || !segment)

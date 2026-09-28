@@ -35,7 +35,11 @@ function valueTicks(low: number, high: number) {
 
 /** Calendar-aligned labels in the viewer's zone (session dates in UTC). Omitted closed intervals
  * carry no labels; the domain itself is never widened to reach a label. */
-function timeTicks(g: PathGeometry, timeZone: string | undefined) {
+function timeTicks(
+  g: PathGeometry,
+  timeZone: string | undefined,
+  sessions = false,
+) {
   const { start, end, gaps } = g.scale;
   const span =
     end - start - gaps.reduce((sum, gap) => sum + gap.end - gap.start, 0);
@@ -69,7 +73,8 @@ function timeTicks(g: PathGeometry, timeZone: string | undefined) {
   }
   const hourOf = formatter(timeZone, { hour: "numeric", hourCycle: "h23" });
   const hours = span / HOUR;
-  const daily = hours > 36;
+  // Joined sessions are labelled by day where each one begins.
+  const daily = hours > 36 || sessions;
   const step = daily
     ? ([1, 2, 7].find((s) => hours / 24 / s <= 7) ?? 14)
     : ([1, 2, 3, 4, 6, 12].find((s) => hours / s <= 8) ?? 24);
@@ -130,7 +135,11 @@ export function InstrumentChart({
       g
         ? {
             values: valueTicks(g.scale.low, g.scale.high),
-            times: timeTicks(g, dates ? "UTC" : undefined),
+            times: timeTicks(
+              g,
+              dates ? "UTC" : undefined,
+              Boolean(series?.sessionGaps?.length),
+            ),
           }
         : null,
     [g, dates],
