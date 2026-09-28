@@ -119,11 +119,7 @@ export function SettingsView() {
             {item.label}
             {/* The count is repeated in the panel; the tab keeps its name. */}
             {item.id === "repairs" && open ? (
-              <Badge
-                tone="warning"
-                className="ms-2"
-                aria-hidden="true"
-              >
+              <Badge tone="warning" className="ms-2" aria-hidden="true">
                 {open}
               </Badge>
             ) : null}
