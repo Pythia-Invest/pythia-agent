@@ -232,9 +232,12 @@ class CoinMarketCap(unittest.TestCase):
         pages = [arguments for operation, arguments in calls if operation == 'history']
         self.assertEqual(result['outcome'], 'ok', result)
         self.assertEqual(len(pages), 1)
-        # Read from the plan's year up to now.
-        self.assertGreaterEqual(datetime.fromisoformat(pages[0]['time_start']), now - timedelta(days=365))
-        self.assertLessEqual(datetime.fromisoformat(pages[0]['time_end']), datetime.now(timezone.utc))
+        # Read from the plan's year up to the last full hour; both edges move
+        # hourly, so a repeated read within the hour is reused.
+        first, last = (datetime.fromisoformat(pages[0][k]) for k in ('time_start', 'time_end'))
+        self.assertGreaterEqual(first, now - timedelta(days=365))
+        self.assertLessEqual(last, datetime.now(timezone.utc))
+        self.assertEqual((first.minute, first.second, last.minute, last.second), (0, 0, 0, 0))
 
 if __name__ == '__main__':
     unittest.main()

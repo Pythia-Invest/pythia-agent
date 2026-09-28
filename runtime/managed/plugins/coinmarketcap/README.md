@@ -72,7 +72,8 @@ Map pages cost no credits (observed 2026-09-25); listings cost one credit per
 200 rows, quotes and info one per 100 coins, and historical quotes one per 100
 data points. Basic history is limited to one month intraday and one year daily.
 A year of daily samples is one request (4 credits); a start up to two days
-before the plan's year is read from there.
+before the plan's year is read from there. Both edges move hourly and daily
+reads are reused for an hour, so an open page costs about 96 credits a day.
 
 The local request budget is 30 requests a minute, leaving room for other use of
 the same account. A daily catalogue sync costs 3 credits (the 500-row listings

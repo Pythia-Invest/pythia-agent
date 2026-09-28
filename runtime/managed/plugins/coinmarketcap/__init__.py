@@ -78,7 +78,9 @@ def register(ctx):
             def call(endpoint, args):
                 message = {'token': token, 'operation': endpoint, 'arguments': args}
                 if endpoint != 'quotes':
-                    return reads.read(command, message, env, age=0 if fresh else CACHE[endpoint], cancelled=cancelled,
+                    # Daily points change once a day: an hour-old year stays usable.
+                    age = 3600 if args.get('interval') == 'daily' else CACHE[endpoint]
+                    return reads.read(command, message, env, age=0 if fresh else age, cancelled=cancelled,
                                       timeout=15, budget=budget)
                 ids = args['id'].split(',')
                 # Quotes coalesce into shared native requests of at most 100 IDs (one credit);
@@ -161,12 +163,16 @@ def register(ctx):
                 start, end = request['window']['start'], request['window']['end']
                 if not start or not end or start['kind'] != 'instant' or end['kind'] != 'instant':
                     raise ValueError('unsupported_window')
-                # The plan's history starts a year back; a window ending later today
-                # reads up to now.
+                # Both edges move at most hourly, so a repeated read within the
+                # hour is reused: a window ending later today reads up to the last
+                # full hour, and a start before the plan's year is read from the
+                # first hour within it.
                 clock = datetime.now(timezone.utc)
+                hour = clock.replace(minute=0, second=0, microsecond=0)
                 first = datetime.fromisoformat(start['value'].replace('Z', '+00:00'))
-                last = min(datetime.fromisoformat(end['value'].replace('Z', '+00:00')), clock)
-                limit = clock - timedelta(days=PLAN_DAYS) + timedelta(minutes=1)
+                last = datetime.fromisoformat(end['value'].replace('Z', '+00:00'))
+                last = hour if last > clock else last
+                limit = hour + timedelta(hours=1) - timedelta(days=PLAN_DAYS)
                 if mode == 'sample_daily' and first < limit:
                     if last <= limit:
                         raise ValueError('unsupported_window')

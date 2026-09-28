@@ -234,7 +234,10 @@ export function readQuery(
   const dates = series.read_support?.window_kind === "session_date";
   const rolling = read.days <= 90;
   const request = (at: number): ReadInput => {
-    const end = dates ? at + DAY : Math.floor(at / 60_000) * 60_000;
+    // Longer instant windows move hourly, so their key and the source's
+    // hourly reuse hold between re-renders.
+    const step = rolling ? 60_000 : 3_600_000;
+    const end = dates ? at + DAY : Math.floor(at / step) * step;
     const start = end - read.days * DAY;
     const edge = (t: number) =>
       dates

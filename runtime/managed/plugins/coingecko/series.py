@@ -18,18 +18,22 @@ def modes(access):
 
 # One market_chart/range request returns daily points for any range above 90
 # days (checked 2026-09-28: 365 daily points in one request). The public plans
-# (keyless, demo) serve the past 365 days; paid plans the history since 2013.
+# (keyless, demo) serve the past year, paid plans from Basic the past two;
+# Analyst and above serve more, which is not assumed.
+HISTORY_DAYS = {'paid': 730}
 FREE_DAYS = 365
-PAID_START = datetime(2013, 4, 28, tzinfo=timezone.utc)
+HOUR = 3600
+
+
+def history_days(access):
+    return HISTORY_DAYS.get(access, FREE_DAYS)
 
 
 def span_days(mode, access, clock=None):
     if mode == 'sample_daily':
-        if access == 'paid':
-            return ((clock or datetime.now(timezone.utc)) - PAID_START).days + 1
-        # A date-to-date year, also across 29 February; its start is clipped
-        # to the free year.
-        return FREE_DAYS + 2
+        # Two more days admit a date-to-date window, also across 29 February;
+        # its start is read from the plan's history start.
+        return history_days(access) + 2
     return 31 if mode == 'ohlc_hourly' else ROLLING.get(mode, 90)
 
 
@@ -79,16 +83,19 @@ def bounds(request, mode, clock=None, access="demo"):
     start, end = parse(edges['start']), parse(edges['end'])
     if not 0 <= end - start <= span_days(mode, access, clock) * 86400 or end > clock.timestamp() + 86400:
         raise ValueError('unsupported_window')
-    end = min(end, clock.timestamp())  # a window ending later today reads up to now
-    if access != "paid" and start < clock.timestamp() - FREE_DAYS * 86400:
-        # The public plans serve the past year. The declared span admits up to
-        # two days more (a date-to-date year, a request built moments before);
-        # those are read from the year's start, as the returned window shows.
-        # A window that ends before the year is refused.
-        limit = clock.timestamp() - FREE_DAYS * 86400 + 60
+    # Both edges move at most hourly, so a repeated read within the hour is
+    # reused: a window ending later today reads up to the last full hour, and
+    # a start before the plan's history (inside the declared two days) is read
+    # from the first hour within it. A window ending before it is refused.
+    if end > clock.timestamp():
+        end = clock.timestamp() // HOUR * HOUR
+    limit = -(-(clock.timestamp() - history_days(access) * 86400) // HOUR) * HOUR
+    if mode == 'sample_daily' and start < limit:
         if end <= limit:
             raise ValueError('unsupported_window')
         start = limit
+    elif access != "paid" and start < clock.timestamp() - FREE_DAYS * 86400:
+        raise ValueError('unsupported_window')
     if mode in ROLLING:
         days = ROLLING[mode]
         # Fixed lookbacks are anchored at provider execution, not the caller's

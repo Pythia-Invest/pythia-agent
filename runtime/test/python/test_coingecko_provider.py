@@ -433,13 +433,18 @@ class Provider(unittest.TestCase):
         endpoint, controls = series.bounds(req, 'sample_daily', now + timedelta(seconds=5))
         self.assertEqual((endpoint, controls['interval']), ('chart', 'daily'))
         self.assertGreaterEqual(controls['from'], (now - timedelta(days=365)).timestamp())
+        # The clipped start moves hourly, so repeated reads within the hour match.
+        self.assertEqual(controls['from'] % 3600, 0)
+        hour = now.replace(minute=0, second=0, microsecond=0)
+        same = {series.bounds(req, 'sample_daily', hour + timedelta(minutes=m))[1]['from'] for m in (1, 30, 59)}
+        self.assertEqual(len(same), 1)
         self.assertEqual(worker.request_spec({**DEMO, 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls}}).method, 'GET')
         # A window that ends before the free year is refused.
         req['window']['end']['value'] = (now - timedelta(days=366)).isoformat()
         with self.assertRaisesRegex(ValueError, 'unsupported_window'): series.bounds(req, 'sample_daily', now)
-        # Paid plans declare CoinGecko's history since 2013, still one request.
+        # Paid plans from Basic declare two years, still one request.
         paid = series.definition(NATIVE, 'sample_daily', 'USD', 'paid')['read_support']['max_span_seconds'] // 86400
-        self.assertLess(paid, 20 * 366)
+        self.assertEqual(paid, 732)
         req['window'] = {'start': {'kind': 'instant', 'value': (now - timedelta(days=paid - 1)).isoformat()},
                          'end': {'kind': 'instant', 'value': now.isoformat()}}
         endpoint, controls = series.bounds(req, 'sample_daily', now, access='paid')
