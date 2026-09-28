@@ -366,11 +366,11 @@ class Provider(unittest.TestCase):
             self.assertNotIn('SYNTHETIC', json.dumps(result))
             error.close()
 
-    def test_network_evidence_keeps_each_coin_and_network_distinct(self):
+    def test_platform_contracts_keep_each_network_distinct(self):
         one = identity.candidate({'id':'synthetic-coin','name':'Same','symbol':'same','platforms': {'ethereum':'0xAbC','solana':'0xAbC','':''}}, True)
-        for evidence in one['evidence']: wire.validate('evidence', evidence)
-        contracts = [e['qualifiers']['network'] for e in one['evidence'] if e['scheme'] == 'contract_address']
-        self.assertEqual(len(contracts), len(set(contracts)))
+        self.assertEqual(one['platform_contracts'], [{'network': 'ethereum', 'address': '0xAbC'},
+                                                     {'network': 'solana', 'address': '0xAbC'}])
+        self.assertNotIn('evidence', one)  # core owns identity evidence; details carry no legacy evidence IDs
 
     def test_stable_selectors_windows_and_actual_shapes(self):
         now = datetime.now(timezone.utc)
@@ -418,6 +418,39 @@ class Provider(unittest.TestCase):
         self.assertEqual(len(results.read(request(d),d,'sample_hourly',raw)['observations']),2)
         raw['data']['prices'].append([1700000000000,'4'])
         self.assertEqual(len(results.read(request(d),d,'sample_hourly',raw)['observations']),1)
+
+    def test_the_chart_year_is_one_daily_request_on_every_plan(self):
+        now = datetime.now(timezone.utc)
+        daily = series.definition(NATIVE, 'sample_daily', 'USD', 'demo')
+        span = daily['read_support']['max_span_seconds']
+        self.assertEqual(span, 367 * 86400)
+        # The chart's year read: the declared span back from the minute, read a
+        # few seconds later by the provider process.
+        end = now.replace(second=0, microsecond=0)
+        req = request(daily)
+        req['window'] = {'start': {'kind': 'instant', 'value': (end - timedelta(seconds=span)).isoformat()},
+                         'end': {'kind': 'instant', 'value': end.isoformat()}}
+        endpoint, controls = series.bounds(req, 'sample_daily', now + timedelta(seconds=5))
+        self.assertEqual((endpoint, controls['interval']), ('chart', 'daily'))
+        self.assertGreaterEqual(controls['from'], (now - timedelta(days=365)).timestamp())
+        # The clipped start moves hourly, so repeated reads within the hour match.
+        self.assertEqual(controls['from'] % 3600, 0)
+        hour = now.replace(minute=0, second=0, microsecond=0)
+        same = {series.bounds(req, 'sample_daily', hour + timedelta(minutes=m))[1]['from'] for m in (1, 30, 59)}
+        self.assertEqual(len(same), 1)
+        self.assertEqual(worker.request_spec({**DEMO, 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls}}).method, 'GET')
+        # A window that ends before the free year is refused.
+        req['window']['end']['value'] = (now - timedelta(days=366)).isoformat()
+        with self.assertRaisesRegex(ValueError, 'unsupported_window'): series.bounds(req, 'sample_daily', now)
+        # Paid plans from Basic declare two years, still one request.
+        paid = series.definition(NATIVE, 'sample_daily', 'USD', 'paid')['read_support']['max_span_seconds'] // 86400
+        self.assertEqual(paid, 732)
+        req['window'] = {'start': {'kind': 'instant', 'value': (now - timedelta(days=paid - 1)).isoformat()},
+                         'end': {'kind': 'instant', 'value': now.isoformat()}}
+        endpoint, controls = series.bounds(req, 'sample_daily', now, access='paid')
+        worker.request_spec({**DEMO, 'mode': 'paid', 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls}})
+        with self.assertRaises(ValueError):
+            worker.request_spec({**DEMO, 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls, 'interval': 'hourly'}})
 
     def test_currency_pin_paid_history_and_provider_plan_errors(self):
         usd = series.definition(NATIVE, 'sample_daily', 'USD')

@@ -39,7 +39,7 @@ class Sources:
         return result
 
     def project(self):
-        return [{"contribution": {"schema_version": 1, "provider": provider, "adapter_version": "1", "subject_kinds": ["instrument", "listing"], **self.policies.get(provider, {}),
+        return [{"contribution": {"schema_version": 1, "provider": provider, "adapter_version": "1", **self.policies.get(provider, {}),
                  "operations": [{"operation": op, "tool": f"{provider}_{op}", "effect": "read"} for op in ("details", "series", "latest", "history")]},
                  "operations": [{"operation": op, "tool": f"{provider}_{op}", "effect": "read", "available": self.ready[provider], "parameters": {}}
                                 for op in ("details", "series", "latest", "history")]}

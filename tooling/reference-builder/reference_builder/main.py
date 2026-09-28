@@ -97,7 +97,7 @@ def run(config: BuildConfig) -> int:
             "cfi_prefixes": ",".join(config.scope.cfi_prefixes)}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)
-    truth_audit = truth_report.build_report(snapshot_path, config.scope.cfi_prefixes, log)  # a report, never a gate
+    truth_audit = truth_report.build_report(snapshot_path, config.scope.cfi_prefixes, log, snap.audit)  # a report, never a gate
     manifest.write_manifest(config.out_dir / "manifest.json", {
         "build_id": build_id,
         "schema_version": schema.SCHEMA_VERSION,

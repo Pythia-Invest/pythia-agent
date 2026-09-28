@@ -22,7 +22,7 @@ from typing import Any
 from .identity import (
     MANIFEST_FILE, ClaimError, Level, ManifestError, ManifestNeedsUpdate, check_batch, validate_manifest,
 )
-from . import queue_ops
+from . import queue_ops, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, page, reference_package, search, store
@@ -107,7 +107,7 @@ class Identity:
             kinds = arguments.get("kinds")
             data = (directory.group(group, kinds=kinds) if group
                     else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
-                                          suffixes=_suffixes) if query else empty)
+                                          suffixes=search_venues.suffixes, priced=search_venues.priced) if query else empty)
         except (sqlite3.Error, OSError):  # search degrades, never errors out
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
@@ -297,16 +297,6 @@ def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
     if issue:
         body["issues"] = [{"code": "unavailable" if data is None else "empty", "message": issue}]
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
-
-
-def _suffixes() -> dict[str, set[str]]:
-    """Provider symbol suffixes (".AS", ".US") and the operating MICs they name, from the installed contracts."""
-    venues: dict[str, set[str]] = {}
-    for info in installed():
-        for mic, code in info.manifest.mic_table.items():
-            if code.startswith("."):
-                venues.setdefault(code.upper(), set()).add(mic)
-    return venues
 
 
 def installed() -> list[page.PluginInfo]:

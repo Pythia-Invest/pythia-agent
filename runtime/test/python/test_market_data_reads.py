@@ -13,7 +13,7 @@ import tempfile
 import threading
 import unittest
 
-from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, request, run_read, wire
+from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, read_module, request, run_read, wire
 from market_data_fixture import native
 
 
@@ -47,6 +47,19 @@ class SharedReadsTests(unittest.TestCase):
         value = run_read(self.backend)
         self.assertEqual(value["provenance"]["provider"], "synthetic_other")
         self.assertEqual([provider for provider, _, _ in self.price_calls()], ["synthetic_other"])
+
+    def test_a_utc_daily_series_serves_a_dated_window_as_whole_utc_days(self):
+        series = copy.deepcopy(self.sources.definitions["ibkr"][0])
+        series.update(timezone="UTC", read_support={"operations": ["history"], "window_kind": "instant", "max_span_seconds": 367 * 86400})
+        dated = request()
+        # A date-to-date year across 29 February.
+        dated["window"] = {"start": {"kind": "session_date", "value": "2027-09-28"}, "end": {"kind": "session_date", "value": "2028-09-28"}}
+        days = read_module.utc_days(dated, series)
+        self.assertEqual(days["window"], {"start": {"kind": "instant", "value": "2027-09-28T00:00:00+00:00"},
+                                          "end": {"kind": "instant", "value": "2028-09-28T23:59:59+00:00"}})
+        self.assertTrue(read_module.supports_read(series, days))
+        # Exchange-dated series keep their session dates.
+        self.assertIs(read_module.utc_days(dated, {**series, "timezone": "America/New_York"}), dated)
 
     def test_coordinated_reads_deduplicate_and_reuse_qualified_metadata(self):
         item = {"request": request(), "criteria": CRITERIA}
