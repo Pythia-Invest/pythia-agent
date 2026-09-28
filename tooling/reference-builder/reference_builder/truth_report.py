@@ -9,6 +9,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from . import invariants
 from .schema import identity
 from .truth import TRUTH_DIR, Audit, Reference, audit
 
@@ -172,8 +173,17 @@ def build_report(reference: Path, cfi: tuple[str, ...], log, build_audit: dict |
         " (details: just reference-audit)")
     for item in regressed[:10]:
         log(f"  regression {item}")
+    try:
+        checked = invariants.run(reference)
+    except Exception as error:  # nor do the invariants
+        log(f"invariants skipped: {error!r}")
+        checked = []
+    for result in checked:
+        if result.over:
+            log(f"  invariant {result.name} ({result.severity}): {result.count} over the limit {result.limit}")
     return {"truth_version": report.truth_version, "key_rule": key_rule(), "entries_in_scope": report.in_scope, "scores": scores,
-            "regressions": len(regressed), "attention": counts}
+            "regressions": len(regressed), "attention": counts,
+            "invariants": {r.name: r.count for r in checked}, "invariants_failed": [r.name for r in checked if r.failed]}
 
 
 def newest_reference(out_dir: Path) -> Path | None:
@@ -208,12 +218,16 @@ def main(argv: list[str] | None = None) -> int:
     print(format_report(report, regressed, baseline=baseline))
     build_audit = manifest_audit(reference)
     print("\n" + "\n".join(format_attention(attention(build_audit) if build_audit is not None else None)))
+    checked = invariants.run(reference)
+    print("\n" + "\n".join(invariants.format_results(checked)))
     if args.failures:
         print("\nFailing checks:")
         print("\n".join(f"  {r.key}: {r.reason}" for r in report.results if r.status == "fail"))
     if args.json:
         args.json.write_text(json.dumps({"scores": report.scores(), "regressions": regressed,
-                                         "results": [r.__dict__ for r in report.results]}, indent=1) + "\n", encoding="utf-8")
+                                         "results": [r.__dict__ for r in report.results],
+                                         "invariants": [r.__dict__ for r in checked]}, indent=1, default=list) + "\n",
+                             encoding="utf-8")
     if args.write_baseline:
         # A re-take never accepts a subject-ID change silently: it lists every change, and one that no
         # `id_aliases` row resolves needs --accept-id-changes and is kept in the baseline.
@@ -232,4 +246,4 @@ def main(argv: list[str] | None = None) -> int:
         data = baseline_of(report) | {"accepted_id_changes": accepted}
         baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
-    return 1 if regressed else 0
+    return 1 if regressed or any(r.failed for r in checked) else 0

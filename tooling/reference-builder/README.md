@@ -24,6 +24,7 @@ python3 tooling/reference-builder/run.py --help
 | US tickers | `sec.py` | SEC `company_tickers_exchange.json` and the fund file `company_tickers_mf.json` |
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
+| Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
 | Snapshot and manifest | `schema.py`, `writer.py`, `manifest.py` | |
 
 `schema.py` is the only module that knows the table layout. The file is core's
@@ -192,6 +193,24 @@ checks it cannot pass without other venues as regressions. `--write-baseline`
 lists every truth entry's subject ID that changed since the previous baseline
 and writes nothing unless `--accept-id-changes` is given; the accepted changes
 are kept in the baseline under `accepted_id_changes`.
+
+The same command then checks whole-build invariants (`invariants.py`): rules every
+row must satisfy, so a systematic error shows up as a count rather than as one truth
+entry. They cover currencies (a German or Vienna line not in euros, a withdrawn code
+such as BGN or XXX, a ticker whose currency suffix disagrees with its line), tickers
+(core's grammar, the venue's shape, one ticker on one venue naming two securities, a
+listing segment where most lines have no ticker), primary listings (more than one,
+inactive, an open-market line chosen over a NYSE/Nasdaq, Xetra or home regulated
+line), names (casing, encoding, non-Latin display names), issuers (a trading venue
+or a financing vehicle as issuer, names that share no word with the security or the
+SEC title) and kinds (funds or preference shares typed as ordinary shares,
+receipts without an underlying). An `error` above its limit fails the command; a
+`warning` is reported against its limit and never fails it. A limit is 0 where a
+rule has no legitimate exception or its fix is under way; otherwise it is the count
+on the default-scope build of the FIRDS week of 2026-09-26 plus 10%, a ratchet that
+catches a new systematic error without failing on known rows. Lower a limit when
+its rows are fixed. The builder records the counts under `truth_audit.invariants`
+in the manifest and never blocks on them.
 
 Conventions: US tickers use the SEC's `-` class separator (`BRK-B`); Nordic
 tickers keep the exchange's space (`VOLV B`, Yahoo `VOLV-B.ST`); the listing
