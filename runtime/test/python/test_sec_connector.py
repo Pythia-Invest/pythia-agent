@@ -452,6 +452,38 @@ class SecExecution(unittest.TestCase):
         with patch.object(client, 'MAX_BYTES', 64), self.assertRaisesRegex(RuntimeError, 'output_limit'):
             read()
 
+    def test_a_filing_document_streams_into_core_reader_and_no_other_url_is_read(self):
+        requests, body = [], b'<html><body><p>Item 1A. Risk Factors</p></body></html>' * 50
+
+        def serve(request, timeout):
+            requests.append(request)
+            response = io.BytesIO(gzip.compress(body))
+            response.status, response.headers = 200, {'Content-Encoding': 'gzip'}
+            return response
+
+        def extract(response, check):  # stands in for core's reader: it reads the open response itself
+            check()
+            return {'text': gzip.decompress(response.read()).decode(), 'sections': [], 'bytes': len(body)}
+        url = filings.filing_url(CIK, '0000123456-25-000001', 'exa-20250630.htm')
+        instance = plugin.Reader(wire, connector, settings, None, extract=extract,
+                                 transport=client.Transport(connector, opener=SimpleNamespace(open=serve)))
+        result = instance.invoke('document', {'native_ref': REF, 'id': '0000123456-25-000001', 'url': url})
+        self.assertEqual((result['outcome'], result['data']['url'], len(result['data']['text'])), ('ok', url, len(body)))
+        self.assertEqual((requests[0].full_url, requests[0].get_header('User-agent')), (url, CONTACT))
+        for other in (url.replace('123456', '789012'), url.replace('000001', '000002'),
+                      'https://example.org/exa-20250630.htm', url.replace('exa-20250630.htm', 'exa.pdf'),
+                      url.replace('exa-20250630.htm', '../exa.htm')):
+            with self.subTest(url=other):
+                refused = instance.invoke('document', {'native_ref': REF, 'id': '0000123456-25-000001', 'url': other})
+                self.assertEqual(refused['issues'][0]['code'], 'invalid_request')
+        self.assertEqual(len(requests), 1)
+
+        def too_large(response, check):
+            raise RuntimeError('output_limit')  # core's cap on a document
+        instance.extract = too_large
+        result = instance.invoke('document', {'native_ref': REF, 'id': '0000123456-25-000001', 'url': url})
+        self.assertEqual(result['issues'][0]['code'], 'output_limit')
+
     def test_successful_reads_are_retained_but_failures_and_refresh_are_not(self):
         class Flaky(Transport):
             fail = False

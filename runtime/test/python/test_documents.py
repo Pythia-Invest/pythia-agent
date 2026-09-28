@@ -1,0 +1,182 @@
+"""Core's document reader over synthetic HTML: extraction, outline, search, caps and the disk cache. No provider."""
+import gzip
+import importlib
+import importlib.util
+import io
+import json
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from test_agent_tools import ASML, AgentToolFixture, agent_reads, envelope, filing_rows, identity_ops
+
+MANAGED = Path(__file__).resolve().parents[2] / "managed"
+if "pythia_core_fixture" not in sys.modules:
+    spec = importlib.util.spec_from_file_location("pythia_core_fixture", MANAGED / "core/__init__.py",
+                                                  submodule_search_locations=[str(MANAGED / "core")])
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+document_text = importlib.import_module("pythia_core_fixture.document_text")
+documents = importlib.import_module("pythia_core_fixture.documents")
+
+
+class Response(io.BytesIO):
+    def __init__(self, content, headers=None):
+        super().__init__(content)
+        self.headers = headers or {}
+
+
+def read(html, headers=None):
+    return document_text.extract(Response(html.encode(), headers))
+
+
+TEN_K = ('<html><head><title>exa-20250927</title><style>p {}</style></head><body>'
+         '<div style="display:none"><ix:header><ix:hidden>HIDDEN FACT</ix:hidden></ix:header></div>'
+         '<table><tr><td><a href="#p1">Part I</a></td></tr>'
+         '<tr><td><a href="#i1">Item 1.</a></td><td><a href="#i1">Business</a></td><td><a href="#i1">1</a></td></tr>'
+         '<tr><td><a href="#i1a">Item 1A.</a></td><td><a href="#i1a">Risk Factors</a></td><td><a href="#i1a">5</a></td></tr>'
+         '</table><script>var x = 1;</script>'
+         '<div id="p1">PART I</div><div id="i1"><span>Item 1.</span> Business</div><p>We make&nbsp;phones.</p>'
+         '<div id="i1a">Item 1A. Risk Factors</div><p>Sales in <b>China</b> may fall.</p>'
+         '<p><a href="#i1a">Read more in Risk Factors</a> <a href="#top">Back to top</a></p></body></html>')
+
+
+class Extraction(unittest.TestCase):
+    def test_text_leaves_out_hidden_facts_scripts_and_styles_and_breaks_at_blocks(self):
+        document = read(TEN_K)
+        self.assertEqual(document["title"], "exa-20250927")
+        self.assertNotIn("HIDDEN", document["text"])
+        self.assertNotIn("var x", document["text"])
+        self.assertIn("Item 1. Business\nWe make phones.\n", document["text"])
+        self.assertIn("Sales in China may fall.", document["text"])
+
+    def test_the_contents_links_give_the_outline_with_anchors(self):
+        document = read(TEN_K)
+        self.assertEqual(document["outline_method"], "contents_links")
+        self.assertEqual([(item["title"], item.get("anchor")) for item in document["sections"]],
+                         [("Cover and contents", None), ("Part I", "p1"), ("Item 1. Business", "i1"),
+                          ("Item 1A. Risk Factors", "i1a")])
+        risk = document["sections"][-1]
+        self.assertTrue(document["text"][risk["start"]:risk["end"]].startswith("Item 1A. Risk Factors\nSales"))
+
+    def test_without_contents_links_headings_then_fixed_parts_are_the_outline(self):
+        headings = read("<p>Item 1. Business</p><p>Item 1A. Risk Factors</p><p>PART I</p><p>Item 1. Business</p>"
+                        "<p>About us.</p><p>Item 1A. Risk Factors</p><p>Risks.</p><p>Item 2. Properties</p>")
+        self.assertEqual(headings["outline_method"], "headings")
+        self.assertEqual([item["title"] for item in headings["sections"]],  # the contents' repeats are passed over
+                         ["Cover and contents", "PART I", "Item 1. Business", "Item 1A. Risk Factors",
+                          "Item 2. Properties"])
+        parts = read("<p>" + "word " * 9000 + "</p>" * 3)
+        self.assertEqual(parts["outline_method"], "fixed_parts")
+        self.assertGreater(len(parts["sections"]), 1)
+        self.assertEqual(parts["sections"][-1]["end"], len(parts["text"]))
+
+    def test_gzip_and_a_declared_charset_are_decoded(self):
+        html = '<p id="a">Café</p>'.encode("latin-1")
+        document = document_text.extract(Response(gzip.compress(html), {"Content-Encoding": "gzip",
+                                                                      "Content-Type": "text/html; charset=latin-1"}))
+        self.assertEqual(document["text"].strip(), "Café")
+        with self.assertRaises(ValueError):
+            document_text.extract(Response(b"x", {"Content-Encoding": "br"}))
+
+    def test_bytes_and_text_past_the_caps_stop_the_read(self):
+        with mock.patch.object(document_text, "MAX_BYTES", 100), self.assertRaisesRegex(RuntimeError, "output_limit"):
+            read("<p>" + "x" * 200 + "</p>")
+        with mock.patch.object(document_text, "MAX_TEXT", 10), self.assertRaisesRegex(RuntimeError, "output_limit"):
+            read("<p>" + "y " * 20 + "</p>")
+
+
+class SearchAndCache(unittest.TestCase):
+    def test_search_ranks_the_phrase_first_and_passages_keep_to_their_section(self):
+        document = read('<a href="#a">Alpha</a><a href="#b">Beta</a><a href="#c">Gamma</a>'
+                        '<p id="a">Net sales grew. Sales by region below.</p>'
+                        '<p id="b">Net sales by segment were strong.</p><p id="c">Nothing here.</p>')
+        found, matched = document_text.search(document, "net sales by", 5)
+        self.assertEqual(matched, 2)
+        self.assertEqual(found[0][1]["title"], "Beta")
+        for _score, section, start, end in found:
+            self.assertTrue(section["start"] <= start < end <= section["end"])
+
+    def test_the_cache_keeps_recently_read_documents_within_its_size(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = documents.Cache(Path(directory), limit=5000)
+            for index in range(4):
+                cache.put({"id": f"doc-{index}", "text": "z" * 2000})
+                os.utime(cache.path(f"doc-{index}"), (index, index))
+            cache.put({"id": "doc-4", "text": "z" * 2000})
+            self.assertEqual([cache.get(f"doc-{index}") is not None for index in range(5)],
+                             [False, False, False, True, True])
+
+
+
+class DocumentToolTest(AgentToolFixture):
+    """pythia_document over core's read, with the fixture's reference and a fake source."""
+
+    def setUp(self):
+        super().setUp()
+        self.eligible.add(agent_reads.READ_DOCUMENT)
+        self.handlers[agent_reads.READ_DOCUMENT] = documents.Reader(identity_ops.CURRENT).read
+
+    def read(self, **arguments):
+        return json.loads(agent_reads.document(self.ctx, arguments))
+
+    def test_document_reads_a_listed_report_by_its_key_with_citations_and_caches_it(self):
+        report = "issuer:lei:724500Y6DUVHQD6OXN27|annual|2025-12-31|oam-nl"
+        rows = filing_rows(["AFR", "AFR"])
+        for row, digest in zip(rows, ("a" * 64, "b" * 64)):
+            row["accession"] = digest
+        rows[1]["period_end"] = "2024-12-31"
+        xbrl = {"dataset": "filings", "provider": "xbrl-filings", "filings": rows}
+        html = ('<html><head><title>ASML 2025</title></head><body><p><a href="#r">Risk factors</a></p>'
+                '<p><a href="#s">Segments</a></p><p><a href="#n">Notes</a></p>'
+                '<h2 id="r">Risk factors</h2><p>Export controls on China may limit sales.</p>'
+                '<h2 id="s">Segments</h2><p>One segment: net sales by product.</p>'
+                '<h2 id="n">Notes</h2><p>' + "Other text. " * 2000 + "</p></body></html>")
+        fetched = []
+
+        def read(args, **_):
+            fetched.append(args)
+            return envelope({**document_text.extract(io.BytesIO(html.encode())), "url": "https://example.org/r.xhtml",
+                             "observed_at": "2026-09-28T10:00:00Z"})
+        self.handlers["pythia_xbrl_filings_filings"] = lambda args, **_: envelope(xbrl)
+        self.handlers["pythia_sec_filings"] = lambda args, **_: envelope({"dataset": "filings", "filings": []})
+        self.handlers["pythia_xbrl_filings_document"] = read
+        outline = self.read(subject_id=ASML, report_key=report)
+        self.assertEqual(fetched, [{"native_ref": {"provider": "xbrl-filings", "native_id": "724500Y6DUVHQD6OXN27",
+                                                   "native_scope": "lei"}, "id": "a" * 64}])  # no url: not its parameter
+        self.assertEqual([item["title"] for item in outline["data"]["sections"]],
+                         ["Cover and contents", "Risk factors", "Segments", "Notes"])
+        self.assertEqual(outline["data"]["document"]["id"], "a" * 64)
+        self.assertIn("pass the document's id", outline["next"])
+        section = self.read(subject_id=ASML, id="a" * 64, section="s1")
+        self.assertEqual(section["data"]["text"].strip(), "Risk factors\nExport controls on China may limit sales.")
+        self.assertEqual(section["data"]["citation"]["url"], "https://example.org/r.xhtml#r")
+        self.assertEqual(len(fetched), 1)  # read again from the disk cache, without listing or fetching
+        found = self.read(subject_id=ASML, id="a" * 64, query="net sales by")
+        self.assertEqual(found["data"]["passages"][0]["citation"]["section_title"], "Segments")
+        long = self.read(subject_id=ASML, id="a" * 64, section="s3", max_chars=1000)
+        self.assertLessEqual(len(long["data"]["text"]), 1000)
+        rest = self.read(subject_id=ASML, id="a" * 64, section="s3",
+                         start=long["data"]["continue_from"])
+        self.assertGreater(rest["data"]["citation"]["offsets"][0], long["data"]["citation"]["offsets"][0])
+        self.assertIn("continue_from", long["next"])
+        # Several versions of one report are named, never picked; an unlisted filing is refused.
+        rows[1]["period_end"] = "2025-12-31"
+        several = self.read(subject_id=ASML, report_key=report)
+        self.assertEqual(several["issues"][0]["code"], "several_versions")
+        self.assertEqual([item["id"] for item in several["data"]["versions"]], ["a" * 64, "b" * 64])
+        missing = self.read(subject_id=ASML, id="c" * 64)
+        self.assertEqual(missing["issues"][0]["code"], "not_listed")
+        self.handlers["pythia_xbrl_filings_document"] = lambda args, **_: json.dumps({
+            "schema_version": 1, "outcome": "error", "data": None,
+            "issues": [{"code": "output_limit", "severity": "error", "message": "The data response exceeded."}]})
+        large = self.read(subject_id=ASML, report_key=report, id="b" * 64)
+        self.assertIn("larger than Pythia reads", large["issues"][0]["message"])
+
+
+if __name__ == "__main__":
+    unittest.main()

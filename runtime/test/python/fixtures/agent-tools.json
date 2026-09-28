@@ -156,6 +156,60 @@
     }
   },
   {
+    "name": "pythia_document",
+    "description": "Read inside a filing: sections, search and citations. Reads a document pythia_filings lists (10-K, 20-F, 8-K, ESEF annual report) from its source instead of the web. Without section or query: the outline. With section: its text, bounded; pass continue_from as start for more. With query: the best-matching passages. Each carries a citation (section, offsets, link); cite it. Name a report by report_key (and id for one of several versions), any other filing by id.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370,
+          "description": "A subject id from pythia_find, such as listing:… or security:…"
+        },
+        "report_key": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 512,
+          "description": "A report's report_key."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "A filing's id."
+        },
+        "section": {
+          "type": "string",
+          "pattern": "^s[0-9]{1,5}$",
+          "description": "A section id from the outline."
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "query": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 200,
+          "description": "Words to find, such as China."
+        },
+        "max_chars": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 30000
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        }
+      },
+      "required": ["subject_id"],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "pythia_identity_questions",
     "parameters": {
       "type": "object",

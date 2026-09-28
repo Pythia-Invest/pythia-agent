@@ -11,6 +11,7 @@ Pythia's directory, and the reference builder ingests SEC's ticker file itself.
 | `filings` | `pythia_sec_filings` | submissions | Recent filings with form, filing date, acceptance time, report period, document link and description, including 20-F, 40-F and 6-K. Insider and major-holder ownership filings (Forms 3, 4, 5, 144, Schedule 13G) are left out unless `forms` names them or `kinds` asks for `ownership`; `kinds` filters like `forms`. The Desk's filings section reads it through its declared read-only operation `pythia-sec`/`filings`. |
 | `fundamentals` | `pythia_sec_fundamentals` | `api/xbrl/companyfacts` and submissions | Latest annual US GAAP or IFRS (`ifrs-full`, used by foreign private issuers) facts with exact periods, units and filing provenance, and their `freshness`. |
 | `facts` | `pythia_sec_facts` | companyfacts | Native facts for explicit concepts of one taxonomy. |
+| `document` | `pythia_sec_document` | a filing document in the Archives | The filings concept's `read` (ADR 0040): one document of the filer's filing, named by accession and its Archives URL as `filings` lists it (HTML, inline XBRL or text; any other URL is refused without a request). The gzip body streams through core's document reader, which returns text and outline and caps the read at 64 MB and 4 million characters; nothing is retained here. |
 
 ## Filing fields
 

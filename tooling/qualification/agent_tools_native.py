@@ -28,14 +28,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-CORE = ["pythia_answer_identity_question", "pythia_desk_view", "pythia_filings", "pythia_find",
+CORE = ["pythia_answer_identity_question", "pythia_desk_view", "pythia_document", "pythia_filings", "pythia_find",
         "pythia_identity_questions", "pythia_instrument", "pythia_prices"]
 PROVIDERS = {"sec_company_facts", "sec_fundamentals", "esef_fundamentals", "esef_company_facts", "gleif_legal_entity",
              "eodhd_news", "eodhd_fundamentals", "yahoo_finance", "coinmarketcap_coin_info", "openfigi_identifiers",
              "hyperliquid_live_market"}
 FIGURES = {"sec_company_facts", "sec_fundamentals", "esef_fundamentals", "esef_company_facts", "eodhd_fundamentals",
            "yahoo_finance"}
-QUERIES = {"price of ASML": {"pythia_prices"}, "10-K annual report": {"pythia_filings"}, "ISIN lookup": {"pythia_find"},
+QUERIES = {"price of ASML": {"pythia_prices"}, "10-K annual report": {"pythia_filings"},
+           "read a filing's risk factors section": {"pythia_document"}, "ISIN lookup": {"pythia_find"},
            "revenue": FIGURES, "earnings": FIGURES, "balance sheet": FIGURES, "dividend": {"yahoo_finance"},
            "news": {"eodhd_news", "yahoo_finance"}, "legal entity": {"gleif_legal_entity"},
            "price of bitcoin": {"pythia_prices"}, "perp funding rate": {"hyperliquid_live_market"}}

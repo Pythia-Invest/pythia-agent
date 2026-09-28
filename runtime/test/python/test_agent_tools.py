@@ -568,12 +568,12 @@ class DeliveredViewTest(unittest.TestCase):
     def test_budgets_and_no_operation_markers(self):
         schemas = self.visible()
         sizes = {schema["name"]: len(json.dumps(schema, separators=(",", ":"))) for schema in schemas}
-        self.assertEqual(sorted(sizes), ["pythia_answer_identity_question", "pythia_desk_view",
+        self.assertEqual(sorted(sizes), ["pythia_answer_identity_question", "pythia_desk_view", "pythia_document",
                                          "pythia_filings", "pythia_find", "pythia_identity_questions",
                                          "pythia_instrument", "pythia_prices"])
         for name, size in sizes.items():
             self.assertLessEqual(size, 2000, name)
-        self.assertLessEqual(sum(sizes.values()), 9200)  # about 2,300 tokens by Hermes's chars/4
+        self.assertLessEqual(sum(sizes.values()), 9600)  # about 2,400 tokens by Hermes's chars/4
         for schema in schemas:
             self.assertLessEqual(len(schema["description"]), 700, schema["name"])
             self.assertNotIn("$comment", json.dumps(schema), schema["name"])

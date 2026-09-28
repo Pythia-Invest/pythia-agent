@@ -1,7 +1,7 @@
 """SEC's native tools and their deliberate protected operation exports."""
 import json
 
-OPERATIONS = ('resolve', 'filings', 'fundamentals', 'facts')
+OPERATIONS = ('resolve', 'filings', 'fundamentals', 'facts', 'document')
 TOOLS = {operation: 'pythia_sec_' + operation for operation in OPERATIONS}
 TAXONOMIES = ('us-gaap', 'ifrs-full', 'dei', 'srt')
 # Pythia's filing kinds (core's FilingKind), the vocabulary of `filings.KINDS`.
@@ -36,6 +36,8 @@ def schemas(wire):
                          'items': {'type': 'string', 'pattern': '^[A-Za-z][A-Za-z0-9]{0,199}$'}},
             'limit': {'type': 'integer', 'minimum': 1, 'maximum': 500}, 'refresh': refresh},
             ['native_ref', 'taxonomy', 'concepts']),
+        'document': ({'native_ref': native_ref, 'id': {'type': 'string', 'pattern': '^[0-9]{10}-[0-9]{2}-[0-9]{6}$'},
+                      'url': {'type': 'string', 'maxLength': 1024}}, ['native_ref', 'id', 'url']),
     }
     descriptions = {
         'resolve': 'Resolve SEC filer identity by exact identifiers.cik (preferred when both are given), or by identifiers.ticker_mic (TICKER@MIC with '
@@ -53,6 +55,9 @@ def schemas(wire):
             '40-F to these facts.',
         'facts': 'Read bounded native XBRL facts for explicit concepts of one taxonomy (us-gaap, ifrs-full, dei or '
             'srt) for an SEC CIK reference, keeping periods, filing revisions and reported units.',
+        'document': 'Read one filing document of an SEC CIK reference: id is its accession and url its document in '
+            'the SEC Archives, as the filings read lists them. The document streams through Pythia core\'s reader, '
+            'which returns its text and outline.',
     }
     result = {}
     for operation, (properties, required) in fields.items():

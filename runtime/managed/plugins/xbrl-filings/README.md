@@ -18,6 +18,7 @@ Pythia's core; company names and ticker strings never establish equivalence.
 | `filings` | `native_ref`, optional `limit` | indexed reports with viewer, report, package and xBRL-JSON links, and the state of the latest period; read by the Desk's filings section through its declared read-only operation `pythia-xbrl-filings`/`filings` (`filed_at` and `language` are null: the repository indexes neither). `country` is the mechanism the report was collected from, not the filer's domicile; core maps it to that mechanism's authority (`oam-fr`, `fca`), and a country the contract does not declare is counted as `undeclared_country` drift. `kind` is `annual`, or `half_year` for a report ending six months from the entity's most frequent annual period end (the index has no period start or report type). `basis` is null: the index does not state it |
 | `fundamentals` | `native_ref`, optional `report_id` | eight standard IFRS facts from one report |
 | `facts` | `native_ref`, `report_id`, `concepts` | selected numeric xBRL-JSON concepts from one report |
+| `document` | `native_ref`, `id` (the report's sha256, as `filings` lists it) | the filings concept's `read` (ADR 0040): the listed report's own xhtml (else its viewer page), streamed through core's document reader, which returns text and outline |
 
 The repository covers ESEF, UKSEF and some other reporting systems. It is
 incomplete, particularly where source authorities do not make reports

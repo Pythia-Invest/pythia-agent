@@ -1,4 +1,4 @@
-"""pythia_prices and pythia_filings: core reads of one concept from the first source that serves the subject.
+"""pythia_prices, pythia_filings and pythia_document: core reads of one concept from the sources that serve the subject.
 
 The first usable source in the investor's order is read; a named `source` reads only that one. Nothing falls back:
 a failure names the alternatives, and every result lists the sources skipped with their reasons.
@@ -11,8 +11,9 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from .agent_tools import (SOURCE, SUBJECT, choose, concept_sources, encode, failure, label, logger, plugins, run_tool,
-                          serving, source_key, unknown_source)
+from .agent_tools import (MAX_CHARS, SOURCE, SUBJECT, choose, concept_sources, encode, failure, label, logger, plugins,
+                          run_tool, serving, source_key, unknown_source)
+from .documents import PROPERTIES
 from .identity.concepts import FilingKind
 from .identity.page import Section
 from .identity.schemes import Level
@@ -64,6 +65,16 @@ FILINGS = {
         "limit": {"type": "integer", "minimum": 1, "maximum": 50},
         "source": SOURCE},
         "required": ["subject_id"], "additionalProperties": False},
+}
+DOCUMENT = {
+    "name": "pythia_document",
+    "description": "Read inside a filing: sections, search and citations. Reads a document pythia_filings lists "
+                   "(10-K, 20-F, 8-K, ESEF annual report) from its source instead of the web. Without section or "
+                   "query: the outline. With section: its text, bounded; pass continue_from as start for more. With "
+                   "query: the best-matching passages. Each carries a citation (section, offsets, link); cite it. "
+                   "Name a report by report_key (and id for one of several versions), any other filing by id.",
+    "parameters": {"type": "object", "properties": {"subject_id": SUBJECT, **PROPERTIES},
+                   "required": ["subject_id"], "additionalProperties": False},
 }
 PERIODS = ("1D", "5D", "1M", "6M", "YTD", "1Y", "5Y")
 INTERVALS = {"1d": {"kind": "day", "count": 1}, "1h": {"kind": "hour", "count": 1},
@@ -309,5 +320,23 @@ def filings(ctx: Any, arguments: dict, **context: Any) -> str:
            "alternatives": data.get("alternatives", []), "skipped": data.get("skipped", []),
            "issues": result.get("issues", [])}
     out["next"] = ("None of the listed filings match; a named source (source) may list others." if not matched else
-                   "Read a document through its url with web_extract; sec_ and esef_ provider tools give its figures.")
+                   "pythia_document reads a filing's outline, sections and passages (report_key or id); sec_ and "
+                   "esef_ provider tools give its figures.")
     return encode(out)
+
+
+# ---- pythia_document -----------------------------------------------------------------------------------------------
+
+READ_DOCUMENT = "pythia_filings_read"  # core's document read (hidden, in pythia-core)
+
+
+def document(ctx: Any, arguments: dict, **context: Any) -> str:
+    """A thin front end over core's document read: the next step, and a bound that fits the section asked for."""
+    result = run_tool(ctx, READ_DOCUMENT, arguments, context)
+    data = result.get("data")
+    if isinstance(data, dict) and "sections" in data:
+        result["next"] = ("Pass a section id to read it, or query to search; pass the document's id on later calls "
+                          "so they read it locally.")
+    elif isinstance(data, dict) and data.get("continue_from") is not None:
+        result["next"] = "The section goes on: pass continue_from as start to read the rest."
+    return encode(result, max(MAX_CHARS, int(arguments.get("max_chars") or 0) + 4_000))

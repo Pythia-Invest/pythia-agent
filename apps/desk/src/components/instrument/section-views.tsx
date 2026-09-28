@@ -2,9 +2,10 @@
 
 import type { Filings, Profile } from "@pythia/market-data/subject";
 import { Toggle, ToggleGroup } from "@pythia/ui";
-import { ExternalLink } from "lucide-react";
+import { BookOpen, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { groupReports, newestPerAuthority } from "./blocks";
+import { FilingReader, READABLE } from "./filing-reader";
 
 function address(value: Profile["legal_address"]) {
   if (!value) return null;
@@ -160,6 +161,7 @@ function PartialNote({ filings }: { filings: Filings }) {
  * filing authority, and a list of several kinds can show one kind. */
 export function FilingsView({ filings }: { filings: Filings }) {
   const [kind, setKind] = useState<string | null>(null);
+  const [reading, setReading] = useState<readonly Filing[] | null>(null);
   const names = filings.sources.map((item) => item.source);
   if (!filings.filings.length)
     return (
@@ -297,7 +299,20 @@ export function FilingsView({ filings }: { filings: Filings }) {
                       )}
                     </td>
                   ) : null}
-                  <td className="py-1.5 text-right">
+                  <td className="whitespace-nowrap py-1.5 text-right">
+                    {filings.subject_id &&
+                    variants.some(
+                      (item) => item.id && READABLE.has(item.format ?? ""),
+                    ) ? (
+                      <button
+                        type="button"
+                        onClick={() => setReading(variants)}
+                        aria-label={`Read ${original.form ?? "filing"} ${filing.period_end ?? ""}`.trim()}
+                        className="mr-2 inline-flex text-foreground-secondary outline-ring hover:text-foreground focus-visible:outline-2"
+                      >
+                        <BookOpen aria-hidden="true" className="size-3.5" />
+                      </button>
+                    ) : null}
                     {!grouped && filing.url ? (
                       <a
                         href={filing.url}
@@ -317,6 +332,14 @@ export function FilingsView({ filings }: { filings: Filings }) {
         </table>
       </div>
       <PartialNote filings={filings} />
+      {filings.subject_id ? (
+        <FilingReader
+          subjectId={filings.subject_id}
+          variants={reading}
+          labels={reading ? variantLabels(reading) : []}
+          onClose={() => setReading(null)}
+        />
+      ) : null}
       {filings.sources.length ? (
         <div className="flex flex-wrap gap-x-3">
           {filings.sources.map((item) => (

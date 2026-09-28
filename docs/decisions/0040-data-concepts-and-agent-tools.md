@@ -261,6 +261,56 @@ reports seen); a list of parallel keys per item (it depends on the rows in the
 window; the shared `report_period` does not); fuzzy grouping without a period
 (a later, calibrated Jev question); naming mechanisms by regulator.
 
+### Amendment (2026-09-28): the document reader (`filings.read`)
+
+**Context.** In the agent eval the model went to the web for Apple's 10-K risk
+factors and ASML's segment revenue (F3, U1, U2, M2): `pythia_filings` listed
+the documents and pointed at `web_extract`. ASML's 20-F is 24.9 MB of HTML and
+its ESEF report 47 MB, so neither fits a tool result or a body held in memory.
+
+**Ruling.**
+- `filings.read` is core's `filings-read` operation (`pythia_filings_read`,
+  hidden with the other Desk operations) and the agent's `pythia_document`. A
+  document is addressed by report identity: `report_key` and, for a report
+  with several versions, the version's filing `id`; a filing that is no
+  periodic report by its `id`. Core finds the filing in its own combined list,
+  so only a listed document is read, by the source that listed it. A report
+  with several versions answers `several_versions` with the list; none is
+  picked.
+- Without `section` or `query` the answer is the outline: section ids, titles
+  and sizes. `section` (with `start`) returns up to `max_chars` of it (default
+  12,000, at most 30,000) and `continue_from`; `query` returns the best
+  passages by BM25, a passage holding the whole query ranked up. Every section
+  and passage carries a citation: document id, form, filing date, section,
+  character offsets and the document URL at the section's anchor.
+- A source declares `read` in its contract. It owns the fetch (URL scope,
+  pacing, rate budget): it opens the document and passes the open response to
+  core (`platform.read_document`), which streams it through an HTML parser.
+  SEC reads the listed Archives document (gzip); filings.xbrl.org the listed
+  report's xhtml. At most 64 MB decoded and 4 million characters of text are
+  read; past either the read fails with `output_limit`, never truncated
+  silently. Measured 2026-09-28: Apple's 10-K 1.5 MB (206k characters, 0.1 s),
+  ASML's 20-F 24.9 MB (1.33 million, 0.7 s), ASML's ESEF report 47 MB (1.36
+  million, 10 s: filings.xbrl.org serves it uncompressed).
+- The outline comes from the document's own contents links (internal links
+  labelled by their text, in target order; page numbers, navigation and "Read
+  more" cross-references left out), else "Part" and "Item N." headings (the
+  last of each, since the contents repeats them), else fixed parts of about
+  20,000 characters. HTML, inline XBRL and ESEF xhtml are read; PDF comes with
+  the first PDF-only regulator (AMF).
+- Core keeps the extracted text and outline in `documents/` under its
+  profile data directory, one file per filing id, within 256 MB, the least
+  recently read going first. It is a disposable cache: losing it means reading
+  the document again. Both sources' contracts allow unlimited caching.
+
+**Rejected.** A body held in memory or passed through the tool result (the
+64 MB fetch rejected in #63); extraction in each plugin (every source would
+repeat it); a caller-supplied URL (a source fetches only what it listed);
+embeddings (keyword ranking finds the eval's passages); iXBRL text blocks as a
+second outline method (the contents links served Apple and ASML; added when a
+document needs it); raising every agent result's 16,000-character bound (only
+a section read asks for more, through `max_chars`).
+
 ### Live market data
 
 `live` is a `market_data` operation with one core-owned result, the

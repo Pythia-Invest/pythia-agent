@@ -28,6 +28,17 @@ def register_agent_tool(ctx, name, tool, description, check_fn=None, operations=
     return register(ctx, name, tool, description, check_fn, operations)
 
 
+def read_document(response, check=lambda: None):
+    """Core's document reader for a filings plugin's `read` operation (ADR 0040, the document reader amendment).
+
+    The plugin opens the filing document it may read (its URL scope, pacing and budget) and passes the open
+    response; core streams it, decoding gzip, and returns {"title", "text", "bytes", "sections", "outline_method"}.
+    `check` runs between chunks and may raise to stop. A document past core's caps raises RuntimeError
+    ("output_limit"); an unreadable body raises ValueError."""
+    from ..document_text import extract
+    return extract(response, check)
+
+
 def check_read(subject_id, native_ref, stated):
     """Check what one read of a subject's routed reference states about itself (core identity, ADR 0037).
 

@@ -20,7 +20,8 @@
       "level": "issuer",
       "via": "issuer",
       "operations": {
-        "list": "filings"
+        "list": "filings",
+        "read": "document"
       },
       "authorities": [
         "sec"
