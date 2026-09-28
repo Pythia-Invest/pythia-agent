@@ -108,7 +108,8 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
 # rather than a source, securities left without one, issuer links that look wrong, and every identifier or
 # relation the schema rejected (`skipped_*`, e.g. a ticker core's grammar refuses). Never a gate.
 ATTENTION = (
-    ("us_exchange_no_home_line", ("securities", "by_primary_rule"), "US primary: a US exchange line and no line in the ISIN's country"),
+    ("requested_in_eea_listed_outside", ("securities", "by_primary_rule"),
+     "primary asked: an EEA request beside a line outside the EEA"),
     ("securities_without_primary", ("schema",), "live securities without a primary listing"),
     ("issuer_split_lei_cik", ("flags",), "CIK-only issuers named like a LEI issuer (one company split in two?)"),
     ("cik_link_suspect", ("flags",), "CIK links whose SEC title shares no word with the LEI's names"),
