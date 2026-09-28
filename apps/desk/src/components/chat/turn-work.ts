@@ -60,11 +60,14 @@ export function turnAgents(
 
 /** Hermes's agent listing shortens each task to its first 60 characters. */
 export function sameTask(listed: string, task: string) {
-  if (!listed || !task) return false;
-  if (listed === task) return true;
+  // The listing also trims the task and folds its line breaks into spaces
+  // (hermes_state_common.py:_shape_preview).
+  const shaped = task.replaceAll(/[\r\n]/gu, " ").trim();
+  if (!listed || !shaped) return false;
+  if (listed === shaped) return true;
   const shortened = /^(.*?)(?:\.\.\.|…)$/su.exec(listed)?.[1];
   return Boolean(
-    shortened && shortened.length >= 20 && task.startsWith(shortened),
+    shortened && shortened.length >= 20 && shaped.startsWith(shortened),
   );
 }
 

@@ -123,7 +123,9 @@ export function AgentDetail({
         hasEarlier={query.hasNextPage}
         loadingEarlier={query.isFetchingNextPage}
         onLoadEarlier={() => query.fetchNextPage()}
-        streaming={!finished && agent.status === "running" && hasReply}
+        // Until its session ends the child may still be working, even when
+        // the parent's run ended and its live status is unknown.
+        streaming={!finished && hasReply}
         finalized={finished}
         turnStartedAt={0}
         approvalPending={false}

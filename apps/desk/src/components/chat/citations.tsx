@@ -209,9 +209,12 @@ export function Favicon({
 function CitationPill({ sources }: { sources: CitedSource[] }) {
   const pages = useContext(CitationPages);
   const [index, setIndex] = useState(0);
-  const source = sources[index] ?? (sources[0] as CitedSource);
+  const first = sources[0] as CitedSource;
+  const source = sources[index] ?? first;
   const site = host(source.href);
   const label = source.label || site;
+  // The pill always names the first source; stepping happens in the preview.
+  const firstLabel = first.label || host(first.href);
   const page = pages.get(pageKey(source.href));
   const more = sources.length - 1;
   const step = (by: number) =>
@@ -220,32 +223,23 @@ function CitationPill({ sources }: { sources: CitedSource[] }) {
     <PreviewCard.Root>
       <PreviewCard.Trigger
         className="motion-fast mx-0.5 inline-flex h-[1.125rem] max-w-44 items-center gap-1 rounded-pill bg-subtle px-1.5 align-[0.1em] font-sans text-foreground-secondary text-xs leading-none no-underline transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring data-popup-open:bg-interaction-hover data-popup-open:text-foreground"
-        aria-label={more ? `${label}, and ${more} more sources` : label}
+        aria-label={
+          more ? `${firstLabel}, and ${more} more sources` : firstLabel
+        }
         closeDelay={150}
         data-slot="citation"
         delay={100}
-        href={source.href}
+        href={first.href}
         rel="noreferrer"
         target="_blank"
       >
-        <Favicon className="size-3" href={source.href} />
-        {/* Every label shares one cell, so stepping never resizes the pill
-            and the preview anchored to it never moves. */}
-        <span className="grid min-w-0">
-          {sources.map((item, position) => (
-            <span
-              aria-hidden={position !== index}
-              className={cn(
-                "col-start-1 row-start-1 truncate",
-                position !== index && "invisible",
-              )}
-              key={`${item.href}:${position}`}
-            >
-              {item.label || host(item.href)}
-            </span>
-          ))}
-        </span>
-        {more ? <span className="numeric shrink-0">+{more}</span> : null}
+        <Favicon className="size-3" href={first.href} />
+        <span className="min-w-0 truncate">{firstLabel}</span>
+        {more ? (
+          <span className="numeric shrink-0 text-foreground-disabled">
+            +{more}
+          </span>
+        ) : null}
       </PreviewCard.Trigger>
       <PreviewCard.Portal>
         <PreviewCard.Positioner align="start" side="bottom">

@@ -31,6 +31,7 @@ type AssistantMessageProps = {
   onRespondToApproval: RespondToApproval;
   streaming: boolean;
   turnStartedAt: number;
+  /** False while an agent followed through its saved steps is still working. */
   finalized?: boolean;
   onInspectActivity?: (() => void) | undefined;
   /** The newest reply keeps its actions visible; earlier ones reveal on hover. */
@@ -118,9 +119,12 @@ function AssistantTurn({
   /** Work that ended where the user added guidance; never live, never the answer. */
   closed?: boolean;
 }) {
+  // An agent followed through its saved steps has no token stream: its text
+  // is commentary until it finishes, and its last turn stays live until then.
+  const stepwise = finalized === false;
   const turn = useMemo(
-    () => activityTurn(message, streaming || finalized === false),
-    [message, streaming, finalized],
+    () => activityTurn(message, streaming && !stepwise),
+    [message, streaming, stepwise],
   );
   // A turn Hermes reported complete is no longer live, even for the one render
   // in which its saved copy arrives before the stream state settles.
@@ -175,7 +179,7 @@ function AssistantTurn({
         <TurnActivity
           since={turnStartedAt}
           active={active}
-          answering={turn.prose.length > 0}
+          answering={!stepwise && turn.prose.length > 0}
           onInspect={onInspectActivity}
           duration={duration}
           runActive={streaming}

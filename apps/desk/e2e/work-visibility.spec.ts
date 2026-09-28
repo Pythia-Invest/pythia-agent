@@ -226,6 +226,43 @@ test("shows the latest native plan and inspects a running child without another 
     true,
   );
   await page.screenshot({ path: test.info().outputPath("agent.png") });
+  // Between saved steps the child is still working: its notes are not an
+  // answer, and the line stays live rather than saying it worked.
+  f.setAgentPage({
+    assignment: "Verify source coverage",
+    assignmentId: "child-assignment",
+    ended: false,
+    offset: 0,
+    more: false,
+    messages: [
+      {
+        id: "child-assignment",
+        role: "user",
+        parts: [{ type: "text", text: "Verify source coverage" }],
+      },
+      {
+        id: "child-message",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "I am checking the primary documentation." },
+          {
+            type: "dynamic-tool",
+            toolCallId: "child-tool",
+            toolName: "read_file",
+            input: { path: "coverage.md" },
+            state: "output-available",
+            output: "Synthetic coverage",
+          },
+        ],
+      },
+    ],
+  });
+  await expect(childActivity.getByRole("button").first()).toHaveText(
+    "Thinking",
+    { timeout: 10_000 },
+  );
+  await expect(childActivity).toHaveAttribute("data-state", "live");
+  await expect(detail.locator('[data-slot="assistant-prose"]')).toHaveCount(0);
   // A background completion still updates the selected child after its launch call finished.
   f.setAgentPage({
     assignment: "Verify source coverage",

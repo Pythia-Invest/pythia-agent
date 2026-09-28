@@ -109,8 +109,11 @@ This first version discovers and inspects direct children of the selected
 conversation; recursive descendants and compacted parent lineages are not
 reconstructed.
 Initial reads and relevant todo/delegation
-stream changes refresh the recent window; open lists or a selected agent view poll
-only that window every five seconds. Older pages are loaded on demand and are
+stream changes refresh the recent window; while the run or an agent is working,
+or the directory or an agent's conversation is open, only that window is polled
+every five seconds. While any agent's outcome is unconfirmed (status unknown),
+it is checked every 30 seconds instead: a background child's completion rarely
+reaches the parent's run stream, and polling stops once no agent is unconfirmed. Older pages are loaded on demand and are
 not rescanned by interval polling or ordinary live updates.
 The recent-window query cache retains up to 32 observed plan snapshots and 200
 agent/assignment records so work does not vanish when a recent-history window

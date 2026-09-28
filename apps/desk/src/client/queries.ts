@@ -54,7 +54,14 @@ export function useMessages(sessionId: string) {
   });
 }
 
-export function useWork(sessionId: string, revision: string, watch: boolean) {
+/**
+ * How closely to follow native work: "live" while something is visibly moving,
+ * "idle" while an agent's outcome is unconfirmed (a background child's
+ * completion rarely reaches the run stream), false otherwise.
+ */
+export type WorkWatch = "live" | "idle" | false;
+
+export function useWork(sessionId: string, revision: string, watch: WorkWatch) {
   const api = useDeskApi();
   const cache = useQueryClient();
   const previous = useRef(revision);
@@ -75,7 +82,13 @@ export function useWork(sessionId: string, revision: string, watch: boolean) {
         await api.work(sessionId, 0, signal),
       ),
     refetchInterval: (query) =>
-      watch ? (query.state.status === "error" ? 10_000 : 5_000) : false,
+      !watch
+        ? false
+        : query.state.status === "error"
+          ? 10_000
+          : watch === "live"
+            ? 5_000
+            : 30_000,
     refetchIntervalInBackground: false,
   });
   const earlier = useInfiniteQuery({

@@ -39,6 +39,7 @@ export function ChatWork({
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [atLatest, setAtLatest] = useState(true);
   const [agentsWorking, setAgentsWorking] = useState(false);
+  const [agentsUnconfirmed, setAgentsUnconfirmed] = useState(false);
   const [selected, setSelected] = useState<{
     agent: WorkAgent;
     position: ConversationPosition;
@@ -50,19 +51,25 @@ export function ChatWork({
     following: true,
   });
   const positions = useRef(new Map<string, ConversationPosition>());
-  // Watch native work while anything is moving: the run, its background
-  // agents, or an agent conversation someone is reading.
+  // Watch native work closely while anything is moving: the run, its
+  // agents, or a list or conversation someone is reading. An agent whose
+  // outcome is unconfirmed is checked on slowly until its session ends.
   const query = useWork(
     sessionId,
     workRevision(messages, busy),
-    busy || agentsWorking || agentsOpen || Boolean(selected),
+    busy || agentsWorking || agentsOpen || selected
+      ? "live"
+      : agentsUnconfirmed
+        ? "idle"
+        : false,
   );
   const state = useMemo(
     () => workState(query.data?.pages ?? [], messages, busy),
     [query.data, messages, busy],
   );
   useEffect(() => {
-    setAgentsWorking(state.agents.some((agent) => !agentFinished(agent)));
+    setAgentsWorking(state.agents.some((agent) => agent.status === "running"));
+    setAgentsUnconfirmed(state.agents.some((agent) => !agentFinished(agent)));
   }, [state.agents]);
   const agent =
     state.agents.find((a) => a.id === selected?.agent.id) ?? selected?.agent;

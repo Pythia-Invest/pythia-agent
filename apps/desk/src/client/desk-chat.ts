@@ -122,11 +122,15 @@ export class DeskChat {
             candidate.id === message.id
               ? {
                   ...candidate,
+                  // Hermes joins undelivered guidance with newlines
+                  // (agent_runtime_helpers.py); match whole pieces only, so a
+                  // delivered "stop" survives a pending "stop searching news".
                   parts: candidate.parts.filter(
                     (part) =>
                       part.type !== "data-steer" ||
                       !(
-                        part.data.text && pendingSteer.includes(part.data.text)
+                        part.data.text &&
+                        `\n${pendingSteer}\n`.includes(`\n${part.data.text}\n`)
                       ),
                   ),
                 }

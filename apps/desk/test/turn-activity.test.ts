@@ -10,6 +10,7 @@ import { readableQuery } from "@/components/chat/tool-text";
 import {
   formatDuration,
   liveStatus,
+  sameTask,
   turnAgents,
 } from "@/components/chat/turn-work";
 import type { ProcessStep } from "@/components/chat/turn-model";
@@ -102,6 +103,15 @@ describe("plain-language tool copy", () => {
     expect(
       toolCopy(toolView(tool("read_file", { path: "/w/NOTES.md" }))).done,
     ).toBe("Read NOTES.md");
+  });
+
+  it("matches Hermes's shortened, single-line task preview", () => {
+    const task =
+      "Research Apple Q3 revenue\n- segment split\n- guidance for the next quarter and margins";
+    const listed = `${task.replaceAll("\n", " ").slice(0, 60)}...`;
+    expect(sameTask(listed, task)).toBe(true);
+    expect(sameTask("Check MSFT: price", "Check MSFT:\nprice")).toBe(true);
+    expect(sameTask("Check MSFT: volume", "Check MSFT:\nprice")).toBe(false);
   });
 
   it("says what a delegation call does to research agents", () => {
