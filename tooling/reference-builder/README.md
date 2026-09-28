@@ -25,7 +25,7 @@ python3 tooling/reference-builder/run.py --help
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
 | Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
-| Snapshot and manifest | `schema.py`, `writer.py`, `manifest.py` | |
+| Snapshot, manifest and package | `schema.py`, `writer.py`, `manifest.py`, `package.py` | |
 
 `schema.py` is the only module that knows the table layout. The file is core's
 reference store (`runtime/managed/core/identity/sql/reference.sql`) with subject
@@ -251,9 +251,12 @@ baseline in the same change.
 ## Outputs
 
 `.local/reference-builder/out/` (git-ignored, override with `--out`) receives
-`reference-<YYYYMMDD>.sqlite3` and `manifest.json` (source URLs, retrieval
+`reference-<YYYYMMDD>.sqlite3`, `manifest.json` (source URLs, retrieval
 times and versions, row counts, audit counts, canary results and SHA-256
-checksums).
+checksums) and `package.json` (`package.py`). With `package.json`, the directory
+is a [reference package](../../docs/architecture/reference-package.md). Core
+reads only a package installed with `just reference-install`; development
+startup installs this one automatically.
 `.local/reference-builder/downloads/` (override with `--cache`) caches source
 files and API answers: OpenFIGI answers (in `openfigi-answers.sqlite3`) for 30
 days, GLEIF records and the SEC and MIC files for one day. `--sec-file` builds

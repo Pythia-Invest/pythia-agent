@@ -68,7 +68,8 @@ re-key once per release (Lifecycle A): on the first use of a reference build it
 has not applied, core re-points every `identity.sqlite3` row that names a
 subject (bindings, queue items with their dedupe key, verdicts, resolve misses)
 through `id_aliases`, following chains, in one
-transaction recorded against the release ID. A cited assertion that moved with
+transaction recorded against the installed reference package (build and
+checksum, so a same-day rebuild counts as a new release). A cited assertion that moved with
 its subject is cited by the evidence ID the release gives it. A re-key is the
 same subject under its current key, so it is not the re-pointing of a binding
 that the authority rule forbids. A subject the release neither holds nor
@@ -215,7 +216,7 @@ binding re-verified on page open; otherwise a provisional subject and a residual
 
 **Search is a local read** of the directory: no provider call, no identity
 write, no reconciliation. Core's `identity-search` builds the directory in
-memory (FTS5) from the newest reference file and ranks with one versioned,
+memory (FTS5) from the installed reference package and ranks with one versioned,
 gold-calibrated additive score (exact ticker or identifier, name match,
 notability from each security's source `rank`, primary and home line,
 penalties for OTC lines and derivatives); issuers compete by their best line.
