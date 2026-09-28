@@ -260,6 +260,10 @@ addressing (the full shape is in the ADR 0038 amendment):
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
   (`identity.validate_live_market`).
+- A subject kind outside the instrument hierarchy, such as a `market` (a perp),
+  is addressed as itself: `level` and `via` are both `market`, with a native
+  scope at level `market`. Core's curated table (`identity/markets.json`)
+  supplies each plugin's reference ([ADR 0043](../decisions/0043-live-market-view.md)).
 - A filings source may accept `forms` in its filings operation's schema; core
   then passes the requested forms so the source can search beyond its most
   recent filings.

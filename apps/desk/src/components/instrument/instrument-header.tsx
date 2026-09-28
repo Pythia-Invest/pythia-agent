@@ -4,6 +4,7 @@ import { KIND_LABELS } from "@pythia/market-data/search-ui";
 import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
 import { Menu, Skeleton } from "@pythia/ui";
 import { Check, ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { instrumentHref } from "./instrument-href";
 import { listingGroups, listingLabel } from "./listing-groups";
@@ -65,6 +66,7 @@ export function InstrumentHeader({
       {issuer ? (
         <p className="text-foreground-secondary text-xs">Issued by {issuer}</p>
       ) : null}
+      <DerivativeLinks page={page} />
       {identifiers.length ? (
         <dl
           data-slot="instrument-identifiers"
@@ -202,5 +204,36 @@ export function InstrumentPageSkeleton() {
         <Skeleton shape="block" className="h-48" />
       </div>
     </div>
+  );
+}
+
+/** A perp's underlying, and on the underlying's page its perps (`derivative_on`, related and never folded):
+ * each is its own subject and page. */
+function DerivativeLinks({ page }: { page: SubjectPage }) {
+  const links = page.related.filter((item) => item.type === "derivative_on");
+  if (!links.length) return null;
+  return (
+    <ul
+      aria-label="Related markets"
+      data-slot="instrument-related"
+      className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
+    >
+      {links.map((item) => (
+        <li
+          key={`${item.direction}:${item.id}`}
+          className="flex min-w-0 gap-1.5"
+        >
+          <span className="text-foreground-secondary">
+            {item.direction === "to" ? "Underlying" : "Market"}
+          </span>
+          <Link
+            href={instrumentHref(item.id)}
+            className="truncate text-foreground underline-offset-2 outline-ring hover:underline focus-visible:outline-2"
+          >
+            {item.name ?? item.id}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -96,6 +96,10 @@ precision has been measured.
   per source. Until then, a new source that has not signed off ships disabled.
   The code gate must land before the first source outside the list above is
   merged.
+  A source that ships opt-in (disabled until the investor enables it) and is
+  display-only (it never confirms or creates identity) complies without the code
+  gate, as Hyperliquid's live view does
+  ([ADR 0043](0043-live-market-view.md)).
 
 ## Rejected alternatives
 

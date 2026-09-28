@@ -1,12 +1,14 @@
 """Core identity operations over a hand-written reference: local search, page sections, resolve decisions."""
 import contextlib
+import copy
+import json
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
-from pythia_identity_fixture import page, search, store  # noqa: E402
+from pythia_identity_fixture import markets, page, search, store  # noqa: E402
 
 ASML = "listing:isin:NL0010273215:XAMS:EUR"
 BTC = "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
@@ -444,3 +446,60 @@ class ReviewFixesTest(Fixture):
         (directory / "identity.sqlite3").write_bytes(b"not a database")
         self.assertEqual(store.IdentityStore(directory).bindings([ASML]), [])
         self.assertEqual(len(list(directory.glob("identity.unreadable-*.sqlite3"))), 1)
+
+
+class MarketPages(Fixture):
+    """A curated perp market composes its own page with a live section; it never joins its underlying's page."""
+
+    PERP = "market:pythia:hyperliquid-btc-perp"
+
+    def setUp(self):
+        super().setUp()
+        core = Path(page.__file__).parent
+        self.table = markets.curated()
+        contract = json.loads((core.parents[1] / "plugins/hyperliquid/contract.json").read_text())
+        self.hyperliquid = page.PluginInfo(key="pythia-hyperliquid", manifest=identity.validate_manifest(contract),
+                                           operations={"live_market": "pythia_hyperliquid_live_market"})
+
+    def test_the_perp_page_is_one_live_section_addressed_by_the_curated_table(self):
+        subject = markets.load_market(self.table, self.PERP)
+        self.assertEqual(subject["view"]["related"][0], {"id": BTC, "type": "derivative_on", "direction": "to",
+                                                         "kind": "security", "name": "Bitcoin"})
+        sections = page.compose(subject, [self.hyperliquid, plugin("yahoo"), plugin("coingecko")],
+                                stored=lambda *_: None, coins=lambda *_: None, queue=[])
+        self.assertEqual([section["section"] for section in sections], ["live"])
+        live = sections[0]
+        self.assertEqual((live["status"], live["binding_status"]), ("ready", "confirmed"))
+        self.assertEqual(live["request"], {"plugin": "pythia-hyperliquid", "operation": "live_market", "arguments": {
+            "native_ref": {"provider": "hyperliquid", "native_id": "BTC", "native_scope": "perp"},
+            "subject_id": self.PERP}})
+        disabled = page.PluginInfo(key="pythia-hyperliquid", manifest=self.hyperliquid.manifest, enabled=False)
+        self.assertEqual(page.compose(subject, [disabled], stored=lambda *_: None, coins=lambda *_: None,
+                                      queue=[])[0]["status"], "disabled")
+        self.assertIsNone(markets.load_market(self.table, "market:pythia:unknown"))
+
+    def test_every_underlying_is_a_canonical_asset_subject(self):
+        """A re-key of the curated crypto assets must not leave a perp pointing at a dead subject."""
+        core = Path(page.__file__).parent
+        canonical = {f"security:caip19:{asset['caip19']}"
+                     for asset in json.loads((core / "canonical_assets.json").read_text())["assets"]}
+        for entry in self.table.values():
+            with self.subTest(market=entry["id"]):
+                self.assertIn(entry["derivative_on"]["id"], canonical)
+        self.assertIn(BTC, canonical)
+
+    def test_the_underlying_links_to_its_perp_but_composes_without_it(self):
+        _subject, sections = self.compose(BTC, [self.hyperliquid, plugin("coingecko")])
+        self.assertNotIn("live", sections)
+        self.assertEqual(markets.markets_on(self.table, [BTC]), [{"id": self.PERP, "type": "derivative_on",
+                                                               "direction": "from", "kind": "market",
+                                                               "name": "BTC perp · Hyperliquid"}])
+
+    def test_a_market_is_addressed_only_as_itself(self):
+        contract = copy.deepcopy(CONTRACTS["yahoo"])
+        contract["concepts"] = {"market_data": {"level": "market", "via": "listing", "operations": {"live": "live"}}}
+        with self.assertRaisesRegex(identity.ManifestError, r"^concepts\.market_data\.via"):
+            identity.validate_manifest(contract)
+        contract["concepts"] = {"profile": {"level": "market", "via": "market", "operations": {"fields": "p"}}}
+        with self.assertRaisesRegex(identity.ManifestError, r"^concepts\.profile\.level"):
+            identity.validate_manifest(contract)

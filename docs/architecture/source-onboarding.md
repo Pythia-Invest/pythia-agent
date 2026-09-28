@@ -46,7 +46,10 @@ subject or relation without review. A source that has not signed off:
 
 Until core records each source's trust status, a new source that has not signed
 off ships disabled. That code gate must land before the first source outside
-the pre-standard list is merged. The sources in use before this standard are
+the pre-standard list is merged, except for a source that ships opt-in and is
+display-only: it never confirms or creates identity, so it needs no gate
+([ADR 0042](../decisions/0042-source-onboarding-standard.md),
+[ADR 0043](../decisions/0043-live-market-view.md)). The sources in use before this standard are
 listed in ADR 0042. They keep their current role while they are onboarded in
 turn, starting with FIRDS.
 

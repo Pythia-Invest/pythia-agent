@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Callable, Mapping
 
-from .schemes import Level
+from .schemes import Kind, Level
 
 
 class Concept(StrEnum):
@@ -122,6 +122,7 @@ BASIS = {"basis": some_of("as_reported", "standardized")}
 class ConceptSpec:
     operations: Mapping[str, Mapping[str, Check]]  # operation -> its closed quality vocabulary
     levels: frozenset[Level]                        # the levels the concept's data may be about
+    kinds: frozenset[Kind] = frozenset()            # subject kinds outside the hierarchy it may be about (no `via`)
     default_order: tuple[str, ...] = ()             # providers, free before paid; used after the investor's order
     combine: Combine | None = None
 
@@ -131,7 +132,7 @@ REGISTRY: dict[Concept, ConceptSpec] = {
         operations={"quote": PRICE_TIMING, "intraday": {**PRICE_TIMING, **HISTORY},
                     "daily": {"adjustment": some_of(*ADJUSTMENT), "feed_note": text(80), **HISTORY},
                     "live": LIVE},
-        levels=frozenset({Level.LISTING, Level.COMPOSITE, Level.SECURITY}),
+        levels=frozenset({Level.LISTING, Level.COMPOSITE, Level.SECURITY}), kinds=frozenset({Kind.MARKET}),
         default_order=("yahoo", "coingecko", "eodhd", "coinmarketcap")),
     Concept.PROFILE: ConceptSpec(operations={"fields": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY}),
                                  default_order=("gleif",)),
