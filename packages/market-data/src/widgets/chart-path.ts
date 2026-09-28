@@ -201,6 +201,7 @@ export function periodPath(
   const detail = `${seriesSemantics(series)} · ${result.coverage.status} coverage`;
   const bar = intervalMs(series);
   const dates = series.time_anchor === "session_date";
+  const daily = series.interval.kind === "day";
   if (period === "1D" && !continuous) return oneDay(result, quote, all, detail);
   const before = (list: Point[], start: number) =>
     list.filter((p) => p.time < start).at(-1);
@@ -211,7 +212,7 @@ export function periodPath(
           label: `Close before this period (${new Date(prior.time).toISOString().slice(0, 10)})`,
         }
       : { value: first.value, label: "First observation available" };
-  if (continuous && !dates) {
+  if (continuous && !daily) {
     // Continuous markets have no closed time: elapsed time, rolling window.
     const days = period === "1D" ? 1 : period === "5D" ? 5 : 30;
     const window = { start: now - days * DAY, end: now };
@@ -230,7 +231,7 @@ export function periodPath(
     };
   }
   let groups: Point[][];
-  if (dates) {
+  if (daily) {
     const start = periodStart(period, now);
     groups = all
       .filter((p) => start === undefined || p.time >= start)
@@ -250,13 +251,13 @@ export function periodPath(
   const first = drawn[0];
   const last = drawn.at(-1);
   if (!first || !last) return { message: "No observations in this period." };
-  const step = dates ? (series.interval.count === 7 ? 7 * DAY : DAY) : bar;
+  const step = daily ? series.interval.count * DAY : bar;
   // Weekly bars are consecutive; daily bars skip closed days.
   const gaps = compressed(groups, step);
   return {
     path: {
-      ...bars(drawn, dates ? 0 : bar),
-      label: `${detail} · ${dates ? "Session dates" : "Regular sessions"}; closed time between sessions omitted`,
+      ...bars(drawn, daily ? 0 : bar),
+      label: `${detail} · ${daily ? "Daily or weekly bars" : "Regular sessions"}; closed time between sessions omitted`,
       session: { start: first.time, end: last.time + step },
       ...(gaps.length ? { sessionGaps: gaps } : {}),
       ...(dates ? { dates: true } : {}),
