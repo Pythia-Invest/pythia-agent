@@ -105,11 +105,13 @@ class QueueItem:
 
     @property
     def key(self) -> str:
-        """Dedupe key: at most one open item per question, however often ingest re-asks it."""
-        ref = self.provider_ref
-        parts = (self.kind, self.reason, ",".join(sorted(self.subject_ids)), self.scheme or "",
-                 f"{ref.provider}.{ref.native_scope}:{ref.native_id}" if ref else "")
-        return "|".join(parts)
+        return question_key(self.kind, self.reason, self.subject_ids, self.scheme, self.provider_ref)
+
+
+def question_key(kind: str, reason: str, subject_ids: Iterable[str], scheme: str | None, ref: ProviderRef | None) -> str:
+    """Dedupe key: at most one open item per question, however often ingest re-asks it."""
+    return "|".join((kind, reason, ",".join(sorted(subject_ids)), scheme or "",
+                     f"{ref.provider}.{ref.native_scope}:{ref.native_id}" if ref else ""))
 
 
 @dataclass(frozen=True, slots=True)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Iterable
+from typing import Iterable, Mapping
 
 RANKING_VERSION = "ranking@1"
 W = dict(exact_ticker=6.0, exact_id=20.0, name_exact=3.0, name_prefix=1.5, bm25=0.15, size=6.0, size_missing=0.3,
@@ -16,6 +16,10 @@ W = dict(exact_ticker=6.0, exact_id=20.0, name_exact=3.0, name_prefix=1.5, bm25=
 LEGAL = set("nv n v se ag inc corp corporation plc sa s a spa asa ab oyj the co company ltd limited holding holdings "
             "aktiengesellschaft aktiebolag aktiebolaget koninklijke group groep kgaa ohg abp inhaber aktien o".split())
 EEA = frozenset("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split())
+# The last tie-break among otherwise equal lines of an instrument (after regulated market, home, primary and
+# price): the largest EEA equity markets (as the reference builder's primary fallback), then Tradegate,
+# Frankfurt and the German regional floors, then every other venue; then the listing ID.
+VENUE_ORDER = ("XETR", "XPAR", "XAMS", "XMIL", "TGAT", "XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER")
 
 
 def logrank(rank: int | None) -> float | None:
@@ -36,9 +40,11 @@ def tnorm(text: str | None) -> str:
 
 
 def score_lines(lines: Iterable[dict], query: str, prefer: str, *, exact: str | None = None,
-                hint: set[str] | None = None, id_rows: bool = False,
-                fuzzy: bool = False) -> list[tuple[float, dict, tuple]]:
-    """Each line's additive score and its representative key: (score, line, key)."""
+                hint: set[str] | None = None, id_rows: bool = False, fuzzy: bool = False,
+                priced: Mapping[str, frozenset[str]] = {}) -> list[tuple[float, dict, tuple]]:
+    """Each line's additive score and its representative key: (score, line, key). `priced` maps the operating
+    MICs where an installed plugin can address a quote from the line's ticker to the asset classes it covers
+    (empty: any)."""
     wanted_core, wanted = core_name(query), norm(query)
     out = []
     for line in lines:
@@ -66,11 +72,17 @@ def score_lines(lines: Iterable[dict], query: str, prefer: str, *, exact: str | 
             score += W["fuzzy"]
         # The representative listing of an instrument: lexicographic, not additive. A listing the query names
         # first (its venue, or its exact ticker unless the query is also the name: "relx", "ing"), then
-        # the preferred region, then the primary market.
+        # the preferred region, then a regulated listing over open-market trading (ARM's Nasdaq line over its
+        # Stuttgart open-market line), then the home and primary market, then a line an installed plugin can
+        # price, then a fixed venue order (VENUE_ORDER) and the listing ID, so the pick never depends on hit order.
         preferred = (prefer == "EU" and line["country"] in EEA) or (prefer == "US" and line["country"] == "US"
                                                                      and not line["otc"])
-        key = (int(venue_hit), int(exact_hit and not named), int(preferred), -line["fus"], -line["deriv"], -line["otc"],
-               line["home"], line["prim"], -line["dr"], line["size"] or 0)
+        classes = priced.get(line["mic"] or "")
+        priceable = classes is not None and (not classes or ("crypto" if line["crypto"] else "equity") in classes)
+        venue = -VENUE_ORDER.index(line["mic"]) if line["mic"] in VENUE_ORDER else -len(VENUE_ORDER)
+        key = (int(venue_hit), int(exact_hit and not named), int(preferred), line["reg"], -line["fus"], -line["deriv"],
+               -line["otc"], line["home"], line["prim"], int(priceable), -line["dr"], line["size"] or 0, venue,
+               line["listing"])
         out.append((score, line, key))
     return out
 

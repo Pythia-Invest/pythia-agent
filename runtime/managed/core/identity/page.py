@@ -25,7 +25,7 @@ from .model import Binding, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
 from .schemes import CANONICAL_ASSETS_RULE, Level, provisional_id
 from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
-from .vocabulary import KIND_OF_RECORD, InstrumentKind, VerdictRelation
+from .vocabulary import KIND_OF_RECORD, AssetClass, InstrumentKind, VerdictRelation
 
 
 
@@ -113,9 +113,10 @@ def derive(info: PluginInfo, level: Level, subject: dict, coins: Callable[[str, 
     for scope in manifest.native:
         if scope.level is not level or (scope.asset_classes and subject["asset_class"] not in scope.asset_classes):
             continue
-        security = subject["ids"].get(Level.SECURITY) or ""
-        if level is Level.SECURITY and subject["asset_class"] == "crypto" and security.startswith("security:caip19:"):
-            native = coins(manifest.provider, security.removeprefix("security:caip19:"))  # the canonical deployment
+        if level is Level.SECURITY and subject["asset_class"] == "crypto":
+            security = subject["ids"].get(Level.SECURITY) or ""
+            native = security.startswith("security:caip19:") and coins(  # by the asset's canonical deployment
+                manifest.provider, security.removeprefix("security:caip19:"))
             if native:
                 return ProviderRef(manifest.provider, native, scope.native_scope), CANONICAL_ASSETS_RULE
         accepted = manifest.schemes.get(level, ())
@@ -124,8 +125,30 @@ def derive(info: PluginInfo, level: Level, subject: dict, coins: Callable[[str, 
         if level is Level.LISTING and listing is not None and listing["ticker"] and listing["mic"]:
             suffix = manifest.mic_table.get(listing["operating_mic"] or listing["mic"])
             if suffix is not None:
-                return ProviderRef(manifest.provider, listing["ticker"] + suffix, scope.native_scope), "mic_table@1"
+                # A provider symbol has no space: the venue's class separator (`VOLV B`) becomes `-` (`VOLV-B.ST`).
+                symbol = listing["ticker"].replace(" ", "-") + suffix
+                return ProviderRef(manifest.provider, symbol, scope.native_scope), "mic_table@2"
     return None
+
+
+def priced_venues(plugins: list[PluginInfo]) -> dict[str, frozenset[AssetClass]]:
+    """Operating MICs where a usable plugin addresses a quote from the listing's ticker (its MIC table), with the
+    asset classes its listing scope covers (empty: any), the same test `derive` applies.
+
+    Search prefers such a line among an instrument's non-home, non-primary lines, so the page it opens can
+    show a price."""
+    venues: dict[str, frozenset[AssetClass]] = {}
+    for info in plugins:
+        served = serving(info.manifest, Section.QUOTE)
+        if not (info.enabled and not info.missing and served is not None and served[0].via is Level.LISTING):
+            continue
+        for scope in info.manifest.native:
+            if scope.level is Level.LISTING:
+                for mic in info.manifest.mic_table:
+                    known = venues.get(mic)
+                    wanted = frozenset(scope.asset_classes)
+                    venues[mic] = frozenset() if known == frozenset() or not wanted else (known or frozenset()) | wanted
+    return venues
 
 
 def resolve_input(info: PluginInfo, subject: dict) -> dict[str, str]:

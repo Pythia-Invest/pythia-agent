@@ -56,7 +56,7 @@ def read(request, series, mode, raw):
     result['selection']['reason'] = 'pinned'
     result['provenance'] = {'provider': 'coingecko', 'native_ref': series['provider_ref'], 'adapter_version': '1',
                             'retrieved_at': result['retrieved_at'], 'source_time': None, 'revision_vintage': None,
-                            'mapping_revision': None, 'source_detail': {'namespace': 'coingecko', 'values': {'price_basis': 'source_aggregate'}}}
+                            'source_detail': {'namespace': 'coingecko', 'values': {'price_basis': 'source_aggregate'}}}
     data = raw['data']
     if mode == 'latest':
         item = data.get(series['provider_ref']['native_id'], {}) if type(data) is dict else None
