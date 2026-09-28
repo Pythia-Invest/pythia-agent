@@ -15,9 +15,9 @@ A read names what it wants in one of two ways:
   the subject's quote and chart now: a local read of the reference file,
   `identity.sqlite3` and the installed contracts, once per subject per request.
   These are confirmed bindings and addresses core derives from open identifiers,
-  in core's source order. A plugin that is disabled, needs configuration, is
-  contradicted or still needs a resolve contributes none. The investor's saved
-  source preferences come first; core's order follows. With no reference data,
+  in core's one source order (ADR 0040). A plugin that is disabled, needs
+  configuration, is contradicted or still needs a resolve contributes none. The
+  first of them with a compatible series serves. With no reference data,
   an unknown subject, core not loaded or no serving plugin, the read reports
   `unresolved_identity`, says which, and calls no provider. The agent then inspects the
   subject (`pythia_identity_subject`) or asks a plugin to resolve it
@@ -25,8 +25,7 @@ A read names what it wants in one of two ways:
 - An **explicit provider reference** (`provider_ref`). It reads exactly that
   source. Pinned `source` views read the retained series descriptor.
 
-A subject read's series carries the requested subject. Scoped source preferences may name an `asset_class` (`equity` or
-`crypto`) taken from core's subject.
+A subject read's series carries the requested subject.
 
 This feature cannot save, override or repair an association. Those are core
 decisions: resolve answers, the review queue and its resolvers.
@@ -34,24 +33,17 @@ decisions: resolve answers, the review queue and its resolvers.
 ## Retired state
 
 Before ADR 0037 this feature kept provider mappings and source preferences in
-its own `identity.sqlite3` (ADR 0012). On the first start of this version the
-backend copies the source preferences into `preferences.sqlite3` and renames
-the old file `identity-retired.sqlite3` in the same private data directory:
+its own `identity.sqlite3` (ADR 0012), and later its source orders in
+`preferences.sqlite3`. Pythia now has one source order, core's `source_order`
+setting (ADR 0040), so neither file applies. On the first start of this version
+the backend renames each file that exists to `identity-retired.sqlite3` or
+`preferences-retired.sqlite3` in the same private data directory, never
+overwriting an earlier one, and logs a warning in the Hermes log naming the
+orders it held. Nothing is copied into `settings.json` and nothing is deleted;
+provider mappings, evidence and overrides are not migrated either. Core derives
+or resolves every address again from open identifiers.
 
-- Global source orders are copied as they are.
-- A scoped preference for the retired subject kinds becomes an `asset_class`
-  scope: `crypto` to `crypto`; `listing` and `instrument` to `equity`, the
-  `listing` rule winning when both collapse onto one scope. `company`-scoped
-  preferences never applied to a price read and are dropped (and counted).
-- Provider mappings, evidence and overrides are not migrated. Core derives or
-  resolves every address again from open identifiers.
-
-The file is renamed only after the copy commits. If the copy fails (a locked
-or unreadable file), the file stays where it is and the next start retries; two
-processes starting together copy idempotently and one renames. Nothing is
-deleted. The retired file stays for inspection, and a warning in the
-Hermes log reports how many choices were copied, how many were shadowed and how
-many mappings were left behind. A retained request or widget that still names a
+A retained request or widget that still names a
 retired subject (`instrument:…`, `company:…`, `crypto:…`) fails validation as an
 invalid request and shows its error. It is not rewritten or dropped. Search the
 investment again to get its subject id.

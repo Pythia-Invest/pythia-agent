@@ -53,8 +53,8 @@ remain subject to their own licenses and notices.
 
 Pythia's financial interfaces separate canonical investment identity from source
 series. Connected native provider capabilities will serve shared prices/history
-with inspectable provenance, timing and semantics. Preferred views follow eligible
-source preferences; pinned series and retained research preserve their intent.
+with inspectable provenance, timing and semantics. Preferred views follow the
+investor's one source order; pinned series and retained research preserve their intent.
 The backend foundation is available first; concrete shared connectors and reusable
 Desk widgets are separate increments. See [market data](architecture/market-data.md).
 

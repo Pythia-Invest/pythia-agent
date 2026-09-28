@@ -228,7 +228,6 @@ export interface Selection {
     | "disabled"
     | "unconfigured"
     | "unavailable";
-  preference_revision: number | null;
   alternatives: string[];
 }
 export interface Coverage {

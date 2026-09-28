@@ -126,7 +126,7 @@ DEFS = {
                        "retrieved_at": INSTANT, "source_time": nullable(INSTANT), "revision_vintage": nullable(TEXT),
                        "source_detail": nullable(ref("source_detail"))}),
     "selection": obj({"view": ref("view"), "reason": enum("pinned", "preference", "unresolved", "incompatible", "disabled", "unconfigured", "unavailable"),
-                      "preference_revision": nullable(POSITIVE), "alternatives": array(ID)}),
+                      "alternatives": array(ID)}),
     "coverage": obj({"status": enum("complete", "partial", "unknown"), "gaps": array(ref("window")),
                      "truncated": {"type": "boolean"}, "continuation": nullable(TEXT)}),
     "freshness": obj({"status": enum("fresh", "stale", "unknown"), "as_of": nullable(INSTANT),

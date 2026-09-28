@@ -25,7 +25,7 @@ def envelope(data, issues=()):
 
 def base(request, issues=()):
     return {'schema_version': 1, 'outcome': 'error', 'request': request, 'series': None, 'observations': [],
-        'selection': {'view': request['view'], 'reason': 'unavailable', 'preference_revision': None, 'alternatives': []}, 'provenance': None,
+        'selection': {'view': request['view'], 'reason': 'unavailable', 'alternatives': []}, 'provenance': None,
         'retrieved_at': now(), 'returned_window': {'start': None, 'end': None}, 'coverage': {'status': 'unknown', 'gaps': [], 'truncated': False, 'continuation': None},
         'freshness': {'status': 'unknown', 'as_of': None, 'basis': 'unknown', 'market_data_type': 'unknown'}, 'requirements_satisfied': False, 'issues': list(issues)}
 
