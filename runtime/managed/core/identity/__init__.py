@@ -22,7 +22,8 @@ from .model import (
     Subject, Validity, evidence_id,
 )
 from .resolution import (
-    QueueItem, QueueItemKind, QueueReason, QueueState, ResolverKind, Verdict, VerdictOutcome, contradicts, decide,
+    QueueItem, QueueItemKind, QueueReason, QueueState, ResolverKind, Verdict, VerdictOutcome, contradicts, corroborates,
+    decide,
     guarded,
 )
 from .schemes import (

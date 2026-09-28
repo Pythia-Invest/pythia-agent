@@ -88,6 +88,7 @@ authority.
 | T0 identifier | `source_asserted`, `snapshot` | Yes |
 | T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`) | Yes |
 | T3 model verdict | `model_confirmed` at or above the threshold; `model_suggested` below | Only `model_confirmed` |
+| T3 agent answer | `agent_confirmed` (the Hermes agent) | Provisionally |
 | T4 attestation | `user_attested`, `curated` | Yes |
 
 A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
@@ -110,15 +111,57 @@ A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
    evidence of an end sets `valid_to`.
 
 Rules give `rule_confirmed`, the user gives `user_attested` and must cite the
-Desk action behind it, and the Hermes agent or a resolver plugin (such as Jev,
-off by default) give `model_*` verdicts. The agent cannot cite a user action, so
-it cannot attest.
+Desk action behind it, a resolver plugin (such as Jev, off by default) gives
+calibrated `model_*` verdicts, and the Hermes agent gives `agent_confirmed`. The
+agent cannot cite a user action, so it cannot attest.
 
 **Resolution queue.** Core owns one queue of residuals (records the join could
 not place) and conflicts (contradicting evidence). Each item names the plugins
 involved and has a dedupe key, so re-ingest never duplicates an open question.
 Manual resolution is allowed and never required; resolution never runs on the
 search or page path.
+
+**Working the queue.** Core exposes two operations, which are also native agent
+tools: `identity-queue` lists open items (filtered by subject, plugin or kind),
+on request apart from them the items only the agent answered (no longer open;
+they route provisionally until the user confirms or overrides them), or reads
+one item in full with the
+provider record, candidates, cited evidence and every verdict so far;
+`identity-verdict` answers one item. The transport decides the resolver, never
+an argument: a Desk HTTP call is the user (`user_attested`, citing that Desk
+action), a model tool call is the Hermes agent. An agent answer does not rest on
+the model's self-stated confidence: it is `agent_confirmed`, its own tier, which
+confirms provisionally and records the digest of the item view it answered. A
+user verdict on the same item, or stronger identifier evidence from a rule or
+the join, supersedes it and may re-point or withdraw its binding; every other
+confirmed binding is never re-pointed. Every verdict goes through `decide` and
+is recorded with its outcome; a confirmed one writes its binding, citing the
+verdict, in the same transaction. "Not a match" (`unrelated`, `none`) is refused
+when the record's own identifier at the question's level equals the candidate's
+T0 evidence (for a listing, its FIGI, or its security's ISIN on the same venue),
+so an identifier-backed contradiction stays open; an issuer LEI alone does not
+block it. A dismissal holds for the evidence
+it was given: re-asking the question with different identifier evidence reopens
+it. A question without a provider record takes no verdict until its answer has
+an effect. The rules resolver re-asks the join (`resolve_answer@1`) for open
+items with the evidence the device has now: after each `identity-resolve` for
+that subject's items, and for every open item on the first write after the
+reference build changed. It runs inside write operations only, with no
+scheduler, and nothing triggers the agent: it works the queue when asked. While
+a plugin has an open conflict for a subject, its section shows the conflict and
+a ready plugin serves the section instead. The instrument page shows no queue
+note; the Desk lists issues on one generic page, Settings → Repairs (modelled on
+Home Assistant's Repairs), outside the main navigation and counted in Settings
+only while issues are open. It uses the back-office table (docs/design.md): each
+question is a row (kind, instrument, provider, status, created, resolved) whose
+context shows the provider record beside our instrument and the evidence, and
+whose actions record the user's verdict with an optional note (`rationale`).
+The agent's answers and settled questions are reached through the Status filter
+(`identity-queue` with `answered` and `settled`).
+Rejected: attesting through an
+argument (the agent could supply it), a confidence threshold on the agent's own
+number (uncalibrated), a separate agent-only path (two write paths to audit),
+and a background drain (events and jobs are undecided).
 
 **Stores.** Two embedded SQLite files in portable SQL, reached through a thin
 store module: `reference.sqlite3` (open reference data, built on the device and

@@ -1,5 +1,12 @@
 export { Avatar, type AvatarProps, type AvatarSize } from "./avatar";
 export { Card, type CardProps, type CardVariant } from "./card";
+export {
+  DataTable,
+  type DataTableColumn,
+  type DataTableContextItem,
+  type DataTableFilter,
+  type DataTableProps,
+} from "./data-table";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 export {
   ScrollArea,

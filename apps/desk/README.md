@@ -190,6 +190,19 @@ header. Users may select another complete native plugin top bar, or
 Invalid or unavailable selections retain the core header and navigation actions
 and say so.
 
+`/settings/repairs` (Settings → Repairs, not in the main navigation) lists the
+issues Pythia could not settle on its own, modelled on Home Assistant's Repairs.
+Rules and the agent normally fix them, so the Settings tab shows a count only
+while issues are open. The page uses the back-office `DataTable` and
+`ActionDialog` from `@pythia/ui`. An issue is generic (kind, title, description,
+subject, plugin, times, status); a kind (`components/repairs/`) only supplies a
+row's context and actions. Today the only kind is an identity question from
+core's `identity-queue`: its context shows the provider's record beside the
+instrument and the evidence, and "Match" / "Not a match" (or "Confirm" /
+"Override" for an agent's provisional answer, whose badge reads "Agent: match"
+or "Agent: not a match") send `identity-verdict` with an optional note. Answered and settled questions are shown through the
+Status filter.
+
 `/instrument/[subject]` is one subject's page (URL-encoded subject id). The
 shell routes `pythia:open-subject` window events there. The page renders core's
 local `pythia`/`identity-subject` composition at once, then loads each section

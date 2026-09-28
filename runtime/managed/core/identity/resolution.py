@@ -15,7 +15,7 @@ from typing import Iterable, Sequence
 
 from .claims import DIGEST, IdentifierValue
 from .model import IdentifierAssertion, Provenance, ProviderRef, _coerce, _require
-from .schemes import INSTANT, NAMESPACE, SINGLE_VALUED, Level, Scheme, subject_level
+from .schemes import INSTANT, NAMESPACE, SCHEME_LEVEL, SINGLE_VALUED, Level, Scheme, subject_level
 from .vocabulary import Authority, EvidenceTier, IdentifierRole, InstrumentKind, VerdictRelation
 
 
@@ -49,7 +49,7 @@ class QueueState(StrEnum):
 
 class ResolverKind(StrEnum):
     RULES = "rules"    # built-in deterministic rules shipped with core or plugin updates
-    AGENT = "agent"    # the Hermes agent, the only hard prerequisite
+    AGENT = "agent"    # the Hermes agent, the only hard prerequisite; its answers are provisional
     PLUGIN = "plugin"  # a resolver plugin declared in its manifest, e.g. Jev (optional, off by default)
     USER = "user"      # the user resolving by hand, if they choose to
 
@@ -132,8 +132,10 @@ class Verdict:
 
     def __post_init__(self) -> None:
         _coerce(self, resolver=ResolverKind, authority=Authority, relation=VerdictRelation, provenance=Provenance)
-        # Only the user attests and only rules rule-confirm; the agent and resolver plugins give model verdicts.
-        own = {ResolverKind.RULES: Authority.RULE_CONFIRMED, ResolverKind.USER: Authority.USER_ATTESTED}
+        # Only the user attests and only rules rule-confirm; the agent confirms provisionally (its own authority, no
+        # self-stated confidence); resolver plugins give calibrated model verdicts.
+        own = {ResolverKind.RULES: Authority.RULE_CONFIRMED, ResolverKind.USER: Authority.USER_ATTESTED,
+               ResolverKind.AGENT: Authority.AGENT_CONFIRMED}
         _require(self.authority is own[self.resolver] if self.resolver in own else self.authority in MODEL_AUTHORITIES,
                  f"verdict: a {self.resolver} resolver cannot claim {self.authority}")
         _require((self.chosen_id is None) == (self.relation in (VerdictRelation.NONE, VerdictRelation.AMBIGUOUS)),
@@ -144,8 +146,10 @@ class Verdict:
         elif self.chosen_id is not None:
             subject_level(self.chosen_id)
         model = self.authority in MODEL_AUTHORITIES
-        _require(model == all(value is not None for value in (self.confidence, self.model, self.prompt_version, self.input_digest)),
-                 "verdict: confidence, model, prompt_version and input_digest are required exactly for model authorities")
+        _require(model == (self.confidence is not None), "verdict: confidence is required exactly for model authorities")
+        _require((model or self.authority is Authority.AGENT_CONFIRMED)
+                 == all(value is not None for value in (self.model, self.prompt_version, self.input_digest)),
+                 "verdict: model, prompt_version and input_digest are required exactly for model and agent authorities")
         _require(self.confidence is None or 0.0 <= self.confidence <= 1.0, "verdict: confidence in [0, 1]")
         _require(self.input_digest is None or bool(DIGEST.match(self.input_digest)), "verdict: input_digest is sha256:<hex>")
         _require((self.authority is Authority.RULE_CONFIRMED) == (self.rule_id is not None),
@@ -172,6 +176,18 @@ def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[Identifie
                if item.authority is Authority.SNAPSHOT or item.scheme not in open_schemes)
 
 
+def corroborates(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str,
+                 level: Level, same_venue: bool = False) -> bool:
+    """Identifier evidence names the question's own subject: one of the record's own single-valued identifiers at
+    that `level` equals a valid T0 assertion. A listing is also named by its security's ISIN on the same venue
+    (`same_venue`). A shared issuer LEI or a sibling venue's ISIN says nothing about which instrument this is."""
+    claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
+    named = {level} | ({Level.SECURITY} if level is Level.LISTING and same_venue else set())
+    return any(item.scheme in SINGLE_VALUED and SCHEME_LEVEL[item.scheme] in named
+               and claims.get(item.scheme) == item.value and item.tier is EvidenceTier.T0
+               and item.validity.contains(as_of) for item in evidence)
+
+
 def guarded(relation: VerdictRelation, record_kind: InstrumentKind | None, subject_kind: InstrumentKind | None) -> bool:
     """The depositary-receipt guard: a receipt and a share are never the same instrument,
     and only a receipt is a receipt of a share. Unknown kinds trip nothing."""
@@ -186,15 +202,17 @@ def guarded(relation: VerdictRelation, record_kind: InstrumentKind | None, subje
 
 def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierValue],
            evidence: Iterable[IdentifierAssertion], as_of: str, record_kind: InstrumentKind | None,
-           subject_kind: InstrumentKind | None, prior: Sequence[Verdict] = (),
+           subject_kind: InstrumentKind | None, prior: Sequence[Verdict] = (), same_venue: bool = False,
            threshold: float | None = None) -> VerdictOutcome:
     """The authority rule (ADR 0037), identical for every resolver.
 
     A verdict may confirm in the absence of identifier proof, never against it:
-    contradicting identifier evidence and the receipt guard always block. If the
+    contradicting identifier evidence and the receipt guard always block. Likewise
+    "not a match" is blocked when the record's own identifiers name the candidate. If the
     resolver found several candidates, or a standing `prior` verdict on the item
     gives a different answer, nothing is confirmed. A model verdict confirms only
     at or above the relation's gold-calibrated `threshold`; without one it suggests.
+    The agent's answer (`agent_confirmed`) confirms provisionally.
     """
     if verdict.item_id != item.id or any(other.item_id != item.id for other in prior):
         raise ValueError("verdict: answers a different queue item")
@@ -203,7 +221,9 @@ def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierVal
     if verdict.relation is VerdictRelation.AMBIGUOUS:
         return VerdictOutcome.AMBIGUOUS
     if verdict.relation in (VerdictRelation.NONE, VerdictRelation.UNRELATED):
-        return VerdictOutcome.NO_MATCH
+        named = verdict.chosen_id or next(iter(item.candidate_ids), None)
+        proven = named is not None and corroborates(claimed, evidence, as_of, subject_level(named), same_venue)
+        return VerdictOutcome.BLOCKED if proven else VerdictOutcome.NO_MATCH
     if contradicts(claimed, evidence, as_of) or guarded(verdict.relation, record_kind, subject_kind):
         return VerdictOutcome.BLOCKED
     answer = (verdict.relation, verdict.chosen_id)

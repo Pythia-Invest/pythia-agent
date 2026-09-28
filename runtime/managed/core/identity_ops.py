@@ -3,7 +3,8 @@
 `identity-search` and `identity-subject` are local reads of the reference file,
 identity.sqlite3 and the installed plugins' contracts; neither calls a provider.
 `identity-resolve` runs one plugin's declared resolve tool, bounded by a short
-timeout, and stores the decided binding or queue item.
+timeout, and stores the decided binding or queue item. The resolution-queue
+operations live in `queue_ops`.
 """
 from __future__ import annotations
 
@@ -13,21 +14,22 @@ import json
 import logging
 import sqlite3
 import threading
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 from .identity import MANIFEST_FILE, ClaimError, Level, ManifestError, check_batch, validate_manifest
+from . import queue_ops
+from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, page, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
 TOOLSET = "pythia-desk"
 PLUGIN = "pythia"  # the core plugin (plugin.yaml)
-NO_REFERENCE = "No reference data on this device yet."
 NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
 MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes
 PREFERENCE = "search_listing_preference"  # declared in configuration.json
-SUBJECT_ID = {"type": "string", "minLength": 4, "maxLength": 320, "pattern": "^(issuer|security|composite|listing):"}
 
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
@@ -62,6 +64,7 @@ class Identity:
     def __init__(self, ctx: Any):
         self.ctx = ctx
         self._store: store.IdentityStore | None = None
+        self.reset_told = False  # whether a set-aside store was reported (once per process)
         self._lock = threading.Lock()
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="pythia-resolve")
 
@@ -127,6 +130,7 @@ class Identity:
         reason, transient = self._resolve(info, subject) if info.enabled and not info.missing else (None, False)
         if reason:  # remember the miss so reopening the page does not call the provider again
             self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
+        queue_ops.settle(self, [value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
         sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
         for section in sections:
@@ -235,16 +239,15 @@ class Identity:
         for claim in batch_to_json(batch)["claims"]:
             self.store.put_claim(batch.plugin, batch.provider, claim)
 
-        def bound_to(ref):
-            row = self.store.binding_for(ref)
-            return row["subject_id"] if row is not None and row["status"] == "confirmed" else None
-
         for level in sorted(levels, key=lambda item: item != Level.LISTING):
-            binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now, bound_to=bound_to)
+            binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now,
+                                                         bound_to=self.store.bound_subject)
             if binding is not None:
                 if self.store.put_binding(binding):
                     return None, False
                 return f"{info.label}'s reference is already bound to another subject", False
+            if item is not None and self.store.dismissed(item.key, item.evidence_ids):
+                return f"{info.label}'s record was reviewed: it is not this instrument", False
             if item is not None:
                 self.store.put_queue_item(item)
                 return f"{info.label}'s answer is queued for review ({item.reason})", False
@@ -315,7 +318,11 @@ def register(ctx: Any) -> None:
     identity = CURRENT = Identity(ctx)
     for schema, handler, operation, read_only in ((SEARCH_SCHEMA, identity.search, "identity-search", True),
                                                   (SUBJECT_SCHEMA, identity.subject, "identity-subject", True),
-                                                  (RESOLVE_SCHEMA, identity.resolve, "identity-resolve", False)):
+                                                  (RESOLVE_SCHEMA, identity.resolve, "identity-resolve", False),
+                                                  (queue_ops.QUEUE_SCHEMA, partial(queue_ops.read_queue, identity),
+                                                   "identity-queue", True),
+                                                  (queue_ops.VERDICT_SCHEMA, partial(queue_ops.submit_verdict, identity),
+                                                   "identity-verdict", False)):
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])

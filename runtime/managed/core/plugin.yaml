@@ -7,3 +7,5 @@ provides_tools:
   - pythia_identity_search
   - pythia_identity_subject
   - pythia_identity_resolve
+  - pythia_identity_queue
+  - pythia_identity_verdict

@@ -66,7 +66,7 @@ CREATE TABLE bindings (
   UNIQUE (provider, native_scope, native_id),  -- wire qualifiers select reads; they never key identity
   CHECK (subject_id LIKE level || ':%'),
   CHECK (status <> 'confirmed' OR authority IN ('source_asserted', 'snapshot', 'rule_confirmed', 'model_confirmed',
-                                                 'user_attested', 'curated')),
+                                                 'agent_confirmed', 'user_attested', 'curated')),
   CHECK ((authority = 'rule_confirmed') = (rule_id IS NOT NULL))
 );
 CREATE INDEX bindings_subject ON bindings (subject_id, status);
@@ -102,7 +102,8 @@ CREATE TABLE verdicts (
   item_id TEXT NOT NULL REFERENCES queue(id),
   resolver TEXT NOT NULL CHECK (resolver IN ('rules', 'agent', 'plugin', 'user')),
   plugin TEXT NOT NULL,            -- 'pythia' for core rules, the agent and manual resolution
-  authority TEXT NOT NULL CHECK (authority IN ('rule_confirmed', 'model_confirmed', 'model_suggested', 'user_attested')),
+  authority TEXT NOT NULL CHECK (authority IN ('rule_confirmed', 'model_confirmed', 'model_suggested', 'agent_confirmed',
+                                             'user_attested')),
   relation TEXT NOT NULL CHECK (relation IN ('same_listing', 'same_composite', 'same_security', 'same_issuer', 'depositary_receipt_of',
                                              'unrelated', 'none', 'ambiguous')),
   chosen_id TEXT,
@@ -116,7 +117,9 @@ CREATE TABLE verdicts (
   outcome TEXT NOT NULL CHECK (outcome IN ('confirmed', 'suggested', 'blocked', 'ambiguous', 'no_match')),
   created_at TEXT NOT NULL,
   CHECK ((resolver = 'rules' AND authority = 'rule_confirmed' AND rule_id IS NOT NULL)
-      OR (resolver IN ('agent', 'plugin') AND authority IN ('model_confirmed', 'model_suggested'))
+      OR (resolver = 'agent' AND authority = 'agent_confirmed' AND model IS NOT NULL AND prompt_version IS NOT NULL
+          AND input_digest IS NOT NULL)
+      OR (resolver = 'plugin' AND authority IN ('model_confirmed', 'model_suggested'))
       OR (resolver = 'user' AND authority = 'user_attested' AND user_turn IS NOT NULL)),
   CHECK (authority NOT IN ('model_confirmed', 'model_suggested')
       OR (confidence IS NOT NULL AND model IS NOT NULL AND prompt_version IS NOT NULL AND input_digest IS NOT NULL)),
