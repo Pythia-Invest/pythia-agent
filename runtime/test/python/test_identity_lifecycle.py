@@ -120,6 +120,23 @@ class LifecycleTest(QueueFixture):
         del core
         self.assertEqual(self.bound()[0], NEW_LISTING)
 
+    def test_a_same_day_rebuild_settles_the_whole_queue_again(self):
+        core = load_core()
+        from pythia_core_queue_fixture import identity_ops, queue_ops
+        data = Path(self.tmp.name) / "core"
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=data)))
+        settled = []
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: []), \
+                unittest.mock.patch.object(queue_ops.questions, "settle_by_rules",
+                                           lambda _store, _ref, _plugins, items, **_: settled.append(len(items))):
+            self.ask(answer(("isin", "USN070592100")))  # one open question
+            for source in (self.path, self.release("rebuild")):  # the same build ID, another checksum
+                self.install(source, "reference-20261001", data)
+                queue_ops.settle(ops, [])  # no subject of its own: only a new release settles every open item
+        ops.store.db.close()
+        del core
+        self.assertEqual(settled, [1, 1])
+
     def test_a_two_hop_alias_chain_is_followed(self):
         self.bind()
         self.identity.put_miss(ASML, "pythia-yahoo", "no match", 3600)

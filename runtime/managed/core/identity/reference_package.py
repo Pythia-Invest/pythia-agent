@@ -61,6 +61,12 @@ def current(data_dir: Path) -> Path | None:
     return path if manifest["format_version"] == FORMAT_VERSION and path.is_file() else None
 
 
+def release_key(path: Path) -> str:
+    """What identifies the installed release for once-per-release work (re-keying, settling the queue): its
+    package, build and checksum, so a same-day rebuild with the same build ID is a new release too."""
+    return Path(path).parent.name
+
+
 def status(data_dir: Path) -> dict:
     """For the Desk and the agent: the installed package (build, dates, sources and notices) or None, and the last
     refused package or None."""

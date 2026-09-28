@@ -98,8 +98,7 @@ class Identity:
             try:
                 ref = store.open_reference(path)
                 try:
-                    # Keyed by the installed package (build and checksum), so a same-day rebuild re-keys too.
-                    done = lifecycle.rekey(self.store, ref, path.parent.name, again=again)
+                    done = lifecycle.rekey(self.store, ref, reference_package.release_key(path), again=again)
                 finally:
                     ref.close()
                 if done:
