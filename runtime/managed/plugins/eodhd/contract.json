@@ -70,5 +70,9 @@
     "licence": "personal",
     "cache": "unlimited",
     "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/eodhd.md"
   }
 }

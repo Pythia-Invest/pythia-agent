@@ -273,6 +273,14 @@ platform_toolsets:
 
   it("installs optional payloads without enabling them and leaves omitted/community plugins alone", () => {
     const paths = fixture();
+    // ADR 0042: a source that has not signed off stays off even if listed as enabled by default.
+    const unaudited = join(paths.managedRoot, "plugins/unaudited");
+    mkdirSync(unaudited, { recursive: true });
+    writeFileSync(join(unaudited, "plugin.yaml"), "name: unaudited\n");
+    writeFileSync(
+      join(unaudited, "contract.json"),
+      JSON.stringify({ signoff: { status: "unsigned" } }),
+    );
     const community = join(paths.profileRoot, "plugins", "community");
     mkdirSync(community, { recursive: true });
     writeFileSync(join(community, "plugin.yaml"), "name: community\n");
@@ -286,6 +294,13 @@ platform_toolsets:
         name: "optional",
         doctor: false,
         enabledByDefault: false,
+      },
+      {
+        ...core,
+        name: "unaudited",
+        doctor: false,
+        source: "plugins/unaudited",
+        files: ["plugin.yaml", "contract.json"],
       },
       {
         ...core,
@@ -303,6 +318,9 @@ platform_toolsets:
     });
     expect(
       existsSync(join(paths.profileRoot, "plugins/optional/plugin.yaml")),
+    ).toBe(true);
+    expect(
+      existsSync(join(paths.profileRoot, "plugins/unaudited/contract.json")),
     ).toBe(true);
     expect(existsSync(join(paths.profileRoot, "plugins/not-installed"))).toBe(
       false,

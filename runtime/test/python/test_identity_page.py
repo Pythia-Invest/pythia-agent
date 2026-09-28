@@ -12,32 +12,35 @@ ASML = "listing:isin:NL0010273215:XAMS:EUR"
 BTC = "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
 LEI = "724500Y6DUVHQD6OXN27"
 OPEN = {"licence": "open", "cache": "unlimited", "hostable": False}
+OLD = {"status": "grandfathered"}
 QUOTE = {"level": "listing", "via": "listing", "operations": {"quote": "latest"}}
 CONTRACTS = {
     "yahoo": {"contract_version": 1, "plugin": "yahoo", "provider": "yahoo",
               "addressing": {"native": [{"native_scope": "symbol", "level": "listing", "asset_classes": ["equity"]}],
                              "schemes": {"listing": ["ticker_mic"]}, "mic_table": {"XAMS": ".AS", "XNAS": ""}},
-              "concepts": {"market_data": QUOTE}, "rights": {**OPEN, "licence": "personal", "cache": "none"}},
+              "concepts": {"market_data": QUOTE}, "rights": {**OPEN, "licence": "personal", "cache": "none"},
+              "signoff": OLD},
     "eodhd": {"contract_version": 1, "plugin": "eodhd", "provider": "eodhd",
               "addressing": {"native": [{"native_scope": "catalogue", "level": "listing", "asset_classes": ["equity"]}],
                              "schemes": {"security": ["isin"]}},
               "concepts": {"market_data": QUOTE},
               "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": ["isin"]},
-              "rights": {**OPEN, "licence": "personal"}},
+              "rights": {**OPEN, "licence": "personal"}, "signoff": OLD},
     "gleif": {"contract_version": 1, "plugin": "gleif", "provider": "gleif",
               "addressing": {"native": [{"native_scope": "lei", "level": "issuer"}], "schemes": {"issuer": ["lei"]}},
               "concepts": {"profile": {"level": "issuer", "via": "issuer", "operations": {"fields": "profile"}}},
-              "resolve": {"operation": "resolve", "input_schemes": ["lei"], "echoes": ["lei"]}, "rights": OPEN},
+              "resolve": {"operation": "resolve", "input_schemes": ["lei"], "echoes": ["lei"]}, "rights": OPEN,
+              "signoff": OLD},
     "coinmarketcap": {"contract_version": 1, "plugin": "coinmarketcap", "provider": "coinmarketcap",
                       "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}]},
                       "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
                       "concepts": {"market_data": {**QUOTE, "level": "security", "via": "security"}},
-                      "rights": {**OPEN, "licence": "business"}},
+                      "rights": {**OPEN, "licence": "business"}, "signoff": OLD},
     "coingecko": {"contract_version": 1, "plugin": "coingecko", "provider": "coingecko",
                   "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}]},
                   "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
                   "concepts": {"market_data": {**QUOTE, "level": "security", "via": "security"}},
-                  "rights": {**OPEN, "licence": "business"}},
+                  "rights": {**OPEN, "licence": "business"}, "signoff": OLD},
 }
 
 
@@ -379,6 +382,48 @@ class PageTest(Fixture):
         self.identity.put_queue_item(item)
         self.identity.put_queue_item(item)  # re-asking the same question keeps one open item
         self.assertEqual(len(self.identity.open_queue([ASML])), 1)
+
+
+def unsigned(name, **overrides):
+    """A plugin whose source has not signed off (ADR 0042): the investor enabled it explicitly."""
+    contract = {**CONTRACTS[name], "signoff": {"status": "unsigned"}}
+    return page.PluginInfo(key=f"pythia-{name}", manifest=identity.validate_manifest(contract), **overrides)
+
+
+class SignOffGateTest(Fixture):
+    def sections(self, subject_id, plugins, order=()):
+        subject = page.load_subject(self.ref, subject_id)
+        return {section["section"]: section
+                for section in page.compose(subject, plugins, **self.lookups(subject_id), order=order)}
+
+    def test_an_unsigned_source_is_never_cores_choice_and_is_labelled(self):
+        quote = self.sections(BTC, [unsigned("coingecko"), plugin("coinmarketcap")])["quote"]
+        self.assertEqual(quote["plugin"], "pythia-coinmarketcap")  # though free sources come first by default
+        self.assertNotIn("unaudited", quote)
+        [also] = quote["alternatives"]
+        self.assertEqual((also["plugin"], also["unaudited"]), ("pythia-coingecko", True))
+
+    def test_the_investor_may_still_use_an_unsigned_source_labelled_not_yet_audited(self):
+        for plugins, order in (([unsigned("coingecko"), plugin("coinmarketcap")], ("coingecko",)),
+                               ([unsigned("coingecko")], ())):
+            with self.subTest(order=order):
+                quote = self.sections(BTC, plugins, order)["quote"]
+                self.assertEqual((quote["plugin"], quote["unaudited"], quote["source"]["unaudited"]),
+                                 ("pythia-coingecko", True, True))
+
+    def test_an_unsigned_source_never_confirms_identity(self):
+        subject, _ = self.compose(ASML, [])
+        eodhd = unsigned("eodhd")
+        record = {"level": "listing", "provenance": PROVENANCE, "identifiers": [{"scheme": "isin", "value": "NL0010273215"}],
+                  "native_ref": {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"}}
+        batch = identity.batch_from_json({"plugin": "eodhd", "provider": "eodhd", "adapter_version": "1",
+                                          "origin": "resolve", "claims": [record]})
+        # The same answer binds for an audited source (test_resolve_binds_unless_identifier_evidence_contradicts).
+        binding, item, _ = page.apply_resolve(batch, eodhd, identity.Level.LISTING, subject,
+                                              page.resolve_input(eodhd, subject), now="2026-09-26T10:00:00Z",
+                                              as_of="2026-09-26")
+        self.assertIsNone(binding)
+        self.assertEqual((item.kind, item.candidate_ids), ("residual", (ASML,)))  # a suggestion for review
 
 
 class ReviewFixesTest(Fixture):

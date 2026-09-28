@@ -106,6 +106,19 @@ class ShippedContracts(unittest.TestCase):
         self.assertFalse(any(manifest(path.parent.name).rights.hostable
                              for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE)))
 
+    def test_every_shipped_source_declares_its_signoff(self):
+        # ADR 0042: the bundled sources predate the standard and keep their role until their turn, each with the
+        # record it will be onboarded in; a signed-off source links a record that exists.
+        root = PLUGINS.parents[2]
+        for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE):
+            contract = manifest(path.parent.name)
+            with self.subTest(plugin=contract.plugin):
+                if contract.signoff is identity.SignOff.SIGNED_OFF:
+                    self.assertTrue((root / contract.record).is_file())
+                else:
+                    self.assertEqual((contract.signoff, contract.record),
+                                     (identity.SignOff.GRANDFATHERED, f'docs/sources/{contract.provider}.md'))
+
     def test_filing_sources_declare_their_authorities(self):
         self.assertEqual(manifest('sec').concepts[identity.Concept.FILINGS].authorities, ('sec',))
         self.assertEqual(manifest('xbrl-filings').concepts[identity.Concept.FILINGS].authorities, ('esma', 'fca'))

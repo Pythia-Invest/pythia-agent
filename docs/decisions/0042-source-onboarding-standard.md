@@ -92,10 +92,21 @@ precision has been measured.
 - Coverage grows more slowly.
 - The builder's planned move to typed claims, reconciliation and a build-time
   judge step implements stages 2 and 4.
-- The gate is the source record and its review until core records trust status
-  per source. Until then, a new source that has not signed off ships disabled.
-  The code gate must land before the first source outside the list above is
-  merged.
+- **The code gate is built.** Each plugin's `contract.json` declares its
+  `signoff`: `signed_off` with its record, `grandfathered`, or `unsigned`. The
+  bundled plugins above are `grandfathered`, each pointing at its pending
+  record in `docs/sources/`. The builder's reference sources are not plugins;
+  their record and its review remain their gate. For an `unsigned` source:
+  - a fresh profile never enables it, even if its payload lists it as enabled
+    by default;
+  - core's order never ranks it ahead of an audited source, so it serves a
+    section only when the investor names it in `source_order` or nothing
+    audited can serve;
+  - a resolve answer that would bind stays a residual for review;
+  - pages, alternatives and agent results mark it `unaudited`, which the Desk
+    shows as "not yet audited".
+
+  The investor may still enable it; turning it on is the opt-in.
 
 ## Rejected alternatives
 

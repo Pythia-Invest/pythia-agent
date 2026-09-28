@@ -126,6 +126,7 @@ export function SourcesLine({
         {
           source: section.label,
           plugin: section.plugin,
+          unaudited: section.unaudited,
           provider:
             section.binding?.provider ??
             // Connector marks are keyed by provider, plugin ids by package.
@@ -145,6 +146,7 @@ export function SourcesLine({
             {index ? <span aria-hidden="true">+</span> : null}
             <ConnectorMark plugin={item.provider} />
             <span className="text-foreground">{item.source}</span>
+            {item.unaudited ? <span>(not yet audited)</span> : null}
           </span>
         ))}
         {section.status !== "ready" ? (
@@ -181,11 +183,13 @@ export function SourcesLine({
                   className="underline decoration-dotted underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
                 >
                   {item.label}
+                  {item.unaudited ? " (not yet audited)" : ""}
                   {comma}
                 </button>
               ) : (
                 <span key={item.plugin}>
-                  {item.label} (
+                  {item.label}
+                  {item.unaudited ? " (not yet audited)" : ""} (
                   {STATUS_LABELS[item.status] ??
                     item.status.replaceAll("_", " ")}
                   ){comma}

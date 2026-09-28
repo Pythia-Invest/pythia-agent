@@ -100,8 +100,10 @@ def serving(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str] | 
 
 
 def ordered(plugins: list[PluginInfo], section: Section, order: tuple[str, ...] = ()) -> list[PluginInfo]:
-    """The investor's order, then core's default order for the section's concept (free before paid), then key."""
-    entries = [{"plugin": info.key, "provider": info.manifest.provider, "info": info} for info in plugins]
+    """The investor's order, then core's default order for the section's concept (free before paid), then key;
+    a source not yet signed off follows every audited one unless the investor names it."""
+    entries = [{"plugin": info.key, "provider": info.manifest.provider, "unaudited": info.manifest.unaudited,
+                "info": info} for info in plugins]
     return [entry["info"] for entry in ranked(entries, order, REGISTRY[SERVES[section][0]].default_order)]
 
 
@@ -183,7 +185,8 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
               "label": info.label,
               "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
               "binding_status": None, "request": None, "alternatives": [], "reason": None,
-              "authorities": [str(item) for item in entry.authorities]}
+              "authorities": [str(item) for item in entry.authorities],
+              **({"unaudited": True} if info.manifest.unaudited else {})}  # labelled "not yet audited"
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
     if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes:
@@ -248,8 +251,9 @@ def price_sources(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> l
 
 
 def source(answer: dict) -> dict:
-    """A source as page sections and agent results name it."""
-    return {"source": answer["label"], "provider": answer["provider"], "plugin": answer["plugin"]}
+    """A source as page sections and agent results name it; one not yet signed off says so."""
+    return {"source": answer["label"], "provider": answer["provider"], "plugin": answer["plugin"],
+            **({"unaudited": True} if answer.get("unaudited") else {})}
 
 
 def filings_request(subject_id: str, use: str | None = None) -> dict:
@@ -313,6 +317,7 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     `resolve_answer@1` binds it to the subject unless identifier evidence or the
     depositary-receipt guard contradicts it, or `bound_to` says the reference is already
     confirmed for another subject (a conflict, never a re-point); several references are a residual.
+    A source not yet signed off (ADR 0042) never confirms: an answer that would bind stays a residual for review.
     """
     target, plugin = subject["ids"][level], info.manifest.plugin
     records = [claim for claim in batch.claims if isinstance(claim, RecordClaim) and claim.native_ref is not None
@@ -340,10 +345,11 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
                      as_of=as_of or date.today().isoformat(), record_kind=records[0].attributes.kind,
                      subject_kind=kind if kind in set(InstrumentKind) else None)
     other = bound_to(ref)
-    if outcome is VerdictOutcome.CONFIRMED and evidence_ids and other not in (None, target):
+    confirms = outcome is VerdictOutcome.CONFIRMED and bool(evidence_ids) and not info.manifest.unaudited
+    if confirms and other not in (None, target):
         return None, QueueItem(id=item.id, kind="conflict", reason="binding", subject_ids=(other, target),
                                evidence_ids=evidence_ids, **base), records
-    if outcome is VerdictOutcome.CONFIRMED and evidence_ids:
+    if confirms:
         return Binding(provider_ref=ref, subject_id=target, status="confirmed", authority="rule_confirmed",
                        evidence_ids=evidence_ids, plugin=plugin, rule_id=RESOLVE_RULE), None, records
     cited = evidence_ids or tuple(item.evidence_id for item in subject["evidence"])

@@ -256,6 +256,12 @@ addressing (the full shape is in the ADR 0038 amendment):
   whether it may be published (false for provider data) and any attribution
   the provider requires. `limits` may state the provider's published rate
   limits for a named plan.
+- `signoff` states where the source stands in [onboarding](source-onboarding.md):
+  `{"status": "unsigned"}` for a new source, `grandfathered` for the sources
+  ADR 0042 lists, and `signed_off` with the `record` that shows it
+  (`docs/sources/<source>.md` or an https link). An unsigned source is off in
+  fresh profiles, never core's choice ahead of an audited one and never
+  confirms identity.
 - `coverage.operations` narrows coverage for one operation, for example a
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot

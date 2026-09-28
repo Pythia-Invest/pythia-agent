@@ -44,10 +44,11 @@ subject or relation without review. A source that has not signed off:
 - is not enabled by default in fresh profiles;
 - is not the default source for any page section.
 
-Until core records each source's trust status, a new source that has not signed
-off ships disabled. That code gate must land before the first source outside
-the pre-standard list is merged. The sources in use before this standard are
-listed in ADR 0042. They keep their current role while they are onboarded in
+Core enforces this from the `signoff` each plugin declares in `contract.json`
+(`signed_off` with its record, `grandfathered` or `unsigned`); ADR 0042 lists
+what the gate does. An `unsigned` source can still be enabled by the investor,
+and is then labelled "not yet audited". The sources in use before this standard
+are listed in ADR 0042 and declared `grandfathered`. They keep their current role while they are onboarded in
 turn, starting with FIRDS.
 
 ## Stages

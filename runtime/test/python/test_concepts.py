@@ -16,7 +16,8 @@ RIGHTS = {"licence": "personal", "cache": "none", "hostable": False}
 def contract(provider, concepts):
     addressing = {"native": [{"native_scope": "ref", "level": "listing"}], "mic_table": {"XAMS": ".AS", "XNAS": ""}}
     return identity.validate_manifest({"contract_version": 1, "plugin": provider, "provider": provider,
-                                       "addressing": addressing, "concepts": concepts, "rights": RIGHTS})
+                                       "addressing": addressing, "concepts": concepts, "rights": RIGHTS,
+                                       "signoff": {"status": "grandfathered"}})
 
 
 def prices(classes):
