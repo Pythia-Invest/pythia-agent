@@ -326,7 +326,7 @@ class Identity:
                 if self.store.put_binding(binding):
                     return None, False
                 return f"{info.label}'s reference is already bound to another subject", False
-            if item is not None and self.store.dismissed(item.key):
+            if item is not None and self.store.dismissed(item.key, item.evidence_ids):
                 return f"{info.label}'s record was reviewed: it is not this instrument", False
             if item is not None:
                 self.store.put_queue_item(item)

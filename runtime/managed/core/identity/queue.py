@@ -125,7 +125,9 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                                   and entry["outcome"] == "suggested"]
     try:
         outcome = decide(verdict, item, claimed=record.identifiers, as_of=as_of,
-                         evidence=subject["evidence"] if subject else (),
+                         evidence=[assertion for candidate in ((subject,) if subject else map(
+                             lambda other: load_subject(ref, other), item.candidate_ids)) if candidate
+                             for assertion in candidate["evidence"]],
                          record_kind=record.attributes.kind,
                          subject_kind=_kind(subject), prior=prior, threshold=threshold)
     except ValueError as error:

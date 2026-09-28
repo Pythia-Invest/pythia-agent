@@ -172,6 +172,14 @@ def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[Identifie
                if item.authority is Authority.SNAPSHOT or item.scheme not in open_schemes)
 
 
+def corroborates(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str) -> bool:
+    """Identifier evidence supports an association: one of the record's own single-valued identifiers equals a
+    valid T0 assertion of that scheme on the chosen subject or an ancestor. No answer dismisses against it."""
+    claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
+    return any(item.scheme in SINGLE_VALUED and claims.get(item.scheme) == item.value and item.tier is EvidenceTier.T0
+               and item.validity.contains(as_of) for item in evidence)
+
+
 def guarded(relation: VerdictRelation, record_kind: InstrumentKind | None, subject_kind: InstrumentKind | None) -> bool:
     """The depositary-receipt guard: a receipt and a share are never the same instrument,
     and only a receipt is a receipt of a share. Unknown kinds trip nothing."""
@@ -191,7 +199,8 @@ def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierVal
     """The authority rule (ADR 0037), identical for every resolver.
 
     A verdict may confirm in the absence of identifier proof, never against it:
-    contradicting identifier evidence and the receipt guard always block. If the
+    contradicting identifier evidence and the receipt guard always block. Likewise
+    "not a match" is blocked when the record's identifiers corroborate the candidate. If the
     resolver found several candidates, or a standing `prior` verdict on the item
     gives a different answer, nothing is confirmed. A model verdict confirms only
     at or above the relation's gold-calibrated `threshold`; without one it suggests.
@@ -203,7 +212,7 @@ def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierVal
     if verdict.relation is VerdictRelation.AMBIGUOUS:
         return VerdictOutcome.AMBIGUOUS
     if verdict.relation in (VerdictRelation.NONE, VerdictRelation.UNRELATED):
-        return VerdictOutcome.NO_MATCH
+        return VerdictOutcome.BLOCKED if corroborates(claimed, evidence, as_of) else VerdictOutcome.NO_MATCH
     if contradicts(claimed, evidence, as_of) or guarded(verdict.relation, record_kind, subject_kind):
         return VerdictOutcome.BLOCKED
     answer = (verdict.relation, verdict.chosen_id)

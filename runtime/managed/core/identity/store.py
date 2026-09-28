@@ -203,9 +203,11 @@ class IdentityStore:
         return self.db.execute("SELECT changes()").fetchone()[0] == 1
 
     @_locked
-    def dismissed(self, key: str) -> bool:
-        """A resolver already answered this question with "not a match": re-asking it does not reopen it."""
-        return self.db.execute("SELECT 1 FROM queue WHERE key = ? AND state = 'dismissed' LIMIT 1", (key,)).fetchone() is not None
+    def dismissed(self, key: str, evidence_ids: Iterable[str]) -> bool:
+        """A resolver answered this question "not a match" on the same identifier evidence: re-asking it does not
+        reopen it. New evidence does."""
+        rows = self.db.execute("SELECT evidence_ids FROM queue WHERE key = ? AND state = 'dismissed'", (key,)).fetchall()
+        return any(set(json.loads(row[0])) == set(evidence_ids) for row in rows)
 
     @_locked
     def put_verdict(self, verdict: Verdict, outcome: VerdictOutcome, plugin: str = "pythia") -> str:

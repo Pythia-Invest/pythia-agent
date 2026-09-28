@@ -35,8 +35,12 @@ class QueueFixture(Fixture):
         subject = subject or page.load_subject(self.ref, ASML)
         for claim in identity.batch_to_json(batch)["claims"]:
             self.identity.put_claim(batch.plugin, batch.provider, claim)
+        def bound_to(ref):
+            row = self.identity.binding_for(ref)
+            return row["subject_id"] if row is not None and row["status"] == "confirmed" else None
+
         binding, item, _ = page.apply_resolve(batch, eodhd, identity.Level.LISTING, subject,
-                                              page.resolve_input(eodhd, subject), now=NOW, as_of=AS_OF)
+                                              page.resolve_input(eodhd, subject), now=NOW, as_of=AS_OF, bound_to=bound_to)
         self.assertIsNone(binding)
         self.identity.put_queue_item(item)
         return item
@@ -58,6 +62,18 @@ class VerdictTest(QueueFixture):
         history = queue.inspect(self.identity, self.ref, item.id)["history"]
         self.assertEqual([(entry["resolver"], entry["authority"], entry["outcome"]) for entry in history],
                          [("agent", "model_confirmed", "blocked"), ("user", "user_attested", "blocked")])
+
+    def test_no_answer_dismisses_against_identifier_proof(self):
+        nasdaq = "listing:isin:USN070592100:XNAS:USD"
+        ref = {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"}
+        self.identity.put_binding(identity.Binding(provider_ref=ref, subject_id=nasdaq, status="confirmed",
+                                                   authority="user_attested", evidence_ids=["ev:x"], plugin="eodhd"))
+        item = self.ask(answer(("isin", "NL0010273215")))  # ASML's own ISIN, but the reference is bound elsewhere
+        self.assertEqual((item.kind, item.reason, set(item.subject_ids)), ("conflict", "binding", {nasdaq, ASML}))
+        for resolver, fields in (("agent", {"confidence": 0.99}), ("user", {"user_turn": "desk:identity-verdict:test"})):
+            result = self.submit(item, resolver, relation="unrelated", **fields)
+            self.assertEqual((result["outcome"], result["state"]), ("blocked", "open"))
+        self.assertFalse(self.identity.dismissed(item.key, item.evidence_ids))
 
     def test_a_verdict_may_confirm_without_identifier_proof_and_leaves_an_audit_trail(self):
         item = self.ask(answer(), subject=self.bare())  # nothing proves the answer: a residual
@@ -86,7 +102,8 @@ class VerdictTest(QueueFixture):
         item = self.ask(answer(), subject=self.bare())
         result = self.submit(item, "user", relation="unrelated", user_turn="desk:identity-verdict:test")
         self.assertEqual((result["outcome"], result["state"]), ("no_match", "dismissed"))
-        self.assertTrue(self.identity.dismissed(item.key))
+        self.assertTrue(self.identity.dismissed(item.key, item.evidence_ids))
+        self.assertFalse(self.identity.dismissed(item.key, ("ev:new-reference-evidence",)))  # new proof reopens it
         self.assertEqual(self.identity.open_queue([ASML]), [])
 
     def test_an_answer_outside_the_question_is_refused(self):
