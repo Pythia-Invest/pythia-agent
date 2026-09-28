@@ -19,7 +19,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .schema import identity
+from .schema import derive, identity
 
 TRUTH_DIR = Path(__file__).resolve().parents[1] / "truth"
 PLUGINS = Path(__file__).resolve().parents[3] / "runtime" / "managed" / "plugins"
@@ -57,12 +57,11 @@ class Scope:
         return mic in self.mics
 
 
-def read_scope(ref: sqlite3.Connection, reference: Path) -> Scope:
+def read_scope(ref: sqlite3.Connection, reference: Path, cfi: tuple[str, ...] | None = None) -> Scope:
     label = (ref.execute("SELECT value FROM release WHERE key = 'scope'").fetchone() or [""])[0]
     tokens = {token.strip().upper() for token in label.split(",") if token.strip()}
-    cfi = None
     manifest = reference.parent / "manifest.json"
-    if manifest.exists():
+    if cfi is None and manifest.exists():
         data = json.loads(manifest.read_text(encoding="utf-8"))
         if data.get("snapshot", {}).get("file") == reference.name:
             cfi = tuple(data.get("scope", {}).get("cfi_prefixes") or ()) or None
@@ -174,9 +173,10 @@ class Reference:
         return None, ""
 
 
-def audit(reference: Path, truth: dict, contracts: dict | None = None) -> Audit:
+def audit(reference: Path, truth: dict, contracts: dict | None = None, cfi: tuple[str, ...] | None = None) -> Audit:
+    """Score one reference file; `cfi` is the build's FIRDS populations when its manifest is not written yet."""
     ref = Reference(reference)
-    scope = read_scope(ref.db, reference)
+    scope = read_scope(ref.db, reference, cfi)
     contracts = load_contracts() if contracts is None else contracts
     venues = truth.get("venues", {})
     entries = {entry["id"]: entry for entry in truth["entries"]}
@@ -258,7 +258,7 @@ def _check_entry(report, ref, entry, entries, scoped, located, issuers, folded, 
             figis = {r[0] for r in ref.all("SELECT value FROM assertions WHERE subject_id = ? AND scheme = 'figi'", found["id"])}
             reason = "composite_figi_as_listing_figi" if listing.get("composite_figi") in figis else "figi_missing" if not figis else "figi_wrong"
             report.add(eid, "listing", f"{label}:figi", listing["figi"] in figis, reason)
-        wanted = identity.subject_id("listing", {"isin": isin} if isin else {"figi": listing.get("figi") or ""},
+        wanted = derive("listing", {"isin": isin} if isin else {"figi": listing.get("figi") or ""},
                                      operating_mic=listing["mic"], currency=listing["currency"])
         if wanted:
             report.add(eid, "subject_key", label, found["id"] == wanted, _keyed(found["id"], wanted))
@@ -276,11 +276,11 @@ def _check_entry(report, ref, entry, entries, scoped, located, issuers, folded, 
     elif target:
         reason = "not_folded" if inst == security else f"folded_into:{_name(inst, located)}"
         report.add(eid, "fold", "row", inst == target, reason)
-    wanted = identity.subject_id("security", {k: v for k, v in entry["security"].items()
+    wanted = derive("security", {k: v for k, v in entry["security"].items()
                                               if k in ("isin", "share_class_figi", "caip19")})
     if wanted:
         report.add(eid, "subject_key", "security", security == wanted, _keyed(security, wanted))
-    wanted = identity.subject_id("issuer", entry["issuer"]) if entry["issuer"] else None
+    wanted = derive("issuer", entry["issuer"]) if entry["issuer"] else None
     if wanted and issuers[eid]:
         report.add(eid, "subject_key", "issuer", issuers[eid] == wanted, _keyed(issuers[eid], wanted))
     report.ids[eid] = ids
@@ -461,6 +461,25 @@ def aliases_of(reference: Path) -> dict[str, str]:
     return {row[0]: row[1] for row in Reference(reference).all("SELECT old_id, new_id FROM id_aliases")}
 
 
+def build_report(reference: Path, cfi: tuple[str, ...], log) -> dict:
+    """The builder's non-blocking report: scores and regressions for the manifest, a summary in the log."""
+    try:
+        report = audit(reference, load_truth(), cfi=cfi)
+        regressed = regressions(report, load_baseline(), aliases_of(reference))
+    except Exception as error:  # the report never fails a build
+        log(f"truth-set audit skipped: {error!r}")
+        return {"error": repr(error)}
+    scores = report.scores()
+    passed = sum(c.get("pass", 0) for c in scores.values())
+    applicable = passed + sum(c.get("fail", 0) for c in scores.values())
+    log(f"truth-set audit: {passed}/{applicable} checks pass, {len(regressed)} regressions against the baseline"
+        " (details: just reference-audit)")
+    for item in regressed[:10]:
+        log(f"  regression {item}")
+    return {"truth_version": report.truth_version, "entries_in_scope": report.in_scope, "scores": scores,
+            "regressions": len(regressed)}
+
+
 def newest_reference(out_dir: Path) -> Path | None:
     found = sorted(out_dir.glob("reference-*.sqlite3"))
     return found[-1] if found else None
@@ -496,6 +515,6 @@ def main(argv: list[str] | None = None) -> int:
         args.json.write_text(json.dumps({"scores": report.scores(), "regressions": regressed,
                                          "results": [r.__dict__ for r in report.results]}, indent=1) + "\n", encoding="utf-8")
     if args.write_baseline:
-        baseline_path.write_text(json.dumps(baseline_of(report), indent=1, sort_keys=False) + "\n", encoding="utf-8")
+        baseline_path.write_text(json.dumps(baseline_of(report), indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
     return 1 if regressed else 0
