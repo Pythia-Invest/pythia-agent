@@ -37,7 +37,10 @@ resolution queue, the identity stores and local search
 and declare what they can address in `contract.json`
 ([ADR 0038](../decisions/0038-plugin-addressing-contract.md)). The
 [market-data owner](market-data.md) owns financial meaning, compatible source
-selection and resident request coordination. Provider
+selection and resident request coordination until
+[ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md) moves data
+concepts, source selection and the agent's concept tools into core in phases;
+its widgets then become a replaceable markets UI plugin. Provider
 plugins contribute native capabilities and evidence. The existing gateway hosts
 one shared HTTP/tool backend per profile; standalone CLI shares durable state and
 implementation, not memory. Protected transport, authentication and limits belong
