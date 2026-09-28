@@ -62,7 +62,6 @@ satisfy strict requirements. Completed-only requests omit unproven bars with
 limitations. Partial results can
 remain useful, but must retain their gaps and `requirements_satisfied` status.
 
-`get_preferences` inspects source order; `set_preferences` changes local
-latest/history preferences, optionally scoped by asset class or series facets.
-Without a saved preference a subject follows core's source order. Retained
-research is not rewritten when bindings or preferences change.
+A subject follows Pythia's one source order: the investor's `source_order`
+setting, then Pythia's default, free sources first. This tool does not change
+it. Retained research is not rewritten when bindings or the order change.

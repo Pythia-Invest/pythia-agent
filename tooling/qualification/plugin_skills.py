@@ -45,7 +45,7 @@ with patch.object(socket.socket, 'connect', side_effect=AssertionError('No netwo
             from gateway.session_context import set_session_vars, clear_session_vars
             tokens = set_session_vars(platform='api_server')
             try:
-                result = json.loads(registry.dispatch('pythia_market_data', {'action': 'get_preferences'}))
+                result = json.loads(registry.dispatch('pythia_market_data', {'action': 'describe'}))
                 assert result['schema_version'] == 1 and result['outcome'] == 'ok', result
             finally:
                 clear_session_vars(tokens)

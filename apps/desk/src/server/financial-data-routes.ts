@@ -22,14 +22,5 @@ export function createFinancialDataRoutes(service = financialDataService) {
         return routeError(error);
       }
     },
-    async financialPreferences(request: Request) {
-      const rejected = admitBrowserRequest(request, "read");
-      if (rejected) return rejected;
-      try {
-        return result(await service.preferences(request.signal));
-      } catch (error) {
-        return routeError(error);
-      }
-    },
   };
 }

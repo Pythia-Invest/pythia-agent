@@ -17,12 +17,10 @@ Arguments are flat action objects. The backend rejects unrelated fields.
 | `series` | `binding` | `criteria`; returns matching definitions |
 | `read` | `request` | `criteria`, `series`; returns wire `ReadResult` |
 | `read_many` | `reads` | 1–32 `{request, criteria?, series?}` items; ordered `ReadResult` array in `data` |
-| `get_preferences` | — | Per-operation orders, scoped exceptions and revision |
-| `set_preferences` | `operation`, `providers` | Optional `preference_scope`; an empty order clears that scope |
 
-Non-read operations use `{schema_version, outcome, data, issues}` envelopes;
-explicit mutations also return `effect: "local_write"`. Identity is core's:
-this feature has no search, save, override or repair action, and a subject read
+Non-read operations use `{schema_version, outcome, data, issues}` envelopes.
+Every action is a read. Identity and source selection are core's: this feature
+has no search, save, override, repair or source-order action, and a subject read
 routes through core's bindings as described in [identity](IDENTITY.md). Existing
 `describe` and specialist `call` remain
 available; `call` requires provider, operation and native-schema arguments and
@@ -33,8 +31,9 @@ from the shared `call` operations.
 `binding` is a Pythia subject or provider reference. Common read criteria
 are measurement, interval, session, price adjustment, market-data type,
 currency, venue and route. They filter common definition fields; the shared
-owner never parses provider datasets or transport parameters. Scoped preferences,
-global orders and then core's source order for the subject order eligible sources. The reader checks
+owner never parses provider datasets or transport parameters. Core's one source
+order for the subject (ADR 0040: the investor's `source_order`, then core's
+default) orders eligible sources. The reader checks
 each candidate's compatible definitions and declared `read_support` before
 committing to a source. Successful metadata with no compatible series permits
 examining the next candidate; a metadata failure does not.
@@ -46,14 +45,13 @@ history stitching.
 
 Native contributions optionally declare `requires_broker_app` (default false)
 and `observation_cache` (`default` or `disabled`, default `default`). Implicit
-canonical reads exclude broker-dependent sources unless the operation's saved
-preference includes them. Canonical `series` discovery honors either latest or
-history saved preference because that action has no operation parameter. Explicit
+canonical reads exclude a broker-dependent source unless the investor names it
+in `source_order`; then a subject read serves it where the page would. Explicit
 native references and pinned descriptors retain access. An excluded-only read
 returns `explicit_source_required` without contacting Broker. Validated source
 issues survive metadata and generic read failures alongside selection context.
 
-A Pythia request selects using current preferences and proven `bindings()`.
+A Pythia request selects using core's current references for the subject.
 A source-pinned request requires the full retained `series` descriptor whose ID
 matches `request.view.series_id`; retain it with the result for later reads,
 including after restart. The descriptor expresses caller intent, not evidence
@@ -68,16 +66,11 @@ request/view and requested subject. It preserves native provider reference and
 series ID; it does not rewrite previously returned values. Only core's current
 references route a subject. Native reads need no binding.
 
-Preferences live in the feature's private `preferences.sqlite3`.
-A fresh preference store uses internal revision zero for cache/publication
-checks. Read selection reports `preference_revision: null` until a saved
-positive revision exists; an unconfigured single-provider read needs no
-preference write. Pinned reads also report null.
+The feature keeps no source choices of its own.
 Observations have no durable archive. The process-local cache defaults to 32
 entries and 4 MiB, with a 15-second default TTL overridden by declared provider
 cadence, and returns detached copies. Keys include complete
-request/descriptor/criteria and the selected series, the preference revision for
-preferred reads, and a hash
+request/descriptor/criteria and the selected series, and a hash
 of native caller, configuration, environment and contribution availability.
 Environment values and the internal access fingerprint are not persisted or returned. This invalidates
 cache reuse when native settings change while readiness remains true, or an
@@ -91,10 +84,10 @@ invalidates cache even without an environment/configuration change. Missing
 for either file, disables cache get/put for that invocation while leaving
 native reads available. Rotation detected
 between selection and publication rejects the result as `selection_changed`.
-Native eligibility is checked before a cache hit and publication. The preference
-revision is rechecked before publication; no provider call holds a lock. A
-subject's current references are part of the delivery reuse scope, so a changed
-binding invalidates reused results. Strict freshness and contribution-level
+Native eligibility is checked before a cache hit and publication; no provider
+call holds a lock. A subject's current references, in core's order, are part of
+the delivery reuse scope, so a changed binding or source order invalidates
+reused results. Strict freshness and contribution-level
 `observation_cache: disabled` bypass cache reads and publication. Connectors whose account state cannot
 qualify safe reuse should declare observation caching disabled. Unknown age,
 coverage, completion and units remain unknown; completed-only requests exclude

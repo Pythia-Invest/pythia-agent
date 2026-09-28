@@ -8,7 +8,9 @@ enablement, tool execution and profile lifetime.
 The `pythia-market-data` native plugin provides one lazy backend per loaded
 profile context. Its financial tool and protected HTTP/SSE handlers share that
 instance inside the existing gateway. Standalone CLI operations use the same
-implementation and durable source preferences with their own disposable cache.
+implementation with their own disposable cache. Source selection is core's one
+order (`source_order`, [ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md));
+the feature keeps no source choices of its own.
 Ordinary dashboard consumers must use the resident endpoint, without model calls
 or per-request Hermes startup.
 
@@ -68,10 +70,11 @@ types. Provider data is used under the investor's own agreement with
 each provider; each plugin carries and enforces its provider's terms, and Pythia
 itself never publishes, pools or redistributes provider data.
 
-Provider preferences are deterministic application logic. Only core's current
-references, compatible series and eligible operations participate. Failure after
-selecting a source never authorizes fallback or history stitching. A preference change does
-not rewrite retained research or source pins. Unknown units, times, completion,
+Source selection is deterministic application logic. Only core's current
+references, in core's one order, compatible series and eligible operations
+participate. Failure after selecting a source never authorizes fallback or
+history stitching. A change of order does not rewrite retained research or
+source pins. Unknown units, times, completion,
 coverage and entitlements remain explicit.
 
 The existing lifecycle copies explicit plugin files and bundled skills, validates

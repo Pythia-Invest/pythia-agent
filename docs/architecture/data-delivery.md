@@ -60,7 +60,7 @@ exposed native operations from protected reads; this is not arbitrary-tool dispa
 Shared financial resources use `plugin: "pythia-market-data"` and
 `operation: "query"`. The transport is independent of financial enablement;
 financial batching, relative windows and series qualifications remain feature-owned.
-Financial subscriptions permit read/read_many/get_preferences, never mutations.
+Financial subscriptions permit read, read_many and series, never mutations.
 Only the factory's profile is served; effective-home mismatch fails closed.
 
 Each SSE event identifies request index, schema version, resource generation and
@@ -84,7 +84,7 @@ through the same protected delivery.
 Transient failures may retain an authorized result only with stale qualification;
 revocation, incompatible selection and invalid configuration clear it. Retained
 results stay whole and bound to their original source/query. No history stitching
-or quote substitution hides missing data. Preferred preference/identity changes
+or quote substitution hides missing data. Source-order and identity changes
 reset resource generations; pins and retained research preserve intent.
 
 ## Desk transport
@@ -111,7 +111,7 @@ a stale qualifier. Invalid subscriptions wait for explicit retry or changed inte
 `BoundWidget` executes a module-owned primary/deferred binding through that generic
 coordinator. Binding code owns decoding, query keys and result meaning, including
 specialist schemas. The public financial widget library provides the canonical
-binding. Desk's financial read/preference adapters only validate that library's
+binding. Desk's financial read adapter only validates that library's
 contract, batch duplicate requests and revalidate bounded cache entries against
 the native reuse scope. Cache capacity is 128 entries / 8 MB, with 2 MB per entry;
 inflight keys are capped at 128 and native batches at 32 reads / 16,000 requested
