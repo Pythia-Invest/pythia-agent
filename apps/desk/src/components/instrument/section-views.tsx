@@ -2,6 +2,7 @@
 
 import { ExternalLink } from "lucide-react";
 import type { Filings, Profile } from "@pythia/market-data/subject";
+import { newestPerAuthority } from "./blocks";
 
 function address(value: Profile["legal_address"]) {
   if (!value) return null;
@@ -103,9 +104,12 @@ export function FilingsView({ filings }: { filings: Filings }) {
       </div>
     );
   const combined = filings.sources.length > 1;
-  const shown = filings.filings.slice(0, MAX_FILINGS);
-  // Some sources report no filing date (repository dates are not filing dates).
-  const filed = shown.some((filing) => filing.filed_at);
+  const shown = newestPerAuthority(filings.filings, MAX_FILINGS);
+  // Some sources report no filing date; a report's indexed date stands in,
+  // labelled, never shown as a filing date.
+  const filed = shown.some(
+    (filing) => filing.filed_at || filing.date_basis === "indexed",
+  );
   return (
     <div data-slot="instrument-filings" className="flex flex-col gap-3">
       <div className="overflow-x-auto">
@@ -163,7 +167,18 @@ export function FilingsView({ filings }: { filings: Filings }) {
                 </td>
                 {filed ? (
                   <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
-                    {filing.filed_at?.slice(0, 10) ?? "—"}
+                    {filing.filed_at ? (
+                      filing.filed_at.slice(0, 10)
+                    ) : filing.date_basis === "indexed" && filing.date ? (
+                      <span
+                        className="text-foreground-secondary"
+                        title="No filing date is published; this is the day the source indexed the report."
+                      >
+                        {filing.date} (indexed)
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 ) : null}
                 <td className="py-1.5 text-right">

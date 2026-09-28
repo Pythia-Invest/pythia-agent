@@ -166,21 +166,32 @@ export function SourcesLine({
             </button>
           </>
         ) : null}
-        {section.alternatives.length && onUse && !chosen ? (
+        {section.alternatives.length && !chosen ? (
           <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1">
             · Also:
-            {section.alternatives.map((item, index) => (
-              <button
-                key={item.plugin}
-                type="button"
-                title={`Show ${item.label} here instead, this time only`}
-                onClick={() => onUse(item.plugin)}
-                className="underline decoration-dotted underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
-              >
-                {item.label}
-                {index < section.alternatives.length - 1 ? "," : ""}
-              </button>
-            ))}
+            {section.alternatives.map((item, index) => {
+              const comma = index < section.alternatives.length - 1 ? "," : "";
+              // Only a ready source can be read once; others say why not.
+              return item.status === "ready" && onUse ? (
+                <button
+                  key={item.plugin}
+                  type="button"
+                  title={`Show ${item.label} here instead, this time only`}
+                  onClick={() => onUse(item.plugin)}
+                  className="underline decoration-dotted underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+                >
+                  {item.label}
+                  {comma}
+                </button>
+              ) : (
+                <span key={item.plugin}>
+                  {item.label} (
+                  {STATUS_LABELS[item.status] ??
+                    item.status.replaceAll("_", " ")}
+                  ){comma}
+                </span>
+              );
+            })}
           </span>
         ) : null}
       </p>

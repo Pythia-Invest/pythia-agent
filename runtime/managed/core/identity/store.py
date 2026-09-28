@@ -29,11 +29,6 @@ from .resolution import QueueItem, Verdict, VerdictOutcome
 
 logger = logging.getLogger(__name__)
 REFERENCE_DIR_ENV = "PYTHIA_REFERENCE_DIR"
-# "Not on your plan": a provider refused one concept operation. Created when a store opens, so it needs no schema
-# version change and no migration; losing it only means asking the provider again.
-REFUSALS_TABLE = ("CREATE TABLE IF NOT EXISTS plan_refusals (plugin TEXT NOT NULL, concept TEXT NOT NULL,"
-                  " operation TEXT NOT NULL, reason TEXT NOT NULL, refused_at TEXT NOT NULL,"
-                  " PRIMARY KEY (plugin, concept, operation))")
 SCHEMA_VERSION = "4"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds)
 REFERENCE_SCHEMA_VERSION = "2"  # reference-*.sqlite3 release.schema_version, written by the builder
 
@@ -113,7 +108,6 @@ class IdentityStore:
             self._create(lambda setup: None)
         self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
-        self.db.execute(REFUSALS_TABLE)  # additive: stores created before it gain the table in place
         self._writing = threading.RLock()  # one connection serves every thread: one user of it at a time
 
     def _create(self, fill) -> None:
@@ -337,26 +331,6 @@ class IdentityStore:
         rows = self.db.execute("SELECT plugin, reason FROM resolve_misses WHERE subject_id = ? AND expires_at > ?",
                                (subject_id, now())).fetchall()
         return {row["plugin"]: row["reason"] for row in rows}
-
-    @_locked
-    def refuse(self, plugin: str, concept: str, operation: str, reason: str) -> None:
-        """Remember that a provider refused this operation as not on the investor's plan."""
-        self.db.execute("INSERT INTO plan_refusals (plugin, concept, operation, reason, refused_at) VALUES (?,?,?,?,?)"
-                        " ON CONFLICT (plugin, concept, operation) DO UPDATE SET reason=excluded.reason,"
-                        " refused_at=excluded.refused_at", (plugin, concept, operation, reason[:300], now()))
-
-    @_locked
-    def refusals(self) -> list[dict]:
-        rows = self.db.execute("SELECT plugin, concept, operation, reason, refused_at FROM plan_refusals"
-                               " ORDER BY plugin, concept, operation").fetchall()
-        return [dict(row) for row in rows]
-
-    @_locked
-    def clear_refusals(self, plugin: str | None = None) -> int:
-        """Forget refusals (one plugin's, or all), so selection tries the source again; returns how many."""
-        cursor = self.db.execute("DELETE FROM plan_refusals" + (" WHERE plugin = ?" if plugin else ""),
-                                 (plugin,) if plugin else ())
-        return cursor.rowcount
 
     @_locked
     def put_claim(self, plugin: str, provider: str, claim_json: dict) -> None:

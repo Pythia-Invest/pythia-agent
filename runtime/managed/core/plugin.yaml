@@ -15,3 +15,4 @@ provides_tools:
   - pythia_filings
   - pythia
   - pythia_answer_identity_question
+  - pythia_filings_combined

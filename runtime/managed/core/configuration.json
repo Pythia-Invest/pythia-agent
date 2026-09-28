@@ -11,7 +11,7 @@
       "key": "source_order",
       "kind": "identity",
       "label": "Source order",
-      "description": "Your preferred data sources, first choice first, separated by commas: plugin ids or provider names, for example 'eodhd, yahoo, coingecko'. One list for every kind of data; a source that does not cover an instrument is passed over. Leave empty for Pythia's default order (paid sources before free ones)."
+      "description": "Your preferred data sources, first choice first, separated by commas: plugin ids, provider names or common names, for example 'eodhd, coingecko, edgar'. One list for every kind of data; a source that does not cover an instrument is passed over. Leave empty for Pythia's default order: free sources first, so adding a key never changes the source by itself."
     }
   ]
 }

@@ -135,8 +135,7 @@ class Identity:
             self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
         queue_ops.settle(self, [value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
-        sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key
-                    or info.key in {item["plugin"] for item in section.get("sources", [])}]
+        sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
         for section in sections:
             if section["status"] == "resolving":
                 section.update(status="unresolved", reason=reason or f"{info.label} is not available")
@@ -159,7 +158,8 @@ class Identity:
             _status, value = configuration.value(self.ctx, SOURCE_ORDER)
         except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
             return ()
-        return parse_order(value)
+        plugins = installed()  # common names ("edgar", "esef") mean the plugin; unknown names are kept as written
+        return tuple(dict.fromkeys(page.named(name, plugins) or name for name in parse_order(value)))
 
     def _bindings(self, listing_ids: list[str]) -> dict[str, list[dict]]:
         """Confirmed bindings for search rows; optional, so a store problem only drops them."""
@@ -226,8 +226,7 @@ class Identity:
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
-                   "order": self.order(),
-                   "refused": {(row["plugin"], row["concept"], row["operation"]) for row in identity_store.refusals()}}
+                   "order": self.order()}
         return path, subject, lookups, None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
