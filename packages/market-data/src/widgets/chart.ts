@@ -99,9 +99,11 @@ export const chartBinding: WidgetBinding<
   },
   deferred(input, [quote, list]) {
     const series = (list?.data as SeriesList | undefined)?.series;
-    // The market's session kind chooses the windows, so wait for the quote.
-    if (!series || !isRead(quote?.data)) return [];
-    return plannedReads(input, series, quote.data.result, Date.now()).queries;
+    // The market's session kind chooses the windows, so wait for the quote;
+    // a failed quote read still lets the chart load.
+    const read = isRead(quote?.data) ? quote.data.result : undefined;
+    if (!series || (!read && !quote?.error)) return [];
+    return plannedReads(input, series, read, Date.now()).queries;
   },
   render(input, [quoteQuery, listQuery], deferred, { formatTimestamp }) {
     const quoteRead = isRead(quoteQuery?.data)
@@ -109,7 +111,7 @@ export const chartBinding: WidgetBinding<
       : undefined;
     const series = (listQuery?.data as SeriesList | undefined)?.series;
     const planned =
-      series && quoteRead
+      series && (quoteRead || quoteQuery?.error)
         ? plannedReads(input, series, quoteRead, Date.now())
         : undefined;
     const plan = planned?.plan;

@@ -99,7 +99,7 @@ const preMarket: InstrumentPath = {
   sessionGap: { start: prevClose, end: usPre },
 };
 
-// Five European sessions in calendar time and with the nights omitted.
+// Five European regular sessions, joined with the closed time omitted.
 const days = [5, 6, 7, 8, 9].map((d) => ({
   open: Date.parse(`2026-01-0${d}T08:00:00Z`),
   close: Date.parse(`2026-01-0${d}T16:30:00Z`),

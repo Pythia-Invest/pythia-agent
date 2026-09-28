@@ -36,8 +36,10 @@ standard view. New data types may need a new contract or presentation.
 Keep source, units, observation time and comparison basis inspectable. Market
 activity and observation quality are independent; polling cadence does not prove
 freshness. Use supplied session bounds or explicit rolling windows, retaining
-gaps and uncovered time. Multi-day charts may compress closed-market time between sessions; a gap inside a session (a halt or a missing bar) stays visible. Do not stretch a partial history to fill its domain,
-invent delays/baselines, or append an incompatible quote as a chart sample.
+gaps and uncovered time. Multi-day charts may compress closed-market time
+between sessions; a gap inside a session (a halt or a missing bar) stays
+visible. Do not stretch a partial history to fill its domain, invent
+delays/baselines, or append an incompatible quote as a chart sample.
 Regular and extended changes retain their separate comparison bases after close.
 
 Quotes can render before history. Reserve geometry and known identity during

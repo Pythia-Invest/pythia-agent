@@ -65,8 +65,10 @@ are subdued and dashed boundaries separate them. `sessionGap` may omit a known
 closed interval between the prior regular session and pre-market; timestamps are
 unchanged, and the supplied accessible chart description must explain that
 omission. `sessionGaps` applies the same rule to several intervals.
-Multi-day charts may compress closed-market time between sessions; a gap inside a session (a halt or a missing bar) stays visible. Page charts join multi-day
-regular sessions into one line and mark the day boundaries on the axis. An
+Multi-day charts may compress closed-market time between sessions; a gap inside
+a session (a halt or a missing bar) stays visible. Page charts join multi-day
+regular sessions into one line and mark the day boundaries on the axis
+([ADR 0041](../decisions/0041-instrument-page-price-chart.md)). An
 absent baseline stays neutral instead of inventing a gain/loss basis. Axis and
 readout times use the viewer's zone; `dates` marks session-date coordinates.
 
