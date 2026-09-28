@@ -57,6 +57,27 @@ class InvariantTest(unittest.TestCase):
         self.assertTrue(all(limit >= 0 for limit in limits.values()))
         self.assertEqual((limits["name_casing"], limits["primary_more_than_one"]), (0, 0))
 
+    def test_a_toronto_home_primary_beside_an_nyse_line_is_not_open_market(self):
+        # ISO 10383 leaves Toronto's market category unspecified; only EEA venues declare regulated vs open market.
+        self.plant("INSERT OR REPLACE INTO venues VALUES ('XTSE', 'XTSE', 'Toronto Stock Exchange', 'CA', 'NSPD')")
+        self.plant("INSERT OR REPLACE INTO venues VALUES ('XNYS', 'XNYS', 'NYSE', 'US', 'NSPD')")
+        self.plant("INSERT OR REPLACE INTO venues VALUES ('XMUN', 'XMUN', 'Munich', 'DE', 'NSPD')")
+        with sqlite3.connect(self.path) as db:
+            security, primary = db.execute("SELECT security_id, id FROM listings WHERE is_primary = 1 AND operating_mic = 'XAMS' "
+                                           "LIMIT 1").fetchone()
+            other = db.execute("SELECT id FROM listings WHERE security_id = ? AND id <> ? LIMIT 1", (security, primary)).fetchone()
+            if other is None:
+                db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary, status) "
+                           "VALUES ('listing:test:nyse', ?, 'XNYS', 'XNYS', 'TSTX', 'USD', 0, 'active')", (security,))
+            else:
+                db.execute("UPDATE listings SET mic = 'XNYS', operating_mic = 'XNYS', ticker = 'TSTX', currency = 'USD', "
+                           "is_primary = 0, status = 'active' WHERE id = ?", (other[0],))
+            db.execute("UPDATE listings SET mic = 'XTSE', operating_mic = 'XTSE', currency = 'CAD' WHERE id = ?", (primary,))
+        name = "primary_open_market_beside_us_exchange"
+        self.assertEqual(counts(self.path, name), {name: 0})
+        self.plant("UPDATE listings SET mic = 'XMUN', operating_mic = 'XMUN', currency = 'EUR' WHERE operating_mic = 'XTSE'")
+        self.assertEqual(counts(self.path, name), {name: 1})  # the same line on Munich's open market is flagged
+
     def test_withdrawn_currencies_follow_the_build_date(self):
         self.plant("INSERT OR REPLACE INTO venues VALUES ('XBUL', 'XBUL', 'Bulgarian Stock Exchange', 'BG', 'RMKT')")
         self.plant("UPDATE listings SET mic = 'XBUL', operating_mic = 'XBUL', currency = 'BGN' WHERE id = "

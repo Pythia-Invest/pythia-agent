@@ -7,7 +7,7 @@ import sqlite3
 from collections import defaultdict
 from pathlib import Path
 
-from .rules import TRADING_ONLY_VENUES
+from .rules import EEA, TRADING_ONLY_VENUES
 from .schema import identity
 
 # Trading currency by venue country (ISO 4217); a country that changed currency lists
@@ -195,14 +195,17 @@ def primary_inactive(build: Build) -> list[tuple]:
 
 
 def primary_open_market_beside_us_exchange(build: Build) -> list[tuple]:
-    """A company with a live NYSE/Nasdaq line whose primary is an EEA open-market segment (Linde on Tradegate)."""
+    """A company with a live NYSE/Nasdaq line whose primary is an EEA open-market segment (Linde on Tradegate).
+
+    Only EEA venues declare regulated versus open-market segments in ISO 10383; Toronto, Tel Aviv, Tokyo and
+    ASX are "unspecified" there, so a home primary on them is not an open-market line."""
     found = []
     for security_id, lines in build.by_security.items():
         if not build.live_security(security_id):
             continue
         us = [l for l in lines if l["operating_mic"] in US_EXCHANGES and build.live(l)]
         for line in _primaries(build, security_id):
-            if us and line["operating_mic"] not in US_EXCHANGES and build.category(line) != "RMKT" and line["operating_mic"] != "OTCM":
+            if us and build.country(line) in EEA and build.category(line) != "RMKT":
                 found.append((build.label(line), f"also {us[0]['ticker']}@{us[0]['operating_mic']}"))
     return found
 
@@ -215,7 +218,7 @@ def primary_on_open_market_beside_regulated(build: Build) -> list[tuple]:
         if not build.live_security(security_id):
             continue
         for line in _primaries(build, security_id):
-            if build.category(line) == "RMKT" or line["operating_mic"] in US_EXCHANGES:
+            if build.category(line) == "RMKT" or build.country(line) not in EEA:  # only EEA venues declare it
                 continue
             regulated = [l for l in lines if l is not line and build.live(l) and build.category(l) == "RMKT"
                          and build.country(l) == isin[:2]]
