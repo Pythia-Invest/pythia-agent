@@ -130,6 +130,7 @@ export function InstrumentChart({
   const active = instrumentPathActive(item);
   const [hover, setHover] = useState<number | null>(null);
   const dates = series?.dates === true;
+  const joined = Boolean(series?.sessionGaps?.length);
   const ticks = useMemo(
     () =>
       g
@@ -138,11 +139,11 @@ export function InstrumentChart({
             times: timeTicks(
               g,
               dates ? "UTC" : undefined,
-              Boolean(series?.sessionGaps?.length),
+              joined,
             ),
           }
         : null,
-    [g, dates],
+    [g, dates, joined],
   );
   const pointLabel = useMemo(
     () =>
