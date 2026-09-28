@@ -1,0 +1,27 @@
+{
+  "rule_id": "market_catalogue@1",
+  "note": "Curated, Pythia-authored (ADR 0037 amendment: subject kinds). Market subjects no open identifier names: index levels, continuous front-month futures, currency pairs and yields. Each has a Pythia key and each provider's symbol for it. A symbol is an address, never identifier evidence. A continuous future rolls from contract to contract on the provider's schedule; it is the market's reference line, not a contract one holds.",
+  "subjects": [
+    {"id": "index:pythia:sp500", "name": "S&P 500", "description": "US large caps", "asset_class": "index", "yahoo": "^GSPC", "eodhd": "GSPC.INDX"},
+    {"id": "index:pythia:nasdaq-composite", "name": "Nasdaq Composite", "description": "US, all Nasdaq shares", "asset_class": "index", "yahoo": "^IXIC", "eodhd": "IXIC.INDX"},
+    {"id": "index:pythia:dow-jones-industrial", "name": "Dow Jones", "description": "US, 30 blue chips", "asset_class": "index", "yahoo": "^DJI", "eodhd": "DJI.INDX"},
+    {"id": "index:pythia:russell-2000", "name": "Russell 2000", "description": "US small caps", "asset_class": "index", "yahoo": "^RUT", "eodhd": "RUT.INDX"},
+    {"id": "index:pythia:vix", "name": "VIX", "description": "S&P 500 implied volatility", "asset_class": "index", "yahoo": "^VIX", "eodhd": "VIX.INDX"},
+    {"id": "index:pythia:euro-stoxx-50", "name": "Euro Stoxx 50", "description": "Euro area large caps", "asset_class": "index", "yahoo": "^STOXX50E", "eodhd": "STOXX50E.INDX"},
+    {"id": "index:pythia:dax", "name": "DAX", "description": "Germany", "asset_class": "index", "yahoo": "^GDAXI", "eodhd": "GDAXI.INDX"},
+    {"id": "index:pythia:ftse-100", "name": "FTSE 100", "description": "United Kingdom", "asset_class": "index", "yahoo": "^FTSE", "eodhd": "FTSE.INDX"},
+    {"id": "index:pythia:cac-40", "name": "CAC 40", "description": "France", "asset_class": "index", "yahoo": "^FCHI", "eodhd": "FCHI.INDX"},
+    {"id": "index:pythia:nikkei-225", "name": "Nikkei 225", "description": "Japan", "asset_class": "index", "yahoo": "^N225", "eodhd": "N225.INDX"},
+    {"id": "index:pythia:hang-seng", "name": "Hang Seng", "description": "Hong Kong", "asset_class": "index", "yahoo": "^HSI", "eodhd": "HSI.INDX"},
+    {"id": "index:pythia:sse-composite", "name": "SSE Composite", "description": "Shanghai", "asset_class": "index", "yahoo": "000001.SS"},
+    {"id": "future:pythia:es", "name": "S&P 500 futures", "description": "E-mini, front month (CME)", "asset_class": "future", "yahoo": "ES=F"},
+    {"id": "future:pythia:nq", "name": "Nasdaq 100 futures", "description": "E-mini, front month (CME)", "asset_class": "future", "yahoo": "NQ=F"},
+    {"id": "future:pythia:cl", "name": "Crude oil", "description": "WTI, front month (NYMEX)", "asset_class": "future", "yahoo": "CL=F"},
+    {"id": "future:pythia:bz", "name": "Brent crude", "description": "Front month (ICE)", "asset_class": "future", "yahoo": "BZ=F"},
+    {"id": "future:pythia:gc", "name": "Gold", "description": "Front month (COMEX)", "asset_class": "future", "yahoo": "GC=F"},
+    {"id": "series:pythia:us-10y-yield", "name": "US 10-year yield", "description": "Treasury note, percent", "asset_class": "rate", "yahoo": "^TNX"},
+    {"id": "fx:pythia:EURUSD", "name": "EUR/USD", "description": "US dollars per euro", "asset_class": "fx", "yahoo": "EURUSD=X", "eodhd": "EURUSD.FOREX"},
+    {"id": "fx:pythia:USDJPY", "name": "USD/JPY", "description": "Yen per US dollar", "asset_class": "fx", "yahoo": "JPY=X", "eodhd": "USDJPY.FOREX"},
+    {"id": "fx:pythia:GBPUSD", "name": "GBP/USD", "description": "US dollars per pound", "asset_class": "fx", "yahoo": "GBPUSD=X", "eodhd": "GBPUSD.FOREX"}
+  ]
+}

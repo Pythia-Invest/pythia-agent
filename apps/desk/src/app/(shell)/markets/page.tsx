@@ -1,11 +1,6 @@
-import { PagePlaceholder } from "@/components/shell/page-placeholder";
+import { MarketsOverview } from "@/components/markets/markets-overview";
 
-/** Markets is a reserved destination; nothing backs it yet. */
+/** The markets overview: configured markets, today's movers and the watchlist. */
 export default function MarketsPage() {
-  return (
-    <PagePlaceholder
-      description="This surface is part of the desk's design, but no data source is connected to it yet."
-      title="Markets"
-    />
-  );
+  return <MarketsOverview />;
 }

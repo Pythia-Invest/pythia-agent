@@ -85,32 +85,16 @@ export function BoundWidget(props: Props) {
   );
 }
 
-function BoundContent({
-  widget,
-  moduleUrl,
-  name,
-  presentation,
-  data,
-  input,
-  options = {},
-  settings = {},
-}: Props & { widget: LoadedWidget }) {
+/** A feature binding's reads through Desk's coordinator, and the display
+ * snapshot it renders from them; `retry` repeats the enabled reads. Without a
+ * binding nothing is read. */
+export function useBindingSnapshot<Input, Result, Data>(
+  binding: WidgetBinding<Input, Result, Data> | undefined,
+  input: Input,
+) {
   const api = useDeskApi();
   const formatTimestamp = useLocalTime();
-  const binding =
-    input === undefined
-      ? undefined
-      : (widget.binding as WidgetBinding | undefined);
-  if (
-    input !== undefined &&
-    (!binding ||
-      typeof binding.queries !== "function" ||
-      typeof binding.render !== "function" ||
-      (binding.deferred !== undefined &&
-        typeof binding.deferred !== "function"))
-  )
-    throw Error("This widget has no supported data binding.");
-  const coordinated = (spec: WidgetQuery) => ({
+  const coordinated = (spec: WidgetQuery<Result>) => ({
     ...spec,
     ...(spec.readResource
       ? {
@@ -126,6 +110,41 @@ function BoundContent({
   const snapshot = binding?.render(input, primary, deferred, {
     formatTimestamp,
   });
+  const retry = () => {
+    primary.forEach((query, index) => {
+      if (primarySpecs[index]?.enabled) void query.refetch();
+    });
+    deferred.forEach((query, index) => {
+      if (deferredSpecs[index]?.enabled) void query.refetch();
+    });
+  };
+  return { snapshot, primary, retry };
+}
+
+function BoundContent({
+  widget,
+  moduleUrl,
+  name,
+  presentation,
+  data,
+  input,
+  options = {},
+  settings = {},
+}: Props & { widget: LoadedWidget }) {
+  const binding =
+    input === undefined
+      ? undefined
+      : (widget.binding as WidgetBinding | undefined);
+  if (
+    input !== undefined &&
+    (!binding ||
+      typeof binding.queries !== "function" ||
+      typeof binding.render !== "function" ||
+      (binding.deferred !== undefined &&
+        typeof binding.deferred !== "function"))
+  )
+    throw Error("This widget has no supported data binding.");
+  const { snapshot, retry } = useBindingSnapshot(binding, input);
   const [environment, setEnvironment] = useState<
     Pick<WidgetProps, "appearance" | "locale" | "timeZone">
   >({
@@ -177,19 +196,7 @@ function BoundContent({
         </p>
       )}
       {(snapshot?.state === "error" || snapshot?.message) && (
-        <Button
-          className="mt-2"
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            primary.forEach((query, index) => {
-              if (primarySpecs[index]?.enabled) void query.refetch();
-            });
-            deferred.forEach((query, index) => {
-              if (deferredSpecs[index]?.enabled) void query.refetch();
-            });
-          }}
-        >
+        <Button className="mt-2" size="sm" variant="ghost" onClick={retry}>
           Retry
         </Button>
       )}

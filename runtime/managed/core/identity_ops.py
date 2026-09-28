@@ -24,7 +24,7 @@ from .identity import (
 from . import queue_ops
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import batch_from_json, batch_to_json, page, search, store
+from .identity import batch_from_json, batch_to_json, market_catalogue, page, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -204,7 +204,15 @@ class Identity:
         return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
-        """The reference path and the subject from it, with the store lookups page composition reads."""
+        """The reference path and the subject from it, with the store lookups page composition reads.
+
+        A subject of core's market catalogue (an index, a continuous future, a currency pair, a yield) needs no
+        reference file: it has no reference path, and its curated addresses stand in for bindings."""
+        market = market_catalogue.load(subject_id)
+        if market is not None:
+            lookups = {"stored": lambda target, provider: None, "coins": lambda provider, caip19: None, "queue": [],
+                       "misses": {}, "order": self.order()}
+            return None, market, lookups, None
         path, ref = self.reference()
         if ref is None:
             return None, None, {}, NO_REFERENCE
@@ -360,5 +368,6 @@ def register(ctx: Any) -> None:
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])
-    from . import concept_ops
+    from . import concept_ops, markets_ops
     concept_ops.register(ctx, identity)
+    markets_ops.register(ctx, identity)

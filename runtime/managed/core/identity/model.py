@@ -13,7 +13,7 @@ from enum import StrEnum
 from typing import Any, Iterable, Mapping
 
 from .vocabulary import (
-    AUTHORITY_TIER, CONFIRMING, FOLD, KIND_OF_RECORD, RELATIONS, AssetClass, Authority, BindingStatus,
+    AUTHORITY_TIER, CONFIRMING, FOLD, KIND_OF_RECORD, RELATIONS, SECURITY_CLASSES, AssetClass, Authority, BindingStatus,
     EvidenceTier, InstrumentKind, RelationType, SubjectStatus,
 )
 from .schemes import (
@@ -178,6 +178,7 @@ class Security:
                  "security.issuer_id: issuer id required")
         _text(self.name, "security.name")
         _require(self.kind not in KIND_OF_RECORD, f"security: a {self.kind} is not a security")
+        _require(self.asset_class in SECURITY_CLASSES, f"security: {self.asset_class} is not a security's asset class")
         _require((self.asset_class is AssetClass.CRYPTO) == (self.kind in (InstrumentKind.COIN, InstrumentKind.TOKEN)),
                  "security: coin/token kinds belong to the crypto asset class and only there")
 

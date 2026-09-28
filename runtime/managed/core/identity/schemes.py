@@ -34,6 +34,7 @@ class Kind(StrEnum):
     FX = "fx"              # a currency pair
     SERIES = "series"      # a non-tradable data series (a policy rate, a yield curve point)
     INDEX = "index"        # an index level (never a security: it cannot be held)
+    FUTURE = "future"      # a futures market; `future:pythia:<root>` is its continuous front month
     PROTOCOL = "protocol"  # a DeFi protocol (no legal-entity identifier)
     MARKET = "market"      # a lending reserve, pool, vault or perp market
 

@@ -3,6 +3,7 @@ import importlib
 import json
 import os
 from pathlib import Path
+from . import movers
 from .definition import TOOLS, TOOLSET, schemas
 from .identity import candidate, reference
 from .series import definition, selector, MODES
@@ -99,6 +100,12 @@ def register(ctx):
                     replies = call('price_batch', {'symbols': sorted(symbols)})['data']
                 parallel = importlib.import_module(wire.__package__ + '.coordinated').parallel
                 return envelope(parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies if item['request']['operation'] == 'latest' else None), clean['reads']))
+            if operation == 'movers':
+                raw = call('screener', {'options': {'scrIds': movers.SCREENS[clean['list']], 'count': movers.LIMIT}})
+                if raw['issues'] or not raw.get('data'):
+                    return failures.qualify_failure(envelope(None, [issue(code) for code in raw['issues'] or ['source_unavailable']]), raw)
+                data, drift = movers.adapt(raw['data'], clean['list'], clean.get('limit', movers.LIMIT))
+                return envelope(data, drift)
             if operation in ('research', 'dashboard'):
                 args = {k: v for k, v in clean.items() if k != 'operation'}
                 if operation == 'research':

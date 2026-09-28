@@ -3,7 +3,8 @@
 `subject_view` is local only: it reads the reference file, the identity store and
 the installed plugins' contracts, and never calls a plugin. A plugin whose
 contract lets core build its native reference from open identifiers (a MIC
-suffix table, an identifier-named native scope, the curated native-coin table)
+suffix table, an identifier-named native scope, the curated native-coin table
+or core's market catalogue)
 is addressed at once; that derived reference is an address, never identifier
 evidence. Only when core cannot derive the address is the section `resolving`:
 the Desk then asks for that plugin's resolve (`identity-resolve`), which
@@ -18,6 +19,7 @@ from datetime import date
 from enum import StrEnum
 from typing import Any, Callable, Mapping
 
+from . import market_catalogue
 from .claims import ClaimBatch, RecordClaim
 from .concepts import NOTICE, REGISTRY, Combine, Concept, ranked, select
 from .manifest import ConceptEntry, Manifest
@@ -171,6 +173,9 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     target = subject["ids"].get(entry.via)
     row = stored(target, info.manifest.provider) if target and _addressable(info, entry.via, subject) else None
     derived = None if row or not target or not _addressable(info, entry.via, subject) else derive(info, entry.via, subject, coins)
+    curated = subject.get("bindings", {}).get(info.manifest.provider) if concept is Concept.MARKET_DATA else None
+    if curated:  # a market-catalogue subject: its curated address, whatever the plugin's native levels
+        derived = (curated, market_catalogue.RULE)
     wants_resolve = (bool(target) and _addressable(info, entry.via, subject) and not row and not derived
                      and bool(resolve_input(info, subject)))
     if not (row or derived or wants_resolve):
@@ -194,7 +199,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         ref, state = ProviderRef(row["provider"], row["native_id"], row["native_scope"]), row["status"]
     else:
         ref, rule = derived
-        state = "confirmed" if rule == NATIVE_COINS_RULE else "derived"
+        state = "confirmed" if rule in (NATIVE_COINS_RULE, market_catalogue.RULE) else "derived"
     request = None
     if section in (Section.PROFILE, Section.FILINGS):
         if operation not in info.operations:  # the contract names it, but no native tool declares it

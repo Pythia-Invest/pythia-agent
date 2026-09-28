@@ -50,7 +50,11 @@
       },
       "coverage": {
         "asset_classes": [
-          "equity"
+          "equity",
+          "index",
+          "future",
+          "fx",
+          "rate"
         ]
       },
       "qualities": {
@@ -62,6 +66,13 @@
             "split_dividend"
           ]
         }
+      }
+    },
+    "market_movers": {
+      "operations": {
+        "most_active": "movers",
+        "gainers": "movers",
+        "losers": "movers"
       }
     }
   },

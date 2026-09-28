@@ -49,8 +49,8 @@ class Coverage:
 
 @dataclass(frozen=True, slots=True)
 class ConceptEntry:
-    level: Level                        # the level the data is about (fundamentals: issuer)
-    via: Level                          # the level of the reference used to call (fundamentals: a listing symbol)
+    level: Level | None                 # the level the data is about (fundamentals: issuer); None: market-wide
+    via: Level | None                   # the level of the reference used to call (fundamentals: a listing symbol)
     operations: Mapping[str, str]       # concept operation -> plugin operation
     coverage: Coverage
     qualities: Mapping[str, Mapping[str, Any]]  # concept operation -> declared qualities (claims, not entitlements)
@@ -185,13 +185,16 @@ def _concept(key: str, item: Any, addressable: set[Level]) -> ConceptEntry:
     concept = _enum(Concept, key, "concepts")
     spec = REGISTRY[concept]
     per_authority = spec.combine is Combine.PER_AUTHORITY
-    entry = _object(item, path, {"level", "via", "operations"} | ({"authorities"} if per_authority else set()),
+    about = {"level", "via"} if spec.levels else set()  # a market-wide concept is about no subject
+    entry = _object(item, path, about | {"operations"} | ({"authorities"} if per_authority else set()),
                     {"coverage", "qualities"})
-    level, via = _enum(Level, entry["level"], f"{path}.level"), _enum(Level, entry["via"], f"{path}.via")
-    if level not in spec.levels:
-        raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels))}")
-    if DEPTH[via] < DEPTH[level] or via not in addressable:
-        raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
+    level = via = None
+    if spec.levels:
+        level, via = _enum(Level, entry["level"], f"{path}.level"), _enum(Level, entry["via"], f"{path}.via")
+        if level not in spec.levels:
+            raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels))}")
+        if DEPTH[via] < DEPTH[level] or via not in addressable:
+            raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
     operations = {}
     declared = _object(entry["operations"], f"{path}.operations", set(), set(spec.operations))
     if not declared:
