@@ -13,7 +13,6 @@ platform_toolsets:
     - memory
     - session_search
     - skills
-    - terminal
     - todo
     - vision
     - web
@@ -24,7 +23,6 @@ platform_toolsets:
     - memory
     - session_search
     - skills
-    - terminal
     - todo
     - vision
     - web
@@ -36,7 +34,6 @@ platform_toolsets:
     - memory
     - session_search
     - skills
-    - terminal
     - todo
     - vision
     - web

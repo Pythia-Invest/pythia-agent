@@ -234,8 +234,10 @@ hermes -p <profile> tools disable <toolset> --platform api_server
 
 The fresh profile seed explicitly configures identical `cli`, `cron`, and
 `api_server` toolset lists: `cronjob`, `delegation`, `file`, `memory`,
-`session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. This
+`session_search`, `skills`, `todo`, `vision`, and `web`. This
 replaces each platform's broad implicit Hermes default and intentionally omits
+`terminal` and `code_execution` (see
+[credential custody](../../docs/architecture/credential-custody.md#agent-shell-access)),
 `computer_use`, the retired lab-only `kanban`, and every other unselected
 toolset. Pythia's plugin toolsets remain native plugin state rather than entries
 in this base list. Because the profile seed is create-if-absent, later native

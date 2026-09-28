@@ -245,7 +245,6 @@ describe("private roots, environment, seeds, and copied assets", () => {
     - memory
     - session_search
     - skills
-    - terminal
     - todo
     - vision
     - web
@@ -256,7 +255,6 @@ describe("private roots, environment, seeds, and copied assets", () => {
     - memory
     - session_search
     - skills
-    - terminal
     - todo
     - vision
     - web
@@ -268,7 +266,6 @@ describe("private roots, environment, seeds, and copied assets", () => {
     - memory
     - session_search
     - skills
-    - terminal
     - todo
     - vision
     - web
@@ -276,6 +273,10 @@ describe("private roots, environment, seeds, and copied assets", () => {
     expect(
       readFileSync(join(paths.profileRoot, "config.yaml"), "utf8"),
     ).toContain(expectedPlatformToolsets);
+    // Shell and code execution run as the investor and could read secrets.json.
+    expect(
+      readFileSync(join(paths.profileRoot, "config.yaml"), "utf8"),
+    ).not.toMatch(/^\s*- (terminal|code_execution)$/m);
     expect(readFileSync(join(paths.profileRoot, "SOUL.md"), "utf8")).toContain(
       "Pythia",
     );

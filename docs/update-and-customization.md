@@ -126,9 +126,11 @@ doctor. Since that command isolates a single plugin, dependent feature packages
 are qualified with their copied dependencies together; ordinary updates do not
 claim an independent doctor pass for a preserved replacement or dependent feature.
 
-A fresh profile explicitly enables the same ten base toolsets for `cli`,
+A fresh profile explicitly enables the same nine base toolsets for `cli`,
 `cron`, and `api_server`: `cronjob`, `delegation`, `file`, `memory`,
-`session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. The Pythia
+`session_search`, `skills`, `todo`, `vision`, and `web`. `terminal` and
+`code_execution` stay off because they could read stored credentials; see
+[credential custody](architecture/credential-custody.md#agent-shell-access). The Pythia
 core adapter supplies `pythia-desk` for bounded Desk context. The retired SEC
 and EODHD toolsets are no longer fresh-profile defaults. These are initial
 values only; later native user edits are preserved.

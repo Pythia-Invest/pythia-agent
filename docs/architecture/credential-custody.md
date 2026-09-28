@@ -38,3 +38,28 @@ checks config readback, and restarts Hermes before submitting the run. It never
 writes YAML directly or changes existing/partial selections, shared defaults,
 or credentials. If interrupted between setters, complete the partial selection
 through native Hermes configuration; no automatic repair guesses user intent.
+
+## Agent shell access
+
+Hermes runs as the investor, so any tool that executes arbitrary commands or
+code can read `<config>/secrets.json` and every other file above. Hermes's
+file-tool read denylist covers only its own stores, and it states that this is
+not a security boundary. The fresh profile seed therefore leaves `terminal`
+(which includes `process`) and `code_execution` out of the `cli`, `cron`, and
+`api_server` toolset lists; the agent still has `web` for search and page
+extraction, and every Pythia plugin tool.
+
+The seed is create-if-absent, so a profile created earlier keeps `terminal`
+until the investor turns it off: in Desk toolset settings for `api_server`, or
+with `hermes -p <profile> tools disable terminal --platform <platform>` for
+`cli`, `cron`, and `api_server`, followed by a Hermes restart. Re-enabling either toolset remains a native user choice, but Pythia
+should enable it by default again only once credentials are no longer readable
+from the agent's shell: for example provider keys held by a separate process or
+OS user, or a terminal backend whose sandbox cannot reach the Pythia config
+root.
+
+The `file` toolset stays enabled because workspace research depends on it
+([ADR 0013](../decisions/0013-workspace-and-native-research-context.md)). Its
+`read_file` and `search_files` can still read `secrets.json`, and `write_file`
+can write outside the workspace. Closing that needs a path boundary on the
+native file tools, which is not in place yet.
