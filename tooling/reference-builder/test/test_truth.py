@@ -1,6 +1,7 @@
 """The identity truth set and its audit: data consistency, scope, core derivation and the regression gate."""
 
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -91,6 +92,18 @@ class AuditTest(unittest.TestCase):
         self.assertEqual(len(found), 2)
         aliased = truth_report.regressions(truth.audit(self.path, TRUTH, cfi=("ES",)), baseline, {"security:figi:BBGOLDKEY001": old})
         self.assertEqual(aliased, [])
+
+    def test_the_build_report_and_the_audit_list_the_build_counts_to_review(self):
+        audit = {"securities": {"by_primary_rule": {"us_exchange_no_home_line": 3}}, "schema": {"securities_without_primary": 2},
+                 "flags": {"cik_link_suspect": 1}}
+        logged = []
+        result = truth_report.build_report(self.path, ("ES",), logged.append, audit)
+        self.assertEqual(result["attention"], {"us_exchange_no_home_line": 3, "securities_without_primary": 2,
+                                               "issuer_split_lei_cik": 0, "cik_link_suspect": 1})
+        self.assertIn("       3  US primary: a US exchange line and no line in the ISIN's country", logged)
+        self.assertIsNone(truth_report.manifest_audit(self.path))  # no manifest beside this reference
+        (self.path.parent / "manifest.json").write_text(json.dumps({"snapshot": {"file": self.path.name}, "audit": audit}))
+        self.assertEqual(truth_report.manifest_audit(self.path), audit)
 
 
 if __name__ == "__main__":

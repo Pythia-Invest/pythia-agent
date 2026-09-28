@@ -23,6 +23,11 @@ HOME = {
     "ZA": (("SJ",), "XJSE"),
     "US": (("UN", "UW", "UQ", "UR", "UA", "UP"), None),
 }
+# German floor exchanges: FIRDS often names one as the relevant venue of a share whose German
+# main market is Xetra (Fresenius on Düsseldorf).
+GERMAN_FLOORS = frozenset({"XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER"})
+# Nasdaq Nordic writes a share class after a space (`VOLV B`); OpenFIGI glues it on (`VOLVB`).
+SPACED_CLASS_VENUES = frozenset({"XSTO", "XHEL", "XCSE", "XICE"})
 US_EXCHANGE_MIC = {"UN": "XNYS", "UW": "XNAS", "UQ": "XNAS", "UR": "XNAS", "UA": "XASE", "UP": "ARCX"}
 # Main OpenFIGI exchange code per operating MIC (derived from micCode-qualified answers).
 MAIN_EXCH_CODE = {
@@ -124,7 +129,7 @@ def display_case(name: str, tickers: frozenset[str] = frozenset(), *, sec: bool 
         return name
 
     def word(token: str, first: bool) -> str:
-        plain = re.sub(r"[^A-Z0-9]", "", token)
+        plain = re.sub(r"[\W_]", "", token)
         if plain in _BRANDS:
             return token.replace(plain, _BRANDS[plain])
         if (not plain.isalpha() or re.fullmatch(r"(?:[A-Z]\.)+[A-Z]?\.?", token)
@@ -134,9 +139,10 @@ def display_case(name: str, tickers: frozenset[str] = frozenset(), *, sec: bool 
             return token.replace(plain, _FORMS[plain])
         if plain in _PARTICLES:
             return token.capitalize() if first else token.lower()
-        if not re.search(r"[AEIOUY]", plain) or (len(plain) <= 3 and plain not in _WORDS):
+        if not re.search(r"[AEIOUYÆØŒ]", _unaccented(plain)) or (len(plain) <= 3 and plain not in _WORDS):
             return token
-        cased = re.sub(r"[A-Z]+(?:'[A-Z]+)?", lambda part: part[0].capitalize(), token)
+        # Any capital letter, not only ASCII: "NESTLÉ" -> "Nestlé", "MØLLER" -> "Møller".
+        cased = re.sub(r"[^\W\d_]+(?:'[^\W\d_]+)?", lambda part: part[0].capitalize(), token)
         return re.sub(r"^(Mc|[OD]')([a-z])", lambda part: part[1] + part[2].upper(), cased)
 
     parts = re.split(r"([\s/-]+)", name)
@@ -158,6 +164,15 @@ def lit_segment(mic: str) -> str:
     return LIT_SEGMENT.get(mic, mic)
 
 
+def _unaccented(text: str) -> str:
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
+
+
+def exchange_ticker(root: str, klass: str | None, operating_mic: str | None) -> str | None:
+    """The ticker as the venue writes a share class: `VOLV B` on Nasdaq Nordic, else None (keep the source's)."""
+    return f"{root} {klass}" if klass and operating_mic in SPACED_CLASS_VENUES else None
+
+
 def split_ticker(ticker: str | None) -> tuple[str | None, str | None]:
     """OpenFIGI writes share classes as `BRK/B` or `ABC A`; SEC as `BRK-B`."""
     if not ticker:
@@ -167,10 +182,11 @@ def split_ticker(ticker: str | None) -> tuple[str | None, str | None]:
 
 
 def split_glued_class(ticker: str, fisn: str | None) -> tuple[str, str] | None:
-    """Nordic tickers glue the class on (`NCCA`); the FISN `…/SH A` reveals it."""
-    match = re.search(r"/(?:SH|PREF|PRF) ([A-Z])\b", fisn or "")
-    if match and len(ticker) > 2 and ticker.endswith(match.group(1)):
-        return ticker[:-1], match.group(1)
+    """Nordic tickers glue the class on (`NCCA`); the FISN reveals it: `…/SH A`, or in Copenhagen `…/B Aktie`."""
+    match = re.search(r"/(?:(?:SH|PREF|PRF) ([A-Z])\b|([A-Z]) AKTIE\b)", (fisn or "").upper())
+    klass = match and (match.group(1) or match.group(2))
+    if klass and len(ticker) > 2 and ticker.endswith(klass):
+        return ticker[:-1], klass
     return None
 
 
@@ -207,7 +223,7 @@ def primary_venue(
     xetra_live: bool,
     fanout: list[dict],
 ) -> tuple[str | None, str, dict | None]:
-    """FIRDS relevant venue, corrected for non-EEA home markets and Frankfurt floor.
+    """FIRDS relevant venue, corrected for non-EEA home markets and the German floor exchanges.
 
     Returns (operating MIC, rule, OpenFIGI home row when the home line is outside FIRDS).
     """
@@ -221,8 +237,8 @@ def primary_venue(
         if home:
             row = sorted(home, key=lambda r: (codes.index(r["exchCode"]), r.get("ticker") or ""))[0]
             return home_mic or US_EXCHANGE_MIC[row["exchCode"]], "home_listing_evidence", row
-    if relevant_operating_mic == "XFRA" and xetra_live:
-        return "XETR", "frankfurt_floor_to_xetra", None
+    if relevant_operating_mic in GERMAN_FLOORS and xetra_live:
+        return "XETR", "german_floor_to_xetra", None
     if relevant_operating_mic:
         return relevant_operating_mic, "firds_relevant_venue", None
     return None, "no_relevant_venue", None

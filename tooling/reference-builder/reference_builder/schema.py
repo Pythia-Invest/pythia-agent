@@ -247,6 +247,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             assert_(subject, "isin", security.isin, "esma_firds")
         if security.share_class_figi:
             assert_(subject, "share_class_figi", security.share_class_figi, "openfigi")
+    with_primary: set[str] = set()
     for listing in sorted(snap.listings.values(), key=lambda l: (not l.is_primary, l.status != "active", l.listing_id)):
         subject = ids.listing(listing)
         security_id = ids.securities.get(listing.security_id or "")
@@ -268,6 +269,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
                     candidates[alias].add(composite)
                 tables["composites"].append({"id": composite, "security_id": security_id, "country": listing.country})
                 assert_(composite, "composite_figi", listing.composite_figi, "openfigi")
+        if listing.is_primary:
+            with_primary.add(listing.security_id)
         tables["listings"].append({
             "id": subject, "security_id": security_id, "composite_id": composite, "mic": listing.mic,
             "operating_mic": listing.operating_mic, "ticker": listing.ticker, "currency": listing.currency,
@@ -280,6 +283,9 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
                     listing.ticker_source or listing.source, **span)
         if listing.name != titles.get(listing.security_id):  # the security row already carries its title
             name(subject, listing.name, listing.source)
+    # A live security whose primary line was not written (none decided, or a home line without a currency).
+    audit["securities_without_primary"] = sum(1 for key, security in snap.securities.items()
+                                              if security.activity != "inactive" and key not in with_primary)
     for relation in snap.relationships:
         source = ids.securities.get(relation.from_id)
         isin = relation.to_id.split(":", 1)[1]

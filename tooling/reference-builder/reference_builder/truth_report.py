@@ -96,6 +96,41 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
     return "\n".join(lines)
 
 
+# Build counts a reviewer should see beside the scores, from the manifest's audit: primaries a rule chose
+# rather than a source, securities left without one, and issuer links that look wrong. Never a gate.
+ATTENTION = (
+    ("us_exchange_no_home_line", ("securities", "by_primary_rule"), "US primary: a US exchange line and no line in the ISIN's country"),
+    ("securities_without_primary", ("schema",), "live securities without a primary listing"),
+    ("issuer_split_lei_cik", ("flags",), "CIK-only issuers named like a LEI issuer (one company split in two?)"),
+    ("cik_link_suspect", ("flags",), "CIK links whose SEC title shares no word with the LEI's names"),
+)
+
+
+def attention(audit: dict) -> dict[str, int]:
+    counts = {}
+    for key, path, _label in ATTENTION:
+        section = audit
+        for step in path:
+            section = section.get(step, {}) if isinstance(section, dict) else {}
+        counts[key] = section.get(key, 0) if isinstance(section, dict) else 0
+    return counts
+
+
+def format_attention(counts: dict[str, int] | None) -> list[str]:
+    if counts is None:
+        return ["Build counts: no manifest.json for this reference beside it"]
+    return ["Build counts (manifest audit):"] + [f"  {counts.get(key, 0):>6}  {label}" for key, _path, label in ATTENTION]
+
+
+def manifest_audit(reference: Path) -> dict | None:
+    """The builder's audit counts, when the manifest beside the reference describes this file."""
+    path = reference.parent / "manifest.json"
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data.get("audit") if data.get("snapshot", {}).get("file") == reference.name else None
+
+
 def load_baseline(path: Path | None = None) -> dict | None:
     path = path or TRUTH_DIR / "baseline.json"
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
@@ -105,14 +140,17 @@ def aliases_of(reference: Path) -> dict[str, str]:
     return {row[0]: row[1] for row in Reference(reference).all("SELECT old_id, new_id FROM id_aliases")}
 
 
-def build_report(reference: Path, cfi: tuple[str, ...], log) -> dict:
+def build_report(reference: Path, cfi: tuple[str, ...], log, build_audit: dict | None = None) -> dict:
     """The builder's non-blocking report: scores and regressions for the manifest, a summary in the log."""
+    counts = attention(build_audit) if build_audit is not None else None
+    for line in format_attention(counts) if counts is not None else []:
+        log(line)
     try:
         report = audit(reference, load_truth(), cfi=cfi)
         regressed = regressions(report, load_baseline(), aliases_of(reference))
     except Exception as error:  # the report never fails a build
         log(f"truth-set audit skipped: {error!r}")
-        return {"error": repr(error)}
+        return {"error": repr(error), "attention": counts}
     scores = report.scores()
     headline = [c for check, c in scores.items() if check != "subject_key"]
     passed = sum(c.get("pass", 0) for c in headline)
@@ -122,7 +160,7 @@ def build_report(reference: Path, cfi: tuple[str, ...], log) -> dict:
     for item in regressed[:10]:
         log(f"  regression {item}")
     return {"truth_version": report.truth_version, "key_rule": key_rule(), "entries_in_scope": report.in_scope, "scores": scores,
-            "regressions": len(regressed)}
+            "regressions": len(regressed), "attention": counts}
 
 
 def newest_reference(out_dir: Path) -> Path | None:
@@ -153,6 +191,8 @@ def main(argv: list[str] | None = None) -> int:
     baseline = None if args.write_baseline else load_baseline(baseline_path)
     regressed = regressions(report, baseline, aliases_of(reference))
     print(format_report(report, regressed, baseline=baseline))
+    build_audit = manifest_audit(reference)
+    print("\n" + "\n".join(format_attention(attention(build_audit) if build_audit is not None else None)))
     if args.failures:
         print("\nFailing checks:")
         print("\n".join(f"  {r.key}: {r.reason}" for r in report.results if r.status == "fail"))

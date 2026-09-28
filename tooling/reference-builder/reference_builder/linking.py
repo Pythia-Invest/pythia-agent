@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 
 from . import rules
 from .assemble import FigiMap, Inputs, operating
-from .model import GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot
+from .model import GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot, Venue
 from .sec import EXCHANGE_MIC, LISTED_MICS
 
 SEC_EDGAR_RA = "RA000665"
@@ -37,13 +37,15 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
 
     evidence, isins = _link_evidence(snap, entities, tickers, rows, figi_map)
     links = _decide(snap, tickers, evidence, audit)
+    _flag_suspect_links(snap, tickers, links)
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
     for ticker in tickers:
         listing = _listing(snap, inputs, ticker, rows.get(ticker.ticker), links.get(ticker.cik), audit)
         if not listing.security_id:
             listing.security_id = _security_for(snap, listing, isins.get(ticker.ticker), share_classes)
     build_us_etfs(snap, inputs, figi_map)
-    _mark_us_primaries(snap)
+    _flag_split_issuers(snap)
+    _mark_us_primaries(snap, inputs.venues)
 
 
 def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
@@ -197,6 +199,32 @@ def _issuer_for(snap: Snapshot, ticker: SecTicker, link: tuple[str, str] | None)
     return issuer
 
 
+def _flag_suspect_links(snap: Snapshot, tickers: list[SecTicker], links: dict[str, tuple[str, str]]) -> None:
+    """An identifier link whose SEC title shares no name word with any GLEIF name of the LEI: a rename, or a
+    wrong LEI in the source (FIRDS gives Lee Enterprises' ISIN Berkshire Hathaway's LEI). Flagged, kept."""
+    titles = {t.cik: t.name for t in reversed(tickers)}
+
+    def alike(a: str, b: str) -> bool:  # a shared word, or the same letters apart from spacing ("MOODY S", "F N B")
+        x, y = rules.normalized_name(a), rules.normalized_name(b)
+        joined = sorted((x.replace(" ", ""), y.replace(" ", "")), key=len)
+        return bool(set(x.split()) & set(y.split())) or bool(joined[0]) and joined[1].startswith(joined[0])
+
+    for cik, (lei, rule) in links.items():
+        issuer = snap.issuers[f"lei:{lei}"]
+        names = [issuer.name, *(name for name, *_ in issuer.names)]
+        if rule != "name_unique" and not any(alike(titles[cik], name) for name in names):
+            snap.flag(issuer.issuer_id, "cik_link_suspect", f"cik:{cik}")
+
+
+def _flag_split_issuers(snap: Snapshot) -> None:
+    """A CIK-only issuer named like a LEI issuer: probably one company split in two (a CIK linked elsewhere)."""
+    by_name = {rules.normalized_name(issuer.name): issuer.issuer_id for issuer in snap.issuers.values() if issuer.lei}
+    for issuer in snap.issuers.values():
+        key = rules.normalized_name(issuer.name) if not issuer.lei else ""
+        if len(key) >= rules.MIN_NAME_KEY and key in by_name:
+            snap.flag(issuer.issuer_id, "issuer_split_lei_cik", by_name[key])
+
+
 def _listing(snap: Snapshot, inputs: Inputs, ticker: SecTicker, row: dict | None, link, audit: Counter) -> Listing:
     issuer = _issuer_for(snap, ticker, link)
     mic = EXCHANGE_MIC.get(ticker.exchange or "")
@@ -239,11 +267,14 @@ def _security_for(snap: Snapshot, listing: Listing, isin: str | None, share_clas
     return security_id
 
 
-def _mark_us_primaries(snap: Snapshot) -> None:
+def _mark_us_primaries(snap: Snapshot, venues: dict[str, Venue]) -> None:
     """A US security's first exchange-listed line is its primary listing.
 
     US securities are the SEC ones, and FIRDS securities with a US ISIN: OpenFIGI
-    shows US lines on every exchange, so it cannot name the home one.
+    shows US lines on every exchange, so it cannot name the home one. A non-US
+    security with a US exchange line and no line in its ISIN's country (Linde,
+    Accenture) has its home market in the US too, unless its primary is an EEA
+    regulated-market admission (Stellantis and Ferrari on Euronext Milan).
     """
     by_security: dict[str, list[Listing]] = defaultdict(list)
     for listing in snap.listings.values():
@@ -251,11 +282,24 @@ def _mark_us_primaries(snap: Snapshot) -> None:
             by_security[listing.security_id].append(listing)
     for security_id, lines in by_security.items():
         security = snap.securities[security_id]
-        if security.source not in ("sec", "sec_funds") and not (security.isin or "").startswith("US"):
-            continue
         listed = sorted((l for l in lines if l.country == "US" and l.operating_mic in LISTED_MICS and l.currency),
                         key=lambda l: (l.position is None, l.position or 0, l.listing_id))
-        if listed:
-            for line in lines:
-                line.is_primary = line is listed[0]
-            security.primary_mic, security.primary_rule = listed[0].operating_mic, "us_exchange_listing"
+        if not listed:
+            continue
+        if security.source in ("sec", "sec_funds") or (security.isin or "").startswith("US"):
+            rule = "us_exchange_listing"
+        elif _us_home(security, lines, venues):
+            rule = "us_exchange_no_home_line"
+        else:
+            continue
+        for line in lines:
+            line.is_primary = line is listed[0]
+        security.primary_mic, security.primary_rule = listed[0].operating_mic, rule
+
+
+def _us_home(security: Security, lines: list[Listing], venues: dict[str, Venue]) -> bool:
+    if not security.isin or any(l.country == security.isin[:2] and l.status != "inactive" for l in lines):
+        return False
+    current = next((l for l in lines if l.is_primary), None)
+    venue = venues.get(current.mic or "") if current else None
+    return not (venue and venue.category == "RMKT" and venue.country in rules.EEA)

@@ -173,6 +173,7 @@ def _apply_figi(listing: Listing, row: dict, fisn: str | None) -> None:
         glued = rules.split_glued_class(ticker, fisn)
         if glued:
             root, klass = glued
+    ticker = rules.exchange_ticker(root, klass, listing.operating_mic) or ticker
     listing.ticker, listing.ticker_root, listing.ticker_class = ticker, root, klass
     listing.ticker_source = "openfigi"
     listing.figi = row.get("figi")
