@@ -39,7 +39,9 @@ not a registry: deleting the package removes the declaration.
   class (`VOLV B@XSTO` on Nasdaq Stockholm and Copenhagen); a two-letter suffix
   is refused, as `AAPL US` or `ASML NA` is a Bloomberg code, not a venue ticker. A provider symbol
   has no space, so core writes that separator as `-` (`VOLV-B.ST`), rule
-  `mic_table@2`.
+  `mic_table@2`. An optional `venue_codes` table maps the provider's own venue
+  codes to operating MICs (Yahoo `NMS` to XNAS), so core can check the venue a
+  read states; a code it does not map is not checked.
 - **`content`** maps core's page sections (`quote`, `chart`, `profile`,
   `financials`, `news`, `filings`) to a tool, the level the data is about and the level of
   the reference used to call (`via`). `via` may be narrower than `level`, never
@@ -93,7 +95,7 @@ identifiers: the MIC suffix table, a native scope named after a scheme the
 plugin accepts at that level (GLEIF by `lei`, SEC by `cik`), or core's curated
 canonical-asset table (rule `canonical_assets@1`, a confirmed binding). A derived
 reference is an address, never identifier evidence, and is recomputed rather
-than stored. Otherwise the section is `resolving`, and the Desk asks
+than stored; only its read checks are stored (ADR 0037, "Read checks"). Otherwise the section is `resolving`, and the Desk asks
 `identity-resolve` for that one plugin after rendering: core runs its declared
 `resolve` with a short timeout, applies `decide` (rule `resolve_answer@1`: the
 answer to open identifiers binds unless identifier evidence or the receipt

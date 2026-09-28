@@ -277,6 +277,9 @@ addressing (the full shape is in the ADR 0038 amendment):
   honestly; qualities are claims, not proof of an account's entitlements.
 - A filings source lists the `authorities` it serves (`sec`, `esma`, `fca`,
   `sedar`); core combines one source per authority.
+- A market-wide concept (`market_movers`) is about no subject, so its entry
+  names `operations` only, without `level` or `via`:
+  `"market_movers": {"operations": {"gainers": "movers", "losers": "movers"}}`.
 - `rights` states the licence class, how long data may stay on the device,
   whether it may be published (false for provider data) and any attribution
   the provider requires. `limits` may state the provider's published rate

@@ -160,6 +160,13 @@ export function SourcesLine({
               section.status.replaceAll("_", " ")}
           </span>
         ) : null}
+        {section.unverified && !chosen ? (
+          <span>· unverified ({section.unverified})</span>
+        ) : section.verified_at && !chosen ? (
+          <span title={`Checked against the reference ${section.verified_at}`}>
+            · verified
+          </span>
+        ) : null}
         {chosen && onUse ? (
           <>
             <span>· used once instead of core's choice</span>

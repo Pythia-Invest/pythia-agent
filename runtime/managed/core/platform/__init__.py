@@ -28,6 +28,19 @@ def register_agent_tool(ctx, name, tool, description, check_fn=None, operations=
     return register(ctx, name, tool, description, check_fn, operations)
 
 
+def check_read(subject_id, native_ref, stated):
+    """Check what one read of a subject's routed reference states about itself (core identity, ADR 0037).
+
+    `subject_id` is None for an explicit reference: core checks it for the subject it last
+    served it for. `stated` holds what the source's own answer says: `currency` and `venue`
+    (its own venue code). Returns {"status", "label"}: status "verified", "unverified"
+    (served, with the label, e.g. "venue differs"), "refused" (an enforced difference: the
+    source is not used) or "unchecked". Local only; a failure is "unchecked"."""
+    from .. import identity_ops, read_checks
+    core = identity_ops.CURRENT
+    return read_checks.check_read(core, subject_id, native_ref, stated) if core else {"status": "unchecked", "label": None}
+
+
 def register(ctx):
     from .http import register as register_http
     register_http(ctx)

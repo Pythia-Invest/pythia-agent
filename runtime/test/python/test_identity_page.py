@@ -526,13 +526,14 @@ class MarketPages(Fixture):
         self.assertIsNone(markets.load_market(self.table, "market:pythia:unknown"))
 
     def test_every_underlying_is_a_canonical_asset_subject(self):
-        """A re-key of the curated crypto assets must not leave a perp pointing at a dead subject."""
+        """A re-key of the curated crypto assets must not leave a market pointing at a dead subject."""
         core = Path(page.__file__).parent
         canonical = {f"security:caip19:{asset['caip19']}"
                      for asset in json.loads((core / "canonical_assets.json").read_text())["assets"]}
         for entry in self.table.values():
             with self.subTest(market=entry["id"]):
-                self.assertIn(entry["derivative_on"]["id"], canonical)
+                if entry.get("derivative_on"):  # a perp's asset, or a future's curated index
+                    self.assertIn(entry["derivative_on"]["id"], canonical | set(self.table))
         self.assertIn(BTC, canonical)
 
     def test_the_underlying_links_to_its_perp_but_composes_without_it(self):

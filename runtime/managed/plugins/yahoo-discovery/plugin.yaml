@@ -13,3 +13,4 @@ provides_tools:
   - pythia_yahoo_research
   - pythia_yahoo_dashboard
   - yahoo_finance
+  - pythia_yahoo_movers

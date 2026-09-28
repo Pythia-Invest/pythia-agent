@@ -2,7 +2,7 @@
 
 A release never rewrites a saved ID: it records each re-key in `id_aliases`. On first
 use of a release, `rekey` re-points every row of identity.sqlite3 that names a subject (bindings, queue
-items, verdicts, resolve misses)
+items, verdicts, resolve misses, read checks)
 through that chain, once, in one transaction recorded against the release ID. An
 assertion a row cites moved with its subject, so the row cites it by the evidence ID the
 release gives it. A subject the release neither holds nor aliases is flagged; its rows
@@ -53,7 +53,7 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again:
         for item in queue:
             cited.update(item["candidate_ids"], item["subject_ids"] if item["kind"] == "conflict" else ())
         named = cited | {value for item in queue for value in item["subject_ids"]} | {
-            value for (value,) in db.execute("SELECT subject_id FROM resolve_misses")}
+            value for (value,) in db.execute("SELECT subject_id FROM resolve_misses UNION SELECT subject_id FROM read_checks")}
         moved = {old: new for old in named if (new := current_id(ref, old)) != old}
         point = lambda ids: list(dict.fromkeys(moved.get(value, value) for value in ids))  # noqa: E731
 
@@ -85,6 +85,7 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again:
         pairs = [(new, old) for old, new in moved.items()]
         db.executemany("UPDATE verdicts SET chosen_id = ? WHERE chosen_id = ?", pairs)
         db.executemany("UPDATE OR REPLACE resolve_misses SET subject_id = ? WHERE subject_id = ?", pairs)
+        db.executemany("UPDATE OR REPLACE read_checks SET subject_id = ? WHERE subject_id = ?", pairs)
         gone = sorted({current for current in (moved.get(subject, subject) for subject in cited)
                        if not _held(ref, current)})
         store.set_metadata(VANISHED, json.dumps(gone))
