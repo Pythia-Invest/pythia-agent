@@ -129,10 +129,12 @@ claim an independent doctor pass for a preserved replacement or dependent featur
 A fresh profile explicitly enables the same ten base toolsets for `cli`,
 `cron`, and `api_server`: `cronjob`, `delegation`, `file`, `memory`,
 `session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. The Pythia
-core adapter supplies `pythia-desk`, the agent's Pythia tools and Desk context,
-on `api_server` only. Every plugin operation is registered in core's hidden
-`pythia-core` toolset, recorded as known and off, so the model is offered only
-`pythia-desk` of Pythia's tools, loaded or behind Tool Search as the investor chooses
+core adapter supplies `pythia-desk`, the agent's concept tools and Desk context,
+on `api_server` only. Each enabled data plugin offers its provider tools in a
+toolset named after the plugin (`pythia-sec`, `pythia-gleif`, ...), on
+`api_server` only. Every plugin operation is registered in core's hidden
+`pythia-core` toolset, recorded as known and off, so the model is offered the
+concept and provider tools, loaded or behind Tool Search as the investor chooses
 ([agent tools](architecture/agent-tools.md)). These are initial values only;
 later native user edits are preserved. The update migration
 `0002-agent-tool-surface` applies the same toolset and skill-writing choices to

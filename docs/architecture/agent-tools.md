@@ -51,7 +51,10 @@ tool gives and from which source.
 | `openfigi_identifiers` | `pythia-openfigi` | FIGIs for an ISIN or ticker | identifiers `pythia_find` lacks |
 
 A provider tool is available only while its plugin is enabled and its
-availability check passes, exactly as Hermes decides for any plugin tool.
+availability check passes, exactly as Hermes decides for any plugin tool. A new
+source, or a new field a provider tool reads from one, goes through the
+[source onboarding](source-onboarding.md) stages before its tool reaches the
+agent.
 
 ## The placement rule
 

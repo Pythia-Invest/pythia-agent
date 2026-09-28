@@ -34,6 +34,8 @@ plugin-specific bearer checks, arbitrary tool dispatch or another registry.
 Operation tools go in core's hidden `pythia-core` toolset; a plugin offers a
 read to the agent with `platform.register_agent_tool`, per the placement rule
 and naming convention in [agent tools](../../docs/architecture/agent-tools.md).
+A new source or a newly read field follows
+[source onboarding](../../docs/architecture/source-onboarding.md) first.
 
 Bundled native skills use explicit qualified discovery at the pinned release;
 do not assume they enter the automatic prompt skill index. Keep descriptions and
