@@ -104,7 +104,31 @@ class StoreKindTest(Fixture):
                                                authority="source_asserted", evidence_ids=(), plugin="eodhd"))
         names = sorted(path.name for path in directory.iterdir())
         self.assertEqual((len(names), names[1]), (2, "identity.sqlite3"))
-        self.assertRegex(names[0], r"^identity\.before-v4-[0-9a-f]{8}\.sqlite3$")  # the v3 file, kept
+        self.assertRegex(names[0], r"^identity\.before-v5-[0-9a-f]{8}\.sqlite3$")  # the v3 file, kept
+
+    def test_a_v4_store_migrates_keeping_its_rows_and_then_accepts_a_new_queue_reason(self):
+        directory = Path(self.tmp.name) / "v4"
+        directory.mkdir()
+        current = identity.schema_sql("identity")
+        v4 = current.replace("  resolved_by TEXT                 -- the verdict that settled it\n);", (
+            "  resolved_by TEXT,\n  CHECK ((kind = 'residual' AND reason IN ('no_key', 'underlying_identifier', 'ambiguous'))\n"
+            "      OR (kind = 'conflict' AND reason IN ('identifier', 'binding', 'relation', 'guard')))\n);"))
+        self.assertNotEqual(v4, current)
+        with sqlite3.connect(directory / "identity.sqlite3") as db:
+            db.executescript(v4)
+            db.execute("INSERT INTO metadata VALUES ('schema_version', '4')")
+            db.execute("INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, kind, status,"
+                       " authority, evidence_ids) VALUES ('b1', 'eodhd', 'eodhd', 'ASML.AS', 'catalogue', ?, 'listing',"
+                       " 'confirmed', 'snapshot', ?)", (ASML, json.dumps(["ev:1"])))
+        migrated = store.IdentityStore(directory)
+        self.assertEqual((migrated.metadata("schema_version"), migrated.set_aside), (store.SCHEMA_VERSION, None))
+        self.assertEqual([row["subject_id"] for row in migrated.bindings([ASML])], [ASML])
+        ref = identity.ProviderRef(provider="eodhd", native_id="ASML.AS", native_scope="catalogue")
+        migrated.put_queue_item(identity.QueueItem(  # ADR 0042's residual, which v4's CHECK refused
+            id="q1", kind="residual", reason="unaudited", subject_ids=("listing:provisional:eodhd:catalogue:ASML.AS",),
+            candidate_ids=(ASML,), evidence_ids=("ev:1",), state="open", opened_at="2026-09-28T00:00:00Z",
+            plugins=("eodhd",), provider_ref=ref))
+        self.assertEqual([row["reason"] for row in migrated.open_queue([ASML])], ["unaudited"])
 
     def test_a_failed_migration_leaves_no_staging_file_and_keeps_the_store_aside(self):
         directory = Path(self.tmp.name) / "broken"

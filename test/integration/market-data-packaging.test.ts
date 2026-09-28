@@ -280,7 +280,13 @@ platform_toolsets:
     const core = MANAGED_PLUGINS.find((plugin) => plugin.name === "pythia");
     if (!core) throw new Error("Missing core payload fixture");
     const payloads = [
-      ...MANAGED_PLUGINS,
+      // ADR 0042: Hyperliquid has not signed off, so it stays off even if its
+      // payload were listed as enabled by default.
+      ...MANAGED_PLUGINS.map((plugin) =>
+        plugin.name === "pythia-hyperliquid"
+          ? { ...plugin, enabledByDefault: true }
+          : plugin,
+      ),
       {
         ...core,
         name: "optional",
@@ -303,6 +309,11 @@ platform_toolsets:
     });
     expect(
       existsSync(join(paths.profileRoot, "plugins/optional/plugin.yaml")),
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(paths.profileRoot, "plugins/pythia-hyperliquid/contract.json"),
+      ),
     ).toBe(true);
     expect(existsSync(join(paths.profileRoot, "plugins/not-installed"))).toBe(
       false,

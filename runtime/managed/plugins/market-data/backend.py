@@ -140,20 +140,22 @@ class Backend:
     def route(self, binding):
         """What a binding reads: an explicit reference itself, or core's references for a subject.
 
-        Returns {"asset_class", "refs", "named", "reason"}; `named` lists the providers the investor named in
-        `source_order`, and `reason` says why a subject has no refs:
+        Returns {"asset_class", "refs", "named", "unaudited", "reason"}; `named` lists the providers the investor
+        named in `source_order`, `unaudited` those not yet signed off (ADR 0042), and `reason` says why a subject
+        has no refs:
         "issuer_subject", "no_reference_data", "unknown_subject" or "core_unavailable"."""
         validate("binding", binding)
         if "provider" in binding:
-            return {"asset_class": None, "refs": [binding], "named": [], "reason": None}
+            return {"asset_class": None, "refs": [binding], "named": [], "unaudited": [], "reason": None}
         if binding["kind"] == "issuer":  # an issuer has no price; never ask a source
-            return {"asset_class": None, "refs": [], "named": [], "reason": "issuer_subject"}
+            return {"asset_class": None, "refs": [], "named": [], "unaudited": [], "reason": "issuer_subject"}
         memo = _ROUTES.get()
         if memo is not None and binding["id"] in memo:
             return memo[binding["id"]]
         found = self._subjects(binding["id"]) or {}
         route = {"asset_class": found.get("asset_class"), "refs": list(found.get("refs") or []),
-                 "named": list(found.get("named") or []), "reason": found.get("reason")}
+                 "named": list(found.get("named") or []), "unaudited": list(found.get("unaudited") or []),
+                 "reason": found.get("reason")}
         if memo is not None:
             memo[binding["id"]] = route
         return route

@@ -48,5 +48,9 @@
     "licence": "personal",
     "cache": "none",
     "hostable": false
+  },
+  "signoff": {
+    "status": "unsigned",
+    "record": "docs/sources/hyperliquid.md"
   }
 }

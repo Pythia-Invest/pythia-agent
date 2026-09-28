@@ -47,6 +47,10 @@
       "url": "https://www.coingecko.com/en/api/"
     }
   },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/coingecko.md"
+  },
   "limits": {
     "plan": "Demo",
     "unit": "credit",

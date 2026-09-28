@@ -30,6 +30,7 @@ YAHOO = {
                  "news": {"level": "security", "via": "listing", "operations": {"list": "news"}}},
     "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": ["ticker_mic"]},
     "rights": {"licence": "personal", "cache": "none", "hostable": False},
+    "signoff": {"status": "grandfathered"},
 }
 EODHD = {
     "contract_version": 1, "plugin": "eodhd", "provider": "eodhd",
@@ -41,6 +42,7 @@ EODHD = {
     "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["as", "us"]},
     "resolve": {"operation": "resolve", "input_schemes": ["isin", "figi", "lei"], "echoes": ["isin", "figi"]},
     "rights": {"licence": "personal", "cache": {"ttl_seconds": 86400}, "hostable": False},
+    "signoff": {"status": "grandfathered"},
     "limits": {"plan": "EOD+Intraday", "unit": "call", "per_day": 100000},
 }
 
@@ -249,6 +251,10 @@ class ManifestTest(unittest.TestCase):
             "concepts.news.tool": lambda value: value["concepts"]["news"].update(tool="yahoo_news"),
             "rights.licence": lambda value: value["rights"].update(licence="professional"),
             "rights.attribution.url": lambda value: value["rights"].update(attribution={"text": "Yahoo", "url": "http://x"}),
+            "manifest.signoff": lambda value: value.pop("signoff"),
+            "signoff.status": lambda value: value.update(signoff={"status": "trusted"}),
+            "signoff.record": lambda value: value.update(signoff={"status": "signed_off"}),
+            "signoff.record ": lambda value: value.update(signoff={"status": "unsigned", "record": "notes.txt"}),
             "manifest.functions": lambda value: value.update(functions=[]),
             "addressing.native[0]": lambda value: (value.pop("resolve"), value["addressing"].pop("mic_table")),
             "catalogue": lambda value: value.update(catalogue={"mode": "resolve_only", "scopes": ["all"]}),
