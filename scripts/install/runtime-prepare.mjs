@@ -49,6 +49,7 @@ export async function prepareInstallation(
     const preview = channel === "preview" ? " --preview" : "";
     await bootstrapRuntime(paths, {
       inheritSharedModel: false,
+      localReference: false,
       initializationRecoveryCommand: `./install.sh --recover-initialization${preview}`,
     });
     buildManagedSource(paths, executables);

@@ -9,11 +9,11 @@ from datetime import date
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import firds, gleif, linking, manifest, mic, schema, sec, writer
+from reference_builder import assemble, firds, gleif, linking, manifest, mic, schema, sec, writer
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
 from reference_builder.linking import link_receipts
-from reference_builder.model import Relationship, SecFund, SecTicker, Security, Snapshot
+from reference_builder.model import Issuer, Listing, Relationship, SecFund, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
 
 from .fixtures import (
@@ -167,7 +167,7 @@ class PipelineTest(unittest.TestCase):
                                   (f"listing:isin:{ASML_ISIN}:XAMS:EUR",)).fetchone()
                 receipts = db.execute("select count(*) from relations where type='depositary_receipt_of'"
                                       " and to_id=?", (f"security:isin:{ASML_ISIN}",)).fetchone()
-                btc = db.execute("select native_id from native_coins where provider='coinmarketcap' and caip19 like 'bip122:%/slip44:0'").fetchone()
+                btc = db.execute("select native_id from canonical_assets where provider='coinmarketcap' and caip19 like 'bip122:%/slip44:0'").fetchone()
             self.assertEqual(asml, (f"security:isin:{ASML_ISIN}", 1))
             self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM", "XCBO"})
             self.assertEqual(cik, ("share_class_figi", "snapshot"))
@@ -177,8 +177,12 @@ class PipelineTest(unittest.TestCase):
             self.assertGreater(counts["assertions"], counts["listings"])
             written = counts["listings"] + self.snap.audit["writer_ignored"].get("listings", 0)
             dropped = sum(n for key, n in self.snap.audit["schema"].items() if key.startswith("lines_without_"))
-            self.assertEqual(written + dropped, len(self.snap.listings) + 6)  # every line is accounted for; +6 seeded coins
+            seed = json.loads((schema.CORE / "canonical_assets.json").read_text(encoding="utf-8"))
+            curated = sum(1 + len(asset.get("deployments", ())) for asset in seed["assets"])
+            self.assertEqual(written + dropped, len(self.snap.listings) + curated)  # every line is accounted for
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
+            # Shell's London home line has no trading currency, so no line of it is written as primary.
+            self.assertEqual(self.snap.audit["schema"]["securities_without_primary"], 1)
 
     def test_eu_only_scope_makes_no_sec_lookups(self):
         figi = FakeOpenFigi(OPENFIGI)
@@ -328,10 +332,45 @@ class FallbackPrimaryTest(unittest.TestCase):
         records += [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first) for segment, first in german]
         self.assertEqual(self.primaries(records), {SAP_ISIN: ("XETR", "XETB"), WORLD_ISIN: ("XFRA", "FRAB")})
 
+    def test_a_regional_regulated_admission_moves_only_to_a_regulated_xetra_line(self):
+        on_mtf = [firds_record(SAP_ISIN, segment, SAP_LEI, relevant="DUSA") for segment in ("DUSA", "XETB")]
+        on_regulated = [firds_record(WORLD_ISIN, segment, WORLD_LEI, relevant="DUSA") for segment in ("DUSA", "XETA")]
+        self.assertEqual(self.primaries(on_mtf + on_regulated), {SAP_ISIN: ("XDUS", "DUSA"), WORLD_ISIN: ("XETR", "XETA")})
+
     def test_without_a_preferred_venue_the_earliest_listing_wins(self):
         records = [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first)
                    for segment, first in (("DUSB", "2012-01-02"), ("HAMB", "2011-01-03"), ("CEUX", "2009-01-02"))]
         self.assertEqual(self.primaries(records), {WORLD_ISIN: ("XHAM", "HAMB")})
+
+
+LINDE_ISIN, LINDE_LEI = "IE000S9YS762", "5299003QR1WT0EF88V51"
+STLA_ISIN, STLA_LEI = "NL00150001Q9", "549300LKT9PW7ZIBDF31"
+
+
+class UsHomeTest(unittest.TestCase):
+    """A non-US share whose only lines are European secondary ones and a US exchange line is at home in the US."""
+
+    def test_the_us_line_is_primary_unless_the_eea_primary_is_a_regulated_market(self):
+        records = [firds_record(LINDE_ISIN, "MUNB", LINDE_LEI, name="LINDE PLC", relevant="MUNB"),
+                   firds_record(LINDE_ISIN, "XGAT", LINDE_LEI, name="LINDE PLC", relevant="MUNB"),
+                   firds_record(STLA_ISIN, "MTAA", STLA_LEI, name="STELLANTIS", relevant="MTAA"),
+                   firds_record(STLA_ISIN, "XGAT", STLA_LEI, name="STELLANTIS", relevant="MTAA")]
+        answers = {("ID_ISIN", LINDE_ISIN, "MUNB"): [figi_row("LIN", "GM", "BBGLINDEGM01", "BBGLINDESC01")],
+                   ("TICKER", "LIN", "US"): [figi_row("LIN", "US", "BBGLINDEUS01", "BBGLINDESC01")],
+                   ("ID_ISIN", STLA_ISIN, "MTAA"): [figi_row("STLAM", "IM", "BBGSTLAIM001", "BBGSTLASC001")],
+                   ("TICKER", "STLA", "US"): [figi_row("STLA", "US", "BBGSTLAUS001", "BBGSTLASC001")]}
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        tickers = sec.parse(sec_json([(1707925, "Linde plc", "LIN", "Nasdaq"), (1605484, "Stellantis N.V.", "STLA", "NYSE")]))
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(), mic.parse(MIC_CSV.encode()), admissions, None, tickers,
+                                     {"MUNB", "MTAA"}), gleif_fetch, FakeOpenFigi(answers))
+        linde, stellantis = snap.securities[f"isin:{LINDE_ISIN}"], snap.securities[f"isin:{STLA_ISIN}"]
+        self.assertEqual((linde.primary_mic, linde.primary_rule), ("XNAS", "us_exchange_no_home_line"))
+        self.assertEqual([l.listing_id for l in snap.listings.values() if l.security_id == linde.security_id and l.is_primary],
+                         ["XNAS:LIN"])
+        self.assertEqual((stellantis.primary_mic, stellantis.primary_rule), ("XMIL", "firds_relevant_venue"))
+        self.assertFalse(snap.listings["XNYS:STLA"].is_primary)
+        self.assertEqual(snap.audit["securities"]["by_primary_rule"]["us_exchange_no_home_line"], 1)
 
 
 class CikLinkTest(unittest.TestCase):
@@ -342,6 +381,56 @@ class CikLinkTest(unittest.TestCase):
         links = linking._decide(snap, tickers, evidence, Counter())
         self.assertEqual(links, {"200": ("LEIX", "share_class_figi")})
         self.assertEqual([(f.subject_id, f.flag) for f in snap.flags], [("cik:100", "lei_already_linked")])
+
+    def test_among_identifier_links_to_one_lei_the_cik_whose_name_matches_wins(self):
+        snap = Snapshot(as_of="2026-09-25")
+        snap.issuers["lei:BRK"] = Issuer("lei:BRK", "Berkshire Hathaway Inc.", "gleif", lei="BRK")
+        tickers = [SecTicker("58361", "LEE ENTERPRISES, Inc", "LEE", "NYSE", 0),
+                   SecTicker("1067983", "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE", 1)]
+        evidence = {"58361": [("BRK", "isin_exch_us")], "1067983": [("BRK", "share_class_figi")]}
+        self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {"1067983": ("BRK", "share_class_figi")})
+
+    def test_a_lei_several_ciks_claim_and_none_names_links_to_none(self):
+        snap = Snapshot(as_of="2026-09-25")
+        snap.issuers["lei:TPI"] = Issuer("lei:TPI", "TP ICAP (Europe)", "gleif", lei="TPI")
+        tickers = [SecTicker("10329", "BASSETT FURNITURE INDUSTRIES INC", "BSET", "Nasdaq", 0),
+                   SecTicker("23795", "CTO Realty Growth, Inc.", "CTO", "NYSE", 1)]
+        evidence = {"10329": [("TPI", "isin_exch_us")], "23795": [("TPI", "isin_exch_us")]}
+        self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
+        self.assertEqual({f.flag for f in snap.flags}, {"lei_contested_unnamed"})
+
+    def test_links_that_share_no_name_word_and_split_issuers_are_flagged_not_changed(self):
+        snap = Snapshot(as_of="2026-09-25")
+        snap.issuers["lei:BRK"] = Issuer("lei:BRK", "Berkshire Hathaway Inc.", "gleif", lei="BRK")
+        snap.issuers["lei:ACME"] = Issuer("lei:ACME", "Acme N.V.", "gleif", lei="ACME", names=[("Acme Group", "OTHER", None, "gleif")])
+        tickers = [SecTicker("58361", "LEE ENTERPRISES, Inc", "LEE", "NYSE", 0), SecTicker("300", "ACME GROUP INC", "ACM", "NYSE", 1)]
+        linking._flag_suspect_links(snap, tickers, {"58361": ("BRK", "isin_exch_us"), "300": ("ACME", "share_class_figi")})
+        snap.issuers["cik:1067983"] = Issuer("cik:1067983", "BERKSHIRE HATHAWAY INC", "sec", cik="1067983")
+        linking._flag_split_issuers(snap)
+        self.assertEqual([(f.subject_id, f.flag, f.detail) for f in snap.flags],
+                         [("lei:BRK", "cik_link_suspect", "cik:58361"), ("cik:1067983", "issuer_split_lei_cik", "lei:BRK")])
+        self.assertEqual(snap.issuers["lei:BRK"].name, "Berkshire Hathaway Inc.")
+
+
+class NordicTickerTest(unittest.TestCase):
+    def test_a_glued_stockholm_class_is_stored_in_the_exchange_form_and_keeps_its_ticker_mic(self):
+        isin, lei = "SE0000115446", "549300HGV012CNC8JD22"
+        admissions = {}
+        records = [firds_record(isin, "XSTO", lei, name="VOLVO AB", relevant="XSTO", short="VOLVO/SH B")]
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        answers = {("ID_ISIN", isin, "XSTO"): [figi_row("VOLVB", "SS", "BBG000BLNXL5", "BBG001S5PMW7")]}
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [],
+                                     {"XSTO"}), gleif_fetch, FakeOpenFigi(answers))
+        line = snap.listings[f"XSTO:{isin}"]
+        self.assertEqual((line.ticker, line.ticker_root, line.ticker_class), ("VOLV B", "VOLV", "B"))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                found = db.execute("select value from assertions where scheme = 'ticker_mic'").fetchall()
+        self.assertEqual(found, [("VOLV B@XSTO",)])
+        self.assertNotIn("skipped_ticker_mic", snap.audit["schema"])
+
 
 if __name__ == "__main__":
     unittest.main()

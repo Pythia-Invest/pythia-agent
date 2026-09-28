@@ -209,6 +209,10 @@
       ],
       "kind": "ordinary",
       "status": "active",
+      "search": {
+        "query": "Shell",
+        "rows": ["SHEL@XLON", "SHELL@XAMS"]
+      },
       "cfi": "ES",
       "issuer": {
         "lei": "21380068P1DRHMJ8KU70",
@@ -323,6 +327,10 @@
       "tags": ["re_isin", "cross_listing", "otc"],
       "kind": "ordinary",
       "status": "active",
+      "search": {
+        "query": "Unilever",
+        "rows": ["ULVR@XLON", "UNA@XAMS"]
+      },
       "cfi": "ES",
       "issuer": {
         "lei": "549300MKFYEKVRWML317",
@@ -6447,6 +6455,10 @@
       "tags": ["cross_listing"],
       "kind": "ordinary",
       "status": "active",
+      "search": {
+        "query": "AstraZeneca",
+        "rows": ["AZN@XLON", "AZN@XSTO"]
+      },
       "cfi": "ES",
       "issuer": {
         "lei": "PY6ZZQWO2IZFZC3IOL08"
@@ -10570,8 +10582,7 @@
         }
       ],
       "fold": "cardano",
-      "sources": ["coin_registries"],
-      "note": "not in the curated native-coin table yet"
+      "sources": ["coin_registries"]
     },
     {
       "id": "usdc",
@@ -10580,7 +10591,9 @@
       "kind": "token",
       "status": "active",
       "issuer": {},
-      "security": {},
+      "security": {
+        "caip19": "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+      },
       "listings": [
         {
           "chain": "eip155:1",
@@ -10603,7 +10616,7 @@
       ],
       "fold": "usdc",
       "sources": ["coin_registries"],
-      "note": "one asset deployed natively on several chains; its key must not depend on which chain a provider calls home; the security key waits for the curated token table (M2)"
+      "note": "one asset deployed natively on several chains; keyed by its curated canonical deployment (canonical_assets@1), never by the chain a provider calls home"
     },
     {
       "id": "wbtc",

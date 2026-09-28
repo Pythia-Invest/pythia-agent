@@ -36,3 +36,6 @@ Preserve observation dates separately from retrieval time, numeric precision,
 currency, adjustment and market-data type (delayed, end of day). Daily session
 dates are not midnight instants. Missing values are not zero; a partial result
 remains useful with its coverage gaps and issues.
+
+The order is Pythia's one source order: the investor's `source_order` setting,
+then Pythia's default, free sources first. The agent does not change it.

@@ -169,7 +169,6 @@
           "series_id": "series:synthetic-equity-daily"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -187,7 +186,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -317,7 +315,6 @@
           }
         },
         "reason": "preference",
-        "preference_revision": 1,
         "alternatives": []
       },
       "provenance": {
@@ -331,7 +328,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -463,7 +459,6 @@
           }
         },
         "reason": "preference",
-        "preference_revision": 1,
         "alternatives": []
       },
       "provenance": {
@@ -477,7 +472,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -678,7 +672,6 @@
           "series_id": "series:synthetic-equity-daily"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -696,7 +689,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -826,7 +818,6 @@
           }
         },
         "reason": "preference",
-        "preference_revision": 1,
         "alternatives": []
       },
       "provenance": {
@@ -840,7 +831,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -1001,7 +991,6 @@
           "series_id": "series:synthetic-equity-daily"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -1019,7 +1008,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -1082,7 +1070,6 @@
           "series_id": "series:synthetic-equity-daily"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": null,
@@ -1127,42 +1114,9 @@
           "tool": "synthetic_history",
           "effect": "read"
         }
-      ],
-      "subject_kinds": ["instrument", "listing"]
+      ]
     },
     "description": "Synthetic native contribution v1, no availability mirror or provider startup request."
-  },
-  {
-    "name": "instrument_evidence",
-    "kind": "evidence",
-    "value": {
-      "schema_version": 1,
-      "id": "evidence:synthetic-1",
-      "provider_ref": {
-        "provider": "synthetic_equity",
-        "native_id": "contract-17",
-        "native_scope": "contract",
-        "qualifiers": {
-          "currency": "USD",
-          "route": "SMART"
-        }
-      },
-      "scope": "instrument",
-      "scheme": "isin",
-      "value": "ZZ0000000017",
-      "qualifiers": {
-        "share_class": "class-a"
-      },
-      "adapter_version": "synthetic-1",
-      "observed_at": null,
-      "retrieved_at": "2026-01-06T15:00:00Z",
-      "effective": {
-        "start": null,
-        "end": null
-      },
-      "authority": "source_asserted"
-    },
-    "description": "Invented identifier, not a claim about a real security; identity store must validate evidence before matching."
   },
   {
     "name": "canonical_projection",
@@ -1335,7 +1289,6 @@
           }
         },
         "reason": "preference",
-        "preference_revision": 1,
         "alternatives": []
       },
       "provenance": {
@@ -1353,7 +1306,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": 1,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -1397,8 +1349,7 @@
           "tool": "synthetic_series",
           "effect": "read"
         }
-      ],
-      "subject_kinds": ["instrument"]
+      ]
     }
   },
   {
@@ -1415,7 +1366,6 @@
           "effect": "read"
         }
       ],
-      "subject_kinds": ["instrument"],
       "requires_broker_app": true
     }
   },
@@ -1433,7 +1383,6 @@
           "effect": "read"
         }
       ],
-      "subject_kinds": ["instrument"],
       "requires_broker_app": false,
       "observation_cache": "disabled"
     }
@@ -1558,7 +1507,6 @@
           "series_id": "series:synthetic-equity-close"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -1576,7 +1524,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",
@@ -1707,7 +1654,6 @@
           "series_id": "series:synthetic-equity-close-snapshot"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -1725,7 +1671,6 @@
         "retrieved_at": "2026-01-06T15:00:00Z",
         "source_time": null,
         "revision_vintage": null,
-        "mapping_revision": null,
         "source_detail": null
       },
       "retrieved_at": "2026-01-06T15:00:00Z",

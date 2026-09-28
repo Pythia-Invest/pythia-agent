@@ -20,7 +20,7 @@ def envelope(data, issues=()):
 def base(request, issues):
     now = datetime.now(timezone.utc).isoformat()
     return {'schema_version': 1, 'outcome': 'error', 'request': request, 'series': None, 'observations': [],
-            'selection': {'view': request['view'], 'reason': 'unavailable', 'preference_revision': None, 'alternatives': []},
+            'selection': {'view': request['view'], 'reason': 'unavailable', 'alternatives': []},
             'provenance': None, 'retrieved_at': now, 'returned_window': {'start': None, 'end': None},
             'coverage': {'status': 'unknown', 'gaps': [], 'truncated': False, 'continuation': None},
             'freshness': {'status': 'unknown', 'as_of': None, 'basis': 'unknown', 'market_data_type': 'unknown'},
@@ -56,7 +56,7 @@ def read(request, series, mode, raw):
     result['selection']['reason'] = 'pinned'
     result['provenance'] = {'provider': 'coingecko', 'native_ref': series['provider_ref'], 'adapter_version': '1',
                             'retrieved_at': result['retrieved_at'], 'source_time': None, 'revision_vintage': None,
-                            'mapping_revision': None, 'source_detail': {'namespace': 'coingecko', 'values': {'price_basis': 'source_aggregate'}}}
+                            'source_detail': {'namespace': 'coingecko', 'values': {'price_basis': 'source_aggregate'}}}
     data = raw['data']
     if mode == 'latest':
         item = data.get(series['provider_ref']['native_id'], {}) if type(data) is dict else None

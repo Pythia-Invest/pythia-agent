@@ -2,6 +2,8 @@
 
 import { Alert, Button, Switch } from "@pythia/ui";
 import type { ReactNode } from "react";
+import { useLocalTime } from "@/client/local-time";
+import { useReferenceStatus } from "@/client/reference-status";
 import {
   useChangeDeviceSetting,
   useDeviceSettings,
@@ -248,6 +250,82 @@ export function UpdateSettings() {
         <p className="text-body text-foreground-secondary">
           Run <code>pythia update</code> on the Pythia host to update.
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** The installed reference package: which build search and instrument pages
+ * read, the notices its sources require wherever the data is shown, and a
+ * package the installer last refused. */
+export function ReferenceSettings() {
+  const query = useReferenceStatus();
+  const time = useLocalTime();
+  const reference = query.data?.data?.installed;
+  const refused = query.data?.data?.refused;
+  return (
+    <div data-slot="reference-settings">
+      {query.isPending ? <p role="status">Reading reference data…</p> : null}
+      <SettingsError
+        error={query.error}
+        retry={() => {
+          void query.refetch();
+        }}
+      />
+      {refused ? (
+        <Alert
+          className="wrap-anywhere mb-2"
+          tone="warning"
+          title={
+            reference
+              ? `A reference package was refused; ${reference.build_id} stays in use.`
+              : "A reference package was refused."
+          }
+        >
+          {refused.message}
+          {refused.at ? ` (${time(refused.at, "compact")})` : ""}
+        </Alert>
+      ) : null}
+      {query.data && !reference ? (
+        <SettingRow
+          label="Not installed"
+          description={
+            query.data.issues[0]?.message ??
+            "No reference data on this device yet."
+          }
+          control={null}
+        />
+      ) : null}
+      {reference ? (
+        <>
+          <SettingRow
+            label={reference.build_id}
+            description={`As of ${reference.as_of}. Built ${time(reference.built_at, "compact")}${
+              reference.installed_at
+                ? `, installed ${time(reference.installed_at, "compact")}`
+                : ""
+            }.`}
+            control={
+              <span>
+                {reference.compatible
+                  ? `Format ${reference.format_version}`
+                  : `Format ${reference.format_version}: not readable by this Pythia`}
+              </span>
+            }
+          />
+          {reference.notices.length ? (
+            <div className="py-4">
+              <div className="font-medium text-body text-foreground">
+                Source notices
+              </div>
+              <ul className="m-0 mt-1 list-disc pl-5 text-body text-foreground-secondary leading-ui">
+                {reference.notices.map((notice) => (
+                  <li key={notice}>{notice}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

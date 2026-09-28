@@ -1,7 +1,7 @@
 ---
 name: eodhd
 title: EODHD market data
-description: Inspect EODHD source series, identifier mappings, exchange catalogues, news, fundamentals, specialist quotes and explicitly enabled EDGX streams. Use for EODHD-specific reads and limitations; use market-data for canonical subjects and source preferences.
+description: Inspect EODHD source series, identifier mappings, exchange catalogues, news, fundamentals, specialist quotes and explicitly enabled EDGX streams. Use for EODHD-specific reads and limitations; use market-data for canonical subjects.
 version: 0.1.0
 license: Apache-2.0
 platforms: [linux, macos]

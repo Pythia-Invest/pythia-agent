@@ -112,13 +112,6 @@ export class DeskApi extends BrowserRequest {
     });
   }
 
-  financialPreferences(signal?: AbortSignal) {
-    return this.json<{ revision: number }>(
-      "/api/markets/preferences",
-      signal ? { signal } : {},
-    );
-  }
-
   workspaceEntry(path: string, signal?: AbortSignal) {
     return this.json<WorkspaceEntry>(
       `/api/workspace/entry?${new URLSearchParams({ path })}`,

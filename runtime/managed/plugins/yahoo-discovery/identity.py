@@ -39,5 +39,5 @@ def candidate(row):
             'metadata': {'product_type': product, 'short_name': row.get('short_name'),
                          'full_exchange_name': row.get('full_exchange_name'),
                          'native_currency': currency},
-            'provider_type': provider_type, 'evidence': [], 'identifier_conflict': False}
+            'provider_type': provider_type, 'identifier_conflict': False}
 

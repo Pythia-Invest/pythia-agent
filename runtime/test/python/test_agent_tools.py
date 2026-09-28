@@ -20,6 +20,7 @@ from unittest import mock
 
 from market_data_fixture import wire
 from test_identity_contracts import load, load_reference
+from test_reference_package import make_package
 from test_identity_contracts import identity as fixture_identity
 
 RUNTIME = Path(__file__).resolve().parents[2]
@@ -141,15 +142,18 @@ class AgentToolFixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        reference = Path(self.tmp.name) / "reference"
-        reference.mkdir()
-        db = sqlite3.connect(reference / "reference-20260926.sqlite3")
+        build = Path(self.tmp.name) / "build"
+        build.mkdir()
+        db = sqlite3.connect(build / "reference-20260926.sqlite3")
         db.executescript(fixture_identity.schema_sql("reference"))
         load_reference(db, load("asml.json"))
         db.execute("INSERT INTO release (key, value) VALUES ('schema_version', '2')")
-        db.execute("INSERT INTO venues VALUES ('XAMS', 'XAMS', 'Euronext Amsterdam', 'NL')")
+        db.execute("INSERT INTO venues (mic, operating_mic, name, country, category) VALUES ('XAMS', 'XAMS', 'Euronext Amsterdam', 'NL', 'RMKT')")
         db.commit()
         db.close()
+        identity_ops.reference_package.install(make_package(Path(self.tmp.name) / "package",
+                                                            source=build / "reference-20260926.sqlite3"),
+                                               Path(self.tmp.name))
         self.schemas = {}
         for plugin in ("sec", "xbrl-filings", "gleif", "yahoo-discovery"):
             self.schemas.update({schema["name"]: schema for schema in definitions(plugin).values()})
@@ -175,7 +179,6 @@ class AgentToolFixture(unittest.TestCase):
                                             dispatch=lambda name, args, **_: self.ctx.dispatch_tool(name, args))
         self.enterContext(mock.patch.dict(sys.modules, {"tools": ModuleType("tools"), "tools.registry": registry,
                                                         **validator_module()}))
-        self.enterContext(mock.patch.dict(os.environ, {"PYTHIA_REFERENCE_DIR": str(reference)}))
         self.enterContext(mock.patch.object(identity_ops, "installed", lambda: list(self.plugins.values())))
         self.enterContext(mock.patch.object(access, "eligible_tools", lambda: set(self.eligible)))
         self.enterContext(mock.patch.object(access, "native_tool_owners", lambda: dict(self.owners)))

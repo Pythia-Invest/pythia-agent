@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import firds, manifest, mic, schema, sec, truth_report, writer
+from . import claims, firds, firds_audit, manifest, mic, schema, sec, source_drift, truth_report, writer
 from .assemble import Inputs
 from .config import BUILDER_VERSION, USER_AGENT, BuildConfig, Scope, load_openfigi_key, load_sec_identity, parse_mics
 from .fetch import Downloader, log, utc_now
@@ -53,7 +53,12 @@ def run(config: BuildConfig) -> int:
     full_docs, delta_docs = firds.firds_files(USER_AGENT, config.as_of, config.deltas, config.scope.cfi_prefixes)
     full = [firds.download(downloads, "esma_firds", d) for d in full_docs]
     deltas = [firds.download(downloads, "esma_firds", d) for d in delta_docs]
-    admissions, record_counts = firds.load_admissions(full, deltas, config.scope.cfi_prefixes)
+    fingerprint = source_drift.Fingerprint(firds.SOURCE)
+    admissions, record_counts = firds.load_admissions(full, deltas, config.scope.cfi_prefixes, fingerprint)
+    stamp = config.as_of.strftime("%Y%m%d")
+    firds_claims = firds_audit.load(firds.claims(admissions))  # shadow mode: decisions stay as they are
+    firds.measure(fingerprint, firds_claims.isins)
+    log(f"claims: {firds_claims.count} FIRDS claims")
     transparency = None
     if config.fitrs:
         transparency = firds.load_transparency([firds.download(downloads, "esma_fitrs", d) for d in firds.fitrs_files(USER_AGENT, config.as_of, config.scope.cfi_prefixes)], config.as_of)
@@ -78,8 +83,15 @@ def run(config: BuildConfig) -> int:
     for result in canaries:
         log(f"canary {'ok' if result['ok'] else 'FAILED'}: {result['name']} {result['missing'] or ''}")
     failed = [c for c in canaries if not c["ok"]]
-    if failed and config.gates:
-        log("canary gate failed; no snapshot written (use --no-gates to inspect)")
+    record_path = claims.record_path(config.out_dir, "firds", stamp)
+    baseline = claims.previous_good(record_path)  # the last good build's fingerprint, never a broken one
+    firds_fingerprint = fingerprint.to_dict()
+    firds_report = firds_audit.report(firds_claims, firds_fingerprint, snap, venues, config.as_of.isoformat(),
+                                      baseline[1]["fingerprint"] if baseline else None)
+    for line in source_drift.format_alarms(firds_report["alarms"], baseline[0].name if baseline else None):
+        log(f"FIRDS{line}")
+    if (failed or firds_report["broken"]) and config.gates:
+        log(f"{'canary' if failed else 'FIRDS drift'} gate failed; no snapshot written (use --no-gates to inspect)")
         return 2
 
     sources = [r.manifest() | {"licence": manifest.licence(r.source)} for r in downloads.retrieved]
@@ -90,14 +102,13 @@ def run(config: BuildConfig) -> int:
                     "sha256": None, "bytes": None, "licence": manifest.licence("openfigi")})
     sources = _unique_sources(sources)
 
-    stamp = config.as_of.strftime("%Y%m%d")
     build_id = f"reference-{stamp}"
     meta = {"build_id": build_id, "schema_version": str(schema.SCHEMA_VERSION), "builder_version": BUILDER_VERSION,
             "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics or ["EEA"]) + (",US" if config.scope.sec else ""),
             "cfi_prefixes": ",".join(config.scope.cfi_prefixes)}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)
-    truth_audit = truth_report.build_report(snapshot_path, config.scope.cfi_prefixes, log)  # a report, never a gate
+    truth_audit = truth_report.build_report(snapshot_path, config.scope.cfi_prefixes, log, snap.audit)  # a report, never a gate
     manifest.write_manifest(config.out_dir / "manifest.json", {
         "build_id": build_id,
         "schema_version": schema.SCHEMA_VERSION,
@@ -115,9 +126,12 @@ def run(config: BuildConfig) -> int:
         "audit": snap.audit,
         "canaries": canaries,
         "truth_audit": truth_audit,
+        "firds": {"record": record_path.name, "baseline": baseline[0].name if baseline else None} | firds_report,
     })
+    # Written last, beside a finished snapshot: a crashed build leaves no record to become the next baseline.
+    claims.write(record_path, {"good": not firds_report["broken"], "fingerprint": firds_fingerprint, "report": firds_report})
     log(f"wrote {snapshot_path} ({counts.get('listings', 0)} listings) in {time.monotonic() - clock:.0f}s")
-    return 1 if failed else 0
+    return 1 if failed or firds_report["broken"] else 0
 
 
 def _unique_sources(sources: list[dict]) -> list[dict]:

@@ -42,7 +42,7 @@ def schemas(wire):
         'identifiers': ({'native_ref': wire.parameter_schema('provider_ref')}, ['native_ref']),
     }
     contribution = wire.validate('contribution', {'schema_version': 1, 'provider': 'eodhd', 'adapter_version': '2',
-        'subject_kinds': ['instrument'], 'cadence': {'latest': 60, 'history': 900, 'series': 300},
+        'cadence': {'latest': 60, 'history': 900, 'series': 300},
         'operations': [{'operation': op, 'tool': TOOLS[op], 'effect': 'read'} for op in SHARED]})
     descriptions = {
         'news': 'Read EODHD ticker-linked headlines in an explicit date window, defaulting to the preceding 30 days through today in UTC. Optional from/to dates support up to 366 days. Returned window and limitations distinguish a bounded feed from exhaustive news history. A mention is not exclusive company ownership. No article bodies are retained. Requires news access; a denial does not authorize another source.',

@@ -92,7 +92,10 @@ DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
 INSTANT = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})\Z")
 DECIMAL = re.compile(r"^(0|[1-9][0-9]*)(\.[0-9]+)?\Z")
 NAMESPACE = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")
-TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}\Z")
+# A venue ticker; one space may separate a one-letter share class as the venue writes it (`VOLV B` on Nasdaq
+# Stockholm). A two-letter suffix is refused: `AAPL US` or `ASML NA` is a Bloomberg code, not a venue ticker.
+TICKER_BODY = r"[A-Z0-9][A-Z0-9.&-]{0,15}(?: [A-Z])?"
+TICKER = re.compile(rf"^{TICKER_BODY}\Z")
 CAIP2 = re.compile(r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}\Z")
 PROVISIONAL_NATIVE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}\Z")
 
@@ -104,7 +107,7 @@ _PATTERNS = {
     Scheme.COMPOSITE_FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
     Scheme.FIGI: re.compile(r"^BBG[B-DF-HJ-NP-TV-Z0-9]{8}[0-9]\Z"),
     # TICKER@operating MIC, e.g. ASML@XAMS, ASML@XNAS (never a segment MIC such as XNGS).
-    Scheme.TICKER_MIC: re.compile(r"^[A-Z0-9][A-Z0-9.&-]{0,15}@[A-Z0-9]{4}\Z"),
+    Scheme.TICKER_MIC: re.compile(rf"^{TICKER_BODY}@[A-Z0-9]{{4}}\Z"),
     # CAIP-19: chain_id "/" asset_namespace ":" asset_reference [ "/" token_id ]
     Scheme.CAIP19: re.compile(
         r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}/[-a-z0-9]{3,8}:[-.%a-zA-Z0-9]{1,128}(/[-.%a-zA-Z0-9]{1,78})?\Z"),
@@ -223,7 +226,7 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
     Every install and every rebuild derives the same ID from the same open
     evidence. Precedence per level (KEY_RULE; "isin" means an ISIN outside CGS_AREA):
       issuer     lei, else cik
-      security   isin, else share_class_figi, else caip19 (a crypto asset's home deployment)
+      security   isin, else share_class_figi, else caip19 (a curated crypto asset's canonical deployment)
       composite  the security key + country
       listing    isin + operating MIC + currency, else figi, else caip19 (a chain deployment)
     Tickers are attributes, not keys, so a ticker change keeps the ID.
@@ -272,3 +275,8 @@ def provisional_id(kind: Kind | str, provider: str, native_scope: str, native_id
     readable = PROVISIONAL_NATIVE.match(native_id)
     key = native_id if readable else "sha256-" + hashlib.sha256(native_id.encode()).hexdigest()[:32]
     return f"{Kind(kind)}:provisional:{provider}:{native_scope}:{key}"
+
+
+# Core's curated canonical-asset table (canonical_assets.json, ADR 0037 Crypto): the only source of a portable crypto key.
+CANONICAL_ASSETS_RULE = "canonical_assets@1"
+
