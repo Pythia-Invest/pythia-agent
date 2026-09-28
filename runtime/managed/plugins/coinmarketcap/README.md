@@ -70,7 +70,9 @@ The free Basic plan allows 15,000 credits a month and 50 requests a minute
 [endpoint reference](https://coinmarketcap.com/api/documentation/pro-api-reference/cryptocurrency)).
 Map pages cost no credits (observed 2026-09-25); listings cost one credit per
 200 rows, quotes and info one per 100 coins, and historical quotes one per 100
-data points. Basic history is limited to one month intraday and one year daily.
+data points. Basic history is limited to one month intraday and one year daily. The
+daily series therefore declares one year and pages through 90-day requests
+(a year costs about five credits per coin).
 
 The local request budget is 30 requests a minute, leaving room for other use of
 the same account. A daily catalogue sync costs 3 credits (the 500-row listings

@@ -4,11 +4,12 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from . import config
 from .definition import TOOLS, TOOLSET, schemas
 from .identity import candidate, reference
-from .series import modes, definition, selector, bounds
+from .series import CHUNK_DAYS, modes, definition, selector, bounds
 from .results import issue, envelope, base, read
 from .dashboard import read as dashboard
 from .catalogue import page as catalogue_page
@@ -28,6 +29,21 @@ def paths():
     if not root or not python or not Path(root).is_absolute() or not Path(python).is_absolute() or not Path(python).is_file() or not worker.is_file():
         raise RuntimeError('unavailable')
     return python, str(worker)
+
+
+def chunked(call, args):
+    """market_chart/range serves at most 90 days per request: page longer
+    windows and join their samples. A failed page fails the whole read."""
+    step, start, prices = CHUNK_DAYS * 86400, args['from'], []
+    while True:
+        end = min(args['to'], start + step)
+        raw = call('chart', {**args, 'from': start, 'to': end})
+        if raw.get('error') or not isinstance(raw.get('data'), dict) or not isinstance(raw['data'].get('prices'), list):
+            return raw
+        prices.extend(raw['data']['prices'])
+        if end >= args['to']:
+            return {**raw, 'data': {**raw['data'], 'prices': prices}}
+        start = end + 1
 
 
 def register(ctx):
@@ -118,7 +134,7 @@ def register(ctx):
                 groups = {}
                 for item in clean['reads']:
                     native, mode, unit = selector(item['source_selector'], access)
-                    expected = definition(native, mode, unit)
+                    expected = definition(native, mode, unit, access)
                     if item['request']['view'] != {'kind': 'source', 'series_id': expected['id']} or (mode == 'latest') != (item['request']['operation'] == 'latest'):
                         raise ValueError('unsupported_series')
                     if mode == 'latest':
@@ -139,12 +155,19 @@ def register(ctx):
                 if (mode == 'latest') != (operation == 'latest'):
                     raise ValueError('invalid_request')
                 endpoint, controls = bounds(request, mode, access=access)
-                series = wire.validate('series', definition(native, mode, currency))
+                series = wire.validate('series', definition(native, mode, currency, access))
                 view = request['view']
                 if view['kind'] != 'source' or view['series_id'] != series['id']:
                     raise ValueError('unsupported_series')
-                raw = call(endpoint, {'id': reference(native), 'currency': currency.lower(), **controls})
+                args = {'id': reference(native), 'currency': currency.lower(), **controls}
+                raw = call(endpoint, args) if endpoint != 'chart' else chunked(call, args)
                 result = failures.qualify_failure(read(request, series, mode, raw), raw)
+                start = request['window']['start']
+                if endpoint == 'chart' and start and controls['from'] > datetime.fromisoformat(start['value'].replace('Z', '+00:00')).timestamp() + 120:
+                    # The free plan's history starts later than the request.
+                    result['issues'].append(issue('history_limited', 'warning'))
+                    result['coverage']['status'] = 'partial'
+                    if result['outcome'] == 'ok': result['outcome'] = 'partial'
                 return wire.validate_read_result(result)
             native = clean['native_ref']
             raw = call('details', {'id': reference(native)})
@@ -157,7 +180,7 @@ def register(ctx):
                 wire.validate('evidence', evidence)
             if operation == 'details':
                 return envelope([item])
-            return envelope([wire.validate('series', definition(native, mode, currency)) for mode in modes(access)])
+            return envelope([wire.validate('series', definition(native, mode, currency, access)) for mode in modes(access)])
         except failures.SourceFailure as error:
             return failures.qualify_failure(base(request, [issue(str(error))]) if request else envelope(None, [issue(str(error))]), error.raw)
         except process.WorkerError as error:

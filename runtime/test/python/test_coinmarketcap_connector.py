@@ -211,5 +211,27 @@ class CoinMarketCap(unittest.TestCase):
             series.samples({'quotes': [sample, conflict]}, 'USD')
 
 
+    def test_a_year_of_daily_samples_pages_in_ninety_day_requests(self):
+        native = {'provider': 'coinmarketcap', 'native_scope': 'coin', 'native_id': '1'}
+        daily = series.definition(native, 'sample_daily', 'USD')
+        self.assertEqual(daily['read_support']['max_span_seconds'], 366 * 86400)
+        def answer(operation, arguments):
+            if operation != 'history':
+                return responses(operation, arguments)
+            # One sample at each page's start.
+            quote = {'timestamp': arguments['time_start'], 'quote': {'USD': {'timestamp': arguments['time_start'], 'price': '2'}}}
+            return {'data': {'1': {'id': 1, 'quotes': [quote]}}, 'error': None, 'source_status': {'timestamp': '2026-01-02T00:00:05.000Z', 'credit_count': 1}}
+        read = {'request': {'schema_version': 1, 'operation': 'history', 'view': {'kind': 'source', 'series_id': daily['id']},
+                            'window': {'start': {'kind': 'instant', 'value': '2025-01-01T00:00:00+00:00'},
+                                       'end': {'kind': 'instant', 'value': '2025-12-31T00:00:00+00:00'}},
+                            'limit': 1000, 'requirements': {'freshness': 'any', 'completion': 'any', 'coverage': 'any'}},
+                'source_selector': daily['source_detail']['values']['read_selector']}
+        with registered(answer) as (ctx, calls):
+            result = call(ctx, 'history', read)
+        pages = [arguments for operation, arguments in calls if operation == 'history']
+        self.assertEqual(result['outcome'], 'ok', result)
+        self.assertEqual(len(pages), 5)
+        self.assertEqual(len(result['observations']), 5)
+
 if __name__ == '__main__':
     unittest.main()

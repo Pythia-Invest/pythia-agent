@@ -5,7 +5,8 @@ from .series import MODES
 
 CODES = {'invalid_request', 'invalid_response', 'unsupported_series', 'unsupported_window', 'unavailable',
          'authentication_failed', 'access_denied', 'rate_limit', 'timeout', 'network_error', 'provider_error',
-         'response_limit', 'cancelled', 'requirements_unmet', 'invalid_value', 'truncated', 'granularity_mismatch'}
+         'response_limit', 'cancelled', 'requirements_unmet', 'invalid_value', 'truncated', 'granularity_mismatch',
+         'history_limited'}
 
 
 def issue(code, severity='error'):
