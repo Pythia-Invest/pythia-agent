@@ -248,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"previous build {previous} unreadable ({error!r}): listing examples instead", file=sys.stderr)
             previous = None
     print("\n" + "\n".join(invariants.format_results(checked, before, previous.name if previous else "")))
-    firds_lines, firds_broken = firds_audit.format_section(claims.claims_file(reference), reference.name)
+    firds_lines, firds_broken = firds_audit.format_section(claims.for_reference(reference, "firds"), reference.name)
     print("\n" + "\n".join(firds_lines))
     if args.failures:
         print("\nFailing checks:")

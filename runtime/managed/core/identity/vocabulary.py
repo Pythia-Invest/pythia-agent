@@ -150,6 +150,30 @@ class IdentifierRole(StrEnum):
     UNQUALIFIED = "unqualified"
 
 
+class SourceMeaning(StrEnum):
+    """What one source field states, in the one meaning its specification gives it (source onboarding, stage 1).
+
+    A claim carries exactly one; no field feeds two. Named for what the source says, not for the slot a reader
+    may want filled: a notional currency is not a trading currency, an issuer-or-operator LEI is not an issuer.
+    Grows as each source is onboarded.
+    """
+
+    # ESMA FIRDS: RTS 23 Annex Table 3 field numbers; the relevant venue is an ESMA technical field.
+    INSTRUMENT_FULL_NAME = "instrument_full_name"                # 2
+    CFI = "cfi"                                                  # 3, ISO 10962
+    ISSUER_OR_VENUE_OPERATOR_LEI = "issuer_or_venue_operator_lei"  # 5
+    ADMITTED_TO_TRADING = "admitted_to_trading"                  # 6, segment MIC of the admission
+    FISN = "fisn"                                                # 7, ISO 18774
+    ISSUER_REQUESTED_ADMISSION = "issuer_requested_admission"    # 8, true or false
+    ISSUER_APPROVAL_DATE = "issuer_approval_date"                # 9
+    ADMISSION_REQUEST_DATE = "admission_request_date"            # 10
+    FIRST_TRADE_DATE = "first_trade_date"                        # 11
+    TERMINATION_DATE = "termination_date"                        # 12, where available
+    NOTIONAL_CURRENCY = "notional_currency"                      # 13, instrument level
+    UNDERLYING_ISIN = "underlying_isin"                          # 26, for depositary receipts
+    MOST_LIQUID_EU_MARKET = "most_liquid_eu_market"              # RTS 22 Art. 16 relevant venue
+
+
 class VerdictRelation(StrEnum):
     """The closed answer set of a resolver verdict on a queue item."""
 

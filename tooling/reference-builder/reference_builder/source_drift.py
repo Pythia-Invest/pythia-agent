@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 
 EXAMPLES = 3
 RATE_SHIFT = 0.05  # presence rate of a field, absolute
+RARE_SHIFT = 0.5  # records carrying a field, relative, for a field on at least MIN_RARE records (catches rare fields)
+MIN_RARE = 100
 COUNT_SHIFT = 0.5  # records per vocabulary value, relative, for values with at least MIN_COUNT records
 RECORDS_SHIFT = 0.2  # all records, relative
 MIN_COUNT = 1000
@@ -32,6 +34,7 @@ class Fingerprint:
     metrics: dict[str, int] = field(default_factory=dict)  # named counts: placeholders, multi-valued identifiers
     examples: dict[str, list[str]] = field(default_factory=dict)  # "field:…", "vocab:…=…", "metric:…" -> identifiers
     _shapes: Counter = field(default_factory=Counter, repr=False)
+    cache: dict = field(default_factory=dict, repr=False)  # the adapter's per-build parse cache (record shapes)
 
     def record(self, ident: str, paths: Iterable[str], values: dict[str, str | None]) -> None:
         """One source record: the paths it carries and its categorical values."""
@@ -86,7 +89,8 @@ def compare(before: dict | None, after: dict, read: Iterable[str] = ()) -> list[
                              before.get("examples", {}).get(f"field:{path}", [])))
     for path in sorted(set(old_fields) & set(fields)):
         rate, old_rate = fields[path] / total, old_fields[path] / old_total if old_total else 0
-        if abs(rate - old_rate) >= RATE_SHIFT:
+        rare = old_fields[path] >= MIN_RARE and abs(rate - old_rate) / old_rate > RARE_SHIFT
+        if abs(rate - old_rate) >= RATE_SHIFT or rare:
             alarms.append(_alarm("alarm", "presence_shift", path, round(old_rate, 3), round(rate, 3), examples.get(f"field:{path}", [])))
     for name, values in sorted(after.get("vocab", {}).items()):
         old = before.get("vocab", {}).get(name, {})
@@ -99,13 +103,19 @@ def compare(before: dict | None, after: dict, read: Iterable[str] = ()) -> list[
             if old[value] >= MIN_COUNT and abs(values[value] - old[value]) / old[value] > COUNT_SHIFT:
                 alarms.append(_alarm("alarm", "count_shift", f"{name}={value}", old[value], values[value],
                                      examples.get(f"vocab:{name}={value}", [])))
-    old_metrics = before.get("metrics", {})
-    for name, value in sorted(after.get("metrics", {}).items()):
+    old_metrics, metrics = before.get("metrics", {}), after.get("metrics", {})
+    for name in sorted(set(old_metrics) - set(metrics)):  # a count the adapter no longer reports
+        alarms.append(_alarm("alarm", "metric_gone", name, old_metrics[name], None, []))
+    for name, value in sorted(metrics.items()):
         old = old_metrics.get(name, 0)
         grew_from_zero, big = old == 0 and value > 0, max(old, value) >= MIN_COUNT // 10
         if grew_from_zero or (big and abs(value - old) / max(old, 1) > COUNT_SHIFT):
             alarms.append(_alarm("alarm", "metric_shift", name, old, value, examples.get(f"metric:{name}", [])))
     return alarms
+
+
+def breaks(alarms: list[dict]) -> list[dict]:
+    return [a for a in alarms if a["severity"] == "break"]
 
 
 def _alarm(severity: str, kind: str, key: str, before, after, examples: list[str]) -> dict:
@@ -117,7 +127,7 @@ def format_alarms(alarms: list[dict], previous: str | None) -> list[str]:
         return ["  drift: no previous fingerprint to compare with"]
     if not alarms:
         return [f"  drift against {previous}: none"]
-    lines = [f"  drift against {previous}: {len(alarms)} ({sum(a['severity'] == 'break' for a in alarms)} breaks)"]
+    lines = [f"  drift against {previous}: {len(alarms)} ({len(breaks(alarms))} breaks)"]
     for a in alarms:
         shown = f" e.g. {', '.join(a['examples'])}" if a["examples"] else ""
         lines.append(f"    {a['severity'].upper():<6}{a['kind']} {a['key']}: {a['before']} -> {a['after']}{shown}")

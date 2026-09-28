@@ -5,8 +5,8 @@ auth.044 equity transparency). They are large, so records are located with a
 byte-level scan and only matching records are parsed.
 
 `claims()` is the FIRDS adapter: each field it reads becomes a claim in the one
-meaning RTS 23 gives it (`FIELDS`; see the README's field table). The full files
-also feed a drift fingerprint (`drift.py`).
+meaning RTS 23 gives it (`FIELDS`; the field table is docs/sources/firds.md). The
+full files also feed a drift fingerprint (`source_drift.py`).
 """
 
 from __future__ import annotations
@@ -23,11 +23,12 @@ from datetime import date
 from pathlib import Path
 from typing import BinaryIO
 
-from .drift import Fingerprint
+from .claims import Claim, Meaning
 from .fetch import Downloader, log, request
 from .invariant_checks import WITHDRAWN
 from .model import FirdsRecord, Transparency
 from .schema import identity
+from .source_drift import Fingerprint
 
 FIRDS_INDEX = "https://registers.esma.europa.eu/solr/esma_registers_firds_files/select"
 FITRS_INDEX = "https://registers.esma.europa.eu/solr/esma_registers_fitrs_files/select"
@@ -35,23 +36,33 @@ BLOCK = 8 << 20
 DELTA_KINDS = {"NewRcrd": "new", "ModfdRcrd": "modified", "TermntdRcrd": "terminated", "CancRcrd": "cancelled"}
 SOURCE = "esma_firds"
 UNDERLYING = "DerivInstrmAttrbts/UndrlygInstrm/Sngl/ISIN"
-# Every field the adapter reads (path within a record): the slot its claim is evidence for, and its one meaning.
+# Every field the adapter reads (path within a record) and its one meaning in core's vocabulary.
 FIELDS = {
-    "FinInstrmGnlAttrbts/FullNm": ("name", "instrument_full_name"),  # RTS 23 field 2
-    "FinInstrmGnlAttrbts/ClssfctnTp": ("kind", "cfi"),  # 3
-    "Issr": ("issuer", "issuer_or_venue_operator_lei"),  # 5
-    "TradgVnRltdAttrbts/Id": ("listing", "admitted_to_trading"),  # 6
-    "FinInstrmGnlAttrbts/ShrtNm": ("name", "fisn"),  # 7
-    "TradgVnRltdAttrbts/IssrReq": ("listing", "issuer_requested_admission"),  # 8
-    "TradgVnRltdAttrbts/AdmssnApprvlDtByIssr": ("listing", "issuer_approval_date"),  # 9
-    "TradgVnRltdAttrbts/ReqForAdmssnDt": ("listing", "admission_request_date"),  # 10
-    "TradgVnRltdAttrbts/FrstTradDt": ("listing", "first_trade_date"),  # 11
-    "TradgVnRltdAttrbts/TermntnDt": ("listing", "termination_date"),  # 12
-    "FinInstrmGnlAttrbts/NtnlCcy": ("currency", "notional_currency"),  # 13
-    UNDERLYING: ("underlying", "underlying_isin"),  # 26
-    "TechAttrbts/RlvntTradgVn": ("primary", "most_liquid_eu_market"),  # RTS 22 Art. 16
+    "FinInstrmGnlAttrbts/FullNm": Meaning.INSTRUMENT_FULL_NAME,  # RTS 23 field 2
+    "FinInstrmGnlAttrbts/ClssfctnTp": Meaning.CFI,  # 3
+    "Issr": Meaning.ISSUER_OR_VENUE_OPERATOR_LEI,  # 5
+    "TradgVnRltdAttrbts/Id": Meaning.ADMITTED_TO_TRADING,  # 6
+    "FinInstrmGnlAttrbts/ShrtNm": Meaning.FISN,  # 7
+    "TradgVnRltdAttrbts/IssrReq": Meaning.ISSUER_REQUESTED_ADMISSION,  # 8
+    "TradgVnRltdAttrbts/AdmssnApprvlDtByIssr": Meaning.ISSUER_APPROVAL_DATE,  # 9
+    "TradgVnRltdAttrbts/ReqForAdmssnDt": Meaning.ADMISSION_REQUEST_DATE,  # 10
+    "TradgVnRltdAttrbts/FrstTradDt": Meaning.FIRST_TRADE_DATE,  # 11
+    "TradgVnRltdAttrbts/TermntnDt": Meaning.TERMINATION_DATE,  # 12
+    "FinInstrmGnlAttrbts/NtnlCcy": Meaning.NOTIONAL_CURRENCY,  # 13
+    UNDERLYING: Meaning.UNDERLYING_ISIN,  # 26
+    "TechAttrbts/RlvntTradgVn": Meaning.MOST_LIQUID_EU_MARKET,  # RTS 22 Art. 16
 }
 READ_PATHS = frozenset(FIELDS) | {"FinInstrmGnlAttrbts/Id"}
+# Segments whose field 8 is true on every record while the issuers named there did not seek the admission
+# (Warsaw's GlobalConnect segment carries Apple and ASML as issuer-requested; Vorvel carries Telecom Italia as
+# requested there and nowhere else). A venue reporting habit, not evidence of a request: an open odd case in
+# docs/sources/firds.md, so field 8 there decides nothing until it is explained.
+FIELD8_VENUE_HABIT = frozenset({"XGLO", "HMTF"})
+# Named counts every build reports, zero included, so one that disappears is itself an alarm.
+METRICS = ("records_without_isin_or_venue", "termination_placeholder", "underlying_placeholder", "malformed_isin",
+           "malformed_issuer_lei", "malformed_underlying_isin", "withdrawn_notional_currency", "isins",
+           "isins_without_issuer_lei", "isins_with_two_issuer_leis", "isins_with_two_notional_currencies",
+           "isins_with_two_relevant_venues", "receipts_with_two_underlyings")
 
 
 def _index(url: str, user_agent: str, filters: list[str], sort: str, rows: int = 200) -> list[dict]:
@@ -216,16 +227,13 @@ def _paths(element: ET.Element, prefix: str = "") -> Iterator[str]:
             yield from _paths(child, path + "/")
 
 
-_SHAPES: dict[tuple, tuple[str, ...]] = {}
-
-
-def _shape(element: ET.Element) -> tuple[str, ...]:
+def _shape(element: ET.Element, cache: dict) -> tuple[str, ...]:
     """The record's element paths. Records share a few shapes; tags with child counts in document order
     identify one exactly."""
     key = tuple((e.tag, len(e)) for e in element.iter())
-    if key not in _SHAPES:
-        _SHAPES[key] = tuple(_paths(element))
-    return _SHAPES[key]
+    if key not in cache:
+        cache[key] = tuple(_paths(element))
+    return cache[key]
 
 
 def observe(fingerprint: Fingerprint, element: ET.Element, record: FirdsRecord | None) -> None:
@@ -233,7 +241,7 @@ def observe(fingerprint: Fingerprint, element: ET.Element, record: FirdsRecord |
     if record is None:
         fingerprint.count("records_without_isin_or_venue", _text(element, "FinInstrmGnlAttrbts/Id") or "?")
         return
-    fingerprint.record(record.isin, _shape(element), {
+    fingerprint.record(record.isin, _shape(element, fingerprint.cache), {
         "cfi_category": record.cfi[:2] or None,
         "venue": record.mic,
         "notional_currency": record.currency,
@@ -264,7 +272,7 @@ def _well_formed(scheme: str, value: str) -> bool:
     return True
 
 
-def claims(admissions: dict[tuple[str, str], FirdsRecord]) -> Iterator[tuple]:
+def claims(admissions: dict[tuple[str, str], FirdsRecord]) -> Iterator[Claim]:
     """The FIRDS adapter: typed claims only. Instrument attributes are keyed by ISIN, admission attributes by
     ISIN@segment MIC. A missing element or a placeholder is no claim."""
     seen: set[tuple] = set()  # instrument attributes repeat on every venue record: emit each value once
@@ -283,8 +291,7 @@ def claims(admissions: dict[tuple[str, str], FirdsRecord]) -> Iterator[tuple]:
         ):
             if value and (isin, path, value) not in seen:
                 seen.add((isin, path, value))
-                slot, meaning = FIELDS[path]
-                yield isin, slot, value, SOURCE, path, meaning, record.published, record.digest
+                yield Claim(isin, value, SOURCE, path, FIELDS[path], record.published, record.digest)
         for subject, path, value in (
             (isin, "TradgVnRltdAttrbts/Id", record.mic),
             (venue, "TradgVnRltdAttrbts/IssrReq", requested),
@@ -294,31 +301,27 @@ def claims(admissions: dict[tuple[str, str], FirdsRecord]) -> Iterator[tuple]:
             (venue, "TradgVnRltdAttrbts/TermntnDt", None if placeholder_date(record.termination) else record.termination),
         ):
             if value:
-                slot, meaning = FIELDS[path]
-                yield subject, slot, value, SOURCE, path, meaning, record.published, record.digest
+                yield Claim(subject, value, SOURCE, path, FIELDS[path], record.published, record.digest)
 
 
-# Identifiers a field should carry one value for (measured: none carries two). A count above 0 is drift.
-SINGLE_VALUED = {"issuer_or_venue_operator_lei": "isins_with_two_issuer_leis",
-                 "notional_currency": "isins_with_two_notional_currencies",
-                 "most_liquid_eu_market": "isins_with_two_relevant_venues",
-                 "underlying_isin": "receipts_with_two_underlyings"}
+# Fields an ISIN should carry one value for (measured: none carries two). A count above 0 is drift.
+SINGLE_VALUED = {Meaning.ISSUER_OR_VENUE_OPERATOR_LEI: "isins_with_two_issuer_leis",
+                 Meaning.NOTIONAL_CURRENCY: "isins_with_two_notional_currencies",
+                 Meaning.MOST_LIQUID_EU_MARKET: "isins_with_two_relevant_venues",
+                 Meaning.UNDERLYING_ISIN: "receipts_with_two_underlyings"}
 
 
-def measure(fingerprint: Fingerprint, db) -> None:
-    """Per-identifier counts from the build's FIRDS claims (`db` is the claims connection)."""
-    for name in ("malformed_isin", "malformed_issuer_lei", "malformed_underlying_isin", "withdrawn_notional_currency"):
+def measure(fingerprint: Fingerprint, isins: dict[str, dict[str, set[str]]]) -> None:
+    """Per-identifier counts from the build's FIRDS claims (ISIN -> meaning -> values), and every named count."""
+    for name in METRICS:
         fingerprint.metrics.setdefault(name, 0)
-    for meaning, name in SINGLE_VALUED.items():
-        fingerprint.metrics.setdefault(name, 0)
-        for (subject,) in db.execute("SELECT subject_key FROM claims WHERE source = ? AND meaning = ? GROUP BY subject_key "
-                                     "HAVING count(*) > 1", (SOURCE, meaning)):
-            fingerprint.count(name, subject)
-    isins = "SELECT DISTINCT subject_key FROM claims WHERE source = ? AND meaning = 'admitted_to_trading'"
-    fingerprint.metrics["isins"] = db.execute(f"SELECT count(*) FROM ({isins})", (SOURCE,)).fetchone()[0]
-    fingerprint.metrics["isins_without_issuer_lei"] = 0
-    for (subject,) in db.execute(f"{isins} EXCEPT SELECT subject_key FROM claims WHERE meaning = 'issuer_or_venue_operator_lei'", (SOURCE,)):
-        fingerprint.count("isins_without_issuer_lei", subject)
+    fingerprint.metrics["isins"] = len(isins)
+    for isin, values in isins.items():
+        for meaning, name in SINGLE_VALUED.items():
+            if len(values.get(meaning, ())) > 1:
+                fingerprint.count(name, isin)
+        if not values.get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI):
+            fingerprint.count("isins_without_issuer_lei", isin)
 
 
 def apply(admissions: dict[tuple[str, str], FirdsRecord], records: Iterable[FirdsRecord], counts: Counter) -> None:
