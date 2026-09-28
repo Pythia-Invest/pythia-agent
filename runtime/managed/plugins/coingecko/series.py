@@ -15,7 +15,24 @@ def modes(access):
     return list(MODES) if access == 'paid' else [m for m in MODES if m not in ('ohlc_hourly', 'ohlc_daily')]
 
 
-def definition(native, mode, currency):
+# One market_chart/range request returns daily points for any range above 90
+# days (checked 2026-09-28: 365 daily points in one request). The public plans
+# (keyless, demo) serve the past 365 days; paid plans the history since 2013.
+FREE_DAYS = 365
+PAID_START = datetime(2013, 4, 28, tzinfo=timezone.utc)
+
+
+def span_days(mode, access, clock=None):
+    if mode == 'sample_daily':
+        if access == 'paid':
+            return ((clock or datetime.now(timezone.utc)) - PAID_START).days + 1
+        # A date-to-date year, also across 29 February; its start is clipped
+        # to the free year.
+        return FREE_DAYS + 2
+    return 31 if mode == 'ohlc_hourly' else ROLLING.get(mode, 90)
+
+
+def definition(native, mode, currency, access='demo'):
     reference(native)
     if currency not in CURRENCIES:
         raise ValueError("unsupported_series")
@@ -31,7 +48,7 @@ def definition(native, mode, currency):
     value['id'] = 'series:coingecko:' + hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()[:32]
     value['source_detail']['values']['read_selector'] = json.dumps({'version': 1, 'native_ref': native, 'mode': mode, 'currency': currency}, sort_keys=True, separators=(',', ':'))
     value['read_support'] = {'operations': ['latest' if mode == 'latest' else 'history'], 'window_kind': 'instant',
-                            'max_span_seconds': (31 if mode == 'ohlc_hourly' else ROLLING.get(mode, 90)) * 86400}
+                            'max_span_seconds': span_days(mode, access) * 86400}
     return value
 
 
@@ -59,9 +76,18 @@ def bounds(request, mode, clock=None, access="demo"):
             raise ValueError('unsupported_window')
         return 'latest', {}
     start, end = parse(edges['start']), parse(edges['end'])
-    maximum = 31 if mode == 'ohlc_hourly' else 90
-    if not 0 <= end - start <= maximum * 86400 or end > clock.timestamp() or (access != "paid" and start < clock.timestamp() - 365 * 86400):
+    if not 0 <= end - start <= span_days(mode, access, clock) * 86400 or end > clock.timestamp() + 86400:
         raise ValueError('unsupported_window')
+    end = min(end, clock.timestamp())  # a window ending later today reads up to now
+    if access != "paid" and start < clock.timestamp() - FREE_DAYS * 86400:
+        # The public plans serve the past year. The declared span admits up to
+        # two days more (a date-to-date year, a request built moments before);
+        # those are read from the year's start, as the returned window shows.
+        # A window that ends before the year is refused.
+        limit = clock.timestamp() - FREE_DAYS * 86400 + 60
+        if end <= limit:
+            raise ValueError('unsupported_window')
+        start = limit
     if mode in ROLLING:
         days = ROLLING[mode]
         # Fixed lookbacks are anchored at provider execution, not the caller's

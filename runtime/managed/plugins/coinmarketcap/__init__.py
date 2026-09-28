@@ -8,7 +8,7 @@ import importlib
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -17,7 +17,7 @@ from .catalogue import RANK_DEPTH, market_caps, page as catalogue_page
 from .definition import TOOLS, TOOLSET, schemas
 from .identity import candidate, reference
 from .profile import profile as coin_profile
-from .series import (INTERVALS, MODES, coins, currency_quote, definition, envelope, issue, now, read_result,
+from .series import (INTERVALS, MODES, PLAN_DAYS, coins, currency_quote, definition, envelope, issue, now, read_result,
                      samples, selector, timestamp)
 
 WORKER = Path(__file__).with_name('worker.py')
@@ -161,8 +161,18 @@ def register(ctx):
                 start, end = request['window']['start'], request['window']['end']
                 if not start or not end or start['kind'] != 'instant' or end['kind'] != 'instant':
                     raise ValueError('unsupported_window')
-                raw = checked(call('history', {'id': identifier, 'convert': unit, 'time_start': start['value'],
-                                               'time_end': end['value'], 'interval': INTERVALS[mode]}))
+                # The plan's history starts a year back; a window ending later today
+                # reads up to now.
+                clock = datetime.now(timezone.utc)
+                first = datetime.fromisoformat(start['value'].replace('Z', '+00:00'))
+                last = min(datetime.fromisoformat(end['value'].replace('Z', '+00:00')), clock)
+                limit = clock - timedelta(days=PLAN_DAYS) + timedelta(minutes=1)
+                if mode == 'sample_daily' and first < limit:
+                    if last <= limit:
+                        raise ValueError('unsupported_window')
+                    first = limit
+                raw = checked(call('history', {'id': identifier, 'convert': unit, 'time_start': first.isoformat(),
+                                               'time_end': last.isoformat(), 'interval': INTERVALS[mode]}))
                 rows = coins(raw['data'], [identifier])
                 points = samples(rows[identifier], unit) if identifier in rows else []
             bounds = {name: timestamp(edge['value']) for name, edge in request['window'].items() if edge and edge['kind'] == 'instant'}

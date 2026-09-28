@@ -401,6 +401,34 @@ class Provider(unittest.TestCase):
         raw['data']['prices'].append([1700000000000,'4'])
         self.assertEqual(len(results.read(request(d),d,'sample_hourly',raw)['observations']),1)
 
+    def test_the_chart_year_is_one_daily_request_on_every_plan(self):
+        now = datetime.now(timezone.utc)
+        daily = series.definition(NATIVE, 'sample_daily', 'USD', 'demo')
+        span = daily['read_support']['max_span_seconds']
+        self.assertEqual(span, 367 * 86400)
+        # The chart's year read: the declared span back from the minute, read a
+        # few seconds later by the provider process.
+        end = now.replace(second=0, microsecond=0)
+        req = request(daily)
+        req['window'] = {'start': {'kind': 'instant', 'value': (end - timedelta(seconds=span)).isoformat()},
+                         'end': {'kind': 'instant', 'value': end.isoformat()}}
+        endpoint, controls = series.bounds(req, 'sample_daily', now + timedelta(seconds=5))
+        self.assertEqual((endpoint, controls['interval']), ('chart', 'daily'))
+        self.assertGreaterEqual(controls['from'], (now - timedelta(days=365)).timestamp())
+        self.assertEqual(worker.request_spec({**DEMO, 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls}}).method, 'GET')
+        # A window that ends before the free year is refused.
+        req['window']['end']['value'] = (now - timedelta(days=366)).isoformat()
+        with self.assertRaisesRegex(ValueError, 'unsupported_window'): series.bounds(req, 'sample_daily', now)
+        # Paid plans declare CoinGecko's history since 2013, still one request.
+        paid = series.definition(NATIVE, 'sample_daily', 'USD', 'paid')['read_support']['max_span_seconds'] // 86400
+        self.assertLess(paid, 20 * 366)
+        req['window'] = {'start': {'kind': 'instant', 'value': (now - timedelta(days=paid - 1)).isoformat()},
+                         'end': {'kind': 'instant', 'value': now.isoformat()}}
+        endpoint, controls = series.bounds(req, 'sample_daily', now, access='paid')
+        worker.request_spec({**DEMO, 'mode': 'paid', 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls}})
+        with self.assertRaises(ValueError):
+            worker.request_spec({**DEMO, 'operation': 'chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', **controls, 'interval': 'hourly'}})
+
     def test_currency_pin_paid_history_and_provider_plan_errors(self):
         usd = series.definition(NATIVE, 'sample_daily', 'USD')
         eur = series.definition(NATIVE, 'sample_daily', 'EUR')

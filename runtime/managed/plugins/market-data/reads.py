@@ -43,6 +43,19 @@ def semantic_series(series):
     return {key: value for key, value in series.items() if key not in ("subject", "source_detail", "read_support")}
 
 
+def utc_days(request, series):
+    """A daily series kept in UTC instants (a 24/7 market) serves a date-bounded
+    window as those whole UTC days, so dated and instant reads agree."""
+    support = series.get("read_support") or {}
+    edges = request["window"]
+    if (support.get("window_kind") != "instant" or series["interval"]["kind"] != "day" or series.get("timezone") != "UTC"
+            or not any(edge and edge["kind"] == "session_date" for edge in edges.values())):
+        return request
+    clock = {"start": "T00:00:00+00:00", "end": "T23:59:59+00:00"}
+    return {**request, "window": {name: {"kind": "instant", "value": edge["value"] + clock[name]}
+                                  if edge and edge["kind"] == "session_date" else edge for name, edge in edges.items()}}
+
+
 def _choose(backend, request, criteria, descriptor, sources, preferences):
     from .preferences import applicable_order
     operation = request["operation"]
@@ -51,7 +64,7 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
         series = validate("series", descriptor)
         require(series["id"] == view["series_id"], "read", "descriptor ID differs from pinned view")
         require(matches(series, criteria), "read", "pinned descriptor differs from criteria")
-        if not supports_read(series, request):
+        if not supports_read(series, utc_days(request, series)):
             return None, "incompatible_series", series["provider_ref"]["provider"], []
         return series, None, series["provider_ref"]["provider"], []
     require(descriptor is None, "read", "Pythia view does not accept a pinned descriptor")
@@ -105,7 +118,7 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
                 # currency); every qualifier it does carry must still match.
                 if not compatible_ref(ref, series["provider_ref"]):
                     return None, "invalid_response", candidate_provider, []
-                if not matches(series, criteria) or not supports_read(series, request):
+                if not matches(series, criteria) or not supports_read(series, utc_days(request, series)):
                     continue
                 previous = unique.get(series["id"])
                 if previous and semantic_series(previous) != semantic_series(series):
@@ -162,7 +175,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     alternatives = [item for item in alternatives if item != "provider:" + provider]
     if not available(sources, provider, request["operation"]):
         return read_failure(request, "unavailable", alternatives=alternatives, provider=provider, selected=selected)
-    native_request = copy.deepcopy(request)
+    native_request = copy.deepcopy(utc_days(request, selected))
     native_request["view"] = {"kind": "source", "series_id": selected["id"]}
     native_arguments = {"request": native_request, "source_selector": selector(selected)}
     key = fingerprint({"request": request, "criteria": criteria, "series": selected, "access": access,
@@ -197,7 +210,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     if result["outcome"] == "error":
         result["issues"].append({"code": "selected_source", "severity": "warning",
                                  "message": f"Selected source: {provider}. Requested series: {selected['id']}. Alternatives require a separate read."})
-    result["request"] = request
+    result["request"] = utc_days(request, selected)  # whole UTC days stay instants
     result["selection"] = {"view": request["view"], "reason": "pinned" if request["view"]["kind"] == "source" else "preference",
                            "preference_revision": (preferences["revision"] or None) if request["view"]["kind"] == "pythia" else None,
                            "alternatives": alternatives}
