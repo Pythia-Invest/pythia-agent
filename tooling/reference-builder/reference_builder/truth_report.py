@@ -9,7 +9,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from . import invariants
+from . import claims, firds_audit, invariants
 from .schema import identity
 from .truth import TRUTH_DIR, Audit, Reference, audit
 
@@ -236,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"previous build {previous} unreadable ({error!r}): listing examples instead", file=sys.stderr)
             previous = None
     print("\n" + "\n".join(invariants.format_results(checked, before, previous.name if previous else "")))
+    firds_lines, firds_broken = firds_audit.format_section(claims.claims_file(reference), reference.name)
+    print("\n" + "\n".join(firds_lines))
     if args.failures:
         print("\nFailing checks:")
         print("\n".join(f"  {r.key}: {r.reason}" for r in report.results if r.status == "fail"))
@@ -262,4 +264,4 @@ def main(argv: list[str] | None = None) -> int:
         data = baseline_of(report) | {"accepted_id_changes": accepted}
         baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
-    return 1 if regressed or any(r.failed for r in checked) else 0
+    return 1 if regressed or firds_broken or any(r.failed for r in checked) else 0
