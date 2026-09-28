@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import tempfile
+import tracemalloc
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -83,6 +84,23 @@ class Extraction(unittest.TestCase):
         with self.assertRaises(ValueError):
             document_text.extract(Response(b"x", {"Content-Encoding": "br"}))
 
+    def test_embedded_images_and_scripts_stream_in_small_bounded_memory(self):
+        blob = "QUFB" * 2_500_000  # 10 MB, as a base64 image or an ixbrl-viewer fact script
+        body = Response((f'<p id="a">Before</p><img alt="x" src = "data:image/png;base64,{blob}"/>'
+                         f'<script type="application/json">{blob}</script><p>After</p>').encode())
+        tracemalloc.start()
+        try:
+            document = document_text.extract(body)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        self.assertEqual(document["text"].split(), ["Before", "After"])
+        self.assertLess(peak, 4_000_000)  # the parser never holds the 10 MB construct
+        html = '<p>a</p><img src="data:x,Q"/><style>p{}</style><p title=\'data:y\'>b</p>'
+        strip = document_text._Strip()  # a marker cut at any chunk boundary is still found
+        self.assertEqual("".join(strip.feed(char) for char in html) + strip.feed("", final=True),
+                         document_text._Strip().feed(html, final=True))
+
     def test_bytes_and_text_past_the_caps_stop_the_read(self):
         with mock.patch.object(document_text, "MAX_BYTES", 100), self.assertRaisesRegex(RuntimeError, "output_limit"):
             read("<p>" + "x" * 200 + "</p>")
@@ -120,6 +138,7 @@ class DocumentToolTest(AgentToolFixture):
         super().setUp()
         self.eligible.add(agent_reads.READ_DOCUMENT)
         self.handlers[agent_reads.READ_DOCUMENT] = documents.Reader(identity_ops.CURRENT).read
+        self.enterContext(mock.patch.object(documents, "_listed", documents.OrderedDict()))
 
     def read(self, **arguments):
         return json.loads(agent_reads.document(self.ctx, arguments))
@@ -151,11 +170,11 @@ class DocumentToolTest(AgentToolFixture):
         self.assertEqual([item["title"] for item in outline["data"]["sections"]],
                          ["Cover and contents", "Risk factors", "Segments", "Notes"])
         self.assertEqual(outline["data"]["document"]["id"], "a" * 64)
-        self.assertIn("pass the document's id", outline["next"])
+        self.assertEqual(self.read(subject_id=ASML, report_key=report)["data"]["document"]["id"], "a" * 64)
         section = self.read(subject_id=ASML, id="a" * 64, section="s1")
         self.assertEqual(section["data"]["text"].strip(), "Risk factors\nExport controls on China may limit sales.")
         self.assertEqual(section["data"]["citation"]["url"], "https://example.org/r.xhtml#r")
-        self.assertEqual(len(fetched), 1)  # read again from the disk cache, without listing or fetching
+        self.assertEqual(len(fetched), 1)  # by report_key or id, read again from the disk cache
         found = self.read(subject_id=ASML, id="a" * 64, query="net sales by")
         self.assertEqual(found["data"]["passages"][0]["citation"]["section_title"], "Segments")
         long = self.read(subject_id=ASML, id="a" * 64, section="s3", max_chars=1000)
@@ -166,6 +185,7 @@ class DocumentToolTest(AgentToolFixture):
         self.assertIn("continue_from", long["next"])
         # Several versions of one report are named, never picked; an unlisted filing is refused.
         rows[1]["period_end"] = "2025-12-31"
+        agent_reads.filings(self.ctx, {"subject_id": ASML})
         several = self.read(subject_id=ASML, report_key=report)
         self.assertEqual(several["issues"][0]["code"], "several_versions")
         self.assertEqual([item["id"] for item in several["data"]["versions"]], ["a" * 64, "b" * 64])
@@ -176,6 +196,21 @@ class DocumentToolTest(AgentToolFixture):
             "issues": [{"code": "output_limit", "severity": "error", "message": "The data response exceeded."}]})
         large = self.read(subject_id=ASML, report_key=report, id="b" * 64)
         self.assertIn("larger than Pythia reads", large["issues"][0]["message"])
+
+    def test_a_filing_listed_only_by_a_form_filter_is_readable(self):
+        form4 = {**filing_rows(["4"])[0], "accession": "0000937966-26-000004", "kind": "ownership",
+                 "url": "https://www.sec.gov/Archives/edgar/data/937966/000093796626000004/form4.htm"}
+        self.handlers["pythia_xbrl_filings_filings"] = lambda args, **_: envelope({"filings": []})
+        self.handlers["pythia_sec_filings"] = lambda args, **_: envelope(  # a default list leaves Forms 4 out
+            {"dataset": "filings", "filings": [form4] if "forms" in args else []})
+        fetched = []
+        self.handlers["pythia_sec_document"] = lambda args, **_: fetched.append(args) or envelope(
+            {**document_text.extract(io.BytesIO(b"<p>Item 1. Shares</p>")), "url": form4["url"]})
+        self.assertEqual(self.read(subject_id=ASML, id=form4["accession"])["issues"][0]["code"], "not_listed")
+        agent_reads.filings(self.ctx, {"subject_id": ASML, "forms": ["4"]})
+        outline = self.read(subject_id=ASML, id=form4["accession"])
+        self.assertEqual(outline["data"]["document"]["form"], "4")
+        self.assertEqual([args["url"] for args in fetched], [form4["url"]])
 
 
 if __name__ == "__main__":

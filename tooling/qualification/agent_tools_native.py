@@ -5,7 +5,7 @@ then asks Hermes itself what an api_server turn delivers and how calls flow, in 
 investor's own setting; Pythia never changes it):
 
 - off: the tools array holds core's pythia-desk tools and the plugins' provider tools, never their operation
-  tools; the core schemas equal the reviewed snapshot; no `$comment` marker reaches the model; byte-stable;
+  tools; their schemas and order equal the reviewed snapshot; no `$comment` marker reaches the model; byte-stable;
 - on: the same tools are the deferred catalogue, `tool_search` finds the right one for investor phrasing, and
   `tool_call` reaches a provider tool;
 - a hidden operation tool still runs for Desk HTTP and through `may_run`, while the model never sees it;
@@ -106,7 +106,7 @@ print(json.dumps({
     "catalog": sorted({line.split(":", 1)[0].strip().lstrip("- ") for line in listing.splitlines()
                        if ":" in line and not line.strip().endswith(":")}),
     "byte_stable": json.dumps(loaded) == json.dumps(loaded_again) and json.dumps(deferred) == json.dumps(deferred_again),
-    "core_schemas": [item["function"] for item in loaded if item["function"]["name"].startswith("pythia")],
+    "schemas": [item["function"] for item in loaded],
     "with_comment": [item["function"]["name"] for item in loaded + deferred if "$comment" in json.dumps(item)],
     "searches": searches, "tool_call": bridged, "hook_saw": seen, "bad_argument": bad, "answer": answer,
     "approve_on_api_server": asked, "http_hidden_run": http.get("schema_version"),
@@ -158,7 +158,7 @@ def main() -> int:
             print(completed.stderr[-4000:], file=sys.stderr)
             return completed.returncode
         report = json.loads(completed.stdout.strip().splitlines()[-1])
-    print(json.dumps({key: value for key, value in report.items() if key != "core_schemas"}, indent=1))
+    print(json.dumps({key: value for key, value in report.items() if key != "schemas"}, indent=1))
     snapshot = json.loads((options.repository / "runtime/test/python/fixtures/agent-tools.json").read_text())
     offered = set(CORE) | PROVIDERS
     loaded = set(report["loaded"])
@@ -182,8 +182,8 @@ def main() -> int:
          "tool_call does not reach a provider tool"),
         (not report["byte_stable"], "the tool list changed between two assemblies"),
         (report["with_comment"], "an operation marker reaches the model"),
-        (sorted(report["core_schemas"], key=lambda item: item["name"]) != sorted(snapshot, key=lambda item: item["name"]),
-         "the delivered core schemas differ from runtime/test/python/fixtures/agent-tools.json"),
+        ([item for item in report["schemas"] if item["name"] in offered] != [item for item in snapshot if item["name"] in loaded],
+         "the delivered Pythia schemas differ from runtime/test/python/fixtures/agent-tools.json"),
         (report["may_run_hidden"] != "pythia_sec_facts", "may_run lost a hidden operation tool"),
         (report["http_hidden_run"] != 1, "Desk HTTP cannot run a hidden operation tool"),
         ("pythia_gleif_profile" in report["hook_saw"], "pre_tool_call saw a nested operation call"),

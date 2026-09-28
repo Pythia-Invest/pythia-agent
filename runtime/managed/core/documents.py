@@ -14,7 +14,7 @@ import logging
 import os
 import sqlite3
 import threading
-import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Callable
 
@@ -35,11 +35,11 @@ LIST_TOOL = "pythia_filings_combined"
 
 # What names a document and what to read in it; core's operation and the agent's pythia_document share them.
 PROPERTIES = {
-    "report_key": {"type": "string", "minLength": 5, "maxLength": 512, "description": "A report's report_key."},
-    "id": {"type": "string", "minLength": 1, "maxLength": 128, "description": "A filing's id."},
-    "section": {"type": "string", "pattern": "^s[0-9]{1,5}$", "description": "A section id from the outline."},
+    "report_key": {"type": "string", "minLength": 5, "maxLength": 512},
+    "id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "section": {"type": "string", "pattern": "^s[0-9]{1,5}$"},
     "start": {"type": "integer", "minimum": 0},
-    "query": {"type": "string", "minLength": 2, "maxLength": 200, "description": "Words to find, such as China."},
+    "query": {"type": "string", "minLength": 2, "maxLength": 200},
     "max_chars": {"type": "integer", "minimum": 1000, "maximum": MAX_SECTION_CHARS},
     "limit": {"type": "integer", "minimum": 1, "maximum": 10},
 }
@@ -53,6 +53,31 @@ SCHEMA = {
     "parameters": {"type": "object", "properties": {"subject_id": SUBJECT_ID, **PROPERTIES},
                    "required": ["subject_id"], "additionalProperties": False},
 }
+
+
+# ---- filings the lists served ------------------------------------------------------------------------------------
+
+LISTED_KEPT = 5_000  # filings remembered from list reads, the oldest forgotten first
+_listed: OrderedDict[tuple[str, str], dict] = OrderedDict()
+_listed_lock = threading.Lock()
+
+
+def remember(issuer: str, rows: list) -> None:
+    """Filings a combined list read served, with whatever forms, kinds or source it was asked for, so each is readable
+    by its id or report_key afterwards: an older 8-K, a Form 4, another source's row. Process memory only; after a
+    restart the reader looks in the default list, and a filing it misses is listed again first."""
+    with _listed_lock:
+        for row in rows:
+            if isinstance(row, dict) and row.get("id"):
+                _listed[(issuer, str(row["id"]))] = row
+                _listed.move_to_end((issuer, str(row["id"])))
+        while len(_listed) > LISTED_KEPT:
+            _listed.popitem(last=False)
+
+
+def _matching(rows: Any, report_key: str | None, document_id: str | None) -> list[dict]:
+    return [row for row in rows if isinstance(row, dict) and (not report_key or row.get("report_key") == report_key)
+            and (not document_id or row.get("id") == document_id)]
 
 
 # ---- the disposable cache ----------------------------------------------------------------------------------------
@@ -150,24 +175,30 @@ class Reader:
                cancelled: Callable[[], bool]) -> tuple[dict | None, str | None]:
         """Find the filing in core's combined list, have its source read the document, extract and cache it."""
         from . import identity_ops
-        kind = report_key.split("|")[1] if report_key and report_key.count("|") == 3 else None
-        listed = _dispatch(LIST_TOOL, {"subject_id": subject["id"], **({"kinds": [kind]} if kind else {})},
-                           cancelled)
-        rows = ((listed or {}).get("data") or {}).get("filings") or []
-        matches = [row for row in rows if isinstance(row, dict)
-                   and (not report_key or row.get("report_key") == report_key)
-                   and (not document_id or row.get("id") == document_id)]
-        if not matches:
-            reason = "; ".join(item.get("reason", "") for item in ((listed or {}).get("data") or {}).get("skipped", []))
-            return None, _envelope("error", None, "not_listed",
-                                   "No listed filing matches this report_key and id; list the filings again and pass "
-                                   "a listed report_key or id." + (f" Skipped sources: {reason}." if reason else ""))
+        with _listed_lock:
+            matches = _matching([row for (owner, _id), row in _listed.items() if owner == issuer], report_key,
+                                document_id)
+        if not matches:  # not listed in this process yet: look in the default list
+            kind = report_key.split("|")[1] if report_key and report_key.count("|") == 3 else None
+            listed = _dispatch(LIST_TOOL, {"subject_id": subject["id"], **({"kinds": [kind]} if kind else {})},
+                               cancelled)
+            matches = _matching(((listed or {}).get("data") or {}).get("filings") or [], report_key, document_id)
+            if not matches:
+                reason = "; ".join(item.get("reason", "") for item in
+                                   ((listed or {}).get("data") or {}).get("skipped", []))
+                return None, _envelope("error", None, "not_listed",
+                                       "No listed filing matches this report_key and id; list the filings again and "
+                                       "pass a listed report_key or id." + (f" Skipped sources: {reason}." if reason
+                                                                           else ""))
         if len(matches) > 1:
             versions = [{key: row.get(key) for key in ("id", "form", "title", "language", "format", "filed_at", "url")}
                         for row in matches]
             return None, _envelope("error", {"versions": versions}, "several_versions",
                                    "This report has several versions; pass the id of the one to read.")
         filing = matches[0]
+        cached = self.cache.get(str(filing["id"]))
+        if cached is not None and cached.get("issuer") == issuer:
+            return cached, None
         plugins = {info.key: info for info in identity_ops.installed()}
         info = plugins.get(str(filing.get("plugin")))
         entry = info and info.manifest.concepts.get(Concept.FILINGS)
@@ -189,7 +220,6 @@ class Reader:
         from tools.registry import registry
         accepted = ((registry.get_schema(tool) or {}).get("parameters") or {}).get("properties") or {}
         arguments = {"native_ref": answer["binding"], "id": filing["id"], "url": filing.get("url")}
-        started = time.monotonic()
         result = _dispatch(tool, {key: value for key, value in arguments.items() if key in accepted}, cancelled)
         data = (result or {}).get("data")
         if not isinstance(data, dict) or not isinstance(data.get("text"), str):
@@ -202,8 +232,7 @@ class Reader:
         document = {**{key: filing.get(key) for key in keep}, "issuer": issuer, "document_title": data.get("title"),
                     "document_url": data.get("url") or filing.get("url"), "bytes": data.get("bytes"),
                     "text": data["text"], "sections": data.get("sections") or [],
-                    "outline_method": data.get("outline_method"), "read_at": data.get("observed_at"),
-                    "seconds": round(time.monotonic() - started, 1)}
+                    "outline_method": data.get("outline_method")}
         self.cache.put(document)
         return document, None
 

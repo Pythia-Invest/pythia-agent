@@ -114,7 +114,9 @@ function Body({
             >
               {passage.citation.section_title}
             </button>
-            <p className="whitespace-pre-line text-sm">{passage.text}</p>
+            <p className="max-w-[68ch] whitespace-pre-line text-base">
+              {passage.text}
+            </p>
           </article>
         ))}
       </div>
@@ -123,8 +125,8 @@ function Body({
     return (
       <div className="flex flex-col gap-3">
         {back}
-        <h3 className="font-semibold text-sm">{document.section.title}</h3>
-        <p className="whitespace-pre-line text-sm leading-relaxed">
+        <h3 className="font-semibold text-base">{document.section.title}</h3>
+        <p className="max-w-[68ch] whitespace-pre-line text-base leading-relaxed">
           {document.text}
         </p>
         <div className="flex flex-wrap items-center gap-3">

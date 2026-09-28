@@ -268,6 +268,15 @@ class SecFilingFields(unittest.TestCase):
         # Other forms put dates or form names in `items`; only 8-K item numbers are read.
         self.assertEqual((effect['items'], effect['description']), (None, None))
 
+    def test_whole_number_8k_items_are_read_as_the_pre_2004_items_not_drift(self):
+        # Release 33-8400 renumbered the items from 2004-08-23; older 8-Ks keep Items 1 to 12 in submissions.
+        old = filings.filings(self.block(filingDate=['2004-08-20', '2004-08-19', '2004-08-18'], items=['5,7', '', '']),
+                              CIK, STAMP)
+        self.assertEqual((old['filings'][0]['items'], old.get('drift')), (['5', '7'], None))
+        late = filings.filings(self.block(filingDate=['2004-08-23', '2004-08-19', '2004-08-18'], items=['5', '', '']),
+                               CIK, STAMP)
+        self.assertEqual(late['drift'], {'unknown_8k_item': {'5': 1}})
+
     def test_kind_format_and_filer_follow_the_form(self):
         eight_k, effect, annual = filings.filings(self.block(), CIK, STAMP)['filings']
         self.assertEqual([(row['kind'], row['format']) for row in (eight_k, effect, annual)],
@@ -348,6 +357,11 @@ class SecFactsFreshness(unittest.TestCase):
         self.assertEqual((fresh['status'], fresh['reason']), ('fresh', None))
         self.assertIsNone(financials.freshness(periodic_submissions(('0000123456-26-000010', '6-K', 0)),
                                                self.facts('0000123456-25-000001'), CIK, STAMP))
+        # An interim 6-K with XBRL carries statements (no cover-page tagging on 6-K): companyfacts must have it too.
+        interim = periodic_submissions(('0000123456-26-000012', '6-K', 1), ('0000123456-26-000009', '20-F', 1))
+        behind = financials.freshness(interim, self.facts('0000123456-26-000009'), CIK, STAMP)
+        self.assertEqual((behind['status'], behind['latest_filing']['form']), ('stale', '6-K'))
+        self.assertEqual(financials.freshness(interim, self.facts('0000123456-26-000012'), CIK, STAMP)['status'], 'fresh')
         unflagged = periodic_submissions(('0000123456-26-000009', '20-F', 1))
         del unflagged['filings']['recent']['isXBRL']
         self.assertEqual(financials.freshness(unflagged, self.facts('0000123456-25-000001'), CIK, STAMP)['status'], 'unknown')

@@ -52,11 +52,26 @@ UNTITLED_FORMS = frozenset({
     'NT 20-F', 'POS AM', 'POS EX', 'POSASR', 'PRE 14A', 'PRE 14C', 'PREC14A', 'PRER14A', 'PRRN14A', 'PX14A6N', 'RW',
     'RW WD', 'S-3ASR', 'S-3D', 'S-4', 'S-8', 'S-8 POS', 'SBSE-A', 'SC 14D9', 'SC TO-C', 'SC TO-I', 'SC TO-T',
     'SEC STAFF LETTER', 'SUPPL', 'UPLOAD',
+    # Seen across the 48 filers of the SEC onboarding sample (docs/sources/sec.md), 2026-09-28: small-business forms
+    # SEC retired in 2008-2009 (10-KSB, 10-QSB, SB-2), Regulation A, registrations and notices.
+    '10-KT', '10KSB', '10KSB40', '10KT405', '10QSB', '1-A', '1-K', '1-SA', '1-Z', '1-Z-W', '15-15D', '20FR12B',
+    '20FR12G', '305B2', '40FR12B', '40FR12G', '8-K12B', 'AW', 'AW WD', 'DEFR14C', 'DEL AM', 'F-10POS', 'F-3D', 'F-7',
+    'N-14MEF', 'NTN 10K', 'NTN 10Q', 'POS 8C', 'PREM14A', 'PRER14C', 'QUALIF', 'REGDEX', 'S-1MEF', 'S-4 POS', 'SB-2',
+    'SEC STAFF ACTION',
 })
 # Form 8-K item numbers (Form 8-K General Instructions B and C): https://www.sec.gov/files/form8-k.pdf
 EIGHT_K_ITEMS = frozenset({*(f'1.0{n}' for n in range(1, 6)), *(f'2.0{n}' for n in range(1, 7)),
                            *(f'3.0{n}' for n in range(1, 4)), '4.01', '4.02', *(f'5.0{n}' for n in range(1, 9)),
                            *(f'6.{n:02d}' for n in range(1, 11)), '7.01', '8.01', '9.01'})
+# Before Release 33-8400 took effect on 2004-08-23 the items were whole numbers 1 to 12 (Item 12 was results of
+# operations); SEC's submissions still list them for older 8-Ks, which are not drift.
+LEGACY_8K_ITEMS, ITEMS_RENUMBERED = frozenset(str(number) for number in range(1, 13)), '2004-08-23'
+
+
+def unknown_8k_items(items, filed_at):
+    """The 8-K item numbers outside the items in force on the filing date (ISO `filed_at`)."""
+    legacy = LEGACY_8K_ITEMS if filed_at < ITEMS_RENUMBERED else frozenset()
+    return [item for item in items if item not in EIGHT_K_ITEMS and item not in legacy]
 
 
 def base_form(form):
@@ -102,8 +117,9 @@ def _block(block, identifier, drift, read_at):
     """The rows of one columnar submissions block (`filings.recent`, or an older page), newest first.
 
     Field meanings (EDGAR submissions API): `acceptanceDateTime` is when EDGAR accepted the filing, kept in true UTC
-    (see `accepted_utc`: SEC labels recent Eastern times as UTC); a filing accepted after 17:30 ET usually carries
-    the next business day as its `filingDate`. `items` are Form 8-K item numbers
+    (see `accepted_utc`: SEC labels recent Eastern times as UTC); a filing whose transmission starts after 17:30 ET
+    carries the next business day as its `filingDate`, except Forms 3, 4, 5 and Schedules 13D and 13G (until 22:00;
+    Regulation S-T Rule 13). `items` are Form 8-K item numbers
     only for 8-K; other forms put other values there (dates, form names), which are not read. `size` is the whole
     submission in bytes, every document included, not the primary document. Unexpected input is counted in
     `drift` and left out, never reinterpreted."""
@@ -153,9 +169,8 @@ def _block(block, identifier, drift, read_at):
         if base == '8-K':
             if isinstance(items, str):
                 row['items'] = [item.strip() for item in items.split(',') if item.strip()]
-                for item in row['items']:
-                    if item not in EIGHT_K_ITEMS:
-                        drift_count(drift, 'unknown_8k_item', item)
+                for item in unknown_8k_items(row['items'], row['filed_at']):
+                    drift_count(drift, 'unknown_8k_item', item)
             elif items is not None:
                 drift_count(drift, 'malformed', 'items')
         row['kind'] = filing_kind(form, row['items'])

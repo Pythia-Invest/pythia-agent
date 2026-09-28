@@ -20,7 +20,7 @@ Each filing keeps these submissions fields (see the
 
 | Field | SEC field | Meaning |
 | --- | --- | --- |
-| `filed_at` | `filingDate` | The official filing date. A filing accepted after 17:30 ET usually carries the next business day. |
+| `filed_at` | `filingDate` | The official filing date. A filing whose transmission starts after 17:30 ET carries the next business day, except Forms 3, 4 and 5 and Schedules 13D and 13G, which count until 22:00 ([Regulation S-T Rule 13](https://www.ecfr.gov/current/title-17/section-232.13)). Acceptance can follow the start by minutes, so a filing accepted at 17:34 can still carry that day. |
 | `accepted_at` | `acceptanceDateTime` | When EDGAR accepted the filing, in true UTC. SEC marks the value as UTC, but until its nightly rebuild the value is Eastern time. So a filing dated on or after the Eastern day of the read is read as America/New_York (measured against the current feed, 2026-09-28). From Eastern midnight to 06:00, the previous day's filings may not be rewritten yet, so their time is left empty and only `filed_at` is given. |
 | `items` | `items` | Form 8-K item numbers, such as `2.02` for results. Other forms put dates or form names in this field, so it is read only for 8-K and 8-K/A. |
 | `description` | `primaryDocDescription` | The filer's description of the primary document, often only the form name. |
@@ -40,15 +40,18 @@ column whose length differs from the others breaks the whole read.
 
 **Freshness.** SEC builds companyfacts from filings after they are accepted. In
 2026 it went months without adding the statements of several foreign issuers'
-20-Fs (Toyota, TSMC and Sony among them) and gave no error. So `fundamentals`
-checks the newest 10-K, 10-Q, 20-F or 40-F that `submissions` marks as XBRL.
-Its accession must appear on at least one `us-gaap` or `ifrs-full` fact.
-Otherwise `freshness.status` is `stale`, the first limitation names the missing
-filing and a `stale` warning is returned. A retained companyfacts copy read
-before that filing was accepted is read again first, once per filing until the
-retained copy would expire, so the alarm reports SEC's lag, not the cache's. The facts themselves are still
-returned. When the filing list cannot be read, the status is `unknown`, with a
-`freshness_unknown` warning.
+20-Fs (Toyota, TSMC and Sony among them) and of every interim 6-K with XBRL
+(ING's and Shell's among them), and gave no error. So `fundamentals` checks the
+newest 10-K, 10-Q, 20-F, 40-F or 6-K that `submissions` marks as XBRL. SEC's
+cover-page tagging does not cover 6-K, so a 6-K marked as XBRL carries financial
+statements. Its accession must appear on at least one `us-gaap` or `ifrs-full`
+fact. Otherwise `freshness.status` is `stale`, the first limitation names the
+missing filing and a `stale` warning is returned. A retained companyfacts copy
+read before that filing was accepted is read again first, once per filing until
+the retained copy would expire, so the alarm reports SEC's lag, not the cache's.
+The facts themselves are still returned. When the filing list cannot be read,
+the status is `unknown`, with a `freshness_unknown` warning. The measurements
+are in the [SEC source record](../../../../docs/sources/sec.md).
 
 A 20-F filer does not imply IFRS. Some foreign private issuers tag US GAAP in
 their own currency (for example EUR), others use `ifrs-full`. Both taxonomies are

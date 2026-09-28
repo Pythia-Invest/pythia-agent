@@ -118,7 +118,8 @@ class AuditTest(unittest.TestCase):
         logged = []
         result = truth_report.build_report(self.path, ("ES",), logged.append, audit)
         self.assertEqual(result["attention"], {"us_exchange_no_home_line": 3, "securities_without_primary": 2,
-                                               "issuer_split_lei_cik": 0, "cik_link_suspect": 1, "skipped_ticker_mic": 5})
+                                               "issuer_split_lei_cik": 0, "cik_link_suspect": 1,
+                                           "issuer_identity_name_candidate": 0, "skipped_ticker_mic": 5})
         self.assertIn("       5  rejected by the schema: ticker_mic", logged)
         self.assertIn("       3  US primary: a US exchange line and no line in the ISIN's country", logged)
         self.assertIsNone(truth_report.manifest_audit(self.path))  # no manifest beside this reference

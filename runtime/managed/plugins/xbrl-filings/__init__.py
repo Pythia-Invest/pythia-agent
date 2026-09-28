@@ -98,7 +98,7 @@ class Reader:
                 raw = fetch(identity.reports_url(identifier), 'reports', validate_reports)
                 row = next((row for row in reports.records(raw['data'], identifier)[0] if row['hash'] == clean['id']),
                            None)
-                url = row and (row['links'].get('report') or row['links'].get('viewer'))
+                url = row and row['links'].get('report')  # the xhtml itself; the viewer page adds a large fact script
                 if not url:
                     raise ValueError('missing_observation')
                 return envelope(self.document(url, cancelled, budget))
@@ -146,6 +146,10 @@ class Reader:
         except (RuntimeError, OSError) as error:
             if operation == 'resolve' and getattr(error, 'raw', {}).get('error') == 'missing_observation':
                 return envelope(None, outcome='empty')
+            if operation == 'filings' and getattr(error, 'raw', {}).get('error') == 'missing_observation':
+                # The repository does not know this entity (its filings path is 404): core's next source may serve.
+                return envelope(None, [{'code': 'not_covered', 'severity': 'warning',
+                                        'message': 'filings.xbrl.org has no reports of this entity.'}], outcome='empty')
             failure = self.connector.detail(error)
             return self.connector.qualify_failure(envelope(None, [{'code': failure['code'],
                 'severity': 'error', 'message': failure['message']}]), getattr(error, 'raw', {}))
@@ -170,7 +174,7 @@ def register(ctx):
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler)
     agent = platform().register_agent_tool
-    agent(ctx, 'esef_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings and balance sheet from ESEF '
+    agent(ctx, 'esef_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings, balance sheet from ESEF '
           'reports. IFRS figures of an EU or UK company\'s latest annual report on filings.xbrl.org, or an explicit '
           'report_id, with exact periods, units and precision; several reports for one period come back as '
           'candidates to choose from. It gives the report\'s own year; for the prior-year comparative, read the '

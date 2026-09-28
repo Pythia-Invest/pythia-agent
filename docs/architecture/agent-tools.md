@@ -177,8 +177,26 @@ when that changes.
   - argument errors;
   - `may_run`;
   - bounds;
-  - error handling;
-  - the reviewed snapshot of core's schemas, `fixtures/agent-tools.json`.
+  - error handling.
+- **The delivered-surface test** (`runtime/test/python/test_agent_surface.py`)
+  registers core and every managed plugin through a stand-in for Hermes's
+  plugin loader and runs in well under a second, without Hermes, a model or a
+  provider. It checks:
+  - the model-visible tools, in Hermes's order, against the reviewed snapshot
+    `fixtures/agent-tools.json`;
+  - per-tool and total size budgets, a first sentence of at most 60 characters
+    (the Tool Search listing), and that no `$comment` marker leaks;
+  - that the operating section stays within its budget and names only delivered
+    tools and provider prefixes;
+  - that each live-eval question's expected calls
+    (`tooling/agent-eval/questions.json`) name a delivered tool with valid
+    arguments.
+
+  To accept a reviewed change to the tool list, run the test with
+  `PYTHIA_UPDATE_SNAPSHOTS=1`, format the fixture with Biome and commit it with
+  the change. The list is part of every session's cached request prefix, so a
+  snapshot change invalidates the investor's prompt cache on the first turn
+  after an update.
 - **The native probe** (`tooling/qualification/agent_tools_native.py`) asks the
   pinned Hermes what an `api_server` turn delivers in both Tool Search modes. It
   checks:
@@ -192,7 +210,15 @@ when that changes.
     writing are right, and Desk operations resolve.
 
   It copies the managed packages into a disposable profile, calls no model or
-  provider, and runs in `just qualify`.
+  provider, runs in `just qualify`, and compares the delivered Pythia schemas
+  with the same snapshot.
+- **The live eval** (`just agent-eval <desk-url> [ids]`,
+  `tooling/agent-eval/run.py`) asks a running Desk the ten questions in
+  `questions.json` and saves each transcript under `.local/agent-eval/`, which
+  is never committed. It uses the investor's model and sources, so it is opt-in
+  and never runs in CI. Run it on tool-surface changes and before a Hermes
+  upgrade, once with Tool Search on and once off, and grade the answers against
+  the rubric.
 
 ## Decisions and rejected alternatives
 

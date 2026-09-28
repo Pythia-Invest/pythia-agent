@@ -374,13 +374,27 @@ class UsHomeTest(unittest.TestCase):
 
 
 class CikLinkTest(unittest.TestCase):
-    def test_identifier_link_wins_the_lei_over_an_earlier_name_link(self):
+    def test_a_name_alone_never_links_a_cik_to_a_lei(self):
+        # Biofrontera Inc. (a Delaware company) and Biofrontera AG normalise to one name; only identifiers link.
         snap = Snapshot(as_of="2026-09-25")
-        tickers = [SecTicker("100", "Acme Holdings", "ACMH", "Nasdaq", 0), SecTicker("200", "Acme", "ACME", "NYSE", 1)]
-        evidence = {"100": [("LEIX", "name_unique")], "200": [("LEIX", "share_class_figi")]}
-        links = linking._decide(snap, tickers, evidence, Counter())
-        self.assertEqual(links, {"200": ("LEIX", "share_class_figi")})
-        self.assertEqual([(f.subject_id, f.flag) for f in snap.flags], [("cik:100", "lei_already_linked")])
+        snap.issuers["lei:BFAG"] = Issuer("lei:BFAG", "Biofrontera AG", "gleif", lei="BFAG",
+                                          names=[("Biofrontera AG", "LEGAL_NAME", "de", "gleif")])
+        tickers = [SecTicker("1858685", "Biofrontera Inc.", "BFRI", "Nasdaq", 0)]
+        evidence, _isins = linking._link_evidence(snap, {}, tickers, {}, lambda jobs: [{} for _ in jobs])
+        self.assertEqual(dict(evidence), {})
+        audit = Counter()
+        links = linking._decide(snap, tickers, evidence, audit)
+        self.assertEqual(links, {})
+        # The match is kept as an open question carrying its candidate, never a link.
+        linking._ask_name_candidates(snap, tickers, links, audit)
+        self.assertEqual([(f.subject_id, f.flag, f.detail) for f in snap.flags],
+                         [("cik:1858685", "issuer_identity_name_candidate", "lei:BFAG")])
+        self.assertEqual(audit["name_candidate_questions"], 1)
+        # A LEI an identifier already links, or a CIK it links, is asked nothing.
+        other = Snapshot(as_of="2026-09-25")
+        other.issuers["lei:BFAG"] = snap.issuers["lei:BFAG"]
+        linking._ask_name_candidates(other, tickers, {"1": ("BFAG", "isin_exch_us")}, Counter())
+        self.assertEqual(other.flags, [])
 
     def test_among_identifier_links_to_one_lei_the_cik_whose_name_matches_wins(self):
         snap = Snapshot(as_of="2026-09-25")

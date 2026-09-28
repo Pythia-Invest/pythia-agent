@@ -49,6 +49,11 @@ def report_period(issuer: str, kind: str, period_end: str | None) -> str | None:
     return "|".join((issuer, kind, period_end)) if kind in REPORT_KINDS and period_end else None
 
 
+def malformed(row: dict) -> bool:
+    """A row whose period end is not a date string: it is left out, and the list says so."""
+    return row.get("period_end") is not None and not isinstance(row["period_end"], str)
+
+
 def filing_items(result: dict, answer: dict, authorities: Collection[str], issuer: str = "") -> list[dict]:
     """A source's filings as core's filing items, only those of the authorities this source was chosen for.
 
@@ -60,7 +65,7 @@ def filing_items(result: dict, answer: dict, authorities: Collection[str], issue
     declared = answer.get("authorities") or []
     items = []
     for row in data.get("filings", []) if isinstance(data.get("filings"), list) else []:
-        if not isinstance(row, dict):
+        if not isinstance(row, dict) or malformed(row):
             continue
         country = str(row.get("country") or "").upper()
         authority = declared[0] if len(declared) == 1 else AUTHORITY_BY_COUNTRY.get(country)
@@ -100,6 +105,12 @@ def merge_filings(parts: list[tuple[dict, Collection[str], dict | None, str | No
             continue
         items.extend(item for item in filing_items(result, answer, authorities, issuer)
                      if form_matches(item["form"], forms) and (not kinds or item["kind"] in kinds))
+        rows = (result.get("data") or {}).get("filings") if isinstance(result.get("data"), dict) else None
+        bad = sum(1 for row in rows if isinstance(row, dict) and malformed(row)) if isinstance(rows, list) else 0
+        if bad:
+            skipped.append({**source(answer), "code": "invalid_rows",
+                            "reason": f"{answer['label']} listed {bad} filing(s) with an unreadable period end; "
+                                      "they are left out"})
         if "incomplete" in codes:  # the source answered but could not search everything asked: keep its rows
             skipped.append({**source(answer), "code": "incomplete", "reason": next(
                 issue.get("message") for issue in result["issues"] if isinstance(issue, dict)

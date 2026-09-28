@@ -1,7 +1,7 @@
 "use client";
 
 import type { Filings, Profile } from "@pythia/market-data/subject";
-import { Toggle, ToggleGroup } from "@pythia/ui";
+import { IconButton, Toggle, ToggleGroup } from "@pythia/ui";
 import { BookOpen, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { groupReports, newestPerAuthority } from "./blocks";
@@ -304,14 +304,15 @@ export function FilingsView({ filings }: { filings: Filings }) {
                     variants.some(
                       (item) => item.id && READABLE.has(item.format ?? ""),
                     ) ? (
-                      <button
-                        type="button"
+                      <IconButton
+                        label={`Read ${original.form ?? "filing"} ${filing.period_end ?? ""}`.trim()}
+                        size="sm"
+                        variant="ghost"
+                        className="mr-1 size-6"
                         onClick={() => setReading(variants)}
-                        aria-label={`Read ${original.form ?? "filing"} ${filing.period_end ?? ""}`.trim()}
-                        className="mr-2 inline-flex text-foreground-secondary outline-ring hover:text-foreground focus-visible:outline-2"
                       >
                         <BookOpen aria-hidden="true" className="size-3.5" />
-                      </button>
+                      </IconButton>
                     ) : null}
                     {!grouped && filing.url ? (
                       <a

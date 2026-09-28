@@ -27,12 +27,17 @@ is the first.
 Routine maintenance of a source that has not been onboarded yet does not start
 its onboarding.
 
-## One source at a time
+## One audit per source
 
-- **Only one source is in onboarding at a time.** Onboarding here means the
-  audit, the judgement work and sign-off. Each source has its own odd cases,
-  and only a full audit finds them.
-- **The current source may change another source's adapter** when it needs that
+- **Several sources may be in onboarding at once, each on its own.** Onboarding
+  here means the audit, the judgement work and sign-off. Each source has its own
+  pull request, record, audit and sign-off, and is never batched with another:
+  each has its own odd cases, and only its own full audit finds them. The founder
+  ruled this on 2026-09-28 ([ADR 0042](../decisions/0042-source-onboarding-standard.md),
+  amendment): "just continue and parallelize what we can. But use a healthy
+  amount of resources." So audits are scripted over cached data and labelling
+  stays within the random sample.
+- **A source in onboarding may change another source's adapter** when it needs that
   source's evidence. For example, FIRDS needs the operator LEIs from ISO 10383.
   Record the change in both source records. It must not widen what the other
   source confirms.
@@ -51,7 +56,7 @@ and is then labelled "not yet audited". An opt-in, display-only source such as
 Hyperliquid's live view ([ADR 0043](../decisions/0043-live-market-view.md))
 ships `unsigned`. The sources in use before this standard are listed in ADR
 0042 and declared `grandfathered`. They keep their current role while they are
-onboarded in turn, starting with FIRDS.
+onboarded, FIRDS first.
 
 ## Stages
 

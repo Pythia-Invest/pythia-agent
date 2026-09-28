@@ -110,6 +110,62 @@ class _Text(HTMLParser):
         self.pending = data[-1].isspace()
 
 
+class _Strip:
+    """Drops what a reader never sees before the parser gets it: a `data:` URI attribute value (an embedded image)
+    and the body of a script or style element. HTMLParser buffers an unfinished construct and rebuilds it on every
+    feed, so one 20 MB image would otherwise cost memory quadratic in its size; this keeps it linear and small."""
+
+    MARK = re.compile(r"""=\s*(["'])\s*data:|<(script|style)\b""", re.I)
+    KEEP = 16  # the end of a chunk, carried over in case a marker is cut there
+
+    def __init__(self) -> None:
+        self.carry, self.until = "", None  # `until`: what ends the part being dropped
+
+    def feed(self, text: str, final: bool = False) -> str:
+        text, self.carry, out, at = self.carry + text, "", [], 0
+        while True:
+            if self.until is not None:
+                found = self.until.search(text, at)
+                if not found:
+                    self.carry = "" if final else text[max(at, len(text) - self.KEEP):]
+                    return "".join(out)
+                at, self.until = found.start(), None  # the closing quote or end tag stays for the parser
+                continue
+            found = self.MARK.search(text, at)
+            if not found:
+                cut = len(text) if final else max(at, len(text) - self.KEEP)
+                out.append(text[at:cut])
+                self.carry = text[cut:]
+                return "".join(out)
+            if found[1]:  # keep the attribute's opening quote; drop its value up to the closing quote
+                out.append(text[at:found.start(1) + 1])
+                self.until, at = re.compile(re.escape(found[1])), found.end()
+                continue
+            close = text.find(">", found.end())
+            if close < 0:  # the start tag goes on in the next chunk
+                out.append(text[at:found.start()])
+                self.carry = "" if final else text[found.start():]
+                return "".join(out)
+            out.append(text[at:close + 1])
+            self.until, at = re.compile("</" + found[2], re.I), close + 1
+
+
+def _chunks(response: Any, inflate: Any, check: Callable[[], None]) -> Iterator[bytes]:
+    """The body in pieces of at most about a megabyte, a gzip body inflated as it streams."""
+    read = getattr(response, "read1", response.read)
+    while True:
+        check()
+        chunk = read(65536)
+        if not chunk:
+            return
+        while chunk:
+            if inflate is None:
+                yield chunk
+                break
+            yield inflate.decompress(chunk, 1 << 20)
+            chunk = inflate.unconsumed_tail
+
+
 def extract(response: Any, check: Callable[[], None] = lambda: None) -> dict:
     """A document's text and outline, read from an open HTTP response (or any object with `read`) in chunks.
 
@@ -125,22 +181,15 @@ def extract(response: Any, check: Callable[[], None] = lambda: None) -> dict:
         decoder = codecs.getincrementaldecoder(charset[1] if charset else "utf-8")("replace")
     except LookupError:
         decoder = codecs.getincrementaldecoder("utf-8")("replace")
-    parser, size = _Text(), 0
-    read = getattr(response, "read1", response.read)
-    while True:
-        check()
-        chunk = read(65536)
-        if not chunk:
-            break
-        if inflate is not None:
-            chunk = inflate.decompress(chunk, MAX_BYTES + 1 - size)
+    parser, strip, size = _Text(), _Strip(), 0
+    for chunk in _chunks(response, inflate, check):
         size += len(chunk)
         if size > MAX_BYTES:
             raise TooLarge()
-        parser.feed(decoder.decode(chunk))
+        parser.feed(strip.feed(decoder.decode(chunk)))
     if inflate is not None and not inflate.eof:
         raise ValueError("invalid_response")
-    parser.feed(decoder.decode(b"", final=True))
+    parser.feed(strip.feed(decoder.decode(b"", final=True), final=True))
     parser.close()
     text = "".join(parser.parts)
     sections, method = outline(text, parser.anchors, parser.links)

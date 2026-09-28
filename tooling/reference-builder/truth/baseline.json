@@ -777,6 +777,7 @@
     "btc-mini:listing:BTC@XNYS:ticker",
     "btc-mini:primary:home",
     "btc-mini:security:kind",
+    "btc-mini:subject_key:issuer",
     "btc-mini:subject_key:security",
     "btc-mini:symbols:eodhd:BTC.US",
     "btc-mini:symbols:yahoo:BTC",
@@ -1648,6 +1649,7 @@
     "ibit:primary:home",
     "ibit:security:kind",
     "ibit:subject_key:IBIT@XNAS",
+    "ibit:subject_key:issuer",
     "ibit:subject_key:security",
     "ibit:symbols:eodhd:IBIT.US",
     "ibit:symbols:yahoo:IBIT",
@@ -3940,7 +3942,7 @@
     },
     "btc-mini": {
       "security": "security:figi:BBG01NX636V7",
-      "issuer": "issuer:lei:529900WHTNX5LZCNWB27",
+      "issuer": "issuer:cik:0002015034",
       "listings": {
         "BTC@XNYS": "listing:figi:BBG01NX63610"
       }
@@ -4338,7 +4340,7 @@
     },
     "ibit": {
       "security": "security:figi:BBG01KYQ6QS5",
-      "issuer": "issuer:lei:529900HVFN08L8P4H851",
+      "issuer": "issuer:cik:0001980994",
       "listings": {
         "IBIT@XNAS": "listing:figi:BBG01KYQ6Q23"
       }
@@ -5243,6 +5245,8 @@
     }
   },
   "accepted_id_changes": [
-    "asr-adr:subject_id: security changed security:figi:BBG00J0BB527 -> security:provisional:esma_firds:isin:US00217N1081"
+    "asr-adr:subject_id: security changed security:figi:BBG00J0BB527 -> security:provisional:esma_firds:isin:US00217N1081",
+    "btc-mini:subject_id: issuer changed issuer:lei:529900WHTNX5LZCNWB27 -> issuer:cik:0002015034",
+    "ibit:subject_id: issuer changed issuer:lei:529900HVFN08L8P4H851 -> issuer:cik:0001980994"
   ]
 }

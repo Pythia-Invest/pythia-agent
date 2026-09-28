@@ -21,13 +21,10 @@ from .identity.schemes import Level
 MARKET_DATA_TOOL = "pythia_market_data"  # the market-data feature's own (hidden) read backend
 PRICES = {
     "name": "pythia_prices",
-    "description": "Price of a stock, fund or crypto: quote, history, returns. The latest quote or price history for a "
-                   "listing, security or crypto asset from the investor's connected market-data sources, with the "
-                   "source, as-of time and delay. Without start it returns the latest "
-                   "quote; with start (and optional end) it returns daily bars, or intraday bars with interval, plus a "
-                   "summary with the first and last close and the percentage change over the returned bars. For a "
-                   "period's return (1D to 5Y) pass period. "
-                   "For a company (issuer) it reads the primary listing.",
+    "description": "Price of a stock, fund or crypto: quote, history, returns. From the investor's connected "
+                   "market-data sources, with source, as-of and delay. Without start: the latest quote; with "
+                   "start (and end): daily or intraday bars (interval) and a summary with first and last close and "
+                   "change. period (1D to 5Y) gives a period's return. A company reads its primary listing.",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT,
         "start": {"type": "string", "format": "date", "description": "First date (YYYY-MM-DD) for history."},
@@ -45,22 +42,19 @@ PRICES = {
 }
 FILINGS = {
     "name": "pythia_filings",
-    "description": "Company filings: annual report, 10-K, 20-F, ESEF. Regulatory filings of a company, newest first, "
-                   "from one connected source per filing authority "
-                   "(SEC EDGAR; ESEF reports on filings.xbrl.org), with form, filing date, period end, document link "
-                   "and source. Filter by kind (annual, quarterly, earnings_release…), form (10-K, 20-F, AFR…) and "
-                   "date. Items sharing a report_key are versions of one report; items sharing report_period are "
-                   "parallel reports of one period under other authorities. Pass any subject of the company. For "
-                   "reported numbers inside a filing, use that source's provider tool (sec_fundamentals, esef_fundamentals).",
+    "description": "Company filings: annual report, 10-K, 20-F, ESEF. A company's regulatory filings, newest first, "
+                   "one source per filing authority (SEC EDGAR; filings.xbrl.org for ESEF), with form, dates, link and "
+                   "source. Items sharing report_key are versions of one report; report_period links parallel reports "
+                   "under other authorities. pythia_document reads a listed filing; sec_ and esef_ provider tools "
+                   "give its figures.",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT,
         "forms": {"type": "array", "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 16},
-                  "description": "Only these forms (10-K, 20-F, ESEF; AFR or annual for annual reports); an "
-                                 "amendment matches its form. Sources search beyond their most recent filings."},
+                  "description": "Only these forms (10-K, 20-F; AFR or annual for annual reports), amendments "
+                                 "included, searched beyond the recent filings."},
         "kinds": {"type": "array", "maxItems": 8,
                   "items": {"type": "string", "enum": [kind.value for kind in FilingKind]},
-                  "description": "Only these kinds. Forms 3, 4, 5, 144 and 13G are left out unless ownership "
-                                 "is named."},
+                  "description": "Only these kinds; ownership (Forms 3, 4, 5, 144, 13G) only when named."},
         "since": {"type": "string", "format": "date", "description": "Only filings dated on or after this date."},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50},
         "source": SOURCE},
@@ -68,11 +62,9 @@ FILINGS = {
 }
 DOCUMENT = {
     "name": "pythia_document",
-    "description": "Read inside a filing: sections, search and citations. Reads a document pythia_filings lists "
-                   "(10-K, 20-F, 8-K, ESEF annual report) from its source instead of the web. Without section or "
-                   "query: the outline. With section: its text, bounded; pass continue_from as start for more. With "
-                   "query: the best-matching passages. Each carries a citation (section, offsets, link); cite it. "
-                   "Name a report by report_key (and id for one of several versions), any other filing by id.",
+    "description": "Read inside a filing: sections, search and citations. Reads a filing pythia_filings listed: "
+                   "without section or query its outline; with section that section's text; with query the best "
+                   "passages. Each part carries a citation; cite it. Name a report by report_key, or a filing by id.",
     "parameters": {"type": "object", "properties": {"subject_id": SUBJECT, **PROPERTIES},
                    "required": ["subject_id"], "additionalProperties": False},
 }
@@ -335,8 +327,8 @@ def document(ctx: Any, arguments: dict, **context: Any) -> str:
     result = run_tool(ctx, READ_DOCUMENT, arguments, context)
     data = result.get("data")
     if isinstance(data, dict) and "sections" in data:
-        result["next"] = ("Pass a section id to read it, or query to search; pass the document's id on later calls "
-                          "so they read it locally.")
+        result["next"] = "Pass a section id to read it, or query to search."
     elif isinstance(data, dict) and data.get("continue_from") is not None:
         result["next"] = "The section goes on: pass continue_from as start to read the rest."
-    return encode(result, max(MAX_CHARS, int(arguments.get("max_chars") or 0) + 4_000))
+    # JSON writes a line break as two characters: a section of short lines (ESEF tables) nearly doubles.
+    return encode(result, max(MAX_CHARS, 2 * int(arguments.get("max_chars") or 0) + 4_000))
