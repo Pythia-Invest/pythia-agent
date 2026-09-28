@@ -59,8 +59,8 @@ def adapter_view():
 class ShippedContracts(unittest.TestCase):
     def test_every_contract_validates_and_its_operations_reach_the_tools_that_declare_them(self):
         shipped = sorted(path.parent.name for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE))
-        self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'eodhd', 'gleif', 'sec', 'xbrl-filings',
-                                   'yahoo-discovery'])
+        self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'eodhd', 'gleif', 'hyperliquid', 'sec',
+                                   'xbrl-filings', 'yahoo-discovery'])
         _ops, mapped = adapter_view()
         for plugin in shipped:
             with self.subTest(plugin=plugin):
