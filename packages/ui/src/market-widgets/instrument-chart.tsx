@@ -62,9 +62,12 @@ function timeTicks(
       }
       const time = Date.UTC(y, m, 1);
       if (time > end) break;
-      if ((y * 12 + m) % step === 0 && visible(time))
+      // A month that begins on a closed day is labelled where trading resumes.
+      const at =
+        gaps.find((gap) => time >= gap.start && time < gap.end)?.end ?? time;
+      if ((y * 12 + m) % step === 0 && visible(at))
         ticks.push({
-          time,
+          time: at,
           label: step >= 12 || m === 0 ? String(y) : month.format(time),
         });
       m += 1;
@@ -278,7 +281,9 @@ export function InstrumentChart({
         aria-hidden="true"
         className="relative mt-1 h-4 text-[10px] text-foreground-secondary tabular-nums"
       >
-        {g.scale.gaps.map((gap) => (
+        {/* Day marks for joined intraday sessions; daily axes omit weekends
+            without a mark. */}
+        {(dates ? [] : g.scale.gaps).map((gap) => (
           <span
             key={`gap-${gap.end}`}
             data-slot="instrument-chart-session-mark"
