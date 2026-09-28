@@ -113,7 +113,8 @@ def adapt(payload, list_name, limit):
         ('unknown fields', drift['fields']), ('unknown venues', drift['venues']),
         ('unknown market states', drift['states']), ('non-equity rows', drift['kinds'])) if values]
     if drift['malformed_rows']:
-        found.append(f"{drift['malformed_rows']} rows without a readable symbol, price, change or time were left out")
+        count = drift['malformed_rows']
+        found.append(f"{count} row{'' if count == 1 else 's'} without a readable symbol, price, change or time left out")
     issues = []
     if found:
         message = "Yahoo's screener answer has changed: " + '; '.join(found) + '.'

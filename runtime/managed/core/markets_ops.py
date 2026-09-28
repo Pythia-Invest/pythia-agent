@@ -140,10 +140,8 @@ class MarketReads:
         issues = [item for item in result.get("issues", []) if isinstance(item, dict) and isinstance(item.get("message"), str)]
         if len(rows) < min(limit, len(body.get("rows", []))):
             issues.append({"code": "source_drift", "message": f"{answer['label']} answered rows Pythia could not read."})
-        text = lambda key: body[key][:120] if isinstance(body.get(key), str) else None  # noqa: E731
-        data.update(market=text("market"), universe=text("universe"),
-                    retrieved_at=text("retrieved_at"),
-                    rows=self._resolve(rows))
+        data.update({key: body[key][:120] if isinstance(body.get(key), str) else None
+                     for key in ("market", "universe", "retrieved_at")}, rows=self._resolve(rows))
         return _envelope("ok" if rows else "empty", data, issues)
 
     @staticmethod

@@ -149,7 +149,7 @@ function Frame({
       aria-label={name}
       onClick={onClick}
       className={cn(
-        "flex w-44 max-w-full shrink-0 cursor-pointer flex-col gap-1 rounded-control border border-border/55 bg-raised px-2.5 pt-2 pb-1",
+        "flex @min-[520px]:w-44 w-full min-w-0 max-w-full shrink-0 cursor-pointer flex-col gap-1 rounded-control border border-border/55 bg-raised px-2.5 pt-2 pb-1",
         "motion-fast transition-colors hover:border-border-strong",
       )}
     >

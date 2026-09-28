@@ -69,3 +69,13 @@ in two narrow ways only:
   `resolve`.
 - research `news` accepts a validated Yahoo symbol and returns only the items
   Yahoo tags with that exact symbol.
+
+## Markets: indexes, futures, FX and movers
+
+Core's market catalogue addresses indexes, continuous futures, currency pairs
+and yields by their Yahoo symbols (`^GSPC`, `ES=F`, `EURUSD=X`, `^TNX`), so the
+contract declares `index`, `future`, `fx` and `rate` coverage for market data.
+`movers` serves core's `market_movers` concept from Yahoo's predefined US
+screens (`most_actives`, `day_gainers`, `day_losers`). Its field meanings, venue
+table and drift alarms are in the
+[source record](../../../../docs/sources/yahoo-screener.md).

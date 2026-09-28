@@ -72,7 +72,7 @@ function MarketGroups({
     <div className="flex @min-[520px]:flex-row flex-col @min-[520px]:flex-wrap gap-x-6 gap-y-4">
       {[...found].map(([group, members]) => (
         <Block key={group} title={group}>
-          <div className="flex flex-wrap items-start gap-2">
+          <div className="@min-[520px]:flex grid grid-cols-2 @min-[520px]:flex-wrap items-start gap-2">
             {members.map((day) => (
               <DayCard key={day.subject} day={day} />
             ))}
