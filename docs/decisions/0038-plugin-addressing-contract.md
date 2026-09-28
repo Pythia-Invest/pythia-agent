@@ -206,7 +206,7 @@ of `resolve.tool`, plus `rights`, `limits`, `contract_version` and
 moved from the manifest to page composition. The `pythia_market_data`
 annotation remains until market-data selection moves to core. Page
 composition reads concepts; its only change is core's default order (ADR
-0040), which puts EODHD ahead of Yahoo when EODHD is configured.
+0040), free sources first, which puts CoinGecko ahead of CoinMarketCap.
 
 Rejected: adding only the version (the `content` to `concepts` and
 tool-to-operation changes break every contract anyway); keeping rights in

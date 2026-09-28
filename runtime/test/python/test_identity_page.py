@@ -179,12 +179,11 @@ class PageTest(Fixture):
         quote, profile = sections["quote"], sections["profile"]
         self.assertEqual((quote["plugin"], quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-yahoo", "ready", "ASML.AS", "derived"))
-        # EODHD comes first in core's default order; it still needs its lookup, which the Desk runs after rendering.
+        # Free sources come first in core's default order: Yahoo serves; EODHD, still needing its lookup, is listed.
         _subject, sections = self.compose(ASML, [plugin("eodhd"), plugin("yahoo")])
-        self.assertEqual((sections["quote"]["plugin"], sections["quote"]["status"]), ("pythia-eodhd", "resolving"))
+        self.assertEqual((sections["quote"]["plugin"], sections["quote"]["status"]), ("pythia-yahoo", "ready"))
         [also] = sections["quote"]["alternatives"]
-        self.assertEqual((also["plugin"], also["source"], also["status"], also["binding"]["native_id"]),
-                         ("pythia-yahoo", "Yahoo Finance", "ready", "ASML.AS"))
+        self.assertEqual((also["plugin"], also["source"], also["status"]), ("pythia-eodhd", "EODHD", "resolving"))
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
 
@@ -207,7 +206,7 @@ class PageTest(Fixture):
                          ("pythia-coingecko", "bitcoin", "confirmed"))
         self.assertEqual(quote["alternatives"], [])
         self.assertEqual([(item["plugin"], item["code"]) for item in quote["skipped"]],
-                         [("pythia-coinmarketcap", "needs_configuration"), ("pythia-yahoo", "not_addressable")])
+                         [("pythia-yahoo", "not_addressable"), ("pythia-coinmarketcap", "needs_configuration")])
         self.assertIsNone(quote["notice"])  # a source the investor has not set up is not a warning
 
     def test_market_data_reads_a_subject_through_its_ready_references_in_core_order(self):
@@ -288,7 +287,7 @@ class ReviewFixesTest(Fixture):
                                                         stored=lambda *_: None, coins=lambda *_: None)}
         self.assertEqual(sections["quote"]["plugin"], "pythia-yahoo")
         self.assertEqual(sections["quote"]["skipped"][0]["code"], "conflict")
-        self.assertEqual(sections["quote"]["notice"]["code"], "conflict")  # ranked first and something went wrong
+        self.assertIsNone(sections["quote"]["notice"])  # EODHD ranks after the free Yahoo: not a passed-over choice
         binding, _item, _ = self.resolve(asml, self.answer("NL0010273215"))
         self.identity.put_binding(binding)
         _subject, sections = self.compose(ASML, [plugin("eodhd")])

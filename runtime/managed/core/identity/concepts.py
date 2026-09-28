@@ -122,7 +122,7 @@ BASIS = {"basis": some_of("as_reported", "standardized")}
 class ConceptSpec:
     operations: Mapping[str, Mapping[str, Check]]  # operation -> its closed quality vocabulary
     levels: frozenset[Level]                        # the levels the concept's data may be about
-    default_order: tuple[str, ...] = ()             # providers, paid before free; used after the investor's order
+    default_order: tuple[str, ...] = ()             # providers, free before paid; used after the investor's order
     combine: Combine | None = None
 
 
@@ -132,7 +132,7 @@ REGISTRY: dict[Concept, ConceptSpec] = {
                     "daily": {"adjustment": some_of(*ADJUSTMENT), "feed_note": text(80), **HISTORY},
                     "live": LIVE},
         levels=frozenset({Level.LISTING, Level.COMPOSITE, Level.SECURITY}),
-        default_order=("eodhd", "coinmarketcap", "yahoo", "coingecko")),
+        default_order=("yahoo", "coingecko", "eodhd", "coinmarketcap")),
     Concept.PROFILE: ConceptSpec(operations={"fields": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY}),
                                  default_order=("gleif",)),
     Concept.FILINGS: ConceptSpec(operations={"list": {}, "read": {}}, levels=frozenset({Level.ISSUER}),

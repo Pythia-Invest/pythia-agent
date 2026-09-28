@@ -65,18 +65,19 @@ class Reference(unittest.TestCase):
 
 class SelectionTest(Reference):
     def test_the_investors_one_order_beats_core_order_across_concepts(self):
-        order = ("yahoo", "coingecko")  # provider names or plugin ids, one list for every concept
+        core = self.sections("asml_xams")
+        self.assertEqual(core["quote"]["plugin"], "pythia-yahoo-discovery")  # free before paid, key or not
+        order = ("eodhd", "pythia-coinmarketcap")  # provider names or plugin ids, one list for every concept
         asml = self.sections("asml_xams", order=order)
         self.assertEqual((asml["quote"]["plugin"], [a["plugin"] for a in asml["quote"]["alternatives"]]),
-                         ("pythia-yahoo-discovery", ["pythia-eodhd"]))
+                         ("pythia-eodhd", ["pythia-yahoo-discovery"]))
         btc = self.sections("btc", order=order)
-        self.assertEqual(btc["quote"]["plugin"], "pythia-coingecko")
-        self.assertEqual(btc["quote"]["source"], {"source": "CoinGecko", "provider": "coingecko",
-                                                  "plugin": "pythia-coingecko"})
+        self.assertEqual(btc["quote"]["source"], {"source": "CoinMarketCap", "provider": "coinmarketcap",
+                                                  "plugin": "pythia-coinmarketcap"})
 
     def test_a_refused_operation_is_skipped_with_its_reason_and_only_that_operation(self):
         refused = {("pythia-eodhd", "market_data", "quote")}
-        asml = self.sections("asml_xams", refused=refused)
+        asml = self.sections("asml_xams", refused=refused, order=("eodhd",))  # the investor put EODHD first
         self.assertEqual(asml["quote"]["plugin"], "pythia-yahoo-discovery")
         skip = next(item for item in asml["quote"]["skipped"] if item["plugin"] == "pythia-eodhd")
         self.assertEqual(skip["code"], "not_entitled")

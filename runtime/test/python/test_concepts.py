@@ -142,8 +142,8 @@ SUBJECTS = {"asml_xams": "listing:isin:NL0010273215:XAMS:EUR", "asml_nasdaq": "l
 TOOLS = {"gleif": {"profile": "pythia_gleif_profile"}, "sec": {"filings": "pythia_sec_filings"},
          "xbrl-filings": {"filings": "pythia_xbrl_filings_filings"}}
 EQUITY_ADDRESS = {"asml_xams": ("ASML.AS", "ASML.AS"), "asml_nasdaq": ("ASML", "ASML.US"), "apple": ("AAPL", "AAPL.US")}
-CRYPTO_SOURCES = [("coinmarketcap", "not_covering"), ("coingecko", "not_covering")]
-EQUITY_SOURCES = [("eodhd", "not_covering"), ("yahoo-discovery", "not_covering")]
+NOT_CRYPTO = [("coingecko", "not_covering"), ("coinmarketcap", "not_covering")]
+NOT_EQUITY = [("yahoo-discovery", "not_covering"), ("eodhd", "not_covering")]
 # Filings combine one source per authority into core's read, whatever the price configuration.
 FILINGS = {"profile": ("gleif", "ready", [], []),
            "filings": ("xbrl-filings", "ready", [], [], [("xbrl-filings", ["esma", "fca"]), ("sec", ["sec"])])}
@@ -151,26 +151,27 @@ FILINGS = {"profile": ("gleif", "ready", [], []),
 
 def equity(config, name):
     yahoo, eodhd = EQUITY_ADDRESS[name]
-    prices = {"all_ready": (("eodhd", "ready", ["yahoo-discovery"], CRYPTO_SOURCES), [("eodhd", eodhd), ("yahoo", yahoo)]),
-              "yahoo_off_keys_missing": (("eodhd", "needs_configuration", [],
-                                          [("coinmarketcap", "not_covering"), ("yahoo-discovery", "disabled"),
-                                           ("coingecko", "not_covering")]), []),
-              "no_keys": (("yahoo-discovery", "ready", [], [("eodhd", "needs_configuration"), *CRYPTO_SOURCES]),
+    prices = {"all_ready": (("yahoo-discovery", "ready", ["eodhd"], NOT_CRYPTO), [("yahoo", yahoo), ("eodhd", eodhd)]),
+              "yahoo_off_keys_missing": (("yahoo-discovery", "disabled", [],
+                                          [("coingecko", "not_covering"), ("eodhd", "needs_configuration"),
+                                           ("coinmarketcap", "not_covering")]), []),
+              "no_keys": (("yahoo-discovery", "ready", [], [("coingecko", "not_covering"),
+                                                             ("eodhd", "needs_configuration"),
+                                                             ("coinmarketcap", "not_covering")]),
                           [("yahoo", yahoo)])}[config]
     return {"quote": prices[0], "chart": prices[0], **FILINGS}, prices[1]
 
 
 def crypto(config):
     keyed = config == "all_ready"
-    quote = (("coinmarketcap", "ready", ["coingecko"], EQUITY_SOURCES) if keyed else
-             ("coingecko", "ready", [], [("eodhd", "not_covering"), ("coinmarketcap", "needs_configuration"),
-                                         ("yahoo-discovery", "not_covering")]))
-    return {"quote": quote, "chart": quote}, [("coinmarketcap", "1"), ("coingecko", "bitcoin")] if keyed else [
+    quote = (("coingecko", "ready", ["coinmarketcap"], NOT_EQUITY) if keyed else
+             ("coingecko", "ready", [], [*NOT_EQUITY, ("coinmarketcap", "needs_configuration")]))
+    return {"quote": quote, "chart": quote}, [("coingecko", "bitcoin"), ("coinmarketcap", "1")] if keyed else [
         ("coingecko", "bitcoin")]
 
 
-# Paid sources come first in core's default order: with an EODHD token EODHD serves prices, without one Yahoo does.
-# Every source that declares the concept and does not serve is listed as skipped with its reason.
+# Free sources come first in core's default order, so a key never changes the source: Yahoo serves stocks and
+# CoinGecko crypto. Every source that declares the concept and does not serve is listed as skipped with its reason.
 CONFIGS = {"all_ready": {}, "yahoo_off_keys_missing": {"yahoo-discovery": {"enabled": False},
                                                        "eodhd": {"missing": True}, "coinmarketcap": {"missing": True}},
            "no_keys": {"eodhd": {"missing": True}, "coinmarketcap": {"missing": True}}}
@@ -183,7 +184,7 @@ def short(plugin):
 
 
 class PageCompositionTest(unittest.TestCase):
-    """Page sections on contract v1: paid sources first in core's default order, an unconfigured one never chosen."""
+    """Page sections: free sources first in core's default order; a key does not change the source."""
 
     def setUp(self):
         self.ref = sqlite3.connect(":memory:")

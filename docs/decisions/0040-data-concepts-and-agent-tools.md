@@ -85,11 +85,13 @@ operation:
    indexed once when contracts load, so an unsuitable source drops out without
    any setting: an investor never configures which source handles crypto.
 2. **Order.** The investor's one ordered list of plugins (across concepts)
-   comes first, then core's default order for the concept, which lists paid
-   providers before free ones. A plugin that needs a key is ineligible until
-   the key is configured, so with zero configuration the open and keyless
-   sources serve wherever they cover, and adding a key promotes that source
-   with no other step.
+   comes first, then core's default order for the concept, which lists free
+   and open sources before paid ones (Yahoo first for stocks and ETFs,
+   CoinGecko first for crypto; EODHD and CoinMarketCap after them). Adding a
+   key does not change which source serves: a paid source serves only where
+   the investor puts it first in their own order, or where no free source
+   covers. A plugin that needs a key is ineligible until the key is
+   configured.
 3. **The first eligible candidate serves.** A candidate that is disabled,
    needs configuration, cannot be addressed for this subject by identity, is
    under an identity conflict, found nothing on lookup, or whose provider has
@@ -186,9 +188,9 @@ surface for plugins that need a newer Pythia, and team mode.
 
 ## Consequences
 
-- Page composition already reads core's default order from the registry, so
-  an investor with an EODHD token now gets EODHD prices ahead of Yahoo; without
-  one, Yahoo serves as before. Selection in core (the investor's order,
+- Page composition already reads core's default order from the registry.
+  Stocks compose as before (Yahoo, with EODHD as the alternative, whether or
+  not EODHD has a key); crypto now reads CoinGecko ahead of CoinMarketCap. Selection in core (the investor's order,
   coverage, skip reasons, `not_entitled`) replaces the choice inside
   `page.compose` in the next step. The combined filings read (the merged list,
   `partial`) comes with filings reads through core.
