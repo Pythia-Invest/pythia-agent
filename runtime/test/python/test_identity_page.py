@@ -151,6 +151,16 @@ class PageTest(Fixture):
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "gleif-profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
 
+    def test_an_old_us_id_resolves_through_its_alias(self):
+        old, current = "listing:isin:USN070592100:XNAS:USD", "listing:figi:BBG000K6N6G7"  # before subject_key@1
+        self.assertIsNone(page.load_subject(self.ref, old))
+        with sqlite3.connect(self.path) as db:  # the builder writes aliases; the reference opens read-only
+            db.execute("INSERT INTO id_aliases VALUES (?, ?, 'test')", (old, current))
+        ref = store.open_reference(self.path)
+        self.addCleanup(ref.close)
+        subject = page.load_subject(ref, old)
+        self.assertEqual((subject["id"], subject["listing"]["ticker"]), (current, "ASML"))
+
     def test_an_unusable_plugin_yields_to_the_next_and_says_why(self):
         missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)
         _subject, sections = self.compose(BTC, [plugin("coinmarketcap", missing=missing), plugin("coingecko"),

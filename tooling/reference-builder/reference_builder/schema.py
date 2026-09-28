@@ -157,8 +157,10 @@ def aliases(level: str, subject: str, identifiers: dict[str, str | None], *, ope
         "issuer": [f"lei:{valid['lei']}" if valid.get("lei") else None, f"cik:{valid['cik']}" if valid.get("cik") else None],
         "security": [f"isin:{isin}" if isin else None, f"figi:{figi_key}" if figi_key else None],
         "composite": [f"isin:{isin}:{country}" if isin and country else None, f"figi:{figi_key}:{country}" if figi_key and country else None],
+        # A US line's composite FIGI was its listing key before its venue FIGI was read.
         "listing": [f"isin:{isin}:{operating_mic}:{currency}" if isin and operating_mic and currency else None,
-                    f"figi:{valid['figi']}" if valid.get("figi") else None],
+                    f"figi:{valid['figi']}" if valid.get("figi") else None,
+                    f"figi:{valid['composite_figi']}" if valid.get("composite_figi") and country == "US" else None],
     }[level]
     found = {f"{level}:{key}" for key in keys if key}
     if isin and isin[:2] in identity.CGS_AREA:  # the local IDs it had before a FIGI was known
@@ -252,8 +254,9 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             audit["lines_without_venue" if not listing.mic else "lines_without_currency"] += 1
             continue
         security = snap.securities[listing.security_id]
-        keys = {"isin": security.isin, "figi": listing.figi}
-        for alias in aliases("listing", subject, keys, operating_mic=listing.operating_mic or listing.mic, currency=listing.currency):
+        keys = {"isin": security.isin, "figi": listing.figi, "composite_figi": listing.composite_figi}
+        for alias in aliases("listing", subject, keys, operating_mic=listing.operating_mic or listing.mic, currency=listing.currency,
+                             country=listing.country):
             candidates[alias].add(subject)
         composite = None
         if listing.composite_figi and listing.country:

@@ -60,7 +60,14 @@ def ordered(plugins: list[PluginInfo], section: Section) -> list[PluginInfo]:
 # ---- the subject from the reference file ------------------------------------------------------------------------
 
 def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | None:
-    """The subject with its listing, security and issuer (whichever exist), or None if unknown."""
+    """The subject with its listing, security and issuer (whichever exist), or None if unknown.
+
+    An ID the reference no longer holds (an older key rule, a re-key, another build path)
+    resolves through `id_aliases` (ADR 0037); the result carries the current ID.
+    """
+    subject_level(subject_id)
+    alias = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone()
+    subject_id = alias[0] if alias else subject_id
     level = subject_level(subject_id)
     one = lambda sql, *args: ref.execute(sql, args).fetchone()  # noqa: E731
     listing = security = issuer = None

@@ -257,6 +257,7 @@ class AllVenuesTest(unittest.TestCase):
         self.assertEqual((rule, isin), (("subject_key@1",), ("security:figi:BBG001S5N8V8",)))
         self.assertEqual(aliases[f"security:isin:{APPLE_ISIN}"], "security:figi:BBG001S5N8V8")
         self.assertEqual(aliases[f"listing:isin:{APPLE_ISIN}:XNAS:USD"], "listing:figi:BBG000B9Y5X2", "the Nasdaq line's FIGI, not the composite's")
+        self.assertEqual(aliases["listing:figi:BBG000B9XRY4"], "listing:figi:BBG000B9Y5X2", "the old composite-keyed ID")
         self.assertFalse(set(aliases) & ids, "an alias never shadows a subject")
         # A US-area security with no share-class FIGI keeps its lines under a local, non-portable ID,
         # which a later build that finds the FIGI aliases to the FIGI key.
