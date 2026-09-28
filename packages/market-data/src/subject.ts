@@ -100,6 +100,17 @@ export const subjectPageSchema = z.object({
   security: z.object({ id: text, name: text, isin: optionalText }).nullish(),
   listings: z.array(subjectListingSchema).default([]),
   related: z.array(relatedSubjectSchema).default([]),
+  /** The company's other equity securities (share classes, preferreds): its
+   * search group less this instrument. Empty for a fund, note or crypto asset. */
+  other_securities: z
+    .array(
+      z.object({
+        id: text,
+        name: text,
+        kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
+      }),
+    )
+    .default([]),
   sections: z.array(subjectSectionSchema).default([]),
   /** Open conflict/residual items; the page only counts them. */
   queue: z.array(z.unknown()).default([]),

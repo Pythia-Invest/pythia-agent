@@ -46,12 +46,13 @@ class KindTest(Fixture):
             with self.subTest(type=type), self.assertRaises(ValueError):
                 relation(type, start, end)
         fold = {type for type, rule in identity.RELATIONS.items() if rule.grouping is identity.Grouping.FOLD}
-        self.assertEqual(fold, {"depositary_receipt_of", "share_class_of", "native_deployment_of"})
+        self.assertEqual(fold, {"depositary_receipt_of", "native_deployment_of"})
 
     def test_fold_edges_lead_to_one_unit_whatever_their_order(self):
-        edges = [("depositary_receipt_of", "security:adr", "security:c"), ("share_class_of", "security:c", "security:a"),
+        edges = [("depositary_receipt_of", "security:adr", "security:a"),
+                 ("depositary_receipt_of", "security:gdr", "security:adr"), ("share_class_of", "security:c", "security:a"),
                  ("wraps", "security:wbtc", "security:btc")]
-        expected = {"security:adr": "security:a", "security:c": "security:a"}
+        expected = {"security:adr": "security:a", "security:gdr": "security:a"}
         self.assertEqual(identity.fold_roots(edges), expected)
         self.assertEqual(identity.fold_roots(reversed(edges)), expected)
 
@@ -65,6 +66,17 @@ class KindTest(Fixture):
         view = page.load_subject(self.ref, ASML)["view"]
         self.assertEqual(view["related"], [{"id": "index:pythia:aex", "type": "tracks", "direction": "to", "kind": "index",
                                             "name": None}])
+
+
+    def test_the_page_names_the_companys_other_securities_but_not_what_folds_into_it(self):
+        with sqlite3.connect(self.path) as db:
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, ?, 'equity', ?)",
+                           [("security:isin:NL0000000P01", "issuer:lei:724500Y6DUVHQD6OXN27", "ASML Pref", "preferred"),
+                            ("security:isin:NL0000000N01", "issuer:lei:724500Y6DUVHQD6OXN27", "ASML Note", "fund")])
+        others = [{"id": "security:isin:NL0000000P01", "name": "ASML Pref", "kind": "preferred"}]
+        self.assertEqual(page.load_subject(self.ref, ASML)["view"]["other_securities"], others)
+        receipt = page.load_subject(self.ref, "listing:isin:USN070592100:XNAS:USD")["view"]
+        self.assertEqual(receipt["other_securities"], others)  # the receipt's page is ASML's instrument too
 
 
 class StoreKindTest(Fixture):
