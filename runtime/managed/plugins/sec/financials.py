@@ -82,38 +82,75 @@ def filing_url(identifier, accession, document=None):
     return base + accession + '-index.html'
 
 
-def filings(raw, identifier, observed_at, limit=20):
+REQUIRED = ('accessionNumber', 'form', 'filingDate', 'primaryDocument')
+
+
+def _block(block, identifier):
+    """The rows of one columnar submissions block (`filings.recent`, or an older page), newest first."""
+    if not isinstance(block, dict) or any(not isinstance(block.get(key), list) for key in REQUIRED):
+        raise ValueError('invalid_response')
+    total = len(block['accessionNumber'])
+    if any(len(block[key]) != total for key in REQUIRED):
+        raise ValueError('invalid_response')
+    report_dates = block.get('reportDate', [])
+    for index in range(total):
+        accession, form = block['accessionNumber'][index], block['form'][index]
+        if not isinstance(form, str) or not form:
+            raise ValueError('invalid_response')
+        row = {'accession': accession, 'form': form,
+               'filed_at': checked_date(block['filingDate'][index]), 'title': filing_title(form),
+               'url': filing_url(identifier, accession, block['primaryDocument'][index] or None),
+               'period_end': None, 'language': None}
+        if index < len(report_dates) and report_dates[index]:
+            row['period_end'] = checked_date(report_dates[index])
+        yield row
+
+
+def wanted(form, forms):
+    """Whether a form is one of the requested forms; an amendment (10-K/A) matches its form."""
+    form = form.upper()
+    return not forms or any(form == item or form.startswith(item + '/') for item in forms)
+
+
+def older_pages(raw, since):
+    """Names of the filer's older submissions pages that reach back to `since` (ISO date), newest first."""
+    files = (raw.get('filings') or {}).get('files') if isinstance(raw, dict) else None
+    pages = [item for item in files or [] if isinstance(item, dict) and isinstance(item.get('name'), str)
+             and isinstance(item.get('filingTo'), str) and item['filingTo'] >= since]
+    return [item['name'] for item in sorted(pages, key=lambda item: item['filingTo'], reverse=True)]
+
+
+def filings(raw, identifier, observed_at, limit=20, forms=None, pages=()):
+    """The filer's filings, newest first: the first `limit`, or with `forms` the first `limit` of those forms from
+    the whole recent list and any older `pages` read for it."""
     identifier = cik(identifier)
     if not isinstance(raw, dict) or cik(raw.get('cik')) != identifier:
         raise ValueError('invalid_response')
     filing_data = raw.get('filings')
     if not isinstance(filing_data, dict):
         raise ValueError('invalid_response')
-    recent = filing_data.get('recent', {})
-    required = ('accessionNumber', 'form', 'filingDate', 'primaryDocument')
-    if not isinstance(recent, dict) or any(not isinstance(recent.get(key), list) for key in required):
-        raise ValueError('invalid_response')
-    total = len(recent['accessionNumber'])
-    if any(len(recent[key]) != total for key in required):
-        raise ValueError('invalid_response')
-    rows = []
-    for index in range(min(total, limit)):
-        accession, form = recent['accessionNumber'][index], recent['form'][index]
-        if not isinstance(form, str) or not form:
-            raise ValueError('invalid_response')
-        row = {'accession': accession, 'form': form,
-               'filed_at': checked_date(recent['filingDate'][index]), 'title': filing_title(form),
-               'url': filing_url(identifier, accession, recent['primaryDocument'][index] or None),
-               'period_end': None, 'language': None}
-        report_dates = recent.get('reportDate', [])
-        if index < len(report_dates) and report_dates[index]:
-            row['period_end'] = checked_date(report_dates[index])
-        rows.append(row)
+    forms = [item.upper() for item in forms or []]
+    blocks = [filing_data.get('recent', {}), *pages]
+    rows, scanned, oldest = [], 0, None
+    for block in blocks:
+        for row in _block(block, identifier):
+            scanned += 1
+            oldest = row['filed_at']
+            if wanted(row['form'], forms):
+                rows.append(row)
+            if len(rows) >= limit:
+                break
+        if len(rows) >= limit:
+            break
+    total = len(filing_data['recent']['accessionNumber']) + sum(item.get('filingCount', 0) for item in
+                                                               filing_data.get('files') or [] if isinstance(item, dict))
     return {'dataset': 'filings', 'provider': 'sec', 'provider_ref': reference(identifier),
             'observed_at': observed_at, 'source_url': submissions_url(identifier), 'filings': rows,
             'source': {'label': 'SEC EDGAR', 'url': 'https://www.sec.gov/edgar/browse/?CIK=' + identifier},
-            'coverage': {'scope': 'recent_submissions', 'returned': len(rows),
-                         'total_available': total, 'complete': len(rows) == total and not filing_data.get('files')}}
+            'coverage': {'scope': 'recent_and_older_submissions' if pages else 'recent_submissions',
+                         'returned': len(rows), 'scanned': scanned, 'searched_back_to': oldest,
+                         'forms': forms or None, 'total_available': total,
+                         'complete': not filing_data.get('files') and len(rows) < limit}}
 
 
 def _concepts(raw, identifier):

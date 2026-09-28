@@ -15,6 +15,11 @@ def schemas(wire):
                 'ticker_mic': {'type': 'string', 'pattern': '^[A-Z0-9][A-Z0-9.&-]{0,15}( [A-Z])?@[A-Z0-9]{4}$'}}},
             'refresh': refresh}, ['identifiers']),
         'filings': ({'native_ref': native_ref, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50},
+                     'forms': {'type': 'array', 'minItems': 1, 'maxItems': 8,
+                               'items': {'type': 'string', 'pattern': '^[A-Za-z0-9][A-Za-z0-9 ./-]{0,15}$'},
+                               'description': 'Only these forms (10-K, 20-F, 8-K ...); an amendment (10-K/A) matches '
+                                              'its form. Searches the filer\'s whole recent list and, when needed, '
+                                              'older pages back five years.'},
                      'refresh': refresh}, ['native_ref']),
         'fundamentals': ({'native_ref': native_ref, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 30},
                           'refresh': refresh}, ['native_ref']),
@@ -30,7 +35,8 @@ def schemas(wire):
             'an ISO operating MIC: XNAS, XNYS, XCBO or OTCM). Answers with an identity claim batch for Pythia\'s core: '
             'one issuer claim (name, CIK, native reference) per matching filer, never a pick or a merge.',
         'filings': 'Read recent public SEC filings for an SEC CIK reference with accession, form, filing date, '
-            'report period and document link. 20-F, 40-F and 6-K forms from foreign issuers are included.',
+            'report period and document link. 20-F, 40-F and 6-K forms from foreign issuers are included. With forms, '
+            'only those forms, searched beyond the most recent filings so an annual report is not crowded out.',
         'fundamentals': 'Read supported reported annual facts for an SEC CIK reference from US GAAP or IFRS '
             '(foreign private issuers). Income and cash-flow facts use actual annual durations; balance-sheet facts '
             'are instants. Taxonomies and reported currencies stay separate; no TTM, quarterly subtraction or '
