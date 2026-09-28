@@ -56,6 +56,8 @@ def write(out_dir: Path, manifest: dict) -> Path | None:
         ],
         "quality": {key: manifest.get(key) for key in ("tables", "canaries", "audit", "truth_audit")},
     }
+    if manifest.get("claims"):  # the build's open questions, one file core imports into its resolution queue
+        package["claims"] = {key: manifest["claims"][key] for key in ("file", "bytes", "sha256")}
     staging = path.with_name(".package.json.part")
     staging.write_text(json.dumps(package, indent=2) + "\n", encoding="utf-8")
     os.replace(staging, path)

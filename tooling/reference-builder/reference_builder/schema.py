@@ -351,3 +351,33 @@ def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[s
                 "evidence_id": item.evidence_id, "type": item.type, "from_id": security, "to_id": underlying,
                 "authority": "curated", "source": "pythia", "source_record": rule, "plugin": "pythia",
                 "adapter_version": BUILDER_VERSION, "retrieved_at": at})
+
+
+# How a build question sits in core's resolution queue (identity/resolution.py): its kind and reason.
+QUESTION_SHAPE = {
+    "issuer_identity": ("conflict", "identifier"),  # field 5 names an LEI that is also a venue operator's
+    "home_market": ("residual", "ambiguous"),  # several lines could be the primary, or none is evidenced
+    "receipt_underlying": ("residual", "no_key"),  # no underlying this build holds is stated for a receipt
+    "receipt_conflict": ("conflict", "relation"),  # a share (CFI) states an underlying (field 26)
+}
+
+
+def questions(snap: Snapshot) -> list[dict]:
+    """The build's open questions in core subject IDs: `package.json`'s `claims`, imported into core's queue."""
+    ids, found = _Ids(snap), []
+
+    def subject(working: str) -> str | None:
+        if working in snap.listings:
+            return ids.listing(snap.listings[working])
+        return ids.securities.get(working) or ids.issuers.get(working)
+
+    for question in snap.questions:
+        kind, reason = QUESTION_SHAPE[question.question]
+        target = subject(question.subject_id)
+        if target:
+            found.append({"question": question.question, "kind": kind, "reason": reason, "subject_ids": [target],
+                          "candidate_ids": [c for c in dict.fromkeys(map(subject, question.candidates)) if c],
+                          "evidence_ids": list(question.evidence),
+                          "scheme": "lei" if question.question == "issuer_identity" else None,
+                          "values": list(question.values)})
+    return found

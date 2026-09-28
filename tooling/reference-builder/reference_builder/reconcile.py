@@ -21,6 +21,10 @@ from .claims import Claims, Meaning, Venues, requested
 from .linking import us_lines
 from .model import Listing, Snapshot
 
+# A venue attribute (Pythia-authored): Deutsche Börse runs the Frankfurt Stock Exchange's regulated market on two
+# venues, the Frankfurt floor and Xetra, its main one. When the claims decide that market, the line is on Xetra.
+MAIN_VENUE = {"XFRA": "XETR"}
+
 
 def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> None:
     """Decide FIRDS securities' primaries and ask what the claims leave open."""
@@ -60,8 +64,11 @@ def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as
     relevant = claims.one(isin, Meaning.MOST_LIQUID_EU_MARKET)
     if asked:
         entities, ops = {venues.entity(m) for m in asked}, {venues.op(m) for m in asked}
-        if venues.entity(relevant) in entities and (line := _on(lines, venues.op(relevant), relevant)):
-            return "issuer_requested_most_liquid", line
+        if venues.entity(relevant) in entities:
+            main = MAIN_VENUE.get(venues.op(relevant))
+            line = (_on(lines, main, relevant) if main in ops else None) or _on(lines, venues.op(relevant), relevant)
+            if line:
+                return "issuer_requested_most_liquid", line
         if len(ops) == 1 and (line := _on(lines, next(iter(ops)), relevant)):
             return "issuer_requested", line
         return "issuer_requested_several", None

@@ -109,8 +109,8 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     scoped = scope_isins(inputs)
     audit["scope_isins"] = len(scoped)
     claims, venues = inputs.claims(), Venues(inputs.venues)
-    issuers = {isin: issuer_lei(claims, venues, isin) for isin in scoped}
-    entities = gleif_fetch({lei for lei in issuers.values() if lei})
+    entities = gleif_fetch({r.issuer_lei for rs in scoped.values() for r in rs if r.issuer_lei})
+    issuers = {isin: issuer_lei(claims, venues, entities, isin) for isin in scoped}
 
     plan = [(isin, seg, rec) for isin, rs in scoped.items() for seg, rec in sorted(_eu_listings(inputs, isin, rs).items())]
     answers = figi_map([_figi_job(inputs, isin, seg) for isin, seg, _ in plan])
@@ -155,11 +155,16 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     return entities
 
 
-def issuer_lei(claims: Claims, venues: Venues, isin: str) -> str | None:
-    """RTS 23 field 5 names the issuer or the trading venue operator: its one LEI is the issuer unless ISO 10383
-    lists it for a venue's operating entity. Then the issuer is unknown and a question is asked."""
+def issuer_lei(claims: Claims, venues: Venues, entities: dict[str, GleifEntity], isin: str) -> str | None:
+    """RTS 23 field 5 names the issuer or the trading venue operator. Its one LEI is the issuer unless ISO 10383
+    lists it for a venue's operating entity; then it is the issuer only when GLEIF registers that entity in the
+    ISIN's country (a bank's or exchange's own share), and otherwise unknown, with a question."""
     leis = claims.isins.get(isin, {}).get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
-    return next(iter(leis)) if len(leis) == 1 and not venues.operated.get(next(iter(leis))) else None
+    lei = next(iter(leis)) if len(leis) == 1 else None
+    if lei and venues.operated.get(lei):
+        entity = entities.get(lei)
+        return lei if entity and entity.country == isin[:2] else None
+    return lei
 
 
 def _entity_attr(entities: dict[str, GleifEntity], lei: str | None, name: str) -> str | None:
