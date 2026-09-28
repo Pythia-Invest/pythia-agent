@@ -41,6 +41,9 @@ const pluginRequestSchema = z.object({
 export const subjectSectionSchema = z.object({
   /** "quote" | "chart" | "profile" | "filings"; later types render as placeholders. */
   section: text,
+  /** The level the plugin addresses this section through ("issuer" for a
+   * company profile or filings, "listing" for a quote). */
+  via: text.nullish(),
   plugin: text,
   label: text,
   status: text,
@@ -63,6 +66,9 @@ export const subjectListingSchema = z.object({
   primary: z.boolean().default(false),
   /** The listed security's kind: a folded receipt is labelled as one. */
   kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
+  /** A line of a security that folds into the instrument (a receipt), not
+   * of the instrument's own security. */
+  folded: z.boolean().default(false),
 });
 export type SubjectListing = z.infer<typeof subjectListingSchema>;
 
@@ -87,6 +93,9 @@ export const subjectPageSchema = z.object({
     level: text,
     name: text,
     kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
+    /** The listing whose quote and chart this composition shows (a
+     * security's or issuer's page shows one of its listings). */
+    listing: text.nullish(),
   }),
   identifiers: z.record(z.string(), optionalText).default({}),
   issuer: z

@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "plugin": "pythia-coinmarketcap",
   "provider": "coinmarketcap",
   "addressing": {
@@ -12,23 +13,44 @@
       }
     ]
   },
-  "content": {
-    "quote": {
+  "concepts": {
+    "market_data": {
       "level": "security",
       "via": "security",
-      "tool": "pythia_coinmarketcap_latest"
-    },
-    "chart": {
-      "level": "security",
-      "via": "security",
-      "tool": "pythia_coinmarketcap_history"
+      "operations": {
+        "quote": "latest",
+        "intraday": "history",
+        "daily": "history"
+      },
+      "coverage": {
+        "asset_classes": [
+          "crypto"
+        ]
+      }
     }
   },
   "catalogue": {
     "mode": "bulk",
-    "tool": "pythia_coinmarketcap_catalogue",
+    "operation": "catalogue",
     "scopes": [
       "coins"
     ]
+  },
+  "rights": {
+    "licence": "business",
+    "cache": {
+      "ttl_seconds": 86400
+    },
+    "hostable": false,
+    "attribution": {
+      "text": "Data provided by CoinMarketCap.com",
+      "url": "https://coinmarketcap.com"
+    }
+  },
+  "limits": {
+    "plan": "Basic",
+    "unit": "credit",
+    "per_minute": 50,
+    "per_month": 15000
   }
 }
