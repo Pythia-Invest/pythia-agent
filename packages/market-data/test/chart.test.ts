@@ -181,8 +181,42 @@ describe("the default 1D view", () => {
       end: Date.parse(session.regular.end),
     });
     expect(data.item.path?.baseline?.value).toBe(99);
-    expect(data.item.path?.timeZone).toBe("Europe/Amsterdam");
     expect(data.periodChange).toBeUndefined();
+  });
+
+  it("shows the prior session, its omitted night and today's pre-market before the open", () => {
+    const extended = declared(
+      "m5x",
+      { kind: "minute", count: 5 },
+      7,
+      "extended",
+    );
+    const early = {
+      date: "2026-09-25",
+      timezone: "America/New_York",
+      regular: { start: "2026-09-25T13:30:00Z", end: "2026-09-25T20:00:00Z" },
+      extended: { start: "2026-09-25T08:00:00Z", end: "2026-09-26T00:00:00Z" },
+      previous_regular: {
+        start: "2026-09-24T13:30:00Z",
+        end: "2026-09-24T20:00:00Z",
+      },
+    };
+    const bars = read(
+      extended,
+      ["2026-09-24T14:00:00Z", "2026-09-24T22:00:00Z", "2026-09-25T09:00:00Z"],
+      { session_window: early },
+    );
+    const data = render(input, quote("2026-09-24T20:00:00Z"), [extended], bars);
+    // The previous evening's after-hours bar falls in the omitted interval.
+    expect(data.item.path?.points.map((p) => p.value)).toEqual([100, 102]);
+    expect(data.item.path?.sessionGap).toEqual({
+      start: Date.parse("2026-09-24T20:00:00Z"),
+      end: Date.parse("2026-09-25T08:00:00Z"),
+    });
+    expect(data.item.path?.session?.end).toBe(
+      Date.parse("2026-09-25T13:30:00Z"),
+    );
+    expect(data.item.path?.baseline?.value).toBe(99);
   });
 
   it("does not borrow another session's previous close", () => {

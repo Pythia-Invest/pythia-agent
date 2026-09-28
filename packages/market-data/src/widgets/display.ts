@@ -164,6 +164,19 @@ export function financialInstrument(
         : undefined;
   const chart = path(history, row.history?.presentation);
   const book = context?.top_of_book;
+  // The connector qualifies the extended trade against the regular close.
+  const supplied = context?.extended;
+  const extendedPrice = supplied ? number(supplied.value, unit?.scale) : null;
+  const extended =
+    supplied && extendedPrice !== null
+      ? {
+          session: supplied.session,
+          price: extendedPrice,
+          absolute: number(supplied.absolute, unit?.scale),
+          percent: number(supplied.percent),
+          time: supplied.time,
+        }
+      : undefined;
   const venueStatus = context?.venue_status;
   const detail = [
     series ? semantics(series) : "Price unavailable",
@@ -205,9 +218,11 @@ export function financialInstrument(
       ? "unavailable"
       : session === "closed"
         ? "closed"
-        : delayed
-          ? "delayed"
-          : "unknown",
+        : session === "pre" || session === "post"
+          ? "extended"
+          : delayed
+            ? "delayed"
+            : "unknown",
     activity: {
       session: session === "regular" ? "open" : (session ?? "unknown"),
       data: !available
@@ -235,8 +250,25 @@ export function financialInstrument(
           ? "Market open"
           : session === "closed"
             ? "Market closed"
-            : "Trading hours unknown",
+            : session === "pre"
+              ? "Pre-market trading"
+              : session === "post"
+                ? "After-hours trading"
+                : "Trading hours unknown",
     description: detail,
+    ...(extended
+      ? {
+          extended: {
+            label: extended.session === "pre" ? "Pre" : "Post",
+            price: extended.price,
+            ...(extended.percent !== null ? { percent: extended.percent } : {}),
+            ...(extended.absolute !== null
+              ? { absolute: extended.absolute }
+              : {}),
+            time: timeLabel(extended.time, format),
+          },
+        }
+      : {}),
     ...(book
       ? {
           book: {

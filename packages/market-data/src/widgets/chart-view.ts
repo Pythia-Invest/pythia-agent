@@ -66,47 +66,62 @@ export function periodPath(
         : result.retrieved_at,
     );
     const session = result.price_context?.session_window;
-    const zone = session?.timezone;
     if (period === "1D" && session && !continuous) {
-      const regular = {
-        start: Date.parse(session.regular.start),
-        end: Date.parse(session.regular.end),
-      };
-      const bounds =
-        series.session === "regular"
-          ? regular
-          : {
-              start: Date.parse(session.extended.start),
-              end: Date.parse(session.extended.end),
-            };
+      const span = (bounds: { start: string; end: string }) => ({
+        start: Date.parse(bounds.start),
+        end: Date.parse(bounds.end),
+      });
+      const today = span(session.regular);
+      const extended = span(session.extended);
+      const previous = session.previous_regular
+        ? span(session.previous_regular)
+        : undefined;
+      // Before the open: the prior regular session, its closed night omitted,
+      // then today's pre-market up to the open (ADR 0027 on the tile).
+      const pre =
+        previous &&
+        series.session !== "regular" &&
+        previous.end < extended.start
+          ? previous
+          : undefined;
+      const regular = pre ?? today;
+      const bounds = pre
+        ? { start: pre.start, end: today.start }
+        : series.session === "regular"
+          ? today
+          : extended;
+      const gap = pre ? { start: pre.end, end: extended.start } : undefined;
       const inSession = all.filter(
-        (p) => p.time >= bounds.start && p.time <= bounds.end,
+        (p) =>
+          p.time >= bounds.start &&
+          p.time <= bounds.end &&
+          !(gap && p.time > gap.start && p.time < gap.end),
       );
+      const date = pre ? localDate(pre.start, session.timezone) : session.date;
       const close = result.price_context?.reference_close ?? quoteClose;
       const observed = quote?.observations.at(-1)?.time;
-      // A quote's previous close is this session's baseline only when the
-      // quote belongs to the same exchange-local session.
+      // A quote's previous close is the baseline of the regular session drawn
+      // only when the quote belongs to that exchange-local session.
       const sameSession =
         result.price_context?.reference_close ||
         (observed?.kind === "instant" &&
-          localDate(Date.parse(observed.value), session.timezone) ===
-            session.date);
+          localDate(Date.parse(observed.value), session.timezone) === date);
       const baseline =
         close && sameSession
           ? decimalNumber(close.value, close.unit.scale)
           : null;
       if (!inSession.length)
-        return {
-          message: `No trades yet in the ${session.date} session.`,
-        };
+        return { message: `No trades yet in the ${session.date} session.` };
       return {
         path: {
           points: inSession,
-          label: `${detail} · Session ${session.date} (${session.timezone}), ${series.session === "regular" ? "regular" : "regular and extended"} hours`,
+          label: pre
+            ? `${detail} · Regular session ${date}, then pre-market ${session.date} (${session.timezone}); closed hours omitted`
+            : `${detail} · Session ${session.date} (${session.timezone}), ${series.session === "regular" ? "regular" : "regular and extended"} hours`,
           session: bounds,
           regularSession: regular,
+          ...(gap ? { sessionGap: gap } : {}),
           intervalMs: interval,
-          timeZone: zone,
           ...(baseline !== null && close
             ? {
                 baseline: {
@@ -131,7 +146,6 @@ export function periodPath(
         label: `${detail} · Past ${days === 1 ? "24 hours" : "5 days"}, calendar time`,
         window,
         intervalMs: interval,
-        timeZone: zone,
         baseline: {
           value: first.value,
           label: "First observation in this period",
