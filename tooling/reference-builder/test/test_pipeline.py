@@ -12,7 +12,8 @@ from unittest import mock
 from reference_builder import firds, gleif, linking, manifest, mic, schema, sec, writer
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
-from reference_builder.model import SecFund, SecTicker, Snapshot
+from reference_builder.linking import link_receipts
+from reference_builder.model import Relationship, SecFund, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
 
 from .fixtures import (
@@ -105,6 +106,33 @@ class PipelineTest(unittest.TestCase):
         self.assertNotIn(f"XAMC:{ASML_ISIN}", self.snap.listings)
         self.assertNotIn(f"XETA:{ASML_ISIN}", self.snap.listings)
 
+    def test_a_receipt_no_source_links_is_the_receipt_of_its_issuers_one_share(self):
+        edges = {(item.from_id, item.relation, item.to_id, item.rule_id) for item in self.snap.relationships}
+        receipt = self.snap.listings["XNAS:ASML"].security_id
+        self.assertIn((receipt, "depositary_receipt_of", f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
+        self.snap.securities["preferred"] = Security("preferred", "preferred", "sec", issuer_id=self.snap.securities[receipt].issuer_id)
+        self.snap.relationships.clear()
+        self.snap.audit.clear()
+        link_receipts(self.snap)  # a receipt might be of the preferred: never guessed
+        self.assertNotIn(receipt, {item.from_id for item in self.snap.relationships})
+
+    def test_a_stated_underlying_outside_the_build_or_inactive_yields_to_the_issuer_rule_and_is_counted(self):
+        receipt = self.snap.listings["XNAS:ASML"].security_id
+        issuer = self.snap.securities[receipt].issuer_id
+        self.snap.securities["isin:NL9999999998"] = Security("isin:NL9999999998", "share", "esma_firds", issuer_id=issuer,
+                                                             isin="NL9999999998", activity="inactive")  # superseded
+        for stated, reason in (("isin:NL9999999999", "firds_underlying_outside_build"),
+                               ("isin:NL9999999998", "firds_underlying_inactive")):
+            with self.subTest(reason=reason):
+                self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", stated, "esma_firds",
+                                                           "firds_underlying_isin")]
+                self.snap.audit.clear()
+                link_receipts(self.snap)
+                edges = {(item.from_id, item.to_id, item.rule_id) for item in self.snap.relationships}
+                self.assertIn((receipt, f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
+                self.assertEqual(self.snap.audit["relations"][reason], 1)
+                self.assertIn((receipt, reason, stated), {(f.subject_id, f.flag, f.detail) for f in self.snap.flags})
+
     def test_similar_names_do_not_link_different_companies(self):
         self.assertIsNone(self.snap.issuers[f"lei:{NN_LEI}"].cik)
         self.assertEqual(self.snap.listings["XNAS:NNBR"].issuer_id, "cik:918541")
@@ -137,12 +165,15 @@ class PipelineTest(unittest.TestCase):
                 release = dict(db.execute("select key, value from release"))
                 asml = db.execute("select security_id, is_primary from listings where id=?",
                                   (f"listing:isin:{ASML_ISIN}:XAMS:EUR",)).fetchone()
+                receipts = db.execute("select count(*) from relations where type='depositary_receipt_of'"
+                                      " and to_id=?", (f"security:isin:{ASML_ISIN}",)).fetchone()
                 btc = db.execute("select native_id from native_coins where provider='coinmarketcap' and caip19 like 'bip122:%/slip44:0'").fetchone()
             self.assertEqual(asml, (f"security:isin:{ASML_ISIN}", 1))
             self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM", "XCBO"})
             self.assertEqual(cik, ("share_class_figi", "snapshot"))
             self.assertEqual({s["source"]: s["licence"] for s in json.loads(release["sources"])}, {"esma_firds": "x", "openfigi": "y"})
             self.assertEqual(btc, ("1",))
+            self.assertEqual(receipts, (1,))
             self.assertGreater(counts["assertions"], counts["listings"])
             written = counts["listings"] + self.snap.audit["writer_ignored"].get("listings", 0)
             dropped = sum(n for key, n in self.snap.audit["schema"].items() if key.startswith("lines_without_"))

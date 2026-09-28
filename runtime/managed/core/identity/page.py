@@ -21,8 +21,8 @@ from .claims import ClaimBatch, RecordClaim
 from .manifest import Manifest, Section
 from .model import Binding, IdentifierAssertion, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
-from .schemes import Level, provisional_id, subject_level
-from .vocabulary import InstrumentKind, VerdictRelation
+from .schemes import INSTRUMENT_KINDS, Level, provisional_id, subject_kind, subject_level
+from .vocabulary import KIND_OF_RECORD, RELATIONS, Grouping, InstrumentKind, VerdictRelation
 
 SECTIONS = (Section.QUOTE, Section.CHART, Section.PROFILE, Section.FILINGS)
 ORDER = {Section.QUOTE: ("yahoo", "eodhd", "coinmarketcap", "coingecko"),
@@ -60,12 +60,14 @@ def ordered(plugins: list[PluginInfo], section: Section) -> list[PluginInfo]:
 # ---- the subject from the reference file ------------------------------------------------------------------------
 
 def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | None:
-    """The subject with its listing, security and issuer (whichever exist), or None if unknown.
+    """The subject with its listing, security and issuer (whichever exist), or None if unknown. The reference
+    holds instruments only: a subject of another kind is unknown here.
 
     An ID the reference no longer holds (an older key rule, a re-key, another build path)
     resolves through `id_aliases` (ADR 0037); the result carries the current ID.
     """
-    subject_level(subject_id)
+    if subject_kind(subject_id) not in INSTRUMENT_KINDS:
+        return None
     alias = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone()
     subject_id = alias[0] if alias else subject_id
     level = subject_level(subject_id)
@@ -118,8 +120,33 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
             "listings": [{"id": row["id"], "ticker": row["ticker"], "mic": row["operating_mic"] or row["mic"],
                           "venue": venues.get(row["mic"] or ""), "currency": row["currency"], "primary": bool(row["is_primary"])}
                          for row in siblings],
+            "related": related(ref, subjects),
         },
     }
+
+
+RELATED = tuple(type for type, rule in RELATIONS.items() if rule.grouping is Grouping.RELATED)
+
+
+def related(ref: sqlite3.Connection, subject_ids: list[str]) -> list[dict[str, Any]]:
+    """Subjects linked to these by a `related` relation (a wrapped token, a fund's index, a successor), in either
+    direction: each its own subject, for display beside the page, never merged into it. `fold` relations are not
+    listed: they fold into the page's listings instead."""
+    if not subject_ids:
+        return []
+    marks, types = ",".join("?" * len(subject_ids)), ",".join("?" * len(RELATED))
+    rows = ref.execute(
+        f"SELECT type, from_id, to_id FROM relations WHERE type IN ({types}) AND (from_id IN ({marks}) OR to_id IN ({marks}))"
+        " ORDER BY type, from_id, to_id", (*RELATED, *subject_ids, *subject_ids)).fetchall()
+    out: dict[tuple[str, str, str], None] = {}
+    for type, start, end in rows:
+        outgoing = start in subject_ids
+        out.setdefault((end if outgoing else start, type, "to" if outgoing else "from"))
+    names = dict(ref.execute(f"SELECT id, name FROM securities WHERE id IN ({','.join('?' * len(out))})"
+                             " UNION ALL SELECT id, name FROM issuers WHERE id IN"
+                             f" ({','.join('?' * len(out))})", [key[0] for key in out] * 2)) if out else {}
+    return [{"id": other, "type": type, "direction": direction, "kind": subject_kind(other), "name": names.get(other)}
+            for other, type, direction in out]
 
 
 def _assertion(row: sqlite3.Row) -> IdentifierAssertion:
@@ -266,11 +293,15 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     evidence_ids = tuple(item.evidence_id for item in subject["evidence"] if sent.get(item.scheme) == item.value)
     ref = records[0].native_ref
     base = {"candidate_ids": (target,), "state": "open", "opened_at": now, "plugins": (plugin,), "provider_ref": ref}
-    local = (provisional_id(level, ref.provider, ref.native_scope, ref.native_id),)
+    # The record's own kind names what it is: a provider's index or FX record is never provisionally a security.
+    local = (provisional_id(KIND_OF_RECORD.get(records[0].attributes.kind, level), ref.provider, ref.native_scope,
+                            ref.native_id),)
     if len({(claim.native_ref.native_scope, claim.native_ref.native_id) for claim in records}) > 1:
         return None, QueueItem(id=uuid.uuid4().hex, kind="residual", reason="ambiguous", subject_ids=local,
                                evidence_ids=(), **base), records
     item = QueueItem(id=uuid.uuid4().hex, kind="residual", reason="no_key", subject_ids=local, evidence_ids=(), **base)
+    if records[0].attributes.kind in KIND_OF_RECORD:  # an index or FX record: its own subject, never this instrument
+        return None, item, records
     verdict = Verdict(item_id=item.id, resolver="rules", authority="rule_confirmed", relation=SAME[level],
                       chosen_id=target, rule_id=RESOLVE_RULE,
                       provenance={"plugin": "pythia", "source": "pythia", "adapter_version": "1", "retrieved_at": now})

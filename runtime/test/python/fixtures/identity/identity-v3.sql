@@ -6,10 +6,6 @@
 -- a confirmed binding: only positive evidence of an end sets valid_to or status.
 -- Portable SQL throughout the backbone stores: ISO-8601 text for dates and
 -- instants, JSON as TEXT validated by the store module, FTS5 only in the directory.
--- This file persists on the device and SQLite cannot alter a CHECK, so vocabularies
--- that grow (subject kinds, relation types) are validated by the store module
--- (store.py) and the typed records (vocabulary.py), never here: the DDL keeps
--- format checks only.
 
 CREATE TABLE metadata (
   key TEXT PRIMARY KEY,           -- schema_version, generation, reference_release
@@ -22,16 +18,16 @@ CREATE TABLE metadata (
 -- Re-keyed through the reference id_aliases.
 CREATE TABLE subjects (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL,              -- the ID's first segment (schemes.Kind)
-  parent_id TEXT,                  -- instrument kinds only: issuer of a security, security of a composite/listing
+  level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
+  parent_id TEXT,                  -- issuer of a security, security of a composite/listing
   created_by TEXT NOT NULL,        -- plugin id or 'agent'
   created_at TEXT NOT NULL,
-  CHECK (id LIKE kind || ':%')
+  CHECK (id LIKE level || ':%')
 );
 
 CREATE TABLE relations (
   evidence_id TEXT PRIMARY KEY CHECK (evidence_id LIKE 'ev:%'),
-  type TEXT NOT NULL,              -- vocabulary.RelationType; its kinds and ratio rules are vocabulary.RELATIONS
+  type TEXT NOT NULL CHECK (type IN ('depositary_receipt_of', 'wraps', 'successor_of')),
   from_id TEXT NOT NULL,
   to_id TEXT NOT NULL,
   ratio TEXT,
@@ -42,6 +38,8 @@ CREATE TABLE relations (
   plugin TEXT NOT NULL,
   retrieved_at TEXT NOT NULL,
   CHECK (from_id <> to_id),
+  CHECK (type = 'successor_of' OR (from_id LIKE 'security:%' AND to_id LIKE 'security:%')),
+  CHECK (ratio IS NULL OR type = 'depositary_receipt_of'),
   CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to)
 );
 
@@ -56,7 +54,7 @@ CREATE TABLE bindings (
   native_id TEXT NOT NULL,
   native_scope TEXT NOT NULL,
   subject_id TEXT NOT NULL,
-  kind TEXT NOT NULL,              -- the subject's kind (schemes.Kind)
+  level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
   status TEXT NOT NULL CHECK (status IN ('candidate', 'confirmed', 'conflicting', 'rejected')),
   authority TEXT NOT NULL,
   rule_id TEXT,                    -- versioned rule for T1, e.g. 'ticker_mic@1'
@@ -66,7 +64,7 @@ CREATE TABLE bindings (
   verified_at TEXT,                -- last positive verification (e.g. a resolve-only quote check)
   verdict_id TEXT REFERENCES verdicts(id),  -- the verdict that confirmed or rejected it (ADR 0012 override)
   UNIQUE (provider, native_scope, native_id),  -- wire qualifiers select reads; they never key identity
-  CHECK (subject_id LIKE kind || ':%'),
+  CHECK (subject_id LIKE level || ':%'),
   CHECK (status <> 'confirmed' OR authority IN ('source_asserted', 'snapshot', 'rule_confirmed', 'model_confirmed',
                                                  'agent_confirmed', 'user_attested', 'curated')),
   CHECK ((authority = 'rule_confirmed') = (rule_id IS NOT NULL))
@@ -140,7 +138,7 @@ CREATE TABLE claims (
   native_scope TEXT NOT NULL,
   native_id TEXT NOT NULL,
   scope TEXT,                      -- bulk catalogue scope; NULL for a resolve-only pick
-  level TEXT NOT NULL,             -- the record's native level (RecordClaim.level)
+  level TEXT NOT NULL CHECK (level IN ('issuer', 'security', 'composite', 'listing')),
   name TEXT,
   claim TEXT NOT NULL,             -- the RecordClaim as emitted (claims.batch_to_json form)
   claim_digest TEXT NOT NULL,      -- unchanged digest => no re-join

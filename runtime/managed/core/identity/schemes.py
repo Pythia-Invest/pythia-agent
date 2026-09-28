@@ -1,4 +1,4 @@
-"""Subject levels, global identifier schemes and their mechanical format checks.
+"""Subject kinds and levels, global identifier schemes and their mechanical format checks.
 
 Everything here is pure and standard-library only. Checksums are verified where
 the scheme defines one; a valid format is never proof of identity by itself.
@@ -12,12 +12,44 @@ from typing import Mapping
 
 
 class Level(StrEnum):
-    """The four backbone levels. Crypto assets sit at `security`, deployments at `listing`."""
+    """The four instrument levels, issuer -> security -> composite -> listing. Crypto assets sit at `security`,
+    deployments at `listing`. Level walks and `via` apply only within this hierarchy."""
 
     ISSUER = "issuer"
     SECURITY = "security"
     COMPOSITE = "composite"
     LISTING = "listing"
+
+
+class Kind(StrEnum):
+    """Registered subject kinds: the first segment of a subject ID. The instrument kinds are the four levels;
+    the others sit outside that hierarchy, have no parent and connect to other subjects only by typed relations.
+    Readers pass an unregistered kind through as an opaque string; stores accept only registered kinds."""
+
+    ISSUER = "issuer"
+    SECURITY = "security"
+    COMPOSITE = "composite"
+    LISTING = "listing"
+    CURRENCY = "currency"  # an ISO 4217 currency
+    FX = "fx"              # a currency pair
+    SERIES = "series"      # a non-tradable data series (a policy rate, a yield curve point)
+    INDEX = "index"        # an index level (never a security: it cannot be held)
+    PROTOCOL = "protocol"  # a DeFi protocol (no legal-entity identifier)
+    MARKET = "market"      # a lending reserve, pool, vault or perp market
+
+
+INSTRUMENT_KINDS = frozenset(Level)
+# The key schemes (an ID's second segment) each kind may use: `subject_id` derives the instrument keys; a kind
+# outside the hierarchy takes a Pythia-curated (`pythia`) or provisional key until its open schemes are registered
+# with its first data.
+_OTHER_KEYS = frozenset({"pythia", "provisional"})
+KEY_SCHEMES: dict[Kind, frozenset[str]] = {
+    Kind.ISSUER: frozenset({"lei", "cik", "provisional"}),
+    Kind.SECURITY: frozenset({"isin", "figi", "caip19", "provisional"}),
+    Kind.COMPOSITE: frozenset({"isin", "figi", "provisional"}),
+    Kind.LISTING: frozenset({"isin", "figi", "caip19", "provisional"}),
+    **{kind: _OTHER_KEYS for kind in Kind if kind not in INSTRUMENT_KINDS},
+}
 
 
 class Scheme(StrEnum):
@@ -50,9 +82,9 @@ SCHEME_LEVEL: dict[Scheme, Level] = {
 # time contradict each other. A ticker is an attribute (reused, renamed) and never does.
 SINGLE_VALUED = frozenset(Scheme) - {Scheme.TICKER_MIC}
 
-# <level>:<key scheme>:<key>, derived from open identifiers (see subject_id below).
-SUBJECT_ID = re.compile(
-    r"^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/%-]{4,300}\Z")
+# <kind>:<key scheme>:<key>, derived from open identifiers (see subject_id below). The format is open: kinds and
+# key schemes grow without changing it.
+SUBJECT_ID = re.compile(r"^[a-z][a-z0-9_]{0,31}:[a-z][a-z0-9_]{0,31}:[A-Za-z0-9._:/%-]{1,300}\Z")
 MIC = re.compile(r"^[A-Z0-9]{4}\Z")
 CURRENCY = re.compile(r"^[A-Z]{3}\Z")
 COUNTRY = re.compile(r"^[A-Z]{2}\Z")
@@ -142,11 +174,32 @@ def ticker_mic(ticker: str, mic: str) -> str:
     return normalize_identifier(Scheme.TICKER_MIC, f"{ticker}@{mic}")
 
 
-def subject_level(subject_id: str) -> Level:
-    """The level a subject ID names (`listing:isin:NL0010273215:XAMS:EUR` is a listing)."""
+def subject_kind(subject_id: str) -> str:
+    """The kind a well-formed subject ID names, as text: registered or not, it is passed through."""
     if not isinstance(subject_id, str) or not SUBJECT_ID.match(subject_id):
         raise IdentifierError("subject id: malformed")
-    return Level(subject_id.split(":", 1)[0])
+    return subject_id.split(":", 1)[0]
+
+
+def registered_kind(subject_id: str) -> Kind:
+    """The kind of a subject ID whose kind and key scheme are both registered (KEY_SCHEMES); raises otherwise.
+    Writers and the instrument code check this; readers only need `subject_kind`."""
+    kind, scheme = subject_kind(subject_id), subject_id.split(":", 2)[1]
+    if kind not in KEY_SCHEMES:
+        raise IdentifierError(f"subject id: {kind} is not a registered kind")
+    if scheme not in KEY_SCHEMES[Kind(kind)]:
+        raise IdentifierError(f"subject id: a {kind} is not keyed by {scheme}")
+    return Kind(kind)
+
+
+def subject_level(subject_id: str) -> Level:
+    """The instrument level a subject ID names (`listing:isin:NL0010273215:XAMS:EUR` is a listing); raises for a
+    subject outside the instrument hierarchy or an unregistered key scheme."""
+    kind = registered_kind(subject_id)
+    if kind not in INSTRUMENT_KINDS:
+        raise IdentifierError(f"subject id: a {kind} is not an instrument")
+    return Level(kind)
+
 
 
 # The subject-key rule (ADR 0037), versioned: a new rule is `subject_key@2`, recorded in the
@@ -208,13 +261,14 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
     return f"{level}:{key}" if key else None
 
 
-def provisional_id(level: Level | str, provider: str, native_scope: str, native_id: str) -> str:
+def provisional_id(kind: Kind | str, provider: str, native_scope: str, native_id: str) -> str:
     """Provider-namespaced ID for a subject no open identifier names (a provider-only index, an
-    unmapped coin, a private company). Valid and deterministic per provider reference, but not
-    portable across provider sets; it becomes an alias once an open identifier names the subject.
+    unmapped coin, a private company), of a registered kind: an index is `index:provisional:…`, never a
+    security. Valid and deterministic per provider reference, but not portable across provider sets; it
+    becomes an alias once an open identifier names the subject.
     """
     if not NAMESPACE.match(provider) or not NAMESPACE.match(native_scope):
         raise IdentifierError("provisional id: provider and native_scope must be namespaces")
     readable = PROVISIONAL_NATIVE.match(native_id)
     key = native_id if readable else "sha256-" + hashlib.sha256(native_id.encode()).hexdigest()[:32]
-    return f"{Level(level)}:provisional:{provider}:{native_scope}:{key}"
+    return f"{Kind(kind)}:provisional:{provider}:{native_scope}:{key}"

@@ -174,8 +174,8 @@ class FixtureTest(unittest.TestCase):
             self.assertEqual(derive("listing", {"caip19": caip19}), row["id"])
             self.assertEqual(derive("security", {"caip19": caip19}), row["security_id"])
         self.assertIsNone(derive("security", {}))
-        index = identity.provisional_id("security", "eodhd", "catalogue", "GSPC.INDX")
-        self.assertEqual(index, "security:provisional:eodhd:catalogue:GSPC.INDX")
+        index = identity.provisional_id("index", "eodhd", "catalogue", "GSPC.INDX")
+        self.assertEqual(index, "index:provisional:eodhd:catalogue:GSPC.INDX")
         spaced = identity.provisional_id("listing", "ibkr", "contract", "BRK B")
         self.assertEqual(spaced, identity.provisional_id("listing", "ibkr", "contract", "BRK B"))
         self.assertIs(identity.subject_level(spaced), identity.Level.LISTING)
@@ -198,7 +198,7 @@ class FixtureTest(unittest.TestCase):
                 ref = binding.provider_ref
                 insert(state, "bindings", {
                     "id": f"{name}:{index}", "plugin": binding.plugin, "provider": ref.provider, "native_id": ref.native_id,
-                    "native_scope": ref.native_scope, "subject_id": binding.subject_id, "level": binding.level.value,
+                    "native_scope": ref.native_scope, "subject_id": binding.subject_id, "kind": binding.kind,
                     "status": binding.status.value, "authority": binding.authority.value,
                     "rule_id": binding.rule_id, "evidence_ids": list(binding.evidence_ids)})
 

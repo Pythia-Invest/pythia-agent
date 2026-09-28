@@ -181,9 +181,15 @@ class Identity:
         if subject is None:
             return None, issue
         security = subject["ids"].get(Level.SECURITY)
+        view = subject["view"]
+        view["other_securities"] = []
         if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
-            listings = search.directory(path, store.open_reference).instrument_listings(security)
-            subject["view"]["listings"] = listings or subject["view"]["listings"]
+            directory = search.directory(path, store.open_reference)
+            view["listings"] = directory.instrument_listings(security) or view["listings"]
+            # The company's other instruments; a share class listed there is not repeated under `related`.
+            view["other_securities"] = directory.other_instruments(security)
+            others = {item["id"] for item in view["other_securities"]}
+            view["related"] = [item for item in view["related"] if item["id"] not in others]
         sections = page.compose(subject, installed(), **lookups)
         return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
 

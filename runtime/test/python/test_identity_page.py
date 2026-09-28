@@ -72,7 +72,7 @@ class Fixture(unittest.TestCase):
 SHELL, SHEL = "listing:isin:GB00BP6MXD84:XAMS:EUR", "listing:figi:BBG0147BN6G2"
 SHELL_OTC = "listing:isin:GB00BP6MXD84:OTCM:USD"
 BANK = [("common", "ordinary", "BNK"), ("preferred", "preferred", "BNK-PA"), ("note1", "other", "BNKN"),
-        ("note2", "other", "BNKO")]
+        ("note2", "other", "BNKO"), ("etn", "fund", "BNKX")]
 
 
 class SearchTest(Fixture):
@@ -98,6 +98,9 @@ class SearchTest(Fixture):
                           for key, _, ticker in BANK)]
             db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
                            " VALUES (?, ?, ?, ?3, ?, ?, ?)", listings)
+            db.execute("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
+                       " retrieved_at) VALUES ('ev:shel', 'depositary_receipt_of', 'security:figi:BBG0147BN6H1',"
+                       " 'security:isin:GB00BP6MXD84', 'snapshot', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')")
         self.directory = search.Directory(self.ref)
 
     def rows(self, query, **options):
@@ -130,6 +133,29 @@ class SearchTest(Fixture):
                           (SHEL, "depositary_receipt", False)])
         self.assertEqual(row["listings"], len(listings) - 1)
 
+    def test_only_a_fold_relation_folds_a_receipt_and_the_issuer_still_groups_it(self):
+        with sqlite3.connect(self.path) as db:
+            db.execute("DELETE FROM relations WHERE evidence_id = 'ev:shel'")
+        directory = search.Directory(self.ref)
+        self.assertEqual([item["id"] for item in directory.instrument_listings("security:figi:BBG0147BN6H1")], [SHEL])
+        self.assertEqual(self.rows("shell")[:1], [SHELL])
+        groups = dict(directory.db.execute("SELECT security, grp FROM doc WHERE ticker IN ('SHELL', 'SHEL')"))
+        self.assertEqual(set(groups.values()), {"issuer:lei:21380068P1DRHMJ8KU70"})
+
+    def test_the_search_group_is_the_company_for_its_equity_and_the_product_for_a_fund(self):
+        groups = dict(self.directory.db.execute("SELECT security, grp FROM doc WHERE security LIKE 'security:bank:%'"))
+        self.assertEqual(groups.pop("security:bank:etn"), "security:bank:etn")  # an ETN is its own group
+        self.assertEqual(set(groups.values()), {"issuer:cik:1"})
+
+    def test_other_securities_are_the_groups_other_instruments_each_with_a_line(self):
+        others = self.directory.other_instruments("security:bank:common")
+        self.assertEqual([(item["id"], item["ticker"], item["kind"]) for item in others],
+                         [("security:bank:note1", "BNKN", "other"), ("security:bank:note2", "BNKO", "other"),
+                          ("security:bank:preferred", "BNK-PA", "preferred")])
+        # A receipt folds into its share, so the share's other securities never list it, and a fund lists none.
+        self.assertEqual(self.directory.other_instruments("security:figi:BBG0147BN6H1"), [])
+        self.assertEqual(self.directory.other_instruments("security:bank:etn"), [])
+
     def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):
         bound = {BTC: [{"plugin": "coinmarketcap", "ref": "1"}]}
         row = self.directory.search("BTC", limit=5, bindings=lambda ids: bound)["rows"][0]
@@ -137,7 +163,8 @@ class SearchTest(Fixture):
                          {"id": BTC, "mic": None, "country": None, "listings": 0, "bindings": bound[BTC]})
 
     def test_an_issuers_main_share_and_preferred_come_before_its_notes(self):
-        self.assertEqual(self.rows("bank corp"), ["listing:bank:common", "listing:bank:preferred"])
+        # The bank's ETN is a product: its own group, after the company's.
+        self.assertEqual(self.rows("bank corp"), ["listing:bank:common", "listing:bank:preferred", "listing:bank:etn"])
 
 
 class PageTest(Fixture):

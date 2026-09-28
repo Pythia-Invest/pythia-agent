@@ -243,3 +243,85 @@ auditable: swapping a resolver changes who answers, not what an answer may do.
 - **Random or sequential IDs:** installs and rebuilds would disagree.
 - **A cloud master or server database:** a service dependency the product does
   not need.
+
+## Amendment (2026-09-28): subject kinds and relation behaviour
+
+FX, indices, rate series and DeFi protocols and markets are not instruments,
+and search and pages need one general rule for what belongs together. Under the
+text above, each new asset class would need a closed-level change, a rebuild of
+the persistent store's CHECKs and a per-case grouping rule. This amendment
+settles both points while no investor state depends on the old form. It
+supersedes three passages:
+
+- "Four levels" as a closed set "enforced by the types and the SQL";
+- the provisional example `security:provisional:eodhd:catalogue:GSPC.INDX`;
+- the fixed list under "Typed relations".
+
+### Subject kinds are separate from levels
+
+A subject ID is `<kind>:<key-scheme>:<key>`, and its first segment is the
+**kind**. Kinds form an open vocabulary registered in core's identity package.
+
+- `issuer`, `security`, `composite` and `listing` keep the hierarchy above.
+  They are the only kinds with a level, and level walks, `via` and depth rules
+  apply only within that hierarchy.
+- `currency`, `fx`, `index`, `series`, `protocol` and `market` sit outside the
+  hierarchy and connect only through typed relations.
+  - A rate series is a `series`, not a fifth level.
+  - An index is an `index`, not a security, so "security" keeps meaning
+    something one can hold.
+- A provisional ID is minted in its own kind, for example
+  `index:provisional:eodhd:catalogue:GSPC.INDX`.
+- Readers, including the queue tool and the market-data wire, pass an unknown
+  kind through unchanged. Stores and instrument code accept only registered
+  kinds with their registered key schemes, so `security:bogus:x` is rejected.
+- Kinds, relation types and each relation's allowed kinds live in Python.
+  - The persistent `identity.sqlite3` checks only the ID format (schema 4, which
+    migrates schema 3 in place).
+  - The rebuilt `reference.sqlite3` keeps its instrument CHECKs but not
+    relation-type ones.
+
+### Relations declare fold or related
+
+Relations never merge subjects. Each relation type declares one behaviour:
+
+| Behaviour | Meaning | Types |
+| --- | --- | --- |
+| `fold` | Sameness across distinct securities, which must be shown together | `depositary_receipt_of`, `native_deployment_of` |
+| `related` | Different things, shown nearby as links and never folded | `share_class_of`, `wraps`, `bridged_from`, `staked_as`, `tracks`, `derivative_on`, `tokenized_from`, `successor_of` |
+
+- **Instrument.** An instrument is a security plus every security folded into
+  it: its depositary receipts and registry lines, and later a chain's native
+  issuance of a curated crypto asset (M2 settles which deployments are
+  separate securities). An equity page's listing selector lists the
+  instrument's lines.
+- **Search group.** A search group is the investable entity:
+  - the company, for its equity securities (share classes and preferreds
+    included, as distinct instruments);
+  - the product itself, for a fund, ETF, ETN or ETC, so that a product is never
+    buried under its issuer;
+  - the asset, for crypto.
+- **Other securities.** The page shows the company's other securities, such as
+  share classes and preferreds, as "other securities" of that company. Other
+  `related` subjects appear as links.
+- A new relation type states its behaviour when it is added, so an unforeseen
+  case groups without new code.
+- Odd fold data is never resolved silently. A second fold target or a fold
+  cycle keeps its subjects apart, and the builder's report and
+  `just reference-audit` list it.
+
+### Rationale and rejected alternatives
+
+An open kind vocabulary keeps each new asset class additive. SQLite cannot
+change a CHECK without rebuilding the table, which a device-local store would
+need at every addition. Declared relation behaviour plus the investable-entity
+rule replaces grouping cases per asset class.
+
+- **`series` or `index` as extra levels:** rejected, because they are not
+  tradable lines of an issuer.
+- **Share classes as `fold`:** rejected. Share classes are economically
+  different, and they already group under their company.
+- **Grouping every security under its issuer:** rejected, because it would bury
+  funds and notes under their issuer (one bank issues 44 ETNs).
+- **Enumerations in persistent SQL CHECKs:** rejected, because each addition
+  would need a table rebuild on every device.

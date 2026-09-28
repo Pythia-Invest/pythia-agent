@@ -10707,6 +10707,76 @@
         "eodhd": "EURUSD.FOREX"
       },
       "note": "an FX pair is not an instrument; it needs its own subject kind"
+    },
+    {
+      "id": "tenaris",
+      "name": "Tenaris S.A.",
+      "tags": ["eu_home", "cross_listing", "re_isin"],
+      "kind": "ordinary",
+      "status": "active",
+      "cfi": "ES",
+      "issuer": {
+        "lei": "549300Y7C05BKC4HZB40",
+        "cik": "1190723"
+      },
+      "security": {
+        "isin": "LU2598331598",
+        "share_class_figi": "BBG001SDGFV3"
+      },
+      "listings": [
+        {
+          "ticker": "TEN",
+          "mic": "XMIL",
+          "currency": "EUR",
+          "primary": true,
+          "symbols": {
+            "yahoo": "TEN.MI",
+            "eodhd": "TEN.MI"
+          }
+        }
+      ],
+      "fold": "tenaris",
+      "former": {
+        "isins": ["LU0156801721"]
+      },
+      "sources": ["firds", "gleif", "openfigi", "sec", "symbol_conventions"],
+      "note": "FIRDS still names the superseded ISIN LU0156801721 as the ADR's underlying; that share is inactive"
+    },
+    {
+      "id": "tenaris-adr",
+      "name": "Tenaris S.A. ADS",
+      "tags": ["adr"],
+      "kind": "depositary_receipt",
+      "status": "active",
+      "cfi": "ED",
+      "issuer": {
+        "lei": "549300Y7C05BKC4HZB40",
+        "cik": "1190723"
+      },
+      "security": {
+        "isin": "US88031M1099",
+        "share_class_figi": "BBG001SLFCT6"
+      },
+      "listings": [
+        {
+          "ticker": "TS",
+          "mic": "XNYS",
+          "currency": "USD",
+          "primary": true,
+          "symbols": {
+            "yahoo": "TS",
+            "eodhd": "TS.US"
+          }
+        }
+      ],
+      "relations": [
+        {
+          "type": "depositary_receipt_of",
+          "to": "tenaris"
+        }
+      ],
+      "fold": "tenaris",
+      "sources": ["firds", "gleif", "openfigi", "sec", "symbol_conventions"]
     }
   ]
 }

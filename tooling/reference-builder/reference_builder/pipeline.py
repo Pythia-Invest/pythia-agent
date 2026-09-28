@@ -6,7 +6,7 @@ import bisect
 from collections import Counter
 
 from .assemble import FigiMap, GleifFetch, Inputs, build_eu
-from .linking import build_sec
+from .linking import build_sec, link_receipts
 from .model import Snapshot, Venue
 
 
@@ -15,6 +15,7 @@ def build_snapshot(inputs: Inputs, gleif_fetch: GleifFetch, figi_map: FigiMap) -
     entities = build_eu(snap, inputs, gleif_fetch, figi_map)
     if inputs.scope.sec:
         build_sec(snap, inputs, entities, figi_map)
+    link_receipts(snap)
     snap.venues = used_venues(snap, inputs.venues)
     rank(snap, inputs)
     snap.audit = summarise(snap)

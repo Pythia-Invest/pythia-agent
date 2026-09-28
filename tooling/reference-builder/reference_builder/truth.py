@@ -102,6 +102,7 @@ class Audit:
     ids: dict[str, dict] = field(default_factory=dict)
     in_scope: int = 0
     future: list[str] = field(default_factory=list)   # entries of subject kinds core does not have yet (M1)
+    fold_odd: list[tuple[str, str]] = field(default_factory=list)  # fold second targets and cycles (identity.fold_roots)
 
     def add(self, entry: str, check: str, sub: str, ok: bool | None, reason: str = "") -> None:
         status = "na" if ok is None else ("pass" if ok else "fail")
@@ -188,6 +189,7 @@ def audit(reference: Path, truth: dict, contracts: dict | None = None, cfi: tupl
     report = Audit(build, scope, truth.get("version", ""), {e["id"]: e.get("tags", []) for e in truth["entries"]})
     located = {entry_id: ref.locate(entry)[0] for entry_id, entry in entries.items()}
     directory = search.Directory(ref.db)
+    report.fold_odd = identity.fold_roots(ref.all("SELECT type, from_id, to_id FROM relations"))[1]
     folded = {row[0]: row[1] for row in directory.db.execute("SELECT security, inst FROM doc GROUP BY security")}
     issuers = {}
     for entry_id, security in located.items():
