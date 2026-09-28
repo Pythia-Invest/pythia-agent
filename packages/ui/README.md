@@ -52,8 +52,9 @@ runtime dependency.
 
 ## Assets
 
-The package contains four IBM Plex Sans webfont weights, the Inter variable
-reading face (Latin subsets, upright and italic, `src/assets/OFL-Inter.txt`), four bounded Pythia
+The package contains four IBM Plex Sans webfont weights, four IBM Plex Serif
+weights for the reading face, the Inter variable face (Latin subsets, upright
+and italic, `src/assets/OFL-Inter.txt`), four bounded Pythia
 lockups, and a favicon. It does not contain brand masters or a general asset
 kit. The font files are distributed under the SIL Open Font License 1.1; see
 `src/assets/OFL.txt`.

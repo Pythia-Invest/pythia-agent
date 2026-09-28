@@ -4,7 +4,7 @@
  */
 export const overlayClasses = {
   backdrop:
-    "fixed inset-0 z-50 bg-foreground/45 transition-opacity motion-standard data-starting-style:opacity-0 data-ending-style:opacity-0",
+    "fixed inset-0 z-50 bg-scrim/45 transition-opacity motion-standard data-starting-style:opacity-0 data-ending-style:opacity-0",
   /** Elevated surface for every floating or modal popup. */
   surface: "border border-border bg-overlay text-foreground shadow-overlay",
   title: "m-0 text-reading font-semibold leading-tight text-foreground",
@@ -14,6 +14,6 @@ export const overlayClasses = {
   positioner: "z-60 outline-0",
   /** Anchored popup (popover, menu, preview card). */
   floating:
-    "w-max max-w-[min(24rem,calc(100vw-2rem))] origin-(--transform-origin) rounded-container p-4 transition-[opacity,transform] motion-fast data-starting-style:scale-[0.97] data-starting-style:opacity-0 data-ending-style:scale-[0.97] data-ending-style:opacity-0",
+    "w-max max-w-[min(24rem,calc(100vw-2rem))] origin-(--transform-origin) rounded-container p-4 shadow-popup transition-[opacity,transform] motion-fast data-starting-style:scale-[0.97] data-starting-style:opacity-0 data-ending-style:scale-[0.97] data-ending-style:opacity-0",
   arrow: "fill-overlay stroke-border",
 } as const;

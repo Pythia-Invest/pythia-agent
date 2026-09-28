@@ -207,6 +207,11 @@ current tab, or general focus color. “Active analytical focus” may use amber
 only when the active object is the Pythia signal itself. Primary actions should
 normally use Oracle Ink.
 
+One Product exception is approved: **Pythia is working**. A single small
+pulsing Signal Amber dot marks live agent work, beside the turn's status line
+and on that chat's row in navigation. It appears only while work runs, never
+with a second amber cue in the same component, and disappears when work ends.
+
 The two profiles intentionally have different amber budgets. The Public
 website may feel visibly warm and branded; the Product application should feel
 predominantly neutral, with amber occupying only small, local moments. In the
@@ -272,7 +277,9 @@ a solid surface or move the atmosphere away from the reading area.
 ### Surfaces, geometry, and spacing
 
 Prefer flat composition, whitespace, fine borders, and subtle background
-contrast. Use shadows only where something is genuinely elevated, such as an
+contrast. In the Product application, navigation chrome sits on the canvas
+tone and the working surface is the one raised surface; default borders are
+quiet hairlines, with the stronger border kept for controls and focus. Use shadows only where something is genuinely elevated, such as an
 overlay, menu, dialog, or intentionally floating element.
 
 Geometry should feel restrained and contemporary: roughly 8px rounding on
@@ -300,7 +307,11 @@ screens, city skylines, coins, candlesticks, Greek temples, oracle characters,
 celestial motifs, or abstract AI artwork.
 
 Motion should be restrained and functional. Use short transitions and subtle
-entrances only when they clarify state or causality. Avoid autoplay spectacle,
+entrances only when they clarify state or causality. In the Product
+application that vocabulary is small: new content settles in with a short fade
+and rise, a replaced icon pops in, streaming answer words fade in, and the
+Pythia working dot breathes slowly. Work the user started is shown at once,
+before the server confirms it. Avoid autoplay spectacle,
 scroll choreography, glowing “thinking” effects, and animation whose purpose
 is simply to look technological. Reduced-motion behavior is mandatory.
 
@@ -596,3 +607,10 @@ for folders, blue for documents and media, green for data and code, and neutral
 for other files. Distinct icon shapes and filenames remain the primary cues.
 These decorative roles adapt to light and dark themes and do not imply research
 status, performance, or a Pythia signal.
+
+## Elevation
+
+Floating menus and popovers use a small, close dark shadow; dialogs and drawers
+use a broader but restrained dark shadow. In dark mode, surface contrast and
+borders define separation—shadows must never turn into pale glows. Modal
+backdrops darken the page in both themes. Ordinary content remains flat.

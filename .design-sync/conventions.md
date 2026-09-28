@@ -114,3 +114,7 @@ not put the brand mark in a design; use a text wordmark placeholder instead.
   </Stack>
 </Card>
 ```
+
+`bg-scrim` is the dark neutral modal backdrop surface (normally `bg-scrim/45`).
+Anchored menus/popovers use `shadow-popup`; dialogs/drawers use `shadow-overlay`.
+Both elevation roles cast dark shadows in either theme, never a light glow.
