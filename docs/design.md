@@ -277,9 +277,7 @@ a solid surface or move the atmosphere away from the reading area.
 ### Surfaces, geometry, and spacing
 
 Prefer flat composition, whitespace, fine borders, and subtle background
-contrast. In the Product application, navigation chrome sits on the canvas
-tone and the working surface is the one raised surface; default borders are
-quiet hairlines, with the stronger border kept for controls and focus. Use shadows only where something is genuinely elevated, such as an
+contrast. Use shadows only where something is genuinely elevated, such as an
 overlay, menu, dialog, or intentionally floating element.
 
 Geometry should feel restrained and contemporary: roughly 8px rounding on
@@ -310,8 +308,7 @@ Motion should be restrained and functional. Use short transitions and subtle
 entrances only when they clarify state or causality. In the Product
 application that vocabulary is small: new content settles in with a short fade
 and rise, a replaced icon pops in, streaming answer words fade in, and the
-Pythia working dot breathes slowly. Work the user started is shown at once,
-before the server confirms it. Avoid autoplay spectacle,
+Pythia working dot breathes slowly. Avoid autoplay spectacle,
 scroll choreography, glowing “thinking” effects, and animation whose purpose
 is simply to look technological. Reduced-motion behavior is mandatory.
 

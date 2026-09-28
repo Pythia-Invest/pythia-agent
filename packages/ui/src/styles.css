@@ -79,7 +79,7 @@
   src: url("./assets/IBMPlexSerif-Bold.woff2") format("woff2");
 }
 
-/* Reading face for conversation text only; interface chrome stays Plex. */
+/* The previous reading face, kept for the Design Lab typography comparison. */
 @font-face {
   font-family: Inter;
   font-style: normal;
@@ -243,9 +243,8 @@
   --py-text-primary: var(--py-color-oracle-ink);
   --py-text-secondary: var(--py-color-neutral-600);
   --py-text-disabled: var(--py-color-neutral-500);
-  /* Hairlines separate quietly; strong borders mark controls and focus-within. */
-  --py-border-default: var(--py-color-neutral-200);
-  --py-border-strong: var(--py-color-neutral-300);
+  --py-border-default: var(--py-color-neutral-300);
+  --py-border-strong: var(--py-color-neutral-500);
   --py-interaction-hover: color-mix(
     in srgb,
     var(--py-text-primary) 4%,
@@ -304,8 +303,8 @@
   --py-text-primary: var(--py-color-warm-white);
   --py-text-secondary: var(--py-color-neutral-300);
   --py-text-disabled: var(--py-color-slate-400);
-  --py-border-default: var(--py-color-slate-700);
-  --py-border-strong: var(--py-color-slate-650);
+  --py-border-default: var(--py-color-slate-650);
+  --py-border-strong: var(--py-color-slate-500);
   --py-interaction-hover: color-mix(
     in srgb,
     var(--py-text-primary) 8%,
@@ -621,10 +620,11 @@
     *,
     *::before,
     *::after {
-      scroll-behavior: auto;
-      animation-duration: 0.01ms;
-      animation-iteration-count: 1;
-      transition-duration: 0.01ms;
+      /* Important, so animate-* and transition utilities cannot override it. */
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
     }
   }
 }

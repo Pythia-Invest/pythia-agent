@@ -34,7 +34,7 @@ the signal that something has gone wrong. Real names, all of them usable as
 
 | Family | Names |
 | --- | --- |
-| Surfaces | `canvas`, `raised`, `subtle`, `overlay`, `container`, `atmosphere` |
+| Surfaces | `canvas`, `raised`, `subtle`, `overlay`, `container`, `atmosphere`, `scrim` (modal backdrop, normally `bg-scrim/45`) |
 | Text | `foreground`, `foreground-secondary`, `foreground-disabled` |
 | Lines & interaction | `border`, `border-strong`, `interaction-hover`, `interaction-active`, `ring` |
 | Primary action | `primary`, `primary-foreground` |
@@ -115,6 +115,7 @@ not put the brand mark in a design; use a text wordmark placeholder instead.
 </Card>
 ```
 
-`bg-scrim` is the dark neutral modal backdrop surface (normally `bg-scrim/45`).
 Anchored menus/popovers use `shadow-popup`; dialogs/drawers use `shadow-overlay`.
 Both elevation roles cast dark shadows in either theme, never a light glow.
+Motion uses `animate-{spin-slow,shimmer,text-shimmer,enter,fade,pop,breathe}`,
+always with `motion-safe:` or `motion-reduce:animate-none`.
