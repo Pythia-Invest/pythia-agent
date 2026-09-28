@@ -113,10 +113,13 @@ export function RepairsView() {
               key: "issue",
               header: "Issue",
               cell: (repair) => repair.title,
+              text: (repair) => repair.description,
             },
             {
               key: "instrument",
               header: "Instrument",
+              text: (repair) =>
+                repair.subject?.name ?? repair.subject?.id ?? "",
               cell: (repair) =>
                 repair.subject ? (
                   <Link
@@ -133,6 +136,7 @@ export function RepairsView() {
               key: "provider",
               header: "Provider",
               cell: (repair) => repair.plugin ?? "—",
+              text: (repair) => repair.plugin ?? "",
             },
             {
               key: "status",
@@ -146,13 +150,13 @@ export function RepairsView() {
             {
               key: "created",
               header: "Created",
-              className: "whitespace-nowrap tabular-nums",
+              className: "tabular-nums",
               cell: (repair) => time(repair.created, "compact"),
             },
             {
               key: "resolved",
               header: "Resolved",
-              className: "whitespace-nowrap tabular-nums",
+              className: "tabular-nums",
               cell: (repair) =>
                 repair.resolved ? time(repair.resolved, "compact") : "—",
             },
@@ -166,6 +170,7 @@ export function RepairsView() {
                 key={action.label}
                 size="sm"
                 variant={action.emphasis}
+                title={action.hint}
                 onClick={() => setPending({ action, busy: false, error: null })}
               >
                 {action.label}

@@ -88,7 +88,10 @@ test("repairs list issues in the back-office table and record the user's fix wit
     "Synthetic Holding · SYN.AS",
   );
 
-  await rows.first().getByRole("button", { name: "Same instrument" }).click();
+  await rows
+    .first()
+    .getByRole("button", { name: "Match", exact: true })
+    .click();
   const dialog = page.getByRole("dialog", { name: "Same instrument" });
   await dialog.getByRole("textbox").fill("Same synthetic line.");
   await dialog.getByRole("button", { name: "Confirm match" }).click();
