@@ -30,7 +30,7 @@ tool gives and from which source.
 | `pythia_find` | Which investment a name, ticker, ISIN, LEI, CIK or FIGI means; rows carry the subject id. | local read |
 | `pythia_instrument` | Identifiers, issuer, listings, the source of each concept, and the provider tools that can serve this investment. | local read |
 | `pythia_prices` | Latest quote, daily or intraday bars with a summary, or a period's return (1D to 5Y, from daily closes; 6M, YTD and 1Y match the Desk chart). | external read; a lookup may record a binding |
-| `pythia_filings` | A company's filings from one source per filing authority (core's combined read), by form and date. | external read; a lookup may record a binding |
+| `pythia_filings` | A company's filings from one source per filing authority (core's combined read), by kind, form and date. | external read; a lookup may record a binding |
 | `pythia_identity_questions` | Open identity questions in Repairs. | local read |
 | `pythia_answer_identity_question` | The agent's provisional answer to one question; the investor confirms it in Repairs. | local write |
 | `pythia_desk_view` | The Desk page the investor is looking at. | local read |

@@ -87,6 +87,26 @@ export function usingSource(
   return { ...block, key: `${block.key}:${plugin}`, sections };
 }
 
+/** One row per report: filings sharing a `report_key` (a report's format and
+ * language versions, and its amendments) group under the newest, in core's
+ * order. Grouping is display only; every filing stays. */
+export function groupReports<T extends { report_key?: string | null }>(
+  items: readonly T[],
+): T[][] {
+  const groups: T[][] = [];
+  const byKey = new Map<string, T[]>();
+  for (const item of items) {
+    const group = item.report_key ? byKey.get(item.report_key) : undefined;
+    if (group) {
+      group.push(item);
+      continue;
+    }
+    groups.push([item]);
+    if (item.report_key) byKey.set(item.report_key, groups.at(-1) as T[]);
+  }
+  return groups;
+}
+
 /** The newest filings, keeping each authority's newest one in view so a
  * yearly ESEF report is not pushed out by frequent SEC 6-Ks; still newest
  * first as core ordered them. */

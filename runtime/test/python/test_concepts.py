@@ -146,8 +146,9 @@ EQUITY_ADDRESS = {"asml_xams": ("ASML.AS", "ASML.AS"), "asml_nasdaq": ("ASML", "
 NOT_CRYPTO = [("coingecko", "not_covering"), ("coinmarketcap", "not_covering")]
 NOT_EQUITY = [("yahoo-discovery", "not_covering"), ("eodhd", "not_covering")]
 # Filings combine one source per authority into core's read, whatever the price configuration.
+MECHANISMS = json.loads((PLUGINS / "xbrl-filings/contract.json").read_text())["concepts"]["filings"]["authorities"]
 FILINGS = {"profile": ("gleif", "ready", [], []),
-           "filings": ("xbrl-filings", "ready", [], [], [("xbrl-filings", ["esma", "fca"]), ("sec", ["sec"])])}
+           "filings": ("xbrl-filings", "ready", [], [], [("xbrl-filings", MECHANISMS), ("sec", ["sec"])])}
 
 
 def equity(config, name):

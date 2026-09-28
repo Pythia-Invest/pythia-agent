@@ -3,7 +3,7 @@
 `filings` reads every source chosen for a subject's filings, one per filing
 authority, and merges them into one date-sorted list of core filing items.
 `combined` reads every eligible source of news (one feed without duplicates) or
-of estimates and targets (side by side). A source that answers `not_covered`
+of estimates, targets and statements (side by side). A source that answers `not_covered`
 gives way to the next eligible source; one that fails is listed as skipped and
 the result is marked partial, and nothing switches to another source; one still
 to be looked up is listed, not awaited. Each source runs only if Pythia may run
@@ -23,7 +23,7 @@ import time
 from typing import Any
 
 from .identity import combined, filings, page
-from .identity.concepts import Combine, not_covered
+from .identity.concepts import Combine, FilingKind, not_covered
 from .identity.page import Section
 from .queue_ops import SUBJECT_ID
 
@@ -34,10 +34,13 @@ PLUGIN_ID = {"type": "string", "minLength": 1, "maxLength": 128}
 FILINGS_SCHEMA = {
     "name": "pythia_filings_combined",
     "description": "A company's regulatory filings from every connected filings source, one source per filing "
-                   "authority (SEC; ESEF reports of EU issuers; UK), merged newest first. Each item names its source "
-                   "and authority; a source that failed is listed under skipped and the list is marked partial. "
-                   "`date` orders the list; `date_basis` says what it is: filed, indexed (the day the source indexed "
-                   "a report that has no published filing date, not a filing date) or period_end.",
+                   "authority (sec; the national mechanism for European reports: oam-fr, oam-nl, fca…), merged newest "
+                   "first. Each item names its kind, source and authority; a source that failed is listed under "
+                   "skipped and the list is marked partial. `date` orders the list; `date_basis` says what it is: "
+                   "filed, indexed (the day the source indexed a report that has no published filing date, not a "
+                   "filing date) or period_end; `filed_time` is the exact UTC filing time where known. Items with one "
+                   "`report_key` are versions of one report (format, language, amendment); items sharing `report_period` "
+                   "are parallel reports of one period under other authorities (a 20-F beside an ESEF report).",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT_ID,
         "use": {**PLUGIN_ID, "description": "Read this source for its authorities instead of the chosen one: a plugin "
@@ -47,7 +50,11 @@ FILINGS_SCHEMA = {
                   "description": "Only these forms (10-K, 20-F, ESEF; AFR or annual for annual reports); an "
                                  "amendment matches its form. Sources search beyond their most recent filings. "
                                  "Without forms, SEC insider and major-holder filings are left out; name them "
-                                 "(3, 4, 5, 144, 13G) to read them."}},
+                                 "(3, 4, 5, 144, 13G) or ask for the ownership kind to read them."},
+        "kinds": {"type": "array", "minItems": 1, "maxItems": 8,
+                  "items": {"type": "string", "enum": [kind.value for kind in FilingKind]},
+                  "description": "Only these kinds of filing: annual, half_year, quarterly, earnings_release, event "
+                                 "(material events, inside information), ownership, prospectus, other."}},
         "required": ["subject_id"], "additionalProperties": False},
 }
 COMBINED_SCHEMA = {
@@ -55,11 +62,14 @@ COMBINED_SCHEMA = {
     "description": "Every connected source's answer for one concept of a subject. news: one feed, newest first, "
                    "without exact or near-exact duplicates (same link, or same headline within a day), each item "
                    "with its source. estimates, targets: one row per source side by side (value, date, basis, "
-                   "analyst count), never blended or averaged. A source that failed is listed under skipped and the "
+                   "analyst count), never blended or averaged. financials: statements side by side, one row per source and "
+                   "report (report_key: issuer, kind, period end, authority; basis a field), rows of one period "
+                   "together. A source that failed is listed under skipped and the "
                    "result is marked partial; one that does not cover the subject is skipped as not_covering.",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT_ID,
-        "section": {"type": "string", "enum": [Section.NEWS.value, Section.ESTIMATES.value, Section.TARGETS.value]}},
+        "section": {"type": "string", "enum": [Section.NEWS.value, Section.ESTIMATES.value,
+                                                     Section.TARGETS.value, Section.FINANCIALS.value]}},
         "required": ["subject_id", "section"], "additionalProperties": False},
 }
 
@@ -91,6 +101,7 @@ class ConceptReads:
         from . import identity_ops
         subject_id, use = str(arguments.get("subject_id") or ""), arguments.get("use")
         forms = [str(item) for item in arguments.get("forms") or []][:8]
+        kinds = [str(item) for item in arguments.get("kinds") or []][:8]
         subject, lookups, issue = self._subject(subject_id)
         if subject is None:
             return _envelope("empty", None, issue)
@@ -101,10 +112,10 @@ class ConceptReads:
                 return _envelope("empty", None, f"No installed filings source is called {use}.")
             lookups = {**lookups, "order": (chosen_name, *lookups.get("order", ()))}
         chosen, alternatives, skipped, results, waiting = self._select_and_read(
-            subject, plugins, Section.FILINGS, lookups, forms, context)
+            subject, plugins, Section.FILINGS, lookups, context, forms, kinds)
         parts = [(answer, authorities, *results[answer["plugin"]]) for answer, authorities in chosen
                  if answer["plugin"] in results]
-        merged = filings.merge_filings(parts, forms)
+        merged = filings.merge_filings(parts, forms, kinds, subject["ids"].get("issuer") or subject["id"])
         return self._finish(merged, subject, chosen, alternatives, skipped, waiting, bool(parts), "filings")
 
     def combined(self, arguments: dict, **context: Any) -> str:
@@ -115,10 +126,12 @@ class ConceptReads:
         if subject is None:
             return _envelope("empty", None, issue)
         chosen, alternatives, skipped, results, waiting = self._select_and_read(
-            subject, identity_ops.installed(), section, lookups, (), context)
+            subject, identity_ops.installed(), section, lookups, context)
         parts = [(answer, *results[answer["plugin"]]) for answer, _ in chosen if answer["plugin"] in results]
         if page.REGISTRY[page.SERVES[section][0]].combine is Combine.MERGE:
             merged, key = combined.merge_news(parts), "news"
+        elif section is Section.FINANCIALS:
+            merged, key = combined.statements(parts, subject["ids"].get("issuer") or subject["id"]), "rows"
         else:
             merged, key = combined.side_by_side(parts), "rows"
         return self._finish({"section": section.value, **merged}, subject, chosen, alternatives, skipped, waiting,
@@ -134,8 +147,8 @@ class ConceptReads:
             return None, {}, "The reference data could not be read."
         return subject, lookups, issue
 
-    def _select_and_read(self, subject: dict, plugins: list, section: Section, lookups: dict, forms: list[str],
-                         context: dict) -> tuple[list, list, list, dict, list]:
+    def _select_and_read(self, subject: dict, plugins: list, section: Section, lookups: dict, context: dict,
+                         forms: list[str] = (), kinds: list[str] = ()) -> tuple[list, list, list, dict, list]:
         """Select, read the chosen sources at once, and let each that answers `not_covered` give way to the next
         eligible source (for its authorities, under `per_authority`), until none does. A failure never switches
         source. Returns (chosen, alternatives, skipped, {plugin: (result, failure)}, waiting)."""
@@ -164,7 +177,8 @@ class ConceptReads:
                                     "reason": f"{answer['label']} is not available in this profile"})
                 else:
                     call = contextvars.copy_context().run
-                    futures[self._pool.submit(call, self._dispatch, tool, answer["binding"], forms, cancelled)] = answer
+                    futures[self._pool.submit(call, self._dispatch, tool, answer["binding"], forms, cancelled,
+                                              kinds)] = answer
             if not futures:
                 return chosen, alternatives, skipped, results, waiting
             _done, pending = concurrent.futures.wait(futures, timeout=max(0.0, deadline - time.monotonic()))
@@ -195,8 +209,8 @@ class ConceptReads:
         return _envelope(outcome, merged)
 
     @staticmethod
-    def _dispatch(tool: str, binding: dict, forms: list[str] = (),
-                  cancelled: Any = lambda: False) -> tuple[dict | None, str | None]:
+    def _dispatch(tool: str, binding: dict, forms: list[str] = (), cancelled: Any = lambda: False,
+                  kinds: list[str] = ()) -> tuple[dict | None, str | None]:
         from tools.registry import registry
         arguments: dict[str, Any] = {"native_ref": binding}
         try:
@@ -208,6 +222,8 @@ class ConceptReads:
         if forms and "forms" in accepted:  # a source that can search by form does; core filters every answer
             expanded = [name for item in forms for name in filings.FORM_ALIASES.get(item.upper(), (item,))]
             arguments["forms"] = list(dict.fromkeys(expanded))[:8]
+        if kinds and "kinds" in accepted:
+            arguments["kinds"] = kinds
         try:
             if cancelled():
                 return None, "The read was cancelled"

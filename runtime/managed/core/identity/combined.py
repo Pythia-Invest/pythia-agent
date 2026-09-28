@@ -11,6 +11,13 @@ A single value (estimates, targets) is never blended or averaged: each source is
 one labelled row `{value, date, basis, analysts, source, provider, plugin}` with
 what the source's `data` states (`value` is its figures as it gives them).
 
+Statements are side by side too, on the report identity of the filings v2
+amendment: a source lists each report it read under `data.reports` (`kind`,
+`period_end`, `authority`, `basis`, `value`), and each becomes one row with that
+report's `report_key` and `report_period`. Rows of one period sit together,
+newest first, so parallel reports (a 20-F beside the ESEF report) and two
+sources' figures for one report stay separate rows.
+
 A source that fails is listed as skipped and the result is marked partial; no
 other source fills in.
 """
@@ -20,6 +27,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit, urlunsplit
 
+from .filings import report_period
 from .page import source
 
 NEAR = timedelta(hours=24)  # the same headline this close together is one story
@@ -82,4 +90,20 @@ def side_by_side(parts: list[tuple[dict, dict | None, str | None]]) -> dict:
     ok, sources, skipped = answered(parts)
     rows = [{"value": data["value"], **{key: data.get(key) for key in ("date", "basis", "analysts")}, **source(answer)}
             for answer, data in ok if data.get("value") is not None]
+    return {"rows": rows, "sources": sources, "skipped": skipped, "partial": bool(skipped) and bool(sources)}
+
+
+def statements(parts: list[tuple[dict, dict | None, str | None]], issuer: str) -> dict:
+    """One row per source and report it read, keyed by the report's identity; nothing is combined."""
+    ok, sources, skipped = answered(parts)
+    rows = []
+    for answer, data in ok:
+        for report in data.get("reports") if isinstance(data.get("reports"), list) else []:
+            period = isinstance(report, dict) and report.get("value") is not None and isinstance(
+                report.get("authority"), str) and report_period(issuer, str(report.get("kind")), report.get("period_end"))
+            if period:
+                rows.append({"report_key": f"{period}|{report['authority']}", "report_period": period,
+                             **{key: report.get(key) for key in ("kind", "period_end", "authority", "basis", "value")},
+                             **source(answer)})
+    rows.sort(key=lambda row: row["period_end"], reverse=True)  # stable: ranked source order within a period
     return {"rows": rows, "sources": sources, "skipped": skipped, "partial": bool(skipped) and bool(sources)}

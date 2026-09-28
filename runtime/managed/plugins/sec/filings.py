@@ -29,6 +29,15 @@ FILING_TITLES = {
 # Filings about the filer's securities by insiders and major holders. A default filings read leaves them out, so
 # hundreds of Forms 4 do not crowd out the reports; naming one of them in `forms` reads it.
 OWNERSHIP_FORMS = frozenset({'3', '4', '5', '144', 'SC 13G', 'SCHEDULE 13G'})
+# Pythia's filing kinds (core's FilingKind) by form; an amendment has its form's kind and any other form is `other`.
+# An 8-K is an earnings release with Item 2.02 (Results of Operations and Financial Condition), else an event.
+# A 20-F or 40-F is rarely a registration rather than an annual report; it is counted as annual.
+KINDS = {'10-K': 'annual', '20-F': 'annual', '40-F': 'annual', '10-Q': 'quarterly',
+         **{form: 'ownership' for form in (*OWNERSHIP_FORMS, 'SC 13D', 'SCHEDULE 13D', '13F-HR')},
+         **{form: 'prospectus' for form in ('S-1', 'S-3', 'S-3ASR', 'F-1', 'F-3', 'F-3ASR', 'FWP',
+                                            *(name for name in FILING_TITLES if name.startswith('424B')))}}
+# The primary document's format by its extension; an inline XBRL document is `ixbrl`.
+FORMATS = {'htm': 'html', 'html': 'html', 'xml': 'xml', 'txt': 'text', 'pdf': 'pdf'}
 # Forms SEC is known to list, shown by their native name. With FILING_TITLES and OWNERSHIP_FORMS this is the
 # vocabulary a response is checked against: any other form is still listed but logged as drift for maintainers, so
 # a rename (as SC 13G became SCHEDULE 13G) is noticed rather than silently escaping the ownership filter or the
@@ -53,6 +62,13 @@ EIGHT_K_ITEMS = frozenset({*(f'1.0{n}' for n in range(1, 6)), *(f'2.0{n}' for n 
 def base_form(form):
     """The form an amendment amends: 10-K/A is a 10-K."""
     return form[:-2] if form.endswith('/A') else form
+
+
+def filing_kind(form, items):
+    base = base_form(form)
+    if base == '8-K':
+        return 'earnings_release' if '2.02' in (items or ()) else 'event'
+    return KINDS.get(base, 'other')
 
 
 def filing_title(form):
@@ -142,6 +158,15 @@ def _block(block, identifier, drift, read_at):
                         drift_count(drift, 'unknown_8k_item', item)
             elif items is not None:
                 drift_count(drift, 'malformed', 'items')
+        row['kind'] = filing_kind(form, row['items'])
+        # A domestic registrant reports in US GAAP (Regulation S-X, Rule 4-01(a)(1)); a foreign issuer's basis
+        # (US GAAP, IFRS, home GAAP) is not in the submissions list, so it is not stated.
+        row['basis'] = 'us_gaap' if base_form(form) in ('10-K', '10-Q') else None
+        document = block['primaryDocument'][index] or ''
+        row['format'] = 'ixbrl' if row['inline_xbrl'] else FORMATS.get(document.rpartition('.')[2].lower())
+        # EDGAR lists a filing under each party's CIK without the party's role. The filer of a report is the company;
+        # an ownership filing may be filed by it or be about it, so no party is claimed for one.
+        row['parties'] = [] if row['kind'] == 'ownership' else [{'role': 'filer', 'scheme': 'cik', 'id': identifier}]
         yield row
 
 
@@ -164,16 +189,18 @@ def ownership(form):
     return base_form(form.upper()) in OWNERSHIP_FORMS
 
 
-def filings(raw, identifier, observed_at, limit=20, forms=None, pages=()):
-    """The filer's filings, newest first: the first `limit` leaving out ownership forms, or with `forms` the first
-    `limit` of those forms from the whole recent list and any older `pages` read for it."""
+def filings(raw, identifier, observed_at, limit=20, forms=None, pages=(), kinds=None):
+    """The filer's filings, newest first: the first `limit` leaving out ownership forms, or with `forms` or `kinds`
+    the first `limit` of those forms and kinds from the whole recent list and any older `pages` read for it. Ownership
+    forms are read when named or with the `ownership` kind."""
     identifier = cik(identifier)
     if not isinstance(raw, dict) or cik(raw.get('cik')) != identifier:
         raise ValueError('invalid_response')
     filing_data = raw.get('filings')
     if not isinstance(filing_data, dict):
         raise ValueError('invalid_response')
-    forms = [item.upper() for item in forms or []]
+    forms, kinds = [item.upper() for item in forms or []], sorted(set(kinds or ()))
+    hidden = not forms and 'ownership' not in kinds
     read_at = eastern(observed_at)
     blocks = [filing_data.get('recent', {}), *pages]
     rows, scanned, omitted, oldest, drift = [], 0, 0, None, {}
@@ -181,9 +208,9 @@ def filings(raw, identifier, observed_at, limit=20, forms=None, pages=()):
         for row in _block(block, identifier, drift, read_at):
             scanned += 1
             oldest = row['filed_at']
-            if not forms and ownership(row['form']):
+            if hidden and ownership(row['form']):
                 omitted += 1
-            elif wanted(row['form'], forms):
+            elif wanted(row['form'], forms) and (not kinds or row['kind'] in kinds):
                 rows.append(row)
             if len(rows) >= limit:
                 break
@@ -196,8 +223,8 @@ def filings(raw, identifier, observed_at, limit=20, forms=None, pages=()):
               'source': {'label': 'SEC EDGAR', 'url': 'https://www.sec.gov/edgar/browse/?CIK=' + identifier},
               'coverage': {'scope': 'recent_and_older_submissions' if pages else 'recent_submissions',
                            'returned': len(rows), 'scanned': scanned, 'searched_back_to': oldest,
-                           'forms': forms or None, 'total_available': total,
-                           'omitted_forms': None if forms else sorted(OWNERSHIP_FORMS),
+                           'forms': forms or None, 'kinds': kinds or None, 'total_available': total,
+                           'omitted_forms': sorted(OWNERSHIP_FORMS) if hidden else None,
                            'omitted': omitted,
                            'complete': not filing_data.get('files') and len(rows) < limit}}
     if drift:

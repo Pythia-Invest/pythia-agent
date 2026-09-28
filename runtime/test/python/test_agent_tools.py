@@ -105,7 +105,8 @@ def filing_rows(forms):
     """Rows as sec/financials.filings and xbrl-filings/reports.filings build them (synthetic values)."""
     return [{"accession": f"0000000000-26-{index:06d}", "form": form, "filed_at": f"2026-0{9 - index % 9}-01",
              "title": form + " report", "url": f"https://example.org/{index}", "period_end": "2025-12-31",
-             "language": None} for index, form in enumerate(forms)]
+             "language": None, "country": "NL", "kind": "annual" if form in ("AFR", "20-F", "20-F/A") else "other"}
+            for index, form in enumerate(forms)]
 
 
 class Context:
@@ -465,6 +466,9 @@ class ConceptToolTest(AgentToolFixture):
                          [("AFR", "filings.xbrl.org"), ("20-F/A", "SEC EDGAR"), ("AFR", "filings.xbrl.org"),
                           ("20-F", "SEC EDGAR")])
         self.assertEqual(result["coverage"], {"matched": 4, "listed": 4})  # core searches by form
+        annual = self.call(agent_reads.filings, subject_id=ASML, kinds=["annual"])
+        self.assertEqual({row["kind"] for row in annual["filings"]}, {"annual"})
+        self.assertEqual(annual["coverage"]["listed"], 4)  # core filters by kind: the IR and 6-Ks are left out
         # A common name reads that source first for its authorities; an unknown one says which exist.
         self.call(agent_reads.filings, subject_id=ASML, source="esef")
         self.assertIn("pythia_xbrl_filings_filings", [call[0] for call in self.ctx.calls[-2:]])
