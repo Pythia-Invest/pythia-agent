@@ -5674,6 +5674,7 @@
       "tags": ["non_eu_home"],
       "kind": "ordinary",
       "status": "active",
+      "search": { "query": "Alibaba", "rows": ["9988@XHKG"] },
       "cfi": "ES",
       "issuer": {
         "lei": "5493001NTNQJDH60PM02",
@@ -5756,6 +5757,7 @@
       "tags": ["non_eu_home"],
       "kind": "ordinary",
       "status": "active",
+      "search": { "query": "Toyota", "rows": ["7203@XJPX"] },
       "cfi": "ES",
       "issuer": {
         "lei": "5493006W3QUS5LMH6R84",
@@ -8802,7 +8804,8 @@
       },
       "listings": [
         {
-          "ticker": "NDA FI",
+          "ticker": "NDA",
+          "note": "Nasdaq writes NDA FI: a two-letter market suffix, not a share class, which core's ticker grammar refuses; OpenFIGI and the build give NDA. Yahoo and EODHD still use NDA-FI.",
           "mic": "XHEL",
           "currency": "EUR",
           "primary": true,
@@ -8813,7 +8816,8 @@
           }
         },
         {
-          "ticker": "NDA SE",
+          "ticker": "NDA",
+          "note": "Nasdaq writes NDA SE: a two-letter market suffix, not a share class, which core's ticker grammar refuses; OpenFIGI and the build give NDA. Yahoo and EODHD still use NDA-SE.",
           "mic": "XSTO",
           "currency": "SEK",
           "primary": false,
@@ -8824,7 +8828,8 @@
           }
         },
         {
-          "ticker": "NDA DK",
+          "ticker": "NDA",
+          "note": "Nasdaq writes NDA DK: a two-letter market suffix, not a share class, which core's ticker grammar refuses; OpenFIGI and the build give NDA. Yahoo and EODHD still use NDA-DK.",
           "mic": "XCSE",
           "currency": "DKK",
           "primary": false,
@@ -9856,6 +9861,7 @@
       "tags": ["non_eu_home"],
       "kind": "ordinary",
       "status": "active",
+      "search": { "query": "Tencent", "rows": ["0700@XHKG"] },
       "cfi": "ES",
       "issuer": {
         "lei": "254900N4SLUMW4XUYY11"

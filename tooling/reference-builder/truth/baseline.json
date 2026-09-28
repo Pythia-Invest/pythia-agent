@@ -267,6 +267,7 @@
     "alibaba-adr:coverage:found",
     "alibaba-adr:fold:row",
     "alibaba-adr:issuer:cik",
+    "alibaba-adr:issuer:same_as_siblings",
     "alibaba-adr:listing:BABA@XNYS:currency",
     "alibaba-adr:listing:BABA@XNYS:figi",
     "alibaba-adr:listing:BABA@XNYS:present",
@@ -279,6 +280,21 @@
     "alibaba-adr:subject_key:security",
     "alibaba-adr:symbols:eodhd:BABA.US",
     "alibaba-adr:symbols:yahoo:BABA",
+    "alibaba:coverage:found",
+    "alibaba:fold:row",
+    "alibaba:fold:row_line:Alibaba",
+    "alibaba:issuer:cik",
+    "alibaba:issuer:same_as_siblings",
+    "alibaba:listing:9988@XHKG:currency",
+    "alibaba:listing:9988@XHKG:figi",
+    "alibaba:listing:9988@XHKG:present",
+    "alibaba:listing:9988@XHKG:ticker",
+    "alibaba:primary:home",
+    "alibaba:security:kind",
+    "alibaba:subject_key:9988@XHKG",
+    "alibaba:subject_key:issuer",
+    "alibaba:subject_key:security",
+    "alibaba:symbols:yahoo:9988.HK",
     "allfunds:coverage:found",
     "allfunds:fold:row",
     "allfunds:issuer:lei",
@@ -675,6 +691,7 @@
     "bhp-adr:coverage:found",
     "bhp-adr:fold:row",
     "bhp-adr:issuer:cik",
+    "bhp-adr:issuer:same_as_siblings",
     "bhp-adr:listing:BHP@XNYS:currency",
     "bhp-adr:listing:BHP@XNYS:figi",
     "bhp-adr:listing:BHP@XNYS:present",
@@ -687,6 +704,20 @@
     "bhp-adr:subject_key:security",
     "bhp-adr:symbols:eodhd:BHP.US",
     "bhp-adr:symbols:yahoo:BHP",
+    "bhp:coverage:found",
+    "bhp:fold:row",
+    "bhp:issuer:cik",
+    "bhp:issuer:same_as_siblings",
+    "bhp:listing:BHP@XASX:currency",
+    "bhp:listing:BHP@XASX:figi",
+    "bhp:listing:BHP@XASX:present",
+    "bhp:listing:BHP@XASX:ticker",
+    "bhp:primary:home",
+    "bhp:security:kind",
+    "bhp:subject_key:BHP@XASX",
+    "bhp:subject_key:issuer",
+    "bhp:subject_key:security",
+    "bhp:symbols:yahoo:BHP.AX",
     "bitcoin:coverage:found",
     "bitcoin:fold:row",
     "bitcoin:listing:bip122:000000000019d6689c085ae165831e93",
@@ -749,6 +780,7 @@
     "bp-adr:coverage:found",
     "bp-adr:fold:row",
     "bp-adr:issuer:cik",
+    "bp-adr:issuer:same_as_siblings",
     "bp-adr:listing:BP@XNYS:currency",
     "bp-adr:listing:BP@XNYS:figi",
     "bp-adr:listing:BP@XNYS:present",
@@ -761,6 +793,21 @@
     "bp-adr:subject_key:security",
     "bp-adr:symbols:eodhd:BP.US",
     "bp-adr:symbols:yahoo:BP",
+    "bp:coverage:found",
+    "bp:fold:row",
+    "bp:issuer:cik",
+    "bp:issuer:same_as_siblings",
+    "bp:listing:BP.@XLON:currency",
+    "bp:listing:BP.@XLON:figi",
+    "bp:listing:BP.@XLON:present",
+    "bp:listing:BP.@XLON:ticker",
+    "bp:primary:home",
+    "bp:security:kind",
+    "bp:subject_key:BP.@XLON",
+    "bp:subject_key:issuer",
+    "bp:subject_key:security",
+    "bp:symbols:eodhd:BP.LSE",
+    "bp:symbols:yahoo:BP.L",
     "brown-forman-a:coverage:found",
     "brown-forman-a:fold:row",
     "brown-forman-a:issuer:cik",
@@ -954,6 +1001,17 @@
     "crh:subject_key:security",
     "crh:symbols:eodhd:CRH.US",
     "crh:symbols:yahoo:CRH",
+    "cspx:coverage:found",
+    "cspx:fold:row",
+    "cspx:listing:CSPX@XLON:currency",
+    "cspx:listing:CSPX@XLON:figi",
+    "cspx:listing:CSPX@XLON:present",
+    "cspx:listing:CSPX@XLON:ticker",
+    "cspx:security:kind",
+    "cspx:subject_key:CSPX@XLON",
+    "cspx:subject_key:security",
+    "cspx:symbols:eodhd:CSPX.LSE",
+    "cspx:symbols:yahoo:CSPX.L",
     "ctp:coverage:found",
     "ctp:fold:row",
     "ctp:issuer:lei",
@@ -1257,6 +1315,7 @@
     "ferguson:fold:row",
     "ferguson:issuer:cik",
     "ferguson:lifecycle:former_isin:JE00BJVNSS43",
+    "ferguson:lifecycle:former_ticker:FERG@XLON",
     "ferguson:listing:FERG@XNYS:currency",
     "ferguson:listing:FERG@XNYS:figi",
     "ferguson:listing:FERG@XNYS:present",
@@ -1439,6 +1498,7 @@
     "gsk-adr:coverage:found",
     "gsk-adr:fold:row",
     "gsk-adr:issuer:cik",
+    "gsk-adr:issuer:same_as_siblings",
     "gsk-adr:listing:GSK@XNYS:currency",
     "gsk-adr:listing:GSK@XNYS:figi",
     "gsk-adr:listing:GSK@XNYS:present",
@@ -1450,9 +1510,26 @@
     "gsk-adr:subject_key:security",
     "gsk-adr:symbols:eodhd:GSK.US",
     "gsk-adr:symbols:yahoo:GSK",
+    "gsk:coverage:found",
+    "gsk:fold:row",
+    "gsk:issuer:cik",
+    "gsk:issuer:same_as_siblings",
+    "gsk:lifecycle:former_isin:GB0009252882",
+    "gsk:listing:GSK@XLON:currency",
+    "gsk:listing:GSK@XLON:figi",
+    "gsk:listing:GSK@XLON:present",
+    "gsk:listing:GSK@XLON:ticker",
+    "gsk:primary:home",
+    "gsk:security:kind",
+    "gsk:subject_key:GSK@XLON",
+    "gsk:subject_key:issuer",
+    "gsk:subject_key:security",
+    "gsk:symbols:eodhd:GSK.LSE",
+    "gsk:symbols:yahoo:GSK.L",
     "haleon-adr:coverage:found",
     "haleon-adr:fold:row",
     "haleon-adr:issuer:cik",
+    "haleon-adr:issuer:same_as_siblings",
     "haleon-adr:listing:HLN@XNYS:currency",
     "haleon-adr:listing:HLN@XNYS:figi",
     "haleon-adr:listing:HLN@XNYS:present",
@@ -1465,6 +1542,21 @@
     "haleon-adr:subject_key:security",
     "haleon-adr:symbols:eodhd:HLN.US",
     "haleon-adr:symbols:yahoo:HLN",
+    "haleon:coverage:found",
+    "haleon:fold:row",
+    "haleon:issuer:cik",
+    "haleon:issuer:same_as_siblings",
+    "haleon:listing:HLN@XLON:currency",
+    "haleon:listing:HLN@XLON:figi",
+    "haleon:listing:HLN@XLON:present",
+    "haleon:listing:HLN@XLON:ticker",
+    "haleon:primary:home",
+    "haleon:security:kind",
+    "haleon:subject_key:HLN@XLON",
+    "haleon:subject_key:issuer",
+    "haleon:subject_key:security",
+    "haleon:symbols:eodhd:HLN.LSE",
+    "haleon:symbols:yahoo:HLN.L",
     "havas:coverage:found",
     "havas:fold:row",
     "havas:issuer:lei",
@@ -1628,6 +1720,7 @@
     "hsbc-adr:coverage:found",
     "hsbc-adr:fold:row",
     "hsbc-adr:issuer:cik",
+    "hsbc-adr:issuer:same_as_siblings",
     "hsbc-adr:listing:HSBC@XNYS:currency",
     "hsbc-adr:listing:HSBC@XNYS:figi",
     "hsbc-adr:listing:HSBC@XNYS:present",
@@ -1640,6 +1733,21 @@
     "hsbc-adr:subject_key:security",
     "hsbc-adr:symbols:eodhd:HSBC.US",
     "hsbc-adr:symbols:yahoo:HSBC",
+    "hsbc:coverage:found",
+    "hsbc:fold:row",
+    "hsbc:issuer:cik",
+    "hsbc:issuer:same_as_siblings",
+    "hsbc:listing:HSBA@XLON:currency",
+    "hsbc:listing:HSBA@XLON:figi",
+    "hsbc:listing:HSBA@XLON:present",
+    "hsbc:listing:HSBA@XLON:ticker",
+    "hsbc:primary:home",
+    "hsbc:security:kind",
+    "hsbc:subject_key:HSBA@XLON",
+    "hsbc:subject_key:issuer",
+    "hsbc:subject_key:security",
+    "hsbc:symbols:eodhd:HSBA.LSE",
+    "hsbc:symbols:yahoo:HSBA.L",
     "iaex:coverage:found",
     "iaex:fold:row",
     "iaex:listing:IAEX@XAMS:currency",
@@ -1818,11 +1926,18 @@
     "iwda:listing:IWDA@XAMS:figi",
     "iwda:listing:IWDA@XAMS:present",
     "iwda:listing:IWDA@XAMS:ticker",
+    "iwda:listing:SWDA@XLON:currency",
+    "iwda:listing:SWDA@XLON:figi",
+    "iwda:listing:SWDA@XLON:present",
+    "iwda:listing:SWDA@XLON:ticker",
     "iwda:security:isin",
     "iwda:security:kind",
+    "iwda:subject_key:SWDA@XLON",
     "iwda:subject_key:security",
     "iwda:symbols:eodhd:IWDA.AS",
+    "iwda:symbols:eodhd:SWDA.LSE",
     "iwda:symbols:yahoo:IWDA.AS",
+    "iwda:symbols:yahoo:SWDA.L",
     "jpm-pc:coverage:found",
     "jpm-pc:fold:row",
     "jpm-pc:issuer:cik",
@@ -2190,10 +2305,25 @@
     "nepi:symbols:yahoo:NRP.AS",
     "nestle-adr:coverage:found",
     "nestle-adr:fold:row",
+    "nestle-adr:issuer:same_as_siblings",
     "nestle-adr:relation:nestle",
     "nestle-adr:security:kind",
     "nestle-adr:subject_key:issuer",
     "nestle-adr:subject_key:security",
+    "nestle:coverage:found",
+    "nestle:fold:row",
+    "nestle:issuer:same_as_siblings",
+    "nestle:listing:NESN@XSWX:currency",
+    "nestle:listing:NESN@XSWX:figi",
+    "nestle:listing:NESN@XSWX:present",
+    "nestle:listing:NESN@XSWX:ticker",
+    "nestle:primary:home",
+    "nestle:security:kind",
+    "nestle:subject_key:NESN@XSWX",
+    "nestle:subject_key:issuer",
+    "nestle:subject_key:security",
+    "nestle:symbols:eodhd:NESN.SW",
+    "nestle:symbols:yahoo:NESN.SW",
     "news-a:coverage:found",
     "news-a:fold:row",
     "news-a:issuer:cik",
@@ -2276,17 +2406,20 @@
     "nordea:coverage:found",
     "nordea:fold:row",
     "nordea:issuer:lei",
-    "nordea:listing:NDA DK@XCSE:figi",
-    "nordea:listing:NDA DK@XCSE:present",
-    "nordea:listing:NDA FI@XHEL:currency",
-    "nordea:listing:NDA FI@XHEL:figi",
-    "nordea:listing:NDA FI@XHEL:present",
-    "nordea:listing:NDA SE@XSTO:figi",
-    "nordea:listing:NDA SE@XSTO:present",
+    "nordea:listing:NDA@XCSE:figi",
+    "nordea:listing:NDA@XCSE:present",
+    "nordea:listing:NDA@XCSE:ticker",
+    "nordea:listing:NDA@XHEL:currency",
+    "nordea:listing:NDA@XHEL:figi",
+    "nordea:listing:NDA@XHEL:present",
+    "nordea:listing:NDA@XHEL:ticker",
+    "nordea:listing:NDA@XSTO:figi",
+    "nordea:listing:NDA@XSTO:present",
+    "nordea:listing:NDA@XSTO:ticker",
     "nordea:primary:home",
     "nordea:security:isin",
     "nordea:security:kind",
-    "nordea:subject_key:NDA FI@XHEL",
+    "nordea:subject_key:NDA@XHEL",
     "nordea:subject_key:issuer",
     "nordea:subject_key:security",
     "novo-adr:coverage:found",
@@ -2654,6 +2787,7 @@
     "rio-adr:coverage:found",
     "rio-adr:fold:row",
     "rio-adr:issuer:cik",
+    "rio-adr:issuer:same_as_siblings",
     "rio-adr:listing:RIO@XNYS:currency",
     "rio-adr:listing:RIO@XNYS:figi",
     "rio-adr:listing:RIO@XNYS:present",
@@ -2666,6 +2800,21 @@
     "rio-adr:subject_key:security",
     "rio-adr:symbols:eodhd:RIO.US",
     "rio-adr:symbols:yahoo:RIO",
+    "rio:coverage:found",
+    "rio:fold:row",
+    "rio:issuer:cik",
+    "rio:issuer:same_as_siblings",
+    "rio:listing:RIO@XLON:currency",
+    "rio:listing:RIO@XLON:figi",
+    "rio:listing:RIO@XLON:present",
+    "rio:listing:RIO@XLON:ticker",
+    "rio:primary:home",
+    "rio:security:kind",
+    "rio:subject_key:RIO@XLON",
+    "rio:subject_key:issuer",
+    "rio:subject_key:security",
+    "rio:symbols:eodhd:RIO.LSE",
+    "rio:symbols:yahoo:RIO.L",
     "ryanair-adr:coverage:found",
     "ryanair-adr:fold:row",
     "ryanair-adr:issuer:cik",
@@ -2699,6 +2848,10 @@
     "ryanair:subject_key:security",
     "ryanair:symbols:eodhd:RYA.IR",
     "ryanair:symbols:yahoo:RYA.IR",
+    "samsung-gdr:coverage:found",
+    "samsung-gdr:security:kind",
+    "samsung-gdr:subject_key:issuer",
+    "samsung-gdr:subject_key:security",
     "sanofi-adr:coverage:found",
     "sanofi-adr:fold:row",
     "sanofi-adr:issuer:cik",
@@ -3016,6 +3169,7 @@
     "smurfit-westrock:fold:row",
     "smurfit-westrock:issuer:cik",
     "smurfit-westrock:lifecycle:former_ticker:SKG@XDUB",
+    "smurfit-westrock:lifecycle:former_ticker:SKG@XLON",
     "smurfit-westrock:listing:SW@XNYS:currency",
     "smurfit-westrock:listing:SW@XNYS:figi",
     "smurfit-westrock:listing:SW@XNYS:present",
@@ -3144,10 +3298,25 @@
     "te-connectivity:symbols:yahoo:TEL",
     "tencent-adr:coverage:found",
     "tencent-adr:fold:row",
+    "tencent-adr:issuer:same_as_siblings",
     "tencent-adr:relation:tencent",
     "tencent-adr:security:kind",
     "tencent-adr:subject_key:issuer",
     "tencent-adr:subject_key:security",
+    "tencent:coverage:found",
+    "tencent:fold:row",
+    "tencent:fold:row_line:Tencent",
+    "tencent:issuer:same_as_siblings",
+    "tencent:listing:0700@XHKG:currency",
+    "tencent:listing:0700@XHKG:figi",
+    "tencent:listing:0700@XHKG:present",
+    "tencent:listing:0700@XHKG:ticker",
+    "tencent:primary:home",
+    "tencent:security:kind",
+    "tencent:subject_key:0700@XHKG",
+    "tencent:subject_key:issuer",
+    "tencent:subject_key:security",
+    "tencent:symbols:yahoo:0700.HK",
     "tesla:coverage:found",
     "tesla:fold:row",
     "tesla:issuer:cik",
@@ -3195,6 +3364,7 @@
     "toyota-adr:coverage:found",
     "toyota-adr:fold:row",
     "toyota-adr:issuer:cik",
+    "toyota-adr:issuer:same_as_siblings",
     "toyota-adr:listing:TM@XNYS:currency",
     "toyota-adr:listing:TM@XNYS:figi",
     "toyota-adr:listing:TM@XNYS:present",
@@ -3207,6 +3377,21 @@
     "toyota-adr:subject_key:security",
     "toyota-adr:symbols:eodhd:TM.US",
     "toyota-adr:symbols:yahoo:TM",
+    "toyota:coverage:found",
+    "toyota:fold:row",
+    "toyota:fold:row_line:Toyota",
+    "toyota:issuer:cik",
+    "toyota:issuer:same_as_siblings",
+    "toyota:listing:7203@XJPX:currency",
+    "toyota:listing:7203@XJPX:figi",
+    "toyota:listing:7203@XJPX:present",
+    "toyota:listing:7203@XJPX:ticker",
+    "toyota:primary:home",
+    "toyota:security:kind",
+    "toyota:subject_key:7203@XJPX",
+    "toyota:subject_key:issuer",
+    "toyota:subject_key:security",
+    "toyota:symbols:yahoo:7203.T",
     "tsll:coverage:found",
     "tsll:fold:row",
     "tsll:listing:TSLL@XNAS:currency",
@@ -3555,6 +3740,7 @@
     "vusa:listing:VUSA@XAMS:figi",
     "vusa:listing:VUSA@XAMS:present",
     "vusa:listing:VUSA@XAMS:ticker",
+    "vusa:listing:VUSA@XLON:present",
     "vusa:security:isin",
     "vusa:security:kind",
     "vusa:subject_key:security",
@@ -3582,15 +3768,35 @@
     "vw:symbols:eodhd:VOW.XETRA",
     "vw:symbols:yahoo:VOW.DE",
     "vw:symbols:yahoo:VOW.F",
+    "vwra:coverage:found",
+    "vwra:fold:row",
+    "vwra:listing:VWRA@XLON:currency",
+    "vwra:listing:VWRA@XLON:figi",
+    "vwra:listing:VWRA@XLON:present",
+    "vwra:listing:VWRA@XLON:ticker",
+    "vwra:listing:VWRP@XLON:present",
+    "vwra:security:kind",
+    "vwra:subject_key:VWRA@XLON",
+    "vwra:subject_key:security",
+    "vwra:symbols:eodhd:VWRA.LSE",
+    "vwra:symbols:yahoo:VWRA.L",
     "vwrl:coverage:found",
     "vwrl:fold:row",
+    "vwrl:listing:VWRD@XLON:currency",
+    "vwrl:listing:VWRD@XLON:figi",
+    "vwrl:listing:VWRD@XLON:present",
+    "vwrl:listing:VWRD@XLON:ticker",
     "vwrl:listing:VWRL@XAMS:figi",
     "vwrl:listing:VWRL@XAMS:present",
     "vwrl:listing:VWRL@XAMS:ticker",
+    "vwrl:listing:VWRL@XLON:present",
     "vwrl:security:isin",
     "vwrl:security:kind",
+    "vwrl:subject_key:VWRD@XLON",
     "vwrl:subject_key:security",
+    "vwrl:symbols:eodhd:VWRD.LSE",
     "vwrl:symbols:eodhd:VWRL.AS",
+    "vwrl:symbols:yahoo:VWRD.L",
     "vwrl:symbols:yahoo:VWRL.AS",
     "wbd:coverage:found",
     "wbd:fold:row",
@@ -3802,6 +4008,13 @@
         "ALC@XNYS": "listing:isin:CH0432492467:XNYS:USD"
       }
     },
+    "alibaba": {
+      "security": "security:figi:BBG001T5DBT4",
+      "issuer": "issuer:lei:5493001NTNQJDH60PM02",
+      "listings": {
+        "9988@XHKG": "listing:figi:BBG00QV37ZP9"
+      }
+    },
     "alibaba-adr": {
       "security": "security:figi:BBG006G2JWB1",
       "issuer": "issuer:lei:5493001NTNQJDH60PM02",
@@ -3987,6 +4200,13 @@
         "BESI@XAMS": "listing:isin:NL0012866412:XAMS:EUR"
       }
     },
+    "bhp": {
+      "security": "security:isin:AU000000BHP4",
+      "issuer": "issuer:lei:WZE1WSENV6JSZFK0JC28",
+      "listings": {
+        "BHP@XASX": "listing:isin:AU000000BHP4:XASX:AUD"
+      }
+    },
     "bhp-adr": {
       "security": "security:figi:BBG001S5P5K4",
       "issuer": "issuer:lei:WZE1WSENV6JSZFK0JC28",
@@ -4021,6 +4241,13 @@
       "issuer": "issuer:lei:R0MUWSFPU8MPRO8K5P83",
       "listings": {
         "BNP@XPAR": "listing:isin:FR0000131104:XPAR:EUR"
+      }
+    },
+    "bp": {
+      "security": "security:isin:GB0007980591",
+      "issuer": "issuer:lei:213800LH1BZH3DI6G760",
+      "listings": {
+        "BP.@XLON": "listing:isin:GB0007980591:XLON:GBP"
       }
     },
     "bp-adr": {
@@ -4115,6 +4342,13 @@
       "issuer": "issuer:lei:549300MIDJNNTH068E74",
       "listings": {
         "CRH@XNYS": "listing:isin:IE0001827041:XNYS:USD"
+      }
+    },
+    "cspx": {
+      "security": "security:isin:IE00B5BMR087",
+      "issuer": "issuer:lei:5493006ESS9BM09FB892",
+      "listings": {
+        "CSPX@XLON": "listing:isin:IE00B5BMR087:XLON:USD"
       }
     },
     "ctp": {
@@ -4338,11 +4572,25 @@
         "GEV@XNYS": "listing:figi:BBG01LT2THM3"
       }
     },
+    "gsk": {
+      "security": "security:isin:GB00BN7SWP63",
+      "issuer": "issuer:lei:5493000HZTVUYLO1D793",
+      "listings": {
+        "GSK@XLON": "listing:isin:GB00BN7SWP63:XLON:GBP"
+      }
+    },
     "gsk-adr": {
       "security": "security:figi:BBG001SD6SM6",
       "issuer": "issuer:lei:5493000HZTVUYLO1D793",
       "listings": {
         "GSK@XNYS": "listing:figi:BBG000BLB5N1"
+      }
+    },
+    "haleon": {
+      "security": "security:isin:GB00BMX86B70",
+      "issuer": "issuer:lei:549300PSB3WWEODCUP19",
+      "listings": {
+        "HLN@XLON": "listing:isin:GB00BMX86B70:XLON:GBP"
       }
     },
     "haleon-adr": {
@@ -4420,6 +4668,13 @@
       "issuer": "issuer:lei:529900O5RR7R39FRDM42",
       "listings": {
         "HM B@XSTO": "listing:isin:SE0000106270:XSTO:SEK"
+      }
+    },
+    "hsbc": {
+      "security": "security:isin:GB0005405286",
+      "issuer": "issuer:lei:MLU0ZO3ML4LN2LL2TL39",
+      "listings": {
+        "HSBA@XLON": "listing:isin:GB0005405286:XLON:GBP"
       }
     },
     "hsbc-adr": {
@@ -4517,7 +4772,8 @@
       "security": "security:isin:IE00B4L5Y983",
       "issuer": "issuer:lei:549300QS4Q1IT6XCA514",
       "listings": {
-        "IWDA@XAMS": "listing:isin:IE00B4L5Y983:XAMS:USD"
+        "IWDA@XAMS": "listing:isin:IE00B4L5Y983:XAMS:USD",
+        "SWDA@XLON": "listing:isin:IE00B4L5Y983:XLON:GBP"
       }
     },
     "jpm-pc": {
@@ -4691,6 +4947,13 @@
         "NRP@XAMS": "listing:isin:NL0015000RT3:XAMS:EUR"
       }
     },
+    "nestle": {
+      "security": "security:isin:CH0038863350",
+      "issuer": "issuer:lei:549300PZN3NFSOUXLC42",
+      "listings": {
+        "NESN@XSWX": "listing:isin:CH0038863350:XSWX:CHF"
+      }
+    },
     "nestle-adr": {
       "security": "security:figi:BBG001S6XFC0",
       "issuer": "issuer:lei:549300PZN3NFSOUXLC42",
@@ -4735,9 +4998,9 @@
       "security": "security:isin:FI4000297767",
       "issuer": "issuer:lei:529900ODI3047E2LIV03",
       "listings": {
-        "NDA FI@XHEL": "listing:isin:FI4000297767:XHEL:EUR",
-        "NDA SE@XSTO": "listing:isin:FI4000297767:XSTO:EUR",
-        "NDA DK@XCSE": "listing:isin:FI4000297767:XCSE:EUR"
+        "NDA@XHEL": "listing:isin:FI4000297767:XHEL:EUR",
+        "NDA@XSTO": "listing:isin:FI4000297767:XSTO:EUR",
+        "NDA@XCSE": "listing:isin:FI4000297767:XCSE:EUR"
       }
     },
     "novo": {
@@ -4898,6 +5161,13 @@
         "RET@XAMS": "listing:isin:BE0003720340:XAMS:EUR"
       }
     },
+    "rio": {
+      "security": "security:isin:GB0007188757",
+      "issuer": "issuer:lei:213800YOEO5OQ72G2R82",
+      "listings": {
+        "RIO@XLON": "listing:isin:GB0007188757:XLON:GBP"
+      }
+    },
     "rio-adr": {
       "security": "security:figi:BBG001SB0LX9",
       "issuer": "issuer:lei:213800YOEO5OQ72G2R82",
@@ -4918,6 +5188,11 @@
       "listings": {
         "RYAAY@XNAS": "listing:figi:BBG000J9F0Q4"
       }
+    },
+    "samsung-gdr": {
+      "security": "security:figi:BBG001S7BHY4",
+      "issuer": "issuer:lei:9884007ER46L6N7EI764",
+      "listings": {}
     },
     "sanofi": {
       "security": "security:isin:FR0000120578",
@@ -5104,6 +5379,13 @@
         "TEL@XNYS": "listing:isin:IE000IVNQZ81:XNYS:USD"
       }
     },
+    "tencent": {
+      "security": "security:figi:BBG001S8C4T6",
+      "issuer": "issuer:lei:254900N4SLUMW4XUYY11",
+      "listings": {
+        "0700@XHKG": "listing:figi:BBG000BJ35N5"
+      }
+    },
     "tencent-adr": {
       "security": "security:figi:BBG001T3RVC8",
       "issuer": "issuer:lei:254900N4SLUMW4XUYY11",
@@ -5128,6 +5410,13 @@
       "issuer": "issuer:lei:529900S21EQ1BO4ESM68",
       "listings": {
         "TTE@XPAR": "listing:isin:FR0000120271:XPAR:EUR"
+      }
+    },
+    "toyota": {
+      "security": "security:isin:JP3633400001",
+      "issuer": "issuer:lei:5493006W3QUS5LMH6R84",
+      "listings": {
+        "7203@XJPX": "listing:isin:JP3633400001:XJPX:JPY"
       }
     },
     "toyota-adr": {
@@ -5293,7 +5582,8 @@
       "security": "security:isin:IE00B3XXRP09",
       "issuer": "issuer:lei:B8GS85IADJB33D8WL305",
       "listings": {
-        "VUSA@XAMS": "listing:isin:IE00B3XXRP09:XAMS:USD"
+        "VUSA@XAMS": "listing:isin:IE00B3XXRP09:XAMS:USD",
+        "VUSA@XLON": "listing:isin:IE00B3XXRP09:XLON:USD"
       }
     },
     "vw": {
@@ -5304,11 +5594,21 @@
         "VOW@XFRA": "listing:isin:DE0007664005:XFRA:EUR"
       }
     },
+    "vwra": {
+      "security": "security:isin:IE00BK5BQT80",
+      "issuer": "issuer:lei:EEXSPYGY7X8YAH8ZJF49",
+      "listings": {
+        "VWRA@XLON": "listing:isin:IE00BK5BQT80:XLON:USD",
+        "VWRP@XLON": "listing:isin:IE00BK5BQT80:XLON:USD"
+      }
+    },
     "vwrl": {
       "security": "security:isin:IE00B3RBWM25",
       "issuer": "issuer:lei:EEXSPYGY7X8YAH8ZJF49",
       "listings": {
-        "VWRL@XAMS": "listing:isin:IE00B3RBWM25:XAMS:USD"
+        "VWRL@XAMS": "listing:isin:IE00B3RBWM25:XAMS:USD",
+        "VWRL@XLON": "listing:isin:IE00B3RBWM25:XLON:USD",
+        "VWRD@XLON": "listing:isin:IE00B3RBWM25:XLON:USD"
       }
     },
     "wbd": {

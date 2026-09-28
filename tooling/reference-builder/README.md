@@ -102,8 +102,14 @@ table under `writer_ignored`.
   with a real home-exchange line in OpenFIGI, use the home exchange (Shell and
   Unilever move to XLON). That line is written with its venue's trading currency
   (`rules.HOME_CURRENCY`: London GBP, SIX CHF, Toronto CAD, the ASX AUD, Tokyo
-  JPY, Hong Kong HKD, Singapore SGD, Tel Aviv ILS, Johannesburg ZAR), and its
-  ticker without OpenFIGI's Bloomberg slashes (`BP/` → `BP`, `RCI/B` → `RCI-B`). A US ISIN's primary is its first US exchange line
+  JPY, Hong Kong HKD, Singapore SGD, Tel Aviv ILS, Johannesburg ZAR, Taiwan
+  TWD), under the venue's operating MIC (Tokyo's is XJPX), and its ticker
+  without OpenFIGI's Bloomberg slashes (`BP/` → `BP`, `RCI/B` → `RCI-B`; Hong
+  Kong codes keep four digits, `0700`). An ISIN from a country with no home venue
+  of its own (the Cayman Islands, Bermuda, Jersey) takes the first home venue
+  OpenFIGI shows in `rules.OFFSHORE_HOMES` (Hong Kong for Tencent and Alibaba,
+  London for Glencore), unless FIRDS' relevant venue is an EEA regulated market
+  (Aegon and Flow Traders stay on Euronext Amsterdam). A US ISIN's primary is its first US exchange line
   from the SEC: OpenFIGI shows US lines on every US exchange, so it cannot name
   the home one. A non-US security with a SEC exchange line and no line in its
   ISIN's country (Linde, Accenture, Medtronic: Irish holding companies of US

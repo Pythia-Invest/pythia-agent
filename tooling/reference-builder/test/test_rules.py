@@ -51,6 +51,14 @@ class PrimaryVenueTest(unittest.TestCase):
         self.assertEqual(rules.primary_venue("DE000FRE5EN2", "XDUS", True, [])[:2], ("XETR", "german_floor_to_xetra"))
         self.assertEqual(rules.primary_venue("DE000FRE5EN2", "TGAT", True, [])[0], "TGAT")  # not a floor exchange
 
+    def test_an_offshore_isin_takes_the_home_venue_openfigi_shows_unless_listed_on_an_eea_regulated_market(self):
+        fanout = [figi_row("TCTZF", "SW", "F1", "S1"), figi_row("80700", "HK", "F2", "S1"), figi_row("700", "HK", "F3", "S1")]
+        mic, rule, row = rules.primary_venue("KYG875721634", "XMUN", False, fanout)
+        self.assertEqual((mic, rule, row["ticker"]), ("XHKG", "home_listing_evidence", "700"))
+        self.assertEqual(rules.home_ticker("700", "XHKG"), "0700")
+        self.assertEqual(rules.primary_venue("BMG0112X1056", "XAMS", False, fanout, listed_in_eea=True)[:2],
+                         ("XAMS", "firds_relevant_venue"))  # Aegon stays on Euronext Amsterdam
+
     def test_eea_issuer_keeps_firds_even_with_us_lines(self):
         fanout = [figi_row("ASML", "UW", "F1", "S2")]
         self.assertEqual(rules.primary_venue("NL0010273215", "XAMS", False, fanout)[0], "XAMS")

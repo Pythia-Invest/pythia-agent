@@ -40,7 +40,7 @@ def add(snap: Snapshot, isins: list[str], figi_map: Callable[[list[dict]], list[
         listing = Listing(
             listing_id=f"{mic}:{isin}:{trading}", source="openfigi", row_class="etf", security_id=security.security_id,
             issuer_id=security.issuer_id, mic=mic, operating_mic=mic, country=country, currency=trading,
-            ticker=rules.home_ticker(row["ticker"]), ticker_source="openfigi", figi=row.get("figi"),
+            ticker=rules.home_ticker(row["ticker"], mic), ticker_source="openfigi", figi=row.get("figi"),
             composite_figi=row.get("compositeFIGI"), share_class_figi=row.get("shareClassFIGI"),
             security_type=row.get("securityType2") or row.get("securityType"), name=row.get("name"),
             status_reasons=["etf_line_from_openfigi"],

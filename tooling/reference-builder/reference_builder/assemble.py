@@ -195,7 +195,8 @@ def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
     xetra = [r for r in records if r.mic in XETRA_SEGMENTS and not (r.termination and r.termination <= inputs.as_of.isoformat())]
     # A regional regulated-market admission is the listing: it moves only to a regulated Xetra line.
     xetra_live = bool(xetra) and (not _regulated(inputs, relevant) or any(_regulated(inputs, r.mic) for r in xetra))
-    primary_mic, rule, home_row = rules.primary_venue(isin, operating(inputs.venues, relevant), xetra_live, fanout)
+    primary_mic, rule, home_row = rules.primary_venue(isin, operating(inputs.venues, relevant), xetra_live, fanout,
+                                                      listed_in_eea=_regulated(inputs, relevant))
     if moved and rule == "firds_relevant_venue":
         rule = "trading_venue_to_listing_venue"
     audit[f"primary_{rule}"] += 1
@@ -211,7 +212,7 @@ def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
         snap.flag(security.security_id, "also_us_listed")
     if head.cfi.startswith("ED") and head.underlying_isin and head.underlying_isin != isin:
         snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", f"isin:{head.underlying_isin}", "esma_firds", "firds_underlying_isin"))
-    _mark_primary(snap, security, listings, relevant, home_row)
+    _mark_primary(snap, security, listings, relevant, home_row, operating(inputs.venues, primary_mic))
     states = {l.status for l in listings}
     security.activity = "active" if "active" in states else ("suspect" if "suspect" in states else ("inactive" if states else "active"))
 
@@ -230,7 +231,7 @@ def _listing_venue(isin: str, listings: list[Listing]) -> Listing | None:
     return min((l for l in listings if l.operating_mic not in rules.TRADING_ONLY_VENUES), key=order, default=None)
 
 
-def _mark_primary(snap, security, listings, relevant, home_row) -> None:
+def _mark_primary(snap, security, listings, relevant, home_row, home_operating_mic=None) -> None:
     on_primary = [l for l in listings if l.operating_mic == security.primary_mic]
     if on_primary:
         best = sorted(on_primary, key=lambda l: (l.mic != rules.lit_segment(relevant or ""), l.status != "active", l.mic or ""))[0]
@@ -240,10 +241,11 @@ def _mark_primary(snap, security, listings, relevant, home_row) -> None:
         mic = security.primary_mic
         listing = Listing(
             listing_id=f"{mic}:{home_row['ticker'].replace('/', '-')}", source="openfigi", row_class=security.kind,
-            security_id=security.security_id, issuer_id=security.issuer_id, mic=mic, operating_mic=mic,
-            country=security.isin[:2] if security.isin else None, is_primary=True, name=home_row.get("name"),
+            security_id=security.security_id, issuer_id=security.issuer_id, mic=mic, operating_mic=home_operating_mic or mic,
+            country=rules.HOME_VENUE_COUNTRY.get(mic) or (security.isin[:2] if security.isin else None), is_primary=True,
+            name=home_row.get("name"),
         )
-        _apply_figi(listing, home_row | {"ticker": rules.home_ticker(home_row["ticker"])}, security.fisn)
+        _apply_figi(listing, home_row | {"ticker": rules.home_ticker(home_row["ticker"], mic)}, security.fisn)
         listing.currency = rules.HOME_CURRENCY.get(mic)  # without one core cannot key the line and it is dropped
         listing.status_reasons = ["home_line_from_openfigi"]
         snap.listings.setdefault(listing.listing_id, listing)

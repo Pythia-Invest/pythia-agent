@@ -58,6 +58,8 @@ class ScopeTest(unittest.TestCase):
         self.assertFalse(scope.covers(shell, {"mic": "XSWX"}, venues))  # not its ISIN country's venue
         self.assertFalse(truth_scope.Scope(eea=True).covers(shell, {"mic": "XLON"}, venues))
         self.assertFalse(scope.covers({**shell, "listings": [{"mic": "XLON"}]}, {"mic": "XLON"}, venues))
+        tencent = {"kind": "ordinary", "cfi": "ES", "security": {"isin": "KYG875721634"}, "listings": [{"mic": "XHKG"}]}
+        self.assertTrue(scope.covers(tencent, {"mic": "XHKG"}, venues | {"XHKG": {"country": "HK"}}))  # offshore ISIN
 
 
 class AuditTest(unittest.TestCase):

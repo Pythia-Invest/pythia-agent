@@ -211,9 +211,12 @@ installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange). A regulated listing comes next (an ISO 10383 regulated-market
-segment, carried as `venues.category`, or an exchange whose ISO category is
-unspecified, such as NYSE, Tokyo or Toronto) over open-market
+exchange). A depositary receipt then ranks below the company's own shares
+when a regulated line of them can be priced (Tencent in Hong Kong, not its
+Singapore receipt). A regulated listing comes next (an ISO 10383
+regulated-market segment, carried as `venues.category`, or an exchange outside
+the EEA whose ISO category is unspecified, such as NYSE, Tokyo or Toronto; in
+the EEA that category marks operator MICs, never a listing) over open-market
 trading such as a German Freiverkehr line; then the home and primary market; a
 foreign company's receipt or OTC line ranks below its other lines. Among the
 remaining lines, one an installed, usable plugin can price comes first (its
