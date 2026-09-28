@@ -4,7 +4,9 @@ A UCITS ETF (an Irish or Luxembourg fund share class) has one ISIN and several
 listings; ESMA FIRDS covers only the EEA venues. OpenFIGI names the London and
 SIX lines, one per trading currency, but its answer carries no currency: each
 currency is asked for with the `currency` filter (London's pence lines are `GBp`,
-recorded as GBP, the currency the listing trades in).
+recorded as GBP, the currency the listing trades in). An Irish or Luxembourg
+ETF's lines there are never its primary (no open source names a UCITS ETF's home
+listing); a Swiss or British ETF's home line is, as for shares.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ CURRENCY = {"GBp": "GBP"}
 
 
 def add(snap: Snapshot, isins: list[str], figi_map: Callable[[list[dict]], list[dict]]) -> None:
-    """Add the London and SIX lines of these ETF ISINs, never as primary (no source names an ETF's home)."""
+    """Add the London and SIX lines of these ETF ISINs; only a British or Swiss ETF's becomes its primary."""
     audit = snap.audit.setdefault("etf_lines", Counter())
     fanout = figi_map([{"idType": "ID_ISIN", "idValue": isin} for isin in isins])
     jobs = [(isin, code, currency) for isin, answer in zip(isins, fanout)
@@ -46,3 +48,24 @@ def add(snap: Snapshot, isins: list[str], figi_map: Callable[[list[dict]], list[
         snap.listings.setdefault(listing.listing_id, listing)
         audit[f"lines_{mic}"] += 1
     audit["isins_asked"], audit["isins_with_lines"] = len(isins), len({isin for isin, *_ in jobs})
+    _mark_home(snap, audit)
+
+
+def _mark_home(snap: Snapshot, audit: Counter) -> None:
+    """A Swiss or British ETF's SIX or London line is its home listing, as for shares: the primary moves there,
+    to the line in the national currency when there is one."""
+    lines: dict[str, list[Listing]] = {}
+    for listing in snap.listings.values():
+        lines.setdefault(listing.security_id or "", []).append(listing)
+    for code, (mic, country, currencies) in VENUES.items():
+        for security in snap.securities.values():
+            if security.kind != "etf" or not (security.isin or "").startswith(country):
+                continue
+            home = sorted((l for l in lines.get(security.security_id, []) if l.operating_mic == mic),
+                          key=lambda l: (CURRENCY.get(currencies[0], currencies[0]) != l.currency, l.listing_id))
+            if not home:
+                continue
+            for listing in lines[security.security_id]:
+                listing.is_primary = listing is home[0]
+            security.primary_mic, security.primary_rule = mic, "etf_home_line"
+            audit["home_primary"] += 1

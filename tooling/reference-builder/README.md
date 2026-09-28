@@ -94,8 +94,10 @@ table under `writer_ignored`.
   ISIN, so the SEC and fund-file lines join that security.
 - **UCITS ETFs outside the EEA.** FIRDS covers only EEA venues. An ETF's London
   and SIX lines come from OpenFIGI, one per trading currency (London's pence
-  lines are recorded in GBP). They are never marked primary: no open source
-  names a UCITS ETF's home listing.
+  lines are recorded in GBP). An Irish or Luxembourg ETF's lines there are
+  never marked primary (no open source names a UCITS ETF's home listing); a
+  Swiss or British ETF's SIX or London line is its home and primary
+  (`etf_home_line`), in the national currency when it has one.
 - **Primary venue.** Start from the FIRDS relevant venue. For a non-EEA ISIN
   with a real home-exchange line in OpenFIGI, use the home exchange (Shell and
   Unilever move to XLON). That line is written with its venue's trading currency
