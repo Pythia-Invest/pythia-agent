@@ -1,6 +1,7 @@
 export {
   initializeDevelopmentRuntime,
   recoverDevelopmentInitialization,
+  retireDeadReceipt,
   validateReceipt,
 } from "./supervisor-admission.mjs";
 export {

@@ -235,11 +235,34 @@ os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
       supervisor: { ...identity, command_sha256: "0".repeat(64) },
       children: [],
     });
-    await expect(stopStack(paths)).rejects.toThrow(/Refusing to signal/u);
     await expect(requestHermesRestart(paths, 500)).rejects.toThrow(
       /supervisor receipt is stale or foreign/u,
     );
+    // The PID now runs another command, so the recorded supervisor has exited:
+    // stop sets the record aside and never signals the process holding the PID.
+    await expect(stopStack(paths)).resolves.toMatchObject({
+      stopped: false,
+      reason: "already-exited",
+    });
     expect(processIdentity(sleeperPid)).not.toBeNull();
-    expect(() => resetDerivedDevelopmentState(paths)).toThrow(/stale receipt/u);
+    expect(existsSync(paths.receipt)).toBe(false);
+
+    // A receipt whose supervisor still runs is never set aside or signalled.
+    atomicWriteJson(paths.receipt, {
+      schema_version: 1,
+      stack: paths.id,
+      repository: paths.repositoryRoot,
+      hermes_root: paths.hermesRoot,
+      state_root: paths.stateRoot,
+      supervisor: { ...identity, pid: sleeperPid },
+      children: [
+        { name: "hermes", ...identity, command_sha256: "0".repeat(64) },
+      ],
+    });
+    expect(() => resetDerivedDevelopmentState(paths)).toThrow(
+      /running receipt/u,
+    );
+    expect(existsSync(paths.receipt)).toBe(true);
+    expect(processIdentity(sleeperPid)).not.toBeNull();
   });
 });

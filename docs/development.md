@@ -120,7 +120,13 @@ its ports is occupied. Before launching Hermes, it also waits boundedly for the
 API port to become reusable under Hermes's native bind semantics. `Ctrl-C` and
 `just stop` propagate through the same foreground owner and clean up both
 children. A stale or foreign process receipt is reported but never signalled,
-adopted, or deleted around.
+adopted, or deleted around. The one exception is a receipt whose supervisor
+and every child have provably exited, as after the owner was killed without
+cleanup: each recorded PID is free or now belongs to a process with a
+different start time or command. `just dev`, `just dev-init`, `just stop` and
+`just dev-reset` then rename it to `foreground.json.stale-<time>` beside itself
+and continue, without signalling anything. If any recorded process might still
+be running, or its identity cannot be read, the receipt stays authoritative.
 
 Desk source uses Next.js hot reload while `just dev` is running. There is no
 automatic watcher for managed Hermes, plugin, runner, or dependency source.

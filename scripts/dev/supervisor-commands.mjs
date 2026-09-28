@@ -5,6 +5,7 @@ import { identityMatches, signalOwned } from "./processes.mjs";
 import { bootstrapRuntime } from "./runtime.mjs";
 import {
   acquirePreparationAdmission,
+  retireDeadReceipt,
   validateReceipt,
 } from "./supervisor-admission.mjs";
 import {
@@ -89,6 +90,8 @@ export async function stopStack(paths) {
   if (!existsSync(paths.receipt)) {
     return { stopped: false, reason: "already-stopped" };
   }
+  const retired = retireDeadReceipt(paths);
+  if (retired) return { stopped: false, reason: "already-exited", retired };
   const receipt = validateReceipt(paths, readJson(paths.receipt));
   await signalOwned(receipt.supervisor, "SIGTERM");
   const deadline = Date.now() + 15_000;
@@ -104,6 +107,7 @@ export async function stopStack(paths) {
 }
 
 export function resetDerivedDevelopmentState(paths) {
+  retireDeadReceipt(paths);
   if (existsSync(paths.receipt)) {
     const receipt = validateReceipt(paths, readJson(paths.receipt));
     const state = identityMatches(receipt.supervisor) ? "running" : "stale";
