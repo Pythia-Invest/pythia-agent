@@ -172,7 +172,7 @@ function installedFixture() {
       join(paths.checkout, "runtime", "managed", "core"),
       pluginDestination,
     );
-    applyMigrations(paths);
+    applyMigrations(paths, { hermes: () => "" });
     installUnits(paths, renderUnits(paths, executables));
   }
 
@@ -189,7 +189,7 @@ function installedFixture() {
     if (stage === "plugin") {
       throw new Error("synthetic plugin interruption");
     }
-    applyMigrations(paths);
+    applyMigrations(paths, { hermes: () => "" });
     if (stage === "migration") {
       throw new Error("synthetic migration interruption");
     }
@@ -308,7 +308,10 @@ describe("signed A-to-B state preservation", () => {
         phase: "complete",
         services: "running",
       });
-      expect(applyMigrations(fixture.paths)).toEqual(["0001-device-state-v1"]);
+      expect(applyMigrations(fixture.paths, { hermes: () => "" })).toEqual([
+        "0001-device-state-v1",
+        "0002-agent-tool-surface",
+      ]);
     },
     15_000,
   );

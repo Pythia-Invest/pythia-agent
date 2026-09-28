@@ -137,5 +137,5 @@ def register(ctx):
         return read
 
     for operation, schema in reader.definitions.items():
-        ctx.register_tool(name=TOOLS[operation], toolset='pythia-sec', schema=schema, handler=handler(operation),
+        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation),
                           check_fn=available)

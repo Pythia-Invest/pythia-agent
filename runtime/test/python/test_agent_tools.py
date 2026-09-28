@@ -66,6 +66,38 @@ def envelope(data, issues=()):
     return json.dumps({"schema_version": 1, "outcome": "ok" if data else "empty", "data": data, "issues": list(issues)})
 
 
+def validator_module():
+    """jsonschema when installed (the pinned Hermes environment has it). Otherwise a stand-in with its interface for
+    the keywords these cases use; tooling/qualification/agent_tools_native.py checks the real one."""
+    try:
+        import jsonschema  # noqa: F401
+        return {}
+    except ImportError:
+        pass
+
+    def iter_errors(schema, value):
+        properties = schema.get("properties", {})
+        for key in value:
+            if key not in properties and schema.get("additionalProperties") is False:
+                yield SimpleNamespace(json_path="$", message=f"Additional properties are not allowed ('{key}' was unexpected)")
+        for key in schema.get("required", []):
+            if key not in value:
+                yield SimpleNamespace(json_path="$", message=f"'{key}' is a required property")
+        for key, item in value.items():
+            spec = properties.get(key, {})
+            if spec.get("type") == "integer" and type(item) is not int:
+                yield SimpleNamespace(json_path=f"$.{key}", message=f"{item!r} is not of type 'integer'")
+            if "enum" in spec and item not in spec["enum"]:
+                yield SimpleNamespace(json_path=f"$.{key}", message=f"{item!r} is not one of {spec['enum']}")
+            if isinstance(item, list) and len(item) > spec.get("maxItems", len(item)):
+                yield SimpleNamespace(json_path=f"$.{key}", message=f"{item!r} is too long")
+
+    module, exceptions = ModuleType("jsonschema"), ModuleType("jsonschema.exceptions")
+    module.Draft202012Validator = lambda schema: SimpleNamespace(iter_errors=lambda value: iter_errors(schema, value))
+    exceptions.best_match = lambda errors: next(iter(errors), None)
+    return {"jsonschema": module, "jsonschema.exceptions": exceptions}
+
+
 def filing_rows(forms):
     """Rows as sec/financials.filings and xbrl-filings/reports.filings build them (synthetic values)."""
     return [{"accession": f"0000000000-26-{index:06d}", "form": form, "filed_at": f"2026-0{9 - index % 9}-01",
@@ -136,7 +168,8 @@ class AgentToolFixture(unittest.TestCase):
         registry = ModuleType("tools.registry")
         registry.registry = SimpleNamespace(get_all_tool_names=lambda: list(self.schemas),
                                             get_schema=lambda name: self.schemas.get(name))
-        self.enterContext(mock.patch.dict(sys.modules, {"tools": ModuleType("tools"), "tools.registry": registry}))
+        self.enterContext(mock.patch.dict(sys.modules, {"tools": ModuleType("tools"), "tools.registry": registry,
+                                                        **validator_module()}))
         self.enterContext(mock.patch.dict(os.environ, {"PYTHIA_REFERENCE_DIR": str(reference)}))
         self.enterContext(mock.patch.object(identity_ops, "installed", lambda: list(self.plugins.values())))
         self.enterContext(mock.patch.object(access, "eligible_tools", lambda: set(self.eligible)))
@@ -167,9 +200,13 @@ class PythiaCommandTest(AgentToolFixture):
         self.assertNotIn("subject_id", args)
         self.assertEqual(context, {"session_id": "session-1", "task_id": "task-1"})
         # A leading `pythia` and a Yahoo symbol filled from the listing's MIC suffix work the same way.
-        self.handlers["pythia_yahoo_research"] = lambda args, **_: envelope({"symbol": args["symbol"]})
-        result = self.pythia("pythia yahoo finance", {"subject_id": ASML, "operation": "quoteSummary"})
-        self.assertEqual(result["data"], {"symbol": "ASML.AS"})
+        self.handlers["pythia_yahoo_research"] = lambda args, **_: envelope({"symbol": args["symbol"],
+                                                                             "symbols": args["symbols"]})
+        result = self.pythia("pythia yahoo finance", {"subject_id": ASML, "operation": "quote"})
+        self.assertEqual(result["data"], {"symbol": "ASML.AS", "symbols": ["ASML.AS"]})  # quote reads `symbols`
+        # A profile read is a function: core serves no profile concept yet (quote, chart and filings it does).
+        self.handlers["pythia_gleif_profile"] = lambda args, **_: envelope({"lei": args["native_ref"]["native_id"]})
+        self.assertEqual(self.pythia("gleif profile", {"subject_id": ASML})["data"], {"lei": "724500Y6DUVHQD6OXN27"})
         # Core's own read function passes its own subject_id through.
         self.handlers["pythia_identity_queue"] = lambda args, **_: envelope({"items": [args]})
         self.assertEqual(self.pythia("identity queue", {"subject_id": ASML})["data"]["items"], [{"subject_id": ASML}])
@@ -191,19 +228,20 @@ class PythiaCommandTest(AgentToolFixture):
         self.assertEqual(self.ctx.calls, [])
 
     def test_c_bad_arguments_name_the_parameter_before_any_call(self):
-        cases = [({"subject_id": ASML, "taxonomy": "ifrs-full"}, "args.concepts is required"),
+        cases = [({"subject_id": ASML, "taxonomy": "ifrs-full"}, ("args:", "'concepts'")),
                  ({"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"], "limit": "5"},
-                  "args.limit must be a JSON integer"),
-                 ({"subject_id": ASML, "taxonomy": "gaap", "concepts": ["Revenue"]}, "args.taxonomy must be one of"),
+                  ("args.limit:", "integer")),
+                 ({"subject_id": ASML, "taxonomy": "gaap", "concepts": ["Revenue"]}, ("args.taxonomy:", "gaap")),
                  ({"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"], "form": "10-K"},
-                  "args.form is not a parameter of sec facts"),
+                  ("args:", "'form' was unexpected")),
                  ({"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"] * 9},
-                  "args.concepts must have 1 to 8 items")]
-        for args, message in cases:
-            with self.subTest(message=message):
+                  ("args.concepts:", "too long"))]
+        for args, words in cases:
+            with self.subTest(words=words):
                 result = self.pythia("sec facts", args)
                 self.assertEqual(result["issues"][0]["code"], "invalid_arguments")
-                self.assertIn(message, result["issues"][0]["message"])
+                for word in words:
+                    self.assertIn(word, result["issues"][0]["message"])
                 self.assertEqual(result["usage"], "help sec facts")
         self.assertEqual(self.pythia("sec facts", ["x"])["issues"][0]["code"], "invalid_command")
         unknown = self.pythia("sec facts", {"subject_id": "listing:isin:XX0000000000:XAMS:EUR", "taxonomy": "ifrs-full",
@@ -226,8 +264,8 @@ class PythiaCommandTest(AgentToolFixture):
         raw = json.loads((MANAGED / "plugins/sec/contract.json").read_text())
         self.plugins["sec"] = page.PluginInfo(key="pythia-sec", manifest=manifest.validate_manifest(
             {**raw, "functions": ["filings"]}))
-        self.assertIn("not available as a read-only function", self.pythia("sec filings", {"subject_id": ASML})
-                      ["issues"][0]["message"])
+        self.assertEqual(self.pythia("sec filings", {"subject_id": ASML})["issues"][0]["code"], "unknown_function")
+        self.assertNotIn("filings", self.pythia("help")["sources"][3]["functions"])
         self.assertEqual(self.ctx.calls, [])
 
     def test_e_disabled_or_unconfigured_sources_say_why_without_a_call(self):
@@ -257,6 +295,11 @@ class PythiaCommandTest(AgentToolFixture):
                                                         ("identity-queue", "identity-verdict"))):
             refused = self.pythia("identity verdict", {"item_id": "q1", "relation": "none"})
         self.assertIn("not available as a read-only function", refused["issues"][0]["message"])
+        comment = json.loads(self.schemas["pythia_sec_facts"]["parameters"]["$comment"])
+        del comment["pythia_http_operation"]["read_only"]  # a hand-written marker that omits the key
+        self.schemas["pythia_sec_facts"]["parameters"]["$comment"] = json.dumps(comment)
+        unmarked = self.pythia("sec facts", {"subject_id": ASML, "taxonomy": "ifrs-full", "concepts": ["Revenue"]})
+        self.assertIn("not available as a read-only function", unmarked["issues"][0]["message"])
         self.assertEqual(self.ctx.calls, [])
 
     def test_g_an_oversized_result_is_shortened_and_says_so(self):
@@ -351,7 +394,7 @@ class ConceptToolTest(AgentToolFixture):
             bars = [{"shape": "ohlc", "time": {"kind": "session_date", "value": f"2026-0{month}-01"}, "interval": None,
                      "completion": {"state": "completed", "basis": "source"}, "open": "1", "high": str(month * 10),
                      "low": "1", "close": str(month * 100)} for month in (1, 2, 3)]
-            if args["criteria"].get("measurement") == "ohlc" and args["request"]["view"]["subject"].get("provider"):
+            if args["criteria"].get("measurement") == "ohlc" and len(seen) > 1:
                 return json.dumps(self.read_result(args["request"], outcome="error", issues=[
                     {"code": "incompatible_series", "message": "No series.", "severity": "error"}]))
             return json.dumps(self.read_result(args["request"], observations=bars))
@@ -359,10 +402,11 @@ class ConceptToolTest(AgentToolFixture):
         self.handlers[agent_reads.MARKET_DATA_TOOL] = market_data
         self.plugins["eodhd"] = contract("eodhd", enabled=False)
         result = self.call(agent_reads.prices, subject_id=ASML, start="2026-01-01", points=2)
-        self.assertEqual(seen[0]["request"]["view"]["subject"], {"kind": "listing", "id": ASML})
+        yahoo = {"provider": "yahoo", "native_id": "ASML.AS", "native_scope": "symbol"}
+        self.assertEqual(seen[0]["request"]["view"]["subject"], yahoo)  # the source core chose, and labels
         self.assertEqual(seen[0]["request"]["window"]["start"], {"kind": "session_date", "value": "2026-01-01"})
         self.assertEqual((result["source"]["source"], result["source"]["selected"], result["source"]["delay_seconds"]),
-                         ("Yahoo Finance", "investor order", 900))
+                         ("Yahoo Finance", "first in order", 900))
         self.assertEqual(result["summary"]["change_pct"], "200.00")
         self.assertEqual((result["summary"]["high"], len(result["bars"]), result["currency"]), ("30", 2, "EUR"))
         self.assertEqual(result["skipped"], [{"source": "EODHD", "provider": "eodhd", "plugin": "pythia-eodhd",
@@ -385,8 +429,8 @@ class ConceptToolTest(AgentToolFixture):
         latest = self.call(agent_reads.prices, subject_id=ASML)
         self.assertEqual(latest["quote"], {"t": "2026-09-26T09:59:00Z", "v": "612.40"})
         company = self.call(agent_reads.prices, subject_id=ASML_ISSUER)  # a company reads its primary listing
-        self.assertEqual((company["subject_id"], self.ctx.calls[-1][1]["request"]["view"]["subject"]),
-                         (ASML, {"kind": "listing", "id": ASML}))
+        self.assertEqual((company["subject_id"], self.ctx.calls[-1][1]["request"]["view"]["subject"]["native_id"]),
+                         (ASML, "ASML.AS"))
         self.assertEqual([row["source"] for row in latest["alternatives"]], ["EODHD"])
         self.handlers[agent_reads.MARKET_DATA_TOOL] = lambda args, **_: json.dumps(self.read_result(
             args["request"], outcome="error", issues=[{"code": "source_error", "message": "Down.", "severity": "error"}]))
@@ -438,6 +482,16 @@ class DeliveredViewTest(unittest.TestCase):
                          "The model-visible tool list changed. It is every session's cached prefix: review the "
                          "change, then rerun with PYTHIA_UPDATE_SNAPSHOTS=1 and format the file with Biome to accept it.")
 
+    def test_registration_order_leaves_one_verdict_operation_and_no_marker_on_the_answer(self):
+        with mock.patch.object(identity_ops, "CURRENT", None):
+            for _ in range(2):  # core registered before (as the loaded plugin is) stamps the shared Desk schema
+                ctx = Context({})
+                core.register(ctx)
+        declared = [name for name, entry in ctx.tools.items()
+                    if (operations.declaration(entry["schema"]) or {}).get("operation") == "identity-verdict"]
+        self.assertEqual(declared, ["pythia_identity_verdict"])
+        self.assertNotIn("$comment", json.dumps(ctx.tools["pythia_answer_identity_question"]["schema"]))
+
     def test_budgets_and_no_operation_markers(self):
         schemas = self.visible()
         sizes = {schema["name"]: len(json.dumps(schema, separators=(",", ":"))) for schema in schemas}
@@ -457,10 +511,12 @@ class DeliveredViewTest(unittest.TestCase):
         block = text.split("known_plugin_toolsets:\n", 1)[1].split("\ntools:", 1)[0]
         hidden = {platform: re.findall(r"^    - (\S+)$", body, re.M)
                   for platform, body in re.findall(r"^  (\w+):\n((?:    - \S+\n)+)", block + "\n", re.M)}
-        self.assertEqual(set(hidden), {"api_server", "cli", "cron"})
-        self.assertEqual(len({tuple(value) for value in hidden.values()}), 1)
-        self.assertNotIn(agent_tools.TOOLSET, hidden["api_server"])
-        self.assertIn(identity_ops.TOOLSET, hidden["api_server"])
+        # One hidden toolset for every plugin operation; the agent's tools serve Desk chat only.
+        self.assertEqual(hidden, {"api_server": [identity_ops.TOOLSET], "cli": [identity_ops.TOOLSET, agent_tools.TOOLSET],
+                                  "cron": [identity_ops.TOOLSET, agent_tools.TOOLSET]})
+        for plugin in (MANAGED / "plugins").iterdir():
+            sources = "".join(path.read_text() for path in plugin.glob("*.py"))
+            self.assertNotRegex(sources, r"toolset=['\"](?!pythia-core)|TOOLSET = ['\"](?!pythia-core)", plugin.name)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,6 @@ plugins:
     - pythia
 platform_toolsets:
   cli:
-    - pythia-desk
     - cronjob
     - delegation
     - file
@@ -19,7 +18,6 @@ platform_toolsets:
     - vision
     - web
   cron:
-    - pythia-desk
     - cronjob
     - delegation
     - file
@@ -42,42 +40,17 @@ platform_toolsets:
     - todo
     - vision
     - web
-# Plugin and core operation toolsets stay registered and runnable by Pythia but hidden from
-# the model: only the pythia-desk tools are visible (docs/architecture/agent-tools.md).
+# Every Pythia plugin operation is registered in core's pythia-core toolset: runnable by Pythia, never shown to
+# the model. The agent's tools (pythia-desk) serve Desk chat only (docs/architecture/agent-tools.md).
 known_plugin_toolsets:
   cli:
     - pythia-core
-    - pythia-market-data
-    - pythia-yahoo-discovery
-    - pythia-eodhd-market-data
-    - pythia-coingecko-market-data
-    - pythia-coinmarketcap
-    - pythia-sec
-    - pythia-xbrl-filings
-    - pythia-gleif
-    - pythia-openfigi
+    - pythia-desk
   cron:
     - pythia-core
-    - pythia-market-data
-    - pythia-yahoo-discovery
-    - pythia-eodhd-market-data
-    - pythia-coingecko-market-data
-    - pythia-coinmarketcap
-    - pythia-sec
-    - pythia-xbrl-filings
-    - pythia-gleif
-    - pythia-openfigi
+    - pythia-desk
   api_server:
     - pythia-core
-    - pythia-market-data
-    - pythia-yahoo-discovery
-    - pythia-eodhd-market-data
-    - pythia-coingecko-market-data
-    - pythia-coinmarketcap
-    - pythia-sec
-    - pythia-xbrl-filings
-    - pythia-gleif
-    - pythia-openfigi
 tools:
   tool_search:
     enabled: "off"

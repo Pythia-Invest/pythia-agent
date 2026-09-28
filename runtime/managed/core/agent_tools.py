@@ -27,7 +27,7 @@ SUBJECT = {"type": "string", "minLength": 5, "maxLength": 370,
            "description": "A subject id from pythia_find, such as listing:… or security:…"}
 SOURCE = {"type": "string", "minLength": 2, "maxLength": 64,
           "description": "Read only this source (a provider name such as yahoo or sec). Without it, the first "
-                         "source in the investor's order that serves the subject is used; nothing falls back."}
+                         "source in Pythia's order that serves the subject is used; nothing falls back."}
 
 FIND = {
     "name": "pythia_find",
@@ -51,11 +51,18 @@ INSTRUMENT = {
     "parameters": {"type": "object", "properties": {"subject_id": SUBJECT},
                    "required": ["subject_id"], "additionalProperties": False},
 }
-ANSWER = copy.deepcopy(queue_ops.VERDICT_SCHEMA)  # the same arguments as the Desk's identity-verdict, no marker
-ANSWER["name"] = "pythia_answer_identity_question"
-ANSWER["description"] = ("Record the agent's provisional answer to one open identity question after reading it in full with "
-                         "`pythia identity queue`. " + queue_ops.VERDICT_SCHEMA["description"].split(". ", 1)[1])
-ANSWER["parameters"]["properties"]["chosen_id"] = {"type": "string", "minLength": 5, "maxLength": 370}
+
+
+def answer_schema() -> dict:
+    """The Desk identity-verdict arguments without its HTTP operation marker, whenever it is built: registration
+    stamps that marker on the shared schema, and a second declaration would break the Desk's operation."""
+    parameters = {key: value for key, value in copy.deepcopy(queue_ops.VERDICT_SCHEMA["parameters"]).items()
+                  if key != "$comment"}
+    parameters["properties"]["chosen_id"] = {"type": "string", "minLength": 5, "maxLength": 370}
+    return {"name": "pythia_answer_identity_question", "parameters": parameters,
+            "description": "Record the agent's provisional answer to one open identity question after reading it in "
+                           "full with `pythia identity queue`. "
+                           + queue_ops.VERDICT_SCHEMA["description"].split(". ", 1)[1]}
 
 
 
@@ -127,13 +134,19 @@ def identity() -> identity_ops.Identity:
     return identity_ops.CURRENT
 
 
-def label(plugin_key: str) -> dict:
-    info = next((item for item in identity_ops.installed() if item.key == plugin_key), None)
+def plugins() -> dict[str, Any]:
+    """The installed contracts by plugin key, read once per tool call."""
+    return {info.key: info for info in identity_ops.installed()}
+
+
+def label(plugin_key: str, infos: dict[str, Any]) -> dict:
+    info = infos.get(plugin_key)
     provider = info.manifest.provider if info else plugin_key
     return {"source": page.LABELS.get(provider, provider), "provider": provider, "plugin": plugin_key}
 
 
-def concept_sources(subject_id: str, section: Section, wanted: str | None) -> tuple[dict | None, list, list, str | None]:
+def concept_sources(subject_id: str, section: Section, wanted: str | None, infos: dict[str, Any]
+                    ) -> tuple[dict | None, list, list, str | None]:
     """The subject, its usable sources for one concept in core's order and the skipped ones with reasons.
 
     A source whose reference needs a lookup is resolved once when it would be used, as the Desk does."""
@@ -144,28 +157,30 @@ def concept_sources(subject_id: str, section: Section, wanted: str | None) -> tu
         return None, [], [], "Unknown subject id; find the investment with pythia_find."
     if subject is None:
         return None, [], [], issue or "Unknown subject id; find the investment with pythia_find."
-    answers = page.answers(subject, identity_ops.installed(), section, **lookups)
-    named = [answer for answer in answers if wanted in (answer["plugin"], label(answer["plugin"])["provider"])]
+    answers = page.answers(subject, list(infos.values()), section, **lookups)
+    named = [answer for answer in answers if wanted in (answer["plugin"], label(answer["plugin"], infos)["provider"])]
     first = (named or [answer for answer in answers if answer["status"] in ("ready", "resolving")] or [None])[0]
     if first is not None and first["status"] == "resolving":
         core.resolve({"subject_id": subject["id"], "plugin": first["plugin"]})
         _path, subject, lookups, _issue = core._load(subject_id)
-        answers = page.answers(subject, identity_ops.installed(), section, **lookups)
+        answers = page.answers(subject, list(infos.values()), section, **lookups)
     ready = [answer for answer in answers if answer["status"] == "ready" and answer["binding"]]
-    skipped = [{**label(answer["plugin"]), "reason": answer["reason"] or answer["status"]}
+    skipped = [{**label(answer["plugin"], infos), "reason": answer["reason"] or answer["status"]}
                for answer in answers if answer not in ready]
     return subject, ready, skipped, None
 
 
-def choose(ready: list, skipped: list, wanted: str | None, concept: str) -> tuple[dict | None, dict | None]:
+def choose(ready: list, skipped: list, wanted: str | None, concept: str, infos: dict[str, Any]
+           ) -> tuple[dict | None, dict | None]:
     """(chosen answer, error envelope): the named source, or the first usable one. Never a silent substitute."""
     if wanted:
-        chosen = next((answer for answer in ready if wanted in (answer["plugin"], label(answer["plugin"])["provider"])), None)
+        chosen = next((answer for answer in ready
+                       if wanted in (answer["plugin"], label(answer["plugin"], infos)["provider"])), None)
         if chosen is None:
             why = next((row["reason"] for row in skipped if wanted in (row["plugin"], row["provider"])), None)
             return None, failure("source_unavailable", f"{wanted} cannot serve {concept} for this subject"
                                  + (f": {why}." if why else ".") + " The alternatives below can; name one to use it.",
-                                 alternatives=[label(answer["plugin"]) for answer in ready], skipped=skipped)
+                                 alternatives=[label(answer["plugin"], infos) for answer in ready], skipped=skipped)
         return chosen, None
     if not ready:
         return None, failure("no_source", f"No connected source serves {concept} for this subject.", skipped=skipped,
@@ -192,10 +207,12 @@ def instrument(arguments: dict, **_context: Any) -> str:
     view = result.get("data")
     if not isinstance(view, dict):
         return encode(result)
-    sources = [{"concept": section["section"], **label(section["plugin"]), "status": section["status"],
+    infos = plugins()
+    sources = [{"concept": section["section"], **label(section["plugin"], infos), "status": section["status"],
                 **({"reason": section["reason"]} if section["reason"] else {}),
                 **({"reference": section["binding"]} if section["binding"] else {}),
-                "alternatives": [{**label(item["plugin"]), "status": item["status"]} for item in section["alternatives"]]}
+                "alternatives": [{**label(item["plugin"], infos), "status": item["status"]}
+                                 for item in section["alternatives"]]}
                for section in view.pop("sections", [])]
     queue = view.pop("queue", [])
     view["sources"] = sources
@@ -212,12 +229,23 @@ def answer(arguments: dict, **context: Any) -> str:
     return encode(json.loads(queue_ops.submit_verdict(identity(), arguments, **context)))
 
 
+def guarded(handler: Callable[..., str]) -> Callable[..., str]:
+    """A core failure (reference, store, a bad argument) is a clean envelope, never exception text for the model."""
+    def run(arguments: dict, **context: Any) -> str:
+        try:
+            return handler(arguments, **context)
+        except Exception:
+            logger.warning("Pythia agent tool failed", exc_info=True)
+            return encode(failure("unavailable", "Pythia could not complete this request; try again."))
+    return run
+
+
 def register(ctx: Any) -> None:
     from .agent_reads import FILINGS, PRICES, filings, prices
     from .pythia_command import SCHEMA as PYTHIA, command
     tools: list[tuple[dict, Callable[..., str]]] = [
-        (FIND, find), (INSTRUMENT, instrument), (PRICES, partial(prices, ctx)), (FILINGS, partial(filings, ctx)),
-        (PYTHIA, partial(command, ctx)), (ANSWER, answer)]
+        (FIND, guarded(find)), (INSTRUMENT, guarded(instrument)), (PRICES, guarded(partial(prices, ctx))),
+        (FILINGS, guarded(partial(filings, ctx))), (PYTHIA, partial(command, ctx)), (answer_schema(), guarded(answer))]
     for schema, handler in tools:
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"].split(". ")[0])

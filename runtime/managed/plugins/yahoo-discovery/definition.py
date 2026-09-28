@@ -6,7 +6,7 @@ Yahoo lookups are an ISIN resolve (not yet exposed) and symbol-tagged news.
 """
 import json
 
-TOOLSET = 'pythia-yahoo-discovery'
+TOOLSET = 'pythia-core'  # core's one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
 TOOLS = {op: 'pythia_yahoo_' + op for op in ('details', 'series', 'latest', 'history', 'research', 'dashboard', 'read_batch')}
 # Common market-data operations this connector declares on its native schemas.
 COMMON = ('details', 'series', 'latest', 'history', 'read_batch')

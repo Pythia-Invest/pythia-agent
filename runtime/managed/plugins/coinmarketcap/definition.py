@@ -4,7 +4,7 @@ import json
 
 from .catalogue import RANK_DEPTH
 
-TOOLSET = 'pythia-coinmarketcap'
+TOOLSET = 'pythia-core'  # core's one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
 OPERATIONS = ('catalogue', 'profile', 'details', 'series', 'latest', 'history', 'read_batch')
 TOOLS = {operation: 'pythia_coinmarketcap_' + operation for operation in OPERATIONS}
 # Common market-data reads; the market-data owner discovers these by marker.

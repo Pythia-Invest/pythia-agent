@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [Investing, Market Data]
     category: finance
-    requires_toolsets: [pythia-market-data]
+    requires_toolsets: [pythia-desk]
 ---
 
 # Market data

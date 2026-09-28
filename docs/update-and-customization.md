@@ -129,11 +129,14 @@ claim an independent doctor pass for a preserved replacement or dependent featur
 A fresh profile explicitly enables the same ten base toolsets for `cli`,
 `cron`, and `api_server`: `cronjob`, `delegation`, `file`, `memory`,
 `session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. The Pythia
-core adapter supplies `pythia-desk`, the agent's Pythia tools and Desk context.
-Plugin toolsets are recorded as known and off, and Tool Search is off, so the
+core adapter supplies `pythia-desk`, the agent's Pythia tools and Desk context,
+on `api_server` only. Every plugin operation is registered in core's hidden
+`pythia-core` toolset, recorded as known and off, and Tool Search is off, so the
 model sees only `pythia-desk` of Pythia's tools
 ([agent tools](architecture/agent-tools.md)). These are initial values only;
-later native user edits are preserved.
+later native user edits are preserved. The update migration
+`0002-agent-tool-surface` applies the same toolset and Tool Search choices to an
+existing profile with native commands.
 
 Standalone managed skills declare native `metadata.hermes.requires_toolsets` when they
 need a tool. Where Hermes has toolset information, it uses that metadata to

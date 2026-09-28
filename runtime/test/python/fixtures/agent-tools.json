@@ -82,7 +82,7 @@
           "type": "string",
           "minLength": 2,
           "maxLength": 64,
-          "description": "Read only this source (a provider name such as yahoo or sec). Without it, the first source in the investor's order that serves the subject is used; nothing falls back."
+          "description": "Read only this source (a provider name such as yahoo or sec). Without it, the first source in Pythia's order that serves the subject is used; nothing falls back."
         }
       },
       "required": ["subject_id"],
@@ -125,7 +125,7 @@
           "type": "string",
           "minLength": 2,
           "maxLength": 64,
-          "description": "Read only this source (a provider name such as yahoo or sec). Without it, the first source in the investor's order that serves the subject is used; nothing falls back."
+          "description": "Read only this source (a provider name such as yahoo or sec). Without it, the first source in Pythia's order that serves the subject is used; nothing falls back."
         }
       },
       "required": ["subject_id"],
@@ -134,7 +134,7 @@
   },
   {
     "name": "pythia",
-    "description": "Provider depth the other pythia tools do not cover: reported XBRL facts and fundamentals (SEC, ESEF), legal-entity profiles (GLEIF), Yahoo Finance research (profile, statements, analysts, news), EODHD news and fundamentals, crypto profiles and open identity questions. Run `help` first: it lists the connected sources and their functions, and `help <source> <function>` prints that function's arguments. Then run `<source> <function>` with args. Put subject_id (from pythia_find) in args and Pythia fills in the source's own reference. Read-only.",
+    "description": "Provider depth the other pythia tools do not cover, such as reported XBRL facts and fundamentals, legal-entity profiles, company research and news from connected sources, and open identity questions. Run `help` first: it lists the connected sources and their functions, and `help <source> <function>` prints that function's arguments. Then run `<source> <function>` with args. Put subject_id (from pythia_find) in args and Pythia fills in the source's own reference. Read-only.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -146,7 +146,8 @@
         },
         "args": {
           "type": "object",
-          "description": "The function's arguments, as `help` lists them."
+          "description": "The function's arguments, as `help` lists them.",
+          "properties": {}
         }
       },
       "required": ["command"],
@@ -155,7 +156,6 @@
   },
   {
     "name": "pythia_answer_identity_question",
-    "description": "Record the agent's provisional answer to one open identity question after reading it in full with `pythia identity queue`. A match names the relation and one of the question's candidates; 'unrelated' says the record is a different instrument than that candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the record's own identifiers disprove, is refused. An accepted answer takes effect provisionally: a match routes the record to the subject until the user or identifier evidence overrides it. Accepted and refused answers are recorded.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -189,7 +189,8 @@
       },
       "required": ["item_id", "relation"],
       "additionalProperties": false
-    }
+    },
+    "description": "Record the agent's provisional answer to one open identity question after reading it in full with `pythia identity queue`. A match names the relation and one of the question's candidates; 'unrelated' says the record is a different instrument than that candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the record's own identifiers disprove, is refused. An accepted answer takes effect provisionally: a match routes the record to the subject until the user or identifier evidence overrides it. Accepted and refused answers are recorded."
   },
   {
     "name": "pythia_desk_view",

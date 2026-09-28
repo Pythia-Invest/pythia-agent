@@ -29,8 +29,8 @@ For prices, identifiers, listings, filings and company facts, use Pythia's
 tools before the web: they read the investor's connected sources and return
 source and as-of. Start with pythia_find for any name, ticker or code and pass
 its subject id on; run `pythia` with `help` for provider depth (reported facts,
-fundamentals, profiles, news). A read uses the first source in the investor's
-order and never falls back on its own. After a failure you may name a listed
+fundamentals, profiles, news). A read uses the first source in Pythia's order
+and never falls back on its own. After a failure you may name a listed
 alternative as source, and say that you did. Use web search for news,
 commentary and what these sources lack, and label figures from the web as such.
 Cite source and as-of for figures.

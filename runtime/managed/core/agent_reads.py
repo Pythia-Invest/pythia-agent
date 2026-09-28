@@ -10,8 +10,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from . import identity_ops
-from .agent_tools import SOURCE, SUBJECT, choose, concept_sources, encode, failure, label, logger, run_tool
+from .agent_tools import SOURCE, SUBJECT, choose, concept_sources, encode, failure, label, logger, plugins, run_tool
 from .identity.manifest import Section
 from .identity.schemes import Level
 
@@ -110,21 +109,23 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
         return encode(failure("invalid_request", "start and end are dates written YYYY-MM-DD."))
     operation = "history" if start else "latest"
     try:
-        subject, ready, skipped, issue = concept_sources(subject_id, Section.CHART if start else Section.QUOTE, wanted)
+        infos = plugins()
+        subject, ready, skipped, issue = concept_sources(subject_id, Section.CHART if start else Section.QUOTE, wanted,
+                                                         infos)
     except (sqlite3.Error, OSError, RuntimeError):
         logger.warning("identity unavailable for pythia_prices", exc_info=True)
         return encode(failure("unavailable", "Pythia's reference data could not be read."))
     if subject is None:
         return encode(failure("unknown_subject", issue))
-    chosen, error = choose(ready, skipped, wanted, "prices")
+    chosen, error = choose(ready, skipped, wanted, "prices", infos)
     if error:
         return encode(error)
-    kind, target = str(subject["level"]), subject["id"]
+    target = subject["id"]
     if subject["level"] is Level.ISSUER:  # a company has no price: read its primary listing, as its page does
-        kind, target = str(Level.LISTING), subject["ids"].get(Level.LISTING)
+        target = subject["ids"].get(Level.LISTING)
         if not target:
             return encode(failure("no_listing", "This issuer has no listing in the reference; it has no price."))
-    view_subject = chosen["binding"] if wanted else {"kind": kind, "id": target}
+    view_subject = chosen["binding"]  # read exactly the source core chose (or the one named), so the label is true
     daily = INTERVALS[interval]["kind"] == "day"
     edge = (lambda value, _clock: {"kind": "session_date", "value": value}) if daily else (
         lambda value, clock: {"kind": "instant", "value": f"{value}T{clock}Z"})
@@ -141,12 +142,10 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
         if result.get("outcome") != "error" or not codes & RETRY_CRITERIA:
             break
     provenance = result.get("provenance") or {}
-    used = provenance.get("provider")
-    info = next((answer for answer in ready if label(answer["plugin"])["provider"] == used), chosen)
-    source = {**label(info["plugin"]), "as_of": (result.get("freshness") or {}).get("as_of") or provenance.get("source_time"),
+    source = {**label(chosen["plugin"], infos), "as_of": (result.get("freshness") or {}).get("as_of") or provenance.get("source_time"),
               "retrieved_at": result.get("retrieved_at"),
               "market_data_type": (result.get("freshness") or {}).get("market_data_type"),
-              "selected": "named" if wanted else "investor order"}
+              "selected": "named" if wanted else "first in order"}
     context_fields = result.get("price_context") or {}
     if "delay_seconds" in context_fields:
         source["delay_seconds"] = context_fields["delay_seconds"]
@@ -165,7 +164,7 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
         coverage = result.get("coverage") or {}
         if coverage.get("status") not in (None, "complete") or coverage.get("gaps"):
             out["coverage"] = {key: coverage.get(key) for key in ("status", "gaps", "truncated")}
-    out["alternatives"] = [label(answer["plugin"]) for answer in ready if answer is not info]
+    out["alternatives"] = [label(answer["plugin"], infos) for answer in ready if answer is not chosen]
     out["skipped"] = skipped
     out["issues"] = result.get("issues", [])
     if out["outcome"] == "error":
@@ -188,30 +187,31 @@ def filings(ctx: Any, arguments: dict, **context: Any) -> str:
     forms = {str(item).upper() for item in arguments.get("forms") or []}
     since, limit = arguments.get("since"), max(1, min(int(arguments.get("limit") or 20), 50))
     try:
-        subject, ready, skipped, issue = concept_sources(subject_id, Section.FILINGS, wanted)
+        infos = plugins()
+        subject, ready, skipped, issue = concept_sources(subject_id, Section.FILINGS, wanted, infos)
     except (sqlite3.Error, OSError, RuntimeError):
         logger.warning("identity unavailable for pythia_filings", exc_info=True)
         return encode(failure("unavailable", "Pythia's reference data could not be read."))
     if subject is None:
         return encode(failure("unknown_subject", issue))
-    chosen, error = choose(ready, skipped, wanted, "filings")
+    chosen, error = choose(ready, skipped, wanted, "filings", infos)
     if error:
         return encode(error)
-    info = next(item for item in identity_ops.installed() if item.key == chosen["plugin"])
+    info = infos[chosen["plugin"]]
     result = run_tool(ctx, info.manifest.content[Section.FILINGS].tool, {"native_ref": chosen["binding"], "limit": 50}, context)
     data = result.get("data") if isinstance(result.get("data"), dict) else {}
     rows = [row for row in data.get("filings", []) if isinstance(row, dict)]
     matched = [row for row in rows if _matches(row, forms, since)]
     matched.sort(key=lambda row: row.get("filed_at") or row.get("period_end") or "", reverse=True)
-    keep = ("form", "filed_at", "period_end", "title", "url", "accession", "report_id", "machine_readable")
+    keep = ("form", "filed_at", "period_end", "title", "url", "links", "accession", "report_id", "machine_readable")
     coverage = data.get("coverage") or {}
     out = {"schema_version": 1, "outcome": result.get("outcome", "error") if not rows else ("ok" if matched else "empty"),
            "subject_id": subject["id"],
-           "source": {**label(chosen["plugin"]), "observed_at": data.get("observed_at"), "url": data.get("source_url")},
+           "source": {**label(chosen["plugin"], infos), "observed_at": data.get("observed_at"), "url": data.get("source_url")},
            "filings": [{key: row[key] for key in keep if row.get(key) is not None} for row in matched[:limit]],
            "coverage": {"matched": len(matched), "scanned": len(rows), "available": coverage.get("total_available"),
                         "scope": coverage.get("scope")},
-           "alternatives": [label(answer["plugin"]) for answer in ready if answer is not chosen],
+           "alternatives": [label(answer["plugin"], infos) for answer in ready if answer is not chosen],
            "skipped": skipped, "issues": result.get("issues", [])}
     if rows and not matched and (coverage.get("total_available") or 0) > len(rows):
         out["next"] = (f"Only the {len(rows)} most recent filings were searched. Another source may list older ones; "

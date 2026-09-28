@@ -172,9 +172,10 @@ parameter, or one named after your native scope, is filled from the agent's
 stay your own. [Agent tools](agent-tools.md) owns the placement rule and the
 table of every tool.
 
-Keep your tools in your own toolset. Pythia's seed turns its managed toolsets
-off for the model; a new toolset is visible until the investor turns it off in
-`hermes tools`.
+Register your tools in core's `pythia-core` toolset. Pythia keeps it out of the
+model's view on every profile; a toolset of your own is visible until the
+investor turns it off in `hermes tools`. The investor turns your source off by
+disabling your plugin.
 
 ## Plugin configuration
 

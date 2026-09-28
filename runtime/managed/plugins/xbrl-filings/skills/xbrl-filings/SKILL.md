@@ -8,7 +8,7 @@ metadata:
   hermes:
     tags: [Investing, Filings, Fundamentals]
     category: finance
-    requires_toolsets: [pythia-xbrl-filings]
+    requires_toolsets: [pythia-desk]
 ---
 
 # Public XBRL reports

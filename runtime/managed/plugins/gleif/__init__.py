@@ -153,4 +153,4 @@ def register(ctx):
                 return json.dumps(envelope(None, [{'code': 'unavailable', 'severity': 'error',
                     'message': 'Native access changed during the GLEIF read.'}]))
             return json.dumps(result, allow_nan=False)
-        ctx.register_tool(name=TOOLS[operation], toolset='pythia-gleif', schema=schema, handler=handler)
+        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler)

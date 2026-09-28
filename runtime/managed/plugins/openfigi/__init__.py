@@ -99,5 +99,5 @@ def register(ctx):
             result = failure('unavailable', 'The OpenFIGI connector is unavailable.')
         return json.dumps(result, allow_nan=False)
 
-    ctx.register_tool(name=TOOL, toolset='pythia-openfigi', schema=resolver.definition,
+    ctx.register_tool(name=TOOL, toolset='pythia-core', schema=resolver.definition,
                       handler=handler, check_fn=available)

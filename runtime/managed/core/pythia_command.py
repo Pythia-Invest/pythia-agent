@@ -3,40 +3,41 @@
 `help` lists the sources and their functions, `help <source> <function>` prints one function's arguments
 (its native schema), and `<source> <function>` runs it. A function is a plugin's own native tool named
 in its contract's `functions` block; its schema, description and handler stay the plugin's. Core adds
-only what every function shares: `may_run`, the declared read-only check, a top-level argument check
-that names the parameter, `subject_id` → native reference, and a bounded result. It never runs a
-write: a mutation is a separate, visible, approval-gated tool.
+only what every function shares: `may_run`, the declared read-only check, JSON-Schema validation that names
+the parameter (as the HTTP path does), `subject_id` → native reference, and a bounded result. It never runs a
+write.
 """
 from __future__ import annotations
 
 import difflib
-import json
+import logging
 import re
-import sqlite3
 from typing import Any
 
 from . import identity_ops
 from .agent_tools import encode, failure, identity, run_tool
 from .identity import page
+from .identity.manifest import Section
 from .identity.model import ProviderRef
 
 CORE = ("pythia", "identity", "Pythia identity questions", ("identity-queue",))  # core's own read operations
 HELP = {"help", "--help", "-h"}
+SERVED = {Section.QUOTE, Section.CHART, Section.FILINGS}  # concepts pythia_prices and pythia_filings read
 SCHEMA = {
     "name": "pythia",
-    "description": "Provider depth the other pythia tools do not cover: reported XBRL facts and fundamentals (SEC, "
-                   "ESEF), legal-entity profiles (GLEIF), Yahoo Finance research (profile, statements, analysts, "
-                   "news), EODHD news and fundamentals, crypto profiles and open identity questions. Run `help` "
+    "description": "Provider depth the other pythia tools do not cover, such as reported XBRL facts and "
+                   "fundamentals, legal-entity profiles, company research and news from connected sources, and open "
+                   "identity questions. Run `help` "
                    "first: it lists the connected sources and their functions, and `help <source> <function>` "
                    "prints that function's arguments. Then run `<source> <function>` with args. Put subject_id "
                    "(from pythia_find) in args and Pythia fills in the source's own reference. Read-only.",
     "parameters": {"type": "object", "properties": {
         "command": {"type": "string", "minLength": 1, "maxLength": 128,
                     "description": "help | help <source> | help <source> <function> | <source> <function>"},
-        "args": {"type": "object", "description": "The function's arguments, as `help` lists them."}},
+        "args": {"type": "object", "description": "The function's arguments, as `help` lists them.", "properties": {}}},
         "required": ["command"], "additionalProperties": False},
 }
-TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list, "object": dict}
+logger = logging.getLogger(__name__)
 
 
 def native_operations() -> dict[str, dict[str, str]]:
@@ -50,7 +51,8 @@ def native_operations() -> dict[str, dict[str, str]]:
     for name, (key, _plugin) in native_tool_owners().items():
         meta = declaration(registry.get_schema(name) or {})
         if isinstance(meta, dict) and isinstance(meta.get("operation"), str):
-            found.setdefault(key, {}).setdefault(meta["operation"], name)
+            declared = found.setdefault(key, {})
+            declared[meta["operation"]] = None if meta["operation"] in declared else name  # ambiguous: neither
     return found
 
 
@@ -61,11 +63,19 @@ def catalog() -> dict[str, tuple[str, Any, dict[str, str | None]]]:
     tools = native_operations()
     key, source, text, operations = CORE
     named = [(source, text, None, key, operations)]
-    named += [(info.manifest.provider, info.label, info, info.key, info.manifest.functions)
-              for info in identity_ops.installed() if info.manifest.functions]
-    return {source: (text, info, {operation.removeprefix(source + "-"): tools.get(key, {}).get(operation)
-                                  for operation in operations})
-            for source, text, info, key, operations in sorted(named, key=lambda entry: entry[0])}
+    for info in identity_ops.installed():
+        if not info.manifest.functions:
+            continue
+        if any(entry[0] == info.manifest.provider for entry in named):  # a second plugin under the same name
+            logger.warning("pythia: %s repeats source name %s; its functions are not offered", info.key,
+                           info.manifest.provider)
+            continue
+        named.append((info.manifest.provider, info.label, info, info.key, info.manifest.functions))
+    entries = {}
+    for source, text, info, key, operations in sorted(named, key=lambda entry: entry[0]):
+        functions = {operation.removeprefix(source + "-"): tools.get(key, {}).get(operation) for operation in operations}
+        entries[source] = (text, info, {name: tool for name, tool in functions.items() if not internal(info, tool)})
+    return entries
 
 
 def status(info: Any) -> str | None:
@@ -86,13 +96,14 @@ def native_schema(tool: str | None) -> dict | None:
     return schema if isinstance(schema, dict) else None
 
 
-def internal(info: Any, tool: str) -> bool:
-    """A tool core runs itself (a concept read, resolve or catalogue) is never also a `pythia` function."""
-    if info is None:
+def internal(info: Any, tool: str | None) -> bool:
+    """A tool core runs itself (for a concept tool, a resolve or a catalogue) is never also a `pythia` function.
+    Profile has no concept tool yet, so a profile read stays a function."""
+    if info is None or tool is None:
         return False
     manifest = info.manifest
-    return tool in {entry.tool for entry in manifest.content.values()} | {
-        manifest.resolve.tool if manifest.resolve else None, manifest.catalogue_tool}
+    served = {entry.tool for section, entry in manifest.content.items() if section in SERVED}
+    return tool in served | {manifest.resolve.tool if manifest.resolve else None, manifest.catalogue_tool}
 
 
 def summary(tool: str | None) -> str:
@@ -121,36 +132,14 @@ def unknown(kind: str, value: str, known: list[str], extra: str = "") -> str:
                           usage="Run `help` to list sources and functions."))
 
 
-def check_arguments(name: str, schema: dict, args: dict) -> str | None:
-    """The first top-level argument problem, naming the parameter; the plugin validates the rest itself."""
-    properties, required = schema.get("properties", {}), schema.get("required", [])
-    for key in args:
-        if key not in properties and schema.get("additionalProperties") is False:
-            return f"args.{key} is not a parameter of {name}. Parameters: {', '.join(properties) or 'none'}."
-    for key in required:
-        if key not in args:
-            text = properties.get(key, {}).get("description")
-            return f"args.{key} is required by {name}" + (f": {text}" if text else ".")
-    for key, value in args.items():
-        spec = properties.get(key, {})
-        kind = spec.get("type")
-        if kind in TYPES and (not isinstance(value, TYPES[kind]) or (kind in ("integer", "number") and isinstance(value, bool))):
-            return f"args.{key} must be a JSON {kind}."
-        if "enum" in spec and value not in spec["enum"]:
-            return f"args.{key} must be one of: {', '.join(map(str, spec['enum']))}."
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            if "minimum" in spec and value < spec["minimum"]:
-                return f"args.{key} must be at least {spec['minimum']}."
-            if "maximum" in spec and value > spec["maximum"]:
-                return f"args.{key} must be at most {spec['maximum']}."
-        if isinstance(value, str):
-            if len(value) > spec.get("maxLength", len(value)) or len(value) < spec.get("minLength", 0):
-                return f"args.{key} must be {spec.get('minLength', 0)} to {spec.get('maxLength')} characters."
-            if "pattern" in spec and not re.search(spec["pattern"], value):
-                return f"args.{key} does not have the expected form ({spec['pattern']})."
-        if isinstance(value, list) and not spec.get("minItems", 0) <= len(value) <= spec.get("maxItems", len(value)):
-            return f"args.{key} must have {spec.get('minItems', 0)} to {spec.get('maxItems')} items."
-    return None
+def check_arguments(schema: dict, args: dict) -> str | None:
+    """The first argument problem, naming the parameter, with the validator the HTTP path uses."""
+    from jsonschema import Draft202012Validator
+    from jsonschema.exceptions import best_match
+    error = best_match(Draft202012Validator(schema).iter_errors(args))
+    if error is None:
+        return None
+    return f"args{error.json_path[1:]}: {error.message}"
 
 
 def native_reference(info: Any, subject_id: str) -> tuple[dict | None, str | None]:
@@ -191,18 +180,31 @@ def fill_subject(info: Any, schema: dict, args: dict) -> str | None:
     reference, why = native_reference(info, str(args.pop("subject_id")))
     if reference is None:
         return why
-    args[target] = reference if target == "native_ref" else reference["native_id"]
+    if target == "native_ref":
+        args[target] = reference
+    else:  # the native id, and its one-item list form when the function also takes several (Yahoo symbols)
+        args[target] = reference["native_id"]
+        if properties.get(target + "s", {}).get("type") == "array":
+            args.setdefault(target + "s", [reference["native_id"]])
     return None
 
 
 def read_only(schema: dict) -> bool:
-    """A function may be declared read-only by its contract; a native declaration saying otherwise wins."""
+    """Only an operation its native declaration marks read-only runs as a function."""
     from .platform.operations import declaration
     meta = declaration(schema)
-    return not (isinstance(meta, dict) and meta.get("read_only") is False)
+    return isinstance(meta, dict) and meta.get("read_only") is True
 
 
 def command(ctx: Any, arguments: dict, **context: Any) -> str:
+    try:
+        return run_command(ctx, arguments, context)
+    except Exception:  # core or reference failures never reach the model as exception text
+        logger.warning("pythia command failed", exc_info=True)
+        return encode(failure("unavailable", "Pythia could not complete this command; try again."))
+
+
+def run_command(ctx: Any, arguments: dict, context: dict) -> str:
     tokens = str(arguments.get("command") or "").split()
     args = arguments.get("args") if arguments.get("args") is not None else {}
     if tokens[:1] == ["pythia"]:
@@ -212,10 +214,7 @@ def command(ctx: Any, arguments: dict, **context: Any) -> str:
     if not isinstance(args, dict) or len(tokens) > 2:
         return encode(failure("invalid_command", "Use `help`, `help <source> <function>` or `<source> <function>` "
                               "with args as a JSON object."))
-    try:
-        entries = catalog()
-    except (sqlite3.Error, OSError, RuntimeError):
-        return encode(failure("unavailable", "Pythia could not read its installed sources."))
+    entries = catalog()
     if not tokens:
         return encode(overview(entries))
     source = tokens[0].lower()
@@ -244,7 +243,7 @@ def command(ctx: Any, arguments: dict, **context: Any) -> str:
     if schema is None or not read_only(schema) or internal(info, tool):
         return encode(failure("unavailable", f"{name} is not available as a read-only function in this profile."))
     args = dict(args)
-    problem = fill_subject(info, parameters(schema), args) or check_arguments(name, parameters(schema), args)
+    problem = fill_subject(info, parameters(schema), args) or check_arguments(parameters(schema), args)
     if problem:
         return encode(failure("invalid_arguments", problem, usage=f"help {name}"))
     return encode({**run_tool(ctx, tool, args, context), "function": name})

@@ -4,14 +4,15 @@ The agent sees a few Pythia tools shaped around the investor's questions, not on
 tool per provider operation. Plugin tools stay registered with their owners and
 keep serving Desk and core, but they are out of the model's view. One CLI-like
 `pythia` tool reaches provider depth. This document is the owner of the placement
-rule, the `pythia` tool's contract and the reasons behind both. The broader data
-design is in the ADR 0040 draft (data concepts and agent tools).
+rule, the `pythia` tool's contract and the reasons behind both.
 
 ## What the model sees
 
-With the seeded profile, an `api_server` turn delivers Hermes's kept built-ins and
-seven Pythia tools, all in core's `pythia-desk` toolset. Tool Search is off, so
-there is no `tool_search` bridge and no catalogue line to decode.
+With the seeded profile, an `api_server` (Desk chat) turn delivers Hermes's kept
+built-ins and seven Pythia tools, all in core's `pythia-desk` toolset. Tool Search
+is off, so there is no `tool_search` bridge and no catalogue line to decode. The
+`cli` and `cron` platforms see no Pythia tool: their sessions carry no trusted
+caller platform, which Pythia's reads require.
 
 | Tool | Answers | Effect |
 | --- | --- | --- |
@@ -23,15 +24,15 @@ there is no `tool_search` bridge and no catalogue line to decode.
 | `pythia_desk_view` | The Desk page the investor is looking at. | local read |
 | `pythia_answer_identity_question` | Records the agent's provisional answer to one identity question. | local write |
 
-`pythia_prices` and `pythia_filings` read the first source in the investor's order
-that serves the subject. `source` names one source and reads only that one.
+`pythia_prices` and `pythia_filings` read the first source in core's order that
+serves the subject, and name that source. `source` names one source and reads only that one.
 Nothing falls back on its own: a failed read returns its error, the eligible
 `alternatives` and every `skipped` source with its reason.
 
 ## The placement rule
 
-1. Only core registers model-visible tools, in `pythia-desk`; the seed hides every other Pythia toolset, and core runs hidden tools through `may_run` (plugin enabled, availability check passes), never through visibility.
-2. A plugin operation is reachable through `pythia` if and only if its `contract.json` lists the operation's declared name under `functions` and its declaration is read-only; a tool core runs for a concept, a resolve or a catalogue is never a function.
+1. Only core registers model-visible tools, in `pythia-desk`; every plugin operation is registered in core's one hidden toolset, `pythia-core`, and core runs it through `may_run` (plugin enabled, availability check passes), never through visibility.
+2. A plugin operation is reachable through `pythia` if and only if its `contract.json` lists the operation's declared name under `functions` and its declaration says `read_only: true`; a tool core runs for a concept tool (quote, chart, filings), a resolve or a catalogue is never a function.
 3. Every other plugin tool is internal: Desk, core and the reference builder call it by operation.
 4. A write is never a function. A Pythia record write is a narrow core tool that is visible only when the write is provisional, because the pinned Hermes cannot ask the Desk investor for approval.
 5. A tool that nothing calls and no function names is dropped from the agent's reach until a caller or declaration needs it.
@@ -106,17 +107,19 @@ local write, XS external side effect.
   `identity`) with one line per function, taken from the native tool's first
   sentence, and says when a source is disabled or needs configuration.
   `help <source> <function>` prints that tool's own description and parameter
-  schema without Pythia's `$comment` markers. A function is named by its declared
+  schema without Pythia's `$comment` markers. `help` never lists a function that
+  cannot run: a concept, resolve or catalogue tool, or an operation two tools declare. A function is named by its declared
   operation without a leading `<source>-`: `eodhd-news` is `eodhd news`.
 - **Dispatch.** Core looks up the tool that declares the operation and that the
   plugin owns (one lookup), checks `may_run`, and calls it with
   `ctx.dispatch_tool`. That runs the plugin's own handler in-process; Hermes's
   `pre_tool_call` hooks see the outer `pythia` call only.
 - **Arguments.** `subject_id` becomes the plugin's own reference: `native_ref`,
-  or the parameter named after its native scope (Yahoo's `symbol`), from a
-  confirmed binding, one core derives, or one resolve. Core then checks
-  top-level arguments and names the first bad one (`args.limit must be at most
-  50`); the plugin validates the rest as it always has.
+  or the parameter named after its native scope (Yahoo's `symbol`, and `symbols`
+  as a one-item list), from a confirmed binding, one core derives, or one
+  resolve. Core then validates the arguments against the tool's schema with
+  the JSON-Schema validator the HTTP path uses and names the first problem
+  (`args.limit: 'many' is not of type 'integer'`).
 - **Results and errors.** The plugin's envelope comes back unchanged, plus
   `function`. Unknown sources and functions suggest close names and name other
   sources with that function. A handler that raises becomes `source_error`
@@ -145,21 +148,26 @@ from Desk chat. Revisit this when Desk runs can answer approvals;
 
 ## Profiles
 
-The seed turns Tool Search off and records every Pythia plugin toolset, and
-core's `pythia-core`, as known and off for `cli`, `cron` and `api_server`, so
-Hermes keeps them registered but out of the model's view. An existing profile
-keeps its own choices. To adopt this surface, turn each of those toolsets off with
-`hermes -p <profile> tools disable <toolset> --platform api_server`, then
-`hermes -p <profile> config set tools.tool_search.enabled off`, and restart.
+Every managed plugin registers its tools in `pythia-core`, the toolset core
+itself always registers, so Hermes never drops it from its record of known
+toolsets and a plugin added later is hidden too. The seed turns Tool Search off
+and records `pythia-core` as known and off for `api_server`, `cli` and `cron`, and
+`pythia-desk` for `cli` and `cron`. The update migration `0002-agent-tool-surface`
+(`scripts/update/migrations.mjs`) applies the same choices to an existing
+installed profile with native commands: `hermes -p <profile> tools disable
+pythia-core --platform <platform>` for each platform, `tools disable pythia-desk`
+for `cli` and `cron`, and `config set tools.tool_search.enabled off`. A
+development profile takes the same commands by hand.
 
-Turning a toolset off only hides it from the model; Desk, core and `pythia`
-still run its tools. Disabling the plugin stops them everywhere, including the
-plugin's HTTP operations.
+A data source is turned off by disabling its plugin (`hermes plugins disable
+<plugin>`): that stops Desk pages, the agent tools and `pythia` alike. A toolset
+off switch only hides tools from the model, so Desk's "Desk tools" panel does not
+list Pythia's own toolsets and refuses to switch them.
 
-Hermes enables an unknown plugin toolset by default. A plugin installed later
-therefore shows its tools to the model until its toolset is turned off; with
-Tool Search off its schemas load on every turn. Its contract `functions` reach
-the agent through `pythia` either way.
+A community plugin that registers its tools in `pythia-core` is hidden the same
+way. One that uses a toolset of its own shows its tools to the model until the
+investor turns that toolset off; with Tool Search off its schemas load on every
+turn. Its contract `functions` reach the agent through `pythia` either way.
 
 ## Checks
 
@@ -168,8 +176,12 @@ the agent through `pythia` either way.
   reviewed snapshot `fixtures/agent-tools.json`, which is every session's cached
   prefix, and checks size budgets and the absence of `$comment`.
 - `tooling/qualification/agent_tools_native.py` asks the pinned Hermes itself
-  what an `api_server` turn delivers and how calls flow. It copies the managed
-  packages into a disposable profile and runs no model or provider.
+  what an `api_server` turn delivers and how calls flow, with core registered in
+  production order. It checks the delivered schemas against the snapshot, that no
+  `$comment` marker reaches the model, that every Desk HTTP operation has one tool,
+  that `cli` and `cron` see no Pythia tool and that bad arguments are named. It
+  copies the managed packages into a disposable profile, runs no model or
+  provider, and runs in `just qualify`.
 
 ## Decisions and rejected alternatives
 
@@ -185,5 +197,8 @@ the agent through `pythia` either way.
   the plugin API for in-process calls and bypasses nothing core does not check.
 - **No approval hook** (see Permissions), and no block on direct plugin calls:
   a toolset the investor turns on is their choice and must work.
+- **One hidden toolset for plugin operations**, not one per plugin listed in
+  the profile: Hermes rewrites its known-toolset record from the toolsets loaded
+  at the time, so a disabled plugin's own toolset would reappear when enabled.
 - **No code mode.** Most questions take one to three calls; code mode can reuse
   the same functions later.

@@ -394,12 +394,37 @@ describe("installed readiness and recovery", () => {
     for (const path of [paths.configRoot, paths.stateRoot, paths.dataRoot]) {
       mkdirSync(path, { recursive: true, mode: 0o700 });
     }
-    expect(applyMigrations(paths)).toEqual(["0001-device-state-v1"]);
-    expect(applyMigrations(paths)).toEqual(["0001-device-state-v1"]);
+    const commands: string[][] = [];
+    const hermes = (args: string[]) => {
+      commands.push(args);
+      return "";
+    };
+    const applied = ["0001-device-state-v1", "0002-agent-tool-surface"];
+    expect(applyMigrations(paths, { hermes })).toEqual(applied);
+    expect(applyMigrations(paths, { hermes })).toEqual(applied);
     const ledger = JSON.parse(
       readFileSync(join(paths.stateRoot, "migrations.json"), "utf8"),
     );
-    expect(ledger.applied).toEqual(["0001-device-state-v1"]);
+    expect(ledger.applied).toEqual(applied);
+    // Native commands only, once: Hermes records the toolsets as known and off.
+    expect(commands).toContainEqual([
+      "-p",
+      paths.profile,
+      "tools",
+      "disable",
+      "pythia-core",
+      "--platform",
+      "api_server",
+    ]);
+    expect(commands.at(-1)).toEqual([
+      "-p",
+      paths.profile,
+      "config",
+      "set",
+      "tools.tool_search.enabled",
+      "off",
+    ]);
+    expect(commands).toHaveLength(6);
   });
 
   it("uninstalls managed files, retains user data, and makes reinstall possible", () => {

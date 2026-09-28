@@ -4,14 +4,17 @@ It copies the managed core and plugins into a disposable profile seeded from run
 then asks Hermes itself what an api_server turn delivers and how calls flow:
 
 - the assembled tool list: only the pythia-desk tools and the kept Hermes built-ins, no Tool Search bridge,
-  byte-identical when assembled twice;
+  byte-identical when assembled twice, equal to the reviewed snapshot and free of `$comment` markers, with
+  core registered in production order;
+- every declared Desk HTTP operation has exactly one tool, and `identity-verdict` still resolves;
+- cli and cron sessions see no Pythia tool, and a bad argument is named by the real JSON-Schema validator;
 - `may_run` still admits hidden plugin tools;
-- `pythia` reaches a hidden plugin tool through `ctx.dispatch_tool` while `pre_tool_call` sees only `pythia`;
+- `pythia` runs a hidden tool through `ctx.dispatch_tool` while `pre_tool_call` sees only `pythia`;
 - the visible identity answer runs as a provisional write;
 - a plugin `approve` directive on api_server is an instant deny at this release, with no human round-trip,
   which is why Pythia registers no approval hook yet.
 
-No model, provider or network is used: the only plugin call is SEC's, which stops at its missing contact.
+No model, provider or network is used: the one hidden tool run is core's local identity queue.
 Usage: <hermes venv python> agent_tools_native.py --hermes-source <dir> --repository <dir>
 """
 from __future__ import annotations
@@ -59,6 +62,24 @@ answer = json.loads(model_tools.handle_function_call("pythia_answer_identity_que
 manager._hooks["pre_tool_call"].append(lambda tool_name="", **_: {"action": "approve", "message": "probe"}
                                        if tool_name == "skills_list" else None)
 asked = json.loads(model_tools.handle_function_call("skills_list", {}, session_id="probe", task_id="probe"))
+queue = json.loads(model_tools.handle_function_call("pythia", {"command": "identity queue", "args": {}},
+                                                  session_id="probe", task_id="probe"))
+bad = json.loads(model_tools.handle_function_call("pythia", {"command": "identity queue", "args": {"limit": "many"}},
+                                                session_id="probe", task_id="probe"))
+from tools.registry import registry
+declared = {}
+for name, (key, _plugin) in core.platform.access.native_tool_owners().items():
+    meta = core.platform.operations.declaration(registry.get_schema(name) or {})
+    if isinstance(meta, dict):
+        declared.setdefault((key, meta.get("operation")), []).append(name)
+verdict = core.platform.operations.resolve("pythia", "identity-verdict", {"item_id": "probe", "relation": "none"})[0]
+elsewhere = {}
+for platform in ("cli", "cron"):
+    model_tools._clear_tool_defs_cache()
+    names = [item["function"]["name"] for item in model_tools.get_tool_definitions(
+        enabled_toolsets=sorted(_get_platform_tools(load_config_readonly(), platform, include_default_mcp_servers=False)),
+        quiet_mode=True, skip_tool_search_assembly=True)]
+    elsewhere[platform] = [name for name in names if name.startswith("pythia")]
 print(json.dumps({
     "failed_plugins": failed,
     "enabled_toolsets": enabled,
@@ -67,9 +88,16 @@ print(json.dumps({
     "may_run_hidden": sorted(name for name in core.platform.access.eligible_tools() if name.startswith("pythia_sec")),
     "help_sources": [row["source"] for row in help_result.get("sources", [])],
     "sec_issue": (sec.get("issues") or [{}])[0].get("code"),
+    "queue_via_pythia": queue,
     "hook_saw": seen,
     "answer": answer,
     "approve_on_api_server": asked,
+    "pythia_schemas": [item["function"] for item in first if item["function"]["name"].startswith("pythia")],
+    "with_comment": [item["function"]["name"] for item in first if "$comment" in json.dumps(item)],
+    "duplicate_operations": {f"{key}/{operation}": names for (key, operation), names in declared.items() if len(names) > 1},
+    "identity_verdict_tool": verdict,
+    "bad_argument": (bad.get("issues") or [{}])[0].get("message", ""),
+    "pythia_tools_on": elsewhere,
 }))
 '''
 
@@ -111,6 +139,7 @@ def main() -> int:
         report = json.loads(completed.stdout.strip().splitlines()[-1])
     print(json.dumps(report, indent=1))
     names = [name for name, _size in report["visible"]]
+    snapshot = json.loads((options.repository / "runtime/test/python/fixtures/agent-tools.json").read_text())
     pythia = sorted(name for name in names if name.startswith("pythia"))
     problems = [message for failed, message in (
         (pythia != ["pythia", "pythia_answer_identity_question", "pythia_desk_view", "pythia_filings", "pythia_find",
@@ -118,11 +147,19 @@ def main() -> int:
         (any(name in names for name in ("tool_search", "tool_describe", "tool_call")), "Tool Search is still on"),
         (not report["byte_stable"], "the tool list changed between two assemblies"),
         ("pythia_sec_facts" not in report["may_run_hidden"], "may_run lost a hidden plugin tool"),
-        (report["sec_issue"] != "needs_configuration", "pythia did not reach the hidden SEC tool"),
+        (report["sec_issue"] != "needs_configuration", "pythia did not report SEC's missing contact"),
+        (report["queue_via_pythia"].get("function") != "identity queue", "pythia did not run a hidden core tool"),
         (report["hook_saw"][:2] != ["pythia", "pythia"], "pre_tool_call saw a nested plugin call"),
         ("error" in report["answer"], "the identity answer did not run"),
         ("unattended platform" not in report["approve_on_api_server"].get("error", ""),
          "api_server approvals now round-trip: revisit the effect policy"),
+        (report["with_comment"], "an operation marker reaches the model"),
+        (sorted(report["pythia_schemas"], key=lambda item: item["name"]) != sorted(snapshot, key=lambda item: item["name"]),
+         "the delivered Pythia schemas differ from runtime/test/python/fixtures/agent-tools.json"),
+        (report["duplicate_operations"], "an operation is declared by more than one tool"),
+        (report["identity_verdict_tool"] != "pythia_identity_verdict", "Desk's identity-verdict no longer resolves"),
+        (not report["bad_argument"].startswith("args.limit:"), "a bad argument is not named"),
+        (any(report["pythia_tools_on"].values()), "cli or cron sees Pythia tools"),
     ) if failed]
     for problem in problems:
         print("FAILED:", problem, file=sys.stderr)

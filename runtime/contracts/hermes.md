@@ -233,13 +233,14 @@ hermes -p <profile> tools disable <toolset> --platform api_server
 ```
 
 The fresh profile seed explicitly configures identical `cli`, `cron`, and
-`api_server` toolset lists: core's `pythia-desk`, `cronjob`, `delegation`,
-`file`, `memory`, `session_search`, `skills`, `terminal`, `todo`, `vision`, and
-`web`. This replaces each platform's broad implicit Hermes default and
-intentionally omits `computer_use`, the retired lab-only `kanban`, and every
-other unselected toolset. Pythia's other toolsets (core's `pythia-core` and every
-managed plugin's) are listed in native `known_plugin_toolsets` for the same
-platforms and so stay registered but out of the model's view, and
+`api_server` toolset lists: `cronjob`, `delegation`, `file`, `memory`,
+`session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`, plus core's
+`pythia-desk` on `api_server` only. This replaces each platform's broad implicit
+Hermes default and intentionally omits `computer_use`, the retired lab-only
+`kanban`, and every other unselected toolset. Every managed plugin registers its
+tools in core's `pythia-core` toolset, which native `known_plugin_toolsets`
+records as off for all three platforms (and `pythia-desk` for `cli` and `cron`),
+so those tools stay registered but out of the model's view, and
 `tools.tool_search.enabled` is `off`; see
 [agent tools](../../docs/architecture/agent-tools.md). Because the profile seed
 is create-if-absent, later native tool changes and direct user edits are
