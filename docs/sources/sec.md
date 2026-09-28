@@ -1,9 +1,11 @@
 # SEC EDGAR source record
 
-- **Status:** in onboarding. Stages 1 to 3 are recorded here and stage 4 is
-  listed, so sign-off is open. The SEC was in use before the
+- **Status:** in onboarding, beside FIRDS as the amended ADR 0042 allows.
+  Stages 1 to 3 are recorded here and stage 4 is listed, so sign-off is open.
+  The SEC was in use before the
   [onboarding standard](../architecture/source-onboarding.md), so it keeps its
-  current role (`grandfathered`) until it signs off.
+  current role (`grandfathered`) until it signs off. Its CIK to LEI links depend
+  on FIRDS field 5 (see the odd cases).
 - **Owner:**
   - Identity reference: `tooling/reference-builder/reference_builder/sec.py`
     (parse and fingerprint) and `linking.py` (the CIK joins).
@@ -11,6 +13,8 @@
     (`identity.py`, `filings.py`, `financials.py`).
   - Content drift probe: `tooling/reference-builder/reference_builder/sec_probe.py`
     (`just reference-sec-probe`).
+  - The audit: `tooling/reference-builder/reference_builder/sec_audit.py`
+    (`just reference-sec-audit fetch|draw|label`).
 - **Scope:**
   - `company_tickers_exchange.json`, read by the builder and by the plugin's
     `resolve`;
@@ -90,16 +94,16 @@ in a compact columnar data array"; older filings are in the files that
 | --- | --- | --- | --- | --- |
 | `cik`, `name`, `formerNames` | Current and former names (API page) | The filer's CIK and names, with each former name's dates | 48/48 | Plugin `resolve` |
 | `tickers`, `exchanges` | Exchanges and tickers (API page) | Ticker lines, as in the ticker file | Equal to the ticker file for 48/48 filers | Plugin `resolve` |
-| `stateOfIncorporation`, `…Description` | EDGAR state or country code | The incorporation code. EDGAR codes are not ISO 3166: `DE` is Delaware | Present for 43/48 | Plugin `resolve` |
+| `stateOfIncorporation`, `…Description` | Not defined on the API page; the values are EDGAR's [state and country codes](https://www.sec.gov/submit-filings/filer-support-resources/edgar-state-country-codes) | The incorporation code. EDGAR codes are not ISO 3166: `DE` is Delaware | Present for 43/48 | Plugin `resolve` |
 | `accessionNumber` | A unique identifier of an accepted submission; the first ten digits are the submitting entity's CIK, which may be a filing agent (FAQ) | The filing id, `sec:<accession>` | 0 malformed of 24,955 | Plugin |
-| `form` | Form type | The native form; amendments end in `/A` | 176 forms; 217/217 equal to the header's `TYPE` | Plugin |
+| `form` | Not defined on the API page; the submission header's form type | The native form; amendments end in `/A` | 176 forms; 217/217 equal to the header's `TYPE` | Plugin |
 | `filingDate` | "EDGAR assigned official filing date" (FAQ, header `FILED AS OF DATE`) | The filing date | 217/217 equal to the header. After 17:30 ET the date moves to the next business day, except Forms 3, 4 and 5 and Schedules 13D and 13G, which count until 22:00 (Regulation S-T Rule 13). The rule follows when transmission starts, so 26 of 32 filings accepted after 17:30 still carried that day: 18 Forms 3 and 4, 3 schedules, 2 SEC uploads and 3 accepted between 17:30 and 17:35 | Plugin |
 | `reportDate` | "End date of reporting period of filing" (FAQ, header `PERIOD`) | The period end the filing reports | 217/217 equal to the header; empty on 23.7% of rows, on one periodic report (a 20-F of 2002) | Plugin |
-| `acceptanceDateTime` | When EDGAR accepted the submission. The header gives it in Eastern time (FAQ: "Time (EST)") | The acceptance time in true UTC | Labelled `Z`. True UTC on 217/217 older filings. On the day of filing it is the Eastern wall-clock time labelled `Z`: 12/12 filings of 2026-09-28 against the current feed's offsets | Plugin, read by filing day |
+| `acceptanceDateTime` | When EDGAR accepted the submission. The header gives it in Eastern time (FAQ: "Time (EST)") | The acceptance time in true UTC | Labelled `Z`. True UTC on 217/217 older filings. On the day of filing it is the Eastern wall-clock time labelled `Z`: 18/18 filings of 2026-09-28 against the current feed's offsets | Plugin, read by filing day |
 | `items` | Form 8-K item numbers (Form 8-K) | The 8-K items; `2.02` is results of operations | Filled on 8-K rows, and on EFFECT (131), D (32) and CT ORDER (23) rows with other values. 8-Ks filed before 2004-08-23 use items 1 to 12 | Plugin, 8-K only |
-| `primaryDocument`, `primaryDocDescription` | The primary document and the filer's description of it | The document link and a description | Description empty on 18% of rows, often only the form name | Plugin |
-| `isXBRL`, `isInlineXBRL` | Whether the submission carries XBRL or Inline XBRL | Whether the filing has XBRL; with a 6-K, 10-K, 10-Q, 20-F or 40-F, whether companyfacts should carry its statements | 0/1 | Plugin |
-| `size` | Submission size in bytes | The whole submission, every document included | 0 malformed | Plugin |
+| `primaryDocument`, `primaryDocDescription` | Not defined on the API page | The document link and a description | Description empty on 18% of rows, often only the form name | Plugin |
+| `isXBRL`, `isInlineXBRL` | Not defined on the API page | Whether the filing has XBRL; with a 6-K, 10-K, 10-Q, 20-F or 40-F, whether companyfacts should carry its statements | 0/1 | Plugin |
+| `size` | Not defined on the API page | The whole submission, every document included | 0 malformed | Plugin |
 
 Relevant fields not read:
 
@@ -148,7 +152,7 @@ The reference builder:
   label an operating MIC.
 - [ ] Only direct field values carry `snapshot` authority. **Open:** a CIK
   attached to a LEI issuer is a rule's output (`isin_exch_us`,
-  `share_class_figi`, `name_unique`, the rule in `source_record`). It is
+  `share_class_figi`, the rule in `source_record`). It is
   written with `snapshot` authority, not `rule_confirmed`.
 - [x] The adapter picks no winner and reads no other source. The parse keeps
   the first of two rows naming one ticker; none occur, and the fingerprint
@@ -185,7 +189,7 @@ Fingerprints, each compared with the newest older good record in
 | `sec_funds`: columns per row, counts | every build with the fund file | 28,560 rows. Symbol missing 1, malformed symbol 30 | As above; `symbol` gone is a break |
 | `sec_filers`: top-level keys, `entityType` | `just reference-sec-probe` | 48 filers; `lei` present 0 | A key the plugin reads gone is a break |
 | `sec_filings`: columns per row, form groups (periodic, current, ownership, other known, unknown), counts | the probe | 24,955 rows. Unknown form 0, unknown 8-K item 0, malformed acceptance time 0, unequal columns 0, periodic report without a report date 1 | A column the plugin reads gone is a break. A form outside the plugin's vocabulary is an alarm |
-| `sec_facts`: keys per row, the taxonomy, form and `fp` vocabularies, counts | the probe | 495,646 rows; `fp` missing 6,552; companyfacts lacking the latest report 11 of 48 filers | `frame` or another read key gone is a break. The stale count moving is an alarm |
+| `sec_facts`: keys per row, the taxonomy, form and `fp` vocabularies, counts | the probe | 495,646 rows; `fp` missing 6,552; companyfacts lacking the latest report 11 of 48 filers | `frame` or another read key gone is a break. Every change in the stale count is an alarm, up or down (`sec_probe.EXACT`) |
 
 `just reference-audit` shows the ticker files' drift beside a snapshot and
 fails on a break. The probe reads the frozen sample below: two requests per
@@ -216,7 +220,9 @@ filer, paced under seven a second, with the configured `sec_identity`.
     cover tickers and exchanges;
   - the current feed, for same-day acceptance times;
   - GLEIF, as the registry for the LEI.
-- **Labelled on:** 2026-09-28, by script over cached data.
+- **Labelled on:** 2026-09-28, by `sec_audit.py` over cached data. `draw` reproduces the
+  committed sample from the cache, and `label` prints the table below; the CIK to LEI rows
+  take `--reference <snapshot>` and GLEIF. Responses stay under `.local/`.
 
 | Field | Precision (Wilson 95%) | n |
 | --- | --- | --- |
@@ -224,13 +230,14 @@ filer, paced under seven a second, with the configured `sec_identity`.
 | Ticker file `exchange` gives the right operating MIC (against the cover's exchange) | 100% (93.8–100%) | 58 lines; 2 are NYSE American |
 | Ticker file equals `submissions` tickers and exchanges | 100% (92.6–100%) | 48 filers |
 | `form`, `filingDate` and `reportDate` against the header | 100% (98.3–100%) each | 217 filings |
-| Plugin `accepted_at` against the header and the feed | 100% (98.4–100%) | 229 filings |
+| Plugin `accepted_at` against the header | 100% (98.3–100%) | 217 filings |
+| Same-day `acceptanceDateTime` is Eastern time labelled `Z` (against the current feed) | 100% (82.4–100%) | 18 filings |
 | companyfacts value, dates and unit against the filing instance | 100% (99.99–100%) | 28,410 rows; 51 one-day durations counted apart |
 | `fy`/`fp` against the filing's `dei` focus; CIK against `dei` | 100% (95.4–100%) each | 79 filings |
 | Plugin `fundamentals` values against the filing instance | 100% (98.8–100%) | 322 values |
-| Plugin `freshness` status right (companyfacts holds the latest XBRL report) | Before this audit 87.5% (75.3–94.1%); now 100% (92.6–100%) | 48 filers |
+| Plugin `freshness` status right (companyfacts holds the latest XBRL report) | 87.5% (75.3–94.1%) before this audit's 6-K change; 48/48 after it is a regression check on the same filers, not an independent measure | 48 filers |
 | Builder CIK to LEI link names the registrant's own LEI (against GLEIF) | 90.9% (62.3–98.4%) | 11 links in the sample |
-| Builder name-only CIK to LEI links, whole build | 85.7% (48.7–97.4%) | 7 links |
+| Builder name-only CIK to LEI links (`name_unique`, now removed) | 85.7% (48.7–97.4%) | 7 links in the XAMS and XETR build |
 
 The builder links 11 of the 48 sample CIKs to a LEI. GLEIF has a LEI with a
 matching legal name for 14 of the rest. That is recall, bounded by the
@@ -246,15 +253,15 @@ raises an alarm.
 
 | Case | Count (unit) | Example | Explanation | Handling | Status |
 | --- | --- | --- | --- | --- | --- |
-| companyfacts lacks foreign issuers' 2026 XBRL reports | 12 reports of 10 sample filers: 4 IFRS 20-Fs filed 2026-04-10 to 06-10, and all 8 interim 6-Ks with XBRL filed in 2026. All 12 such 6-Ks filed from June to December 2025 are present, and so are US GAAP 20-Fs of 2026-04-30 and 07-07 | Toyota's 20-F of 2026-06-10: 2,109 ifrs-full facts in the filing, one `dei` fact in companyfacts. ING's and Shell's H1 2026 6-Ks | Unknown. The research of 2026-09-28 measured 8 of 22 FPIs; a 6-K was not checked then | `freshness` marks the result stale, now including 6-K. It served ING's and Shell's balance sheets at 2025-12-31 as fresh before. The facts are still served, marked | Open. Named fix: read the filing's own instance (P11); re-check whether SEC catches up |
+| companyfacts lacks foreign issuers' 2026 XBRL reports | 12 reports of 10 sample filers: 4 IFRS 20-Fs filed 2026-04-10 to 06-10, and all 8 interim 6-Ks with XBRL filed in 2026. All 12 such 6-Ks filed from June to December 2025 are present, and so are US GAAP 20-Fs of 2026-04-30 and 07-07 | Toyota's 20-F of 2026-06-10: 2,109 ifrs-full facts in the filing, one `dei` fact in companyfacts. ING's and Shell's H1 2026 6-Ks | Unknown. The research of 2026-09-28 measured 8 of 22 FPIs; a 6-K was not checked then | `freshness` marks the result stale, now including 6-K. It served ING's and Shell's balance sheets at 2025-12-31 as fresh before. The facts are still served, marked. The probe alarms on every change in the stale count, so SEC catching up shows | Accepted limit, owner the SEC plugin: SEC's defect, covered by the stale mark and the probe. Reading the filing's own instance would be a new field use and is not a sign-off condition |
 | A 40-F whose XBRL tags only the cover | 1 filer | Centerra Gold: its 40-Fs of 2025 and 2026 are absent, and the 2026 one tags only the cover; companyfacts' newest statements are FY2023 | The statements are HTML exhibits without XBRL | Marked stale, which is true: the facts are two years old. The reason says the filing is the current source, which is imprecise here | Accepted limit; `isXBRLNumeric` would separate it once documented |
-| Same-day acceptance time is Eastern labelled `Z` | 12/12 same-day filings | 497K accepted 10:23:45 ET, given as `10:23:45Z` | SEC rewrites the day's values to UTC overnight | `accepted_utc` reads by filing day | Handled |
+| Same-day acceptance time is Eastern labelled `Z` | 18/18 same-day filings | 497K accepted 10:23:45 ET, given as `10:23:45Z` | SEC rewrites the day's values to UTC overnight | `accepted_utc` reads by filing day | Handled |
 | Filing date after 17:30 ET | 26 of 32 late acceptances kept that day | Legence 10-K accepted 17:34:49, filed the same day | Regulation S-T Rule 13 works on transmission start; Forms 3 to 5 and Schedules 13D/G count until 22:00 | `filed_at` is SEC's date. The plugin wording was corrected | Handled |
 | One-day duration given as an instant | 51 of 28,461 rows (79 filings) | IceCure `ProceedsFromIssuanceOfCommonStock` on 2025-08-01 | companyfacts drops `start` when it equals `end` | Periods come from dates. Balance-sheet metrics are true instants | Accepted limit |
 | `fy`/`fp` label the filing | 62% of full-year rows | Helios' year ending 2026-01-03 is `fy` 2026 | Documented as the filing's focus | Exact dates only; annual means 330–400 days | Handled |
-| Restated or recast values; `frame` follows the newest filing | 5,617 of 105,363 annual keys (5.3%) have several values | Owlet FY2025 revenue 105.708m (10-K), then 106.159m (10-Q) | Recasts, restatements and rounding | `fundamentals` serves the newest filed value with its form and accession | Open: restatement flag planned (P8, P11) |
+| Restated or recast values; `frame` follows the newest filing | 5,617 of 105,363 annual keys (5.3%) have several values | Owlet FY2025 revenue 105.708m (10-K), then 106.159m (10-Q) | Recasts, restatements and rounding | `fundamentals` serves the newest filed value with its form and accession | Open: a restatement flag in the planned fundamentals provenance record |
 | Amendments | 20-F/A 5,052, 10-K/A 2,293 and 10-Q/A 1,550 fact rows; cover-only amendments carry none | Ameriprise's 10-K/A repeats its 10-K values | A full amendment re-files the statements | `freshness` skips amendments; `fundamentals` takes the newest filed | Handled |
-| Taxonomy switch | 2 filers | Toyota: US GAAP to 2020-03-31, then IFRS; Athena Gold: 10-K US GAAP, then 20-F IFRS in 2026 | A change of basis | Taxonomies kept apart; the latest period wins | Handled; the basis goes into provenance (P8) |
+| Taxonomy switch | 2 filers | Toyota: US GAAP to 2020-03-31, then IFRS; Athena Gold: 10-K US GAAP, then 20-F IFRS in 2026 | A change of basis | Taxonomies kept apart; the latest period wins | Handled; the basis goes into the planned provenance record |
 | `NYSE` covers NYSE American and Arca | 2 of 58 sample lines; 3,302 `NYSE` rows | Titan Mining and Buda Juice (cover: `NYSEAMER`) | SEC names the exchange group | Operating MIC XNYS, with `sec_nyse_may_be_american_or_arca` | Accepted limit: the segment is unknown |
 | A placeholder ticker | 1 row | `NONE.`, EBR Systems, no exchange | Unknown | Counted (`malformed_ticker`). No venue, so no listing | Counted |
 | Rows without an exchange | 166 rows | Aircastle, SB Energy, SPACs before listing | Unknown | Counted (`exchange_missing`); no listing | Counted |
@@ -265,13 +272,13 @@ raises an alarm.
 | Pre-2004 8-K items read as drift | 41 items on 8-Ks of 1995–2004 | Items `5`, `7`, `12` | Release 33-8400 renumbered them | Now accepted before 2004-08-23 (`filings.unknown_8k_items`) | Fixed |
 | Forms outside the plugin's vocabulary | 103 rows, 42 forms | `10QSB`, `REGDEX`, `40FR12B` | Retired and rare forms | Added to the vocabulary | Fixed |
 | CIK joined to another company's LEI through FIRDS field 5 | 14 of 852 identifier links in the build share no name word with the LEI | Legence Corp. under Avio S.p.A.'s LEI; Samsara under TP ICAP (Europe); Rocket Lab under Frankfurter Wertpapierbörse; subsidiaries such as Pulte Mortgage and Sallie Mae Bank; renames such as LabCorp | `isin_exch_us` takes FIRDS field 5, which is the issuer or the venue operator, as the issuer | Flagged `cik_link_suspect`, kept | Open. Named fix: the FIRDS claims switch (an operator's LEI is unknown), GLEIF Level 2, then question Q1 |
-| A name-only link to another entity | 1 of 7 `name_unique` links | Biofrontera Inc. (CIK 1858685, Delaware) linked to Biofrontera AG | Normalised names match; the jurisdictions differ, but EDGAR's `DE` is Delaware and GLEIF's `DE` Germany | Kept | Open: question Q1. Proposed code: compare EDGAR's incorporation code with GLEIF's jurisdiction |
+| A name-only link to another entity | 1 of 7 `name_unique` links in the XAMS and XETR build; the rule made 162 of 4,344 links in the default-scope build of 2026-09-26 | Biofrontera Inc. (CIK 1858685, Delaware) linked to Biofrontera AG | A unique normalised name is not identity (the standard's "bad code") | The name-only join is removed: a CIK links a LEI only by identifier. The unlinked CIKs become CIK-only issuers, flagged `issuer_split_lei_cik` when a LEI issuer has their name, for Q1 and Repairs. Truth-set entries that relied on it (argenx and Pharming ADS and shares) regress until an identifier or Q1 links them | Fixed |
 
 ## 4. Judgement cases
 
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |
 | --- | --- | --- | --- | --- |
-| Q1 `sec_registrant_lei@1`: is the SEC registrant (CIK, names and former names, incorporation, tickers) the same legal entity as LEI X (legal and other names, jurisdiction, registration)? Options: same entity; its parent; its subsidiary or financing vehicle; its predecessor or successor; unrelated, such as a venue or data vendor; cannot tell. Asked for identifier links with no shared name word (14), name-only links (7) and contested LEIs (6 conflicts) | Whether two records name one company needs judgement once identifiers and GLEIF relationships leave a residual | Not written; owner `tooling/reference-builder/judge/` | Not done | Suggest-only; answers go to Repairs |
+| Q1 `sec_registrant_lei@1`: is the SEC registrant (CIK, names and former names, incorporation, tickers) the same legal entity as LEI X (legal and other names, jurisdiction, registration)? Options: same entity; its parent; its subsidiary or financing vehicle; its predecessor or successor; unrelated, such as a venue or data vendor; cannot tell. Asked for identifier links with no shared name word (14), CIK-only issuers named like a LEI issuer (the former name-only links, 7) and contested LEIs (6 conflicts). EDGAR's incorporation code and GLEIF's jurisdiction are features, not a rule | Whether two records name one company needs judgement once identifiers and GLEIF relationships leave a residual | Not written; owner `tooling/reference-builder/judge/` | Not done | Suggest-only; answers go to Repairs |
 | Q2 `sec_6k_kind@1`: is this 6-K an interim or annual report, an earnings release, a statutory annual report, other regulatory news, or other? | The native form says nothing, so the filings kinds list every 6-K as `other` today; a 6-K's kind is in its exhibits | Not written; owner: the SEC plugin | Not done | Suggest-only |
 
 Classes assigned to code or to Repairs instead:
@@ -281,36 +288,35 @@ Classes assigned to code or to Repairs instead:
   - fiscal periods from dates, never `fy`/`fp`;
   - amendments by filing order;
   - restatements, found by comparing values across accessions (planned);
-  - the balance identity, as an alarm (planned, P11);
+  - the balance identity, as an alarm (planned);
   - freshness;
   - 8-K items by date, and the form vocabulary;
   - an ADR against the ordinary share, from OpenFIGI types;
-  - a jurisdiction contradiction between EDGAR and GLEIF (proposed).
 - **Repairs:**
-  - CIKs without a LEI;
-  - facts marked stale until the instance read exists.
+  - CIKs without a LEI.
+- **Accepted limits:**
+  - facts marked stale while companyfacts lacks a foreign issuer's report;
+  - every 6-K listed as `other`, until Q2 exists.
 
 ## Sign-off
 
 Not signed off. `signoff` stays `grandfathered` in the plugin's
-`contract.json`. The audit supports the fields as read: every SEC field checked
-against a primary source matched. Sign-off still needs:
+`contract.json`. Every SEC field checked against a primary source matched, and
+the companyfacts gap for foreign issuers is an accepted limit covered by the
+stale alarm. What remains before sign-off:
 
-- [ ] **Stage 2 (builder):** typed SEC claims. The CIK on a LEI issuer must be
-  written as a rule output (`rule_confirmed` with its rule), not `snapshot`.
+- [ ] **Typed claims for the CIK to LEI links.** The builder writes a CIK on a
+  LEI issuer as a rule output (`rule_confirmed` with its rule), not `snapshot`.
   Owner: the builder's claims migration.
-- [ ] **Stage 3:**
-  - the companyfacts gap for foreign issuers, which the alarm shows but does
-    not close. Named fix: the instance read in P11.
-  - the CIK to LEI links inherited from FIRDS field 5, and name-only links.
-    Named fix: the FIRDS claims switch and Q1.
-- [ ] **Stage 4:** Q1 and Q2 written, passed through `decide()`, and checked
-  on a sampled build.
-- [ ] Every open item closed, or accepted with a limit and an owner.
-- [ ] The maintainer's review, with its date and PR. ADR 0042 also puts one
-  source in onboarding at a time, and FIRDS has not signed off.
+- [ ] **The judgement questions** of section 4 written, passed through
+  `decide()` and checked on a sampled build, suggest-only.
+- [ ] **The founder's spot-check** of the sample below, recorded here with its
+  date, in the pull request that sets `signed_off`.
 
-**Spot-check sample for the maintainer.** Drawn with seeds 20260928 (values)
+The audit is re-runnable: `just reference-sec-audit fetch` fills the cache,
+`draw` repeats the sample and `label` recomputes section 3.
+
+**Spot-check sample for the founder.** Drawn with seeds 20260928 (values)
 and 20260929 (lines) from the audited rows. Each links to the filing on EDGAR.
 
 | Filer | Concept | Period | Value | Filing |

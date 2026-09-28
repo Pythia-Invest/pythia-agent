@@ -68,9 +68,9 @@ def previous_good(path: Path) -> tuple[Path, dict] | None:
     return None
 
 
-def drift(path: Path, fingerprint: dict, read=()) -> dict:
+def drift(path: Path, fingerprint: dict, read=(), exact=()) -> dict:
     """A source's drift report for this build: its alarms against the last good build's fingerprint."""
     baseline = previous_good(path)
-    alarms = source_drift.compare(baseline[1]["fingerprint"] if baseline else None, fingerprint, read)
+    alarms = source_drift.compare(baseline[1]["fingerprint"] if baseline else None, fingerprint, read, exact)
     return {"record": path.name, "baseline": baseline[0].name if baseline else None, "alarms": alarms,
             "broken": bool(source_drift.breaks(alarms))}

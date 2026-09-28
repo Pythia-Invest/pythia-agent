@@ -43,6 +43,8 @@ READ = {
               "primaryDocDescription", "isInlineXBRL", "size", "reportDate", "isXBRL"),
     FACTS: ("accn", "end", "filed", "form", "val", "fy", "fp", "frame"),
 }
+# Every change of these counts is an alarm: a filer whose companyfacts falls behind, or SEC catching up.
+EXACT = {FILERS: (), FILINGS: (), FACTS: ("latest_report_missing",)}
 
 
 def plugin(name: str):
@@ -168,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     for source, fingerprint in prints.items():
         found = fingerprint.to_dict()
         path = claims.record_path(args.out, source, stamp)
-        report = claims.drift(path, found, READ[source])
+        report = claims.drift(path, found, READ[source], EXACT[source])
         claims.write(path, {"good": not report["broken"], "fingerprint": found, "report": report})
         for line in source_drift.format_alarms(report["alarms"], report["baseline"]):
             print(f"{source}{line}")

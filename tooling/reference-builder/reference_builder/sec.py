@@ -118,7 +118,8 @@ def observe(source: str, data: bytes) -> Fingerprint:
     for cik, found in names.items():
         if len(found) > 1:
             fingerprint.count("cik_several_titles", f"cik:{cik}")
-    fingerprint.count("ciks_with_several_tickers", by=sum(1 for rows in tickers_per_cik.values() if rows > 1))
+    if source == TICKERS:  # a fund trust always has many classes, so only the company file's count means anything
+        fingerprint.count("ciks_with_several_tickers", by=sum(1 for rows in tickers_per_cik.values() if rows > 1))
     return fingerprint
 
 

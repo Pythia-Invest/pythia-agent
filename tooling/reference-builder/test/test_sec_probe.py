@@ -67,6 +67,15 @@ class SecProbeTest(unittest.TestCase):
             before["sec_facts"], prints([(submissions(), no_frame)])["sec_facts"], sec_probe.READ["sec_facts"]))],
             [("field_missing", "frame")])
 
+    def test_every_change_in_the_stale_count_is_an_alarm(self):
+        stale = prints([(submissions(), companyfacts())])["sec_facts"]  # one filer behind
+        caught_up = prints([(submissions(), companyfacts("0000123456-26-000002"))])["sec_facts"]
+        for before, after in ((stale, caught_up), (caught_up, stale)):
+            alarms = source_drift.compare(before, after, sec_probe.READ["sec_facts"], sec_probe.EXACT["sec_facts"])
+            self.assertIn(("metric_shift", "latest_report_missing"), {(a["kind"], a["key"]) for a in alarms})
+        # Without the exact rule a fall to zero would pass unnoticed.
+        self.assertEqual(source_drift.compare(stale, caught_up, sec_probe.READ["sec_facts"]), [])
+
     def test_unequal_columns_and_a_missing_companyfacts_are_counted(self):
         broken = submissions()
         broken["filings"]["recent"]["size"] = [1000]

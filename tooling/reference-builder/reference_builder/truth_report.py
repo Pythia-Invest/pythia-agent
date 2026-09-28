@@ -291,10 +291,9 @@ def sec_section(reference: Path) -> tuple[list[str], bool]:
         record = claims.read(path)
         if not record or not record.get("fingerprint"):
             continue
-        baseline = claims.previous_good(path)
-        alarms = source_drift.compare(baseline[1]["fingerprint"] if baseline else None, record["fingerprint"], sec.READ[source])
-        broken = broken or bool(source_drift.breaks(alarms))
+        report = claims.drift(path, record["fingerprint"], sec.READ[source])
+        broken = broken or report["broken"]
         counts = ", ".join(f"{name} {value}" for name, value in record["fingerprint"]["metrics"].items() if value)
         lines += [f"{source} ({record['fingerprint']['records']} rows; {path.name}{'' if record.get('good') else ', a broken build'})"
-                  f"{': ' + counts if counts else ''}", *source_drift.format_alarms(alarms, baseline[0].name if baseline else None)]
+                  f"{': ' + counts if counts else ''}", *source_drift.format_alarms(report["alarms"], report["baseline"])]
     return lines, broken

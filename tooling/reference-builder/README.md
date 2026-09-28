@@ -124,10 +124,12 @@ table under `writer_ignored`.
   ING); accented capitals re-case like any other (Nestlé, Møller, Spółka,
   Türkiye).
   Mixed-case names are kept as written.
-- **CIK to LEI.** Link by identifier agreement first: a FIRDS US ISIN mapped to
+- **CIK to LEI.** Link only by identifier agreement: a FIRDS US ISIN mapped to
   the SEC ticker, a shared share-class FIGI, or GLEIF's SEC EDGAR registration.
-  Fall back to a unique normalised name match on both sides. Conflicts become
-  flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
+  A name never links: a CIK no identifier links stays a CIK-only issuer, which
+  `issuer_split_lei_cik` flags when a LEI issuer has its name (the name-only
+  join linked Biofrontera Inc. to Biofrontera AG). Conflicts become flags, never
+  merges. When several CIKs link one LEI by identifier, one whose SEC
   title matches the LEI's names wins, then CIK order (FIRDS gives Lee
   Enterprises' ISIN Berkshire Hathaway's LEI); when none matches, none links
   (`lei_contested_unnamed`: FIRDS puts venue and data-vendor LEIs such as TP
@@ -247,8 +249,12 @@ The SEC plugin reads `submissions` and `companyfacts` live, so they have no buil
 `sec_facts` records beside the builds: their fields, form groups, the taxonomy and
 `fp` vocabularies, and counts such as unknown forms, unknown 8-K items and filers whose
 companyfacts lacks their latest report with XBRL (the plugin's own `freshness`
-check). The [SEC source record](../../docs/sources/sec.md) has the field meanings,
-the baselines and the audit.
+check). Every change in that stale count is an alarm, up or down. `just
+reference-sec-audit fetch|draw|label` re-runs the onboarding audit: `fetch` fills
+`.local/reference-builder/sec-audit/`, `draw` repeats the frozen sample from it, and
+`label` compares each field with its primary source (EDGAR headers, the filings' XBRL
+instances, GLEIF for `--reference` links). The [SEC source record](../../docs/sources/sec.md)
+has the field meanings, the baselines and the audit.
 
 ## Identity truth set and audit
 

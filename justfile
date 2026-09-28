@@ -80,6 +80,10 @@ reference-audit *args:
 reference-sec-probe *args:
     PYTHONPATH=tooling/reference-builder python3 -m reference_builder.sec_probe {{args}}
 
+# Re-run the SEC onboarding audit: fetch (network) fills the cache; draw and label read only the cache.
+reference-sec-audit step *args:
+    PYTHONPATH=tooling/reference-builder python3 -m reference_builder.sec_audit {{step}} {{args}}
+
 # Check core's curated crypto assets against CoinGecko and CoinMarketCap (network; fails on drift).
 canonical-assets-drift *args:
     PYTHONPATH=tooling/reference-builder python3 -m reference_builder.drift {{args}}

@@ -1,7 +1,7 @@
 """US lines: SEC ticker lines, SEC fund ETFs, their OpenFIGI identifiers, and CIK-to-LEI issuer links.
 
-Links are made by identifier agreement first (FIRDS US ISIN, shared share-class
-FIGI, GLEIF's EDGAR registration), then by a unique normalised name. Any
+Links are made by identifier agreement only (FIRDS US ISIN, shared share-class
+FIGI, GLEIF's EDGAR registration); a name never links a CIK to a LEI. Any
 disagreement becomes a flag, never a merge.
 """
 
@@ -137,52 +137,27 @@ def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, l
     for entity in entities.values():
         if entity.registered_at == SEC_EDGAR_RA and (entity.registered_as or "").isdigit():
             evidence[str(int(entity.registered_as))].append((entity.lei, "gleif_edgar_registration"))
-    _name_evidence(snap, tickers, evidence)
     return evidence, isins
 
 
-def _name_evidence(snap, tickers, evidence) -> None:
-    by_name: dict[str, set[str]] = defaultdict(set)
-    for issuer in snap.issuers.values():
-        if issuer.lei and issuer.entity_status != "INACTIVE":
-            for name, kind, _lang, _src in issuer.names:
-                if kind != "PREVIOUS_LEGAL_NAME":
-                    by_name[rules.normalized_name(name)].add(issuer.lei)
-    ciks_by_name: dict[str, set[str]] = defaultdict(set)
-    for ticker in tickers:
-        ciks_by_name[rules.normalized_name(ticker.name)].add(ticker.cik)
-    for key, ciks in ciks_by_name.items():
-        leis = by_name.get(key, set())
-        if len(key) >= rules.MIN_NAME_KEY and len(leis) == 1 and len(ciks) == 1:
-            evidence[next(iter(ciks))].append((next(iter(leis)), "name_unique"))
-
-
 def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
-    """One LEI per CIK. Identifier links claim their LEI before any name link does."""
+    """One LEI per CIK, from identifier evidence only. A CIK no identifier links stays a CIK-only issuer."""
     candidates = []
     for cik in sorted({t.cik for t in tickers}, key=int):
         found = evidence.get(cik, [])
         strong = {lei for lei, rule in found if rule in IDENTIFIER_RULES}
-        weak = {lei for lei, rule in found if rule == "name_unique"}
         if len(strong) > 1:
             snap.flag(f"cik:{cik}", "cik_lei_conflict", ",".join(sorted(strong)))
             audit["link_conflicts"] += 1
             continue
-        if strong:
-            lei = next(iter(strong))
-            rule = next(r for l, r in found if l == lei and r in IDENTIFIER_RULES)
-            if weak and weak != strong:
-                snap.flag(f"cik:{cik}", "name_link_contradicted", ",".join(sorted(weak)))
-        elif len(weak) == 1:
-            lei, rule = next(iter(weak)), "name_unique"
-        else:
+        if not strong:
             continue
-        candidates.append((rule == "name_unique", cik, lei, rule))
+        lei = next(iter(strong))
+        candidates.append((False, cik, lei, next(r for l, r in found if l == lei and r in IDENTIFIER_RULES)))
     titles = _titles(tickers)
     links: dict[str, tuple[str, str]] = {}
     claimed: dict[str, str] = {}
-    alike = {(cik, lei): rule == "name_unique" or _name_alike(titles[cik], snap.issuers.get(f"lei:{lei}"))
-             for _weak, cik, lei, rule in candidates}
+    alike = {(cik, lei): _name_alike(titles[cik], snap.issuers.get(f"lei:{lei}")) for _weak, cik, lei, _rule in candidates}
     # A LEI several CIKs claim and none of them names (FIRDS puts a venue's or data vendor's LEI on US ISINs:
     # TP ICAP, Frankfurter Wertpapierbörse, Bloomberg) links to none of them.
     claimants = Counter(lei for _weak, _cik, lei, _rule in candidates)
@@ -192,9 +167,9 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
             snap.flag(f"cik:{cik}", "lei_contested_unnamed", lei)
             audit["link_conflicts"] += 1
     candidates = [c for c in candidates if claimants[c[2]] == 1 or c[2] in named]
-    # Identifier links first; among CIKs claiming one LEI, one whose SEC title matches the LEI's names first (FIRDS
-    # gives Lee Enterprises' ISIN Berkshire Hathaway's LEI); otherwise CIK order.
-    ordered = sorted(candidates, key=lambda c: (c[0], not alike[(c[1], c[2])]))
+    # Among CIKs claiming one LEI, one whose SEC title matches the LEI's names first (FIRDS gives Lee Enterprises'
+    # ISIN Berkshire Hathaway's LEI); otherwise CIK order.
+    ordered = sorted(candidates, key=lambda c: not alike[(c[1], c[2])])
     for _weak, cik, lei, rule in ordered:
         if lei in claimed:
             snap.flag(f"cik:{cik}", "lei_already_linked", f"{lei} to cik:{claimed[lei]}")
@@ -241,7 +216,7 @@ def _flag_suspect_links(snap: Snapshot, tickers: list[SecTicker], links: dict[st
     titles = _titles(tickers)
     for cik, (lei, rule) in links.items():
         issuer = snap.issuers[f"lei:{lei}"]
-        if rule != "name_unique" and not _name_alike(titles[cik], issuer):
+        if not _name_alike(titles[cik], issuer):
             snap.flag(issuer.issuer_id, "cik_link_suspect", f"cik:{cik}")
 
 
