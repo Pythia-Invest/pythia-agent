@@ -15,13 +15,12 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
                 "unresolved_identity:core_unavailable": "Pythia core identity is not loaded, so no subject can be routed. Explicit source references still read.",
                 "issuer_subject": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them.",
                 "ambiguous_series": "Several source series match; specify more criteria or pin a descriptor.",
-                "ambiguous_source": "Several sources are eligible; set a source order or pin a descriptor.",
                 "incompatible_series": "The selected source has no compatible series.",
                 "unavailable": "The selected source is unavailable in this native caller context.",
-                "explicit_source_required": "Available broker data requires an explicit native reference, pinned series or saved source preference.",
+                "explicit_source_required": "Available broker data requires an explicit native reference, a pinned series or a place in source_order.",
                 "source_error": "The selected source read failed; alternatives require a separate read.",
                 "invalid_response": "The selected source returned different or invalid series semantics.",
-                "selection_changed": "Source preferences or access changed during this read; retry explicitly."}
+                "selection_changed": "Access changed during this read; retry explicitly."}
     message = messages[code]
     code = code.split(":", 1)[0]
     if provider is not None:
@@ -30,7 +29,7 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
         message += f" Requested series: {selected['id']}."
     return validate_read_result({"schema_version": 1, "outcome": "error", "request": request,
         "series": None, "observations": [], "selection": {"view": request["view"], "reason": reason,
-        "preference_revision": None, "alternatives": list(alternatives)}, "provenance": None,
+        "alternatives": list(alternatives)}, "provenance": None,
         "retrieved_at": datetime.now(timezone.utc).isoformat(), "returned_window": {"start": None, "end": None},
         "coverage": {"status": "unknown", "gaps": [], "truncated": False, "continuation": None},
         "freshness": {"status": "unknown", "as_of": None, "basis": "unknown", "market_data_type": "unknown"},
@@ -56,8 +55,7 @@ def utc_days(request, series):
                                   if edge and edge["kind"] == "session_date" else edge for name, edge in edges.items()}}
 
 
-def _choose(backend, request, criteria, descriptor, sources, preferences):
-    from .preferences import applicable_order
+def _choose(backend, request, criteria, descriptor, sources):
     operation = request["operation"]
     view = request["view"]
     if view["kind"] == "source":
@@ -70,39 +68,25 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
     require(descriptor is None, "read", "Pythia view does not accept a pinned descriptor")
     binding = view["subject"]
     route = backend.route(binding)
-    bindings = route["refs"]
-    opted_in, order = applicable_order(preferences, operation, route["asset_class"], criteria,
-                                       [ref["provider"] for ref in bindings])
+    bindings = route["refs"]  # in core's one source order (ADR 0040)
     explicit = "provider" in binding
-    eligible = [ref for ref in bindings if available(sources, ref["provider"], operation)
-                and available(sources, ref["provider"], "series")
-                and (explicit or permits_implicit(sources, ref["provider"], opted_in))]
+    readable = [ref for ref in bindings if available(sources, ref["provider"], operation)
+                and available(sources, ref["provider"], "series")]
+    eligible = [ref for ref in readable if explicit or permits_implicit(sources, ref["provider"], route["named"])]
     if route["reason"] == "issuer_subject":
         return None, "issuer_subject", None, []
     if not bindings:
         return None, "unresolved_identity" + (f":{route['reason']}" if route["reason"] else ""), None, []
-    providers = {ref["provider"] for ref in eligible}
-    ordered = [provider for provider in order if provider in providers]
-    ordered += sorted(providers - set(ordered))
-    chosen = ordered[0] if ordered else None
-    if chosen is None:
-        if len(providers) == 1:
-            chosen = next(iter(providers))
-        elif len(providers) > 1:
-            return None, "ambiguous_source", None, []
-        else:
-            excluded = any(available(sources, ref["provider"], operation) and
-                           available(sources, ref["provider"], "series") and
-                           not permits_implicit(sources, ref["provider"], opted_in) for ref in bindings)
-            return None, "explicit_source_required" if excluded else "unavailable", None, []
+    ordered = list(dict.fromkeys(ref["provider"] for ref in eligible))
+    if not ordered:
+        return None, "explicit_source_required" if readable else "unavailable", None, []
     # A declared operation is not proof of compatible series semantics. Examine
-    # the preferred sources in order before committing to an observation read.
+    # the sources in core's order before committing to an observation read.
     # A metadata error still stops: failure is not evidence of incompatibility.
-    candidates_by_provider = ordered or [chosen]
-    eligible = [ref for ref in eligible if ref["provider"] in candidates_by_provider and all(
+    eligible = [ref for ref in eligible if all(
         key not in criteria or key not in ref.get("qualifiers", {}) or
         ref["qualifiers"][key] == criteria[key] for key in ("currency", "venue", "route"))]
-    for candidate_provider in candidates_by_provider:
+    for candidate_provider in ordered:
         if sum(ref["provider"] == candidate_provider for ref in eligible) > 8:
             return None, "ambiguous_series", candidate_provider, []
         unique = {}
@@ -131,7 +115,7 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
             if explicit and not compatible_ref(binding, selected["provider_ref"]):
                 return None, "incompatible_series", candidate_provider, []
             return selected, None, candidate_provider, []
-    return None, "incompatible_series", chosen, []
+    return None, "incompatible_series", ordered[0], []
 
 
 def _completed_only(result):
@@ -159,14 +143,12 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     """
     request = validate("read_request", request)
     sources, access = backend.context()
-    preferences = backend.preferences.get()
     preferred = request["view"]["kind"] == "pythia"
-    preference_revision = preferences["revision"] if preferred else None
     alternatives = ["provider:" + source["contribution"]["provider"] for source in sources
                     if available(sources, source["contribution"]["provider"], request["operation"])]
-    selected, error, chosen_provider, source_issues = _choose(backend, request, criteria, descriptor, sources, preferences)
+    selected, error, chosen_provider, source_issues = _choose(backend, request, criteria, descriptor, sources)
     if error:
-        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error in ("incompatible_series", "ambiguous_series", "ambiguous_source", "issuer_subject") else "unavailable"
+        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error in ("incompatible_series", "ambiguous_series", "issuer_subject") else "unavailable"
         alternatives = [item for item in alternatives if item != "provider:" + (chosen_provider or "")]
         return read_failure(request, error, reason=reason, alternatives=alternatives, provider=chosen_provider, source_issues=source_issues)
     provider = selected["provider_ref"]["provider"]
@@ -178,8 +160,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     native_request = copy.deepcopy(utc_days(request, selected))
     native_request["view"] = {"kind": "source", "series_id": selected["id"]}
     native_arguments = {"request": native_request, "source_selector": selector(selected)}
-    key = fingerprint({"request": request, "criteria": criteria, "series": selected, "access": access,
-                       "preferences": preference_revision})
+    key = fingerprint({"request": request, "criteria": criteria, "series": selected, "access": access})
     # Strict current freshness cannot be inferred from an old cached assessment.
     cacheable = access["cacheable"] and caches_observations(sources, provider) and request["requirements"]["freshness"] != "fresh"
     current_sources, current_access = backend.context()
@@ -187,11 +168,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
         return read_failure(request, "selection_changed", alternatives=alternatives, provider=provider, selected=selected)
     cached = backend.cache.get(key) if cacheable and use_cache else None
     if cached is not None:
-        try:
-            with backend.publication(preference_revision):
-                return cached
-        except WireError:
-            return read_failure(request, "selection_changed", alternatives=alternatives, provider=provider, selected=selected)
+        return cached
     raw = yield provider, request["operation"], native_arguments
     from .request_context import cancelled
     if cancelled():
@@ -211,8 +188,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
         result["issues"].append({"code": "selected_source", "severity": "warning",
                                  "message": f"Selected source: {provider}. Requested series: {selected['id']}. Alternatives require a separate read."})
     result["request"] = utc_days(request, selected)  # whole UTC days stay instants
-    result["selection"] = {"view": request["view"], "reason": "pinned" if request["view"]["kind"] == "source" else "preference",
-                           "preference_revision": (preferences["revision"] or None) if request["view"]["kind"] == "pythia" else None,
+    result["selection"] = {"view": request["view"], "reason": "preference" if preferred else "pinned",
                            "alternatives": alternatives}
     if preferred and "provider" not in request["view"]["subject"] and result["series"] is not None:
         result["series"]["subject"] = request["view"]["subject"]
@@ -220,15 +196,11 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     current_sources, current_access = backend.context()
     if current_access != access or not available(current_sources, provider, request["operation"]):
         return read_failure(request, "selection_changed", alternatives=alternatives, provider=provider, selected=selected)
-    try:
-        with backend.publication(preference_revision):
-            if cacheable and result["outcome"] in ("ok", "empty", "partial"):
-                age = next((source["contribution"].get("cadence", {}).get(request["operation"], 15)
-                            for source in sources if source["contribution"]["provider"] == provider), 15)
-                backend.cache.put(key, result, ttl_seconds=age)
-            return result
-    except WireError:
-        return read_failure(request, "selection_changed", alternatives=alternatives, provider=provider, selected=selected)
+    if cacheable and result["outcome"] in ("ok", "empty", "partial"):
+        age = next((source["contribution"].get("cadence", {}).get(request["operation"], 15)
+                    for source in sources if source["contribution"]["provider"] == provider), 15)
+        backend.cache.put(key, result, ttl_seconds=age)
+    return result
 
 
 def read(backend, request, criteria, descriptor=None):

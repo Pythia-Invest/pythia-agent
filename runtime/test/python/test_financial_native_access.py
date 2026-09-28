@@ -270,20 +270,19 @@ class NativeAccessTests(unittest.TestCase):
         result = json.loads(transport.execute(self.provider_key, 'synthetic-read', {}, None, lambda: False, read_only=True))
         self.assertEqual(result['data'], {'value': 7})
 
-    def test_mixed_financial_operation_keeps_explicit_mutations_but_rejects_automatic_ones(self):
+    def test_financial_operation_admits_automatic_callers_only_for_read_actions(self):
         FinancialDelivery = importlib.import_module(PACKAGE + '.transport').FinancialDelivery
-        backend = SimpleNamespace(preferences=SimpleNamespace(get=lambda: {'revision': 1}),
-                                  subject_scope=lambda reads: [])
+        backend = SimpleNamespace(subject_scope=lambda reads: [])
         entry = self.registry.get_entry(definition.TOOL_NAME)
         entry.handler.pythia_operation_support = FinancialDelivery(lambda: backend)
-        mutation = {'action': 'set_preferences'}
+        unclassified = {'action': 'set_preferences'}  # retired; any action that is not a declared read
         with self.assertRaises(transport.Rejected) as caught:
-            transport.execute(self.feature_key, 'query', mutation, 'b' * 64, lambda: False, read_only=True)
+            transport.execute(self.feature_key, 'query', unclassified, 'b' * 64, lambda: False, read_only=True)
         self.assertEqual(caught.exception.code, 'read_only_required')
         self.assertEqual(self.dispatches, [])
-        ordinary = json.loads(transport.execute(self.feature_key, 'query', mutation, None, lambda: False))
+        ordinary = json.loads(transport.execute(self.feature_key, 'query', unclassified, None, lambda: False))
         self.assertEqual(ordinary['data'], {'value': 7})
-        read = json.loads(transport.execute(self.feature_key, 'query', {'action': 'get_preferences'}, None,
+        read = json.loads(transport.execute(self.feature_key, 'query', {'action': 'describe'}, None,
                                            lambda: False, read_only=True))
         self.assertEqual(read['data'], {'value': 7})
 
