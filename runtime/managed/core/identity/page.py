@@ -3,7 +3,7 @@
 `subject_view` is local only: it reads the reference file, the identity store and
 the installed plugins' contracts, and never calls a plugin. A plugin whose
 contract lets core build its native reference from open identifiers (a MIC
-suffix table, an identifier-named native scope, the curated native-coin table)
+suffix table, an identifier-named native scope, the curated canonical-asset table)
 is addressed at once; that derived reference is an address, never identifier
 evidence. Only when core cannot derive the address is the section `resolving`:
 the Desk then asks for that plugin's resolve (`identity-resolve`), which
@@ -23,7 +23,7 @@ from .concepts import NOTICE, REGISTRY, Combine, Concept, ranked, select
 from .manifest import ConceptEntry, Manifest
 from .model import Binding, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide
-from .schemes import Level, provisional_id
+from .schemes import CANONICAL_ASSETS_RULE, Level, provisional_id
 from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
 from .vocabulary import KIND_OF_RECORD, AssetClass, InstrumentKind, VerdictRelation
 
@@ -50,7 +50,6 @@ LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMark
 SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
         Level.SECURITY: VerdictRelation.SAME_SECURITY, Level.ISSUER: VerdictRelation.SAME_ISSUER}
 RESOLVE_RULE = "resolve_answer@1"  # a resolve answer to open identifiers binds unless identifier evidence contradicts it
-NATIVE_COINS_RULE = "native_coins@1"
 
 
 @dataclass(frozen=True)
@@ -114,10 +113,12 @@ def derive(info: PluginInfo, level: Level, subject: dict, coins: Callable[[str, 
     for scope in manifest.native:
         if scope.level is not level or (scope.asset_classes and subject["asset_class"] not in scope.asset_classes):
             continue
-        if level is Level.SECURITY and subject["asset_class"] == "crypto" and values.get("caip19"):
-            native = coins(manifest.provider, values["caip19"])
+        if level is Level.SECURITY and subject["asset_class"] == "crypto":
+            security = subject["ids"].get(Level.SECURITY) or ""
+            native = security.startswith("security:caip19:") and coins(  # by the asset's canonical deployment
+                manifest.provider, security.removeprefix("security:caip19:"))
             if native:
-                return ProviderRef(manifest.provider, native, scope.native_scope), NATIVE_COINS_RULE
+                return ProviderRef(manifest.provider, native, scope.native_scope), CANONICAL_ASSETS_RULE
         accepted = manifest.schemes.get(level, ())
         if scope.native_scope in accepted and values.get(scope.native_scope):
             return ProviderRef(manifest.provider, values[scope.native_scope], scope.native_scope), f"{scope.native_scope}_ref@1"
@@ -216,7 +217,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         ref, state = ProviderRef(row["provider"], row["native_id"], row["native_scope"]), row["status"]
     else:
         ref, rule = derived
-        state = "confirmed" if rule == NATIVE_COINS_RULE else "derived"
+        state = "confirmed" if rule == CANONICAL_ASSETS_RULE else "derived"
     request = None
     if section in (Section.PROFILE, Section.FILINGS):
         if operation not in info.operations:  # the contract names it, but no native tool declares it

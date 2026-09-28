@@ -152,10 +152,11 @@ CREATE TABLE provider_chains (
   PRIMARY KEY (provider, chain)
 );
 
--- Canonical native coins (CAIP-19 slip44 on their home chain) and each provider's
--- coin id for them. Native coins carry no contract, so this is how they join.
-CREATE TABLE native_coins (
-  caip19 TEXT NOT NULL,
+-- Each provider's coin id for a curated canonical asset (rule canonical_assets@1),
+-- keyed by the asset's canonical deployment. A provider coin id is a binding: this
+-- table is the only way one names a portable subject.
+CREATE TABLE canonical_assets (
+  caip19 TEXT NOT NULL,             -- the canonical issuance deployment: the security is security:caip19:<caip19>
   provider TEXT NOT NULL,
   native_scope TEXT NOT NULL,
   native_id TEXT NOT NULL,

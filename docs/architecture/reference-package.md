@@ -24,14 +24,14 @@ A package is a directory with two files:
 | Field | Meaning |
 | --- | --- |
 | `format` | Always `pythia-reference-package`. |
-| `format_version` | The number core checks for compatibility. It covers the manifest layout and the database schema, and it equals the database's `release.schema_version`. Core installs only its own version (currently `2`). |
+| `format_version` | The number core checks for compatibility. It covers the manifest layout and the database schema, and it equals the database's `release.schema_version`. Core installs only its own version (currently `3`: the curated `canonical_assets` table). |
 | `build_id` | The build, for example `reference-20260928`. It must match the database's `release.release`. |
 | `built_at`, `as_of` | When the build finished (UTC), and the date its sources describe. |
 | `builder_version`, `scope` | The builder's own version, and the venues and sources it covered. |
 | `database` | `file` (a plain file name in the same directory), `bytes` and `sha256`: the checksum of the SQLite file. |
 | `sources` | One entry per source file or API: `source`, `url`, `version`, `as_of` (retrieval date), `retrieved_at`, `licence`, and `notice`, the attribution to show wherever that data is shown. |
 | `quality` | The builder's quality summary: table row counts, canary results, the assembly audit and the identity truth-set scores (`tables`, `canaries`, `audit`, `truth_audit`). |
-| `claims` | **Reserved** for the builder's typed claims, open questions and verdicts, which will ship as a separate file in the package that this key names. Format 2 packages omit it and format 2 core ignores it. Its layout, and whether it needs a new format version, are decided when the builder emits it. |
+| `claims` | **Reserved** for the builder's typed claims, open questions and verdicts, which will ship as a separate file in the package that this key names. Format 3 packages omit it and format 3 core ignores it. Its layout, and whether it needs a new format version, are decided when the builder emits it. |
 
 The builder writes `package.json` into its output directory
 (`.local/reference-builder/out/`, or `--out`) after each build, beside the

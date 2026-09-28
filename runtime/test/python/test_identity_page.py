@@ -63,7 +63,7 @@ class Fixture(unittest.TestCase):
         self.tmp.cleanup()
 
     def lookups(self, subject_id):
-        coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+        coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         stored = {(r["subject_id"], r["provider"]): r for r in self.identity.bindings([subject_id], ("confirmed",))}
         return {"stored": lambda target, provider: stored.get((target, provider)),
                 "coins": lambda provider, caip19: coins.get((provider, caip19)), "queue": []}

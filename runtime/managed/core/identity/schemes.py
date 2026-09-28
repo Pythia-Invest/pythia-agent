@@ -226,7 +226,7 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
     Every install and every rebuild derives the same ID from the same open
     evidence. Precedence per level (KEY_RULE; "isin" means an ISIN outside CGS_AREA):
       issuer     lei, else cik
-      security   isin, else share_class_figi, else caip19 (a crypto asset's home deployment)
+      security   isin, else share_class_figi, else caip19 (a curated crypto asset's canonical deployment)
       composite  the security key + country
       listing    isin + operating MIC + currency, else figi, else caip19 (a chain deployment)
     Tickers are attributes, not keys, so a ticker change keeps the ID.
@@ -275,3 +275,8 @@ def provisional_id(kind: Kind | str, provider: str, native_scope: str, native_id
     readable = PROVISIONAL_NATIVE.match(native_id)
     key = native_id if readable else "sha256-" + hashlib.sha256(native_id.encode()).hexdigest()[:32]
     return f"{Kind(kind)}:provisional:{provider}:{native_scope}:{key}"
+
+
+# Core's curated canonical-asset table (canonical_assets.json, ADR 0037 Crypto): the only source of a portable crypto key.
+CANONICAL_ASSETS_RULE = "canonical_assets@1"
+
