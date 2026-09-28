@@ -202,7 +202,7 @@ class Identity:
             subject = page.load_subject(ref, subject_id)
             if subject is None:
                 return path, None, {}, "Unknown subject."
-            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         finally:
             ref.close()
         identity_store = self.store

@@ -68,6 +68,10 @@ reference-snapshot *args:
 reference-audit *args:
     python3 tooling/reference-builder/audit.py {{args}}
 
+# Check core's curated crypto assets against CoinGecko and CoinMarketCap (network; fails on drift).
+canonical-assets-drift *args:
+    PYTHONPATH=tooling/reference-builder python3 -m reference_builder.drift {{args}}
+
 # The only registry/network dependency check.
 audit:
     pnpm audit --prod --audit-level high

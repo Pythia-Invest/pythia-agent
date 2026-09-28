@@ -66,7 +66,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/vocabulary.py",
   "identity/sql/identity.sql",
   "identity/sql/reference.sql",
-  "identity/native_coins.json",
+  "identity/canonical_assets.json",
 ]);
 
 export function ensurePrivateDirectory(path) {

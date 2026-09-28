@@ -30,7 +30,7 @@ from .resolution import QueueItem, Verdict, VerdictOutcome
 logger = logging.getLogger(__name__)
 REFERENCE_DIR_ENV = "PYTHIA_REFERENCE_DIR"
 SCHEMA_VERSION = "4"            # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds)
-REFERENCE_SCHEMA_VERSION = "2"  # reference-*.sqlite3 release.schema_version, written by the builder
+REFERENCE_SCHEMA_VERSION = "3"  # reference-*.sqlite3 release.schema_version, written by the builder (3: canonical_assets)
 
 
 def now() -> str:

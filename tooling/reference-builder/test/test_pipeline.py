@@ -167,7 +167,7 @@ class PipelineTest(unittest.TestCase):
                                   (f"listing:isin:{ASML_ISIN}:XAMS:EUR",)).fetchone()
                 receipts = db.execute("select count(*) from relations where type='depositary_receipt_of'"
                                       " and to_id=?", (f"security:isin:{ASML_ISIN}",)).fetchone()
-                btc = db.execute("select native_id from native_coins where provider='coinmarketcap' and caip19 like 'bip122:%/slip44:0'").fetchone()
+                btc = db.execute("select native_id from canonical_assets where provider='coinmarketcap' and caip19 like 'bip122:%/slip44:0'").fetchone()
             self.assertEqual(asml, (f"security:isin:{ASML_ISIN}", 1))
             self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM", "XCBO"})
             self.assertEqual(cik, ("share_class_figi", "snapshot"))
@@ -177,7 +177,9 @@ class PipelineTest(unittest.TestCase):
             self.assertGreater(counts["assertions"], counts["listings"])
             written = counts["listings"] + self.snap.audit["writer_ignored"].get("listings", 0)
             dropped = sum(n for key, n in self.snap.audit["schema"].items() if key.startswith("lines_without_"))
-            self.assertEqual(written + dropped, len(self.snap.listings) + 6)  # every line is accounted for; +6 seeded coins
+            seed = json.loads((schema.CORE / "canonical_assets.json").read_text(encoding="utf-8"))
+            curated = sum(1 + len(asset.get("deployments", ())) for asset in seed["assets"])
+            self.assertEqual(written + dropped, len(self.snap.listings) + curated)  # every line is accounted for
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
 
     def test_eu_only_scope_makes_no_sec_lookups(self):

@@ -69,7 +69,7 @@ def assertion_row(item):
 
 def load_reference(db, fixture):
     """Construct every fixture record through the types, then store it under the DDL's checks."""
-    for table in ("chains", "provider_chains", "native_coins"):
+    for table in ("chains", "provider_chains", "canonical_assets"):
         for row in fixture.get(table, []):
             insert(db, table, row)
     for row in fixture.get("issuers", []):
@@ -180,12 +180,12 @@ class FixtureTest(unittest.TestCase):
         self.assertEqual(spaced, identity.provisional_id("listing", "ibkr", "contract", "BRK B"))
         self.assertIs(identity.subject_level(spaced), identity.Level.LISTING)
 
-    def test_native_coins_bind_only_through_the_curated_table(self):
+    def test_coins_bind_only_through_the_curated_table(self):
         fixture, db = load("crypto.json"), database("reference")
         evidence = load_reference(db, fixture)
         for binding in bindings(fixture, evidence):
             ref = binding.provider_ref
-            (caip19,) = db.execute("SELECT caip19 FROM native_coins WHERE provider=? AND native_scope=? AND native_id=?",
+            (caip19,) = db.execute("SELECT caip19 FROM canonical_assets WHERE provider=? AND native_scope=? AND native_id=?",
                                    (ref.provider, ref.native_scope, ref.native_id)).fetchone()
             self.assertEqual(identity.subject_id("security", {"caip19": caip19}), binding.subject_id)
 

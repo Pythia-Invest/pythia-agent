@@ -34,10 +34,13 @@ assertion, never a key, so those securities are keyed by share-class FIGI and
 listings by FIGI. `id_aliases` maps every other key a subject could have had
 (ISIN-, FIGI-, LEI- or CIK-based) to its ID; an alias that is itself a subject,
 or names two subjects, is dropped and counted. Identifier assertions carry
-authority `snapshot`. It also carries core's curated native-coin seed
-(`runtime/managed/core/identity/native_coins.json`: chains, provider chain ids
-and each provider's coin id for BTC, ETH, SOL and a few other native coins), so
-search finds those coins without a provider. Securities carry a notability
+authority `snapshot`. It also carries core's curated canonical crypto assets
+(`runtime/managed/core/identity/canonical_assets.json`, rule
+`canonical_assets@1`: chains, provider chain ids, and per asset its canonical
+deployment, its same-security deployments and each provider's coin id), so
+search finds those assets without a provider and every install keys them
+alike. `just canonical-assets-drift` checks the table against CoinGecko and
+CoinMarketCap; the evidence per row is in `truth/canonical-assets-audit.md`. Securities carry a notability
 `rank` (FITRS turnover order, SEC file order, curated coin order) for search; a
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit

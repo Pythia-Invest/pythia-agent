@@ -4,7 +4,7 @@ The file is core's reference store (`runtime/managed/core/identity/sql/reference
 with subject IDs from core's `subject_id()`, so core reads it without a mapping.
 The assembled snapshot keeps its own working IDs; this module translates them.
 Identifier assertions carry authority `snapshot` (carried from a verified build);
-the curated native-coin seed carries `curated`.
+the curated canonical-asset seed carries `curated`.
 """
 
 from __future__ import annotations
@@ -177,7 +177,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     ids, audit = _Ids(snap), Counter()
     tables: dict[str, list[dict]] = {name: [] for name in (
         "release", "venues", "issuers", "securities", "composites", "listings", "assertions", "relations", "names",
-        "chains", "provider_chains", "native_coins", "id_aliases")}
+        "chains", "provider_chains", "canonical_assets", "id_aliases")}
     candidates: dict[str, set[str]] = defaultdict(set)  # alias -> the subjects it could name
 
     def assert_(subject, scheme, value, source, *, record=None, start=None, end=None, authority="snapshot"):
@@ -295,7 +295,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             "evidence_id": item.evidence_id, "type": item.type, "from_id": source, "to_id": target,
             "authority": "snapshot", "source": relation.source, "source_record": relation.rule_id,
             "plugin": relation.source, "adapter_version": BUILDER_VERSION, "retrieved_at": at})
-    _native_coins(tables, assert_)
+    _canonical_assets(tables, assert_, candidates, at)
     subjects = {row["id"] for table in ("issuers", "securities", "composites", "listings") for row in tables[table]}
     for alias, named in sorted(candidates.items()):
         if alias in subjects or len(named) > 1:  # a real subject, or ambiguous: never an alias
@@ -309,22 +309,38 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     return tables
 
 
-def _native_coins(tables: dict[str, list[dict]], assert_) -> None:
-    """Core's curated native-coin seed: the crypto assets search finds without any provider."""
-    seed = json.loads((CORE / "native_coins.json").read_text(encoding="utf-8"))
+def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[str, set[str]], at: str) -> None:
+    """Core's curated canonical-asset seed (ADR 0037, Crypto): the crypto assets search finds without any provider,
+    each keyed by its canonical deployment whatever providers are installed. The asset's other deployments are its
+    listings; a wrapped asset is its own security linked by `wraps`. Each provider coin id's provisional ID
+    becomes an alias, so an ID minted before the asset was curated still resolves."""
+    seed = json.loads((CORE / "canonical_assets.json").read_text(encoding="utf-8"))
+    rule = seed["rule_id"]
     tables["chains"] += seed["chains"]
     tables["provider_chains"] += seed["provider_chains"]
-    for coin in seed["coins"]:
-        security = identity.subject_id("security", {"caip19": coin["caip19"]})
-        listing = identity.subject_id("listing", {"caip19": coin["caip19"]})
-        tables["securities"].append({"id": security, "issuer_id": None, "name": coin["name"], "asset_class": "crypto",
-                                     "kind": "coin", "status": "active", "rank": coin["rank"]})
-        tables["listings"].append({"id": listing, "security_id": security, "composite_id": None, "mic": None,
-                                   "operating_mic": None, "ticker": coin["symbol"], "currency": None,
-                                   "is_primary": 1, "status": "active", "chain": coin["caip19"].split("/", 1)[0]})
-        assert_(listing, "caip19", coin["caip19"], "pythia", record=seed["rule_id"], authority="curated")
-        for alias in coin.get("aliases", []):
+    for asset in seed["assets"]:
+        security = identity.subject_id("security", {"caip19": asset["caip19"]})
+        tables["securities"].append({"id": security, "issuer_id": None, "name": asset["name"], "asset_class": "crypto",
+                                     "kind": asset["kind"], "status": "active", "rank": asset["rank"]})
+        for deployment in (asset["caip19"], *asset.get("deployments", ())):
+            listing = identity.subject_id("listing", {"caip19": deployment})
+            tables["listings"].append({"id": listing, "security_id": security, "composite_id": None, "mic": None,
+                                       "operating_mic": None, "ticker": asset["symbol"], "currency": None,
+                                       "is_primary": int(deployment == asset["caip19"]), "status": "active",
+                                       "chain": deployment.split("/", 1)[0]})
+            assert_(listing, "caip19", deployment, "pythia", record=rule, authority="curated")
+        for alias in asset.get("aliases", []):
             tables["names"].append({"subject_id": security, "name": alias, "source": "pythia"})
         for provider in ("coinmarketcap", "coingecko"):
-            tables["native_coins"].append({"caip19": coin["caip19"], "provider": provider, "native_scope": "coin",
-                                           "native_id": coin[provider]})
+            tables["canonical_assets"].append({"caip19": asset["caip19"], "provider": provider, "native_scope": "coin",
+                                               "native_id": asset[provider]})
+            candidates[identity.provisional_id("security", provider, "coin", asset[provider])].add(security)
+        if asset.get("wraps"):
+            underlying = identity.subject_id("security", {"caip19": asset["wraps"]})
+            item = identity.Relation(type="wraps", from_id=security, to_id=underlying, authority="curated",
+                                     provenance={"plugin": "pythia", "source": "pythia", "adapter_version": BUILDER_VERSION,
+                                                 "retrieved_at": at, "source_record": rule})
+            tables["relations"].append({
+                "evidence_id": item.evidence_id, "type": item.type, "from_id": security, "to_id": underlying,
+                "authority": "curated", "source": "pythia", "source_record": rule, "plugin": "pythia",
+                "adapter_version": BUILDER_VERSION, "retrieved_at": at})
