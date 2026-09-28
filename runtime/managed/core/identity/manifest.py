@@ -127,6 +127,7 @@ class Manifest:
     record: str | None              # the source record: required once signed off, pending before
     limits: Limits | None = None
     contract_version: int = CONTRACT_VERSION
+    venue_codes: Mapping[str, str] = field(default_factory=dict)  # the provider's venue code -> operating MIC ("NMS": "XNAS")
 
     @property
     def unaudited(self) -> bool:
@@ -320,7 +321,7 @@ def validate_manifest(document: Any) -> Manifest:
         raise ManifestNeedsUpdate(version)
     body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights", "signoff"},
                    {"concepts", "catalogue", "resolve", "limits"})
-    addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table"})
+    addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table", "venue_codes"})
     native = []
     if not isinstance(addressing.get("native", []), list):
         raise ManifestError("addressing.native: list required")
@@ -343,6 +344,11 @@ def validate_manifest(document: Any) -> Manifest:
     mic_table = {_match(MIC, mic, "addressing.mic_table"): code for mic, code in table.items()}
     if not all(isinstance(code, str) and len(code) <= 16 for code in mic_table.values()):
         raise ManifestError("addressing.mic_table: provider venue codes are short text")
+    codes = addressing.get("venue_codes", {})
+    codes = _object(codes, "addressing.venue_codes", set(), set(codes) if isinstance(codes, Mapping) else set())
+    if not all(0 < len(code) <= 16 for code in codes):
+        raise ManifestError("addressing.venue_codes: provider venue codes are short text")
+    venue_codes = {code: _match(MIC, mic, f"addressing.venue_codes.{code}") for code, mic in codes.items()}
 
     catalogue = _object(body.get("catalogue", {"mode": "resolve_only"}), "catalogue", {"mode"}, {"operation", "scopes"})
     mode = _enum(CatalogueMode, catalogue["mode"], "catalogue.mode")
@@ -371,4 +377,4 @@ def validate_manifest(document: Any) -> Manifest:
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
                     tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
                     _rights(body["rights"]), *_signoff(body["signoff"]),
-                    _limits(body["limits"]) if "limits" in body else None, version)
+                    _limits(body["limits"]) if "limits" in body else None, version, venue_codes)

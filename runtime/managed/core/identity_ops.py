@@ -23,7 +23,7 @@ from .identity import (
     MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch, subject_kind,
     validate_manifest, vouched,
 )
-from . import queue_ops, search_venues
+from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, reference_package, search, store
@@ -268,7 +268,7 @@ class Identity:
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
-                   "order": self.order()}
+                   "order": self.order(), **read_checks.lookups(self, subject_ids)}
         return lookups
 
     @staticmethod

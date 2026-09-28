@@ -14,6 +14,7 @@ page needs no reference file.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
@@ -57,6 +58,9 @@ LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMark
 SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
         Level.SECURITY: VerdictRelation.SAME_SECURITY, Level.ISSUER: VerdictRelation.SAME_ISSUER}
 RESOLVE_RULE = "resolve_answer@1"  # a resolve answer to open identifiers binds unless identifier evidence contradicts it
+# Read checks (ADR 0037): the stated attributes whose difference from the reference refuses the source. Empty while
+# no reference field they compare against is signed off; add "venue" or "currency" once its field is.
+ENFORCED: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -181,7 +185,8 @@ def _addressable(info: PluginInfo, level: Level | Kind, subject: dict) -> bool:
 
 def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Callable[[str, str], sqlite3.Row | None],
              coins: Callable[[str, str], str | None], queue: list[dict],
-             misses: Mapping[str, str] = {}) -> dict | None:
+             misses: Mapping[str, str] = {}, checked: Callable[[str, ProviderRef], Mapping | None] = lambda *_: None,
+             serves: Callable[[ProviderRef, str], None] = lambda *_: None) -> dict | None:
     """One plugin's answer for one section, or None when its contract does not declare the section's concept.
 
     A declaring plugin that cannot serve this subject answers with the reason as its status: `not_covering`
@@ -195,8 +200,8 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "provider": info.manifest.provider,
               "label": info.label,
               "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
-              "binding_status": None, "request": None, "alternatives": [], "reason": None,
-              "authorities": [str(item) for item in entry.authorities],
+              "binding_status": None, "verified_at": None, "unverified": None, "request": None, "alternatives": [],
+              "reason": None, "authorities": [str(item) for item in entry.authorities],
               **({"unaudited": True} if info.manifest.unaudited else {})}  # labelled "not yet audited"
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
@@ -240,7 +245,14 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         if section is Section.LIVE:  # a live_market snapshot names its subject
             arguments["subject_id"] = subject["id"]
         request = {"plugin": info.key, "operation": operation, "arguments": arguments}
-    return {**answer, "binding": ref.wire(), "binding_status": state, "request": request}
+    serves(ref, target)  # an explicit read of this reference is checked for this subject
+    check = checked(target, ref)
+    refused = sorted(set(json.loads(check["differs"])) & ENFORCED) if check else []
+    if refused:
+        return {**answer, "status": "conflict", "binding": ref.wire(),
+                "reason": f"{info.label} states another {' and '.join(refused)} than the reference; not used"}
+    return {**answer, "binding": ref.wire(), "binding_status": state, "request": request,
+            "verified_at": check["verified_at"] if check else None, "unverified": check["note"] if check else None}
 
 
 def answers(subject: dict, plugins: list[PluginInfo], section: Section, *, order: tuple[str, ...] = (),

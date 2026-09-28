@@ -85,6 +85,10 @@ export const subjectSectionSchema = z.object({
   /** Eligible sources not chosen; the investor can use one once. */
   alternatives: z.array(sectionAlternativeSchema).default([]),
   reason: optionalText,
+  /** When a read of the serving address last agreed with the reference
+   * (core's read check), or why it did not ("currency differs"); it still serves. */
+  verified_at: text.nullish(),
+  unverified: text.nullish(),
   source: sourceSchema.nullish(),
   skipped: z.array(sectionSkipSchema).default([]),
   /** Filings: the sources combined, one per filing authority. */

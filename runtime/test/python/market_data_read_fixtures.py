@@ -35,6 +35,9 @@ class Sources:
         self.extra = []  # further references core routes the subject through
         self.named = []  # providers the investor names in `source_order`
         self.unaudited = []  # providers core marks not yet signed off (ADR 0042)
+        self.checks = []  # (subject id, reference, stated) core was asked to check
+        self.refuse = set()  # providers whose reads core refuses for the subject
+        self.unverified = set()  # providers core labels unverified
 
     def definition(self, provider, suffix="daily"):
         result = copy.deepcopy(EXAMPLE["series"])
@@ -80,9 +83,17 @@ class Sources:
         return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra], "named": list(self.named),
                 "unaudited": list(self.unaudited)}
 
+    def check_read(self, subject_id, native_ref, stated):
+        self.checks.append((subject_id, native_ref, stated))
+        if native_ref["provider"] in self.refuse:
+            return {"status": "refused", "label": "venue differs"}
+        return {"status": "unverified", "label": "venue differs"} if native_ref["provider"] in self.unverified \
+            else {"status": "verified", "label": None}
+
     def backend(self, directory, canonical=True, **kwargs):
         return Backend(directory, subjects=self.subjects if canonical else lambda subject_id: None,
-                       source_call=self.call, source_projection=self.project, access_scope=lambda: self.access, **kwargs)
+                       source_call=self.call, source_projection=self.project, access_scope=lambda: self.access,
+                       **{"check_read": self.check_read, **kwargs})
 
 
 def request(view=None, requirements=None):
