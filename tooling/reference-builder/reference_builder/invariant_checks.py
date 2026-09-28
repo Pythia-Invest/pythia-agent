@@ -119,6 +119,8 @@ def currency_is_issue_country(build: Build) -> list[tuple]:
         if (not build.live(line) or line["operating_mic"] in SINGLE_CURRENCY_VENUES.keys() | TRADING_ONLY_VENUES
                 or (line["operating_mic"] == "XLUX" and (build.securities.get(line["security_id"]) or {}).get("kind") == "depositary_receipt")):
             continue  # RFQ platforms and internalisers quote US ISINs in USD; Luxembourg lists GDRs in USD
+        if (build.securities.get(line["security_id"]) or {}).get("kind") == "etf":
+            continue  # ETFs list lines in several currencies (SIX, London); the venue rule covers the rest
         home = build.currency_of(build.country(line))
         isin = build.isin.get(line["security_id"]) or ""
         issued = build.currency_of(isin[:2])
@@ -133,7 +135,7 @@ def ticker_currency_suffix(build: Build) -> list[tuple]:
     for line in build.listings:
         match = CURRENCY_SUFFIX.match(line["ticker"] or "")
         if match and build.live(line) and len(match["root"]) >= 3 and match["ccy"] != line["currency"]:
-            found.append((build.label(line), match["ccy"]))
+            found.append((build.label(line), match["ccy"], line["id"]))
     return found
 
 
@@ -157,12 +159,12 @@ def _primaries(build: Build, security_id: str) -> list[dict]:
 
 
 def primary_more_than_one(build: Build) -> list[tuple]:
-    return [((build.securities.get(s) or {}).get("name"), ", ".join(build.label(l) for l in lines))
+    return [((build.securities.get(s) or {}).get("name"), ", ".join(build.label(l) for l in lines), s)
             for s in build.by_security if len(lines := _primaries(build, s)) > 1]
 
 
 def primary_inactive(build: Build) -> list[tuple]:
-    return [(build.label(line),) for s in build.by_security if build.live_security(s)
+    return [(build.label(line), line["id"]) for s in build.by_security if build.live_security(s)
             for line in _primaries(build, s) if line["status"] == "inactive"]
 
 
@@ -178,7 +180,7 @@ def primary_open_market_beside_us_exchange(build: Build) -> list[tuple]:
         us = [l for l in lines if l["operating_mic"] in US_EXCHANGES and build.live(l)]
         for line in _primaries(build, security_id):
             if us and build.country(line) in EEA and build.category(line) != "RMKT":
-                found.append((build.label(line), f"also {us[0]['ticker']}@{us[0]['operating_mic']}"))
+                found.append((build.label(line), f"also {us[0]['ticker']}@{us[0]['operating_mic']}", line["id"]))
     return found
 
 
@@ -191,7 +193,7 @@ def primary_floor_beside_xetra(build: Build) -> list[tuple]:
         xetra = [l for l in lines if l["operating_mic"] == "XETR" and build.live(l)]
         for line in _primaries(build, security_id):
             if xetra and line["operating_mic"] in GERMAN_FLOORS and build.category(line) != "RMKT":
-                found.append((build.label(line),))
+                found.append((build.label(line), line["id"]))
     return found
 
 
@@ -213,6 +215,6 @@ def us_share_without_us_line(build: Build) -> list[tuple]:
     company delisted or taken over (VMware, Splunk, Marathon Oil) that EU venues still carry."""
     if not build.us:
         return []
-    return [(s["name"], build.isin[s["id"]]) for s in build.securities.values()
+    return [(s["name"], build.isin[s["id"]], s["id"]) for s in build.securities.values()
             if s["kind"] == "ordinary" and build.live_security(s["id"]) and build.isin.get(s["id"], "").startswith("US")
             and not any(l["operating_mic"] in US_EXCHANGES | {"OTCM"} for l in build.by_security.get(s["id"], []))]

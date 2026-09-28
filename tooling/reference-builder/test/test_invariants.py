@@ -73,6 +73,29 @@ class InvariantTest(unittest.TestCase):
         self.assertIn("GBP", fresh[0][0])
         self.assertIn("1 rows new since", "\n".join(invariants.format_results(after, before)))
 
+    def test_headroom_shrinks_with_a_lowered_limit(self):
+        rule = next(i for i in invariants.INVARIANTS if i.name == "currency_single_currency_venue")
+        self.assertEqual(invariants.run(self.path, (rule,))[0].headroom, 460)
+        partly_fixed = dataclasses.replace(rule, limit=rule.limit // 4)
+        self.assertEqual(invariants.run(self.path, (partly_fixed,))[0].headroom, 115)
+        self.assertEqual(invariants.run(self.path, (dataclasses.replace(rule, limit=0),))[0].headroom, 0)
+
+    def test_new_rows_are_keyed_on_the_subject_not_the_label(self):
+        result = invariants.Result("r", "error", "", 2, 0, [("-@XHAN USD Fund", "listing:a"), ("-@XHAN USD Fund", "listing:b")])
+        before = [invariants.Result("r", "error", "", 1, 0, [("-@XHAN USD Fund", "listing:a")])]
+        self.assertEqual(invariants.new_rows(result, before), [("-@XHAN USD Fund", "listing:b")])
+
+    def test_an_unreadable_previous_build_does_not_abort_the_audit(self):
+        strict = tuple(dataclasses.replace(i, limit=0, headroom=0) if i.name == "currency_single_currency_venue" else i
+                       for i in invariants.INVARIANTS)
+        self.plant("INSERT OR REPLACE INTO venues VALUES ('XETR', 'XETR', 'Xetra', 'DE', 'NSPD')")
+        self.plant("UPDATE listings SET mic = 'XETR', operating_mic = 'XETR', currency = 'USD' WHERE id = "
+                   "(SELECT id FROM listings WHERE operating_mic = 'XAMS' LIMIT 1)")
+        missing = str(Path(self.path.parent) / "reference-19990101.sqlite3")
+        with mock.patch("sys.stdout"), mock.patch("sys.stderr"), mock.patch.object(invariants, "INVARIANTS", strict), \
+                mock.patch.object(truth_report, "load_baseline", return_value=None):
+            self.assertEqual(truth_report.main(["--reference", str(self.path), "--previous", missing]), 1)
+
     def test_the_builder_records_invariants_when_the_truth_audit_fails(self):
         with mock.patch.object(truth_report, "audit", side_effect=RuntimeError("truth set unreadable")):
             recorded = truth_report.build_report(self.path, ("ES",), lambda _line: None, {})

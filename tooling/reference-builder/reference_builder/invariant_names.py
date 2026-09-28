@@ -77,7 +77,7 @@ def issuer_financing_vehicle(build: Build) -> list[tuple]:
             continue
         name = unicodedata.normalize("NFKD", issuer["name"]).encode("ascii", "ignore").decode().upper()
         if FINANCING_VEHICLE.search(name) and not FINANCING_VEHICLE.search(unicodedata.normalize("NFKD", security["name"]).encode("ascii", "ignore").decode().upper()):
-            found.append((security["name"], issuer["name"]))
+            found.append((security["name"], issuer["name"], security["id"]))
     return found
 
 
@@ -95,7 +95,7 @@ def issuer_is_market_operator(build: Build) -> list[tuple]:
         if not issuer or not build.live_security(security["id"]) or not MARKET_OPERATOR.search(_ascii_upper(issuer["name"])):
             continue
         if not _words(security["name"]) & _issuer_words(build, issuer_id):
-            found.append((security["name"], issuer["name"]))
+            found.append((security["name"], issuer["name"], security["id"]))
     return found
 
 
@@ -115,5 +115,6 @@ def stale_isin_twin(build: Build) -> list[tuple]:
         if len(members) > 1 and with_ticker:
             for security in members:
                 if security not in with_ticker and security["id"] in build.isin:
-                    found.append((security["name"], build.isin.get(security["id"]), f"twin {build.isin.get(with_ticker[0]['id'])}"))
+                    found.append((security["name"], build.isin.get(security["id"]), f"twin {build.isin.get(with_ticker[0]['id'])}",
+                                  security["id"]))
     return found

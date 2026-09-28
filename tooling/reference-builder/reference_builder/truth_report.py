@@ -228,7 +228,13 @@ def main(argv: list[str] | None = None) -> int:
     print("\n" + "\n".join(format_attention(attention(build_audit) if build_audit is not None else None)))
     checked = invariants.run(reference)
     previous = args.previous or previous_reference(reference)
-    before = invariants.run(previous) if previous and any(r.over for r in checked) else None
+    before = None
+    if previous and any(r.over for r in checked):
+        try:
+            before = invariants.run(previous)
+        except Exception as error:  # an unreadable previous build only loses the new-row listing
+            print(f"previous build {previous} unreadable ({error!r}): listing examples instead", file=sys.stderr)
+            previous = None
     print("\n" + "\n".join(invariants.format_results(checked, before, previous.name if previous else "")))
     if args.failures:
         print("\nFailing checks:")

@@ -14,6 +14,7 @@ builder records every count in the manifest and never blocks on them.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,7 +37,9 @@ class Invariant:
     check: Callable[["Build"], list[tuple]]
     limit: int = 0
     note: str = ""
-    headroom: int = 0  # weekly-drift allowance above `limit` for known debt; a fix lowers `limit`, not this
+    # Weekly-drift allowance for known debt, as a share of `limit` (written drift / count as measured), so it
+    # shrinks with the limit when a fix lowers it and is 0 once the rule is cleared.
+    headroom: float = 0.0
 
 
 @dataclass
@@ -48,7 +51,7 @@ class Result:
     limit: int
     rows: list[tuple] = field(default_factory=list, repr=False)
     note: str = ""
-    headroom: int = 0
+    headroom: int = 0  # rows allowed above `limit`: the invariant's share applied to its limit
 
     @property
     def over(self) -> bool:
@@ -65,40 +68,44 @@ class Result:
         return f"under (lower to {self.count})" if self.count < self.limit else "ok"
 
     def summary(self) -> dict:
-        return {"name": self.name, "severity": self.severity, "count": self.count, "limit": self.limit, "headroom": self.headroom,
+        return {"name": self.name, "severity": self.severity, "count": self.count, "limit": self.limit,
+                "headroom": self.headroom,
                 "examples": [list(map(str, row)) for row in self.rows[:EXAMPLES]]}
 
 
 # Limits are exact counts on the default-scope build of the FIRDS week of 2026-09-26; a count below its limit
 # is reported as `under (lower to N)`, and a fix lowers the limit in the same change. Known debt with a pending
-# fix also has `headroom`, max(10%, twice the drift measured against the week of 2026-09-19), so ordinary
-# weekly data passes and a jump fails; set it to 0 when the fix clears the rule. Guards (rules at 0, small
-# counts that did not move) have none. Warnings never fail. Raising a limit needs a stated reason in the PR.
+# fix also has headroom: twice the drift measured against the week of 2026-09-19 (a few rows where it did not
+# move), as a share of the count, so ordinary weekly data passes, a jump fails, and the allowance shrinks with
+# every lowered limit. Guards (rules at 0, small counts that did not move) have none. Warnings never fail.
+# Raising a limit needs a stated reason in the pull request.
 INVARIANTS: tuple[Invariant, ...] = (
     # Currency
     Invariant("currency_single_currency_venue", "error",
               "A line on a venue that quotes everything in one currency (German exchanges, Vienna: EUR) carries another.",
               currency_single_currency_venue, 74796, "FIRDS' notional currency as the trading currency; weekly drift 228",
-              headroom=7480),
+              headroom=460 / 74796),  # twice the weekly drift of 228, rounded up
     Invariant("currency_withdrawn", "error",
               "A live line's currency is a withdrawn ISO 4217 code (NLG, SKK, HRK, BGN since 2026) or XXX.",
-              currency_withdrawn, 112, "stale FIRDS records; the currency fix clears them", headroom=12),
+              currency_withdrawn, 112, "stale FIRDS records; the currency fix clears them", headroom=12 / 112),
     Invariant("currency_is_issue_country", "error",
               "Outside RFQ platforms and internalisers, a line's currency is not its venue country's but its ISIN country's.",
-              currency_is_issue_country, 1450, "Borsa Italiana, Sofia, Stockholm: the notional currency again", headroom=145),
+              currency_is_issue_country, 1411, "shares and receipts on Borsa Italiana, Sofia, Stockholm: notional currency",
+              headroom=5 / 1411),  # drift 1 between the two weeks and on the UK/Swiss build: a few rows
     Invariant("ticker_currency_suffix", "error",
               "A ticker that ends in a currency code (HONAEUR) disagrees with the line's currency.",
-              ticker_currency_suffix, 124, "weekly drift 38", headroom=76),
+              ticker_currency_suffix, 124, "weekly drift 38", headroom=2 * 38 / 124),
     # Tickers
     Invariant("ticker_two_securities", "error", "One ticker on one venue names two live securities.",
-              ticker_two_securities, 41, "all on Stuttgart: a home-market ticker picked for a Stuttgart line", headroom=5),
+              ticker_two_securities, 41, "all on Stuttgart: a home-market ticker picked for a Stuttgart line",
+              headroom=5 / 41),
     Invariant("venue_ticker_coverage", "error",
               "A listing segment with 200 or more live lines gives fewer than half of them a ticker.",
               venue_ticker_coverage, 12, "Frankfurt and Berlin open market, Hanover, Borsa Italiana ETFplus and GEM, Dublin"),
     # Primary listing
     Invariant("primary_more_than_one", "error", "A security has more than one primary listing.", primary_more_than_one),
     Invariant("primary_inactive", "error", "A live security's primary listing is inactive.",
-              primary_inactive, 38, "Frankfurt lines of Canadian shares", headroom=4),
+              primary_inactive, 38, "Frankfurt lines of Canadian shares", headroom=2 * 2 / 38),
     Invariant("primary_open_market_beside_us_exchange", "error",
               "A security with a live NYSE/Nasdaq line has its primary on an EEA open-market segment.",
               primary_open_market_beside_us_exchange, 1, "Bending Spoons on Munich"),
@@ -108,7 +115,8 @@ INVARIANTS: tuple[Invariant, ...] = (
               name_encoding, 3, "source names: `S&amp;P`, `King\ufffds`"),
     Invariant("issuer_is_market_operator", "error",
               "A security's issuer is a trading venue or its operator (TP ICAP, Bloomberg MTF, Frankfurter Wertpapierbörse).",
-              issuer_is_market_operator, 623, "FIRDS carries the reporting venue's LEI when an issuer has none", headroom=63),
+              issuer_is_market_operator, 623, "FIRDS carries the reporting venue's LEI when an issuer has none",
+              headroom=63 / 623),
     # Warnings: lifecycle and issuer mistakes to review
     Invariant("us_share_without_us_line", "warning",
               "A live share with a US ISIN has no US exchange or OTC line although the build has SEC lines.",
@@ -130,17 +138,23 @@ def run(path: Path, invariants: tuple[Invariant, ...] | None = None) -> list[Res
     for invariant in INVARIANTS if invariants is None else invariants:
         found = invariant.check(build)
         results.append(Result(invariant.name, invariant.severity, invariant.rule, len(found), invariant.limit, found,
-                              invariant.note, invariant.headroom))
+                              invariant.note, math.ceil(round(invariant.headroom * invariant.limit, 6))))
     return results
 
 
+def row_key(row: tuple) -> str:
+    """A row's subject ID (its last value) where the rule reports one, else its first value (a ticker@MIC, a venue)."""
+    last = str(row[-1])
+    return last if last.startswith(("listing:", "security:", "issuer:")) else str(row[0])
+
+
 def new_rows(result: Result, previous: list[Result] | None) -> list[tuple] | None:
-    """Rows of `result` whose key (their first value) the previous build's same rule did not report."""
+    """Rows of `result` whose key (`row_key`) the previous build's same rule did not report."""
     before = next((r for r in previous or [] if r.name == result.name), None)
     if before is None:
         return None
-    seen = {row[0] for row in before.rows}
-    return [row for row in result.rows if row[0] not in seen]
+    seen = {row_key(row) for row in before.rows}
+    return [row for row in result.rows if row_key(row) not in seen]
 
 
 def format_results(results: list[Result], previous: list[Result] | None = None, label: str = "") -> list[str]:
