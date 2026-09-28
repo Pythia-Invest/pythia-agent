@@ -11,7 +11,8 @@ the pluggable features and connectors. Core supplies operating guidance, Desk
 context, shared transport and the investment identity backbone, not
 provider-specific research tools. A plugin that serves investment data declares
 what it can address and serve in a static `contract.json`
-([ADR 0038](../decisions/0038-plugin-addressing-contract.md)); see
+([ADR 0038](../decisions/0038-plugin-addressing-contract.md)) and is onboarded
+through the [source onboarding](source-onboarding.md) stages; see
 [Declaring data concepts](#declaring-data-concepts-contractjson) below and
 [ADR 0034](../decisions/0034-core-and-optional-features.md).
 
@@ -259,6 +260,14 @@ addressing (the full shape is in the ADR 0038 amendment):
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
   (`identity.validate_live_market`).
+- A filings source may accept `forms` in its filings operation's schema; core
+  then passes the requested forms so the source can search beyond its most
+  recent filings.
+
+Selection is core's: the investor's one `source_order` (settings.json), then
+core's default order, free sources first; a source whose coverage excludes the
+subject, or that is unconfigured, is skipped with its reason. Filings
+combine one source per declared authority into core's `filings` read.
 
 Core validates the file with `identity.validate_manifest`; a contract newer
 than the installed Pythia shows as `needs_update`. A bundled plugin lists

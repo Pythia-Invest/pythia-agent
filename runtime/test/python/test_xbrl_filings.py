@@ -122,7 +122,7 @@ class XbrlSemantics(unittest.TestCase):
         raw['data'][0]['attributes']['inconsistency_count'] = 1
         result = reports.filings(raw, LEI, STAMP, 10)
         row = result['filings'][0]
-        self.assertEqual((row['filed_at'], row['language']), (None, None))
+        self.assertEqual((row['filed_at'], row['indexed_at'], row['language']), (None, '2026-02-10', None))
         self.assertEqual(result['source'], {'label': 'filings.xbrl.org', 'url': 'https://filings.xbrl.org'})
         self.assertEqual((row['period_end'], row['form'], row['country']), ('2025-12-31', 'ESEF', 'ZZ'))
         base = f'https://filings.xbrl.org/{LEI}/2025-12-31/ESEF/ZZ/0/'

@@ -166,6 +166,56 @@ class SecFinancials(unittest.TestCase):
                 financials.filing_url(CIK, '0000123456-25-000001', unsafe)
 
 
+def submissions_block(forms, start_year):
+    """A columnar submissions block of the given forms, newest first, one filing a week from the start's end."""
+    from datetime import date, timedelta
+    dates = [(date(start_year, 12, 31) - timedelta(days=7 * index)).isoformat() for index in range(len(forms))]
+    return {'accessionNumber': [f'0000123456-{day[2:4]}-{index:06d}' for index, day in enumerate(dates)],
+            'form': list(forms), 'filingDate': dates, 'reportDate': [''] * len(forms),
+            'primaryDocument': ['doc.htm'] * len(forms)}
+
+
+class SecFormsSearch(unittest.TestCase):
+    """An annual report crowded out of the most recent filings is still found (agent eval F3)."""
+
+    def test_a_10k_behind_many_recent_filings_is_found_in_the_whole_recent_list(self):
+        recent = submissions_block(['4'] * 300 + ['10-K'] + ['8-K'] * 100, 2026)
+        raw = {'cik': 123456, 'filings': {'recent': recent, 'files': []}}
+        instance, transport = reader({'submissions': raw})
+        plain = instance.invoke('filings', {'native_ref': REF, 'limit': 50})
+        self.assertNotIn('10-K', {row['form'] for row in plain['data']['filings']})
+        found = instance.invoke('filings', {'native_ref': REF, 'limit': 5, 'forms': ['10-K', '20-F']})
+        self.assertEqual([row['form'] for row in found['data']['filings']], ['10-K'])
+        self.assertEqual(found['data']['coverage']['scanned'], 401)
+
+    def test_older_pages_are_read_back_five_years_at_most_three(self):
+        recent = submissions_block(['4'] * 60, 2026)  # the recent list reaches back only a few months
+        files = [{'name': f'CIK{CIK}-submissions-{index:03d}.json', 'filingCount': 10,
+                  'filingFrom': f'{2025 - index}-01-01', 'filingTo': f'{2025 - index}-12-31'} for index in range(1, 9)]
+        page = submissions_block(['4', '10-K/A', '4'], 2025)
+        raw = {'cik': 123456, 'filings': {'recent': recent, 'files': files}}
+        instance, transport = reader({'submissions': raw, 'submissions_page': page})
+        found = instance.invoke('filings', {'native_ref': REF, 'limit': 5, 'forms': ['10-K']})
+        pages = [call['page'] for call in transport.calls if call['operation'] == 'submissions_page']
+        self.assertEqual(pages, [f'CIK{CIK}-submissions-001.json', f'CIK{CIK}-submissions-002.json',
+                                 f'CIK{CIK}-submissions-003.json'])
+        self.assertEqual({row['form'] for row in found['data']['filings']}, {'10-K/A'})
+        self.assertEqual(found['data']['coverage']['scope'], 'recent_and_older_submissions')
+        # A failed older page keeps what was read and says the search is incomplete.
+        broken, _ = reader({'submissions': raw})
+        broken.reads.read = (lambda original: lambda paths, request, *args, **kwargs: (
+            (_ for _ in ()).throw(connector.SourceFailure({'error': 'missing_observation'}))
+            if request['operation'] == 'submissions_page' else original(paths, request, *args, **kwargs)))(broken.reads.read)
+        kept = broken.invoke('filings', {'native_ref': REF, 'limit': 5, 'forms': ['4']})
+        self.assertEqual((kept['outcome'], len(kept['data']['filings'])), ('ok', 5))
+        self.assertEqual([issue['code'] for issue in kept['issues']], [])  # enough found without paging
+        missing = broken.invoke('filings', {'native_ref': REF, 'limit': 5, 'forms': ['10-K']})
+        self.assertEqual((missing['outcome'], missing['data']['coverage']['complete']), ('ok', False))
+        self.assertEqual([issue['code'] for issue in missing['issues']], ['incomplete'])
+        with self.assertRaises(ValueError):  # only the filer's own page names reach a URL
+            identity.submissions_page_url(CIK, '../CIK0000000001.json')
+
+
 class SecConfiguration(unittest.TestCase):
     def test_missing_or_unusable_contact_needs_configuration_and_makes_no_request(self):
         for configuration in (settings('missing'), settings('invalid'), settings(value='no-email-contact'),
