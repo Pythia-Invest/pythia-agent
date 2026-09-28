@@ -93,7 +93,8 @@ def request_spec(value):
             path += '/market_chart'
             query = {'vs_currency': args['currency'], 'days': 1, 'precision': 'full'}
         elif operation == 'chart' and set(args) == {'id', 'currency', 'from', 'to', 'interval'}:
-            if args['interval'] not in ('hourly', 'daily') or any(type(args[k]) is not int for k in ('from', 'to')) or not 0 <= args['to'] - args['from'] <= 90 * 86400:
+            # Hourly points need ranges up to 90 days; one daily request serves any range.
+            if args['interval'] not in ('hourly', 'daily') or any(type(args[k]) is not int for k in ('from', 'to')) or not 0 <= args['to'] - args['from'] <= (90 if args['interval'] == 'hourly' else 36600) * 86400:
                 raise ValueError()
             path += '/market_chart/range'
             query = {'vs_currency': args['currency'], 'from': args['from'], 'to': args['to'], 'interval': args['interval'], 'precision': 'full'}

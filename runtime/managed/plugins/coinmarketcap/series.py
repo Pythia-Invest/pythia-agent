@@ -11,6 +11,12 @@ INTERVALS = {'sample_15m': '15m', 'sample_hourly': 'hourly', 'sample_daily': 'da
 CODES = {'unavailable', 'invalid_request', 'invalid_response', 'access_denied', 'authentication_failed', 'unsupported_series',
          'unsupported_window', 'rate_limit', 'timeout', 'network_error', 'provider_error', 'response_limit', 'cancelled',
          'requirements_unmet', 'busy'}
+# One daily request serves the plan's history: 12 months on the plans with
+# historical quotes (checked 2026-09-28). The declared span admits up to two
+# days more (a date-to-date year, also across 29 February); those are read
+# from the plan's start, as the returned window shows.
+PLAN_DAYS = 365
+DAILY_DAYS = PLAN_DAYS + 2
 
 
 def now():
@@ -105,7 +111,7 @@ def definition(native, mode, currency):
              'source_detail': {'namespace': PROVIDER, 'values': {'price_basis': 'source_aggregate'}}}
     value['id'] = 'series:coinmarketcap:' + hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()[:32]
     value['read_support'] = {'operations': ['latest' if mode == 'latest' else 'history'], 'window_kind': 'instant',
-                             'max_span_seconds': (90 if mode == 'sample_daily' else 7) * 86400}
+                             'max_span_seconds': (DAILY_DAYS if mode == 'sample_daily' else 7) * 86400}
     value['source_detail']['values']['read_selector'] = json.dumps(
         {'version': 1, 'native_ref': native, 'mode': mode, 'currency': currency}, separators=(',', ':'))
     return value
