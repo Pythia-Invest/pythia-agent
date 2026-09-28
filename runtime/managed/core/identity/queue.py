@@ -142,7 +142,9 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     try:
         outcome = decide(verdict, item, claimed=record.identifiers, as_of=as_of, record_kind=record.attributes.kind,
                          evidence=[assertion for found in subjects for assertion in found["evidence"]],
-                         subject_kind=_kind(subject), prior=prior, same_venue=_same_venue(record, subjects))
+                         subject_kind=_kind(subject), prior=prior, same_venue=_same_venue(record, subjects)
+                         # A bound conflict is a resolve answer to this listing's identifiers: its venue is this one.
+                         or (row["reason"] == "binding" and len(row["subject_ids"]) > 1))
     except ValueError as error:
         raise Refused(str(error)) from None
     state, message = row["state"], _MESSAGES[outcome]

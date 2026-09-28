@@ -198,7 +198,7 @@ class Identity:
         except (sqlite3.Error, OSError):
             logger.warning("identity queue unavailable", exc_info=True)
             return _envelope("empty", None, issue="The identity store could not be read.")
-        return _envelope("ok" if data["items"] or data.get("notice") else "empty", data)
+        return _envelope("ok" if data["items"] or data.get("answered") or data.get("notice") else "empty", data)
 
     def verdict(self, arguments: dict, **_context: Any) -> str:
         from .platform.request_context import usage

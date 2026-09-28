@@ -68,7 +68,8 @@ class VerdictTest(QueueFixture):
         ref = {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"}
         self.identity.put_binding(identity.Binding(provider_ref=ref, subject_id=nasdaq, status="confirmed",
                                                    authority="user_attested", evidence_ids=["ev:x"], plugin="eodhd"))
-        item = self.ask(answer(("isin", "NL0010273215"), mic="XAMS"))  # ASML's ISIN on XAMS, but bound elsewhere
+        # ASML's ISIN answering for the XAMS listing (no venue stated), but the reference is bound elsewhere.
+        item = self.ask(answer(("isin", "NL0010273215")))
         self.assertEqual((item.kind, item.reason, set(item.subject_ids)), ("conflict", "binding", {nasdaq, ASML}))
         for resolver, fields in (("agent", {}), ("user", {"user_turn": "desk:identity-verdict:test"})):
             result = self.submit(item, resolver, relation="unrelated", **fields)
@@ -234,7 +235,8 @@ class TransportTest(QueueFixture):
         with unittest.mock.patch.dict("os.environ", {store.REFERENCE_DIR_ENV: str(builds)}), \
                 unittest.mock.patch.object(identity_ops, "installed", lambda: []):
             agent = json.loads(ops.verdict(arguments))["data"]
-            waiting = json.loads(ops.queue({"subject_id": ASML, "answered": True}))["data"]
+            waiting_body = json.loads(ops.queue({"subject_id": ASML, "answered": True}))
+            waiting, waiting_outcome = waiting_body["data"], waiting_body["outcome"]
             desk = contextvars.copy_context()
             desk.run(request_context.usage.set, "dashboard")
             user = json.loads(desk.run(ops.verdict, arguments))["data"]
@@ -242,6 +244,7 @@ class TransportTest(QueueFixture):
         ops.store.db.close()
         self.assertEqual((agent["authority"], agent["outcome"]), ("agent_confirmed", "confirmed"))
         self.assertEqual((waiting["total"], [row["id"] for row in waiting["answered"]]), (0, [item.id]))
+        self.assertEqual(waiting_outcome, "ok")
         self.assertEqual((user["authority"], user["outcome"], user["state"]), ("user_attested", "confirmed", "resolved"))
         self.assertEqual((listed["outcome"], listed["data"]["items"]), ("empty", []))
         del core
