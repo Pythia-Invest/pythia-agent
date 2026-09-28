@@ -8,6 +8,7 @@ import {
   configureSharedModel,
 } from "./runtime.mjs";
 import { resolveStackPaths } from "./paths.mjs";
+import { referencePackage } from "./reference-package.mjs";
 import {
   initializeDevelopmentRuntime,
   recoverDevelopmentInitialization,
@@ -21,7 +22,7 @@ import {
 
 function usage() {
   console.error(
-    "Usage: node scripts/dev/cli.mjs <workspace-transition|init|init-recover|dev|refresh|restart-hermes|status|stop|reset|auth|auth-status|model|paths> [provider] [oauth|api-key]",
+    "Usage: node scripts/dev/cli.mjs <workspace-transition|init|init-recover|dev|refresh|restart-hermes|status|stop|reset|auth|auth-status|model|paths|reference-install|reference-status|reference-rollback> [provider|package] [oauth|api-key]",
   );
 }
 
@@ -88,6 +89,26 @@ async function main() {
       break;
     case "auth-status":
       console.log(await authenticationStatus(paths, argument));
+      break;
+    case "reference-install":
+    case "reference-status":
+    case "reference-rollback":
+      if (command === "reference-install" && !argument) {
+        usage();
+        process.exitCode = 2;
+        break;
+      }
+      console.log(
+        JSON.stringify(
+          referencePackage(
+            paths,
+            command.replace("reference-", ""),
+            command === "reference-install" ? argument : undefined,
+          ),
+          null,
+          2,
+        ),
+      );
       break;
     case "paths":
       console.log(

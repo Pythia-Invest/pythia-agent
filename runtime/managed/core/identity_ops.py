@@ -3,8 +3,9 @@
 `identity-search` and `identity-subject` are local reads of the reference file,
 identity.sqlite3 and the installed plugins' contracts; neither calls a provider.
 `identity-resolve` runs one plugin's declared resolve tool, bounded by a short
-timeout, and stores the decided binding or queue item. The resolution-queue
-operations live in `queue_ops`.
+timeout, and stores the decided binding or queue item. `reference-status`
+describes the installed reference package. The resolution-queue operations live
+in `queue_ops`.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from typing import Any
 from .identity import MANIFEST_FILE, ClaimError, Level, ManifestError, check_batch, validate_manifest
 from . import queue_ops
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import batch_from_json, batch_to_json, page, search, store
+from .identity import batch_from_json, batch_to_json, page, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -55,6 +56,12 @@ RESOLVE_SCHEMA = {
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT_ID, "plugin": {"type": "string", "minLength": 1, "maxLength": 128}},
         "required": ["subject_id", "plugin"], "additionalProperties": False},
+}
+REFERENCE_STATUS_SCHEMA = {
+    "name": "pythia_reference_status",
+    "description": "Describe the reference data installed on this device: its build, as-of date, and each source "
+                   "with its as-of date, licence and the notice to show when citing it. Local only.",
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
 
 
@@ -100,6 +107,16 @@ class Identity:
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
         return _envelope("ok" if data["rows"] else "empty", data)
+
+    def reference_status(self, _arguments: dict, **_context: Any) -> str:
+        try:
+            installed_package = reference_package.status(self.data_dir)
+        except OSError:
+            logger.warning("reference package status unavailable", exc_info=True)
+            return _envelope("empty", None, issue="The installed reference data could not be read.")
+        if installed_package is None:
+            return _envelope("empty", None, issue=NO_REFERENCE)
+        return _envelope("ok", installed_package)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -328,7 +345,9 @@ def register(ctx: Any) -> None:
                                                   (queue_ops.QUEUE_SCHEMA, partial(queue_ops.read_queue, identity),
                                                    "identity-queue", True),
                                                   (queue_ops.VERDICT_SCHEMA, partial(queue_ops.submit_verdict, identity),
-                                                   "identity-verdict", False)):
+                                                   "identity-verdict", False),
+                                                  (REFERENCE_STATUS_SCHEMA, identity.reference_status,
+                                                   "reference-status", True)):
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])
