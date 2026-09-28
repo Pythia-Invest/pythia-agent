@@ -32,6 +32,7 @@ PLUGIN = "pythia"  # the core plugin (plugin.yaml)
 NO_MATCH_TTL = 24 * 3600  # a plugin that found nothing is asked again after a day
 MISS_RETRY = 10 * 60      # a timeout or failure after ten minutes
 PREFERENCE = "search_listing_preference"  # declared in configuration.json
+SOURCE_ORDER = "source_order"             # declared in configuration.json: the investor's one source order
 
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
@@ -134,7 +135,8 @@ class Identity:
             self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
         queue_ops.settle(self, [value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
-        sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
+        sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key
+                    or info.key in {item["plugin"] for item in section.get("sources", [])}]
         for section in sections:
             if section["status"] == "resolving":
                 section.update(status="unresolved", reason=reason or f"{info.label} is not available")
@@ -148,6 +150,16 @@ class Identity:
         except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
             return "primary"
         return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
+
+    def order(self) -> tuple[str, ...]:
+        """The investor's `source_order` (settings.json): plugin ids or provider names; empty means core's order."""
+        from .identity.concepts import parse_order
+        from .platform import configuration
+        try:
+            _status, value = configuration.value(self.ctx, SOURCE_ORDER)
+        except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
+            return ()
+        return parse_order(value)
 
     def _bindings(self, listing_ids: list[str]) -> dict[str, list[dict]]:
         """Confirmed bindings for search rows; optional, so a store problem only drops them."""
@@ -213,7 +225,9 @@ class Identity:
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
-                   "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id)}
+                   "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
+                   "order": self.order(),
+                   "refused": {(row["plugin"], row["concept"], row["operation"]) for row in identity_store.refusals()}}
         return path, subject, lookups, None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
@@ -381,3 +395,5 @@ def register(ctx: Any) -> None:
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])
+    from . import concept_ops
+    concept_ops.register(ctx, identity)

@@ -182,8 +182,9 @@ class PageTest(Fixture):
         # EODHD comes first in core's default order; it still needs its lookup, which the Desk runs after rendering.
         _subject, sections = self.compose(ASML, [plugin("eodhd"), plugin("yahoo")])
         self.assertEqual((sections["quote"]["plugin"], sections["quote"]["status"]), ("pythia-eodhd", "resolving"))
-        self.assertEqual(sections["quote"]["alternatives"],
-                         [{"plugin": "pythia-yahoo", "label": "Yahoo Finance", "status": "ready"}])
+        [also] = sections["quote"]["alternatives"]
+        self.assertEqual((also["plugin"], also["source"], also["status"], also["binding"]["native_id"]),
+                         ("pythia-yahoo", "Yahoo Finance", "ready", "ASML.AS"))
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
 
@@ -204,8 +205,10 @@ class PageTest(Fixture):
         quote = sections["quote"]
         self.assertEqual((quote["plugin"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-coingecko", "bitcoin", "confirmed"))
-        self.assertEqual(quote["alternatives"], [{"plugin": "pythia-coinmarketcap", "label": "CoinMarketCap",
-                                                  "status": "needs_configuration"}])
+        self.assertEqual(quote["alternatives"], [])
+        self.assertEqual([(item["plugin"], item["code"]) for item in quote["skipped"]],
+                         [("pythia-coinmarketcap", "needs_configuration"), ("pythia-yahoo", "not_addressable")])
+        self.assertIsNone(quote["notice"])  # a source the investor has not set up is not a warning
 
     def test_market_data_reads_a_subject_through_its_ready_references_in_core_order(self):
         missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)
@@ -284,7 +287,8 @@ class ReviewFixesTest(Fixture):
         sections = {s["section"]: s for s in page.compose(subject, [plugin("eodhd"), plugin("yahoo")], queue=queue,
                                                         stored=lambda *_: None, coins=lambda *_: None)}
         self.assertEqual(sections["quote"]["plugin"], "pythia-yahoo")
-        self.assertEqual(sections["quote"]["alternatives"][0]["status"], "conflict")
+        self.assertEqual(sections["quote"]["skipped"][0]["code"], "conflict")
+        self.assertEqual(sections["quote"]["notice"]["code"], "conflict")  # ranked first and something went wrong
         binding, _item, _ = self.resolve(asml, self.answer("NL0010273215"))
         self.identity.put_binding(binding)
         _subject, sections = self.compose(ASML, [plugin("eodhd")])

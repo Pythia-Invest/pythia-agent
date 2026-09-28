@@ -70,15 +70,39 @@ export function ProfileView({ profile }: { profile: Profile }) {
 
 const MAX_FILINGS = 10;
 
-/** Recent filings of the normalized filings shape, newest first as supplied. */
+const AUTHORITIES: Record<string, string> = {
+  sec: "SEC",
+  esma: "EU (ESEF)",
+  fca: "UK",
+  sedar: "Canada",
+};
+
+/** A combined read that lost a source says so; nothing else fills in. */
+function PartialNote({ filings }: { filings: Filings }) {
+  if (!filings.partial || !filings.skipped.length) return null;
+  return (
+    <p data-slot="instrument-filings-partial" className="text-warning text-xs">
+      Partial list: {filings.skipped.map((item) => item.reason).join("; ")}.
+    </p>
+  );
+}
+
+/** Recent filings, newest first as supplied; a combined list tags each item
+ * with its source and filing authority. */
 export function FilingsView({ filings }: { filings: Filings }) {
+  const names = filings.sources.map((item) => item.source);
   if (!filings.filings.length)
     return (
-      <p className="text-foreground-secondary text-xs">
-        {filings.source?.label ?? "The source"} lists no filings for this
-        entity.
-      </p>
+      <div className="flex flex-col gap-1">
+        <PartialNote filings={filings} />
+        <p className="text-foreground-secondary text-xs">
+          {names.length
+            ? `${names.join(" and ")} list no filings for this entity.`
+            : `${filings.source?.label ?? "The source"} lists no filings for this entity.`}
+        </p>
+      </div>
     );
+  const combined = filings.sources.length > 1;
   const shown = filings.filings.slice(0, MAX_FILINGS);
   // Some sources report no filing date (repository dates are not filing dates).
   const filed = shown.some((filing) => filing.filed_at);
@@ -107,7 +131,7 @@ export function FilingsView({ filings }: { filings: Filings }) {
           <tbody>
             {shown.map((filing, index) => (
               <tr
-                key={index}
+                key={`${filing.source ?? ""}:${filing.url ?? index}`}
                 className="border-border/40 border-b last:border-b-0"
               >
                 <td className="py-1.5 pr-3 text-foreground">
@@ -123,6 +147,14 @@ export function FilingsView({ filings }: { filings: Filings }) {
                   {filing.language ? (
                     <span className="ml-1.5 text-[10px] text-foreground-secondary uppercase">
                       {filing.language}
+                    </span>
+                  ) : null}
+                  {combined && filing.source ? (
+                    <span className="ml-1.5 text-[10px] text-foreground-secondary">
+                      {filing.authority
+                        ? `${AUTHORITIES[filing.authority] ?? filing.authority} · `
+                        : ""}
+                      {filing.source}
                     </span>
                   ) : null}
                 </td>
@@ -152,7 +184,19 @@ export function FilingsView({ filings }: { filings: Filings }) {
           </tbody>
         </table>
       </div>
-      <SourceLink source={filings.source} />
+      <PartialNote filings={filings} />
+      {filings.sources.length ? (
+        <div className="flex flex-wrap gap-x-3">
+          {filings.sources.map((item) => (
+            <SourceLink
+              key={item.plugin}
+              source={{ label: item.source, url: item.url ?? null }}
+            />
+          ))}
+        </div>
+      ) : (
+        <SourceLink source={filings.source} />
+      )}
     </div>
   );
 }

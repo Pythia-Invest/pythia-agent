@@ -21,7 +21,7 @@ import {
   useWidgetPresentation,
 } from "@/client/instrument-queries";
 import { BoundWidget } from "@/components/widgets/bound-widget";
-import { type PageBlock, pageBlocks } from "./blocks";
+import { type PageBlock, pageBlocks, usingSource } from "./blocks";
 import {
   InstrumentHeader,
   InstrumentPageSkeleton,
@@ -55,10 +55,14 @@ const SPAN: Record<PageBlock["type"], string> = {
 function SectionCard({
   block,
   className,
+  chosen,
+  onUse,
   children,
 }: {
   block: PageBlock;
   className?: string;
+  chosen?: string | null;
+  onUse?: (plugin: string | null) => void;
   children: ReactNode;
 }) {
   const lead = block.sections[0] as SubjectSection;
@@ -75,7 +79,7 @@ function SectionCard({
     >
       <h2 className="font-semibold text-body text-foreground">{block.title}</h2>
       <div className="min-w-0 flex-1">{children}</div>
-      <SourcesLine section={lead} />
+      <SourcesLine section={lead} chosen={chosen} onUse={onUse} />
     </section>
   );
 }
@@ -116,33 +120,16 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
       <InstrumentHeader page={view} />
       <ListingSwitcher page={view} />
       <div className="grid @3xl:grid-cols-3 grid-cols-1 gap-3">
-        {pageBlocks(view.sections).map((block) => {
-          const retry = block.sections
-            .map((section) => resolved.failed.get(section))
-            .find(Boolean);
-          const servable =
-            block.type !== "other" &&
-            block.sections.every(
-              (section) =>
-                section.status === "ready" || section.status === "resolving",
-            );
-          return (
-            <SectionCard
-              key={block.key}
-              block={block}
-              className={SPAN[block.type]}
-            >
-              {servable ? (
-                <BlockContent block={block} page={view} retryResolve={retry} />
-              ) : (
-                <SectionPlaceholder
-                  section={block.sections[0] as SubjectSection}
-                  level={view.subject.level}
-                />
-              )}
-            </SectionCard>
-          );
-        })}
+        {pageBlocks(view.sections).map((block) => (
+          <PageCard
+            key={block.key}
+            block={block}
+            page={view}
+            retry={block.sections
+              .map((section) => resolved.failed.get(section))
+              .find(Boolean)}
+          />
+        ))}
       </div>
       {view.sections.length === 0 ? (
         <p className="text-body text-foreground-secondary">
@@ -151,6 +138,47 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
         </p>
       ) : null}
     </article>
+  );
+}
+
+/** One card; the investor may show it from an alternative source once. */
+function PageCard({
+  block: original,
+  page,
+  retry,
+}: {
+  block: PageBlock;
+  page: SubjectPage;
+  retry: (() => void) | undefined;
+}) {
+  const [chosen, setChosen] = useState<string | null>(null);
+  const block = usingSource(original, chosen);
+  const servable =
+    block.type !== "other" &&
+    block.sections.every(
+      (section) => section.status === "ready" || section.status === "resolving",
+    );
+  const lead = block.sections[0] as SubjectSection;
+  return (
+    <SectionCard
+      block={block}
+      className={SPAN[block.type]}
+      chosen={chosen}
+      onUse={(plugin) => setChosen(plugin)}
+    >
+      {servable ? (
+        <BlockContent
+          block={block}
+          page={page}
+          retryResolve={chosen ? undefined : retry}
+        />
+      ) : (
+        <SectionPlaceholder
+          section={chosen ? lead : (original.sections[0] as SubjectSection)}
+          level={page.subject.level}
+        />
+      )}
+    </SectionCard>
   );
 }
 

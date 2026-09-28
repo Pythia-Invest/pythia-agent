@@ -141,3 +141,46 @@ REGISTRY: dict[Concept, ConceptSpec] = {
     Concept.ESTIMATES: ConceptSpec(operations={"consensus": {}, "targets": {}}, levels=frozenset({Level.ISSUER})),
     Concept.NEWS: ConceptSpec(operations={"list": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY})),
 }
+
+
+# ---- selection ---------------------------------------------------------------------------------------------------
+
+ELIGIBLE = frozenset({"ready", "resolving"})  # resolving: a lookup runs before the first read, then it serves
+# Skips that signal something went wrong rather than the investor's own setup: they warrant a visible notice.
+NOTICE = frozenset({"not_entitled", "conflict", "unresolved"})
+# Filing authority of an item by the filer's country, for a source serving several authorities.
+AUTHORITY_BY_COUNTRY = {"US": FilingAuthority.SEC, "GB": FilingAuthority.FCA, "CA": FilingAuthority.SEDAR}
+
+
+def parse_order(text: str | None) -> tuple[str, ...]:
+    """The investor's one source order from settings: plugin ids or provider names, comma or space separated."""
+    return tuple(dict.fromkeys(item.strip().lower() for item in re.split(r"[,\s]+", text or "") if item.strip()))
+
+
+def ranked(entries: list[dict], order: tuple[str, ...], default_order: tuple[str, ...]) -> list[dict]:
+    """Entries (each with `plugin` and `provider`) in the investor's order, then core's default order, then by id."""
+    def position(items: tuple[str, ...], entry: dict) -> int:
+        return next((index for index, name in enumerate(items) if name in (entry["plugin"], entry["provider"])),
+                    len(items))
+    return sorted(entries, key=lambda entry: (position(order, entry), position(default_order, entry), entry["plugin"]))
+
+
+def select(entries: list[dict], *, combine: Combine | None = None) -> tuple[list[tuple[dict, tuple[str, ...]]], list[dict], list[dict]]:
+    """(chosen with the authorities each serves, alternatives, skipped) from ranked entries. Pure: no I/O.
+
+    Each entry has `plugin`, `status` and, for a combining concept, `authorities`. The first eligible entry
+    serves; under `per_authority` the first eligible entry serving each authority serves it. The other eligible
+    entries are alternatives; the rest are skipped with their status as the reason."""
+    eligible = [entry for entry in entries if entry["status"] in ELIGIBLE]
+    skipped = [entry for entry in entries if entry["status"] not in ELIGIBLE]
+    if combine is Combine.PER_AUTHORITY:
+        served: dict[str, str] = {}
+        for entry in eligible:
+            for authority in entry.get("authorities", ()):
+                served.setdefault(authority, entry["plugin"])
+        chosen = [(entry, tuple(a for a, plugin in served.items() if plugin == entry["plugin"]))
+                  for entry in eligible if entry["plugin"] in served.values()]
+    else:
+        chosen = [(eligible[0], ())] if eligible else []
+    taken = {entry["plugin"] for entry, _ in chosen}
+    return chosen, [entry for entry in eligible if entry["plugin"] not in taken], skipped
