@@ -40,7 +40,9 @@ function timeTicks(g: PathGeometry, timeZone: string | undefined) {
   const span =
     end - start - gaps.reduce((sum, gap) => sum + gap.end - gap.start, 0);
   const visible = (t: number) =>
-    t >= start && t <= end && !gaps.some((gap) => t > gap.start && t < gap.end);
+    t >= start &&
+    t <= end && // A gap's start and end share one position; label where trading resumes.
+    !gaps.some((gap) => t >= gap.start && t < gap.end);
   const ticks: { time: number; label: string }[] = [];
   if (span > 20 * DAY) {
     const first = new Date(start);
