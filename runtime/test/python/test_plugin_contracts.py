@@ -130,6 +130,12 @@ class ShippedContracts(unittest.TestCase):
         self.assertIs(identity.vouched(sec, 'pythia-sec').signoff, identity.SignOff.GRANDFATHERED)
         self.assertTrue(identity.vouched(sec, 'community-sec').unaudited)
 
+    def test_the_sec_kinds_parameter_is_cores_filing_kinds(self):
+        spec = importlib.util.spec_from_file_location('sec_definition', PLUGINS / 'sec/definition.py')
+        definition = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(definition)
+        self.assertEqual(definition.FILING_KINDS, tuple(identity.concepts.FilingKind))
+
     def test_filing_sources_declare_their_authorities(self):
         self.assertEqual(manifest('sec').concepts[identity.Concept.FILINGS].authorities, ('sec',))
         # One authority per national mechanism, so a national source can serve its country alone.

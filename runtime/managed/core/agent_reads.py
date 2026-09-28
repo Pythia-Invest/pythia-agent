@@ -48,8 +48,8 @@ FILINGS = {
                    "from one connected source per filing authority "
                    "(SEC EDGAR; ESEF reports on filings.xbrl.org), with form, filing date, period end, document link "
                    "and source. Filter by kind (annual, quarterly, earnings_release…), form (10-K, 20-F, AFR…) and "
-                   "date. Items sharing a report_key are versions of one report; parallel names the same period's "
-                   "reports under another authority or accounting basis. Pass any subject of the company. For "
+                   "date. Items sharing a report_key are versions of one report; items sharing report_period are "
+                   "parallel reports of one period under other authorities. Pass any subject of the company. For "
                    "reported numbers inside a filing, use that source's provider tool (sec_fundamentals, esef_fundamentals).",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT,
@@ -58,7 +58,7 @@ FILINGS = {
                                  "amendment matches its form. Sources search beyond their most recent filings."},
         "kinds": {"type": "array", "maxItems": 8,
                   "items": {"type": "string", "enum": [kind.value for kind in FilingKind]},
-                  "description": "Only these kinds. Insider and major-holder filings are left out unless ownership "
+                  "description": "Only these kinds. Forms 3, 4, 5, 144 and 13G are left out unless ownership "
                                  "is named."},
         "since": {"type": "string", "format": "date", "description": "Only filings dated on or after this date."},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50},
@@ -298,10 +298,12 @@ def filings(ctx: Any, arguments: dict, **context: Any) -> str:
     rows = [row for row in data["filings"] if isinstance(row, dict)]
     matched = [row for row in rows if not since or str(row.get("date") or row.get("period_end") or "") >= since]
     keep = ("kind", "form", "date", "date_basis", "filed_time", "period_end", "title", "event_codes", "url", "id",
-            "authority", "basis", "report_key", "parallel", "source")
+            "authority", "basis", "report_period", "report_key", "source")
     outcome = result.get("outcome", "error")
     out = {"schema_version": 1, "outcome": "empty" if rows and not matched else outcome,
-           "subject_id": data.get("subject_id", subject_id), "sources": data.get("sources", []),
+           "subject_id": data.get("subject_id", subject_id),
+           "sources": [{key: value for key, value in item.items() if key != "authorities"}  # 27 for filings.xbrl.org
+                       for item in data.get("sources", []) if isinstance(item, dict)],
            "filings": [{key: row[key] for key in keep if row.get(key) not in (None, [])} for row in matched[:limit]],
            "coverage": {"matched": len(matched), "listed": len(rows)}, "partial": bool(data.get("partial")),
            "alternatives": data.get("alternatives", []), "skipped": data.get("skipped", []),

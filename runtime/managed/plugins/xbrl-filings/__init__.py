@@ -82,7 +82,11 @@ class Reader:
             if operation == 'filings':
                 # Share one bounded metadata page with simultaneous fundamentals.
                 raw = fetch(identity.reports_url(identifier), 'reports', validate_reports)
-                return envelope(reports.filings(raw['data'], identifier, raw['observed_at'], limit))
+                result = reports.filings(raw['data'], identifier, raw['observed_at'], limit)
+                for code, values in result.get('drift', {}).items():  # for maintainers: Pythia leaves these rows out
+                    self.connector.emit('source_drift', level='warning', provider=identity.PROVIDER,
+                                        operation='filings', code=code, count=sum(values.values()))
+                return envelope(result)
             if clean.get('report_id'):
                 def validate_report(raw, stamp):
                     if not reports.owned(raw['data'], identifier):

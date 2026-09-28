@@ -96,7 +96,7 @@
   },
   {
     "name": "pythia_filings",
-    "description": "Company filings: annual report, 10-K, 20-F, ESEF. Regulatory filings of a company, newest first, from one connected source per filing authority (SEC EDGAR; ESEF reports on filings.xbrl.org), with form, filing date, period end, document link and source. Filter by kind (annual, quarterly, earnings_release…), form (10-K, 20-F, AFR…) and date. Items sharing a report_key are versions of one report; parallel names the same period's reports under another authority or accounting basis. Pass any subject of the company. For reported numbers inside a filing, use that source's provider tool (sec_fundamentals, esef_fundamentals).",
+    "description": "Company filings: annual report, 10-K, 20-F, ESEF. Regulatory filings of a company, newest first, from one connected source per filing authority (SEC EDGAR; ESEF reports on filings.xbrl.org), with form, filing date, period end, document link and source. Filter by kind (annual, quarterly, earnings_release…), form (10-K, 20-F, AFR…) and date. Items sharing a report_key are versions of one report; items sharing report_period are parallel reports of one period under other authorities. Pass any subject of the company. For reported numbers inside a filing, use that source's provider tool (sec_fundamentals, esef_fundamentals).",
     "parameters": {
       "type": "object",
       "properties": {
@@ -132,7 +132,7 @@
               "other"
             ]
           },
-          "description": "Only these kinds. Insider and major-holder filings are left out unless ownership is named."
+          "description": "Only these kinds. Forms 3, 4, 5, 144 and 13G are left out unless ownership is named."
         },
         "since": {
           "type": "string",

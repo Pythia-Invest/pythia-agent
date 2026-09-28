@@ -36,8 +36,8 @@ FILINGS_SCHEMA = {
                    "skipped and the list is marked partial. `date` orders the list; `date_basis` says what it is: "
                    "filed, indexed (the day the source indexed a report that has no published filing date, not a "
                    "filing date) or period_end; `filed_time` is the exact UTC filing time where known. Items with one "
-                   "`report_key` are versions of one report (format, language, amendment); `parallel` names the reports of the "
-                   "same period under another authority or accounting basis (a 20-F beside an ESEF report).",
+                   "`report_key` are versions of one report (format, language, amendment); items sharing `report_period` "
+                   "are parallel reports of one period under other authorities (a 20-F beside an ESEF report).",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT_ID,
         "use": {**PLUGIN_ID, "description": "Read this source for its authorities instead of the chosen one: a plugin "

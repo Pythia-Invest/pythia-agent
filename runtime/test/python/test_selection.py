@@ -195,26 +195,28 @@ class FilingsMergeTest(unittest.TestCase):
         self.assertEqual((merged["partial"], merged["skipped"]), (False, []))
         self.assertEqual(set(merged["filings"][0]), {
             "id", "kind", "form", "title", "filed_at", "filed_time", "period_end", "date", "date_basis", "event_codes",
-            "basis", "language", "format", "parties", "url", "authority", "report_key", "parallel", "source",
+            "basis", "language", "format", "parties", "url", "authority", "report_period", "report_key", "source",
             "provider", "plugin"})
 
-    def test_a_report_is_one_period_under_one_authority_and_basis_with_its_parallels_linked(self):
+    def test_a_report_is_one_period_under_one_authority_and_parallel_reports_share_the_period(self):
         sec, xbrl = self.sec(), self.xbrl()
-        sec["data"]["filings"][0]["kind"] = "annual"
+        sec["data"]["filings"][0].update(kind="annual", basis="us_gaap")
         sec["data"]["filings"].append({**sec["data"]["filings"][0], "accession": "0000937966-26-000030", "form": "20-F/A"})
-        xbrl["data"]["filings"][0].update(kind="annual", basis="ifrs")
+        xbrl["data"]["filings"][0]["kind"] = "annual"
         xbrl["data"]["filings"].append({**xbrl["data"]["filings"][0], "report_id": "3", "accession": "c" * 64,
                                         "country": "GB"})  # the same ESEF report collected by the UK mechanism
         merged = filings.merge_filings([(self.XBRL, ("oam-nl", "fca"), xbrl, None), (self.SEC, ("sec",), sec, None)],
                                        issuer="issuer:lei:X")
         items = {(item["form"], item["authority"]): item for item in merged["filings"]}
         annual, amended, esef = items[("20-F", "sec")], items[("20-F/A", "sec")], items[("ESEF", "oam-nl")]
-        self.assertEqual(annual["report_key"], "issuer:lei:X|annual|2025-12-31|sec|unstated")
+        self.assertEqual(annual["report_key"], "issuer:lei:X|annual|2025-12-31|sec")
         self.assertEqual(amended["report_key"], annual["report_key"])  # an amendment is a version of the report
-        self.assertEqual(esef["report_key"], "issuer:lei:X|annual|2025-12-31|oam-nl|ifrs")
-        self.assertEqual(annual["parallel"], sorted([esef["report_key"], items[("ESEF", "fca")]["report_key"]]))
-        self.assertIn(annual["report_key"], esef["parallel"])
-        self.assertEqual((items[("6-K", "sec")]["report_key"], items[("6-K", "sec")]["parallel"]), (None, []))
+        self.assertEqual((annual["basis"], esef["basis"]), ("us_gaap", None))  # an attribute, never the identity
+        self.assertEqual(esef["report_key"], "issuer:lei:X|annual|2025-12-31|oam-nl")
+        self.assertNotEqual(esef["report_key"], items[("ESEF", "fca")]["report_key"])
+        self.assertEqual({item["report_period"] for item in (annual, esef, items[("ESEF", "fca")])},
+                         {"issuer:lei:X|annual|2025-12-31"})  # parallel reports of one period
+        self.assertEqual((items[("6-K", "sec")]["report_key"], items[("6-K", "sec")]["report_period"]), (None, None))
         self.assertEqual(len(merged["filings"]), 6)  # neither versions nor parallels are merged
 
     def test_kinds_filter_and_an_unknown_kind_or_mechanism(self):

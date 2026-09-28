@@ -126,7 +126,8 @@ class XbrlSemantics(unittest.TestCase):
         self.assertEqual(result['source'], {'label': 'filings.xbrl.org', 'url': 'https://filings.xbrl.org'})
         self.assertEqual((row['period_end'], row['form'], row['country']), ('2025-12-31', 'ESEF', 'ZZ'))
         self.assertEqual((row['kind'], row['basis'], row['format'], row['parties']),
-                         ('annual', 'ifrs', 'ixbrl', [{'role': 'filer', 'scheme': 'lei', 'id': LEI}]))
+                         ('annual', None, 'ixbrl', [{'role': 'filer', 'scheme': 'lei', 'id': LEI}]))
+        self.assertEqual(result['drift'], {'undeclared_country': {'ZZ': 1}})  # not a mechanism the contract declares
         base = f'https://filings.xbrl.org/{LEI}/2025-12-31/ESEF/ZZ/0/'
         self.assertEqual(row['links'], {'viewer': base + 'report/ixbrlviewer.html', 'report': base + 'report/report.xhtml',
                                         'package': base + 'report.zip', 'json': base + 'report.json'})
@@ -143,6 +144,17 @@ class XbrlSemantics(unittest.TestCase):
         for bad in ('https://other.invalid/report.json', '/' + LEI + '/../report.json', '/' + LEI + '/%2e%2e/report.json'):
             with self.assertRaises(ValueError):
                 identity.report_url(bad, LEI)
+
+    def test_a_report_six_months_from_the_fiscal_year_end_is_a_half_year_report(self):
+        periods = ['2025-12-31', '2025-06-30', '2024-12-31', '2023-12-31']
+        raw = metadata(*(filing(report_id=str(index), digest=str(index) * 64, period=period)
+                         for index, period in enumerate(periods, 1)))
+        result = reports.filings(raw, LEI, STAMP, 10)
+        self.assertEqual([row['kind'] for row in result['filings']], ['annual', 'half_year', 'annual', 'annual'])
+        # One June report beside one December report: no single year end, so neither is called a half year.
+        pair = reports.filings(metadata(filing(period='2025-12-31'), filing(report_id='2', digest='b' * 64,
+                                                                           period='2025-06-30')), LEI, STAMP, 10)
+        self.assertEqual({row['kind'] for row in pair['filings']}, {'annual'})
 
     def test_ambiguous_latest_report_is_visible_with_candidates_and_never_picked(self):
         variants = metadata(filing(), filing(report_id='2', digest='b' * 64), filing(report_id='3', period='2024-12-31'))

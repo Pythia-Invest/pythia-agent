@@ -104,10 +104,10 @@ const FORMATS: Record<string, string> = { ixbrl: "iXBRL", text: "Text" };
 
 type Filing = Filings["filings"][number];
 
-/** A variant's chip names only what sets it apart from the report's others. */
+/** A version's chip names only what sets it apart from the report's others;
+ * versions share their authority (it is part of the report's key). */
 function variantLabels(variants: readonly Filing[]) {
   const parts = [
-    (filing: Filing) => filing.authority && authorityLabel(filing.authority),
     (filing: Filing) => filing.form,
     (filing: Filing) =>
       filing.format && (FORMATS[filing.format] ?? filing.format.toUpperCase()),
@@ -134,10 +134,10 @@ function VariantChips({ variants }: { variants: readonly Filing[] }) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open ${filing.form ?? "filing"} ${labels[index]}`}
-            className="inline-flex items-center gap-0.5 rounded-pill border border-border px-1.5 text-[10px] text-foreground-secondary outline-ring hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2"
+            className="inline-flex min-h-6 items-center gap-1 rounded-pill border border-border px-2 text-foreground-secondary text-xs outline-ring hover:bg-interaction-hover hover:text-foreground focus-visible:outline-2"
           >
             {labels[index]}
-            <ExternalLink aria-hidden="true" className="size-2.5" />
+            <ExternalLink aria-hidden="true" className="size-3" />
           </a>
         ) : null,
       )}
@@ -237,6 +237,8 @@ export function FilingsView({ filings }: { filings: Filings }) {
           <tbody>
             {shown.map((variants, index) => {
               const [filing] = variants as [Filing, ...Filing[]];
+              // A report is named by its first filing (a 10-K, not its 10-K/A).
+              const original = variants.at(-1) ?? filing;
               const grouped = variants.length > 1;
               return (
                 <tr
@@ -245,33 +247,28 @@ export function FilingsView({ filings }: { filings: Filings }) {
                 >
                   <td className="py-1.5 pr-3 text-foreground">
                     <span className="font-semibold">
-                      {filing.form ?? "Filing"}
+                      {original.form ?? "Filing"}
                     </span>
-                    {filing.title && filing.title !== filing.form ? (
+                    {original.title && original.title !== original.form ? (
                       <span className="text-foreground-secondary">
                         {" "}
-                        · {filing.title}
+                        · {original.title}
                       </span>
                     ) : null}
-                    {grouped ? (
-                      <VariantChips variants={variants} />
-                    ) : (
-                      <>
-                        {filing.language ? (
-                          <span className="ml-1.5 text-[10px] text-foreground-secondary uppercase">
-                            {filing.language}
-                          </span>
-                        ) : null}
-                        {combined && filing.source ? (
-                          <span className="ml-1.5 text-[10px] text-foreground-secondary">
-                            {filing.authority
-                              ? `${authorityLabel(filing.authority)} · `
-                              : ""}
-                            {filing.source}
-                          </span>
-                        ) : null}
-                      </>
-                    )}
+                    {!grouped && filing.language ? (
+                      <span className="ml-1.5 text-[10px] text-foreground-secondary uppercase">
+                        {filing.language}
+                      </span>
+                    ) : null}
+                    {combined && filing.source ? (
+                      <span className="ml-1.5 text-[10px] text-foreground-secondary">
+                        {filing.authority
+                          ? `${authorityLabel(filing.authority)} · `
+                          : ""}
+                        {filing.source}
+                      </span>
+                    ) : null}
+                    {grouped ? <VariantChips variants={variants} /> : null}
                   </td>
                   <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
                     {filing.period_end ?? "—"}

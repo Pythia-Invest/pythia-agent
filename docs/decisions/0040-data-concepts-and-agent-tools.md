@@ -159,7 +159,7 @@ for this item.
 
 **Core's filing item** is `{id, kind, form, title, filed_at, filed_time,
 period_end, date, date_basis, event_codes, basis, language, format, parties,
-url, authority, report_key, parallel, source, provider, plugin}` (the v2
+url, authority, report_period, report_key, source, provider, plugin}` (the v2
 fields are in the amendment below): dates are ISO or null, `id` is the
 accession number or report hash. `date` orders the list:
 the filing date (`date_basis: filed`), else the day the source indexed the
@@ -212,46 +212,54 @@ France and leaves Belgium to filings.xbrl.org.
 `other`; the source tags it, core keeps only these), `filed_time` (the exact
 UTC time of filing, as SEC's acceptance time), `event_codes` (8-K items),
 `basis`, `language`, `format` (`ixbrl`, `html`, `pdf`, `xml`, `text`),
-`report_key`, `parallel` (below) and `parties`
+`report_period`, `report_key` (below) and `parties`
 (`{role, scheme, id}`; only what the source states: SEC names the company as
 filer of its reports and claims no party for an ownership form, whose filer or
 subject EDGAR does not say). An 8-K is an `earnings_release` with Item 2.02,
 otherwise an `event`, the kind that also holds EU inside information. The
-combined read and the SEC plugin take `kinds`; `ownership` reads the insider
-and major-holder forms that a default read leaves out.
+combined read and the SEC plugin take `kinds`; `ownership` reads Forms 3, 4,
+5, 144 and Schedule 13G, which a default read leaves out.
 
 **Report identity and parallel reports.** A company can report one period
 under two regimes, as an instrument has several listings: ASML files a 20-F
-with the SEC and an ESEF annual report with the AFM for the same year, under
-different accounting bases. The backbone models this explicitly. A periodic
-report (annual, half-year, quarterly, earnings release) is identified by
-`report_key` = issuer, kind, period end, **authority and accounting basis**
-(`basis`: `us_gaap` or `ifrs` where the source states it, else `unstated`: SEC
-states US GAAP for 10-K and 10-Q, filings.xbrl.org IFRS for ESEF, whose
-taxonomy is the IFRS taxonomy; a 20-F's basis is not in EDGAR's list).
+with the SEC and an ESEF annual report with the AFM for the same year. The
+backbone models this explicitly. A periodic report (annual, half-year,
+quarterly, earnings release) is identified by `report_key` = issuer, kind,
+period end and **authority**; `report_period` = issuer, kind and period end is
+what it reports on.
 - **Versions** share one `report_key`: the format and language versions of one
-  document, and its amendments (a 10-K/A). The Desk shows them as one row with
-  a chip per version.
-- **Parallel reports** are the other reports of the same issuer, kind and
-  period under another authority or basis. Each item lists them in `parallel`
-  (their `report_key`s). They stay separate reports: the 20-F and the ESEF
-  report, and also one ESEF report collected by two mechanisms (TotalEnergies
-  in France and the UK), since the authority is part of the identity. How the
-  Desk and the agent present parallel reports is decided separately; for now
-  they are separate rows.
+  document, and its amendments (a 10-K/A). The Desk shows them as one row, with
+  the authority and source, and a chip per version.
+- **Parallel reports** share `report_period` under different authorities: the
+  20-F and the ESEF report, and also one ESEF report collected by two
+  mechanisms (TotalEnergies in France and the UK). They stay separate reports
+  and rows; how the Desk and the agent present them is decided separately.
+- **Basis** (`us_gaap`, `ifrs`) is an attribute of the report, null where the
+  source does not state it, never part of its identity: SEC states US GAAP for
+  10-K and 10-Q; a 20-F's basis (`dei:DocumentAccountingStandard`) needs the
+  filing instance read planned with SEC onboarding, and ESEF can use a national
+  taxonomy, so filings.xbrl.org states none. Learning a basis later never
+  changes a report's key.
+
+filings.xbrl.org's index has no period start or report type. A report ending
+six months from the entity's most frequent annual period end is tagged
+`half_year` (a December filer's June report); with a single report or no
+single year end, a report stays `annual`. Rows of a country the plugin does not
+declare are counted as `undeclared_country` drift and logged; core leaves them
+out.
 
 Grouping and linking are exact equality and never merge or pick: every item
 keeps its id and link. Fundamentals (P8) reuse the identity: each statement
-figure's provenance carries the `report_key` of the report it was read from
-(the same `filings.report_key`), so a statement column is one report, and
-statements of parallel reports are told apart by authority and basis. A report
-listed with an `unstated` basis keeps that key; its figures state the basis
-their taxonomy shows.
+figure's provenance carries the `report_key` of the report it was read from,
+with the basis as the figure's own attribute, so a statement column is one
+report and parallel statements are told apart by authority.
 
 Rejected: grouping on `(issuer, period_end, kind)` alone (it folds a 20-F into
-the ESEF report); treating parallel reports as versions of one report; fuzzy
-grouping without a period (a later, calibrated Jev question); naming
-mechanisms by regulator.
+the ESEF report); the accounting basis in the key (sometimes unknown, so the
+key would change when it is learned, and the authority already separates the
+reports seen); a list of parallel keys per item (it depends on the rows in the
+window; the shared `report_period` does not); fuzzy grouping without a period
+(a later, calibrated Jev question); naming mechanisms by regulator.
 
 ### Live market data
 

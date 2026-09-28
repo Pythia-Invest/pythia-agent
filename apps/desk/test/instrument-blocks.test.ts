@@ -119,11 +119,11 @@ describe("combined filings rows", () => {
 
 describe("filings reports", () => {
   it("group a report's versions under its newest, never merging them", () => {
-    const annual = "issuer|annual|2025-12-31|sec|us_gaap";
+    const annual = "issuer|annual|2025-12-31|sec";
     const rows = [
       { id: "8-K", report_key: null },
       { id: "10-K/A", report_key: annual },
-      { id: "ESEF", report_key: "issuer|annual|2025-12-31|oam-nl|ifrs" },
+      { id: "ESEF", report_key: "issuer|annual|2025-12-31|oam-nl" },
       { id: "10-K", report_key: annual },
       { id: "6-K", report_key: null },
     ];

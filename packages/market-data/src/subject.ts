@@ -217,9 +217,8 @@ export const filingsSchema = z.object({
         form: optionalText,
         format: optionalText,
         /** A periodic report's identity (issuer, kind, period end,
-         * authority, accounting basis): items sharing it are versions of one
-         * report (format, language, amendment), shown as one row and never
-         * merged. */
+         * authority): items sharing it are versions of one report (format,
+         * language, amendment), shown as one row and never merged. */
         report_key: optionalText,
         url: z.string().nullish(),
         language: optionalText,

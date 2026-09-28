@@ -61,7 +61,7 @@ class FilingKind(StrEnum):
     OTHER = "other"
 
 
-# Kinds of periodic report: each has a report identity (`filings.report_key`) that links its versions and parallels.
+# Kinds of periodic report: each has a report identity (`filings.report_period`, `report_key`).
 REPORT_KINDS = frozenset({FilingKind.ANNUAL, FilingKind.HALF_YEAR, FilingKind.QUARTERLY, FilingKind.EARNINGS_RELEASE})
 
 
