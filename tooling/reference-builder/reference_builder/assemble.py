@@ -240,6 +240,7 @@ def _mark_primary(snap, security, listings, relevant, home_row) -> None:
             security_id=security.security_id, issuer_id=security.issuer_id, mic=mic, operating_mic=mic,
             country=security.isin[:2] if security.isin else None, is_primary=True, name=home_row.get("name"),
         )
-        _apply_figi(listing, home_row, security.fisn)
+        _apply_figi(listing, home_row | {"ticker": rules.home_ticker(home_row["ticker"])}, security.fisn)
+        listing.currency = rules.HOME_CURRENCY.get(mic)  # without one core cannot key the line and it is dropped
         listing.status_reasons = ["home_line_from_openfigi"]
         snap.listings.setdefault(listing.listing_id, listing)

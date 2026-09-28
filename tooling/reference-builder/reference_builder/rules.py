@@ -13,7 +13,7 @@ EEA = frozenset("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL 
 # Non-EEA home markets: OpenFIGI exchange codes that prove a home line, and the home MIC.
 HOME = {
     "GB": (("LN",), "XLON"),
-    "CH": (("SE", "SW"), "XSWX"),
+    "CH": (("SW", "SE"), "XSWX"),  # SW: the SIX line the truth set records (its FIGI is also the composite)
     "CA": (("CT",), "XTSE"),
     "AU": (("AU", "AT"), "XASX"),
     "SG": (("SP",), "XSES"),
@@ -29,6 +29,10 @@ GERMAN_FLOORS = frozenset({"XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER
 # Nasdaq Stockholm and Copenhagen write a share class after a space (`VOLV B`); OpenFIGI glues it on (`VOLVB`).
 # Helsinki writes it glued (`KESKOB`), as Yahoo does.
 SPACED_CLASS_VENUES = frozenset({"XSTO", "XCSE"})
+# The trading currency of ordinary shares on a home venue, for home lines OpenFIGI shows outside FIRDS (FIRDS
+# carries a currency, OpenFIGI's line does not). London quotes in pence; the listing's currency is GBP.
+HOME_CURRENCY = {"XLON": "GBP", "XSWX": "CHF", "XTSE": "CAD", "XASX": "AUD", "XSES": "SGD", "XTAE": "ILS",
+                 "XTKS": "JPY", "XHKG": "HKD", "XJSE": "ZAR", "XNYS": "USD", "XNAS": "USD", "XASE": "USD", "ARCX": "USD"}
 US_EXCHANGE_MIC = {"UN": "XNYS", "UW": "XNAS", "UQ": "XNAS", "UR": "XNAS", "UA": "XASE", "UP": "ARCX"}
 # Main OpenFIGI exchange code per operating MIC (derived from micCode-qualified answers).
 MAIN_EXCH_CODE = {
@@ -168,6 +172,12 @@ def lit_segment(mic: str) -> str:
 
 def _unaccented(text: str) -> str:
     return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
+
+
+def home_ticker(ticker: str) -> str:
+    """OpenFIGI writes home tickers the Bloomberg way: a padding slash (`BP/`) and a slash before a share class
+    (`BT/A`, `RCI/B`). The line keeps `BP`, and the class after `-` as SEC tickers do (`RCI-B`, Yahoo `RCI-B.TO`)."""
+    return (ticker.rstrip("/") or ticker).replace("/", "-")
 
 
 def exchange_ticker(root: str, klass: str | None, operating_mic: str | None) -> str | None:

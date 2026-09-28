@@ -20,11 +20,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .schema import derive, identity
+from .truth_scope import EEA, Scope, read_scope
 
 TRUTH_DIR = Path(__file__).resolve().parents[1] / "truth"
 PLUGINS = Path(__file__).resolve().parents[3] / "runtime" / "managed" / "plugins"
-US_MICS = frozenset({"XNAS", "XNYS", "XCBO", "OTCM"})
-EEA = frozenset("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split())
 CHECKS = ("coverage", "lifecycle", "issuer", "security", "separate", "listing", "primary", "relation", "fold", "symbols",
           "subject_key")
 search = importlib.import_module(f"{identity.__name__}.search")
@@ -33,45 +32,6 @@ page = importlib.import_module(f"{identity.__name__}.page")
 
 def tnorm(ticker: str | None) -> str:
     return re.sub(r"[^A-Z0-9]", "", (ticker or "").upper())
-
-
-@dataclass
-class Scope:
-    """What a reference build claims to cover, read from the build itself."""
-
-    us: bool = False
-    eea: bool = False                            # every EEA venue (FIRDS)
-    mics: frozenset[str] = frozenset()           # otherwise these operating MICs
-    cfi: tuple[str, ...] | None = None           # FIRDS populations (CFI prefixes); None: unknown, all
-    crypto: frozenset[str] = frozenset()         # crypto kinds present (coin, token)
-    label: str = ""
-
-    def covers(self, entry: dict, listing: dict, venues: dict) -> bool:
-        if "chain" in listing:
-            return entry["kind"] in self.crypto
-        mic = listing["mic"]
-        if mic in US_MICS:
-            return self.us
-        if venues.get(mic, {}).get("country") in EEA and (self.eea or mic in self.mics):
-            return self.cfi is None or not entry.get("cfi") or entry["cfi"].startswith(self.cfi)
-        return mic in self.mics
-
-
-def read_scope(ref: sqlite3.Connection, reference: Path, cfi: tuple[str, ...] | None = None) -> Scope:
-    label = (ref.execute("SELECT value FROM release WHERE key = 'scope'").fetchone() or [""])[0]
-    tokens = {token.strip().upper() for token in label.split(",") if token.strip()}
-    stored = (ref.execute("SELECT value FROM release WHERE key = 'cfi_prefixes'").fetchone() or [None])[0]
-    if cfi is None and stored:
-        cfi = tuple(stored.split(","))
-    manifest = reference.parent / "manifest.json"  # builds before the release carried cfi_prefixes
-    if cfi is None and manifest.exists():
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-        if data.get("snapshot", {}).get("file") == reference.name:
-            cfi = tuple(data.get("scope", {}).get("cfi_prefixes") or ()) or None
-    crypto = frozenset(row[0] for row in ref.execute("SELECT DISTINCT kind FROM securities WHERE asset_class = 'crypto'"))
-    return Scope(us=bool(tokens & {"SEC", "US"}), eea=bool(tokens & {"EEA", "ALL"}),
-                 mics=frozenset(t for t in tokens if re.fullmatch(r"[A-Z0-9]{4}", t) and t not in {"EEA"}),
-                 cfi=cfi, crypto=crypto, label=label)
 
 
 def load_contracts(root: Path = PLUGINS) -> dict[str, "page.PluginInfo"]:

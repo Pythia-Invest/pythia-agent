@@ -80,6 +80,9 @@ class NamesAndClassesTest(unittest.TestCase):
         self.assertEqual(rules.split_glued_class("CARLB", "Carlsberg AS/B Aktie"), ("CARL", "B"))
         self.assertIsNone(rules.split_glued_class("KRY", "KRY/SHS VTG FPD EUR 0.125"))
 
+    def test_home_tickers_drop_bloombergs_slashes(self):
+        self.assertEqual([rules.home_ticker(t) for t in ("BP/", "BT/A", "RCI/B", "SHEL")], ["BP", "BT-A", "RCI-B", "SHEL"])
+
     def test_nasdaq_nordic_writes_the_class_after_a_space(self):
         self.assertEqual(rules.exchange_ticker("VOLV", "B", "XSTO"), "VOLV B")
         self.assertEqual(rules.exchange_ticker("NOVO", "B", "XCSE"), "NOVO B")

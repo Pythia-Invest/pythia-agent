@@ -88,7 +88,7 @@ def run(config: BuildConfig) -> int:
     stamp = config.as_of.strftime("%Y%m%d")
     build_id = f"reference-{stamp}"
     meta = {"build_id": build_id, "schema_version": str(schema.SCHEMA_VERSION), "builder_version": BUILDER_VERSION,
-            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics or ["EEA"]) + (",US" if config.scope.sec else ""),
+            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics or ["EEA"]) + ",HOME" + (",US" if config.scope.sec else ""),
             "cfi_prefixes": ",".join(config.scope.cfi_prefixes)}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)

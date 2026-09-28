@@ -111,12 +111,13 @@ class Directory:
                 out.setdefault(key, []).append(value)
             return out
 
-        # Regulated listings: an ISO 10383 RMKT segment or a US exchange (whose operating MICs ISO leaves
-        # unspecified). A build from before the category column ranks no line as regulated.
+        # Listings, not open-market trading: an ISO 10383 regulated market (RMKT), or an exchange whose ISO record
+        # leaves the category unspecified (NSPD: NYSE, Cboe, Tokyo, Toronto, the ASX). Lines on an MTF, an OTF, a
+        # systematic internaliser or OTC Markets are trading. A build from before the category column ranks none.
         categorised = "category" in {row[1] for row in ref.execute("PRAGMA table_info(venues)")}
         venues = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT mic, name, country FROM venues")}
-        regulated = ({row[0] for row in ref.execute("SELECT mic FROM venues WHERE category = 'RMKT'")}
-                     | set(US_LISTED)) if categorised else set()
+        regulated = {row[0] for row in ref.execute("SELECT mic FROM venues WHERE category IN ('RMKT', 'NSPD')")
+                     } if categorised else set()
         issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
                    " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
@@ -158,7 +159,7 @@ class Directory:
                 venue_name, venue_country if not crypto else None, currency, int(bool(primary)), int(home),
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
                 int(foreign_us), logrank(rank),
-                security, kind, int(mic in regulated or op in regulated & set(US_LISTED))))))
+                security, kind, int(mic in regulated)))))
         # A depositary receipt is the same economic share: it folds into its underlying security, or else
         # into its issuer's best-ranked ordinary share.
         kinds = {doc["security"]: doc["kind"] for doc in docs}

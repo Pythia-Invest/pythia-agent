@@ -44,7 +44,7 @@ search finds those coins without a provider. Securities carry a notability
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit
 (`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue) and
-OpenFIGI-only home lines (no trading currency). A CGS-area security OpenFIGI
+OpenFIGI-only home lines on a venue without a known trading currency. A CGS-area security OpenFIGI
 does not know yet (no share-class FIGI) keeps a local, non-portable ID
 (`security:provisional:esma_firds:isin:<ISIN>`, lines without FIGI or ticker
 `listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`), counted as
@@ -89,7 +89,10 @@ table under `writer_ignored`.
   FIGI. SEC company-file lines OpenFIGI types as `ETP` are ETFs too.
 - **Primary venue.** Start from the FIRDS relevant venue. For a non-EEA ISIN
   with a real home-exchange line in OpenFIGI, use the home exchange (Shell and
-  Unilever move to XLON). A US ISIN's primary is its first US exchange line
+  Unilever move to XLON). That line is written with its venue's trading currency
+  (`rules.HOME_CURRENCY`: London GBP, SIX CHF, Toronto CAD, the ASX AUD, Tokyo
+  JPY, Hong Kong HKD, Singapore SGD, Tel Aviv ILS, Johannesburg ZAR), and its
+  ticker without OpenFIGI's Bloomberg slashes (`BP/` → `BP`, `RCI/B` → `RCI-B`). A US ISIN's primary is its first US exchange line
   from the SEC: OpenFIGI shows US lines on every US exchange, so it cannot name
   the home one. A non-US security with a SEC exchange line and no line in its
   ISIN's country (Linde, Accenture, Medtronic: Irish holding companies of US

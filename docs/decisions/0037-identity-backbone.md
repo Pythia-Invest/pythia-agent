@@ -212,7 +212,8 @@ query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
 exchange). A regulated listing comes next (an ISO 10383 regulated-market
-segment, carried as `venues.category`, or a US exchange) over open-market
+segment, carried as `venues.category`, or an exchange whose ISO category is
+unspecified, such as NYSE, Tokyo or Toronto) over open-market
 trading such as a German Freiverkehr line; then the home and primary market; a
 foreign company's receipt or OTC line ranks below its other lines. Among the
 remaining lines, one an installed, usable plugin can price comes first (its

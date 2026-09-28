@@ -148,8 +148,11 @@ class PipelineTest(unittest.TestCase):
             dropped = sum(n for key, n in self.snap.audit["schema"].items() if key.startswith("lines_without_"))
             self.assertEqual(written + dropped, len(self.snap.listings) + 6)  # every line is accounted for; +6 seeded coins
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
-            # Shell's London home line has no trading currency, so no line of it is written as primary.
-            self.assertEqual(self.snap.audit["schema"]["securities_without_primary"], 1)
+            # Shell's London home line gets London's trading currency, so it is written as the primary.
+            self.assertEqual(self.snap.audit["schema"]["securities_without_primary"], 0)
+            with sqlite3.connect(path) as db:
+                london = db.execute("select ticker, currency, is_primary from listings where operating_mic = 'XLON'").fetchall()
+            self.assertEqual(london, [("SHEL", "GBP", 1)])
 
     def test_eu_only_scope_makes_no_sec_lookups(self):
         figi = FakeOpenFigi(OPENFIGI)

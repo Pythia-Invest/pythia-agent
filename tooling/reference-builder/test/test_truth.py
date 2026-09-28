@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import truth, truth_report, writer
+from reference_builder import truth, truth_report, truth_scope, writer
 from reference_builder.pipeline import build_snapshot
 from reference_builder.schema import identity
 
@@ -46,6 +46,18 @@ class TruthSetTest(unittest.TestCase):
                 for listing in entry["listings"]:
                     self.assertTrue("chain" in listing or listing["mic"] in data["venues"])
                 self.assertLessEqual(sum(listing.get("primary") is True for listing in entry["listings"]), 1)
+
+
+class ScopeTest(unittest.TestCase):
+    def test_a_home_line_is_in_scope_only_for_a_security_the_build_lists_in_the_eea(self):
+        venues = {"XLON": {"country": "GB"}, "XAMS": {"country": "NL"}, "XSWX": {"country": "CH"}}
+        shell = {"kind": "ordinary", "security": {"isin": "GB00BP6MXD84"},
+                 "listings": [{"mic": "XLON"}, {"mic": "XAMS"}]}
+        scope = truth_scope.Scope(eea=True, home=True)
+        self.assertTrue(scope.covers(shell, {"mic": "XLON"}, venues))
+        self.assertFalse(scope.covers(shell, {"mic": "XSWX"}, venues))  # not its ISIN country's venue
+        self.assertFalse(truth_scope.Scope(eea=True).covers(shell, {"mic": "XLON"}, venues))
+        self.assertFalse(scope.covers({**shell, "listings": [{"mic": "XLON"}]}, {"mic": "XLON"}, venues))
 
 
 class AuditTest(unittest.TestCase):
