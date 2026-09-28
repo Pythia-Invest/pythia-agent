@@ -105,11 +105,12 @@ class _Ids:
         found = derive("issuer", {"lei": issuer.lei, "cik": issuer.cik})
         return found or identity.provisional_id("issuer", issuer.source, "id", issuer.issuer_id.split(":", 1)[1])
 
-    def _security(self, security) -> str | None:
-        """None for a FIRDS security whose only key would be a CGS-area ISIN (core's key rule never keys by it)."""
+    def _security(self, security) -> str:
         found = derive("security", {"isin": security.isin, "share_class_figi": security.share_class_figi})
-        if found or security.isin:
+        if found:
             return found
+        if security.isin:  # a CGS-area ISIN with no share-class FIGI yet: a local, non-portable ID
+            return local_security(security.isin)
         return identity.provisional_id("security", security.source, "id", security.security_id.split(":", 1)[1])
 
     def listing(self, listing) -> str | None:
@@ -118,9 +119,24 @@ class _Ids:
             return None
         found = derive("listing", {"isin": security.isin, "figi": listing.figi},
                        operating_mic=listing.operating_mic or listing.mic, currency=listing.currency)
-        if found or not listing.ticker:
+        if found:
             return found
-        return identity.provisional_id("listing", listing.source, "ticker", f"{listing.mic}.{listing.ticker}")
+        if listing.ticker:
+            return identity.provisional_id("listing", listing.source, "ticker", f"{listing.mic}.{listing.ticker}")
+        return local_line(security.isin, listing.operating_mic or listing.mic, listing.currency) if security.isin else None
+
+
+def local_security(isin: str) -> str:
+    """Provisional (non-portable, ADR 0037) ID of a security known only by a CGS-area ISIN.
+
+    Deterministic, so the build that later finds its share-class FIGI aliases it to the FIGI key.
+    """
+    return identity.provisional_id("security", "esma_firds", "isin", isin)
+
+
+def local_line(isin: str, operating_mic: str, currency: str) -> str:
+    """Provisional ID of such a security's venue line that carries neither a FIGI nor a ticker."""
+    return identity.provisional_id("listing", "esma_firds", "line", f"{operating_mic}.{isin}.{currency}")
 
 
 def aliases(level: str, subject: str, identifiers: dict[str, str | None], *, operating_mic: str | None = None,
@@ -144,7 +160,13 @@ def aliases(level: str, subject: str, identifiers: dict[str, str | None], *, ope
         "listing": [f"isin:{isin}:{operating_mic}:{currency}" if isin and operating_mic and currency else None,
                     f"figi:{valid['figi']}" if valid.get("figi") else None],
     }[level]
-    return {f"{level}:{key}" for key in keys if key} - {subject}
+    found = {f"{level}:{key}" for key in keys if key}
+    if isin and isin[:2] in identity.CGS_AREA:  # the local IDs it had before a FIGI was known
+        if level == "security":
+            found.add(local_security(isin))
+        elif level == "listing" and operating_mic and currency:
+            found.add(local_line(isin, operating_mic, currency))
+    return found - {subject}
 
 
 def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str, list[dict]]:
@@ -206,9 +228,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     titles: dict[str, str | None] = {}
     for key, security in sorted(snap.securities.items()):
         subject = ids.securities[key]
-        if subject is None:
-            audit["securities_without_hostable_key"] += 1
-            continue
+        if subject.startswith("security:provisional:esma_firds:isin:"):
+            audit["securities_local_id"] += 1
         for alias in aliases("security", subject, {"isin": security.isin, "share_class_figi": security.share_class_figi}):
             candidates[alias].add(subject)
         title = titles[key] = security.name or line_names.get(key)
@@ -228,8 +249,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         subject = ids.listing(listing)
         security_id = ids.securities.get(listing.security_id or "")
         if subject is None or security_id is None:  # core needs a venue, a trading currency and a hostable key
-            audit["lines_without_venue" if not listing.mic else "lines_without_currency" if not listing.currency
-                  else "lines_without_hostable_key"] += 1
+            audit["lines_without_venue" if not listing.mic else "lines_without_currency"] += 1
             continue
         security = snap.securities[listing.security_id]
         keys = {"isin": security.isin, "figi": listing.figi}
@@ -259,7 +279,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             name(subject, listing.name, listing.source)
     for relation in snap.relationships:
         source = ids.securities.get(relation.from_id)
-        target = ids.securities.get(relation.to_id) or derive("security", {"isin": relation.to_id.split(":", 1)[1]})
+        isin = relation.to_id.split(":", 1)[1]
+        target = ids.securities.get(relation.to_id) or derive("security", {"isin": isin}) or local_security(isin)
         try:
             item = identity.Relation(type=relation.relation, from_id=source, to_id=target, authority="snapshot",
                                      provenance={"plugin": relation.source, "source": relation.source,

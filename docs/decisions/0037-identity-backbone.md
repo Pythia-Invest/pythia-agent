@@ -46,7 +46,9 @@ A key uses only identifiers every build path has and may host. ISINs from
 CUSIP Global Services (`CGS_AREA`: US, Canada, US territories and the offshore
 centres whose ISINs carry a CUSIP/CINS number) are licensed, local-only
 evidence, so they never key a subject: such securities are keyed by share-class
-FIGI and listings by FIGI, and the ISIN stays an assertion. New evidence
+FIGI and listings by FIGI, and the ISIN stays an assertion; until a
+share-class FIGI is known, such a security has a provisional, non-portable ID
+that is aliased once the FIGI appears. New evidence
 therefore never re-keys a subject. The builder writes deterministic aliases,
 every other key a subject could have had (for example `security:isin:US…` and
 `listing:figi:…` for an ISIN-keyed EU line), into `id_aliases`, so an old or

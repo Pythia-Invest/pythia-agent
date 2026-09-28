@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import firds, gleif, linking, manifest, mic, sec, writer
+from reference_builder import firds, gleif, linking, manifest, mic, schema, sec, writer
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
 from reference_builder.model import SecFund, SecTicker, Snapshot
@@ -160,6 +160,7 @@ class PipelineTest(unittest.TestCase):
 APPLE_ISIN, APPLE_LEI = "US0378331005", "HWUPKR0MPOU8FGXBT394"
 ETF_ISIN, ETF_LEI = "IE00B5BMR087", "549300AAAAAAAAAAAA03"
 DARK_ISIN = "NL0000000077"  # trades only on a trading-only venue
+UNKNOWN_US_ISIN = "US5949181045"
 WIDE_FIRDS = fulins([
     firds_record(ASML_ISIN, "XAMS", ASML_LEI, name="ASML HOLDING"),
     firds_record(ASML_ISIN, "XETB", ASML_LEI, name="ASML HOLDING"),  # two Xetra segments: one Xetra line
@@ -169,6 +170,7 @@ WIDE_FIRDS = fulins([
     firds_record(ETF_ISIN, "XETA", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
     firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
     firds_record(DARK_ISIN, "CEUX", NN_LEI, name="DARK ONLY", relevant="CEUX"),
+    firds_record(UNKNOWN_US_ISIN, "FRAB", APPLE_LEI, name="NO FIGI YET", relevant="XFRA"),  # OpenFIGI has no line
 ])
 WIDE_SEC = sec_json([
     (320193, "Apple Inc.", "AAPL", "Nasdaq"),
@@ -256,6 +258,12 @@ class AllVenuesTest(unittest.TestCase):
         self.assertEqual(aliases[f"security:isin:{APPLE_ISIN}"], "security:figi:BBG001S5N8V8")
         self.assertEqual(aliases[f"listing:isin:{APPLE_ISIN}:XNAS:USD"], "listing:figi:BBG000B9Y5X2", "the Nasdaq line's FIGI, not the composite's")
         self.assertFalse(set(aliases) & ids, "an alias never shadows a subject")
+        # A US-area security with no share-class FIGI keeps its lines under a local, non-portable ID,
+        # which a later build that finds the FIGI aliases to the FIGI key.
+        local = schema.local_security(UNKNOWN_US_ISIN)
+        self.assertEqual(local, f"security:provisional:esma_firds:isin:{UNKNOWN_US_ISIN}")
+        self.assertIn(local, ids)
+        self.assertIn(local, schema.aliases("security", "security:figi:BBG001S5N8V8", {"isin": UNKNOWN_US_ISIN, "share_class_figi": "BBG001S5N8V8"}))
         self.assertTrue(all(new in ids or new.startswith(("issuer:", "composite:")) for new in aliases.values()))
 
     def test_segment_venues_take_their_operator_label(self):

@@ -42,8 +42,11 @@ search finds those coins without a provider. Securities carry a notability
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit
 (`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue) and
-OpenFIGI-only home lines (no trading currency), and FIRDS lines of a CGS-area
-security OpenFIGI does not know (no hostable key). Rows the writer ignores
+OpenFIGI-only home lines (no trading currency). A CGS-area security OpenFIGI
+does not know yet (no share-class FIGI) keeps a local, non-portable ID
+(`security:provisional:esma_firds:isin:<ISIN>`, lines without FIGI or ticker
+`listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`), counted as
+`securities_local_id`; the build that finds its FIGI aliases the local ID to it. Rows the writer ignores
 (duplicate IDs of collapsed lines, or a constraint violation) are counted per
 table under `writer_ignored`.
 
