@@ -107,8 +107,8 @@ const INTRADAY: Partial<
     least: 4,
     continuous: [2, 1],
   },
-  "5D": { minutes: [5, 15, 2, 30, 60], days: 9, least: 7, continuous: [6, 5] },
-  "1M": { minutes: [30, 60, 15], days: 35, least: 31, continuous: [32, 30] },
+  "5D": { minutes: [5, 15, 2, 30, 60], days: 9, least: 7, continuous: [6, 6] },
+  "1M": { minutes: [30, 60, 15], days: 35, least: 31, continuous: [32, 32] },
 };
 const minutes = (s: Series) => intervalMs(s) / 60_000;
 

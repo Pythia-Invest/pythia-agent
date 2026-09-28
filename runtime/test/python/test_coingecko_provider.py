@@ -269,14 +269,6 @@ class Provider(unittest.TestCase):
                 else:
                     self.assertIn('price_change_percentage=24h%2C7d%2C30d', spec.full_url)
 
-    def test_recent_chart_is_the_unkeyed_five_minute_day(self):
-        req = {'mode': 'keyless', 'token': None, 'operation': 'recent_chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', 'days': 1}}
-        url = worker.request_spec(req).full_url
-        self.assertIn('/coins/bitcoin/market_chart?', url)
-        self.assertIn('days=1', url)
-        self.assertNotIn('interval=', url)
-        with self.assertRaises(ValueError):
-            worker.request_spec({**req, 'arguments': {**req['arguments'], 'days': 7}})
         calls = []
         def call(op, args):
             calls.append((op, args))
@@ -295,6 +287,15 @@ class Provider(unittest.TestCase):
         self.assertIsNone(result['quotes'][1]['price'])
         with self.assertRaisesRegex(ValueError, 'invalid_response'):
             dashboard.read({'kind': 'quotes', 'symbols': ['ethereum']}, 'USD', call, failures)
+
+    def test_recent_chart_is_the_unkeyed_five_minute_day(self):
+        req = {'mode': 'keyless', 'token': None, 'operation': 'recent_chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', 'days': 1}}
+        url = worker.request_spec(req).full_url
+        self.assertIn('/coins/bitcoin/market_chart?', url)
+        self.assertIn('days=1', url)
+        self.assertNotIn('interval=', url)
+        with self.assertRaises(ValueError):
+            worker.request_spec({**req, 'arguments': {**req['arguments'], 'days': 7}})
 
     def test_dashboard_preserves_timestamped_samples_currency_and_partial_failure(self):
         now = int(datetime.now(timezone.utc).timestamp() * 1000)

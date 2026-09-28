@@ -102,6 +102,8 @@ describe("chart periods follow the series a source declares", () => {
         declared("s5m", { kind: "minute", count: 5 }, 1, "all"),
         declared("o30m", { kind: "minute", count: 30 }, 1, "all"),
         declared("s1h", { kind: "hour", count: 1 }, 90, "all"),
+        // Paid plans add hourly candles over 31 days: too short for 1M.
+        declared("o1h", { kind: "hour", count: 1 }, 31, "all"),
         declared("o4h", { kind: "hour", count: 4 }, 7, "all"),
         declared("d1", { kind: "day", count: 1 }, 90, "all"),
       ],
