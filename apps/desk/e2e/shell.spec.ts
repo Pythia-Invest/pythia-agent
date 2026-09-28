@@ -25,11 +25,13 @@ async function chatLinks(page: Page) {
 
 test("separates the navigation rail from the chat list", async ({ page }) => {
   await openDesk(page);
+  // The core bar's "Search" field, or the default investment-search top bar,
+  // whose field is a combobox.
+  const bar = page.getByRole("search");
   await expect(
-    // The core bar's "Search", or the default investment-search top bar.
-    page
-      .getByRole("search")
-      .getByRole("searchbox", { name: /^Search( investments)?$/ }),
+    bar
+      .getByRole("searchbox", { name: "Search", exact: true })
+      .or(bar.getByRole("combobox", { name: "Search investments" })),
   ).toBeVisible();
   await openNavigation(page);
   const rail = page.getByRole("complementary", { name: "Desk navigation" });
@@ -219,9 +221,12 @@ test("starts a new chat inside the dock without leaving the page", async ({
   await expect(page).toHaveURL(/\/markets$/);
 
   const dock = page.getByRole("complementary", { name: "Pythia" });
-  await dock.getByRole("button", { name: "New chat" }).click();
-  // The unsaved chat is a tab of its own, and Markets stays on screen.
-  await expect(dock.getByRole("tab", { name: "New chat" })).toBeVisible();
+  await dock.getByRole("button", { name: "New chat", exact: true }).click();
+  // The unsaved chat is a tab of its own, and Markets stays on screen. The
+  // dock's initial draft is also titled "New chat": the new one is selected.
+  await expect(
+    dock.getByRole("tab", { name: "New chat", selected: true }),
+  ).toBeVisible();
   await expect(
     dock.getByRole("textbox", { name: "Message Pythia" }),
   ).toBeVisible();
