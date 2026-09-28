@@ -67,14 +67,13 @@ function optionLabel(option: SearchOption) {
     .join(", ");
 }
 
-/** A company, fund or crypto asset above its listings; not an option. */
-export function GroupHeading({ option }: { option: SearchOption }) {
+/** A company, fund or crypto asset: its name and type, above its listings. */
+function GroupHeading({ option }: { option: SearchOption }) {
   const { group } = option;
   return (
-    <div
-      aria-hidden="true"
+    <span
       data-slot="investment-search-group"
-      className="flex items-baseline gap-2 px-2.5 pt-2.5 pb-0.5 text-xs"
+      className="flex min-w-0 items-baseline gap-2 pt-2.5 pr-2.5 pl-2.5 text-xs"
     >
       <span className="min-w-0 truncate font-semibold text-foreground">
         {group.name}
@@ -82,36 +81,35 @@ export function GroupHeading({ option }: { option: SearchOption }) {
       <span className="flex-none text-foreground-secondary">
         {ROW_LABELS[group.kind]}
       </span>
-    </div>
+    </span>
   );
 }
 
 /** One listing of a group on one line: ticker, the venue with its country
  * flag, what the listing is when it is not the plain share (a class, registry
  * shares), currency and type. No prices and no provider logos: search shows
- * what exists; sources belong on the instrument page. */
+ * what exists; sources belong on the instrument page.
+ *
+ * A group's first listing carries the group's heading inside the same option,
+ * so the heading is hoverable and choosable (it opens that first listing's
+ * instrument) and highlights exactly under the pointer; the keyboard stops on
+ * heading and first listing once. */
 export function SearchRowOption({
   option,
+  heading = false,
   onChoose,
 }: {
   option: SearchOption;
+  /** Render the group's heading above this row, as part of the option. */
+  heading?: boolean;
   onChoose(): void;
 }) {
   const { row } = option;
   if (!row) return null;
   const venue = row.venue ?? row.mic;
   const detail = ownDetail(option);
-  return (
-    <ComboboxItem
-      value={option}
-      aria-label={optionLabel(option)}
-      // Base UI clicks the highlighted row on Enter, so this is the one path
-      // for pointer and keyboard choices.
-      onClick={onChoose}
-      data-slot="investment-search-row"
-      data-kind={row.kind}
-      className="min-h-8 gap-3 py-1 pr-2.5 pl-4 text-xs"
-    >
+  const cells = (
+    <>
       <span className="w-16 flex-none truncate font-semibold text-body text-foreground">
         {row.ticker}
       </span>
@@ -136,6 +134,37 @@ export function SearchRowOption({
       <span className="@max-sm:hidden w-28 flex-none truncate text-right text-foreground-secondary">
         {KIND_LABELS[row.kind]}
       </span>
+    </>
+  );
+  return (
+    <ComboboxItem
+      value={option}
+      aria-label={optionLabel(option)}
+      // Base UI clicks the highlighted row on Enter, so this is the one path
+      // for pointer and keyboard choices.
+      onClick={onChoose}
+      data-slot="investment-search-row"
+      data-kind={row.kind}
+      data-heading={heading || undefined}
+      className={
+        heading
+          ? // No margin: space between options would be a gap where the
+            // pointer leaves every option and the highlight snaps back to
+            // the first row.
+            "flex-col items-stretch gap-0 px-0 py-0 text-xs"
+          : "min-h-8 gap-3 py-1 pr-2.5 pl-4 text-xs"
+      }
+    >
+      {heading ? (
+        <>
+          <GroupHeading option={option} />
+          <span className="flex min-h-8 items-center gap-3 py-1 pr-2.5 pl-4">
+            {cells}
+          </span>
+        </>
+      ) : (
+        cells
+      )}
     </ComboboxItem>
   );
 }

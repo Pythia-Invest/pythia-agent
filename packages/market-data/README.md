@@ -184,7 +184,9 @@ shared Autocomplete, combobox parts and ToggleGroup. Typing reads only the local
 directory; no connector is called on that path. The first shown row is always
 highlighted and Enter opens it, but never a row of a previous query while the
 typed one loads. Each group shows the company name and type above its relevant
-listings, one line each: ticker, the venue with a small country flag, what the
+listings; the heading belongs to the first listing's option, so hovering or
+choosing it highlights and opens that listing and the keyboard stops there
+once. Listings take one line each: ticker, the venue with a small country flag, what the
 listing is when it is not the plain share (Class C, registry shares), currency
 and type. A group with more listings ends in an "All N listings" option that
 reads and reveals every listing in place ("Fewer listings" hides them again);

@@ -93,7 +93,7 @@ function Harness({ search }: { search: SearchBackend }) {
         onSelect={(id, listing) =>
           selected.push(id === listing ? id : `${id}?listing=${listing}`)
         }
-        onHighlight={(id) => highlighted.push(id)}
+        onHighlight={(_id, listing) => highlighted.push(listing)}
         shortcut={false}
       />
     </QueryClientProvider>
@@ -336,6 +336,46 @@ describe("investment search", () => {
         "Show fewer listings of BBA Holding",
       ]),
     );
+  });
+
+  it("makes a group's heading part of its first option: hoverable, choosable and one keyboard stop", async () => {
+    const { search, answer } = directory();
+    await act(async () => root.render(<Harness search={search} />));
+    await type("asml");
+    await answer("asml", [
+      group([
+        { ...row("ASML"), instrument: "security:ASML" },
+        { ...row("ASME", "Xetra"), instrument: "security:ASML" },
+      ]),
+      { ...group([{ ...row("BTC"), kind: "coin" }]), kind: "coin" },
+    ]);
+    await until(() => expect(rows()).toEqual(["ASML", "ASME", "BTC"]));
+    // Each group's heading sits inside its first option, never between options.
+    const headings = [
+      ...document.querySelectorAll('[data-slot="investment-search-group"]'),
+    ];
+    expect(
+      headings.map(
+        (node) =>
+          node
+            .closest('[role="option"]')
+            ?.getAttribute("aria-label")
+            ?.split(",")[0],
+      ),
+    ).toEqual(["ASML", "BTC"]);
+    expect(
+      document.querySelector(
+        '[role="listbox"] > [data-slot="investment-search-group"]',
+      ),
+    ).toBeNull();
+    // The keyboard moves from the heading's option straight to the next listing.
+    await press("ArrowDown");
+    await until(() => expect(highlighted.at(-1)).toBe("listing:ASME"));
+    await press("ArrowDown");
+    await until(() => expect(highlighted.at(-1)).toBe("listing:BTC"));
+    // Choosing the heading opens the group's first listing, a coin's too.
+    await act(async () => (headings[1] as HTMLElement | undefined)?.click());
+    expect(selected).toEqual(["listing:BTC"]);
   });
 
   it("opens a receipt's row as its instrument's page, showing that listing", async () => {

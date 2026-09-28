@@ -7,12 +7,7 @@ import {
   TYPE_FILTERS,
   type TypeFilter,
 } from "./search-model";
-import {
-  ConnectorMark,
-  GroupHeading,
-  SearchRowOption,
-  ToggleOption,
-} from "./search-row";
+import { ConnectorMark, SearchRowOption, ToggleOption } from "./search-row";
 import { TypePills } from "./type-pills";
 
 export type PanelStatus = "prompt" | "loading" | "error" | "ready";
@@ -68,19 +63,18 @@ export function SearchPanel(props: SearchPanelProps) {
   const shown = status === "ready" ? props.options : [];
   const directory = shown.filter((option) => option.source === "directory");
   const found = shown.filter((option) => option.source === "lookup");
-  // A heading precedes each group's first entry; the toggle closes it.
+  // A group's first listing carries its heading in the same option; the
+  // toggle closes the group.
   const renderRow = (
     option: SearchOption,
     index: number,
     list: SearchOption[],
   ) => (
     <Fragment key={option.key}>
-      {list[index - 1]?.group.id !== option.group.id ? (
-        <GroupHeading option={option} />
-      ) : null}
       {option.row ? (
         <SearchRowOption
           option={option}
+          heading={list[index - 1]?.group.id !== option.group.id}
           onChoose={() => props.onChoose(option)}
         />
       ) : (
