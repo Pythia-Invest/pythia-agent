@@ -12,6 +12,17 @@ from .schemes import INSTRUMENT_KINDS, Level, subject_kind, subject_level
 from .vocabulary import RELATIONS, Grouping
 
 
+def current_id(ref: sqlite3.Connection, subject_id: str) -> str:
+    """The ID this reference gives a subject: `id_aliases` followed to its end. A cycle is a release defect: its
+    IDs stay as they are."""
+    seen = [subject_id]
+    while alias := ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (seen[-1],)).fetchone():
+        if alias[0] in seen:
+            return subject_id
+        seen.append(alias[0])
+    return seen[-1]
+
+
 def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None = None) -> dict[str, Any] | None:
     """The subject with its listing, security and issuer (whichever exist), or None if unknown. The reference
     holds instruments only: a subject of another kind is unknown here. A security or issuer subject is priced
@@ -22,8 +33,7 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     """
     if subject_kind(subject_id) not in INSTRUMENT_KINDS:
         return None
-    alias = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone()
-    subject_id = alias[0] if alias else subject_id
+    subject_id = current_id(ref, subject_id)
     level = subject_level(subject_id)
     one = lambda sql, *args: ref.execute(sql, args).fetchone()  # noqa: E731
     listing = security = issuer = None

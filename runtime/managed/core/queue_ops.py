@@ -14,7 +14,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from .identity import queue as questions
-from .identity import schemes, store
+from .identity import reference_package, schemes, store
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -126,13 +126,14 @@ def settle(identity: Identity, subject_ids: list[str]) -> None:
         return
     try:
         identity_store = identity.store
-        fresh = identity_store.metadata(RELEASE) != path.name
+        release = reference_package.release_key(path)  # the installed package: a same-day rebuild is new too
+        fresh = identity_store.metadata(RELEASE) != release
         items = identity_store.queue_items(subject_ids=None if fresh else subject_ids)
         if items:
             questions.settle_by_rules(identity_store, ref, installed(), items, now=store.now(),
                                   as_of=date.today().isoformat())
         if fresh:
-            identity_store.set_metadata(RELEASE, path.name)
+            identity_store.set_metadata(RELEASE, release)
     except (sqlite3.Error, OSError, ValueError):
         logger.warning("rules could not settle the identity queue", exc_info=True)
     finally:

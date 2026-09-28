@@ -26,7 +26,7 @@ python3 tooling/reference-builder/run.py --help
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
 | Claims (shadow mode) | `claims.py`, `drift.py`, `firds_audit.py` | typed FIRDS claims, the FIRDS drift fingerprint and odd cases, and today's decisions against the claims (below) |
 | Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
-| Snapshot and manifest | `schema.py`, `writer.py`, `manifest.py` | |
+| Snapshot, manifest and package | `schema.py`, `writer.py`, `manifest.py`, `package.py` | |
 
 `schema.py` is the only module that knows the table layout. The file is core's
 reference store (`runtime/managed/core/identity/sql/reference.sql`) with subject
@@ -309,10 +309,13 @@ baseline in the same change.
 ## Outputs
 
 `.local/reference-builder/out/` (git-ignored, override with `--out`) receives
-`reference-<YYYYMMDD>.sqlite3`, `claims-<YYYYMMDD>.sqlite3` (typed claims and
-the FIRDS reports, above) and `manifest.json` (source URLs, retrieval times and
-versions, row counts, audit counts, canary results, the FIRDS report and SHA-256
-checksums).
+`reference-<YYYYMMDD>.sqlite3`, `firds-<YYYYMMDD>.json` (the FIRDS fingerprint
+and report, above), `manifest.json` (source URLs, retrieval times and versions,
+row counts, audit counts, canary results, the FIRDS report and SHA-256
+checksums) and `package.json` (`package.py`). With `package.json`, the directory
+is a [reference package](../../docs/architecture/reference-package.md). Core
+reads only a package installed with `just reference-install`; development
+startup installs this one automatically.
 `.local/reference-builder/downloads/` (override with `--cache`) caches source
 files and API answers: OpenFIGI answers (in `openfigi-answers.sqlite3`) for 30
 days, GLEIF records and the SEC and MIC files for one day. `--sec-file` builds

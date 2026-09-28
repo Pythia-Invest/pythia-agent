@@ -3,8 +3,9 @@
 `identity-search` and `identity-subject` are local reads of the reference file,
 identity.sqlite3 and the installed plugins' contracts; neither calls a provider.
 `identity-resolve` runs one plugin's declared resolve tool, bounded by a short
-timeout, and stores the decided binding or queue item. The resolution-queue
-operations live in `queue_ops`.
+timeout, and stores the decided binding or queue item. `reference-status`
+describes the installed reference package. The resolution-queue operations live
+in `queue_ops`.
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from .identity import (
 from . import queue_ops, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import batch_from_json, batch_to_json, page, search, store
+from .identity import batch_from_json, batch_to_json, lifecycle, page, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -72,6 +73,7 @@ class Identity:
     def __init__(self, ctx: Any):
         self.ctx = ctx
         self._store: store.IdentityStore | None = None
+        self._rekeyed: Path | None = None  # the reference build local rows were carried to, this process
         self.reset_told = False  # whether a set-aside store was reported (once per process)
         self._lock = threading.Lock()
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="pythia-resolve")
@@ -87,8 +89,28 @@ class Identity:
                 self._store = store.IdentityStore(self.data_dir)
             return self._store
 
-    def reference(self):
+    def reference_path(self, *, again: bool = False) -> Path | None:
+        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A), so every
+        read and write after it sees current IDs; a failure is retried on the next use. `again` carries rows
+        written meanwhile under an older build's IDs."""
         path = store.reference_path(self.data_dir)
+        if path is not None and (again or path != self._rekeyed):
+            try:
+                ref = store.open_reference(path)
+                try:
+                    done = lifecycle.rekey(self.store, ref, reference_package.release_key(path), again=again)
+                finally:
+                    ref.close()
+                if done:
+                    logger.info("identity store carried to reference %(release)s: %(moved)d subject IDs re-keyed,"
+                                " %(rows)d rows re-pointed, %(vanished)d subjects vanished", done)
+                self._rekeyed = path
+            except (sqlite3.Error, OSError, ValueError):
+                logger.warning("identity store could not be carried to %s", path.name, exc_info=True)
+        return path
+
+    def reference(self):
+        path = self.reference_path()
         return (path, store.open_reference(path)) if path else (None, None)
 
     # ---- operations ----------------------------------------------------------------------------------------------
@@ -99,7 +121,7 @@ class Identity:
         group = str(arguments.get("group") or "").strip()[:256]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
-            path = store.reference_path(self.data_dir)
+            path = self.reference_path()
             if path is None:
                 return _envelope("empty", empty, issue=NO_REFERENCE)
             directory = search.directory(path, store.open_reference)
@@ -111,6 +133,10 @@ class Identity:
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
         return _envelope("ok" if data["groups"] else "empty", data)
+
+    def reference_status(self, _arguments: dict, **_context: Any) -> str:
+        data = reference_package.status(self.data_dir)  # an unreadable package reads as none installed
+        return _envelope("ok", data) if data["installed"] else _envelope("empty", data, issue=NO_REFERENCE)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -141,6 +167,8 @@ class Identity:
         reason, transient = self._resolve(info, subject) if info.enabled and not info.missing else (None, False)
         if reason:  # remember the miss so reopening the page does not call the provider again
             self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
+        if store.reference_path(self.data_dir) != path:  # a new build landed during the call: carry this answer to it
+            self.reference_path(again=True)
         queue_ops.settle(self, [value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
         sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
@@ -346,7 +374,9 @@ def register(ctx: Any) -> None:
                                                   (queue_ops.QUEUE_SCHEMA, partial(queue_ops.read_queue, identity),
                                                    "identity-queue", True),
                                                   (queue_ops.VERDICT_SCHEMA, partial(queue_ops.submit_verdict, identity),
-                                                   "identity-verdict", False)):
+                                                   "identity-verdict", False),
+                                                  (reference_package.STATUS_SCHEMA, identity.reference_status,
+                                                   "reference-status", True)):
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])

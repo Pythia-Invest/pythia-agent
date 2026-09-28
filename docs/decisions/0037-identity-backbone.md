@@ -63,7 +63,25 @@ evidence for a record, so IDs never depend on build order. A subject no open
 identifier names gets a provider-namespaced provisional ID
 (`security:provisional:eodhd:catalogue:GSPC.INDX`). When a better key appears,
 the old ID becomes an alias; when a natural key changes, the new subject is
-linked by `successor_of`. User state stores subject IDs only. The listing
+linked by `successor_of`. User state stores subject IDs only, and follows a
+re-key once per release (Lifecycle A): on the first use of a reference build it
+has not applied, core re-points every `identity.sqlite3` row that names a
+subject (bindings, queue items with their dedupe key, verdicts, resolve misses)
+through `id_aliases`, following chains, in one
+transaction recorded against the installed reference package (build and
+checksum, so a same-day rebuild counts as a new release). A cited assertion that moved with
+its subject is cited by the evidence ID the release gives it. A re-key is the
+same subject under its current key, so it is not the re-pointing of a binding
+that the authority rule forbids. A subject the release neither holds nor
+aliases is flagged (`vanished_subjects`, no reader yet) and its rows are kept;
+retiring it is Lifecycle B. An older build returns only through a reinstall and
+is applied like any other release: rows re-key back through its own aliases, and
+those it cannot place stay flagged until a newer build applies again; there is
+no reverse mapping. A resolve answer that arrives after a new build was applied
+is carried to it again. Unlike the rules resolver it runs on the first operation of any
+kind, reads included, because a read by the current ID must find the row.
+Following aliases on every read was rejected: every lookup by subject would
+need the chain. The listing
 currency is the quote currency as the venue states it; minor units (GBX) are a
 read-pipeline concern, not identity.
 
@@ -198,7 +216,7 @@ binding re-verified on page open; otherwise a provisional subject and a residual
 
 **Search is a local read** of the directory: no provider call, no identity
 write, no reconciliation. Core's `identity-search` builds the directory in
-memory (FTS5) from the newest reference file and ranks with one versioned,
+memory (FTS5) from the installed reference package and ranks with one versioned,
 gold-calibrated additive score (exact ticker or identifier, name match,
 notability from each security's source `rank`, primary and home line,
 penalties for OTC lines and derivatives); issuers compete by their best line.
