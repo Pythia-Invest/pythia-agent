@@ -60,6 +60,10 @@ qualify:
 test-e2e desk_url:
     PYTHIA_DESK_URL="{{desk_url}}" pnpm --filter @pythia/desk test:e2e
 
+# Opt-in live agent eval against a running Desk: it uses the investor's model and sources, so never in CI.
+agent-eval desk_url *ids:
+    python3 tooling/agent-eval/run.py "{{desk_url}}" {{ids}}
+
 # Build the open reference snapshot from public sources (network; see tooling/reference-builder/README.md).
 reference-snapshot *args:
     python3 tooling/reference-builder/run.py {{args}}

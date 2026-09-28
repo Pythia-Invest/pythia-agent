@@ -150,7 +150,7 @@ def register(ctx):
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler)
     agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
-    agent(ctx, 'esef_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings and balance sheet from ESEF '
+    agent(ctx, 'esef_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings, balance sheet from ESEF '
           'reports. IFRS figures of an EU or UK company\'s latest annual report on filings.xbrl.org, or an explicit '
           'report_id, with exact periods, units and precision; several reports for one period come back as '
           'candidates to choose from. It gives the report\'s own year; for the prior-year comparative, read the '
