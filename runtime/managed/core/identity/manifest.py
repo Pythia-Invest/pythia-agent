@@ -1,34 +1,32 @@
-"""Plugin addressing and content contract (ADR 0038): `contract.json` and its validator.
+"""Plugin contract (ADR 0038 and its contract-v1 amendment): `contract.json` and its validator.
 
 A plugin ships a static `contract.json` at its package root, beside `plugin.yaml`
 and its `configuration.json`. The core evaluates it without running plugin code,
-so addressing and section selection work for disabled plugins too. Native Hermes
+so addressing and source selection work for disabled plugins too. Native Hermes
 stays the authority for discovery and enablement.
+
+Version 1 declares, per core data concept (ADR 0040), the plugin operation that
+serves each concept operation, its coverage and its qualities from core's closed
+vocabulary, plus the provider terms core must know (`rights`) and optional
+published limits. Contracts name plugin operations, never Hermes tools; the
+Hermes adapter maps an operation to the tool that declares it.
 """
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Mapping
 
+from .concepts import REGISTRY, Combine, Concept, FilingAuthority, Licence
 from .schemes import MIC, NAMESPACE, SCHEME_LEVEL, Level, Scheme
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
-TOOL = re.compile(r"^[a-z][a-z0-9_]{0,63}\Z")
+CONTRACT_VERSION = 1  # the newest contract shape this core reads
+OPERATION = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")  # a plugin operation name, as `declare_operation` accepts
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
-
-
-class Section(StrEnum):
-    """POC page sections. Exactly one plugin serves a section, chosen by user preference."""
-
-    QUOTE = "quote"
-    CHART = "chart"
-    PROFILE = "profile"
-    FINANCIALS = "financials"
-    NEWS = "news"
-    FILINGS = "filings"
+LIMIT_UNITS = ("call", "credit", "request")
 
 
 class CatalogueMode(StrEnum):
@@ -44,17 +42,57 @@ class NativeScope:
 
 
 @dataclass(frozen=True, slots=True)
-class ContentEntry:
-    level: Level  # the level the data is about (financials: issuer)
-    via: Level    # the level of the reference used to call (financials: a listing symbol)
-    tool: str
+class Coverage:
+    asset_classes: frozenset[str] | None = None  # None: whatever the plugin can address
+    markets: frozenset[str] | None = None        # operating MICs; None: any
+
+
+@dataclass(frozen=True, slots=True)
+class ConceptEntry:
+    level: Level                        # the level the data is about (fundamentals: issuer)
+    via: Level                          # the level of the reference used to call (fundamentals: a listing symbol)
+    operations: Mapping[str, str]       # concept operation -> plugin operation
+    coverage: Coverage
+    qualities: Mapping[str, Mapping[str, Any]]  # concept operation -> declared qualities (claims, not entitlements)
+    authorities: tuple[FilingAuthority, ...] = ()
+    operation_coverage: Mapping[str, Coverage] = field(default_factory=dict)  # per-operation narrowing
+
+    def coverage_for(self, operation: str) -> Coverage:
+        """The coverage of one concept operation: its own override where declared, else the concept's."""
+        return self.operation_coverage.get(operation, self.coverage)
 
 
 @dataclass(frozen=True, slots=True)
 class Resolve:
-    tool: str
+    operation: str
     input_schemes: tuple[Scheme, ...]
     echoes: tuple[Scheme, ...]  # identifiers an answer only repeats from the query: never evidence
+
+
+@dataclass(frozen=True, slots=True)
+class Attribution:
+    text: str
+    url: str
+
+
+@dataclass(frozen=True, slots=True)
+class Rights:
+    licence: Licence
+    cache_seconds: int | None       # how long data may stay on the device: 0 memory only, None unlimited
+    hostable: bool                  # whether data may appear in a published package
+    attribution: Attribution | None  # what every surface showing the data renders
+
+
+@dataclass(frozen=True, slots=True)
+class Limits:
+    """A provider's published rate limits for the named plan. Declared only; nothing enforces them yet."""
+
+    plan: str
+    unit: str
+    per_second: int | None
+    per_minute: int | None
+    per_day: int | None
+    per_month: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,18 +102,36 @@ class Manifest:
     native: tuple[NativeScope, ...]
     schemes: Mapping[Level, tuple[Scheme, ...]]
     mic_table: Mapping[str, str]  # operating MIC -> the literal suffix core appends to the ticker (".AS", "")
-    content: Mapping[Section, ContentEntry]
+    concepts: Mapping[Concept, ConceptEntry]
     catalogue: CatalogueMode
-    catalogue_tool: str | None
+    catalogue_operation: str | None
     catalogue_scopes: tuple[str, ...]
     resolve: Resolve | None
+    rights: Rights
+    limits: Limits | None = None
+    contract_version: int = CONTRACT_VERSION
 
     def native_scope(self, native_scope: str) -> NativeScope | None:
         return next((item for item in self.native if item.native_scope == native_scope), None)
 
+    @property
+    def plugin_operations(self) -> frozenset[str]:
+        """Every plugin operation the contract names: concept operations, catalogue and resolve."""
+        named = {name for entry in self.concepts.values() for name in entry.operations.values()}
+        named |= {self.catalogue_operation} if self.catalogue_operation else set()
+        return frozenset(named | ({self.resolve.operation} if self.resolve else set()))
+
 
 class ManifestError(ValueError):
     pass
+
+
+class ManifestNeedsUpdate(ManifestError):
+    """The contract is newer than this core reads: Pythia must be updated to use the plugin. Not invalid."""
+
+    def __init__(self, version: int):
+        super().__init__(f"contract_version: {version} is newer than this Pythia reads ({CONTRACT_VERSION})")
+        self.version = version
 
 
 def _object(value: Any, path: str, required: set[str], optional: set[str] = frozenset()) -> Mapping[str, Any]:
@@ -110,9 +166,116 @@ def _enums(kind: type[StrEnum], value: Any, path: str) -> tuple[Any, ...]:
     return items
 
 
+def _count(value: Any, path: str, low: int = 1) -> int:
+    if type(value) is not int or not low <= value <= 10**9:
+        raise ManifestError(f"{path}: expected a whole number of at least {low}")
+    return value
+
+
+def contract_version(document: Any) -> int:
+    """The declared contract version, read before anything else."""
+    version = document.get("contract_version") if isinstance(document, Mapping) else None
+    if type(version) is not int or version < 1:
+        raise ManifestError("manifest.contract_version: a positive integer is required")
+    return version
+
+
+def _concept(key: str, item: Any, addressable: set[Level]) -> ConceptEntry:
+    path = f"concepts.{key}"
+    concept = _enum(Concept, key, "concepts")
+    spec = REGISTRY[concept]
+    per_authority = spec.combine is Combine.PER_AUTHORITY
+    entry = _object(item, path, {"level", "via", "operations"} | ({"authorities"} if per_authority else set()),
+                    {"coverage", "qualities"})
+    level, via = _enum(Level, entry["level"], f"{path}.level"), _enum(Level, entry["via"], f"{path}.via")
+    if level not in spec.levels:
+        raise ManifestError(f"{path}.level: {concept} data is about {', '.join(sorted(spec.levels))}")
+    if DEPTH[via] < DEPTH[level] or via not in addressable:
+        raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
+    operations = {}
+    declared = _object(entry["operations"], f"{path}.operations", set(), set(spec.operations))
+    if not declared:
+        raise ManifestError(f"{path}.operations: at least one operation is required")
+    for name, plugin_operation in declared.items():
+        operations[name] = _match(OPERATION, plugin_operation, f"{path}.operations.{name}")
+    body = _object(entry.get("coverage", {}), f"{path}.coverage", set(), {"asset_classes", "markets", "operations"})
+    coverage = _coverage(body, f"{path}.coverage")
+    narrowed = {}
+    for name, item in _object(body.get("operations", {}), f"{path}.coverage.operations", set(), set(operations)).items():
+        at = f"{path}.coverage.operations.{name}"
+        own = _coverage(_object(item, at, set(), {"asset_classes", "markets"}), at)
+        narrowed[name] = Coverage(own.asset_classes if "asset_classes" in item else coverage.asset_classes,
+                                  own.markets if "markets" in item else coverage.markets)
+    qualities = {}
+    for name, claimed in _object(entry.get("qualities", {}), f"{path}.qualities", set(), set(operations)).items():
+        vocabulary = spec.operations[name]
+        qualities[name] = {}
+        for quality, value in _object(claimed, f"{path}.qualities.{name}", set(), set(vocabulary)).items():
+            try:
+                qualities[name][quality] = vocabulary[quality](value)
+            except ValueError as error:
+                raise ManifestError(f"{path}.qualities.{name}.{quality}: {error}") from None
+    for name, claimed in qualities.items():
+        if claimed.get("delay_minutes", 0) > 0 and claimed.get("delay") != "delayed":
+            raise ManifestError(f"{path}.qualities.{name}.delay_minutes: a delay in minutes needs delay \"delayed\"")
+    authorities = _enums(FilingAuthority, entry["authorities"], f"{path}.authorities") if per_authority else ()
+    if per_authority and not authorities:
+        raise ManifestError(f"{path}.authorities: a combining concept names the authorities the plugin serves")
+    return ConceptEntry(level, via, operations, coverage, qualities, authorities, narrowed)
+
+
+def _coverage(body: Mapping[str, Any], path: str) -> Coverage:
+    classes, markets = body.get("asset_classes"), body.get("markets")
+    if classes is not None and (not isinstance(classes, list) or not classes):
+        raise ManifestError(f"{path}.asset_classes: a non-empty list is required")
+    if markets is not None and (not isinstance(markets, list) or not markets or len(set(map(str, markets))) != len(markets)):
+        raise ManifestError(f"{path}.markets: a list of distinct operating MICs is required")
+    return Coverage(None if classes is None else frozenset(_enums(AssetClass, classes, f"{path}.asset_classes")),
+                    None if markets is None else frozenset(_match(MIC, mic, f"{path}.markets") for mic in markets))
+
+
+def _rights(value: Any) -> Rights:
+    body = _object(value, "rights", {"licence", "cache", "hostable"}, {"attribution"})
+    cache = body["cache"]
+    if cache == "none":
+        seconds = 0
+    elif cache == "unlimited":
+        seconds = None
+    else:
+        seconds = _count(_object(cache, "rights.cache", {"ttl_seconds"})["ttl_seconds"], "rights.cache.ttl_seconds")
+    if type(body["hostable"]) is not bool:
+        raise ManifestError("rights.hostable: true or false")
+    attribution = None
+    if body.get("attribution") is not None:
+        item = _object(body["attribution"], "rights.attribution", {"text", "url"})
+        if not isinstance(item["text"], str) or not 0 < len(item["text"]) <= 120:
+            raise ManifestError("rights.attribution.text: one line of at most 120 characters")
+        if not isinstance(item["url"], str) or not re.match(r"^https://[^\s]{1,500}\Z", item["url"]):
+            raise ManifestError("rights.attribution.url: an https link")
+        attribution = Attribution(item["text"], item["url"])
+    return Rights(_enum(Licence, body["licence"], "rights.licence"), seconds, body["hostable"], attribution)
+
+
+def _limits(value: Any) -> Limits:
+    body = _object(value, "limits", {"plan", "unit"}, {"per_second", "per_minute", "per_day", "per_month"})
+    if not isinstance(body["plan"], str) or not 0 < len(body["plan"]) <= 64:
+        raise ManifestError("limits.plan: the plan these limits describe, at most 64 characters")
+    if body["unit"] not in LIMIT_UNITS:
+        raise ManifestError(f"limits.unit: expected one of {', '.join(LIMIT_UNITS)}")
+    return Limits(body["plan"], body["unit"], **{name: _count(body[name], f"limits.{name}") if name in body else None
+                                                 for name in ("per_second", "per_minute", "per_day", "per_month")})
+
+
 def validate_manifest(document: Any) -> Manifest:
-    """Validate a parsed `contract.json`; raise ManifestError naming the first bad path."""
-    body = _object(document, "manifest", {"plugin", "provider", "addressing"}, {"content", "catalogue", "resolve"})
+    """Validate a parsed `contract.json`; raise ManifestError naming the first bad path.
+
+    A contract newer than this core raises ManifestNeedsUpdate (a ManifestError) before any other check:
+    the plugin needs a newer Pythia, and its fields are neither rejected nor silently ignored."""
+    version = contract_version(document)
+    if version > CONTRACT_VERSION:
+        raise ManifestNeedsUpdate(version)
+    body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights"},
+                   {"concepts", "catalogue", "resolve", "limits"})
     addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table"})
     native = []
     if not isinstance(addressing.get("native", []), list):
@@ -132,23 +295,23 @@ def validate_manifest(document: Any) -> Manifest:
             if SCHEME_LEVEL[scheme] is not Level(key):
                 raise ManifestError(f"addressing.schemes.{key}: {scheme} identifies a {SCHEME_LEVEL[scheme]}")
     table = addressing.get("mic_table", {})
-    mic_table = {_match(MIC, mic, "addressing.mic_table"): code
-                 for mic, code in _object(table, "addressing.mic_table", set(), set(table)).items()}
+    table = _object(table, "addressing.mic_table", set(), set(table) if isinstance(table, Mapping) else set())
+    mic_table = {_match(MIC, mic, "addressing.mic_table"): code for mic, code in table.items()}
     if not all(isinstance(code, str) and len(code) <= 16 for code in mic_table.values()):
         raise ManifestError("addressing.mic_table: provider venue codes are short text")
 
-    catalogue = _object(body.get("catalogue", {"mode": "resolve_only"}), "catalogue", {"mode"}, {"tool", "scopes"})
+    catalogue = _object(body.get("catalogue", {"mode": "resolve_only"}), "catalogue", {"mode"}, {"operation", "scopes"})
     mode = _enum(CatalogueMode, catalogue["mode"], "catalogue.mode")
     scopes = catalogue.get("scopes", [])
     bulk = mode is CatalogueMode.BULK
-    if bulk != ("tool" in catalogue) or bulk != bool(scopes) or not isinstance(scopes, list):
-        raise ManifestError("catalogue: a bulk catalogue, and only it, names a tool and its scopes")
-    tool = _match(TOOL, catalogue["tool"], "catalogue.tool") if "tool" in catalogue else None
+    if bulk != ("operation" in catalogue) or bulk != bool(scopes) or not isinstance(scopes, list):
+        raise ManifestError("catalogue: a bulk catalogue, and only it, names an operation and its scopes")
+    operation = _match(OPERATION, catalogue["operation"], "catalogue.operation") if "operation" in catalogue else None
     scopes = tuple(_match(NAMESPACE, scope, "catalogue.scopes") for scope in scopes)
     resolve = None
     if "resolve" in body:
-        entry = _object(body["resolve"], "resolve", {"tool", "input_schemes", "echoes"})
-        resolve = Resolve(_match(TOOL, entry["tool"], "resolve.tool"),
+        entry = _object(body["resolve"], "resolve", {"operation", "input_schemes", "echoes"})
+        resolve = Resolve(_match(OPERATION, entry["operation"], "resolve.operation"),
                           _enums(Scheme, entry["input_schemes"], "resolve.input_schemes"),
                           _enums(Scheme, entry["echoes"], "resolve.echoes"))
     for index, item in enumerate(native):
@@ -157,14 +320,9 @@ def validate_manifest(document: Any) -> Manifest:
 
     addressable = {item.level for item in native} | {level for level, listed in schemes.items() if listed}
     addressable |= {Level.LISTING} if mic_table else set()
-    content = {}
-    for key, item in _object(body.get("content", {}), "content", set(), set(Section)).items():
-        path = f"content.{key}"
-        entry = _object(item, path, {"level", "via", "tool"})
-        level, via = _enum(Level, entry["level"], f"{path}.level"), _enum(Level, entry["via"], f"{path}.via")
-        if DEPTH[via] < DEPTH[level] or via not in addressable:
-            raise ManifestError(f"{path}.via: the plugin cannot address {level} data through a {via}")
-        content[Section(key)] = ContentEntry(level, via, _match(TOOL, entry["tool"], f"{path}.tool"))
+    concepts = {Concept(key): _concept(key, item, addressable)
+                for key, item in _object(body.get("concepts", {}), "concepts", set(), set(Concept)).items()}
     return Manifest(_match(NAMESPACE, body["plugin"], "manifest.plugin"),
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
-                    tuple(native), schemes, mic_table, content, mode, tool, scopes, resolve)
+                    tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
+                    _rights(body["rights"]), _limits(body["limits"]) if "limits" in body else None, version)

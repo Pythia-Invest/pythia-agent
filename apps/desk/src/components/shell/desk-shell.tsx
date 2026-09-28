@@ -106,11 +106,22 @@ export function DeskShell({ children }: { children: ReactNode }) {
 
   // Top-bar modules announce a chosen investment; the shell owns routing.
   useEffect(() => {
+    // `listing_id` (optional) names the listing whose price the page shows.
     const onOpenSubject = (event: Event) => {
-      const id = (event as CustomEvent<{ subject_id?: unknown }>).detail
-        ?.subject_id;
+      const detail = (
+        event as CustomEvent<{ subject_id?: unknown; listing_id?: unknown }>
+      ).detail;
+      const id = detail?.subject_id;
+      const listing = detail?.listing_id;
       if (typeof id === "string" && id && id.length <= 512)
-        router.push(instrumentHref(id));
+        router.push(
+          instrumentHref(
+            id,
+            typeof listing === "string" && listing.length <= 512
+              ? listing
+              : null,
+          ),
+        );
     };
     window.addEventListener("pythia:open-subject", onOpenSubject);
     return () =>

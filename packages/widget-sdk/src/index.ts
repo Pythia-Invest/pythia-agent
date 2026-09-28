@@ -42,7 +42,12 @@ export {
   Toggle,
   ToggleGroup,
 } from "@pythia/ui";
-export { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+export {
+  useQuery,
+  useQueries,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 export type {
   TopBarProps,
   TopBarContext,

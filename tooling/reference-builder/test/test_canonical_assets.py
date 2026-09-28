@@ -101,8 +101,10 @@ class ReferenceTest(unittest.TestCase):
         wbtc = page.load_subject(self.ref, f"security:caip19:{WBTC}")
         self.assertEqual(wbtc["view"]["related"], [{"id": f"security:caip19:{BTC}", "type": "wraps", "direction": "to",
                                                     "kind": "security", "name": "Bitcoin"}])
-        rows = search.directory(self.path, store.open_reference).search("usdc", limit=5)["rows"]
-        self.assertEqual([row["id"] for row in rows if row["ticker"] == "USDC"], [f"security:caip19:{USDC}"])
+        groups = search.directory(self.path, store.open_reference).search("usdc", limit=5)["groups"]
+        usdc = [(group["id"], [row["id"] for row in group["rows"]]) for group in groups
+                if any(row["ticker"] == "USDC" for row in group["rows"])]
+        self.assertEqual(usdc, [(f"security:caip19:{USDC}", [f"security:caip19:{USDC}"])])  # one asset, one row
 
 
 class DriftTest(unittest.TestCase):

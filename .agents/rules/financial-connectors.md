@@ -6,14 +6,16 @@ paths:
   - "runtime/managed/runner/{coingecko,ibkr}/**/*"
   - "runtime/contracts/financial-data.md"
   - "packages/market-data/**/*"
-  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody}.md"
+  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody,source-onboarding}.md"
+  - "docs/sources/**/*"
 globs:
   - "runtime/managed/plugins/**/*"
   - "runtime/managed/runner/{eodhd*,yahoo*,provider-*}.ts"
   - "runtime/managed/runner/{coingecko,ibkr}/**/*"
   - "runtime/contracts/financial-data.md"
   - "packages/market-data/**/*"
-  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody}.md"
+  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody,source-onboarding}.md"
+  - "docs/sources/**/*"
 ---
 
 # Financial connectors
@@ -38,7 +40,9 @@ source-series identity distinct. Core owns identity ([ADR 0037](../../docs/decis
 
 Register through Hermes and declare implemented common operations on the native
 tool schemas. Discovery/enablement remain native, not a second inventory. Declare
-coverage, supported series and access requirements honestly; local readiness and
+concepts, coverage, qualities, filing authorities and provider rights in
+`contract.json` from core's closed vocabularies ([ADR 0040](../../docs/decisions/0040-data-concepts-and-agent-tools.md)).
+Declare coverage, supported series and access requirements honestly; local readiness and
 capability declarations do not prove account entitlements. Do not probe every
 provider during startup or each refresh to infer them.
 
@@ -48,6 +52,14 @@ useful native detail through the supported source-detail or specialist surface.
 Preferred reads follow compatible preferences; retained pins preserve their
 series. A failed selected source never authorizes fallback or history stitching.
 See [selection and actions](../../packages/market-data/BACKEND.md).
+
+## Onboarding a source
+
+Adding a source, a field use or a judgement question type, or widening what a
+source may confirm, follows [source onboarding](../../docs/architecture/source-onboarding.md)
+([ADR 0042](../../docs/decisions/0042-source-onboarding-standard.md)). Routine
+maintenance of a source not yet onboarded does not start onboarding, but must
+not widen what that source confirms.
 
 ## Execution and access
 

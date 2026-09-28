@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "plugin": "pythia-gleif",
   "provider": "gleif",
   "addressing": {
@@ -14,20 +15,27 @@
       ]
     }
   },
-  "content": {
+  "concepts": {
     "profile": {
       "level": "issuer",
       "via": "issuer",
-      "tool": "pythia_gleif_profile"
+      "operations": {
+        "fields": "profile"
+      }
     }
   },
   "resolve": {
-    "tool": "pythia_gleif_resolve",
+    "operation": "resolve",
     "input_schemes": [
       "lei"
     ],
     "echoes": [
       "lei"
     ]
+  },
+  "rights": {
+    "licence": "open",
+    "cache": "unlimited",
+    "hostable": false
   }
 }
