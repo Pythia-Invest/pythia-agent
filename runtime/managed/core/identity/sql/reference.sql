@@ -119,7 +119,8 @@ CREATE TABLE names (
   PRIMARY KEY (subject_id, name)
 );
 
--- Saved subject IDs resolve through this chain; they are never rewritten.
+-- Saved subject IDs resolve through this chain; a release never rewrites them. The device
+-- re-points its own identity.sqlite3 rows through it once per release (identity/lifecycle.py).
 CREATE TABLE id_aliases (
   old_id TEXT PRIMARY KEY,
   new_id TEXT NOT NULL,
