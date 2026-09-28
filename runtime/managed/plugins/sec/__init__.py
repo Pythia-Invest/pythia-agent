@@ -4,7 +4,9 @@ It uses the market-data plugin's shared execution helpers and reads its declared
 configuration through core; identity decisions stay with Pythia's core.
 """
 import importlib
+from collections import OrderedDict
 import json
+from threading import Lock
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -15,6 +17,7 @@ from .definition import TOOLS, schemas
 # Retained-copy ages per SEC resource, in seconds.
 AGES = {'directory': 86400, 'submissions': 300, 'submissions_page': 86400, 'companyfacts': 3600}
 PAGES = 3  # older submissions pages read at most, for a forms search
+REREAD_KEPT = 4  # companyfacts re-read for a newly filed report, kept per filing until the retained copy expires
 PAGING_SECONDS = 20  # one deadline for all of them
 # SEC's own contact rule, reported under core's needs_configuration code.
 INVALID_CONTACT = {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [{
@@ -51,6 +54,9 @@ class Reader:
         self.wire, self.connector, self.configuration, self.ctx = wire, connector, configuration, ctx
         self.definitions = schemas(wire)
         self.reads = connector.WorkerReads(transport or Transport(connector))
+        # A fresh companyfacts read is not retained by WorkerReads, so a re-read for a new filing is kept here, once
+        # per filing and access scope, until the retained copy it replaces would have expired.
+        self._reread, self._reread_lock = OrderedDict(), Lock()
 
     def contact(self):
         """``(contact, None)`` when usable, else ``(None, needs-configuration result)``."""
@@ -107,7 +113,7 @@ class Reader:
                 raise ValueError('invalid_request')
             raw = fetch('companyfacts', number)
             if operation == 'fundamentals':
-                return self.fundamentals(raw, number, fetch, clean.get('limit', 20))
+                return self.fundamentals(raw, number, fetch, clean.get('limit', 20), scope if reuse else False)
             return envelope(financials.native_facts(raw['data'], number, raw['observed_at'],
                 clean['taxonomy'], clean['concepts'], clean.get('limit', 100)))
         except (ValueError, KeyError, TypeError) as error:
@@ -126,17 +132,35 @@ class Reader:
                                 operation=operation, code=kind, count=sum(values.values()))
         return [] if issue is None else [issue]
 
-    def fundamentals(self, raw, number, fetch, limit):
+    def reread(self, key, fetch, number):
+        """companyfacts read fresh once for `key` (CIK, accession, scope); later calls reuse it until it expires."""
+        now = time.monotonic()
+        with self._reread_lock:
+            for stale in [item for item, (expires, _) in self._reread.items() if expires <= now]:
+                del self._reread[stale]
+            if key in self._reread:
+                return self._reread[key][1]
+        current = fetch('companyfacts', number, fresh=True)
+        with self._reread_lock:
+            self._reread[key] = (now + AGES['companyfacts'], current)
+            while len(self._reread) > REREAD_KEPT:
+                self._reread.popitem(last=False)
+        return current
+
+    def fundamentals(self, raw, number, fetch, limit, scope):
         """Fundamentals marked stale, visibly, when companyfacts lacks the latest periodic report.
 
-        A retained companyfacts copy read before that report was accepted is read once more first, so the alarm
-        reports SEC's lag, not the cache's."""
+        A retained companyfacts copy read before that report was accepted is read once more first, once per filing,
+        so the alarm reports SEC's lag, not the cache's. `scope` is the retained copies' access scope, or False
+        when this read retains nothing."""
         try:
             submissions = fetch('submissions', number)
             state = financials.freshness(submissions['data'], raw['data'], number, submissions['observed_at'])
-            if state and state['status'] == 'stale' and financials.read_before(raw['observed_at'], state['latest_filing']):
+            if (state and state['status'] == 'stale' and scope is not False
+                    and financials.read_before(raw['observed_at'], state['latest_filing'])):
                 try:
-                    current = fetch('companyfacts', number, fresh=True)
+                    key = (number, state['latest_filing']['accession'], json.dumps(scope, sort_keys=True, default=str))
+                    current = self.reread(key, fetch, number)
                     state = financials.freshness(submissions['data'], current['data'], number, submissions['observed_at'])
                     raw = current
                 except (RuntimeError, OSError, ValueError, KeyError, TypeError):

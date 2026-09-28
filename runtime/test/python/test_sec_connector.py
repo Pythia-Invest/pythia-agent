@@ -263,6 +263,19 @@ class SecFilingFields(unittest.TestCase):
         # Other forms put dates or form names in `items`; only 8-K item numbers are read.
         self.assertEqual((effect['items'], effect['description']), (None, None))
 
+    def test_after_eastern_midnight_the_previous_days_acceptance_time_is_left_out(self):
+        # SEC rewrites Eastern times to UTC at an unknown hour after midnight; until 06:00 ET only the date is sure.
+        block = self.block(filingDate=['2026-09-25', '2026-09-24', '2026-09-23'],
+                           acceptanceDateTime=['2026-09-25T00:10:00.000Z', '2026-09-24T21:00:00.000Z',
+                                               '2026-09-23T14:00:00.000Z'])
+        night = filings.filings(block, CIK, '2026-09-25T05:00:00+00:00')  # 01:00 ET
+        self.assertEqual([row['accepted_at'] for row in night['filings']],
+                         ['2026-09-25T04:10:00Z', None, '2026-09-23T14:00:00Z'])
+        self.assertEqual(night['filings'][1]['filed_at'], '2026-09-24')
+        self.assertNotIn('drift', night)
+        morning = filings.filings(block, CIK, '2026-09-25T11:00:00+00:00')  # 07:00 ET
+        self.assertEqual(morning['filings'][1]['accepted_at'], '2026-09-24T21:00:00Z')
+
     def test_missing_or_malformed_fields_are_counted_as_drift_never_reinterpreted(self):
         result = filings.filings(self.block(size=[1, 'large', 3], items=['2.02,10.01', '', '']), CIK, STAMP)
         self.assertEqual(result['filings'][1]['submission_bytes'], None)
@@ -357,8 +370,9 @@ class SecFactsCacheSkew(unittest.TestCase):
                 return {'data': deepcopy(data), 'observed_at': observed, 'issues': []}
         transport = Copies([(old, '2026-06-10T09:00:00+00:00'), (new, '2026-06-10T12:00:00+00:00')])
         instance = plugin.Reader(wire, connector, settings, None, transport=transport)
-        result = instance.invoke('fundamentals', {'native_ref': REF})
-        self.assertEqual((result['data']['freshness']['status'], result['issues']), ('fresh', []))
+        for _ in range(2):  # the re-read happens once per filing; the second call reuses it
+            result = instance.invoke('fundamentals', {'native_ref': REF})
+            self.assertEqual((result['data']['freshness']['status'], result['issues']), ('fresh', []))
         self.assertEqual([call['operation'] for call in transport.calls].count('companyfacts'), 2)
         # A copy read after the filing and still lacking it is SEC's lag: stale, with no second read.
         lagging = Copies([(old, '2026-06-10T11:00:00+00:00')])

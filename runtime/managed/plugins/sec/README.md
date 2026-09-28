@@ -20,7 +20,7 @@ Each filing keeps these submissions fields (see the
 | Field | SEC field | Meaning |
 | --- | --- | --- |
 | `filed_at` | `filingDate` | The official filing date. A filing accepted after 17:30 ET usually carries the next business day. |
-| `accepted_at` | `acceptanceDateTime` | When EDGAR accepted the filing, in true UTC. SEC marks the value as UTC, but until its nightly rebuild the value is Eastern time. So a filing dated on or after the Eastern day of the read is read as America/New_York (measured against the current feed, 2026-09-28). |
+| `accepted_at` | `acceptanceDateTime` | When EDGAR accepted the filing, in true UTC. SEC marks the value as UTC, but until its nightly rebuild the value is Eastern time. So a filing dated on or after the Eastern day of the read is read as America/New_York (measured against the current feed, 2026-09-28). From Eastern midnight to 06:00, the previous day's filings may not be rewritten yet, so their time is left empty and only `filed_at` is given. |
 | `items` | `items` | Form 8-K item numbers, such as `2.02` for results. Other forms put dates or form names in this field, so it is read only for 8-K and 8-K/A. |
 | `description` | `primaryDocDescription` | The filer's description of the primary document, often only the form name. |
 | `inline_xbrl` | `isInlineXBRL` | Whether the primary document is Inline XBRL. |
@@ -40,8 +40,8 @@ checks the newest 10-K, 10-Q, 20-F or 40-F that `submissions` marks as XBRL.
 Its accession must appear on at least one `us-gaap` or `ifrs-full` fact.
 Otherwise `freshness.status` is `stale`, the first limitation names the missing
 filing and a `stale` warning is returned. A retained companyfacts copy read
-before that filing was accepted is read again once first, so the alarm reports
-SEC's lag, not the cache's. The facts themselves are still
+before that filing was accepted is read again first, once per filing until the
+retained copy would expire, so the alarm reports SEC's lag, not the cache's. The facts themselves are still
 returned. When the filing list cannot be read, the status is `unknown`, with a
 `freshness_unknown` warning.
 

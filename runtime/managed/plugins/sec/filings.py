@@ -4,7 +4,7 @@ Public format: https://www.sec.gov/search-filings/edgar-application-programming-
 """
 import re
 
-from .financials import accepted_utc, checked_date, eastern_date, filing_url
+from .financials import accepted_utc, checked_date, eastern, filing_url
 from .identity import cik, reference, submissions_url
 
 # Investor-facing descriptions; the native form remains a separate field.
@@ -82,7 +82,7 @@ def _optional(block, key, index, drift):
     return column[index]
 
 
-def _block(block, identifier, drift, read_day):
+def _block(block, identifier, drift, read_at):
     """The rows of one columnar submissions block (`filings.recent`, or an older page), newest first.
 
     Field meanings (EDGAR submissions API): `acceptanceDateTime` is when EDGAR accepted the filing, kept in true UTC
@@ -114,8 +114,9 @@ def _block(block, identifier, drift, read_day):
         if index < len(report_dates) and report_dates[index]:
             row['period_end'] = checked_date(report_dates[index])
         accepted = _optional(block, 'acceptanceDateTime', index, drift)
-        row['accepted_at'] = accepted_utc(accepted, row['filed_at'], read_day)
-        if accepted is not None and row['accepted_at'] is None:
+        try:
+            row['accepted_at'] = None if accepted is None else accepted_utc(accepted, row['filed_at'], read_at)
+        except ValueError:
             drift_count(drift, 'malformed', 'acceptanceDateTime')
         description = _optional(block, 'primaryDocDescription', index, drift)
         if isinstance(description, str):
@@ -173,11 +174,11 @@ def filings(raw, identifier, observed_at, limit=20, forms=None, pages=()):
     if not isinstance(filing_data, dict):
         raise ValueError('invalid_response')
     forms = [item.upper() for item in forms or []]
-    read_day = eastern_date(observed_at)
+    read_at = eastern(observed_at)
     blocks = [filing_data.get('recent', {}), *pages]
     rows, scanned, omitted, oldest, drift = [], 0, 0, None, {}
     for block in blocks:
-        for row in _block(block, identifier, drift, read_day):
+        for row in _block(block, identifier, drift, read_at):
             scanned += 1
             oldest = row['filed_at']
             if not forms and ownership(row['form']):

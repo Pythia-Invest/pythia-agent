@@ -3,7 +3,7 @@
 Public format: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
 No synthetic TTM, quarterly subtraction, or currency conversion is performed.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import math
 import re
 from zoneinfo import ZoneInfo
@@ -50,29 +50,40 @@ EASTERN = ZoneInfo('America/New_York')
 ACCEPTED = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z')
 
 
-def eastern_date(observed_at):
-    """The Eastern calendar date of an ISO read time (a naive time is UTC)."""
+# From Eastern midnight until SEC's nightly rewrite (time unknown; its bulk files are rebuilt about 03:00 ET) the
+# previous day's filings may still carry Eastern time. Their acceptance time is left out in this window.
+UNSURE_UNTIL_HOUR = 6
+
+
+def eastern(observed_at):
+    """An ISO read time in America/New_York (a naive time is UTC)."""
     moment = datetime.fromisoformat(observed_at)
-    return (moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)).astimezone(EASTERN).date().isoformat()
+    return (moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)).astimezone(EASTERN)
 
 
-def accepted_utc(value, filed_at, read_day):
-    """EDGAR's `acceptanceDateTime` as a true UTC time ('...Z'), or None when it is not a well-formed time.
+def eastern_date(observed_at):
+    """The Eastern calendar date of an ISO read time."""
+    return eastern(observed_at).date().isoformat()
 
-    The value always ends in Z, but until SEC's nightly rebuild of the submissions files rewrites it, it is the
-    Eastern wall-clock time. Measured on 2026-09-28 against the current feed's explicit offsets: every filing
-    whose `filingDate` was the reading day or later was Eastern, including those accepted after 17:30 ET on the
-    previous business day. Filings of earlier days were UTC, including a Form 4 accepted at 21:57 ET that Friday.
-    So a filing dated on or after `read_day` (the Eastern date of the read) is read as America/New_York.
-    Known gap: a filing accepted at a weekend but dated to the previous business day stays Eastern until the next
-    rebuild, and is read as UTC."""
+
+def accepted_utc(value, filed_at, read_at):
+    """EDGAR's `acceptanceDateTime` as a true UTC time ('...Z'), or None when it cannot be told; ValueError when it is
+    not a well-formed time. `read_at` is the Eastern time the submissions were read.
+
+    The value always ends in Z, but until SEC's nightly rewrite of the submissions files it is the Eastern
+    wall-clock time. Measured on 2026-09-28 against the current feed's explicit offsets: every filing whose
+    `filingDate` was the reading day or later was Eastern, including those accepted after 17:30 ET on the previous
+    business day. Filings of earlier days were UTC, including a Form 4 accepted at 21:57 ET that Friday. So a
+    filing dated on or after the Eastern date of the read is read as America/New_York, and an earlier one as UTC.
+    Between Eastern midnight and UNSURE_UNTIL_HOUR the previous day's filings may not be rewritten yet: their time is
+    left out (None) and only the filing date is given."""
     if not isinstance(value, str) or not ACCEPTED.fullmatch(value):
+        raise ValueError('malformed')
+    naive = datetime.fromisoformat(value[:19])
+    read_day = read_at.date()
+    if read_at.hour < UNSURE_UNTIL_HOUR and filed_at == (read_day - timedelta(days=1)).isoformat():
         return None
-    try:
-        naive = datetime.fromisoformat(value[:19])
-    except ValueError:
-        return None
-    zone = EASTERN if filed_at >= read_day else timezone.utc
+    zone = EASTERN if filed_at >= read_day.isoformat() else timezone.utc
     return naive.replace(tzinfo=zone).astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
@@ -218,7 +229,10 @@ def freshness(submissions, raw, identifier, observed_at):
               'filed_at': checked_date(recent['filingDate'][latest]), 'accepted_at': None}
     accepted = recent.get('acceptanceDateTime')
     if isinstance(accepted, list) and len(accepted) == len(recent['form']):
-        filing['accepted_at'] = accepted_utc(accepted[latest], filing['filed_at'], eastern_date(observed_at))
+        try:
+            filing['accepted_at'] = accepted_utc(accepted[latest], filing['filed_at'], eastern(observed_at))
+        except ValueError:
+            pass  # left out: read_before then falls back to the filing date
     facts = _concepts(raw, identifier)
     present = any(isinstance(row, dict) and row.get('accn') == filing['accession']
                   for taxonomy in STATEMENT_TAXONOMIES for item in (facts.get(taxonomy) or {}).values()
