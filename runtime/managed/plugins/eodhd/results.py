@@ -26,6 +26,7 @@ MESSAGES = {
     'not_entitled': 'The connected EODHD plan does not include this dataset. Other EODHD data is unaffected; this is not missing data.',
     'identity_unresolved': 'Exact common-stock catalogue metadata could not be resolved uniquely.',
     'price_unit_unknown': 'The source does not establish a qualified price currency scale for this catalogue item.',
+    'schema_drift': 'EODHD news carried fields, character references or items Pythia does not recognise; see drift.',
 }
 
 
@@ -47,7 +48,7 @@ def envelope(data, issues=()):
 
 def base(request, issues=()):
     return {'schema_version': 1, 'outcome': 'error', 'request': request, 'series': None, 'observations': [],
-        'selection': {'view': request['view'], 'reason': 'unavailable', 'preference_revision': None, 'alternatives': []},
+        'selection': {'view': request['view'], 'reason': 'unavailable', 'alternatives': []},
         'provenance': None, 'retrieved_at': now(), 'returned_window': {'start': None, 'end': None},
         'coverage': {'status': 'unknown', 'gaps': [], 'truncated': False, 'continuation': None},
         'freshness': {'status': 'unknown', 'as_of': None, 'basis': 'unknown', 'market_data_type': 'unknown'},

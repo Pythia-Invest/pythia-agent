@@ -22,11 +22,29 @@ plugin or prove plan entitlement.
 | `details`, `series`, `latest`, `history`, `read_batch` | shared market-data reads | Catalogue metadata and distinct series: daily OHLC and adjusted close (≤366 days), delayed quote, intraday 1m/5m/1h (≤7 days), explicit EDGX |
 | `catalogue` | `eodhd-catalogue` | Paged exchange symbol list for `AS`, `NASDAQ`, `NYSE`, `LSE`, `XETRA`, `FOREX`, bound to one snapshot |
 | `identifiers`, `reverse` | agent tools | [ID mapping](https://eodhd.com/financial-apis/id-mapping-api-cusip-isin-figi-lei-cik-%E2%86%94-symbol) by symbol or ISIN, at most 4 pages of 100 |
-| `news` | `eodhd-news` | Up to 30 ticker-linked headlines in an explicit window (default 30 days) |
+| `news` | `eodhd-news` | Up to 30 ticker-linked headlines in an explicit window (default 30 days); see [News](#news) |
 | `fundamentals` | `eodhd-fundamentals` | Statement facts; a plan without the dataset returns `not_entitled`, not missing data |
 | `dashboard` | `eodhd-dashboard` | Up to 10 US/INDX delayed quotes or recent bars |
 
 Missing values stay missing; GBP/GBX scale is never guessed.
+
+## News
+
+About 95% of EODHD's equity news links to Yahoo Finance's copy (measured
+2026-09-28), so it is a depth source (history window, article text), not an
+independent one.
+
+- Titles, links and text are decoded once from HTML character references
+  (`Shell &amp; NGC` becomes `Shell & NGC`; links carry `&amp;` between
+  query parameters). An unknown named reference stays
+  as sent and is counted as drift.
+- EODHD attaches up to 50 tickers to an item, which says nothing about what the
+  article is about. Each item lists only the requested ticker and the other
+  tickers the caller binds to the same issuer (`symbols`), and counts the rest
+  in `other_symbols`.
+- Article text (`content`) is returned only when the read asks for it, up to
+  8,000 characters per article, and is never stored.
+- Unknown item fields and undecoded references raise `schema_drift`.
 
 ## Identifiers
 

@@ -221,11 +221,7 @@ export async function createNativeDataFixture(contents, examplesPath) {
           return;
         }
         return response.end(
-          JSON.stringify(
-            body.arguments.action === "get_preferences"
-              ? { schema_version: 1, outcome: "ok", data: { revision: 7 } }
-              : financial(body.arguments.reads, manualPrice),
-          ),
+          JSON.stringify(financial(body.arguments.reads, manualPrice)),
         );
       }
       if (

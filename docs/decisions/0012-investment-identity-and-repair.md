@@ -147,6 +147,8 @@ routes through core's bindings and source order
 ([ADR 0037](0037-identity-backbone.md)); explicit provider references and
 pinned source reads are unchanged.
 
+(Later retired by [ADR 0040](0040-data-concepts-and-agent-tools.md): core's
+`source_order` is the one order and `preferences.sqlite3` is set aside.)
 Source preferences move to the feature's `preferences.sqlite3`. Global orders
 are copied as they are; scoped choices for the retired subject kinds become
 asset-class scopes, and company-scoped choices, which never applied to prices,

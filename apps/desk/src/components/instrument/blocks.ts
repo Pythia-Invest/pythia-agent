@@ -4,7 +4,7 @@ import type { SubjectSection } from "@pythia/market-data/subject";
  * served by the same source through the same address share one market card. */
 export type PageBlock = {
   key: string;
-  type: "market" | "quote" | "chart" | "profile" | "filings" | "other";
+  type: "market" | "quote" | "chart" | "live" | "profile" | "filings" | "other";
   title: string;
   sections: SubjectSection[];
 };
@@ -13,10 +13,19 @@ const TITLES: Record<string, string> = {
   market: "Price",
   quote: "Quote",
   chart: "Chart",
+  live: "Live",
   profile: "Profile",
   filings: "Filings",
 };
-const ORDER = ["market", "quote", "chart", "profile", "filings", "other"];
+const ORDER = [
+  "market",
+  "quote",
+  "chart",
+  "live",
+  "profile",
+  "filings",
+  "other",
+];
 
 function sameAddress(a: SubjectSection, b: SubjectSection) {
   return (

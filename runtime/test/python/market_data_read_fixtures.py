@@ -19,18 +19,21 @@ CRITERIA = {"measurement": "ohlc", "interval": {"kind": "day", "count": 1}, "ses
 
 
 class Sources:
-    def __init__(self):
-        self.providers = ("ibkr", "synthetic_other")
+    def __init__(self, refs=None):
+        """Synthetic sources behind core's `refs` for the subject (default: two ibkr-shaped ones)."""
+        self.refs = {ref["provider"]: ref for ref in refs} if refs else {
+            provider: {**native(301 if provider == "ibkr" else 302), "provider": provider} for provider in ("ibkr", "synthetic_other")}
+        self.providers = tuple(self.refs)
         self.ready = {provider: True for provider in self.providers}
         self.calls = []
         self.access = {"platform": "api_server", "connection": "endpoint-a"}
-        self.refs = {provider: {**native(301 if provider == "ibkr" else 302), "provider": provider} for provider in self.providers}
         self.definitions = {provider: [self.definition(provider)] for provider in self.providers}
         self.fail = set()
         self.policies = {}
         self.after_read = None
         self.read_transform = None
         self.extra = []  # further references core routes the subject through
+        self.named = []  # providers the investor names in `source_order`
         self.checks = []  # (subject id, reference, stated) core was asked to check
         self.refuse = set()  # providers whose reads core refuses for the subject
 
@@ -68,10 +71,14 @@ class Sources:
             self.after_read()
         return result
 
+    def order(self, *providers):
+        """Core's one source order for the subject (the investor's `source_order`, then core's default)."""
+        self.refs = {provider: self.refs[provider] for provider in providers}
+
     def subjects(self, subject_id):
         if subject_id != SUBJECT["id"]:
             return None
-        return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra]}
+        return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra], "named": list(self.named)}
 
     def check_read(self, subject_id, native_ref, stated):
         self.checks.append((subject_id, native_ref, stated))

@@ -37,7 +37,7 @@ from .schemes import (
 )
 from .vocabulary import (
     AUTHORITY_TIER, RELATIONS, AssetClass, Authority, BindingStatus, EvidenceTier, Grouping, IdentifierRole,
-    InstrumentKind, RelationRule, RelationType, SubjectStatus, VerdictRelation,
+    InstrumentKind, RelationRule, RelationType, SourceMeaning, SubjectStatus, VerdictRelation,
 )
 
 class Store(StrEnum):

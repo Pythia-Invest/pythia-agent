@@ -446,8 +446,8 @@ subscription has at most 64 resources and 64 KiB of actual encoded request bytes
 malformed intent requires explicit correction or Retry. Connection establishment,
 frame size, inactivity and cancellation are bounded separately.
 
-Canonical financial `DeskApi.financialRead` / `financialPreferences` adapters are
-available under `/api/markets/read` and `/api/markets/preferences`; the server's
+The canonical financial `DeskApi.financialRead` adapter is available under
+`/api/markets/read`; the server's
 `financialDataService` also supports future request-local hydration. The public
 `@pythia/market-data/widgets` library owns financial requests, decoders, bindings
 and display semantics. Desk only batches duplicate reads, bounds its cache and

@@ -69,5 +69,34 @@ in two narrow ways only:
   only, so a row never proves the other listings of a security. No tool exposes
   it yet; the plugin addressing contract adopts it as this connector's
   `resolve`.
-- research `news` accepts a validated Yahoo symbol and returns only the items
-  Yahoo tags with that exact symbol.
+- research `news` reads an issuer's news. It takes validated Yahoo symbols
+  (the listing asked for plus the issuer's other Yahoo lines, at most eight),
+  and for a crypto pair also the asset's name, and returns only the items
+  Yahoo tags with one of those symbols. The name is only a query; it never
+  widens what is kept.
+
+## News
+
+Yahoo's search is a text search and its tag is its own "main" line: ASML
+and Shell news is tagged with the US lines `ASML` and `SHEL`, Nestlé news
+with `NESN.SW`, and bitcoin news with `BTC-USD`, while the queries `ASML.AS`,
+`SHEL.L` and `NESN.SW` match no news at all (measured 2026-09-28). A news
+read is therefore per issuer, not per listing: one query for each of the
+issuer's Yahoo symbols, keeping items tagged with any of those symbols. The
+caller supplies the symbols from Pythia's identity; the connector never
+guesses them from names.
+
+A name query is accepted for a crypto pair only. "BTC-USD" finds almost no
+news while "Bitcoin" finds all of it; for equities the name query returned
+exactly the main-line symbol's answer, so it only cost a request.
+
+Yahoo answers at most about 50 items per query and has no offset, so the
+read is a dated window (default the last 7 days, at most 31) filled as far
+as Yahoo goes. A query whose oldest item is inside the window stopped there;
+`complete_from` is the newest such oldest item, and the result then carries
+`window_incomplete`. For Apple that is about two days.
+
+Unknown item fields and unknown `type` values are counted under `drift`
+with a `schema_drift` warning; unreadable items are omitted with
+`invalid_value`. Detecting a feed that goes quiet belongs to Yahoo's
+onboarding.

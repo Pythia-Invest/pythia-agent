@@ -32,9 +32,11 @@ def notice(source: str) -> str | None:
 
 def write(out_dir: Path, manifest: dict) -> Path | None:
     """Write `package.json` beside the snapshot from the build manifest, atomically. A build whose canaries failed
-    (written with --no-gates for inspection) is not a package: an earlier `package.json` is removed."""
+    or whose FIRDS input broke (written with --no-gates for inspection) is not a package: an earlier
+    `package.json` is removed."""
     path = out_dir / "package.json"
-    if not all(canary.get("ok") for canary in manifest.get("canaries") or []):
+    broken = (manifest.get("firds") or {}).get("broken")
+    if broken or not all(canary.get("ok") for canary in manifest.get("canaries") or []):
         path.unlink(missing_ok=True)
         return None
     package = {

@@ -47,7 +47,7 @@ export function financialQueries(
         operation: "query",
         arguments: input
           ? { action: "read_many", reads: [input] }
-          : { action: "get_preferences" },
+          : { action: "describe" }, // never read: the query is disabled
         ...(operation === "history" && row.history
           ? { window: row.history.window }
           : {}),

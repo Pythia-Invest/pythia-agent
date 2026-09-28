@@ -52,7 +52,6 @@ export const MANAGED_PLUGINS = Object.freeze([
       "public_http.py",
       "definition.py",
       "execution.py",
-      "preferences.py",
       "process.py",
       "reads.py",
       "selection.py",
@@ -92,6 +91,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "yahoo-prices.ts",
       "yahoo-sessions.ts",
       "yahoo-options.ts",
+      "yahoo-news.ts",
     ]),
   }),
   Object.freeze({
@@ -205,6 +205,25 @@ export const MANAGED_PLUGINS = Object.freeze([
       "profile.py",
       "series.py",
       "worker.py",
+    ]),
+  }),
+  Object.freeze({
+    name: "pythia-hyperliquid",
+    install: true,
+    // Opt-in: enabling it is the investor's choice to open a socket to
+    // Hyperliquid under its terms. Keyless; no worker process.
+    enabledByDefault: false,
+    doctor: false,
+    source: "plugins/hyperliquid",
+    files: Object.freeze([
+      "__init__.py",
+      "contract.json",
+      "plugin.yaml",
+      "README.md",
+      "definition.py",
+      "feed.py",
+      "market.py",
+      "stream.py",
     ]),
   }),
   Object.freeze({
