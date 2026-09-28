@@ -212,7 +212,7 @@ class BuildTest(unittest.TestCase):
             found = {}
             firds.apply(found, firds.full_records(stream(fulins(self.RECORDS)), Scope().cfi_prefixes), Counter())
             inputs = Inputs(date(2026, 9, 26), Scope(mics=("XAMS",), sec=False), mic.parse(MIC_CSV.encode()), found, None, [], {"XAMS"})
-            write(build_snapshot(inputs, gleif_fetch, FakeOpenFigi(OPENFIGI)), tmp / "plain.sqlite3", {"created_at": "2026-09-26T00:00:00Z"}, [])
+            write(build_snapshot(inputs, gleif_fetch, FakeOpenFigi(OPENFIGI)), tmp / "plain.sqlite3", {"created_at": "2026-09-26T00:00:00Z", "build_id": "reference-20260926"}, [])
             self.assertEqual(tables(out / "reference-20260926.sqlite3"), tables(tmp / "plain.sqlite3"))
 
             gone = [r.replace("<IssrReq>true</IssrReq>", "") for r in self.RECORDS]  # ESMA stops sending field 8

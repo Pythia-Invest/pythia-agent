@@ -24,7 +24,7 @@ python3 tooling/reference-builder/run.py --help
 | US tickers | `sec.py` | SEC `company_tickers_exchange.json` and the fund file `company_tickers_mf.json` |
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
-| Claims (shadow mode) | `claims.py`, `drift.py`, `firds_audit.py` | typed FIRDS claims, the FIRDS drift fingerprint and odd cases, and today's decisions against the claims (below) |
+| Claims (shadow mode) | `claims.py`, `source_drift.py`, `firds_audit.py` | typed FIRDS claims, the FIRDS drift fingerprint and odd cases, and today's decisions against the claims (below) |
 | Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
 | Snapshot, manifest and package | `schema.py`, `writer.py`, `manifest.py`, `package.py` | |
 
@@ -164,33 +164,41 @@ table under `writer_ignored`.
 ## Claims and the FIRDS adapter
 
 Sources are being moved onto typed claims one at a time; FIRDS is the first.
-`firds.claims()` turns every FIRDS field the builder reads into a claim
-`(subject_key, field, value, source, source_field, meaning, as_of, record_digest)`
-in the one meaning RTS 23 gives it (`claims.MEANINGS`, `firds.FIELDS`). The
+`firds.claims()` turns every FIRDS field the builder reads into a `Claim`
+`(subject_key, value, source, source_field, meaning, as_of, record_digest)`,
+in the one meaning RTS 23 gives it: `firds.FIELDS` maps each field to core's
+`SourceMeaning` vocabulary (`runtime/managed/core/identity/vocabulary.py`). The
 adapter picks no winner and reads no other source; a missing element or a
-placeholder is no claim. Instrument attributes are keyed `isin:<ISIN>`,
-admission attributes `isin:<ISIN>@<segment MIC>`. A claims file refuses a
-meaning outside the vocabulary and a source field read with two meanings.
+placeholder is no claim. Instrument claims are keyed `isin:<ISIN>`, admission
+claims `isin:<ISIN>@<segment MIC>`.
 
-This is shadow mode: the snapshot is built exactly as before. The build also
-writes `claims-<date>.sqlite3` beside the snapshot with four tables:
+This is shadow mode: the snapshot is built exactly as before, and a build test
+holds it to that. The claims stay in memory. What persists is
+`firds-<date>.json` beside the snapshot, written last: the drift fingerprint
+(below), the audit report, and whether the build was good. The manifest
+carries the same report under `firds`.
 
-- `claims`;
-- `fingerprints`: what FIRDS delivered (below);
-- `reports`: the odd-case counts and the comparison summary, also in the
-  manifest under `firds`;
-- `diff`: one row per security or line where today's decision rests on, or is
-  contradicted by, a FIRDS claim. Each row names what a claims-based build
-  would write: `decided` (FIRDS names the value), `unknown` plus the question
-  that stays open, `conflict`, `co_primary`, or `outside_firds` (FIRDS says
-  nothing; another source must decide). Where evidence does not decide, the
-  answer is unknown plus a question, never a guess stored as fact. Answers a
-  judge gives to those questions are suggestions until each question type is
-  calibrated on a gold set.
+The report gives, for each field FIRDS speaks to (issuer, primary, currency,
+receipt underlying), the outcome the FIRDS claims alone decide, whatever
+today's value is, and then how today's value compares:
+
+- `decided`: the claims name the value;
+- `co_primary`: the issuer requested admission in several countries;
+- `unknown` plus a question: FIRDS speaks to the field but does not decide it,
+  such as an issuer LEI that ISO 10383 lists for a venue operator, or field 8
+  seen only on a segment where it is a venue habit (`firds.FIELD8_VENUE_HABIT`);
+- `conflict` plus a question: two FIRDS claims cannot both hold;
+- `outside_firds`: FIRDS cannot decide it (a notional currency is not a trading
+  currency; no EEA request says nothing about a home market elsewhere). Other
+  sources must, and only what they leave open becomes a question.
+
+Where evidence does not decide, the answer is unknown plus a question, never a
+guess stored as fact. Answers a judge gives to those questions are suggestions
+until each question type is calibrated on a gold set.
 
 `just reference-audit` prints the FIRDS section: drift alarms against the
-previous claims file, the odd cases with examples, field 8 per segment, and the
-comparison by field (issuer, primary, currency, receipt underlying).
+previous good build's record, the odd cases with examples, field 8 per
+segment, the comparison by field and the open questions.
 
 ### FIRDS field semantics
 
@@ -200,23 +208,27 @@ measured behaviour and its odd cases with their counters.
 
 ### Drift fingerprint
 
-`drift.py` records, per build, what a source delivered: every element path and
+`source_drift.py` records, per build, what a source delivered: every element path and
 how many records carry it, the values of categorical fields (for FIRDS: CFI
 category, segment MIC, notional currency, field 8, and field 8 per segment),
 and named counts (placeholders, malformed identifiers, withdrawn currencies,
 identifiers with two values of a single-valued field). The build
-compares it with the previous claims file's and reports, with examples:
+compares it with the newest older good build's record and reports, with
+examples:
 
-- a new or missing element, and a presence rate that moved by 5 points or more;
+- a new or missing element, a presence rate that moved by 5 points or more, and
+  for an element on 100 or more records, a presence that moved by more than
+  half (a rare field that empties);
 - a new categorical value, a value with 100 or more records that disappeared,
   and a value with 1,000 or more records whose count moved by more than half;
 - a total record count that moved by more than 20%;
-- a named count that became non-zero, or moved by more than half.
+- a named count that became non-zero, moved by more than half, or disappeared.
 
 These are alarms to review and never block. A `break` is a change the adapter
 cannot absorb: no records, or a field it reads that the source stopped sending.
 A break stops the build before the snapshot is written (`--no-gates` writes it
-anyway) and fails `just reference-audit`.
+anyway, without `package.json`, and records the build as not good, so it never
+becomes the next baseline) and fails `just reference-audit`.
 
 ## Identity truth set and audit
 

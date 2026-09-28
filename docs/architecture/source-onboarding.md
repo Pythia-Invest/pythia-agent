@@ -129,7 +129,7 @@ trips an alarm.
 - every stage 1 field has a parse, a counter and a fingerprint check;
 - no field feeds two meanings.
 
-The reference builder writes claims for FIRDS, in shadow mode
+The reference builder emits claims for FIRDS, in shadow mode
 (`tooling/reference-builder/reference_builder/claims.py`); its other sources do
 not yet. Until a source does, carry each meaning in names and types in the same
 way.

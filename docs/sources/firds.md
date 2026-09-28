@@ -13,9 +13,10 @@
     current role until it signs off.
 - **Owner:** `tooling/reference-builder/reference_builder/firds.py`: the parse,
   the adapter (`claims()`, `FIELDS`) and the fingerprint (`observe()`,
-  `measure()`). `claims.py` holds the meaning vocabulary and the claims file,
-  `drift.py` the fingerprint comparison, and `firds_audit.py` the odd-case
-  counts and the comparison with today's decisions. FIRDS records are still
+  `measure()`). The meanings are core's `SourceMeaning` vocabulary.
+  `claims.py` holds the claim shape and the per-build record,
+  `source_drift.py` the fingerprint comparison, and `firds_audit.py` the
+  odd-case counts and the comparison with today's decisions. FIRDS records are still
   used directly by `assemble.py`, `rules.py` and `linking.py`.
 - **Scope:**
   - the weekly `FULINS_E` and `FULINS_C` full files and the optional `DLTINS`
@@ -97,8 +98,8 @@ Relevant fields not read:
 - [x] Parse fields 8, 9 and 10.
 - [x] Emit each field under its meaning above (`firds.FIELDS`). Field 5 is not
   the issuer, field 13 is not the trading currency, and the relevant venue is
-  not the primary. The claims file refuses a meaning outside the vocabulary and
-  a field read with two meanings.
+  not the primary. Each field has one meaning from core's vocabulary, and no
+  two fields share one (a test holds both).
 - [x] Count `9999` termination dates, `NOISIN` underlyings, withdrawn currency
   codes and malformed ISINs and LEIs (core's grammar and check digit). Unknown
   CFI prefixes cannot occur: records are selected by prefix. An unknown field 8
@@ -106,17 +107,21 @@ Relevant fields not read:
 - [x] Check each file against ESMA's published MD5 (`fetch.py`).
 - [x] Network-free tests with synthetic records that cite RTS 23
   (`test_claims.py`): each field's claim, the placeholders, the counters, a
-  changed input that trips alarms and a dropped field that breaks.
+  changed input that trips alarms, a rare field that empties, a count that
+  disappears, a dropped field that breaks the build, and a build whose
+  snapshot is identical with and without the claims.
 - [ ] Switch the builder's decisions onto the claims (a later change).
 
-The fingerprint is written on every build, to the claims file beside the
-snapshot and to the manifest, and compared with the previous build's claims
-file (`drift.py`). A break stops the build before the snapshot is written;
-`just reference-audit` fails on it.
+The fingerprint is written on every build to `firds-<date>.json` beside the
+snapshot, and compared with the newest older good build's (`source_drift.py`).
+A break stops the build before the snapshot is written; `just reference-audit`
+fails on it. A build written anyway with `--no-gates` is recorded as not good,
+is no package, and never becomes the baseline. The claims themselves are not
+persisted: 1.27 million of them, mostly the snapshot's own admissions again.
 
 | Check | Baseline, week of 2026-09-26 (audit scope) | Alarm |
 | --- | --- | --- |
-| Elements under `RefData` and the records carrying each | 24 paths | A new path; a path gone (a **break** when the adapter reads it); a presence rate that moved by 5 points or more |
+| Elements under `RefData` and the records carrying each | 24 paths | A new path; a path gone (a **break** when the adapter reads it); a presence rate that moved by 5 points or more, or by more than half for a path on 100 or more records |
 | Records | 321,306 | A move of more than 20%; none at all is a **break** |
 | Records per CFI category, segment MIC, notional currency and field 8 value, and per segment and field 8 value | as measured | A new value; a value with 100 or more records gone; a value with 1,000 or more records whose count moved by more than half |
 | ISINs with two `Issr`, `NtnlCcy` or relevant-venue values; receipts with two underlyings | 0 each | Any |
@@ -125,10 +130,11 @@ file (`drift.py`). A break stops the build before the snapshot is written;
 | `9999` termination dates | 19,103 records | A move of more than half |
 | `NOISIN` underlyings | 203 records | A move of more than half |
 | Withdrawn notional currencies | 153 records | A move of more than half |
+| Any named count | as above | The count disappears |
 
 Against the files of 2026-09-19 the fingerprint raised two alarms, both for one
-real change: Hanover's `HANB` segment grew from 4,336 to 8,305 records, all
-answering field 8 false.
+real change: in the builder's scope (`ES`, `ED`, `CE`), Hanover's `HANB`
+segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
 ## 3. Data audit
 
@@ -140,32 +146,36 @@ answering field 8 false.
 - **Invariants:** `invariants.py` (PR #45). The ratchet limits there are
   temporary, pending the fixes named above.
 - **Odd-case counts and the comparison with today's decisions:** the FIRDS
-  section of `just reference-audit`, stored in the claims file (`reports`,
-  `diff`) and the manifest. For each security or line where today's issuer,
-  primary, currency or receipt underlying rests on, or is contradicted by, a
-  FIRDS claim, it names what a claims-based build would write: `decided`,
-  `unknown` plus a question, `conflict`, `co_primary`, or `outside_firds`. On
-  the local build (live securities or lines, then all):
+  section of `just reference-audit`, from `firds-<date>.json` and the
+  manifest. For each field FIRDS speaks to, the outcome follows from the FIRDS
+  claims alone: `decided`, `co_primary`, `unknown` plus a question,
+  `conflict` plus a question, or `outside_firds` (FIRDS cannot decide it; other
+  sources must). Today's value is then compared with it. On the local build
+  (live securities or lines, then all):
 
-  | Field | Category | Live | All | A claims-based build writes |
+  | Field | FIRDS outcome / today | Live | All | Example |
   | --- | --- | --: | --: | --- |
-  | Issuer | field 5 is the operator of a venue reporting the ISIN | 587 | 634 | unknown + issuer question |
-  | Issuer | field 5 is a venue operator's elsewhere | 199 | 204 | unknown + issuer question |
-  | Primary | no issuer-requested EEA admission, today on an EEA venue | 10,067 | 10,258 | unknown + home-market question |
-  | Primary | today outside the EEA, no EEA request | 7,553 | 7,608 | outside FIRDS |
-  | Primary | issuer-requested in several countries | 2,407 | 2,407 | co-primary (214 only on always-true segments) |
-  | Primary | today outside the EEA, an EEA request (DSM-Firmenich, Shell) | 178 | 178 | conflict + home-market question |
-  | Primary | today on an EEA venue the issuer did not request, another requested | 135 | 135 | conflict + home-market question |
-  | Currency | the trading currency is the notional currency | 119,447 | 120,048 | unknown + trading-currency question |
-  | Receipt | today has no edge, field 26 names one | 490 | 514 | decided (the stated ISIN) |
-  | Receipt | today's edge differs from field 26 | 196 | 196 | conflict + receipt question |
-  | Receipt | field 26 states nothing, or the receipt itself | 161 | 161 | unknown + receipt question |
-  | Receipt | a non-receipt states an underlying (`ESXXXX` CEDEARs) | 10 | 38 | decided |
+  | Issuer | decided / agrees | 27,927 | 28,164 | ASML |
+  | Issuer | unknown + issuer question (an operator's LEI) / today holds a guess | 786 | 838 | Vastned under TP ICAP |
+  | Primary | outside FIRDS (no EEA request) | 17,620 | 17,866 | Alphabet, Chubb, Bunge, FEMSA |
+  | Primary | decided / agrees | 8,389 | 8,432 | ASML on XAMS (XGLO decides nothing) |
+  | Primary | co-primary / agrees | 2,389 | 2,389 | UniCredit: Euronext Milan and Frankfurt |
+  | Primary | decided / today outside the EEA | 148 | 148 | DSM-Firmenich (XAMS, today SIX); Cisco and Costco (JBUL, today Nasdaq) |
+  | Primary | decided / differs | 131 | 131 | Fresenius (XEMA, today Berlin) |
+  | Primary | unknown + home-market question / today holds a guess | 30 | 30 | NVIDIA, requested only on XGLO |
+  | Primary | co-primary / today outside the EEA, or differs | 6 | 6 | Shell (XAMS and XPRM, today LSE) |
+  | Currency | outside FIRDS / today is the notional currency | 119,447 | 120,048 | 39,750 German lines in USD |
+  | Receipt | decided / agrees | 2,790 | 2,795 | |
+  | Receipt | decided / today has no edge | 490 | 514 | HDFC Bank ADR |
+  | Receipt | decided / differs | 196 | 196 | Sany Heavy ADR |
+  | Receipt | unknown + receipt question | 161 | 161 | Arm ADR (field 26 states itself) |
+  | Receipt | conflict + receipt question (a share stating an underlying) | 10 | 38 | Argentine CEDEARs |
 
-  Chubb and Bunge fall under "today outside the EEA, no EEA request": FIRDS
-  cannot contradict SIX, so the SEC registrant's exchange must. FEMSA falls
-  under "no issuer-requested EEA admission". Lee Enterprises under Berkshire
-  Hathaway's LEI needs the SEC claim.
+  Open questions FIRDS leaves: issuer 786 live (838 in all), home market 30,
+  receipt 171 (199). A `decided / today outside the EEA` row is not yet a
+  finding: FIRDS sees only EEA requests, and the SEC, OpenFIGI or an exchange
+  list must say whether the issuer sought the non-EEA listing too. Lee
+  Enterprises under Berkshire Hathaway's LEI needs the SEC claim.
 
 ### Odd cases
 
@@ -179,7 +189,8 @@ answering field 8 false.
 | Placeholder termination dates | 19,130 records; 19,103 in the audit scope | Mostly Stuttgart | A placeholder for "none" | No claim, counted (`termination_placeholder`) | Counted |
 | Delisted securities without a termination date | Only 28 records with a past date | JDE Peet's, Just Eat, VMware, US Steel still active | Field 12 is set only "where available" | Lifecycle from other dated evidence (first-trade dates, admission counts, GLEIF successors) | Open |
 | Relevant venue on a German floor for foreign shares | Common | Chubb on STUB | A liquidity measure, not the home market | `most_liquid_eu_market`, never the primary | Open |
-| Field 8 true on a whole segment | 55 of 55 records on XGLO, WSE's Global Connect MTF segment (27 US and 12 DE ISINs); 71 segments with at least 20 records answer true on every one (audit) | Apple and ASML | Probably a venue reporting convention on XGLO and Vorvel (`HMTF`), not issuer requests. Q&A 1687 does not explain it. Other always-true segments are plausible: Euronext Amsterdam and Paris, growth markets. No ISO 10383 attribute separates the two | Counted (`issuer_requested_on_every_record`); comparison rows that rest only on such segments are marked. Kept out of primary precedence until explained | Open |
+| Field 8 true on a whole segment | 55 of 55 records on XGLO, WSE's Global Connect MTF segment (27 US and 12 DE ISINs), and 53 of 53 on Vorvel (`HMTF`); 71 segments with at least 20 records answer true on every one (audit) | Apple and ASML on XGLO; Telecom Italia on HMTF | A venue reporting habit on XGLO and HMTF, not issuer requests. Q&A 1687 does not explain it. Other always-true segments are plausible (Euronext Amsterdam and Paris, growth markets), and no ISO 10383 attribute or field 9/10 date separates them | `firds.FIELD8_VENUE_HABIT` names XGLO and HMTF: field 8 there decides nothing, and a primary resting only on them is unknown plus a question (30). The always-true list is counted (`issuer_requested_on_every_record`) so a new candidate shows | Accepted open item |
+| Field 8 true for US large caps on the Bulgarian exchange | 122 true of 377 `JBUL` records (audit) | Cisco, Costco, UnitedHealth, Morgan Stanley | Unexplained; the segment also answers false, so it is not a whole-segment habit | Shows in the comparison as `decided / today outside the EEA` (148 rows in all, these among them). Not added to the venue-habit list without an explanation | Open |
 | Several issuer-requested countries | 2,413 ISINs (audit) | Erste Group: Vienna, Bucharest, Prague | Dual listings, and the segment convention above | Co-primary, or a question where only always-true segments add a country | Open |
 | The venue's own spelling in field 2 | 19,483 ISINs carry several full names (audit) | SLB: 7 names | Each venue reports its own | Every name is a claim; none is the name | Counted |
 | A share that states an underlying | 302 `ESXXXX` ISINs (audit) | Argentine CEDEARs of US shares | Receipts classified as shares | Counted; the comparison lists the 38 in the build | Open |
