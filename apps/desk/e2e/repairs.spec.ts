@@ -27,7 +27,7 @@ function question(id: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-test("repairs list open issues apart from the agent's answers and take the user's fix", async ({
+test("repairs list issues in the back-office table and record the user's fix with a note", async ({
   page,
 }) => {
   const verdicts: unknown[] = [];
@@ -75,12 +75,30 @@ test("repairs list open issues apart from the agent's answers and take the user'
   await expect(
     page.getByRole("heading", { level: 2, name: "Repairs" }),
   ).toBeVisible();
-  const open = page.locator('[data-slot="repair"]').first();
-  await expect(open).toContainText("Synthetic Holding · SYN.AS · XAMS · EUR");
-  await expect(page.getByText("History (1)")).toBeVisible();
-  await open.getByRole("button", { name: "Same instrument" }).click();
-  await expect(open.getByRole("status")).toContainText("Confirmed");
+  const table = page.getByRole("table", { name: "Repairs" });
+  const rows = table.locator('[data-slot="data-table-row"]');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toContainText("Answered by agent");
+  await expect(
+    rows.nth(1).getByRole("button", { name: "Override" }),
+  ).toBeVisible();
+
+  await rows.first().getByRole("button", { name: "Show context" }).click();
+  await expect(table.locator('[data-slot="data-table-context"]')).toContainText(
+    "Synthetic Holding · SYN.AS",
+  );
+
+  await rows.first().getByRole("button", { name: "Same instrument" }).click();
+  const dialog = page.getByRole("dialog", { name: "Same instrument" });
+  await dialog.getByRole("textbox").fill("Same synthetic line.");
+  await dialog.getByRole("button", { name: "Confirm match" }).click();
+  await expect(page.getByRole("status").first()).toContainText("Confirmed");
   expect(verdicts).toEqual([
-    { item_id: "q-open", relation: "same_listing", chosen_id: LISTING },
+    {
+      item_id: "q-open",
+      relation: "same_listing",
+      chosen_id: LISTING,
+      rationale: "Same synthetic line.",
+    },
   ]);
 });

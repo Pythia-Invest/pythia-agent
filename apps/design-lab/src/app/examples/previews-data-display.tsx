@@ -15,6 +15,7 @@ import {
 } from "@pythia/ui";
 import { Inbox } from "lucide-react";
 import type { CatalogRoute } from "../../catalog";
+import { DataTableDemo } from "./data-table-demo";
 import { DemoNote, Specimen, SpecimenGrid } from "./specimen";
 
 const scrollRows = [
@@ -57,6 +58,18 @@ export function DataDisplayPreview({ route }: { route: CatalogRoute }) {
                 Quiet supporting content.
               </Card>
             </div>
+          </Specimen>
+        </SpecimenGrid>
+      );
+    case "/components/data-table":
+      return (
+        <SpecimenGrid>
+          <Specimen label="Back-office table with toolbar, context rows and actions">
+            <DataTableDemo />
+            <DemoNote>
+              Synthetic tasks: filter by status or type, search the context,
+              expand a row with “+”, and open an action dialog.
+            </DemoNote>
           </Specimen>
         </SpecimenGrid>
       );

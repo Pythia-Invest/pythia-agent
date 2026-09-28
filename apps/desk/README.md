@@ -193,12 +193,15 @@ and say so.
 `/settings/repairs` (Settings → Repairs, not in the main navigation) lists the
 issues Pythia could not settle on its own, modelled on Home Assistant's Repairs.
 Rules and the agent normally fix them, so the Settings tab shows a count only
-while issues are open. An issue is generic (kind, title, description, subject,
-plugin, time, status); its kind is only the renderer of its detail and fix flow
-(`components/repairs/`). Today the only kind is an identity question from core's
-`identity-queue`, showing the provider's record beside the instrument, with
-`identity-verdict` as the user's answer. Questions the agent answered sit in a
-collapsed history, provisional until the user confirms or overrides them.
+while issues are open. The page uses the back-office `DataTable` and
+`ActionDialog` from `@pythia/ui`. An issue is generic (kind, title, description,
+subject, plugin, times, status); a kind (`components/repairs/`) only supplies a
+row's context and actions. Today the only kind is an identity question from
+core's `identity-queue`: its context shows the provider's record beside the
+instrument and the evidence, and "Same instrument" / "Not this instrument" (or
+"Confirm" / "Override" for an agent's provisional answer) send `identity-verdict`
+with an optional note. Answered and settled questions are shown through the
+Status filter.
 
 `/instrument/[subject]` is one subject's page (URL-encoded subject id). The
 shell routes `pythia:open-subject` window events there. The page renders core's

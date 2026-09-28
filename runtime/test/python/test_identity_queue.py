@@ -106,12 +106,14 @@ class VerdictTest(QueueFixture):
 
         # The agent's answer is provisional: no longer open, listed apart with its answer, and the user overrides it.
         self.assertEqual(self.identity.queue_items(subject_ids=[ASML]), [])
-        [listed] = [queue.summary(self.identity, self.ref, entry) for entry in self.identity.queue_items(subject_ids=[ASML], answered=True)]
+        [listed] = [queue.summary(self.identity, self.ref, entry) for entry in self.identity.queue_items(subject_ids=[ASML], which="answered")]
         self.assertEqual(listed["agent_answer"], {"by": "agent", "relation": "same_listing", "chosen_id": ASML})
         user = self.submit(item, "user", relation="unrelated", user_turn="desk:identity-verdict:test")
         self.assertEqual((user["outcome"], user["state"]), ("no_match", "dismissed"))
         self.assertEqual(self.identity.binding_for(item.provider_ref)["status"], "rejected")
-        self.assertEqual(self.identity.queue_items(subject_ids=[ASML], answered=True), [])
+        self.assertEqual(self.identity.queue_items(subject_ids=[ASML], which="answered"), [])
+        [settled] = self.identity.queue_items(subject_ids=[ASML], which="settled")  # the history keeps it
+        self.assertEqual((settled["id"], settled["state"], settled["settled"]["by"]), (item.id, "dismissed", "user"))
         history = queue.inspect(self.identity, self.ref, item.id)["history"]
         self.assertEqual([(entry["resolver"], entry["outcome"]) for entry in history], [("agent", "confirmed"), ("user", "no_match")])
 

@@ -1,41 +1,76 @@
 "use client";
 
-import { Badge, type BadgeTone, Button } from "@pythia/ui";
-import Link from "next/link";
-import type { ReactNode } from "react";
-import { useLocalTime } from "@/client/local-time";
 import {
-  type IdentityRepair,
-  type Repair,
-  type RepairStatus,
-  useRepairs,
-} from "@/client/repairs";
+  ActionDialog,
+  Badge,
+  type BadgeTone,
+  Button,
+  DataTable,
+} from "@pythia/ui";
+import Link from "next/link";
+import { useState } from "react";
+import { useLocalTime } from "@/client/local-time";
+import { type Repair, type RepairStatus, useRepairs } from "@/client/repairs";
 import { instrumentHref } from "@/components/instrument/instrument-href";
-import { IdentityFix } from "./identity-fix";
-
-/** A kind is only the renderer of its detail and fix flow. */
-const KINDS: Record<string, (repair: Repair) => ReactNode> = {
-  identity: (repair) => <IdentityFix repair={repair as IdentityRepair} />,
-};
+import { useIdentityKind } from "./identity-kind";
+import type { RepairAction, RepairKind } from "./kinds";
 
 const STATUS: Record<RepairStatus, { label: string; tone: BadgeTone }> = {
   open: { label: "Open", tone: "warning" },
-  agent: { label: "Answered by the agent (provisional)", tone: "info" },
+  agent: { label: "Answered by agent", tone: "info" },
   resolved: { label: "Resolved", tone: "success" },
   dismissed: { label: "Dismissed", tone: "neutral" },
 };
+const STATUS_OPTIONS = (Object.keys(STATUS) as RepairStatus[]).map((value) => ({
+  value,
+  label: STATUS[value].label,
+}));
 
-/** Settings → Repairs: what Pythia could not settle on its own. The agent
- * normally fixes these; the user may, never has to. What the agent answered
- * stays in a collapsed history, to confirm or override. */
+/** Settings → Repairs: what Pythia could not settle on its own, in the
+ * back-office table. Rules and the agent normally fix these; the user may,
+ * never has to. The Status filter shows answered and settled issues too. */
 export function RepairsView() {
   const repairs = useRepairs();
+  const time = useLocalTime();
+  const kinds: Record<string, RepairKind> = {
+    identity: useIdentityKind() as RepairKind,
+  };
+  const [query, setQuery] = useState("");
+  const [statuses, setStatuses] = useState<string[]>(["open", "agent"]);
+  const [types, setTypes] = useState<string[]>([]);
+  const [pending, setPending] = useState<{
+    action: RepairAction;
+    busy: boolean;
+    error: string | null;
+  } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const needle = query.trim().toLowerCase();
+  const rows = repairs.all.filter(
+    (repair) =>
+      (!statuses.length || statuses.includes(repair.status)) &&
+      (!types.length || types.includes(repair.kind)) &&
+      (!needle || repair.search.includes(needle)),
+  );
+  const confirm = async (note: string) => {
+    if (!pending) return;
+    setPending({ ...pending, busy: true, error: null });
+    try {
+      setMessage(await pending.action.run(note));
+      setPending(null);
+    } catch (error) {
+      setPending({
+        ...pending,
+        busy: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
   return (
     <div
       data-slot="repairs"
       className="min-h-0 flex-1 overflow-y-auto px-gutter py-6"
     >
-      <div className="flex max-w-measure flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <div>
           <Link
             href="/settings"
@@ -51,12 +86,12 @@ export function RepairsView() {
             normally fix these; you can also fix one yourself.
           </p>
         </div>
-        {repairs.notice ? (
+        {repairs.notice || message ? (
           <p
             role="status"
             className="m-0 rounded-control border border-border px-3 py-2 text-body text-foreground"
           >
-            {repairs.notice}
+            {message ?? repairs.notice}
           </p>
         ) : null}
         {repairs.error ? (
@@ -68,70 +103,125 @@ export function RepairsView() {
               Retry
             </Button>
           </div>
-        ) : repairs.isPending ? (
-          <p role="status" className="m-0 text-body text-foreground-secondary">
-            Loading repairs…
-          </p>
-        ) : repairs.open.length ? (
-          <ul className="m-0 flex list-none flex-col gap-3 p-0">
-            {repairs.open.map((repair) => (
-              <RepairCard key={repair.id} repair={repair} />
-            ))}
-          </ul>
-        ) : (
-          <p className="m-0 text-body text-foreground-secondary">
-            Nothing needs attention.
-          </p>
-        )}
-        {repairs.history.length ? (
-          <details className="rounded-container border border-border/60 px-4 py-3">
-            <summary className="cursor-pointer font-semibold text-body text-foreground">
-              History ({repairs.history.length})
-            </summary>
-            <ul className="m-0 mt-3 flex list-none flex-col gap-3 p-0">
-              {repairs.history.map((repair) => (
-                <RepairCard key={repair.id} repair={repair} />
-              ))}
-            </ul>
-          </details>
         ) : null}
+        <DataTable
+          label="Repairs"
+          rows={rows}
+          rowKey={(repair) => repair.id}
+          columns={[
+            {
+              key: "issue",
+              header: "Issue",
+              cell: (repair) => repair.title,
+            },
+            {
+              key: "instrument",
+              header: "Instrument",
+              cell: (repair) =>
+                repair.subject ? (
+                  <Link
+                    href={instrumentHref(repair.subject.id)}
+                    className="text-foreground underline-offset-2 hover:underline"
+                  >
+                    {repair.subject.name ?? repair.subject.id}
+                  </Link>
+                ) : (
+                  "—"
+                ),
+            },
+            {
+              key: "provider",
+              header: "Provider",
+              cell: (repair) => repair.plugin ?? "—",
+            },
+            {
+              key: "status",
+              header: "Status",
+              cell: (repair) => (
+                <Badge tone={STATUS[repair.status].tone}>
+                  {STATUS[repair.status].label}
+                </Badge>
+              ),
+            },
+            {
+              key: "created",
+              header: "Created",
+              className: "whitespace-nowrap tabular-nums",
+              cell: (repair) => time(repair.created, "compact"),
+            },
+            {
+              key: "resolved",
+              header: "Resolved",
+              className: "whitespace-nowrap tabular-nums",
+              cell: (repair) =>
+                repair.resolved ? time(repair.resolved, "compact") : "—",
+            },
+          ]}
+          context={(repair: Repair) =>
+            kinds[repair.kind]?.context(repair) ?? []
+          }
+          actions={(repair: Repair) =>
+            (kinds[repair.kind]?.actions(repair) ?? []).map((action) => (
+              <Button
+                key={action.label}
+                size="sm"
+                variant={action.emphasis}
+                onClick={() => setPending({ action, busy: false, error: null })}
+              >
+                {action.label}
+              </Button>
+            ))
+          }
+          search={{
+            value: query,
+            onChange: setQuery,
+            placeholder: "Search repairs…",
+          }}
+          filters={[
+            {
+              key: "status",
+              label: "Status",
+              options: STATUS_OPTIONS,
+              selected: statuses,
+              onChange: setStatuses,
+            },
+            {
+              key: "type",
+              label: "Type",
+              options: Object.entries(kinds).map(([value, kind]) => ({
+                value,
+                label: kind.label,
+              })),
+              selected: types,
+              onChange: setTypes,
+            },
+          ]}
+          onRefresh={() => {
+            setMessage(null);
+            repairs.refetch();
+          }}
+          refreshing={repairs.isFetching}
+          empty={
+            repairs.isPending
+              ? "Loading repairs…"
+              : repairs.all.length
+                ? "No repairs match these filters."
+                : "Nothing needs attention."
+          }
+        />
       </div>
+      {pending ? (
+        <ActionDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPending(null);
+          }}
+          {...pending.action.dialog}
+          pending={pending.busy}
+          error={pending.error}
+          onConfirm={(note) => void confirm(note)}
+        />
+      ) : null}
     </div>
-  );
-}
-
-function RepairCard({ repair }: { repair: Repair }) {
-  const time = useLocalTime();
-  const status = STATUS[repair.status];
-  const render = KINDS[repair.kind];
-  return (
-    <li
-      data-slot="repair"
-      data-kind={repair.kind}
-      className="flex flex-col gap-2 rounded-container border border-border/60 bg-container p-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="m-0 font-semibold text-body text-foreground">
-          {repair.title}
-        </h3>
-        <Badge tone={status.tone}>{status.label}</Badge>
-      </div>
-      <p className="m-0 text-body text-foreground-secondary leading-ui">
-        {repair.description}
-      </p>
-      <p className="m-0 flex flex-wrap gap-x-2 text-foreground-secondary text-xs">
-        {repair.subject ? (
-          <Link
-            href={instrumentHref(repair.subject.id)}
-            className="text-foreground hover:underline"
-          >
-            {repair.subject.name ?? repair.subject.id}
-          </Link>
-        ) : null}
-        {repair.plugin ? <span>{repair.plugin}</span> : null}
-        <span>{time(repair.created, "compact")}</span>
-      </p>
-      {render ? render(repair) : null}
-    </li>
   );
 }

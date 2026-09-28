@@ -29,18 +29,35 @@ export const identityQuestionSchema = z.object({
   question: text,
   state: text,
   opened_at: text,
+  /** When a settled question was last changed: its resolution time. */
+  updated_at: optionalText,
+  /** Who settled it: rules, the agent or the user. */
+  settled_by: optionalText,
   plugins: z.array(text).default([]),
   /** What the provider's record says, shown before anyone answers. */
   record: z
     .object({
       native_ref: z.object({ native_id: text }).nullish(),
+      identifiers: z.array(z.object({ scheme: text, value: text })).default([]),
       name: optionalText,
       ticker: optionalText,
       mic: optionalText,
       currency: optionalText,
     })
     .nullish(),
-  candidates: z.array(z.object({ id: text, name: optionalText })).default([]),
+  candidates: z
+    .array(
+      z.object({
+        id: text,
+        name: optionalText,
+        identifiers: z.record(z.string(), optionalText).default({}),
+      }),
+    )
+    .default([]),
+  /** The reference assertions the question cites. */
+  evidence: z
+    .array(z.object({ scheme: text, value: text, source: optionalText }))
+    .default([]),
   /** Set when only the agent answered: provisional, the user may override. */
   agent_answer: z
     .object({ relation: text, chosen_id: z.string().nullable() })
@@ -57,6 +74,7 @@ const listSchema = z.object({
     .object({
       items: z.array(identityQuestionSchema).default([]),
       answered: z.array(identityQuestionSchema).default([]),
+      settled: z.array(identityQuestionSchema).default([]),
       /** Once per runtime: an older identity store was kept aside. */
       notice: z.string().nullish(),
     })
@@ -74,8 +92,9 @@ export type IdentityVerdict = z.infer<typeof verdictSchema>["data"];
 
 const questionsKey = ["plugin", SUBJECT_PLUGIN, "identity-queue"] as const;
 
-/** The device's open identity questions and, apart from them, those only the
- * agent answered (provisional). The queue op caps a list at 50. */
+/** The device's identity questions: open ones and, apart from them, those only
+ * the agent answered (provisional) and those rules or the user settled. The
+ * queue op caps each list at 50. */
 export function useIdentityQuestions() {
   const api = useDeskApi();
   return useQuery({
@@ -85,9 +104,9 @@ export function useIdentityQuestions() {
         await api.pluginRead({
           plugin: SUBJECT_PLUGIN,
           operation: "identity-queue",
-          arguments: { answered: true, limit: 50 },
+          arguments: { answered: true, settled: true, limit: 50 },
         }),
-      ).data ?? { items: [], answered: [] },
+      ).data ?? { items: [], answered: [], settled: [] },
     ...busyRetry,
   });
 }
@@ -101,6 +120,8 @@ export function useAnswerQuestion() {
       itemId: string;
       relation: string;
       chosenId: string | null;
+      /** Recorded with the verdict. */
+      note?: string;
     }) =>
       verdictSchema.parse(
         await api.pluginInvoke({
@@ -110,6 +131,7 @@ export function useAnswerQuestion() {
             item_id: answer.itemId,
             relation: answer.relation,
             ...(answer.chosenId ? { chosen_id: answer.chosenId } : {}),
+            ...(answer.note ? { rationale: answer.note } : {}),
           },
         }),
       ).data,

@@ -152,7 +152,12 @@ a plugin has an open conflict for a subject, its section shows the conflict and
 a ready plugin serves the section instead. The instrument page shows no queue
 note; the Desk lists issues on one generic page, Settings → Repairs (modelled on
 Home Assistant's Repairs), outside the main navigation and counted in Settings
-only while issues are open, with the agent's answers in a collapsed history.
+only while issues are open. It uses the back-office table (docs/design.md): each
+question is a row (kind, instrument, provider, status, created, resolved) whose
+context shows the provider record beside our instrument and the evidence, and
+whose actions record the user's verdict with an optional note (`rationale`).
+The agent's answers and settled questions are reached through the Status filter
+(`identity-queue` with `answered` and `settled`).
 Rejected: attesting through an
 argument (the agent could supply it), a confidence threshold on the agent's own
 number (uncalibrated), a separate agent-only path (two write paths to audit),

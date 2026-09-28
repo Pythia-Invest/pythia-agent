@@ -436,6 +436,18 @@ disclosures or focused views. Preserve horizontal scrolling when a genuinely
 comparative table would lose meaning if dismantled; do not mechanically turn
 every row into a mobile card.
 
+Back-office pages (Settings → Repairs and later operator lists) share one
+pattern, `DataTable` with `ActionDialog` from `@pythia/ui`: a page title with a
+one-line description; a toolbar with search, filter chips (Status, Type) that
+show their active count, and Refresh on the right; a compact table of the few
+columns that identify a record and its state (kind, subject, source, status
+badge, created, completed) with row actions at the end; a "+" toggle that
+expands a Context grid of labelled details instead of cards; and actions that
+open a small dialog with one-line consequences, an optional note recorded with
+the action, and Cancel/Back beside a primary or, for a withdrawal, destructive
+confirm. Settled records stay reachable through the Status filter rather than
+a separate history.
+
 When charts are used, they should have neutral scaffolding, restrained
 semantic series colors, and direct labels. Avoid 3D, decorative gradients,
 excessive legends, and the use of green/red as generic “good/bad.” In market
