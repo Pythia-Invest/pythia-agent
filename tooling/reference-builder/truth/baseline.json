@@ -1,0 +1,3266 @@
+{
+  "reference": "reference-20260926",
+  "scope": "XAMS,SEC",
+  "truth_version": "2026-09-26",
+  "key_rule": "unversioned:b729aba902ff",
+  "passed": [
+    "aalberts:coverage:found",
+    "aalberts:fold:row",
+    "aalberts:issuer:lei",
+    "aalberts:listing:AALB@XAMS:currency",
+    "aalberts:listing:AALB@XAMS:figi",
+    "aalberts:listing:AALB@XAMS:present",
+    "aalberts:listing:AALB@XAMS:ticker",
+    "aalberts:primary:home",
+    "aalberts:security:isin",
+    "aalberts:security:kind",
+    "aalberts:subject_key:AALB@XAMS",
+    "aalberts:subject_key:issuer",
+    "aalberts:subject_key:security",
+    "aalberts:symbols:eodhd:AALB.AS",
+    "aalberts:symbols:yahoo:AALB.AS",
+    "ab-inbev-adr:coverage:found",
+    "ab-inbev-adr:fold:row",
+    "ab-inbev-adr:issuer:cik",
+    "ab-inbev-adr:listing:BUD@XNYS:currency",
+    "ab-inbev-adr:listing:BUD@XNYS:present",
+    "ab-inbev-adr:listing:BUD@XNYS:ticker",
+    "ab-inbev-adr:primary:home",
+    "ab-inbev-adr:security:kind",
+    "ab-inbev-adr:symbols:eodhd:BUD.US",
+    "ab-inbev-adr:symbols:yahoo:BUD",
+    "abn-amro:coverage:found",
+    "abn-amro:fold:row",
+    "abn-amro:issuer:lei",
+    "abn-amro:listing:ABN@XAMS:currency",
+    "abn-amro:listing:ABN@XAMS:figi",
+    "abn-amro:listing:ABN@XAMS:present",
+    "abn-amro:listing:ABN@XAMS:ticker",
+    "abn-amro:primary:home",
+    "abn-amro:security:isin",
+    "abn-amro:security:kind",
+    "abn-amro:subject_key:ABN@XAMS",
+    "abn-amro:subject_key:issuer",
+    "abn-amro:subject_key:security",
+    "abn-amro:symbols:eodhd:ABN.AS",
+    "abn-amro:symbols:yahoo:ABN.AS",
+    "accenture:coverage:found",
+    "accenture:fold:row",
+    "accenture:issuer:cik",
+    "accenture:listing:ACN@XNYS:currency",
+    "accenture:listing:ACN@XNYS:present",
+    "accenture:listing:ACN@XNYS:ticker",
+    "accenture:primary:home",
+    "accenture:security:kind",
+    "accenture:symbols:eodhd:ACN.US",
+    "accenture:symbols:yahoo:ACN",
+    "activision:lifecycle:delisted",
+    "adyen:coverage:found",
+    "adyen:fold:row",
+    "adyen:issuer:lei",
+    "adyen:listing:ADYEN@XAMS:currency",
+    "adyen:listing:ADYEN@XAMS:figi",
+    "adyen:listing:ADYEN@XAMS:present",
+    "adyen:listing:ADYEN@XAMS:ticker",
+    "adyen:primary:home",
+    "adyen:security:isin",
+    "adyen:security:kind",
+    "adyen:subject_key:ADYEN@XAMS",
+    "adyen:subject_key:issuer",
+    "adyen:subject_key:security",
+    "adyen:symbols:eodhd:ADYEN.AS",
+    "adyen:symbols:yahoo:ADYEN.AS",
+    "aegon-nyrs:coverage:found",
+    "aegon-nyrs:fold:row",
+    "aegon-nyrs:issuer:cik",
+    "aegon-nyrs:issuer:same_as_siblings",
+    "aegon-nyrs:issuer:same_as_siblings",
+    "aegon-nyrs:listing:AEG@XNYS:currency",
+    "aegon-nyrs:listing:AEG@XNYS:present",
+    "aegon-nyrs:listing:AEG@XNYS:ticker",
+    "aegon-nyrs:primary:home",
+    "aegon-nyrs:security:kind",
+    "aegon-nyrs:subject_key:issuer",
+    "aegon-nyrs:symbols:eodhd:AEG.US",
+    "aegon-nyrs:symbols:yahoo:AEG",
+    "aegon:coverage:found",
+    "aegon:fold:row",
+    "aegon:issuer:cik",
+    "aegon:issuer:lei",
+    "aegon:issuer:same_as_siblings",
+    "aegon:issuer:same_as_siblings",
+    "aegon:lifecycle:former_isin:NL0000303709",
+    "aegon:listing:AGN@XAMS:currency",
+    "aegon:listing:AGN@XAMS:figi",
+    "aegon:listing:AGN@XAMS:present",
+    "aegon:listing:AGN@XAMS:ticker",
+    "aegon:primary:home",
+    "aegon:security:isin",
+    "aegon:security:kind",
+    "aegon:subject_key:AGN@XAMS",
+    "aegon:subject_key:issuer",
+    "aegon:subject_key:security",
+    "aegon:symbols:eodhd:AGN.AS",
+    "aegon:symbols:yahoo:AGN.AS",
+    "aercap:coverage:found",
+    "aercap:fold:row",
+    "aercap:issuer:cik",
+    "aercap:listing:AER@XNYS:currency",
+    "aercap:listing:AER@XNYS:present",
+    "aercap:listing:AER@XNYS:ticker",
+    "aercap:primary:home",
+    "aercap:security:kind",
+    "aercap:symbols:eodhd:AER.US",
+    "aercap:symbols:yahoo:AER",
+    "ahold-delhaize:coverage:found",
+    "ahold-delhaize:fold:row",
+    "ahold-delhaize:issuer:lei",
+    "ahold-delhaize:listing:AD@XAMS:currency",
+    "ahold-delhaize:listing:AD@XAMS:figi",
+    "ahold-delhaize:listing:AD@XAMS:present",
+    "ahold-delhaize:listing:AD@XAMS:ticker",
+    "ahold-delhaize:primary:home",
+    "ahold-delhaize:security:isin",
+    "ahold-delhaize:security:kind",
+    "ahold-delhaize:subject_key:AD@XAMS",
+    "ahold-delhaize:subject_key:issuer",
+    "ahold-delhaize:subject_key:security",
+    "ahold-delhaize:symbols:eodhd:AD.AS",
+    "ahold-delhaize:symbols:yahoo:AD.AS",
+    "akzonobel-adr:coverage:found",
+    "akzonobel-adr:fold:row",
+    "akzonobel-adr:issuer:cik",
+    "akzonobel-adr:issuer:same_as_siblings",
+    "akzonobel-adr:issuer:same_as_siblings",
+    "akzonobel-adr:listing:AKZOY@OTCM:currency",
+    "akzonobel-adr:listing:AKZOY@OTCM:present",
+    "akzonobel-adr:listing:AKZOY@OTCM:ticker",
+    "akzonobel-adr:security:kind",
+    "akzonobel-adr:subject_key:issuer",
+    "akzonobel-adr:symbols:eodhd:AKZOY.US",
+    "akzonobel-adr:symbols:yahoo:AKZOY",
+    "akzonobel:coverage:found",
+    "akzonobel:fold:row",
+    "akzonobel:issuer:cik",
+    "akzonobel:issuer:lei",
+    "akzonobel:issuer:same_as_siblings",
+    "akzonobel:issuer:same_as_siblings",
+    "akzonobel:lifecycle:former_isin:NL0000009132",
+    "akzonobel:listing:AKZA@XAMS:currency",
+    "akzonobel:listing:AKZA@XAMS:figi",
+    "akzonobel:listing:AKZA@XAMS:present",
+    "akzonobel:listing:AKZA@XAMS:ticker",
+    "akzonobel:listing:AKZOF@OTCM:currency",
+    "akzonobel:listing:AKZOF@OTCM:present",
+    "akzonobel:listing:AKZOF@OTCM:ticker",
+    "akzonobel:primary:home",
+    "akzonobel:security:isin",
+    "akzonobel:security:kind",
+    "akzonobel:subject_key:AKZA@XAMS",
+    "akzonobel:subject_key:AKZOF@OTCM",
+    "akzonobel:subject_key:issuer",
+    "akzonobel:subject_key:security",
+    "akzonobel:symbols:eodhd:AKZA.AS",
+    "akzonobel:symbols:eodhd:AKZOF.US",
+    "akzonobel:symbols:yahoo:AKZA.AS",
+    "akzonobel:symbols:yahoo:AKZOF",
+    "alcon:coverage:found",
+    "alcon:fold:row",
+    "alcon:issuer:cik",
+    "alcon:listing:ALC@XNYS:currency",
+    "alcon:listing:ALC@XNYS:present",
+    "alcon:listing:ALC@XNYS:ticker",
+    "alcon:security:kind",
+    "alcon:symbols:eodhd:ALC.US",
+    "alcon:symbols:yahoo:ALC",
+    "alibaba-adr:coverage:found",
+    "alibaba-adr:fold:row",
+    "alibaba-adr:issuer:cik",
+    "alibaba-adr:listing:BABA@XNYS:currency",
+    "alibaba-adr:listing:BABA@XNYS:present",
+    "alibaba-adr:listing:BABA@XNYS:ticker",
+    "alibaba-adr:primary:home",
+    "alibaba-adr:security:kind",
+    "alibaba-adr:symbols:eodhd:BABA.US",
+    "alibaba-adr:symbols:yahoo:BABA",
+    "allfunds:coverage:found",
+    "allfunds:fold:row",
+    "allfunds:issuer:lei",
+    "allfunds:listing:ALLFG@XAMS:currency",
+    "allfunds:listing:ALLFG@XAMS:figi",
+    "allfunds:listing:ALLFG@XAMS:present",
+    "allfunds:listing:ALLFG@XAMS:ticker",
+    "allfunds:primary:home",
+    "allfunds:security:isin",
+    "allfunds:security:kind",
+    "allfunds:subject_key:ALLFG@XAMS",
+    "allfunds:subject_key:issuer",
+    "allfunds:subject_key:security",
+    "allfunds:symbols:eodhd:ALLFG.AS",
+    "allfunds:symbols:yahoo:ALLFG.AS",
+    "alphabet-a:coverage:found",
+    "alphabet-a:fold:row",
+    "alphabet-a:issuer:cik",
+    "alphabet-a:issuer:same_as_siblings",
+    "alphabet-a:issuer:same_as_siblings",
+    "alphabet-a:listing:GOOGL@XNAS:currency",
+    "alphabet-a:listing:GOOGL@XNAS:present",
+    "alphabet-a:listing:GOOGL@XNAS:ticker",
+    "alphabet-a:primary:home",
+    "alphabet-a:security:kind",
+    "alphabet-a:symbols:eodhd:GOOGL.US",
+    "alphabet-a:symbols:yahoo:GOOGL",
+    "alphabet-c:coverage:found",
+    "alphabet-c:fold:row",
+    "alphabet-c:issuer:cik",
+    "alphabet-c:issuer:same_as_siblings",
+    "alphabet-c:issuer:same_as_siblings",
+    "alphabet-c:listing:GOOG@XNAS:currency",
+    "alphabet-c:listing:GOOG@XNAS:present",
+    "alphabet-c:listing:GOOG@XNAS:ticker",
+    "alphabet-c:primary:home",
+    "alphabet-c:security:kind",
+    "alphabet-c:symbols:eodhd:GOOG.US",
+    "alphabet-c:symbols:yahoo:GOOG",
+    "amazon:coverage:found",
+    "amazon:fold:row",
+    "amazon:issuer:cik",
+    "amazon:listing:AMZN@XNAS:currency",
+    "amazon:listing:AMZN@XNAS:present",
+    "amazon:listing:AMZN@XNAS:ticker",
+    "amazon:primary:home",
+    "amazon:security:kind",
+    "amazon:symbols:eodhd:AMZN.US",
+    "amazon:symbols:yahoo:AMZN",
+    "amrize:coverage:found",
+    "amrize:fold:row",
+    "amrize:issuer:cik",
+    "amrize:listing:AMRZ@XNYS:currency",
+    "amrize:listing:AMRZ@XNYS:present",
+    "amrize:listing:AMRZ@XNYS:ticker",
+    "amrize:primary:home",
+    "amrize:security:kind",
+    "amrize:subject_key:issuer",
+    "amrize:subject_key:security",
+    "amrize:symbols:eodhd:AMRZ.US",
+    "amrize:symbols:yahoo:AMRZ",
+    "apple:coverage:found",
+    "apple:fold:row",
+    "apple:issuer:cik",
+    "apple:listing:AAPL@XNAS:currency",
+    "apple:listing:AAPL@XNAS:present",
+    "apple:listing:AAPL@XNAS:ticker",
+    "apple:primary:home",
+    "apple:security:kind",
+    "apple:symbols:eodhd:AAPL.US",
+    "apple:symbols:yahoo:AAPL",
+    "arcelormittal-nyrs:coverage:found",
+    "arcelormittal-nyrs:fold:row",
+    "arcelormittal-nyrs:issuer:cik",
+    "arcelormittal-nyrs:issuer:same_as_siblings",
+    "arcelormittal-nyrs:issuer:same_as_siblings",
+    "arcelormittal-nyrs:listing:MT@XNYS:currency",
+    "arcelormittal-nyrs:listing:MT@XNYS:present",
+    "arcelormittal-nyrs:listing:MT@XNYS:ticker",
+    "arcelormittal-nyrs:primary:home",
+    "arcelormittal-nyrs:security:kind",
+    "arcelormittal-nyrs:subject_key:issuer",
+    "arcelormittal-nyrs:symbols:eodhd:MT.US",
+    "arcelormittal-nyrs:symbols:yahoo:MT",
+    "arcelormittal:coverage:found",
+    "arcelormittal:fold:row",
+    "arcelormittal:issuer:cik",
+    "arcelormittal:issuer:lei",
+    "arcelormittal:issuer:same_as_siblings",
+    "arcelormittal:issuer:same_as_siblings",
+    "arcelormittal:lifecycle:former_isin:LU0323134006",
+    "arcelormittal:listing:MT@XAMS:currency",
+    "arcelormittal:listing:MT@XAMS:figi",
+    "arcelormittal:listing:MT@XAMS:present",
+    "arcelormittal:listing:MT@XAMS:ticker",
+    "arcelormittal:primary:home",
+    "arcelormittal:security:isin",
+    "arcelormittal:security:kind",
+    "arcelormittal:subject_key:MT@XAMS",
+    "arcelormittal:subject_key:issuer",
+    "arcelormittal:subject_key:security",
+    "arcelormittal:symbols:eodhd:MT.AS",
+    "arcelormittal:symbols:yahoo:MT.AS",
+    "argenx-ads:coverage:found",
+    "argenx-ads:issuer:cik",
+    "argenx-ads:listing:ARGX@XNAS:currency",
+    "argenx-ads:listing:ARGX@XNAS:present",
+    "argenx-ads:listing:ARGX@XNAS:ticker",
+    "argenx-ads:primary:home",
+    "argenx-ads:security:kind",
+    "argenx-ads:symbols:eodhd:ARGX.US",
+    "argenx-ads:symbols:yahoo:ARGX",
+    "arm-ads:coverage:found",
+    "arm-ads:fold:row",
+    "arm-ads:issuer:cik",
+    "arm-ads:listing:ARM@XNAS:currency",
+    "arm-ads:listing:ARM@XNAS:present",
+    "arm-ads:listing:ARM@XNAS:ticker",
+    "arm-ads:primary:home",
+    "arm-ads:security:kind",
+    "arm-ads:symbols:eodhd:ARM.US",
+    "arm-ads:symbols:yahoo:ARM",
+    "asmi:coverage:found",
+    "asmi:fold:row",
+    "asmi:issuer:lei",
+    "asmi:listing:ASM@XAMS:currency",
+    "asmi:listing:ASM@XAMS:figi",
+    "asmi:listing:ASM@XAMS:present",
+    "asmi:listing:ASM@XAMS:ticker",
+    "asmi:primary:home",
+    "asmi:security:isin",
+    "asmi:security:kind",
+    "asmi:subject_key:ASM@XAMS",
+    "asmi:subject_key:issuer",
+    "asmi:subject_key:security",
+    "asmi:symbols:eodhd:ASM.AS",
+    "asmi:symbols:yahoo:ASM.AS",
+    "asml-nyrs:coverage:found",
+    "asml-nyrs:fold:row",
+    "asml-nyrs:issuer:cik",
+    "asml-nyrs:issuer:same_as_siblings",
+    "asml-nyrs:issuer:same_as_siblings",
+    "asml-nyrs:listing:ASML@XNAS:currency",
+    "asml-nyrs:listing:ASML@XNAS:present",
+    "asml-nyrs:listing:ASML@XNAS:ticker",
+    "asml-nyrs:primary:home",
+    "asml-nyrs:security:kind",
+    "asml-nyrs:subject_key:issuer",
+    "asml-nyrs:symbols:eodhd:ASML.US",
+    "asml-nyrs:symbols:yahoo:ASML",
+    "asml:coverage:found",
+    "asml:fold:row",
+    "asml:issuer:cik",
+    "asml:issuer:lei",
+    "asml:issuer:same_as_siblings",
+    "asml:issuer:same_as_siblings",
+    "asml:listing:ASML@XAMS:currency",
+    "asml:listing:ASML@XAMS:figi",
+    "asml:listing:ASML@XAMS:present",
+    "asml:listing:ASML@XAMS:ticker",
+    "asml:listing:ASMLF@OTCM:currency",
+    "asml:listing:ASMLF@OTCM:present",
+    "asml:listing:ASMLF@OTCM:ticker",
+    "asml:primary:home",
+    "asml:security:isin",
+    "asml:security:kind",
+    "asml:subject_key:ASML@XAMS",
+    "asml:subject_key:ASMLF@OTCM",
+    "asml:subject_key:issuer",
+    "asml:subject_key:security",
+    "asml:symbols:eodhd:ASML.AS",
+    "asml:symbols:eodhd:ASMLF.US",
+    "asml:symbols:yahoo:ASML.AS",
+    "asml:symbols:yahoo:ASMLF",
+    "asr-adr:coverage:found",
+    "asr-adr:fold:row",
+    "asr-adr:issuer:cik",
+    "asr-adr:issuer:same_as_siblings",
+    "asr-adr:issuer:same_as_siblings",
+    "asr-adr:listing:ARNNY@OTCM:currency",
+    "asr-adr:listing:ARNNY@OTCM:present",
+    "asr-adr:listing:ARNNY@OTCM:ticker",
+    "asr-adr:security:kind",
+    "asr-adr:subject_key:issuer",
+    "asr-adr:symbols:eodhd:ARNNY.US",
+    "asr-adr:symbols:yahoo:ARNNY",
+    "asr:coverage:found",
+    "asr:fold:row",
+    "asr:issuer:cik",
+    "asr:issuer:lei",
+    "asr:issuer:same_as_siblings",
+    "asr:issuer:same_as_siblings",
+    "asr:listing:ASRNL@XAMS:currency",
+    "asr:listing:ASRNL@XAMS:figi",
+    "asr:listing:ASRNL@XAMS:present",
+    "asr:listing:ASRNL@XAMS:ticker",
+    "asr:listing:ASRRF@OTCM:currency",
+    "asr:listing:ASRRF@OTCM:present",
+    "asr:listing:ASRRF@OTCM:ticker",
+    "asr:primary:home",
+    "asr:security:isin",
+    "asr:security:kind",
+    "asr:subject_key:ASRNL@XAMS",
+    "asr:subject_key:ASRRF@OTCM",
+    "asr:subject_key:issuer",
+    "asr:subject_key:security",
+    "asr:symbols:eodhd:ASRNL.AS",
+    "asr:symbols:eodhd:ASRRF.US",
+    "asr:symbols:yahoo:ASRNL.AS",
+    "asr:symbols:yahoo:ASRRF",
+    "bac-pk:coverage:found",
+    "bac-pk:fold:row",
+    "bac-pk:issuer:cik",
+    "bac-pk:listing:BAC-PK@XNYS:currency",
+    "bac-pk:listing:BAC-PK@XNYS:present",
+    "bac-pk:listing:BAC-PK@XNYS:ticker",
+    "bac-pk:primary:home",
+    "bac-pk:security:kind",
+    "bac-pk:subject_key:issuer",
+    "bac-pk:symbols:yahoo:BAC-PK",
+    "bbva-adr:coverage:found",
+    "bbva-adr:fold:row",
+    "bbva-adr:issuer:cik",
+    "bbva-adr:listing:BBVA@XNYS:currency",
+    "bbva-adr:listing:BBVA@XNYS:present",
+    "bbva-adr:listing:BBVA@XNYS:ticker",
+    "bbva-adr:primary:home",
+    "bbva-adr:security:kind",
+    "bbva-adr:symbols:eodhd:BBVA.US",
+    "bbva-adr:symbols:yahoo:BBVA",
+    "berkshire-a:coverage:found",
+    "berkshire-a:fold:row",
+    "berkshire-a:issuer:cik",
+    "berkshire-a:issuer:same_as_siblings",
+    "berkshire-a:issuer:same_as_siblings",
+    "berkshire-a:listing:BRK-A@XNYS:currency",
+    "berkshire-a:listing:BRK-A@XNYS:present",
+    "berkshire-a:listing:BRK-A@XNYS:ticker",
+    "berkshire-a:primary:home",
+    "berkshire-a:security:kind",
+    "berkshire-a:symbols:eodhd:BRK-A.US",
+    "berkshire-a:symbols:yahoo:BRK-A",
+    "berkshire-b:coverage:found",
+    "berkshire-b:fold:row",
+    "berkshire-b:issuer:cik",
+    "berkshire-b:issuer:same_as_siblings",
+    "berkshire-b:issuer:same_as_siblings",
+    "berkshire-b:listing:BRK-B@XNYS:currency",
+    "berkshire-b:listing:BRK-B@XNYS:present",
+    "berkshire-b:listing:BRK-B@XNYS:ticker",
+    "berkshire-b:primary:home",
+    "berkshire-b:security:kind",
+    "berkshire-b:symbols:eodhd:BRK-B.US",
+    "berkshire-b:symbols:yahoo:BRK-B",
+    "besi:coverage:found",
+    "besi:fold:row",
+    "besi:issuer:lei",
+    "besi:listing:BESI@XAMS:currency",
+    "besi:listing:BESI@XAMS:figi",
+    "besi:listing:BESI@XAMS:present",
+    "besi:listing:BESI@XAMS:ticker",
+    "besi:primary:home",
+    "besi:security:isin",
+    "besi:security:kind",
+    "besi:subject_key:BESI@XAMS",
+    "besi:subject_key:issuer",
+    "besi:subject_key:security",
+    "besi:symbols:eodhd:BESI.AS",
+    "besi:symbols:yahoo:BESI.AS",
+    "bhp-adr:coverage:found",
+    "bhp-adr:fold:row",
+    "bhp-adr:issuer:cik",
+    "bhp-adr:listing:BHP@XNYS:currency",
+    "bhp-adr:listing:BHP@XNYS:present",
+    "bhp-adr:listing:BHP@XNYS:ticker",
+    "bhp-adr:primary:home",
+    "bhp-adr:security:kind",
+    "bhp-adr:symbols:eodhd:BHP.US",
+    "bhp-adr:symbols:yahoo:BHP",
+    "bitcoin:coverage:found",
+    "bitcoin:fold:row",
+    "bitcoin:listing:bip122:000000000019d6689c085ae165831e93",
+    "bitcoin:security:kind",
+    "bitcoin:subject_key:security",
+    "bitcoin:symbols:coingecko:bitcoin",
+    "bitcoin:symbols:coinmarketcap:1",
+    "block:coverage:found",
+    "block:fold:row",
+    "block:issuer:cik",
+    "block:lifecycle:former_ticker:SQ@XNYS",
+    "block:listing:XYZ@XNYS:currency",
+    "block:listing:XYZ@XNYS:present",
+    "block:listing:XYZ@XNYS:ticker",
+    "block:primary:home",
+    "block:security:kind",
+    "block:symbols:eodhd:XYZ.US",
+    "block:symbols:yahoo:XYZ",
+    "bp-adr:coverage:found",
+    "bp-adr:fold:row",
+    "bp-adr:issuer:cik",
+    "bp-adr:listing:BP@XNYS:currency",
+    "bp-adr:listing:BP@XNYS:present",
+    "bp-adr:listing:BP@XNYS:ticker",
+    "bp-adr:primary:home",
+    "bp-adr:security:kind",
+    "bp-adr:symbols:eodhd:BP.US",
+    "bp-adr:symbols:yahoo:BP",
+    "brown-forman-a:coverage:found",
+    "brown-forman-a:fold:row",
+    "brown-forman-a:issuer:cik",
+    "brown-forman-a:issuer:same_as_siblings",
+    "brown-forman-a:issuer:same_as_siblings",
+    "brown-forman-a:listing:BF-A@XNYS:currency",
+    "brown-forman-a:listing:BF-A@XNYS:present",
+    "brown-forman-a:listing:BF-A@XNYS:ticker",
+    "brown-forman-a:primary:home",
+    "brown-forman-a:security:kind",
+    "brown-forman-a:symbols:eodhd:BF-A.US",
+    "brown-forman-a:symbols:yahoo:BF-A",
+    "brown-forman-b:coverage:found",
+    "brown-forman-b:fold:row",
+    "brown-forman-b:issuer:cik",
+    "brown-forman-b:issuer:same_as_siblings",
+    "brown-forman-b:issuer:same_as_siblings",
+    "brown-forman-b:listing:BF-B@XNYS:currency",
+    "brown-forman-b:listing:BF-B@XNYS:present",
+    "brown-forman-b:listing:BF-B@XNYS:ticker",
+    "brown-forman-b:primary:home",
+    "brown-forman-b:security:kind",
+    "brown-forman-b:symbols:eodhd:BF-B.US",
+    "brown-forman-b:symbols:yahoo:BF-B",
+    "btc-mini:coverage:found",
+    "btc-mini:fold:row",
+    "btc-mini:issuer:cik",
+    "btc-mini:listing:BTC@XNYS:currency",
+    "btc-mini:listing:BTC@XNYS:present",
+    "btc-mini:listing:BTC@XNYS:ticker",
+    "btc-mini:primary:home",
+    "btc-mini:subject_key:issuer",
+    "btc-mini:subject_key:security",
+    "btc-mini:symbols:eodhd:BTC.US",
+    "btc-mini:symbols:yahoo:BTC",
+    "ccep:coverage:found",
+    "ccep:fold:row",
+    "ccep:issuer:cik",
+    "ccep:issuer:lei",
+    "ccep:listing:CCEP@XAMS:currency",
+    "ccep:listing:CCEP@XAMS:figi",
+    "ccep:listing:CCEP@XAMS:present",
+    "ccep:listing:CCEP@XAMS:ticker",
+    "ccep:listing:CCEP@XNAS:currency",
+    "ccep:listing:CCEP@XNAS:present",
+    "ccep:listing:CCEP@XNAS:ticker",
+    "ccep:security:isin",
+    "ccep:security:kind",
+    "ccep:subject_key:CCEP@XAMS",
+    "ccep:subject_key:CCEP@XNAS",
+    "ccep:subject_key:issuer",
+    "ccep:subject_key:security",
+    "ccep:symbols:eodhd:CCEP.AS",
+    "ccep:symbols:eodhd:CCEP.US",
+    "ccep:symbols:yahoo:CCEP",
+    "ccep:symbols:yahoo:CCEP.AS",
+    "chubb:coverage:found",
+    "chubb:fold:row",
+    "chubb:issuer:cik",
+    "chubb:listing:CB@XNYS:currency",
+    "chubb:listing:CB@XNYS:present",
+    "chubb:listing:CB@XNYS:ticker",
+    "chubb:primary:home",
+    "chubb:security:kind",
+    "chubb:symbols:eodhd:CB.US",
+    "chubb:symbols:yahoo:CB",
+    "cnh:coverage:found",
+    "cnh:fold:row",
+    "cnh:issuer:cik",
+    "cnh:listing:CNH@XNYS:currency",
+    "cnh:listing:CNH@XNYS:present",
+    "cnh:listing:CNH@XNYS:ticker",
+    "cnh:primary:home",
+    "cnh:security:kind",
+    "cnh:symbols:eodhd:CNH.US",
+    "cnh:symbols:yahoo:CNH",
+    "coinbase:coverage:found",
+    "coinbase:fold:row",
+    "coinbase:issuer:cik",
+    "coinbase:listing:COIN@XNAS:currency",
+    "coinbase:listing:COIN@XNAS:present",
+    "coinbase:listing:COIN@XNAS:ticker",
+    "coinbase:primary:home",
+    "coinbase:security:kind",
+    "coinbase:symbols:eodhd:COIN.US",
+    "coinbase:symbols:yahoo:COIN",
+    "corbion:coverage:found",
+    "corbion:fold:row",
+    "corbion:issuer:lei",
+    "corbion:listing:CRBN@XAMS:currency",
+    "corbion:listing:CRBN@XAMS:figi",
+    "corbion:listing:CRBN@XAMS:present",
+    "corbion:listing:CRBN@XAMS:ticker",
+    "corbion:primary:home",
+    "corbion:security:isin",
+    "corbion:security:kind",
+    "corbion:subject_key:CRBN@XAMS",
+    "corbion:subject_key:issuer",
+    "corbion:subject_key:security",
+    "corbion:symbols:eodhd:CRBN.AS",
+    "corbion:symbols:yahoo:CRBN.AS",
+    "cpkc:coverage:found",
+    "cpkc:fold:row",
+    "cpkc:issuer:cik",
+    "cpkc:listing:CP@XNYS:currency",
+    "cpkc:listing:CP@XNYS:present",
+    "cpkc:listing:CP@XNYS:ticker",
+    "cpkc:security:kind",
+    "cpkc:symbols:eodhd:CP.US",
+    "cpkc:symbols:yahoo:CP",
+    "credit-suisse:lifecycle:delisted",
+    "crh:coverage:found",
+    "crh:fold:row",
+    "crh:issuer:cik",
+    "crh:listing:CRH@XNYS:currency",
+    "crh:listing:CRH@XNYS:present",
+    "crh:listing:CRH@XNYS:ticker",
+    "crh:primary:home",
+    "crh:security:kind",
+    "crh:symbols:eodhd:CRH.US",
+    "crh:symbols:yahoo:CRH",
+    "ctp:coverage:found",
+    "ctp:fold:row",
+    "ctp:issuer:lei",
+    "ctp:listing:CTPNV@XAMS:currency",
+    "ctp:listing:CTPNV@XAMS:figi",
+    "ctp:listing:CTPNV@XAMS:present",
+    "ctp:listing:CTPNV@XAMS:ticker",
+    "ctp:primary:home",
+    "ctp:security:isin",
+    "ctp:security:kind",
+    "ctp:subject_key:CTPNV@XAMS",
+    "ctp:subject_key:issuer",
+    "ctp:subject_key:security",
+    "ctp:symbols:eodhd:CTPNV.AS",
+    "ctp:symbols:yahoo:CTPNV.AS",
+    "deutsche-telekom-adr:coverage:found",
+    "deutsche-telekom-adr:fold:row",
+    "deutsche-telekom-adr:issuer:cik",
+    "deutsche-telekom-adr:issuer:same_as_siblings",
+    "deutsche-telekom-adr:issuer:same_as_siblings",
+    "deutsche-telekom-adr:listing:DTEGY@OTCM:currency",
+    "deutsche-telekom-adr:listing:DTEGY@OTCM:present",
+    "deutsche-telekom-adr:listing:DTEGY@OTCM:ticker",
+    "deutsche-telekom-adr:security:kind",
+    "deutsche-telekom-adr:symbols:eodhd:DTEGY.US",
+    "deutsche-telekom-adr:symbols:yahoo:DTEGY",
+    "deutsche-telekom:coverage:found",
+    "deutsche-telekom:fold:row",
+    "deutsche-telekom:issuer:cik",
+    "deutsche-telekom:issuer:same_as_siblings",
+    "deutsche-telekom:issuer:same_as_siblings",
+    "deutsche-telekom:listing:DTEGF@OTCM:currency",
+    "deutsche-telekom:listing:DTEGF@OTCM:present",
+    "deutsche-telekom:listing:DTEGF@OTCM:ticker",
+    "deutsche-telekom:primary:home_out_of_scope",
+    "deutsche-telekom:security:kind",
+    "deutsche-telekom:symbols:eodhd:DTEGF.US",
+    "deutsche-telekom:symbols:yahoo:DTEGF",
+    "dogecoin:coverage:found",
+    "dogecoin:fold:row",
+    "dogecoin:listing:bip122:1a91e3dace36e2be3bf030a65679fe82",
+    "dogecoin:security:kind",
+    "dogecoin:subject_key:security",
+    "dogecoin:symbols:coingecko:dogecoin",
+    "dogecoin:symbols:coinmarketcap:74",
+    "dsm-firmenich:coverage:found",
+    "dsm-firmenich:fold:row",
+    "dsm-firmenich:issuer:lei",
+    "dsm-firmenich:lifecycle:former_isin:NL0000009827",
+    "dsm-firmenich:listing:DSFIR@XAMS:currency",
+    "dsm-firmenich:listing:DSFIR@XAMS:figi",
+    "dsm-firmenich:listing:DSFIR@XAMS:present",
+    "dsm-firmenich:listing:DSFIR@XAMS:ticker",
+    "dsm-firmenich:security:isin",
+    "dsm-firmenich:security:kind",
+    "dsm-firmenich:subject_key:DSFIR@XAMS",
+    "dsm-firmenich:subject_key:issuer",
+    "dsm-firmenich:subject_key:security",
+    "dsm-firmenich:symbols:eodhd:DSFIR.AS",
+    "dsm-firmenich:symbols:yahoo:DSFIR.AS",
+    "eni-adr:coverage:found",
+    "eni-adr:fold:row",
+    "eni-adr:issuer:cik",
+    "eni-adr:listing:E@XNYS:currency",
+    "eni-adr:listing:E@XNYS:present",
+    "eni-adr:listing:E@XNYS:ticker",
+    "eni-adr:primary:home",
+    "eni-adr:security:kind",
+    "eni-adr:symbols:eodhd:E.US",
+    "eni-adr:symbols:yahoo:E",
+    "equinor-adr:coverage:found",
+    "equinor-adr:fold:row",
+    "equinor-adr:issuer:cik",
+    "equinor-adr:listing:EQNR@XNYS:currency",
+    "equinor-adr:listing:EQNR@XNYS:present",
+    "equinor-adr:listing:EQNR@XNYS:ticker",
+    "equinor-adr:primary:home",
+    "equinor-adr:security:kind",
+    "equinor-adr:symbols:eodhd:EQNR.US",
+    "equinor-adr:symbols:yahoo:EQNR",
+    "ericsson-adr:coverage:found",
+    "ericsson-adr:fold:row",
+    "ericsson-adr:issuer:cik",
+    "ericsson-adr:listing:ERIC@XNAS:currency",
+    "ericsson-adr:listing:ERIC@XNAS:present",
+    "ericsson-adr:listing:ERIC@XNAS:ticker",
+    "ericsson-adr:primary:home",
+    "ericsson-adr:security:kind",
+    "ericsson-adr:symbols:eodhd:ERIC.US",
+    "ericsson-adr:symbols:yahoo:ERIC",
+    "etha:coverage:found",
+    "etha:fold:row",
+    "etha:issuer:cik",
+    "etha:listing:ETHA@XNAS:currency",
+    "etha:listing:ETHA@XNAS:present",
+    "etha:listing:ETHA@XNAS:ticker",
+    "etha:primary:home",
+    "etha:subject_key:issuer",
+    "etha:subject_key:security",
+    "etha:symbols:eodhd:ETHA.US",
+    "etha:symbols:yahoo:ETHA",
+    "ether:coverage:found",
+    "ether:fold:row",
+    "ether:listing:eip155:1",
+    "ether:security:kind",
+    "ether:subject_key:security",
+    "ether:symbols:coingecko:ethereum",
+    "ether:symbols:coinmarketcap:1027",
+    "exor:coverage:found",
+    "exor:fold:row",
+    "exor:issuer:lei",
+    "exor:listing:EXO@XAMS:currency",
+    "exor:listing:EXO@XAMS:figi",
+    "exor:listing:EXO@XAMS:present",
+    "exor:listing:EXO@XAMS:ticker",
+    "exor:primary:home",
+    "exor:security:isin",
+    "exor:security:kind",
+    "exor:subject_key:EXO@XAMS",
+    "exor:subject_key:issuer",
+    "exor:subject_key:security",
+    "exor:symbols:eodhd:EXO.AS",
+    "exor:symbols:yahoo:EXO.AS",
+    "ferguson:coverage:found",
+    "ferguson:fold:row",
+    "ferguson:issuer:cik",
+    "ferguson:lifecycle:former_isin:JE00BJVNSS43",
+    "ferguson:listing:FERG@XNYS:currency",
+    "ferguson:listing:FERG@XNYS:present",
+    "ferguson:listing:FERG@XNYS:ticker",
+    "ferguson:primary:home",
+    "ferguson:security:kind",
+    "ferguson:symbols:eodhd:FERG.US",
+    "ferguson:symbols:yahoo:FERG",
+    "ferrari:coverage:found",
+    "ferrari:fold:row",
+    "ferrari:issuer:cik",
+    "ferrari:listing:RACE@XNYS:currency",
+    "ferrari:listing:RACE@XNYS:present",
+    "ferrari:listing:RACE@XNYS:ticker",
+    "ferrari:primary:home_out_of_scope",
+    "ferrari:security:kind",
+    "ferrari:symbols:eodhd:RACE.US",
+    "ferrari:symbols:yahoo:RACE",
+    "first-republic:lifecycle:delisted",
+    "flow-traders:coverage:found",
+    "flow-traders:fold:row",
+    "flow-traders:issuer:lei",
+    "flow-traders:lifecycle:former_isin:NL0011279492",
+    "flow-traders:listing:FLOW@XAMS:currency",
+    "flow-traders:listing:FLOW@XAMS:figi",
+    "flow-traders:listing:FLOW@XAMS:present",
+    "flow-traders:listing:FLOW@XAMS:ticker",
+    "flow-traders:primary:home",
+    "flow-traders:security:isin",
+    "flow-traders:security:kind",
+    "flow-traders:subject_key:FLOW@XAMS",
+    "flow-traders:subject_key:issuer",
+    "flow-traders:subject_key:security",
+    "flow-traders:symbols:eodhd:FLOW.AS",
+    "flow-traders:symbols:yahoo:FLOW.AS",
+    "flutter:coverage:found",
+    "flutter:fold:row",
+    "flutter:issuer:cik",
+    "flutter:listing:FLUT@XNYS:currency",
+    "flutter:listing:FLUT@XNYS:present",
+    "flutter:listing:FLUT@XNYS:ticker",
+    "flutter:primary:home",
+    "flutter:security:kind",
+    "flutter:symbols:eodhd:FLUT.US",
+    "flutter:symbols:yahoo:FLUT",
+    "fox-a:coverage:found",
+    "fox-a:fold:row",
+    "fox-a:issuer:cik",
+    "fox-a:issuer:same_as_siblings",
+    "fox-a:issuer:same_as_siblings",
+    "fox-a:listing:FOXA@XNAS:currency",
+    "fox-a:listing:FOXA@XNAS:present",
+    "fox-a:listing:FOXA@XNAS:ticker",
+    "fox-a:primary:home",
+    "fox-a:security:kind",
+    "fox-a:symbols:eodhd:FOXA.US",
+    "fox-a:symbols:yahoo:FOXA",
+    "fox-b:coverage:found",
+    "fox-b:fold:row",
+    "fox-b:issuer:cik",
+    "fox-b:issuer:same_as_siblings",
+    "fox-b:issuer:same_as_siblings",
+    "fox-b:listing:FOX@XNAS:currency",
+    "fox-b:listing:FOX@XNAS:present",
+    "fox-b:listing:FOX@XNAS:ticker",
+    "fox-b:primary:home",
+    "fox-b:security:kind",
+    "fox-b:symbols:eodhd:FOX.US",
+    "fox-b:symbols:yahoo:FOX",
+    "fugro:coverage:found",
+    "fugro:fold:row",
+    "fugro:issuer:lei",
+    "fugro:listing:FUR@XAMS:currency",
+    "fugro:listing:FUR@XAMS:figi",
+    "fugro:listing:FUR@XAMS:present",
+    "fugro:listing:FUR@XAMS:ticker",
+    "fugro:primary:home",
+    "fugro:security:isin",
+    "fugro:security:kind",
+    "fugro:subject_key:FUR@XAMS",
+    "fugro:subject_key:issuer",
+    "fugro:subject_key:security",
+    "fugro:symbols:eodhd:FUR.AS",
+    "fugro:symbols:yahoo:FUR.AS",
+    "gbtc:coverage:found",
+    "gbtc:fold:row",
+    "gbtc:issuer:cik",
+    "gbtc:listing:GBTC@XNYS:currency",
+    "gbtc:listing:GBTC@XNYS:present",
+    "gbtc:listing:GBTC@XNYS:ticker",
+    "gbtc:primary:home",
+    "gbtc:subject_key:issuer",
+    "gbtc:subject_key:security",
+    "gbtc:symbols:eodhd:GBTC.US",
+    "gbtc:symbols:yahoo:GBTC",
+    "ge-aerospace:coverage:found",
+    "ge-aerospace:fold:row",
+    "ge-aerospace:issuer:cik",
+    "ge-aerospace:listing:GE@XNYS:currency",
+    "ge-aerospace:listing:GE@XNYS:present",
+    "ge-aerospace:listing:GE@XNYS:ticker",
+    "ge-aerospace:primary:home",
+    "ge-aerospace:security:kind",
+    "ge-aerospace:symbols:eodhd:GE.US",
+    "ge-aerospace:symbols:yahoo:GE",
+    "ge-healthcare:coverage:found",
+    "ge-healthcare:fold:row",
+    "ge-healthcare:issuer:cik",
+    "ge-healthcare:listing:GEHC@XNAS:currency",
+    "ge-healthcare:listing:GEHC@XNAS:present",
+    "ge-healthcare:listing:GEHC@XNAS:ticker",
+    "ge-healthcare:primary:home",
+    "ge-healthcare:security:kind",
+    "ge-healthcare:symbols:eodhd:GEHC.US",
+    "ge-healthcare:symbols:yahoo:GEHC",
+    "ge-vernova:coverage:found",
+    "ge-vernova:fold:row",
+    "ge-vernova:issuer:cik",
+    "ge-vernova:listing:GEV@XNYS:currency",
+    "ge-vernova:listing:GEV@XNYS:present",
+    "ge-vernova:listing:GEV@XNYS:ticker",
+    "ge-vernova:primary:home",
+    "ge-vernova:security:kind",
+    "ge-vernova:symbols:eodhd:GEV.US",
+    "ge-vernova:symbols:yahoo:GEV",
+    "gsk-adr:coverage:found",
+    "gsk-adr:fold:row",
+    "gsk-adr:issuer:cik",
+    "gsk-adr:listing:GSK@XNYS:currency",
+    "gsk-adr:listing:GSK@XNYS:present",
+    "gsk-adr:listing:GSK@XNYS:ticker",
+    "gsk-adr:primary:home",
+    "gsk-adr:security:kind",
+    "gsk-adr:symbols:eodhd:GSK.US",
+    "gsk-adr:symbols:yahoo:GSK",
+    "haleon-adr:coverage:found",
+    "haleon-adr:fold:row",
+    "haleon-adr:issuer:cik",
+    "haleon-adr:listing:HLN@XNYS:currency",
+    "haleon-adr:listing:HLN@XNYS:present",
+    "haleon-adr:listing:HLN@XNYS:ticker",
+    "haleon-adr:primary:home",
+    "haleon-adr:security:kind",
+    "haleon-adr:symbols:eodhd:HLN.US",
+    "haleon-adr:symbols:yahoo:HLN",
+    "havas:coverage:found",
+    "havas:fold:row",
+    "havas:issuer:lei",
+    "havas:lifecycle:former_isin:NL0015002AH0",
+    "havas:listing:HAVAS@XAMS:currency",
+    "havas:listing:HAVAS@XAMS:figi",
+    "havas:listing:HAVAS@XAMS:present",
+    "havas:listing:HAVAS@XAMS:ticker",
+    "havas:primary:home",
+    "havas:security:isin",
+    "havas:security:kind",
+    "havas:subject_key:HAVAS@XAMS",
+    "havas:subject_key:issuer",
+    "havas:subject_key:security",
+    "havas:symbols:eodhd:HAVAS.AS",
+    "havas:symbols:yahoo:HAVAS.AS",
+    "heico-a:coverage:found",
+    "heico-a:fold:row",
+    "heico-a:issuer:cik",
+    "heico-a:issuer:same_as_siblings",
+    "heico-a:issuer:same_as_siblings",
+    "heico-a:listing:HEI-A@XNYS:currency",
+    "heico-a:listing:HEI-A@XNYS:present",
+    "heico-a:listing:HEI-A@XNYS:ticker",
+    "heico-a:primary:home",
+    "heico-a:security:kind",
+    "heico-a:symbols:eodhd:HEI-A.US",
+    "heico-a:symbols:yahoo:HEI-A",
+    "heico:coverage:found",
+    "heico:fold:row",
+    "heico:issuer:cik",
+    "heico:issuer:same_as_siblings",
+    "heico:issuer:same_as_siblings",
+    "heico:listing:HEI@XNYS:currency",
+    "heico:listing:HEI@XNYS:present",
+    "heico:listing:HEI@XNYS:ticker",
+    "heico:primary:home",
+    "heico:security:kind",
+    "heico:symbols:eodhd:HEI.US",
+    "heico:symbols:yahoo:HEI",
+    "heineken-holding-adr:coverage:found",
+    "heineken-holding-adr:fold:row",
+    "heineken-holding-adr:issuer:cik",
+    "heineken-holding-adr:issuer:same_as_siblings",
+    "heineken-holding-adr:issuer:same_as_siblings",
+    "heineken-holding-adr:listing:HKHHY@OTCM:currency",
+    "heineken-holding-adr:listing:HKHHY@OTCM:present",
+    "heineken-holding-adr:listing:HKHHY@OTCM:ticker",
+    "heineken-holding-adr:security:kind",
+    "heineken-holding-adr:subject_key:issuer",
+    "heineken-holding-adr:symbols:eodhd:HKHHY.US",
+    "heineken-holding-adr:symbols:yahoo:HKHHY",
+    "heineken-holding:coverage:found",
+    "heineken-holding:fold:row",
+    "heineken-holding:issuer:cik",
+    "heineken-holding:issuer:lei",
+    "heineken-holding:issuer:same_as_siblings",
+    "heineken-holding:issuer:same_as_siblings",
+    "heineken-holding:listing:HEIO@XAMS:currency",
+    "heineken-holding:listing:HEIO@XAMS:figi",
+    "heineken-holding:listing:HEIO@XAMS:present",
+    "heineken-holding:listing:HEIO@XAMS:ticker",
+    "heineken-holding:listing:HKHHF@OTCM:currency",
+    "heineken-holding:listing:HKHHF@OTCM:present",
+    "heineken-holding:listing:HKHHF@OTCM:ticker",
+    "heineken-holding:primary:home",
+    "heineken-holding:security:isin",
+    "heineken-holding:security:kind",
+    "heineken-holding:subject_key:HEIO@XAMS",
+    "heineken-holding:subject_key:HKHHF@OTCM",
+    "heineken-holding:subject_key:issuer",
+    "heineken-holding:subject_key:security",
+    "heineken-holding:symbols:eodhd:HEIO.AS",
+    "heineken-holding:symbols:eodhd:HKHHF.US",
+    "heineken-holding:symbols:yahoo:HEIO.AS",
+    "heineken-holding:symbols:yahoo:HKHHF",
+    "heineken:coverage:found",
+    "heineken:fold:row",
+    "heineken:issuer:lei",
+    "heineken:listing:HEIA@XAMS:currency",
+    "heineken:listing:HEIA@XAMS:figi",
+    "heineken:listing:HEIA@XAMS:present",
+    "heineken:listing:HEIA@XAMS:ticker",
+    "heineken:primary:home",
+    "heineken:security:isin",
+    "heineken:security:kind",
+    "heineken:subject_key:HEIA@XAMS",
+    "heineken:subject_key:issuer",
+    "heineken:subject_key:security",
+    "heineken:symbols:eodhd:HEIA.AS",
+    "heineken:symbols:yahoo:HEIA.AS",
+    "hess:lifecycle:delisted",
+    "hsbc-adr:coverage:found",
+    "hsbc-adr:fold:row",
+    "hsbc-adr:issuer:cik",
+    "hsbc-adr:listing:HSBC@XNYS:currency",
+    "hsbc-adr:listing:HSBC@XNYS:present",
+    "hsbc-adr:listing:HSBC@XNYS:ticker",
+    "hsbc-adr:primary:home",
+    "hsbc-adr:security:kind",
+    "hsbc-adr:symbols:eodhd:HSBC.US",
+    "hsbc-adr:symbols:yahoo:HSBC",
+    "ibit:coverage:found",
+    "ibit:fold:row",
+    "ibit:issuer:cik",
+    "ibit:listing:IBIT@XNAS:currency",
+    "ibit:listing:IBIT@XNAS:present",
+    "ibit:listing:IBIT@XNAS:ticker",
+    "ibit:primary:home",
+    "ibit:subject_key:issuer",
+    "ibit:subject_key:security",
+    "ibit:symbols:eodhd:IBIT.US",
+    "ibit:symbols:yahoo:IBIT",
+    "imcd:coverage:found",
+    "imcd:fold:row",
+    "imcd:issuer:lei",
+    "imcd:listing:IMCD@XAMS:currency",
+    "imcd:listing:IMCD@XAMS:figi",
+    "imcd:listing:IMCD@XAMS:present",
+    "imcd:listing:IMCD@XAMS:ticker",
+    "imcd:primary:home",
+    "imcd:security:isin",
+    "imcd:security:kind",
+    "imcd:subject_key:IMCD@XAMS",
+    "imcd:subject_key:issuer",
+    "imcd:subject_key:security",
+    "imcd:symbols:eodhd:IMCD.AS",
+    "imcd:symbols:yahoo:IMCD.AS",
+    "infosys-adr:coverage:found",
+    "infosys-adr:issuer:cik",
+    "infosys-adr:listing:INFY@XNYS:currency",
+    "infosys-adr:listing:INFY@XNYS:present",
+    "infosys-adr:listing:INFY@XNYS:ticker",
+    "infosys-adr:primary:home",
+    "infosys-adr:security:kind",
+    "infosys-adr:symbols:eodhd:INFY.US",
+    "infosys-adr:symbols:yahoo:INFY",
+    "ing-adr:coverage:found",
+    "ing-adr:fold:row",
+    "ing-adr:issuer:cik",
+    "ing-adr:issuer:same_as_siblings",
+    "ing-adr:issuer:same_as_siblings",
+    "ing-adr:listing:ING@XNYS:currency",
+    "ing-adr:listing:ING@XNYS:present",
+    "ing-adr:listing:ING@XNYS:ticker",
+    "ing-adr:primary:home",
+    "ing-adr:security:kind",
+    "ing-adr:subject_key:issuer",
+    "ing-adr:symbols:eodhd:ING.US",
+    "ing-adr:symbols:yahoo:ING",
+    "ing:coverage:found",
+    "ing:fold:row",
+    "ing:issuer:cik",
+    "ing:issuer:lei",
+    "ing:issuer:same_as_siblings",
+    "ing:issuer:same_as_siblings",
+    "ing:listing:INGA@XAMS:currency",
+    "ing:listing:INGA@XAMS:figi",
+    "ing:listing:INGA@XAMS:present",
+    "ing:listing:INGA@XAMS:ticker",
+    "ing:primary:home",
+    "ing:security:isin",
+    "ing:security:kind",
+    "ing:subject_key:INGA@XAMS",
+    "ing:subject_key:issuer",
+    "ing:subject_key:security",
+    "ing:symbols:eodhd:INGA.AS",
+    "ing:symbols:yahoo:INGA.AS",
+    "inpost:coverage:found",
+    "inpost:fold:row",
+    "inpost:issuer:lei",
+    "inpost:listing:INPST@XAMS:currency",
+    "inpost:listing:INPST@XAMS:figi",
+    "inpost:listing:INPST@XAMS:present",
+    "inpost:listing:INPST@XAMS:ticker",
+    "inpost:primary:home",
+    "inpost:security:isin",
+    "inpost:security:kind",
+    "inpost:subject_key:INPST@XAMS",
+    "inpost:subject_key:issuer",
+    "inpost:subject_key:security",
+    "inpost:symbols:eodhd:INPST.AS",
+    "inpost:symbols:yahoo:INPST.AS",
+    "jde-peets:lifecycle:delisted",
+    "jpm-pc:coverage:found",
+    "jpm-pc:fold:row",
+    "jpm-pc:issuer:cik",
+    "jpm-pc:issuer:same_as_siblings",
+    "jpm-pc:listing:JPM-PC@XNYS:currency",
+    "jpm-pc:listing:JPM-PC@XNYS:present",
+    "jpm-pc:listing:JPM-PC@XNYS:ticker",
+    "jpm-pc:primary:home",
+    "jpm-pc:security:kind",
+    "jpm-pc:subject_key:issuer",
+    "jpm-pc:symbols:yahoo:JPM-PC",
+    "jpmorgan:coverage:found",
+    "jpmorgan:fold:row",
+    "jpmorgan:issuer:cik",
+    "jpmorgan:issuer:same_as_siblings",
+    "jpmorgan:listing:JPM@XNYS:currency",
+    "jpmorgan:listing:JPM@XNYS:present",
+    "jpmorgan:listing:JPM@XNYS:ticker",
+    "jpmorgan:primary:home",
+    "jpmorgan:security:kind",
+    "jpmorgan:symbols:eodhd:JPM.US",
+    "jpmorgan:symbols:yahoo:JPM",
+    "just-eat:lifecycle:delisted",
+    "kenvue:coverage:found",
+    "kenvue:fold:row",
+    "kenvue:issuer:cik",
+    "kenvue:listing:KVUE@XNYS:currency",
+    "kenvue:listing:KVUE@XNYS:present",
+    "kenvue:listing:KVUE@XNYS:ticker",
+    "kenvue:primary:home",
+    "kenvue:security:kind",
+    "kenvue:symbols:eodhd:KVUE.US",
+    "kenvue:symbols:yahoo:KVUE",
+    "kpn:coverage:found",
+    "kpn:fold:row",
+    "kpn:issuer:lei",
+    "kpn:listing:KPN@XAMS:currency",
+    "kpn:listing:KPN@XAMS:figi",
+    "kpn:listing:KPN@XAMS:present",
+    "kpn:listing:KPN@XAMS:ticker",
+    "kpn:primary:home",
+    "kpn:security:isin",
+    "kpn:security:kind",
+    "kpn:subject_key:KPN@XAMS",
+    "kpn:subject_key:issuer",
+    "kpn:subject_key:security",
+    "kpn:symbols:eodhd:KPN.AS",
+    "kpn:symbols:yahoo:KPN.AS",
+    "lakefront:coverage:found",
+    "lakefront:fold:row",
+    "lakefront:issuer:lei",
+    "lakefront:lifecycle:former_ticker:GLPG@XAMS",
+    "lakefront:listing:LKFT@XAMS:currency",
+    "lakefront:listing:LKFT@XAMS:figi",
+    "lakefront:listing:LKFT@XAMS:present",
+    "lakefront:listing:LKFT@XAMS:ticker",
+    "lakefront:primary:home",
+    "lakefront:security:isin",
+    "lakefront:security:kind",
+    "lakefront:subject_key:LKFT@XAMS",
+    "lakefront:subject_key:issuer",
+    "lakefront:subject_key:security",
+    "lakefront:symbols:eodhd:LKFT.AS",
+    "lakefront:symbols:yahoo:LKFT.AS",
+    "lennar-a:coverage:found",
+    "lennar-a:fold:row",
+    "lennar-a:issuer:cik",
+    "lennar-a:issuer:same_as_siblings",
+    "lennar-a:issuer:same_as_siblings",
+    "lennar-a:listing:LEN@XNYS:currency",
+    "lennar-a:listing:LEN@XNYS:present",
+    "lennar-a:listing:LEN@XNYS:ticker",
+    "lennar-a:primary:home",
+    "lennar-a:security:kind",
+    "lennar-a:symbols:eodhd:LEN.US",
+    "lennar-a:symbols:yahoo:LEN",
+    "lennar-b:coverage:found",
+    "lennar-b:fold:row",
+    "lennar-b:issuer:cik",
+    "lennar-b:issuer:same_as_siblings",
+    "lennar-b:issuer:same_as_siblings",
+    "lennar-b:listing:LEN-B@XNYS:currency",
+    "lennar-b:listing:LEN-B@XNYS:present",
+    "lennar-b:listing:LEN-B@XNYS:ticker",
+    "lennar-b:primary:home",
+    "lennar-b:security:kind",
+    "lennar-b:symbols:eodhd:LEN-B.US",
+    "lennar-b:symbols:yahoo:LEN-B",
+    "linde:coverage:found",
+    "linde:fold:row",
+    "linde:issuer:cik",
+    "linde:lifecycle:former_isin:IE00BZ12WP82",
+    "linde:listing:LIN@XNAS:currency",
+    "linde:listing:LIN@XNAS:present",
+    "linde:listing:LIN@XNAS:ticker",
+    "linde:primary:home",
+    "linde:security:kind",
+    "linde:symbols:eodhd:LIN.US",
+    "linde:symbols:yahoo:LIN",
+    "litecoin:coverage:found",
+    "litecoin:fold:row",
+    "litecoin:listing:bip122:12a765e31ffd4059bada1e25190f6e98",
+    "litecoin:security:kind",
+    "litecoin:subject_key:security",
+    "litecoin:symbols:coingecko:litecoin",
+    "litecoin:symbols:coinmarketcap:2",
+    "logitech:coverage:found",
+    "logitech:fold:row",
+    "logitech:issuer:cik",
+    "logitech:listing:LOGI@XNAS:currency",
+    "logitech:listing:LOGI@XNAS:present",
+    "logitech:listing:LOGI@XNAS:ticker",
+    "logitech:security:kind",
+    "logitech:symbols:eodhd:LOGI.US",
+    "logitech:symbols:yahoo:LOGI",
+    "magnum:coverage:found",
+    "magnum:fold:row",
+    "magnum:issuer:lei",
+    "magnum:listing:MICC@XAMS:currency",
+    "magnum:listing:MICC@XAMS:figi",
+    "magnum:listing:MICC@XAMS:present",
+    "magnum:listing:MICC@XAMS:ticker",
+    "magnum:primary:home",
+    "magnum:security:isin",
+    "magnum:security:kind",
+    "magnum:subject_key:MICC@XAMS",
+    "magnum:subject_key:issuer",
+    "magnum:subject_key:security",
+    "magnum:symbols:eodhd:MICC.AS",
+    "magnum:symbols:yahoo:MICC.AS",
+    "medtronic:coverage:found",
+    "medtronic:fold:row",
+    "medtronic:issuer:cik",
+    "medtronic:listing:MDT@XNYS:currency",
+    "medtronic:listing:MDT@XNYS:present",
+    "medtronic:listing:MDT@XNYS:ticker",
+    "medtronic:primary:home",
+    "medtronic:security:kind",
+    "medtronic:symbols:eodhd:MDT.US",
+    "medtronic:symbols:yahoo:MDT",
+    "meta:coverage:found",
+    "meta:fold:row",
+    "meta:issuer:cik",
+    "meta:lifecycle:former_ticker:FB@XNAS",
+    "meta:listing:META@XNAS:currency",
+    "meta:listing:META@XNAS:present",
+    "meta:listing:META@XNAS:ticker",
+    "meta:primary:home",
+    "meta:security:kind",
+    "meta:symbols:eodhd:META.US",
+    "meta:symbols:yahoo:META",
+    "microsoft:coverage:found",
+    "microsoft:fold:row",
+    "microsoft:issuer:cik",
+    "microsoft:listing:MSFT@XNAS:currency",
+    "microsoft:listing:MSFT@XNAS:present",
+    "microsoft:listing:MSFT@XNAS:ticker",
+    "microsoft:primary:home",
+    "microsoft:security:kind",
+    "microsoft:symbols:eodhd:MSFT.US",
+    "microsoft:symbols:yahoo:MSFT",
+    "moog-a:coverage:found",
+    "moog-a:fold:row",
+    "moog-a:issuer:cik",
+    "moog-a:issuer:same_as_siblings",
+    "moog-a:issuer:same_as_siblings",
+    "moog-a:listing:MOG-A@XNYS:currency",
+    "moog-a:listing:MOG-A@XNYS:present",
+    "moog-a:listing:MOG-A@XNYS:ticker",
+    "moog-a:primary:home",
+    "moog-a:security:kind",
+    "moog-a:symbols:eodhd:MOG-A.US",
+    "moog-a:symbols:yahoo:MOG-A",
+    "moog-b:coverage:found",
+    "moog-b:fold:row",
+    "moog-b:issuer:cik",
+    "moog-b:issuer:same_as_siblings",
+    "moog-b:issuer:same_as_siblings",
+    "moog-b:listing:MOG-B@XNYS:currency",
+    "moog-b:listing:MOG-B@XNYS:present",
+    "moog-b:listing:MOG-B@XNYS:ticker",
+    "moog-b:primary:home",
+    "moog-b:security:kind",
+    "moog-b:symbols:eodhd:MOG-B.US",
+    "moog-b:symbols:yahoo:MOG-B",
+    "nepi:coverage:found",
+    "nepi:fold:row",
+    "nepi:issuer:lei",
+    "nepi:listing:NRP@XAMS:currency",
+    "nepi:listing:NRP@XAMS:figi",
+    "nepi:listing:NRP@XAMS:present",
+    "nepi:listing:NRP@XAMS:ticker",
+    "nepi:security:isin",
+    "nepi:security:kind",
+    "nepi:subject_key:NRP@XAMS",
+    "nepi:subject_key:issuer",
+    "nepi:subject_key:security",
+    "nepi:symbols:eodhd:NRP.AS",
+    "nepi:symbols:yahoo:NRP.AS",
+    "news-a:coverage:found",
+    "news-a:fold:row",
+    "news-a:issuer:cik",
+    "news-a:issuer:same_as_siblings",
+    "news-a:issuer:same_as_siblings",
+    "news-a:listing:NWSA@XNAS:currency",
+    "news-a:listing:NWSA@XNAS:present",
+    "news-a:listing:NWSA@XNAS:ticker",
+    "news-a:primary:home",
+    "news-a:security:kind",
+    "news-a:symbols:eodhd:NWSA.US",
+    "news-a:symbols:yahoo:NWSA",
+    "news-b:coverage:found",
+    "news-b:fold:row",
+    "news-b:issuer:cik",
+    "news-b:issuer:same_as_siblings",
+    "news-b:issuer:same_as_siblings",
+    "news-b:listing:NWS@XNAS:currency",
+    "news-b:listing:NWS@XNAS:present",
+    "news-b:listing:NWS@XNAS:ticker",
+    "news-b:primary:home",
+    "news-b:security:kind",
+    "news-b:symbols:eodhd:NWS.US",
+    "news-b:symbols:yahoo:NWS",
+    "nn:coverage:found",
+    "nn:fold:row",
+    "nn:issuer:lei",
+    "nn:listing:NN@XAMS:currency",
+    "nn:listing:NN@XAMS:figi",
+    "nn:listing:NN@XAMS:present",
+    "nn:listing:NN@XAMS:ticker",
+    "nn:primary:home",
+    "nn:security:isin",
+    "nn:security:kind",
+    "nn:subject_key:NN@XAMS",
+    "nn:subject_key:issuer",
+    "nn:subject_key:security",
+    "nn:symbols:eodhd:NN.AS",
+    "nn:symbols:yahoo:NN.AS",
+    "nokia-adr:coverage:found",
+    "nokia-adr:fold:row",
+    "nokia-adr:issuer:cik",
+    "nokia-adr:listing:NOK@XNYS:currency",
+    "nokia-adr:listing:NOK@XNYS:present",
+    "nokia-adr:listing:NOK@XNYS:ticker",
+    "nokia-adr:primary:home",
+    "nokia-adr:security:kind",
+    "nokia-adr:symbols:eodhd:NOK.US",
+    "nokia-adr:symbols:yahoo:NOK",
+    "novo-adr:coverage:found",
+    "novo-adr:fold:row",
+    "novo-adr:issuer:cik",
+    "novo-adr:listing:NVO@XNYS:currency",
+    "novo-adr:listing:NVO@XNYS:present",
+    "novo-adr:listing:NVO@XNYS:ticker",
+    "novo-adr:primary:home",
+    "novo-adr:security:kind",
+    "novo-adr:symbols:eodhd:NVO.US",
+    "novo-adr:symbols:yahoo:NVO",
+    "nvidia:coverage:found",
+    "nvidia:fold:row",
+    "nvidia:issuer:cik",
+    "nvidia:listing:NVDA@XNAS:currency",
+    "nvidia:listing:NVDA@XNAS:present",
+    "nvidia:listing:NVDA@XNAS:ticker",
+    "nvidia:primary:home",
+    "nvidia:security:kind",
+    "nvidia:symbols:eodhd:NVDA.US",
+    "nvidia:symbols:yahoo:NVDA",
+    "petrobras-adr-pref:coverage:found",
+    "petrobras-adr-pref:issuer:cik",
+    "petrobras-adr-pref:issuer:same_as_siblings",
+    "petrobras-adr-pref:issuer:same_as_siblings",
+    "petrobras-adr-pref:listing:PBR-A@XNYS:currency",
+    "petrobras-adr-pref:listing:PBR-A@XNYS:present",
+    "petrobras-adr-pref:listing:PBR-A@XNYS:ticker",
+    "petrobras-adr-pref:primary:home",
+    "petrobras-adr-pref:security:kind",
+    "petrobras-adr-pref:symbols:eodhd:PBR-A.US",
+    "petrobras-adr-pref:symbols:yahoo:PBR-A",
+    "petrobras-adr:coverage:found",
+    "petrobras-adr:issuer:cik",
+    "petrobras-adr:issuer:same_as_siblings",
+    "petrobras-adr:issuer:same_as_siblings",
+    "petrobras-adr:listing:PBR@XNYS:currency",
+    "petrobras-adr:listing:PBR@XNYS:present",
+    "petrobras-adr:listing:PBR@XNYS:ticker",
+    "petrobras-adr:primary:home",
+    "petrobras-adr:security:kind",
+    "petrobras-adr:symbols:eodhd:PBR.US",
+    "petrobras-adr:symbols:yahoo:PBR",
+    "pharming-adr:coverage:found",
+    "pharming-adr:fold:row",
+    "pharming-adr:issuer:cik",
+    "pharming-adr:issuer:same_as_siblings",
+    "pharming-adr:issuer:same_as_siblings",
+    "pharming-adr:listing:PHAR@XNAS:currency",
+    "pharming-adr:listing:PHAR@XNAS:present",
+    "pharming-adr:listing:PHAR@XNAS:ticker",
+    "pharming-adr:primary:home",
+    "pharming-adr:security:kind",
+    "pharming-adr:subject_key:issuer",
+    "pharming-adr:symbols:eodhd:PHAR.US",
+    "pharming-adr:symbols:yahoo:PHAR",
+    "pharming:coverage:found",
+    "pharming:fold:row",
+    "pharming:issuer:cik",
+    "pharming:issuer:lei",
+    "pharming:issuer:same_as_siblings",
+    "pharming:issuer:same_as_siblings",
+    "pharming:listing:PHARM@XAMS:currency",
+    "pharming:listing:PHARM@XAMS:figi",
+    "pharming:listing:PHARM@XAMS:present",
+    "pharming:listing:PHARM@XAMS:ticker",
+    "pharming:primary:home",
+    "pharming:security:isin",
+    "pharming:security:kind",
+    "pharming:subject_key:PHARM@XAMS",
+    "pharming:subject_key:issuer",
+    "pharming:subject_key:security",
+    "pharming:symbols:eodhd:PHARM.AS",
+    "pharming:symbols:yahoo:PHARM.AS",
+    "philips-nyrs:coverage:found",
+    "philips-nyrs:fold:row",
+    "philips-nyrs:issuer:cik",
+    "philips-nyrs:issuer:same_as_siblings",
+    "philips-nyrs:issuer:same_as_siblings",
+    "philips-nyrs:listing:PHG@XNYS:currency",
+    "philips-nyrs:listing:PHG@XNYS:present",
+    "philips-nyrs:listing:PHG@XNYS:ticker",
+    "philips-nyrs:primary:home",
+    "philips-nyrs:security:kind",
+    "philips-nyrs:subject_key:issuer",
+    "philips-nyrs:symbols:eodhd:PHG.US",
+    "philips-nyrs:symbols:yahoo:PHG",
+    "philips:coverage:found",
+    "philips:fold:row",
+    "philips:issuer:cik",
+    "philips:issuer:lei",
+    "philips:issuer:same_as_siblings",
+    "philips:issuer:same_as_siblings",
+    "philips:listing:PHIA@XAMS:currency",
+    "philips:listing:PHIA@XAMS:figi",
+    "philips:listing:PHIA@XAMS:present",
+    "philips:listing:PHIA@XAMS:ticker",
+    "philips:primary:home",
+    "philips:security:isin",
+    "philips:security:kind",
+    "philips:subject_key:PHIA@XAMS",
+    "philips:subject_key:issuer",
+    "philips:subject_key:security",
+    "philips:symbols:eodhd:PHIA.AS",
+    "philips:symbols:yahoo:PHIA.AS",
+    "pioneer:lifecycle:delisted",
+    "postnl:coverage:found",
+    "postnl:fold:row",
+    "postnl:issuer:lei",
+    "postnl:listing:PNL@XAMS:currency",
+    "postnl:listing:PNL@XAMS:figi",
+    "postnl:listing:PNL@XAMS:present",
+    "postnl:listing:PNL@XAMS:ticker",
+    "postnl:primary:home",
+    "postnl:security:isin",
+    "postnl:security:kind",
+    "postnl:subject_key:PNL@XAMS",
+    "postnl:subject_key:issuer",
+    "postnl:subject_key:security",
+    "postnl:symbols:eodhd:PNL.AS",
+    "postnl:symbols:yahoo:PNL.AS",
+    "prosus:coverage:found",
+    "prosus:fold:row",
+    "prosus:issuer:lei",
+    "prosus:listing:PRX@XAMS:currency",
+    "prosus:listing:PRX@XAMS:figi",
+    "prosus:listing:PRX@XAMS:present",
+    "prosus:listing:PRX@XAMS:ticker",
+    "prosus:primary:home",
+    "prosus:security:isin",
+    "prosus:security:kind",
+    "prosus:subject_key:PRX@XAMS",
+    "prosus:subject_key:issuer",
+    "prosus:subject_key:security",
+    "prosus:symbols:eodhd:PRX.AS",
+    "prosus:symbols:yahoo:PRX.AS",
+    "psa-ph:coverage:found",
+    "psa-ph:fold:row",
+    "psa-ph:issuer:cik",
+    "psa-ph:listing:PSA-PH@XNYS:currency",
+    "psa-ph:listing:PSA-PH@XNYS:present",
+    "psa-ph:listing:PSA-PH@XNYS:ticker",
+    "psa-ph:primary:home",
+    "psa-ph:security:kind",
+    "psa-ph:subject_key:issuer",
+    "psa-ph:symbols:yahoo:PSA-PH",
+    "qiagen:coverage:found",
+    "qiagen:fold:row",
+    "qiagen:issuer:cik",
+    "qiagen:lifecycle:former_isin:NL0012169213",
+    "qiagen:lifecycle:former_isin:NL0015002CX3",
+    "qiagen:listing:QGEN@XNYS:currency",
+    "qiagen:listing:QGEN@XNYS:present",
+    "qiagen:listing:QGEN@XNYS:ticker",
+    "qiagen:security:kind",
+    "qiagen:symbols:eodhd:QGEN.US",
+    "qiagen:symbols:yahoo:QGEN",
+    "randstad:coverage:found",
+    "randstad:fold:row",
+    "randstad:issuer:lei",
+    "randstad:listing:RAND@XAMS:currency",
+    "randstad:listing:RAND@XAMS:figi",
+    "randstad:listing:RAND@XAMS:present",
+    "randstad:listing:RAND@XAMS:ticker",
+    "randstad:primary:home",
+    "randstad:security:isin",
+    "randstad:security:kind",
+    "randstad:subject_key:RAND@XAMS",
+    "randstad:subject_key:issuer",
+    "randstad:subject_key:security",
+    "randstad:symbols:eodhd:RAND.AS",
+    "randstad:symbols:yahoo:RAND.AS",
+    "rbc:coverage:found",
+    "rbc:fold:row",
+    "rbc:issuer:cik",
+    "rbc:listing:RY@XNYS:currency",
+    "rbc:listing:RY@XNYS:present",
+    "rbc:listing:RY@XNYS:ticker",
+    "rbc:security:kind",
+    "rbc:symbols:eodhd:RY.US",
+    "rbc:symbols:yahoo:RY",
+    "relx-adr:coverage:found",
+    "relx-adr:fold:row",
+    "relx-adr:issuer:cik",
+    "relx-adr:issuer:same_as_siblings",
+    "relx-adr:issuer:same_as_siblings",
+    "relx-adr:listing:RELX@XNYS:currency",
+    "relx-adr:listing:RELX@XNYS:present",
+    "relx-adr:listing:RELX@XNYS:ticker",
+    "relx-adr:primary:home",
+    "relx-adr:security:kind",
+    "relx-adr:subject_key:issuer",
+    "relx-adr:symbols:eodhd:RELX.US",
+    "relx-adr:symbols:yahoo:RELX",
+    "relx:coverage:found",
+    "relx:fold:row",
+    "relx:issuer:cik",
+    "relx:issuer:lei",
+    "relx:issuer:same_as_siblings",
+    "relx:issuer:same_as_siblings",
+    "relx:listing:REN@XAMS:figi",
+    "relx:listing:REN@XAMS:present",
+    "relx:listing:REN@XAMS:ticker",
+    "relx:primary:home_out_of_scope",
+    "relx:security:isin",
+    "relx:security:kind",
+    "relx:subject_key:issuer",
+    "relx:subject_key:security",
+    "relx:symbols:eodhd:REN.AS",
+    "relx:symbols:yahoo:REN.AS",
+    "retail-estates:coverage:found",
+    "retail-estates:fold:row",
+    "retail-estates:issuer:lei",
+    "retail-estates:listing:RET@XAMS:currency",
+    "retail-estates:listing:RET@XAMS:figi",
+    "retail-estates:listing:RET@XAMS:present",
+    "retail-estates:listing:RET@XAMS:ticker",
+    "retail-estates:primary:home_out_of_scope",
+    "retail-estates:security:isin",
+    "retail-estates:security:kind",
+    "retail-estates:subject_key:RET@XAMS",
+    "retail-estates:subject_key:issuer",
+    "retail-estates:subject_key:security",
+    "retail-estates:symbols:eodhd:RET.AS",
+    "retail-estates:symbols:yahoo:RET.AS",
+    "rio-adr:coverage:found",
+    "rio-adr:fold:row",
+    "rio-adr:issuer:cik",
+    "rio-adr:listing:RIO@XNYS:currency",
+    "rio-adr:listing:RIO@XNYS:present",
+    "rio-adr:listing:RIO@XNYS:ticker",
+    "rio-adr:primary:home",
+    "rio-adr:security:kind",
+    "rio-adr:symbols:eodhd:RIO.US",
+    "rio-adr:symbols:yahoo:RIO",
+    "ryanair-adr:coverage:found",
+    "ryanair-adr:fold:row",
+    "ryanair-adr:issuer:cik",
+    "ryanair-adr:listing:RYAAY@XNAS:currency",
+    "ryanair-adr:listing:RYAAY@XNAS:present",
+    "ryanair-adr:listing:RYAAY@XNAS:ticker",
+    "ryanair-adr:primary:home",
+    "ryanair-adr:security:kind",
+    "ryanair-adr:symbols:eodhd:RYAAY.US",
+    "ryanair-adr:symbols:yahoo:RYAAY",
+    "sanofi-adr:coverage:found",
+    "sanofi-adr:fold:row",
+    "sanofi-adr:issuer:cik",
+    "sanofi-adr:listing:SNY@XNAS:currency",
+    "sanofi-adr:listing:SNY@XNAS:present",
+    "sanofi-adr:listing:SNY@XNAS:ticker",
+    "sanofi-adr:primary:home",
+    "sanofi-adr:security:kind",
+    "sanofi-adr:symbols:eodhd:SNY.US",
+    "sanofi-adr:symbols:yahoo:SNY",
+    "santander-adr:coverage:found",
+    "santander-adr:fold:row",
+    "santander-adr:issuer:cik",
+    "santander-adr:listing:SAN@XNYS:currency",
+    "santander-adr:listing:SAN@XNYS:present",
+    "santander-adr:listing:SAN@XNYS:ticker",
+    "santander-adr:primary:home",
+    "santander-adr:security:kind",
+    "santander-adr:symbols:eodhd:SAN.US",
+    "santander-adr:symbols:yahoo:SAN",
+    "sap-adr:coverage:found",
+    "sap-adr:fold:row",
+    "sap-adr:issuer:cik",
+    "sap-adr:listing:SAP@XNYS:currency",
+    "sap-adr:listing:SAP@XNYS:present",
+    "sap-adr:listing:SAP@XNYS:ticker",
+    "sap-adr:primary:home",
+    "sap-adr:security:kind",
+    "sap-adr:symbols:eodhd:SAP.US",
+    "sap-adr:symbols:yahoo:SAP",
+    "sbm:coverage:found",
+    "sbm:fold:row",
+    "sbm:issuer:lei",
+    "sbm:listing:SBMO@XAMS:currency",
+    "sbm:listing:SBMO@XAMS:figi",
+    "sbm:listing:SBMO@XAMS:present",
+    "sbm:listing:SBMO@XAMS:ticker",
+    "sbm:primary:home",
+    "sbm:security:isin",
+    "sbm:security:kind",
+    "sbm:subject_key:SBMO@XAMS",
+    "sbm:subject_key:issuer",
+    "sbm:subject_key:security",
+    "sbm:symbols:eodhd:SBMO.AS",
+    "sbm:symbols:yahoo:SBMO.AS",
+    "shell-adr:coverage:found",
+    "shell-adr:fold:row",
+    "shell-adr:issuer:cik",
+    "shell-adr:issuer:same_as_siblings",
+    "shell-adr:issuer:same_as_siblings",
+    "shell-adr:lifecycle:former_ticker:RDS-A@XNYS",
+    "shell-adr:lifecycle:former_ticker:RDS-B@XNYS",
+    "shell-adr:listing:SHEL@XNYS:currency",
+    "shell-adr:listing:SHEL@XNYS:present",
+    "shell-adr:listing:SHEL@XNYS:ticker",
+    "shell-adr:primary:home",
+    "shell-adr:security:kind",
+    "shell-adr:subject_key:issuer",
+    "shell-adr:symbols:eodhd:SHEL.US",
+    "shell-adr:symbols:yahoo:SHEL",
+    "shell:coverage:found",
+    "shell:fold:row",
+    "shell:issuer:cik",
+    "shell:issuer:lei",
+    "shell:issuer:same_as_siblings",
+    "shell:issuer:same_as_siblings",
+    "shell:lifecycle:former_isin:GB00B03MLX29",
+    "shell:lifecycle:former_isin:GB00B03MM408",
+    "shell:lifecycle:former_ticker:RDSA@XAMS",
+    "shell:lifecycle:former_ticker:RDSB@XAMS",
+    "shell:listing:RYDAF@OTCM:currency",
+    "shell:listing:RYDAF@OTCM:present",
+    "shell:listing:RYDAF@OTCM:ticker",
+    "shell:listing:SHELL@XAMS:currency",
+    "shell:listing:SHELL@XAMS:figi",
+    "shell:listing:SHELL@XAMS:present",
+    "shell:listing:SHELL@XAMS:ticker",
+    "shell:primary:home_out_of_scope",
+    "shell:security:isin",
+    "shell:security:kind",
+    "shell:subject_key:RYDAF@OTCM",
+    "shell:subject_key:SHELL@XAMS",
+    "shell:subject_key:issuer",
+    "shell:subject_key:security",
+    "shell:symbols:eodhd:RYDAF.US",
+    "shell:symbols:eodhd:SHELL.AS",
+    "shell:symbols:yahoo:RYDAF",
+    "shell:symbols:yahoo:SHELL.AS",
+    "shopify:coverage:found",
+    "shopify:fold:row",
+    "shopify:issuer:cik",
+    "shopify:listing:SHOP@XNAS:currency",
+    "shopify:listing:SHOP@XNAS:present",
+    "shopify:listing:SHOP@XNAS:ticker",
+    "shopify:primary:home_out_of_scope",
+    "shopify:security:kind",
+    "shopify:symbols:eodhd:SHOP.US",
+    "shopify:symbols:yahoo:SHOP",
+    "siemens-energy-adr:coverage:found",
+    "siemens-energy-adr:fold:row",
+    "siemens-energy-adr:issuer:cik",
+    "siemens-energy-adr:issuer:same_as_siblings",
+    "siemens-energy-adr:issuer:same_as_siblings",
+    "siemens-energy-adr:listing:SMERY@OTCM:currency",
+    "siemens-energy-adr:listing:SMERY@OTCM:present",
+    "siemens-energy-adr:listing:SMERY@OTCM:ticker",
+    "siemens-energy-adr:security:kind",
+    "siemens-energy-adr:symbols:eodhd:SMERY.US",
+    "siemens-energy-adr:symbols:yahoo:SMERY",
+    "siemens-energy:coverage:found",
+    "siemens-energy:fold:row",
+    "siemens-energy:issuer:cik",
+    "siemens-energy:issuer:same_as_siblings",
+    "siemens-energy:issuer:same_as_siblings",
+    "siemens-energy:listing:SMEGF@OTCM:currency",
+    "siemens-energy:listing:SMEGF@OTCM:present",
+    "siemens-energy:listing:SMEGF@OTCM:ticker",
+    "siemens-energy:primary:home_out_of_scope",
+    "siemens-energy:security:kind",
+    "siemens-energy:symbols:eodhd:SMEGF.US",
+    "siemens-energy:symbols:yahoo:SMEGF",
+    "signify:coverage:found",
+    "signify:fold:row",
+    "signify:issuer:lei",
+    "signify:listing:LIGHT@XAMS:currency",
+    "signify:listing:LIGHT@XAMS:figi",
+    "signify:listing:LIGHT@XAMS:present",
+    "signify:listing:LIGHT@XAMS:ticker",
+    "signify:primary:home",
+    "signify:security:isin",
+    "signify:security:kind",
+    "signify:subject_key:LIGHT@XAMS",
+    "signify:subject_key:issuer",
+    "signify:subject_key:security",
+    "signify:symbols:eodhd:LIGHT.AS",
+    "signify:symbols:yahoo:LIGHT.AS",
+    "smurfit-westrock:coverage:found",
+    "smurfit-westrock:fold:row",
+    "smurfit-westrock:issuer:cik",
+    "smurfit-westrock:lifecycle:former_isin:IE00B1RR8406",
+    "smurfit-westrock:listing:SW@XNYS:currency",
+    "smurfit-westrock:listing:SW@XNYS:present",
+    "smurfit-westrock:listing:SW@XNYS:ticker",
+    "smurfit-westrock:primary:home",
+    "smurfit-westrock:security:kind",
+    "smurfit-westrock:symbols:eodhd:SW.US",
+    "smurfit-westrock:symbols:yahoo:SW",
+    "solana:coverage:found",
+    "solana:fold:row",
+    "solana:listing:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "solana:security:kind",
+    "solana:subject_key:security",
+    "solana:symbols:coingecko:solana",
+    "solana:symbols:coinmarketcap:5426",
+    "solventum:coverage:found",
+    "solventum:fold:row",
+    "solventum:issuer:cik",
+    "solventum:listing:SOLV@XNYS:currency",
+    "solventum:listing:SOLV@XNYS:present",
+    "solventum:listing:SOLV@XNYS:ticker",
+    "solventum:primary:home",
+    "solventum:security:kind",
+    "solventum:symbols:eodhd:SOLV.US",
+    "solventum:symbols:yahoo:SOLV",
+    "splunk:lifecycle:delisted",
+    "spotify:coverage:found",
+    "spotify:fold:row",
+    "spotify:issuer:cik",
+    "spotify:listing:SPOT@XNYS:currency",
+    "spotify:listing:SPOT@XNYS:present",
+    "spotify:listing:SPOT@XNYS:ticker",
+    "spotify:primary:home",
+    "spotify:security:kind",
+    "spotify:symbols:eodhd:SPOT.US",
+    "spotify:symbols:yahoo:SPOT",
+    "spy:coverage:found",
+    "spy:fold:row",
+    "spy:issuer:cik",
+    "spy:listing:SPY@XNYS:currency",
+    "spy:listing:SPY@XNYS:present",
+    "spy:listing:SPY@XNYS:ticker",
+    "spy:primary:home",
+    "spy:subject_key:issuer",
+    "spy:subject_key:security",
+    "spy:symbols:eodhd:SPY.US",
+    "spy:symbols:yahoo:SPY",
+    "stellantis:coverage:found",
+    "stellantis:fold:row",
+    "stellantis:issuer:cik",
+    "stellantis:lifecycle:former_isin:NL0010877643",
+    "stellantis:listing:STLA@XNYS:currency",
+    "stellantis:listing:STLA@XNYS:present",
+    "stellantis:listing:STLA@XNYS:ticker",
+    "stellantis:security:kind",
+    "stellantis:symbols:eodhd:STLA.US",
+    "stellantis:symbols:yahoo:STLA",
+    "strategy:coverage:found",
+    "strategy:fold:row",
+    "strategy:issuer:cik",
+    "strategy:listing:MSTR@XNAS:currency",
+    "strategy:listing:MSTR@XNAS:present",
+    "strategy:listing:MSTR@XNAS:ticker",
+    "strategy:primary:home",
+    "strategy:security:kind",
+    "strategy:symbols:eodhd:MSTR.US",
+    "strategy:symbols:yahoo:MSTR",
+    "t-pa:coverage:found",
+    "t-pa:fold:row",
+    "t-pa:issuer:cik",
+    "t-pa:listing:T-PA@XNYS:currency",
+    "t-pa:listing:T-PA@XNYS:present",
+    "t-pa:listing:T-PA@XNYS:ticker",
+    "t-pa:primary:home",
+    "t-pa:security:kind",
+    "t-pa:subject_key:issuer",
+    "t-pa:symbols:yahoo:T-PA",
+    "te-connectivity:coverage:found",
+    "te-connectivity:fold:row",
+    "te-connectivity:issuer:cik",
+    "te-connectivity:lifecycle:former_isin:CH0102993182",
+    "te-connectivity:listing:TEL@XNYS:currency",
+    "te-connectivity:listing:TEL@XNYS:present",
+    "te-connectivity:listing:TEL@XNYS:ticker",
+    "te-connectivity:primary:home",
+    "te-connectivity:security:kind",
+    "te-connectivity:symbols:eodhd:TEL.US",
+    "te-connectivity:symbols:yahoo:TEL",
+    "tesla:coverage:found",
+    "tesla:fold:row",
+    "tesla:issuer:cik",
+    "tesla:listing:TSLA@XNAS:currency",
+    "tesla:listing:TSLA@XNAS:present",
+    "tesla:listing:TSLA@XNAS:ticker",
+    "tesla:primary:home",
+    "tesla:security:kind",
+    "tesla:symbols:eodhd:TSLA.US",
+    "tesla:symbols:yahoo:TSLA",
+    "tomtom:coverage:found",
+    "tomtom:fold:row",
+    "tomtom:issuer:lei",
+    "tomtom:listing:TOM2@XAMS:currency",
+    "tomtom:listing:TOM2@XAMS:figi",
+    "tomtom:listing:TOM2@XAMS:present",
+    "tomtom:listing:TOM2@XAMS:ticker",
+    "tomtom:primary:home",
+    "tomtom:security:isin",
+    "tomtom:security:kind",
+    "tomtom:subject_key:TOM2@XAMS",
+    "tomtom:subject_key:issuer",
+    "tomtom:subject_key:security",
+    "tomtom:symbols:eodhd:TOM2.AS",
+    "tomtom:symbols:yahoo:TOM2.AS",
+    "toyota-adr:coverage:found",
+    "toyota-adr:fold:row",
+    "toyota-adr:issuer:cik",
+    "toyota-adr:listing:TM@XNYS:currency",
+    "toyota-adr:listing:TM@XNYS:present",
+    "toyota-adr:listing:TM@XNYS:ticker",
+    "toyota-adr:primary:home",
+    "toyota-adr:security:kind",
+    "toyota-adr:symbols:eodhd:TM.US",
+    "toyota-adr:symbols:yahoo:TM",
+    "tsmc-adr:coverage:found",
+    "tsmc-adr:fold:row",
+    "tsmc-adr:issuer:cik",
+    "tsmc-adr:listing:TSM@XNYS:currency",
+    "tsmc-adr:listing:TSM@XNYS:present",
+    "tsmc-adr:listing:TSM@XNYS:ticker",
+    "tsmc-adr:primary:home",
+    "tsmc-adr:security:kind",
+    "tsmc-adr:symbols:eodhd:TSM.US",
+    "tsmc-adr:symbols:yahoo:TSM",
+    "twitter:lifecycle:delisted",
+    "ubs:coverage:found",
+    "ubs:fold:row",
+    "ubs:issuer:cik",
+    "ubs:listing:UBS@XNYS:currency",
+    "ubs:listing:UBS@XNYS:present",
+    "ubs:listing:UBS@XNYS:ticker",
+    "ubs:security:kind",
+    "ubs:symbols:eodhd:UBS.US",
+    "ubs:symbols:yahoo:UBS",
+    "umg-adr:coverage:found",
+    "umg-adr:fold:row",
+    "umg-adr:issuer:cik",
+    "umg-adr:issuer:same_as_siblings",
+    "umg-adr:issuer:same_as_siblings",
+    "umg-adr:listing:UNVGY@OTCM:currency",
+    "umg-adr:listing:UNVGY@OTCM:present",
+    "umg-adr:listing:UNVGY@OTCM:ticker",
+    "umg-adr:security:kind",
+    "umg-adr:subject_key:issuer",
+    "umg-adr:symbols:eodhd:UNVGY.US",
+    "umg-adr:symbols:yahoo:UNVGY",
+    "umg:coverage:found",
+    "umg:fold:row",
+    "umg:issuer:cik",
+    "umg:issuer:lei",
+    "umg:issuer:same_as_siblings",
+    "umg:issuer:same_as_siblings",
+    "umg:listing:UMG@XAMS:currency",
+    "umg:listing:UMG@XAMS:figi",
+    "umg:listing:UMG@XAMS:present",
+    "umg:listing:UMG@XAMS:ticker",
+    "umg:listing:UMGNF@OTCM:currency",
+    "umg:listing:UMGNF@OTCM:present",
+    "umg:listing:UMGNF@OTCM:ticker",
+    "umg:primary:home",
+    "umg:security:isin",
+    "umg:security:kind",
+    "umg:subject_key:UMG@XAMS",
+    "umg:subject_key:UMGNF@OTCM",
+    "umg:subject_key:issuer",
+    "umg:subject_key:security",
+    "umg:symbols:eodhd:UMG.AS",
+    "umg:symbols:eodhd:UMGNF.US",
+    "umg:symbols:yahoo:UMG.AS",
+    "umg:symbols:yahoo:UMGNF",
+    "under-armour-a:coverage:found",
+    "under-armour-a:fold:row",
+    "under-armour-a:issuer:cik",
+    "under-armour-a:issuer:same_as_siblings",
+    "under-armour-a:issuer:same_as_siblings",
+    "under-armour-a:listing:UAA@XNYS:currency",
+    "under-armour-a:listing:UAA@XNYS:present",
+    "under-armour-a:listing:UAA@XNYS:ticker",
+    "under-armour-a:primary:home",
+    "under-armour-a:security:kind",
+    "under-armour-a:symbols:eodhd:UAA.US",
+    "under-armour-a:symbols:yahoo:UAA",
+    "under-armour-c:coverage:found",
+    "under-armour-c:fold:row",
+    "under-armour-c:issuer:cik",
+    "under-armour-c:issuer:same_as_siblings",
+    "under-armour-c:issuer:same_as_siblings",
+    "under-armour-c:listing:UA@XNYS:currency",
+    "under-armour-c:listing:UA@XNYS:present",
+    "under-armour-c:listing:UA@XNYS:ticker",
+    "under-armour-c:primary:home",
+    "under-armour-c:security:kind",
+    "under-armour-c:symbols:eodhd:UA.US",
+    "under-armour-c:symbols:yahoo:UA",
+    "unilever-adr:coverage:found",
+    "unilever-adr:fold:row",
+    "unilever-adr:issuer:cik",
+    "unilever-adr:issuer:same_as_siblings",
+    "unilever-adr:issuer:same_as_siblings",
+    "unilever-adr:listing:UL@XNYS:currency",
+    "unilever-adr:listing:UL@XNYS:present",
+    "unilever-adr:listing:UL@XNYS:ticker",
+    "unilever-adr:primary:home",
+    "unilever-adr:security:kind",
+    "unilever-adr:subject_key:issuer",
+    "unilever-adr:symbols:eodhd:UL.US",
+    "unilever-adr:symbols:yahoo:UL",
+    "unilever:coverage:found",
+    "unilever:fold:row",
+    "unilever:issuer:cik",
+    "unilever:issuer:lei",
+    "unilever:issuer:same_as_siblings",
+    "unilever:issuer:same_as_siblings",
+    "unilever:lifecycle:former_isin:GB00B10RZP78",
+    "unilever:lifecycle:former_isin:NL0000388619",
+    "unilever:listing:UNA@XAMS:figi",
+    "unilever:listing:UNA@XAMS:present",
+    "unilever:listing:UNA@XAMS:ticker",
+    "unilever:listing:UNLYF@OTCM:currency",
+    "unilever:listing:UNLYF@OTCM:present",
+    "unilever:listing:UNLYF@OTCM:ticker",
+    "unilever:primary:home_out_of_scope",
+    "unilever:security:isin",
+    "unilever:security:kind",
+    "unilever:subject_key:UNLYF@OTCM",
+    "unilever:subject_key:issuer",
+    "unilever:subject_key:security",
+    "unilever:symbols:eodhd:UNA.AS",
+    "unilever:symbols:eodhd:UNLYF.US",
+    "unilever:symbols:yahoo:UNA.AS",
+    "unilever:symbols:yahoo:UNLYF",
+    "uniqure:coverage:found",
+    "uniqure:fold:row",
+    "uniqure:issuer:cik",
+    "uniqure:listing:QURE@XNAS:currency",
+    "uniqure:listing:QURE@XNAS:present",
+    "uniqure:listing:QURE@XNAS:ticker",
+    "uniqure:primary:home",
+    "uniqure:security:kind",
+    "uniqure:symbols:eodhd:QURE.US",
+    "uniqure:symbols:yahoo:QURE",
+    "us-steel:lifecycle:delisted",
+    "vastned:coverage:found",
+    "vastned:fold:row",
+    "vastned:issuer:lei",
+    "vastned:lifecycle:former_isin:NL0000288918",
+    "vastned:listing:VASTB@XAMS:currency",
+    "vastned:listing:VASTB@XAMS:figi",
+    "vastned:listing:VASTB@XAMS:present",
+    "vastned:listing:VASTB@XAMS:ticker",
+    "vastned:primary:home_out_of_scope",
+    "vastned:security:isin",
+    "vastned:security:kind",
+    "vastned:subject_key:VASTB@XAMS",
+    "vastned:subject_key:issuer",
+    "vastned:subject_key:security",
+    "vastned:symbols:eodhd:VASTB.AS",
+    "vastned:symbols:yahoo:VASTB.AS",
+    "veralto:coverage:found",
+    "veralto:fold:row",
+    "veralto:issuer:cik",
+    "veralto:listing:VLTO@XNYS:currency",
+    "veralto:listing:VLTO@XNYS:present",
+    "veralto:listing:VLTO@XNYS:ticker",
+    "veralto:primary:home",
+    "veralto:security:kind",
+    "veralto:symbols:eodhd:VLTO.US",
+    "veralto:symbols:yahoo:VLTO",
+    "visa:coverage:found",
+    "visa:fold:row",
+    "visa:issuer:cik",
+    "visa:listing:V@XNYS:currency",
+    "visa:listing:V@XNYS:present",
+    "visa:listing:V@XNYS:ticker",
+    "visa:primary:home",
+    "visa:security:kind",
+    "visa:symbols:eodhd:V.US",
+    "visa:symbols:yahoo:V",
+    "vmware:lifecycle:delisted",
+    "vopak:coverage:found",
+    "vopak:fold:row",
+    "vopak:issuer:lei",
+    "vopak:listing:VPK@XAMS:currency",
+    "vopak:listing:VPK@XAMS:figi",
+    "vopak:listing:VPK@XAMS:present",
+    "vopak:listing:VPK@XAMS:ticker",
+    "vopak:primary:home",
+    "vopak:security:isin",
+    "vopak:security:kind",
+    "vopak:subject_key:VPK@XAMS",
+    "vopak:subject_key:issuer",
+    "vopak:subject_key:security",
+    "vopak:symbols:eodhd:VPK.AS",
+    "vopak:symbols:yahoo:VPK.AS",
+    "wbd:coverage:found",
+    "wbd:fold:row",
+    "wbd:issuer:cik",
+    "wbd:lifecycle:former_ticker:DISCA@XNAS",
+    "wbd:lifecycle:former_ticker:DISCK@XNAS",
+    "wbd:listing:WBD@XNAS:currency",
+    "wbd:listing:WBD@XNAS:present",
+    "wbd:listing:WBD@XNAS:ticker",
+    "wbd:primary:home",
+    "wbd:security:kind",
+    "wbd:symbols:eodhd:WBD.US",
+    "wbd:symbols:yahoo:WBD",
+    "wfc-pl:coverage:found",
+    "wfc-pl:fold:row",
+    "wfc-pl:issuer:cik",
+    "wfc-pl:listing:WFC-PL@XNYS:currency",
+    "wfc-pl:listing:WFC-PL@XNYS:present",
+    "wfc-pl:listing:WFC-PL@XNYS:ticker",
+    "wfc-pl:primary:home",
+    "wfc-pl:security:kind",
+    "wfc-pl:subject_key:issuer",
+    "wfc-pl:symbols:yahoo:WFC-PL",
+    "wolters-kluwer-adr:coverage:found",
+    "wolters-kluwer-adr:fold:row",
+    "wolters-kluwer-adr:issuer:cik",
+    "wolters-kluwer-adr:issuer:same_as_siblings",
+    "wolters-kluwer-adr:issuer:same_as_siblings",
+    "wolters-kluwer-adr:listing:WTKWY@OTCM:currency",
+    "wolters-kluwer-adr:listing:WTKWY@OTCM:present",
+    "wolters-kluwer-adr:listing:WTKWY@OTCM:ticker",
+    "wolters-kluwer-adr:security:kind",
+    "wolters-kluwer-adr:subject_key:issuer",
+    "wolters-kluwer-adr:symbols:eodhd:WTKWY.US",
+    "wolters-kluwer-adr:symbols:yahoo:WTKWY",
+    "wolters-kluwer:coverage:found",
+    "wolters-kluwer:fold:row",
+    "wolters-kluwer:issuer:cik",
+    "wolters-kluwer:issuer:lei",
+    "wolters-kluwer:issuer:same_as_siblings",
+    "wolters-kluwer:issuer:same_as_siblings",
+    "wolters-kluwer:listing:WKL@XAMS:currency",
+    "wolters-kluwer:listing:WKL@XAMS:figi",
+    "wolters-kluwer:listing:WKL@XAMS:present",
+    "wolters-kluwer:listing:WKL@XAMS:ticker",
+    "wolters-kluwer:listing:WOLTF@OTCM:currency",
+    "wolters-kluwer:listing:WOLTF@OTCM:present",
+    "wolters-kluwer:listing:WOLTF@OTCM:ticker",
+    "wolters-kluwer:primary:home",
+    "wolters-kluwer:security:isin",
+    "wolters-kluwer:security:kind",
+    "wolters-kluwer:subject_key:WKL@XAMS",
+    "wolters-kluwer:subject_key:WOLTF@OTCM",
+    "wolters-kluwer:subject_key:issuer",
+    "wolters-kluwer:subject_key:security",
+    "wolters-kluwer:symbols:eodhd:WKL.AS",
+    "wolters-kluwer:symbols:eodhd:WOLTF.US",
+    "wolters-kluwer:symbols:yahoo:WKL.AS",
+    "wolters-kluwer:symbols:yahoo:WOLTF",
+    "xrp:coverage:found",
+    "xrp:fold:row",
+    "xrp:listing:xrpl:0",
+    "xrp:security:kind",
+    "xrp:subject_key:security",
+    "xrp:symbols:coingecko:ripple",
+    "xrp:symbols:coinmarketcap:52",
+    "zillow-a:coverage:found",
+    "zillow-a:fold:row",
+    "zillow-a:issuer:cik",
+    "zillow-a:issuer:same_as_siblings",
+    "zillow-a:issuer:same_as_siblings",
+    "zillow-a:listing:ZG@XNAS:currency",
+    "zillow-a:listing:ZG@XNAS:present",
+    "zillow-a:listing:ZG@XNAS:ticker",
+    "zillow-a:primary:home",
+    "zillow-a:security:kind",
+    "zillow-a:symbols:eodhd:ZG.US",
+    "zillow-a:symbols:yahoo:ZG",
+    "zillow-c:coverage:found",
+    "zillow-c:fold:row",
+    "zillow-c:issuer:cik",
+    "zillow-c:issuer:same_as_siblings",
+    "zillow-c:issuer:same_as_siblings",
+    "zillow-c:listing:Z@XNAS:currency",
+    "zillow-c:listing:Z@XNAS:present",
+    "zillow-c:listing:Z@XNAS:ticker",
+    "zillow-c:primary:home",
+    "zillow-c:security:kind",
+    "zillow-c:symbols:eodhd:Z.US",
+    "zillow-c:symbols:yahoo:Z"
+  ],
+  "ids": {
+    "aalberts": {
+      "security": "security:isin:NL0000852564",
+      "issuer": "issuer:lei:549300EMP9DT6Q35HZ31",
+      "listings": {
+        "AALB@XAMS": "listing:isin:NL0000852564:XAMS:EUR"
+      }
+    },
+    "ab-inbev-adr": {
+      "security": "security:figi:BBG001T53FW2",
+      "issuer": "issuer:cik:0001668717",
+      "listings": {
+        "BUD@XNYS": "listing:figi:BBG000RYC984"
+      }
+    },
+    "abn-amro": {
+      "security": "security:isin:NL0011540547",
+      "issuer": "issuer:lei:BFXS5XCH7N0Y05NIXW11",
+      "listings": {
+        "ABN@XAMS": "listing:isin:NL0011540547:XAMS:EUR"
+      }
+    },
+    "accenture": {
+      "security": "security:figi:BBG001SCXK90",
+      "issuer": "issuer:cik:0001467373",
+      "listings": {
+        "ACN@XNYS": "listing:figi:BBG000D9D830"
+      }
+    },
+    "adyen": {
+      "security": "security:isin:NL0012969182",
+      "issuer": "issuer:lei:724500973ODKK3IFQ447",
+      "listings": {
+        "ADYEN@XAMS": "listing:isin:NL0012969182:XAMS:EUR"
+      }
+    },
+    "aegon": {
+      "security": "security:isin:BMG0112X1056",
+      "issuer": "issuer:lei:O4QK7KMMK83ITNTHUG69",
+      "listings": {
+        "AGN@XAMS": "listing:isin:BMG0112X1056:XAMS:EUR"
+      }
+    },
+    "aegon-nyrs": {
+      "security": "security:figi:BBG001S6Y6M8",
+      "issuer": "issuer:lei:O4QK7KMMK83ITNTHUG69",
+      "listings": {
+        "AEG@XNYS": "listing:figi:BBG000CKQSN6"
+      }
+    },
+    "aercap": {
+      "security": "security:figi:BBG001SNX4Y4",
+      "issuer": "issuer:cik:0001378789",
+      "listings": {
+        "AER@XNYS": "listing:figi:BBG000Q9FZL4"
+      }
+    },
+    "ahold-delhaize": {
+      "security": "security:isin:NL0011794037",
+      "issuer": "issuer:lei:724500C9GNBV20UYRX36",
+      "listings": {
+        "AD@XAMS": "listing:isin:NL0011794037:XAMS:EUR"
+      }
+    },
+    "akzonobel": {
+      "security": "security:isin:NL0013267909",
+      "issuer": "issuer:lei:724500XYIJUGXAA5QD70",
+      "listings": {
+        "AKZA@XAMS": "listing:isin:NL0013267909:XAMS:EUR",
+        "AKZOF@OTCM": "listing:isin:NL0013267909:OTCM:USD"
+      }
+    },
+    "akzonobel-adr": {
+      "security": "security:figi:BBG001S67JB2",
+      "issuer": "issuer:lei:724500XYIJUGXAA5QD70",
+      "listings": {
+        "AKZOY@OTCM": "listing:figi:BBG000BBTZC0"
+      }
+    },
+    "alcon": {
+      "security": "security:figi:BBG00NPWGYR0",
+      "issuer": "issuer:cik:0001167379",
+      "listings": {
+        "ALC@XNYS": "listing:figi:BBG00NPWH832"
+      }
+    },
+    "alibaba-adr": {
+      "security": "security:figi:BBG006G2JWB1",
+      "issuer": "issuer:cik:0001577552",
+      "listings": {
+        "BABA@XNYS": "listing:figi:BBG006G2JVL2"
+      }
+    },
+    "allfunds": {
+      "security": "security:isin:GB00BNTJ3546",
+      "issuer": "issuer:lei:9598005U8TZQ8Q64SC71",
+      "listings": {
+        "ALLFG@XAMS": "listing:isin:GB00BNTJ3546:XAMS:EUR"
+      }
+    },
+    "alphabet-a": {
+      "security": "security:figi:BBG009S39JY5",
+      "issuer": "issuer:cik:0001652044",
+      "listings": {
+        "GOOGL@XNAS": "listing:figi:BBG009S39JX6"
+      }
+    },
+    "alphabet-c": {
+      "security": "security:figi:BBG009S3NB21",
+      "issuer": "issuer:cik:0001652044",
+      "listings": {
+        "GOOG@XNAS": "listing:figi:BBG009S3NB30"
+      }
+    },
+    "amazon": {
+      "security": "security:figi:BBG001S5PQL7",
+      "issuer": "issuer:cik:0001018724",
+      "listings": {
+        "AMZN@XNAS": "listing:figi:BBG000BVPV84"
+      }
+    },
+    "amrize": {
+      "security": "security:figi:BBG01T2JZYW3",
+      "issuer": "issuer:cik:0002035989",
+      "listings": {
+        "AMRZ@XNYS": "listing:figi:BBG01T2JZXN5"
+      }
+    },
+    "apple": {
+      "security": "security:figi:BBG001S5N8V8",
+      "issuer": "issuer:cik:0000320193",
+      "listings": {
+        "AAPL@XNAS": "listing:figi:BBG000B9XRY4"
+      }
+    },
+    "arcelormittal": {
+      "security": "security:isin:LU1598757687",
+      "issuer": "issuer:lei:2EULGUTUI56JI9SAL165",
+      "listings": {
+        "MT@XAMS": "listing:isin:LU1598757687:XAMS:EUR"
+      }
+    },
+    "arcelormittal-nyrs": {
+      "security": "security:figi:BBG001S8JFB3",
+      "issuer": "issuer:lei:2EULGUTUI56JI9SAL165",
+      "listings": {
+        "MT@XNYS": "listing:figi:BBG000BJH5W0"
+      }
+    },
+    "argenx-ads": {
+      "security": "security:figi:BBG00GHB88Y8",
+      "issuer": "issuer:cik:0001697862",
+      "listings": {
+        "ARGX@XNAS": "listing:figi:BBG00GHB88X9"
+      }
+    },
+    "arm-ads": {
+      "security": "security:figi:BBG01J1GY084",
+      "issuer": "issuer:cik:0001973239",
+      "listings": {
+        "ARM@XNAS": "listing:figi:BBG01J1GXZF0"
+      }
+    },
+    "asmi": {
+      "security": "security:isin:NL0000334118",
+      "issuer": "issuer:lei:7245001I22ND6ZFHX623",
+      "listings": {
+        "ASM@XAMS": "listing:isin:NL0000334118:XAMS:EUR"
+      }
+    },
+    "asml": {
+      "security": "security:isin:NL0010273215",
+      "issuer": "issuer:lei:724500Y6DUVHQD6OXN27",
+      "listings": {
+        "ASML@XAMS": "listing:isin:NL0010273215:XAMS:EUR",
+        "ASMLF@OTCM": "listing:isin:NL0010273215:OTCM:USD"
+      }
+    },
+    "asml-nyrs": {
+      "security": "security:figi:BBG001SCG0R3",
+      "issuer": "issuer:lei:724500Y6DUVHQD6OXN27",
+      "listings": {
+        "ASML@XNAS": "listing:figi:BBG000K6MRN4"
+      }
+    },
+    "asr": {
+      "security": "security:isin:NL0011872643",
+      "issuer": "issuer:lei:7245000G0HS48PZWUD53",
+      "listings": {
+        "ASRNL@XAMS": "listing:isin:NL0011872643:XAMS:EUR",
+        "ASRRF@OTCM": "listing:isin:NL0011872643:OTCM:USD"
+      }
+    },
+    "asr-adr": {
+      "security": "security:figi:BBG00J0BB527",
+      "issuer": "issuer:lei:7245000G0HS48PZWUD53",
+      "listings": {
+        "ARNNY@OTCM": "listing:figi:BBG00J0BB4C9"
+      }
+    },
+    "bac-pk": {
+      "security": "security:provisional:sec:id:BAC-PK",
+      "issuer": "issuer:cik:0000070858",
+      "listings": {
+        "BAC-PK@XNYS": "listing:provisional:sec:ticker:XNYS.BAC-PK"
+      }
+    },
+    "bbva-adr": {
+      "security": "security:figi:BBG001S5XP76",
+      "issuer": "issuer:cik:0000842180",
+      "listings": {
+        "BBVA@XNYS": "listing:figi:BBG000BXD232"
+      }
+    },
+    "berkshire-a": {
+      "security": "security:figi:BBG001S902J2",
+      "issuer": "issuer:cik:0001067983",
+      "listings": {
+        "BRK-A@XNYS": "listing:figi:BBG000DWCFL4"
+      }
+    },
+    "berkshire-b": {
+      "security": "security:figi:BBG001S90346",
+      "issuer": "issuer:cik:0001067983",
+      "listings": {
+        "BRK-B@XNYS": "listing:figi:BBG000DWG505"
+      }
+    },
+    "besi": {
+      "security": "security:isin:NL0012866412",
+      "issuer": "issuer:lei:7245007A1YFLI2GNYX06",
+      "listings": {
+        "BESI@XAMS": "listing:isin:NL0012866412:XAMS:EUR"
+      }
+    },
+    "bhp-adr": {
+      "security": "security:figi:BBG001S5P5K4",
+      "issuer": "issuer:cik:0000811809",
+      "listings": {
+        "BHP@XNYS": "listing:figi:BBG000BD5NZ4"
+      }
+    },
+    "bitcoin": {
+      "security": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
+      "issuer": null,
+      "listings": {
+        "bip122:000000000019d6689c085ae165831e93": "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
+      }
+    },
+    "block": {
+      "security": "security:figi:BBG001TFLWL5",
+      "issuer": "issuer:cik:0001512673",
+      "listings": {
+        "XYZ@XNYS": "listing:figi:BBG0018SLC07"
+      }
+    },
+    "bp-adr": {
+      "security": "security:figi:BBG001S5W4F5",
+      "issuer": "issuer:cik:0000313807",
+      "listings": {
+        "BP@XNYS": "listing:figi:BBG000BT4FC2"
+      }
+    },
+    "brown-forman-a": {
+      "security": "security:figi:BBG001S5P4G2",
+      "issuer": "issuer:cik:0000014693",
+      "listings": {
+        "BF-A@XNYS": "listing:figi:BBG000BD2C18"
+      }
+    },
+    "brown-forman-b": {
+      "security": "security:figi:BBG001S5P4H1",
+      "issuer": "issuer:cik:0000014693",
+      "listings": {
+        "BF-B@XNYS": "listing:figi:BBG000BD2NY8"
+      }
+    },
+    "btc-mini": {
+      "security": "security:figi:BBG01NX636V7",
+      "issuer": "issuer:cik:0002015034",
+      "listings": {
+        "BTC@XNYS": "listing:figi:BBG01NX635X7"
+      }
+    },
+    "ccep": {
+      "security": "security:isin:GB00BDCPN049",
+      "issuer": "issuer:lei:549300LTH67W4GWMRF57",
+      "listings": {
+        "CCEP@XNAS": "listing:isin:GB00BDCPN049:XNAS:USD",
+        "CCEP@XAMS": "listing:isin:GB00BDCPN049:XAMS:EUR"
+      }
+    },
+    "chubb": {
+      "security": "security:figi:BBG001S8S1L3",
+      "issuer": "issuer:cik:0000896159",
+      "listings": {
+        "CB@XNYS": "listing:figi:BBG000BR14K5"
+      }
+    },
+    "cnh": {
+      "security": "security:figi:BBG0059JSF67",
+      "issuer": "issuer:cik:0001567094",
+      "listings": {
+        "CNH@XNYS": "listing:figi:BBG0059JSF49"
+      }
+    },
+    "coinbase": {
+      "security": "security:figi:BBG00ZGF7799",
+      "issuer": "issuer:cik:0001679788",
+      "listings": {
+        "COIN@XNAS": "listing:figi:BBG00ZGF7771"
+      }
+    },
+    "corbion": {
+      "security": "security:isin:NL0010583399",
+      "issuer": "issuer:lei:724500BKS1TSAVLTWG46",
+      "listings": {
+        "CRBN@XAMS": "listing:isin:NL0010583399:XAMS:EUR"
+      }
+    },
+    "cpkc": {
+      "security": "security:figi:BBG001S7F4Z8",
+      "issuer": "issuer:cik:0000016875",
+      "listings": {
+        "CP@XNYS": "listing:figi:BBG000BCVMH9"
+      }
+    },
+    "crh": {
+      "security": "security:figi:BBG001S61NK9",
+      "issuer": "issuer:cik:0000849395",
+      "listings": {
+        "CRH@XNYS": "listing:figi:BBG000D3JXM1"
+      }
+    },
+    "ctp": {
+      "security": "security:isin:NL00150006R6",
+      "issuer": "issuer:lei:3157000YTVO4TN65UM14",
+      "listings": {
+        "CTPNV@XAMS": "listing:isin:NL00150006R6:XAMS:EUR"
+      }
+    },
+    "deutsche-telekom": {
+      "security": "security:figi:BBG001S5T4S5",
+      "issuer": "issuer:cik:0000946770",
+      "listings": {
+        "DTEGF@OTCM": "listing:figi:BBG000LJQ2M7"
+      }
+    },
+    "deutsche-telekom-adr": {
+      "security": "security:figi:BBG001S99P39",
+      "issuer": "issuer:cik:0000946770",
+      "listings": {
+        "DTEGY@OTCM": "listing:figi:BBG000HMCQQ3"
+      }
+    },
+    "dogecoin": {
+      "security": "security:caip19:bip122:1a91e3dace36e2be3bf030a65679fe82/slip44:3",
+      "issuer": null,
+      "listings": {
+        "bip122:1a91e3dace36e2be3bf030a65679fe82": "listing:caip19:bip122:1a91e3dace36e2be3bf030a65679fe82/slip44:3"
+      }
+    },
+    "dsm-firmenich": {
+      "security": "security:isin:CH1216478797",
+      "issuer": "issuer:lei:506700G44V67MPM4BI12",
+      "listings": {
+        "DSFIR@XAMS": "listing:isin:CH1216478797:XAMS:EUR"
+      }
+    },
+    "eni-adr": {
+      "security": "security:figi:BBG001S5QQ09",
+      "issuer": "issuer:cik:0001002242",
+      "listings": {
+        "E@XNYS": "listing:figi:BBG000BBPZZ9"
+      }
+    },
+    "equinor-adr": {
+      "security": "security:figi:BBG001SJ3R93",
+      "issuer": "issuer:cik:0001140625",
+      "listings": {
+        "EQNR@XNYS": "listing:figi:BBG000NT0ZZ4"
+      }
+    },
+    "ericsson-adr": {
+      "security": "security:figi:BBG001S5QXT3",
+      "issuer": "issuer:cik:0000717826",
+      "listings": {
+        "ERIC@XNAS": "listing:figi:BBG000BB0QF8"
+      }
+    },
+    "etha": {
+      "security": "security:figi:BBG01NXX8HZ5",
+      "issuer": "issuer:cik:0002000638",
+      "listings": {
+        "ETHA@XNAS": "listing:figi:BBG01NXX8H49"
+      }
+    },
+    "ether": {
+      "security": "security:caip19:eip155:1/slip44:60",
+      "issuer": null,
+      "listings": {
+        "eip155:1": "listing:caip19:eip155:1/slip44:60"
+      }
+    },
+    "exor": {
+      "security": "security:isin:NL0012059018",
+      "issuer": "issuer:lei:5493002ENHZ6NYET7405",
+      "listings": {
+        "EXO@XAMS": "listing:isin:NL0012059018:XAMS:EUR"
+      }
+    },
+    "ferguson": {
+      "security": "security:figi:BBG01NMRD786",
+      "issuer": "issuer:cik:0002011641",
+      "listings": {
+        "FERG@XNYS": "listing:figi:BBG01NMRD768"
+      }
+    },
+    "ferrari": {
+      "security": "security:figi:BBG009PH3Q95",
+      "issuer": "issuer:cik:0001648416",
+      "listings": {
+        "RACE@XNYS": "listing:figi:BBG009PH3Q86"
+      }
+    },
+    "flow-traders": {
+      "security": "security:isin:BMG3602E1084",
+      "issuer": "issuer:lei:549300GSUZI1V3BEXQ36",
+      "listings": {
+        "FLOW@XAMS": "listing:isin:BMG3602E1084:XAMS:EUR"
+      }
+    },
+    "flutter": {
+      "security": "security:figi:BBG001S87K70",
+      "issuer": "issuer:cik:0001635327",
+      "listings": {
+        "FLUT@XNYS": "listing:figi:BBG000P2GPN9"
+      }
+    },
+    "fox-a": {
+      "security": "security:figi:BBG00JHNJX06",
+      "issuer": "issuer:cik:0001754301",
+      "listings": {
+        "FOXA@XNAS": "listing:figi:BBG00JHNJW99"
+      }
+    },
+    "fox-b": {
+      "security": "security:figi:BBG00JHNKKR3",
+      "issuer": "issuer:cik:0001754301",
+      "listings": {
+        "FOX@XNAS": "listing:figi:BBG00JHNKJY8"
+      }
+    },
+    "fugro": {
+      "security": "security:isin:NL00150003E1",
+      "issuer": "issuer:lei:7245000R8GNBSDTSZ396",
+      "listings": {
+        "FUR@XAMS": "listing:isin:NL00150003E1:XAMS:EUR"
+      }
+    },
+    "gbtc": {
+      "security": "security:figi:BBG008748J97",
+      "issuer": "issuer:cik:0001588489",
+      "listings": {
+        "GBTC@XNYS": "listing:figi:BBG008748J88"
+      }
+    },
+    "ge-aerospace": {
+      "security": "security:figi:BBG001S5PVD5",
+      "issuer": "issuer:cik:0000040545",
+      "listings": {
+        "GE@XNYS": "listing:figi:BBG000BK6MB5"
+      }
+    },
+    "ge-healthcare": {
+      "security": "security:figi:BBG01BFR8YW0",
+      "issuer": "issuer:cik:0001932393",
+      "listings": {
+        "GEHC@XNAS": "listing:figi:BBG01BFR8YV1"
+      }
+    },
+    "ge-vernova": {
+      "security": "security:figi:BBG013G17W77",
+      "issuer": "issuer:cik:0001996810",
+      "listings": {
+        "GEV@XNYS": "listing:figi:BBG013G17W31"
+      }
+    },
+    "gsk-adr": {
+      "security": "security:figi:BBG001SD6SM6",
+      "issuer": "issuer:cik:0001131399",
+      "listings": {
+        "GSK@XNYS": "listing:figi:BBG000BLB481"
+      }
+    },
+    "haleon-adr": {
+      "security": "security:figi:BBG018GZNDB0",
+      "issuer": "issuer:cik:0001900304",
+      "listings": {
+        "HLN@XNYS": "listing:figi:BBG018GZNCH6"
+      }
+    },
+    "havas": {
+      "security": "security:isin:NL0015002K83",
+      "issuer": "issuer:lei:894500L53AVOFQK7T710",
+      "listings": {
+        "HAVAS@XAMS": "listing:isin:NL0015002K83:XAMS:EUR"
+      }
+    },
+    "heico": {
+      "security": "security:figi:BBG001S5RVC4",
+      "issuer": "issuer:cik:0000046619",
+      "listings": {
+        "HEI@XNYS": "listing:figi:BBG000BL16Q7"
+      }
+    },
+    "heico-a": {
+      "security": "security:figi:BBG001S96YM2",
+      "issuer": "issuer:cik:0000046619",
+      "listings": {
+        "HEI-A@XNYS": "listing:figi:BBG000F0CD91"
+      }
+    },
+    "heineken": {
+      "security": "security:isin:NL0000009165",
+      "issuer": "issuer:lei:724500K5PTPSST86UQ23",
+      "listings": {
+        "HEIA@XAMS": "listing:isin:NL0000009165:XAMS:EUR"
+      }
+    },
+    "heineken-holding": {
+      "security": "security:isin:NL0000008977",
+      "issuer": "issuer:lei:724500M1WJLFM9TYBS04",
+      "listings": {
+        "HEIO@XAMS": "listing:isin:NL0000008977:XAMS:EUR",
+        "HKHHF@OTCM": "listing:isin:NL0000008977:OTCM:USD"
+      }
+    },
+    "heineken-holding-adr": {
+      "security": "security:figi:BBG003PYKL57",
+      "issuer": "issuer:lei:724500M1WJLFM9TYBS04",
+      "listings": {
+        "HKHHY@OTCM": "listing:figi:BBG003PYKKD0"
+      }
+    },
+    "hsbc-adr": {
+      "security": "security:figi:BBG001SCZVC0",
+      "issuer": "issuer:cik:0001089113",
+      "listings": {
+        "HSBC@XNYS": "listing:figi:BBG000C1K7N0"
+      }
+    },
+    "ibit": {
+      "security": "security:figi:BBG01KYQ6QS5",
+      "issuer": "issuer:cik:0001980994",
+      "listings": {
+        "IBIT@XNAS": "listing:figi:BBG01KYQ6PV3"
+      }
+    },
+    "imcd": {
+      "security": "security:isin:NL0010801007",
+      "issuer": "issuer:lei:724500NSJPNFJPDAUP02",
+      "listings": {
+        "IMCD@XAMS": "listing:isin:NL0010801007:XAMS:EUR"
+      }
+    },
+    "infosys-adr": {
+      "security": "security:figi:BBG001S6ZLV4",
+      "issuer": "issuer:cik:0001067491",
+      "listings": {
+        "INFY@XNYS": "listing:figi:BBG000BSGQL7"
+      }
+    },
+    "ing": {
+      "security": "security:isin:NL0011821202",
+      "issuer": "issuer:lei:549300NYKK9MWM7GGW15",
+      "listings": {
+        "INGA@XAMS": "listing:isin:NL0011821202:XAMS:EUR"
+      }
+    },
+    "ing-adr": {
+      "security": "security:figi:BBG001SB1FR8",
+      "issuer": "issuer:lei:549300NYKK9MWM7GGW15",
+      "listings": {
+        "ING@XNYS": "listing:figi:BBG000BM0LB9"
+      }
+    },
+    "inpost": {
+      "security": "security:isin:LU2290522684",
+      "issuer": "issuer:lei:2221003M23QLERR89585",
+      "listings": {
+        "INPST@XAMS": "listing:isin:LU2290522684:XAMS:EUR"
+      }
+    },
+    "jpm-pc": {
+      "security": "security:provisional:sec:id:JPM-PC",
+      "issuer": "issuer:cik:0000019617",
+      "listings": {
+        "JPM-PC@XNYS": "listing:provisional:sec:ticker:XNYS.JPM-PC"
+      }
+    },
+    "jpmorgan": {
+      "security": "security:figi:BBG001S8CRC3",
+      "issuer": "issuer:cik:0000019617",
+      "listings": {
+        "JPM@XNYS": "listing:figi:BBG000DMBXR2"
+      }
+    },
+    "kenvue": {
+      "security": "security:figi:BBG01C79X614",
+      "issuer": "issuer:cik:0001944048",
+      "listings": {
+        "KVUE@XNYS": "listing:figi:BBG01C79X561"
+      }
+    },
+    "kpn": {
+      "security": "security:isin:NL0000009082",
+      "issuer": "issuer:lei:549300YO0JZHAL7FVP81",
+      "listings": {
+        "KPN@XAMS": "listing:isin:NL0000009082:XAMS:EUR"
+      }
+    },
+    "lakefront": {
+      "security": "security:isin:BE0003818359",
+      "issuer": "issuer:lei:549300QKJ78IY0IOV655",
+      "listings": {
+        "LKFT@XAMS": "listing:isin:BE0003818359:XAMS:EUR"
+      }
+    },
+    "lennar-a": {
+      "security": "security:figi:BBG001S5SRK3",
+      "issuer": "issuer:cik:0000920760",
+      "listings": {
+        "LEN@XNYS": "listing:figi:BBG000BN5HF7"
+      }
+    },
+    "lennar-b": {
+      "security": "security:figi:BBG001SKR1T9",
+      "issuer": "issuer:cik:0000920760",
+      "listings": {
+        "LEN-B@XNYS": "listing:figi:BBG000KKVD81"
+      }
+    },
+    "linde": {
+      "security": "security:figi:BBG01FND0CH6",
+      "issuer": "issuer:cik:0001707925",
+      "listings": {
+        "LIN@XNAS": "listing:figi:BBG01FND0CC1"
+      }
+    },
+    "litecoin": {
+      "security": "security:caip19:bip122:12a765e31ffd4059bada1e25190f6e98/slip44:2",
+      "issuer": null,
+      "listings": {
+        "bip122:12a765e31ffd4059bada1e25190f6e98": "listing:caip19:bip122:12a765e31ffd4059bada1e25190f6e98/slip44:2"
+      }
+    },
+    "logitech": {
+      "security": "security:figi:BBG001S9T9J6",
+      "issuer": "issuer:cik:0001032975",
+      "listings": {
+        "LOGI@XNAS": "listing:figi:BBG000BQNBN4"
+      }
+    },
+    "magnum": {
+      "security": "security:isin:NL0015002MS2",
+      "issuer": "issuer:lei:25490052LLF3XH6G9847",
+      "listings": {
+        "MICC@XAMS": "listing:isin:NL0015002MS2:XAMS:EUR"
+      }
+    },
+    "medtronic": {
+      "security": "security:figi:BBG001S5T2S9",
+      "issuer": "issuer:cik:0001613103",
+      "listings": {
+        "MDT@XNYS": "listing:figi:BBG000BNWG87"
+      }
+    },
+    "meta": {
+      "security": "security:figi:BBG001SQCQC5",
+      "issuer": "issuer:cik:0001326801",
+      "listings": {
+        "META@XNAS": "listing:figi:BBG000MM2P62"
+      }
+    },
+    "microsoft": {
+      "security": "security:figi:BBG001S5TD05",
+      "issuer": "issuer:cik:0000789019",
+      "listings": {
+        "MSFT@XNAS": "listing:figi:BBG000BPH459"
+      }
+    },
+    "moog-a": {
+      "security": "security:figi:BBG001S5T922",
+      "issuer": "issuer:cik:0000067887",
+      "listings": {
+        "MOG-A@XNYS": "listing:figi:BBG000BP7RH6"
+      }
+    },
+    "moog-b": {
+      "security": "security:figi:BBG001S5T931",
+      "issuer": "issuer:cik:0000067887",
+      "listings": {
+        "MOG-B@XNYS": "listing:figi:BBG000BP8360"
+      }
+    },
+    "nepi": {
+      "security": "security:isin:NL0015000RT3",
+      "issuer": "issuer:lei:549300FMWM53K9ULYT15",
+      "listings": {
+        "NRP@XAMS": "listing:isin:NL0015000RT3:XAMS:EUR"
+      }
+    },
+    "news-a": {
+      "security": "security:figi:BBG0035LY922",
+      "issuer": "issuer:cik:0001564708",
+      "listings": {
+        "NWSA@XNAS": "listing:figi:BBG0035LY913"
+      }
+    },
+    "news-b": {
+      "security": "security:figi:BBG0035M2ZC6",
+      "issuer": "issuer:cik:0001564708",
+      "listings": {
+        "NWS@XNAS": "listing:figi:BBG0035M2ZB7"
+      }
+    },
+    "nn": {
+      "security": "security:isin:NL0010773842",
+      "issuer": "issuer:lei:724500OHYNDT9OY6Q215",
+      "listings": {
+        "NN@XAMS": "listing:isin:NL0010773842:XAMS:EUR"
+      }
+    },
+    "nokia-adr": {
+      "security": "security:figi:BBG001SCPCG9",
+      "issuer": "issuer:cik:0000924613",
+      "listings": {
+        "NOK@XNYS": "listing:figi:BBG000BNGBW9"
+      }
+    },
+    "novo-adr": {
+      "security": "security:figi:BBG001S5TSK0",
+      "issuer": "issuer:cik:0000353278",
+      "listings": {
+        "NVO@XNYS": "listing:figi:BBG000BQBKR3"
+      }
+    },
+    "nvidia": {
+      "security": "security:figi:BBG001S5TZJ6",
+      "issuer": "issuer:cik:0001045810",
+      "listings": {
+        "NVDA@XNAS": "listing:figi:BBG000BBJQV0"
+      }
+    },
+    "petrobras-adr": {
+      "security": "security:figi:BBG001SF6W88",
+      "issuer": "issuer:cik:0001119639",
+      "listings": {
+        "PBR@XNYS": "listing:figi:BBG000BS6FX9"
+      }
+    },
+    "petrobras-adr-pref": {
+      "security": "security:figi:BBG001SFJFD5",
+      "issuer": "issuer:cik:0001119639",
+      "listings": {
+        "PBR-A@XNYS": "listing:figi:BBG000BVNV22"
+      }
+    },
+    "pharming": {
+      "security": "security:isin:NL0010391025",
+      "issuer": "issuer:lei:724500DCJ9MPG74JEH91",
+      "listings": {
+        "PHARM@XAMS": "listing:isin:NL0010391025:XAMS:EUR"
+      }
+    },
+    "pharming-adr": {
+      "security": "security:figi:BBG00YN70W58",
+      "issuer": "issuer:lei:724500DCJ9MPG74JEH91",
+      "listings": {
+        "PHAR@XNAS": "listing:figi:BBG00YN70VB3"
+      }
+    },
+    "philips": {
+      "security": "security:isin:NL0000009538",
+      "issuer": "issuer:lei:H1FJE8H61JGM1JSGM897",
+      "listings": {
+        "PHIA@XAMS": "listing:isin:NL0000009538:XAMS:EUR"
+      }
+    },
+    "philips-nyrs": {
+      "security": "security:figi:BBG001S5V5G2",
+      "issuer": "issuer:lei:H1FJE8H61JGM1JSGM897",
+      "listings": {
+        "PHG@XNYS": "listing:figi:BBG000BR4QW0"
+      }
+    },
+    "postnl": {
+      "security": "security:isin:NL0009739416",
+      "issuer": "issuer:lei:724500Q41FHN0P1GPC53",
+      "listings": {
+        "PNL@XAMS": "listing:isin:NL0009739416:XAMS:EUR"
+      }
+    },
+    "prosus": {
+      "security": "security:isin:NL0013654783",
+      "issuer": "issuer:lei:635400Z5LQ5F9OLVT688",
+      "listings": {
+        "PRX@XAMS": "listing:isin:NL0013654783:XAMS:EUR"
+      }
+    },
+    "psa-ph": {
+      "security": "security:provisional:sec:id:PSA-PH",
+      "issuer": "issuer:cik:0001393311",
+      "listings": {
+        "PSA-PH@XNYS": "listing:provisional:sec:ticker:XNYS.PSA-PH"
+      }
+    },
+    "qiagen": {
+      "security": "security:figi:BBG001S91B01",
+      "issuer": "issuer:cik:0001015820",
+      "listings": {
+        "QGEN@XNYS": "listing:figi:BBG000GTYWL7"
+      }
+    },
+    "randstad": {
+      "security": "security:isin:NL0000379121",
+      "issuer": "issuer:lei:7245009EAAUUQJ0U4T57",
+      "listings": {
+        "RAND@XAMS": "listing:isin:NL0000379121:XAMS:EUR"
+      }
+    },
+    "rbc": {
+      "security": "security:figi:BBG001S60869",
+      "issuer": "issuer:cik:0001000275",
+      "listings": {
+        "RY@XNYS": "listing:figi:BBG000BSSC44"
+      }
+    },
+    "relx": {
+      "security": "security:isin:GB00B2B0DG97",
+      "issuer": "issuer:lei:549300WSX3VBUFFJOO66",
+      "listings": {
+        "REN@XAMS": "listing:isin:GB00B2B0DG97:XAMS:GBP"
+      }
+    },
+    "relx-adr": {
+      "security": "security:figi:BBG001S898V8",
+      "issuer": "issuer:lei:549300WSX3VBUFFJOO66",
+      "listings": {
+        "RELX@XNYS": "listing:figi:BBG000BVXCM1"
+      }
+    },
+    "retail-estates": {
+      "security": "security:isin:BE0003720340",
+      "issuer": "issuer:lei:5493007CO5W5OBFG7L21",
+      "listings": {
+        "RET@XAMS": "listing:isin:BE0003720340:XAMS:EUR"
+      }
+    },
+    "rio-adr": {
+      "security": "security:figi:BBG001SB0LX9",
+      "issuer": "issuer:cik:0000863064",
+      "listings": {
+        "RIO@XNYS": "listing:figi:BBG000FD28T3"
+      }
+    },
+    "ryanair-adr": {
+      "security": "security:figi:BBG001SB07J6",
+      "issuer": "issuer:cik:0001038683",
+      "listings": {
+        "RYAAY@XNAS": "listing:figi:BBG000J9CBT0"
+      }
+    },
+    "sanofi-adr": {
+      "security": "security:figi:BBG001S5W768",
+      "issuer": "issuer:cik:0001121404",
+      "listings": {
+        "SNY@XNAS": "listing:figi:BBG000BBD5N1"
+      }
+    },
+    "santander-adr": {
+      "security": "security:figi:BBG001S5WCX7",
+      "issuer": "issuer:cik:0000891478",
+      "listings": {
+        "SAN@XNYS": "listing:figi:BBG000BTJS47"
+      }
+    },
+    "sap-adr": {
+      "security": "security:figi:BBG001S6RD41",
+      "issuer": "issuer:cik:0001000184",
+      "listings": {
+        "SAP@XNYS": "listing:figi:BBG000BDSLD7"
+      }
+    },
+    "sbm": {
+      "security": "security:isin:NL0000360618",
+      "issuer": "issuer:lei:549300RDGCRYZ5QE6513",
+      "listings": {
+        "SBMO@XAMS": "listing:isin:NL0000360618:XAMS:EUR"
+      }
+    },
+    "shell": {
+      "security": "security:isin:GB00BP6MXD84",
+      "issuer": "issuer:lei:21380068P1DRHMJ8KU70",
+      "listings": {
+        "SHELL@XAMS": "listing:isin:GB00BP6MXD84:XAMS:EUR",
+        "RYDAF@OTCM": "listing:isin:GB00BP6MXD84:OTCM:USD"
+      }
+    },
+    "shell-adr": {
+      "security": "security:figi:BBG0147BN6H1",
+      "issuer": "issuer:lei:21380068P1DRHMJ8KU70",
+      "listings": {
+        "SHEL@XNYS": "listing:figi:BBG0147BN6G2"
+      }
+    },
+    "shopify": {
+      "security": "security:figi:BBG004DW5NC7",
+      "issuer": "issuer:cik:0001594805",
+      "listings": {
+        "SHOP@XNAS": "listing:figi:BBG008HBD923"
+      }
+    },
+    "siemens-energy": {
+      "security": "security:figi:BBG00XLWSWN7",
+      "issuer": "issuer:cik:0001830056",
+      "listings": {
+        "SMEGF@OTCM": "listing:figi:BBG00XRT8158"
+      }
+    },
+    "siemens-energy-adr": {
+      "security": "security:figi:BBG01ZY367J5",
+      "issuer": "issuer:cik:0001830056",
+      "listings": {
+        "SMERY@OTCM": "listing:figi:BBG01ZY366L4"
+      }
+    },
+    "signify": {
+      "security": "security:isin:NL0011821392",
+      "issuer": "issuer:lei:549300072P3J1X8NZO35",
+      "listings": {
+        "LIGHT@XAMS": "listing:isin:NL0011821392:XAMS:EUR"
+      }
+    },
+    "smurfit-westrock": {
+      "security": "security:figi:BBG01NJC0037",
+      "issuer": "issuer:cik:0002005951",
+      "listings": {
+        "SW@XNYS": "listing:figi:BBG01NK9ZXT4"
+      }
+    },
+    "solana": {
+      "security": "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "issuer": null,
+      "listings": {
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "listing:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501"
+      }
+    },
+    "solventum": {
+      "security": "security:figi:BBG018YZH6V0",
+      "issuer": "issuer:cik:0001964738",
+      "listings": {
+        "SOLV@XNYS": "listing:figi:BBG018YZH6T3"
+      }
+    },
+    "spotify": {
+      "security": "security:figi:BBG003T4VFD1",
+      "issuer": "issuer:cik:0001639920",
+      "listings": {
+        "SPOT@XNYS": "listing:figi:BBG003T4VFC2"
+      }
+    },
+    "spy": {
+      "security": "security:figi:BBG001S72SM3",
+      "issuer": "issuer:cik:0000884394",
+      "listings": {
+        "SPY@XNYS": "listing:figi:BBG000BDTBL9"
+      }
+    },
+    "stellantis": {
+      "security": "security:figi:BBG0078ZLDH8",
+      "issuer": "issuer:cik:0001605484",
+      "listings": {
+        "STLA@XNYS": "listing:figi:BBG0078ZLDG9"
+      }
+    },
+    "strategy": {
+      "security": "security:figi:BBG001SC7PX1",
+      "issuer": "issuer:cik:0001050446",
+      "listings": {
+        "MSTR@XNAS": "listing:figi:BBG000GQJPZ0"
+      }
+    },
+    "t-pa": {
+      "security": "security:provisional:sec:id:T-PA",
+      "issuer": "issuer:cik:0000732717",
+      "listings": {
+        "T-PA@XNYS": "listing:provisional:sec:ticker:XNYS.T-PA"
+      }
+    },
+    "te-connectivity": {
+      "security": "security:figi:BBG01Q08MMX4",
+      "issuer": "issuer:cik:0001385157",
+      "listings": {
+        "TEL@XNYS": "listing:figi:BBG01Q08MMR1"
+      }
+    },
+    "tesla": {
+      "security": "security:figi:BBG001SQKGD7",
+      "issuer": "issuer:cik:0001318605",
+      "listings": {
+        "TSLA@XNAS": "listing:figi:BBG000N9MNX3"
+      }
+    },
+    "tomtom": {
+      "security": "security:isin:NL0013332471",
+      "issuer": "issuer:lei:724500WAU923OTVC7M86",
+      "listings": {
+        "TOM2@XAMS": "listing:isin:NL0013332471:XAMS:EUR"
+      }
+    },
+    "toyota-adr": {
+      "security": "security:figi:BBG001SDB327",
+      "issuer": "issuer:cik:0001094517",
+      "listings": {
+        "TM@XNYS": "listing:figi:BBG000BPH299"
+      }
+    },
+    "tsmc-adr": {
+      "security": "security:figi:BBG001S5WWW4",
+      "issuer": "issuer:cik:0001046179",
+      "listings": {
+        "TSM@XNYS": "listing:figi:BBG000BD8ZK0"
+      }
+    },
+    "ubs": {
+      "security": "security:figi:BBG007936GX0",
+      "issuer": "issuer:cik:0001610520",
+      "listings": {
+        "UBS@XNYS": "listing:figi:BBG007DJM539"
+      }
+    },
+    "umg": {
+      "security": "security:isin:NL0015000IY2",
+      "issuer": "issuer:lei:724500GJBUL3D9TW9Y18",
+      "listings": {
+        "UMG@XAMS": "listing:isin:NL0015000IY2:XAMS:EUR",
+        "UMGNF@OTCM": "listing:isin:NL0015000IY2:OTCM:USD"
+      }
+    },
+    "umg-adr": {
+      "security": "security:figi:BBG0136GCKW7",
+      "issuer": "issuer:lei:724500GJBUL3D9TW9Y18",
+      "listings": {
+        "UNVGY@OTCM": "listing:figi:BBG0136GCJX9"
+      }
+    },
+    "under-armour-a": {
+      "security": "security:figi:BBG001SJLLQ7",
+      "issuer": "issuer:cik:0001336917",
+      "listings": {
+        "UAA@XNYS": "listing:figi:BBG000BXM6V2"
+      }
+    },
+    "under-armour-c": {
+      "security": "security:figi:BBG009DTD8J0",
+      "issuer": "issuer:cik:0001336917",
+      "listings": {
+        "UA@XNYS": "listing:figi:BBG009DTD8H2"
+      }
+    },
+    "unilever": {
+      "security": "security:isin:GB00BVZK7T90",
+      "issuer": "issuer:lei:549300MKFYEKVRWML317",
+      "listings": {
+        "UNA@XAMS": "listing:isin:GB00BVZK7T90:XAMS:GBP",
+        "UNLYF@OTCM": "listing:isin:GB00BVZK7T90:OTCM:USD"
+      }
+    },
+    "unilever-adr": {
+      "security": "security:figi:BBG001S5X1K4",
+      "issuer": "issuer:lei:549300MKFYEKVRWML317",
+      "listings": {
+        "UL@XNYS": "listing:figi:BBG000BW1442"
+      }
+    },
+    "uniqure": {
+      "security": "security:figi:BBG005SSJYG4",
+      "issuer": "issuer:cik:0001590560",
+      "listings": {
+        "QURE@XNAS": "listing:figi:BBG005SSJYH3"
+      }
+    },
+    "vastned": {
+      "security": "security:isin:BE0003754687",
+      "issuer": "issuer:lei:54930068RSC6OT68NE51",
+      "listings": {
+        "VASTB@XAMS": "listing:isin:BE0003754687:XAMS:EUR"
+      }
+    },
+    "veralto": {
+      "security": "security:figi:BBG019Q32XK7",
+      "issuer": "issuer:cik:0001967680",
+      "listings": {
+        "VLTO@XNYS": "listing:figi:BBG019Q32XJ9"
+      }
+    },
+    "visa": {
+      "security": "security:figi:BBG001SRCFY3",
+      "issuer": "issuer:cik:0001403161",
+      "listings": {
+        "V@XNYS": "listing:figi:BBG000PSKYX7"
+      }
+    },
+    "vopak": {
+      "security": "security:isin:NL0009432491",
+      "issuer": "issuer:lei:724500UL634GFV1KYF10",
+      "listings": {
+        "VPK@XAMS": "listing:isin:NL0009432491:XAMS:EUR"
+      }
+    },
+    "wbd": {
+      "security": "security:figi:BBG011386VG3",
+      "issuer": "issuer:cik:0001437107",
+      "listings": {
+        "WBD@XNAS": "listing:figi:BBG011386VF4"
+      }
+    },
+    "wfc-pl": {
+      "security": "security:provisional:sec:id:WFC-PL",
+      "issuer": "issuer:cik:0000072971",
+      "listings": {
+        "WFC-PL@XNYS": "listing:provisional:sec:ticker:XNYS.WFC-PL"
+      }
+    },
+    "wolters-kluwer": {
+      "security": "security:isin:NL0000395903",
+      "issuer": "issuer:lei:724500TEM53I0U077B74",
+      "listings": {
+        "WKL@XAMS": "listing:isin:NL0000395903:XAMS:EUR",
+        "WOLTF@OTCM": "listing:isin:NL0000395903:OTCM:USD"
+      }
+    },
+    "wolters-kluwer-adr": {
+      "security": "security:figi:BBG001S716G9",
+      "issuer": "issuer:lei:724500TEM53I0U077B74",
+      "listings": {
+        "WTKWY@OTCM": "listing:figi:BBG000BG72K7"
+      }
+    },
+    "xrp": {
+      "security": "security:caip19:xrpl:0/slip44:144",
+      "issuer": null,
+      "listings": {
+        "xrpl:0": "listing:caip19:xrpl:0/slip44:144"
+      }
+    },
+    "zillow-a": {
+      "security": "security:figi:BBG001T0LC50",
+      "issuer": "issuer:cik:0001617640",
+      "listings": {
+        "ZG@XNAS": "listing:figi:BBG000D13GN8"
+      }
+    },
+    "zillow-c": {
+      "security": "security:figi:BBG009NRSWK2",
+      "issuer": "issuer:cik:0001617640",
+      "listings": {
+        "Z@XNAS": "listing:figi:BBG009NRSWJ4"
+      }
+    }
+  }
+}

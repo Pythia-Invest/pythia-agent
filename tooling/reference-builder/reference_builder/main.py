@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import firds, manifest, mic, schema, sec, writer
+from . import firds, manifest, mic, schema, sec, truth_report, writer
 from .assemble import Inputs
 from .config import BUILDER_VERSION, USER_AGENT, BuildConfig, Scope, load_openfigi_key, load_sec_identity, parse_mics
 from .fetch import Downloader, log, utc_now
@@ -88,9 +88,11 @@ def run(config: BuildConfig) -> int:
     stamp = config.as_of.strftime("%Y%m%d")
     build_id = f"reference-{stamp}"
     meta = {"build_id": build_id, "schema_version": str(schema.SCHEMA_VERSION), "builder_version": BUILDER_VERSION,
-            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics or ["EEA"]) + (",US" if config.scope.sec else "")}
+            "as_of": config.as_of.isoformat(), "created_at": started, "scope": ",".join(config.scope.mics or ["EEA"]) + (",US" if config.scope.sec else ""),
+            "cfi_prefixes": ",".join(config.scope.cfi_prefixes)}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)
+    truth_audit = truth_report.build_report(snapshot_path, config.scope.cfi_prefixes, log)  # a report, never a gate
     manifest.write_manifest(config.out_dir / "manifest.json", {
         "build_id": build_id,
         "schema_version": schema.SCHEMA_VERSION,
@@ -107,6 +109,7 @@ def run(config: BuildConfig) -> int:
         "gleif_api_calls": gleif.calls,
         "audit": snap.audit,
         "canaries": canaries,
+        "truth_audit": truth_audit,
     })
     log(f"wrote {snapshot_path} ({counts.get('listings', 0)} listings) in {time.monotonic() - clock:.0f}s")
     return 1 if failed else 0
