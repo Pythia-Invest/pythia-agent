@@ -65,7 +65,7 @@ class Fixture(unittest.TestCase):
         self.tmp.cleanup()
 
     def lookups(self, subject_id):
-        coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+        coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         stored = {(r["subject_id"], r["provider"]): r for r in self.identity.bindings([subject_id], ("confirmed",))}
         return {"stored": lambda target, provider: stored.get((target, provider)),
                 "coins": lambda provider, caip19: coins.get((provider, caip19)), "queue": []}
@@ -477,6 +477,16 @@ class MarketPages(Fixture):
         self.assertEqual(page.compose(subject, [disabled], stored=lambda *_: None, coins=lambda *_: None,
                                       queue=[])[0]["status"], "disabled")
         self.assertIsNone(markets.load_market(self.table, "market:pythia:unknown"))
+
+    def test_every_underlying_is_a_canonical_asset_subject(self):
+        """A re-key of the curated crypto assets must not leave a perp pointing at a dead subject."""
+        core = Path(page.__file__).parent
+        canonical = {f"security:caip19:{asset['caip19']}"
+                     for asset in json.loads((core / "canonical_assets.json").read_text())["assets"]}
+        for entry in self.table.values():
+            with self.subTest(market=entry["id"]):
+                self.assertIn(entry["derivative_on"]["id"], canonical)
+        self.assertIn(BTC, canonical)
 
     def test_the_underlying_links_to_its_perp_but_composes_without_it(self):
         _subject, sections = self.compose(BTC, [self.hyperliquid, plugin("coingecko")])

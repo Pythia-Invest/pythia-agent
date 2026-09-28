@@ -38,7 +38,7 @@ reference `release` table):
 | Level | ID, first available key wins |
 | --- | --- |
 | Issuer | `issuer:lei:<LEI>`, else `issuer:cik:<CIK>` |
-| Security | `security:isin:<ISIN>`, else `security:figi:<share-class FIGI>`, else `security:caip19:<home deployment>` |
+| Security | `security:isin:<ISIN>`, else `security:figi:<share-class FIGI>`, else `security:caip19:<canonical deployment>` of a curated crypto asset (see the crypto-keys amendment) |
 | Composite | the security key plus country, e.g. `composite:figi:BBG001SCG0R3:US` |
 | Listing | `listing:isin:<ISIN>:<operating MIC>:<currency>`, else `listing:figi:<FIGI>`, else `listing:caip19:<deployment>` |
 
@@ -108,10 +108,10 @@ as a conflict. A record has at most one `self` value per single-valued scheme
 (every scheme but `ticker_mic`).
 
 **Crypto.** Provider coin ids are bindings; symbols and names never join.
-Tokens join on CAIP-2 chain plus contract. Native coins share no identifier
-across providers, so they join only through core's curated native-coin table
-(rule `native_coins@1`) or a queue verdict. A chain's fee coin is not identity,
-and wrapped tokens are separate assets linked by `wraps`.
+A crypto security's key comes only from core's curated canonical-asset table
+(rule `canonical_assets@1`, see the crypto-keys amendment); a token deployment
+(a listing) joins on CAIP-2 chain plus contract. A chain's fee coin is not
+identity, and wrapped tokens are separate assets linked by `wraps`.
 
 **Authorities.** Plugins never choose a tier; core derives it from the
 authority.
@@ -329,13 +329,13 @@ Relations never merge subjects. Each relation type declares one behaviour:
 
 | Behaviour | Meaning | Types |
 | --- | --- | --- |
-| `fold` | Sameness across distinct securities, which must be shown together | `depositary_receipt_of`, `native_deployment_of` |
+| `fold` | Sameness across distinct securities, which must be shown together | `depositary_receipt_of` |
 | `related` | Different things, shown nearby as links and never folded | `share_class_of`, `wraps`, `bridged_from`, `staked_as`, `tracks`, `derivative_on`, `tokenized_from`, `successor_of` |
 
 - **Instrument.** An instrument is a security plus every security folded into
-  it: its depositary receipts and registry lines, and later a chain's native
-  issuance of a curated crypto asset (M2 settles which deployments are
-  separate securities). An equity page's listing selector lists the
+  it: its depositary receipts and registry lines. A curated crypto asset's
+  other chain deployments are its listings, not folded securities (see the
+  crypto-keys amendment below). An equity page's listing selector lists the
   instrument's lines.
 - **Search group.** A search group is the investable entity:
   - the company, for its equity securities (share classes and preferreds
@@ -367,3 +367,108 @@ rule replaces grouping cases per asset class.
   funds and notes under their issuer (one bank issues 44 ETNs).
 - **Enumerations in persistent SQL CHECKs:** rejected, because each addition
   would need a table rebuild on every device.
+
+## Amendment (2026-09-28): crypto keys do not depend on the installed provider
+
+The key `security:caip19:<home deployment>` left the home undefined. The
+obvious source, CoinGecko's `asset_platform_id`, makes a multi-chain token's
+ID depend on whether CoinGecko is installed and on what it says that day.
+CoinMarketCap's primary platform is not reliable either: it names ZKsync for
+USDC. A CoinGecko install and a CoinMarketCap install would then mint two IDs
+for one USDC, and aliases cannot repair that across installs. Nothing was
+minted under the old wording, so this amendment settles it now. It supersedes
+the "home deployment" wording in the Subject IDs table and in `subject_id`,
+and the native-coin table (`native_coins@1`) under "Crypto".
+
+### Ruling
+
+- **Curated key source.** Core's curated table
+  `runtime/managed/core/identity/canonical_assets.json` (rule
+  `canonical_assets@1`) is the only source of a portable crypto key. It is
+  Pythia-authored, versioned and open-hostable. Each row gives:
+  - the asset's **canonical deployment**, which is its key:
+    `security:caip19:<deployment>`. It is chosen from issuer facts only,
+    never from a provider's opinion (primary platform, platform order, rank):
+    - a token: the issuer's original deployment; if the issuer has
+      discontinued it, the earliest deployment the issuer still supports;
+    - a native coin: the chain whose protocol issues it; where several chains
+      do (AVAX), a curator choice recorded in the audit.
+    Only a deployment with a published CAIP-19 profile can be the key. Once
+    chosen, the key never follows supply to another chain.
+  - the **deployments that are the same security**: the issuer's own issuance
+    on other chains (Circle's native USDC, Paxos's PYUSD), and ETH on a rollup
+    through its canonical bridge. They are listings
+    (`listing:caip19:<deployment>`) of that one security.
+  - each provider's **coin id**, as a binding.
+  Native coins are rows of the same table.
+- **Wrapped and bridged copies** (WBTC, WETH, USDC.e, USDT0, Binance-Peg
+  tokens) are never deployments. They are separate assets linked by `wraps`
+  or `bridged_from`.
+- **Uncurated coins.** A coin that no row names gets
+  `security:provisional:<provider>:coin:<id>` (as a resolve residual mints
+  it today). That ID is declared non-portable. Only the reference build mints
+  a security-level `caip19` key, from this table; claim ingestion must keep
+  that rule in code when it lands. When the asset is curated, the build writes each of
+  its provider IDs to `id_aliases`, so the old ID still resolves.
+- **Provider groupings are claims.** A provider's platform list and primary
+  chain may conflict with the table, and they never set a key. Symbols and
+  names never join.
+- **Data trust.** Every row cites a primary source: the issuer's contract
+  list, or the chain's CAIP-2 profile plus its SLIP-0044 coin type. The
+  evidence is in `tooling/reference-builder/truth/canonical-assets-audit.md`.
+  `just canonical-assets-drift` fails when a provider's id for a curated asset
+  stops resolving, drops a curated deployment, changes its contract, or
+  assigns the contract to another coin id.
+- **Namespaces minted.** Only published CAIP-19 asset profiles are used:
+  `slip44`, `erc20`, Solana `token`, and the Stellar, XRPL and Hedera profiles
+  once rows use them.
+
+### Pythia-local identifier profiles (recorded, not minted yet)
+
+These profiles are non-standard. If ChainAgnostic publishes an official
+profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
+
+- **Sui.** The chain is `sui:mainnet` (the draft ChainAgnostic profile), and
+  native SUI is `sui:mainnet/slip44:784`.
+  - A coin type is `sui:mainnet/coin:<type>`, where `<type>` is the coin type
+    with its address in 64-hex long form and each `::` percent-encoded as
+    `%3A%3A`. For example:
+    `sui:mainnet/coin:0xdba3…00e7%3A%3Ausdc%3A%3AUSDC`.
+  - A type whose reference would exceed CAIP-19's 128 characters gets no
+    `caip19` key. Generic types such as `…::lp::LP<A, B>` are the usual
+    case. Such a type keeps a provisional ID.
+- **HyperCore.** HyperCore is a venue, not a chain for identity: a CAIP-2
+  namespace has 3–8 characters, and HyperCore has none.
+  - A HyperCore spot token binds through its linked HyperEVM contract
+    (`eip155:999/erc20:<address>`) where one exists.
+  - Otherwise it keeps a provisional ID in the `hypercore` scope, keyed by its
+    16-byte token id.
+
+### Consequences
+
+- The reference format moves to version 3 (`reference_package.FORMAT_VERSION`,
+  also the database's schema version): the table `canonical_assets` replaces
+  `native_coins`. Core skips a format-2 reference, so the device needs a
+  format-3 package, built or imported. On the first read after it is
+  installed, the lifecycle re-key moves provisional coin subjects to their
+  curated IDs through `id_aliases`.
+- The relation `native_deployment_of` is removed, because a same-security
+  deployment is a listing.
+- The seed grows from 6 native coins to 25 native coins and 9 tokens.
+- CoinMarketCap rows in `provider_chains` use the connector's network key
+  (`coin:<chain coin id>:<name>`), because two chains can share a coin id.
+- A CoinGecko-only install and a CoinMarketCap-only install mint the same ID
+  for every curated asset. A test proves this.
+- Tron and TON token deployments have no published asset profile and wait for
+  one. The same holds for USDC on Sui, Stellar, Hedera and XRPL. On Stellar,
+  the two providers also use different identifiers for USDC.
+
+### Rejected alternatives
+
+- **Keying by a provider's primary platform, with a curated override.** The ID
+  would still depend on the installed provider.
+- **Separate securities per native deployment, folded together.** This adds
+  subjects and a relation, and changes nothing a listing does not already do.
+- **Merging along a provider's asset grouping.** Providers fold bridged pegs
+  and sentinel addresses into the parent asset, and they disagree with each
+  other.
