@@ -13,6 +13,7 @@ from typing import Any
 
 from .agent_tools import (SOURCE, SUBJECT, choose, concept_sources, encode, failure, label, logger, plugins, run_tool,
                           serving, source_key, unknown_source)
+from .identity.concepts import FilingKind
 from .identity.page import Section
 from .identity.schemes import Level
 
@@ -46,13 +47,19 @@ FILINGS = {
     "description": "Company filings: annual report, 10-K, 20-F, ESEF. Regulatory filings of a company, newest first, "
                    "from one connected source per filing authority "
                    "(SEC EDGAR; ESEF reports on filings.xbrl.org), with form, filing date, period end, document link "
-                   "and source. Filter by form (10-K, 20-F, AFR…) and date. Pass any subject of the company. For "
+                   "and source. Filter by kind (annual, quarterly, earnings_release…), form (10-K, 20-F, AFR…) and "
+                   "date. Items sharing a report_key are versions of one report; items sharing report_period are "
+                   "parallel reports of one period under other authorities. Pass any subject of the company. For "
                    "reported numbers inside a filing, use that source's provider tool (sec_fundamentals, esef_fundamentals).",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT,
         "forms": {"type": "array", "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 16},
                   "description": "Only these forms (10-K, 20-F, ESEF; AFR or annual for annual reports); an "
                                  "amendment matches its form. Sources search beyond their most recent filings."},
+        "kinds": {"type": "array", "maxItems": 8,
+                  "items": {"type": "string", "enum": [kind.value for kind in FilingKind]},
+                  "description": "Only these kinds. Forms 3, 4, 5, 144 and 13G are left out unless ownership "
+                                 "is named."},
         "since": {"type": "string", "format": "date", "description": "Only filings dated on or after this date."},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50},
         "source": SOURCE},
@@ -276,23 +283,28 @@ def filings(ctx: Any, arguments: dict, **context: Any) -> str:
     the projection and the bound."""
     subject_id, wanted = str(arguments.get("subject_id") or ""), arguments.get("source")
     forms = [str(item) for item in arguments.get("forms") or []][:8]
+    kinds = [str(item) for item in arguments.get("kinds") or []][:8]
     since, limit = arguments.get("since"), max(1, min(int(arguments.get("limit") or 20), 50))
     infos = plugins()
     use = source_key(wanted, infos) if wanted is not None else None
     if wanted is not None and use is None:
         return encode(unknown_source(wanted, infos))
     result = run_tool(ctx, COMBINED_FILINGS, {"subject_id": subject_id, **({"use": use} if use else {}),
-                                              **({"forms": forms} if forms else {})}, context)
+                                              **({"forms": forms} if forms else {}),
+                                              **({"kinds": kinds} if kinds else {})}, context)
     data = result.get("data")
     if not isinstance(data, dict) or not isinstance(data.get("filings"), list):
         return encode(result)
     rows = [row for row in data["filings"] if isinstance(row, dict)]
     matched = [row for row in rows if not since or str(row.get("date") or row.get("period_end") or "") >= since]
-    keep = ("form", "date", "date_basis", "period_end", "title", "url", "id", "authority", "source")
+    keep = ("kind", "form", "date", "date_basis", "filed_time", "period_end", "title", "event_codes", "url", "id",
+            "authority", "basis", "report_period", "report_key", "source")
     outcome = result.get("outcome", "error")
     out = {"schema_version": 1, "outcome": "empty" if rows and not matched else outcome,
-           "subject_id": data.get("subject_id", subject_id), "sources": data.get("sources", []),
-           "filings": [{key: row[key] for key in keep if row.get(key) is not None} for row in matched[:limit]],
+           "subject_id": data.get("subject_id", subject_id),
+           "sources": [{key: value for key, value in item.items() if key != "authorities"}  # 27 for filings.xbrl.org
+                       for item in data.get("sources", []) if isinstance(item, dict)],
+           "filings": [{key: row[key] for key in keep if row.get(key) not in (None, [])} for row in matched[:limit]],
            "coverage": {"matched": len(matched), "listed": len(rows)}, "partial": bool(data.get("partial")),
            "alternatives": data.get("alternatives", []), "skipped": data.get("skipped", []),
            "issues": result.get("issues", [])}

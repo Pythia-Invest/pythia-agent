@@ -275,8 +275,9 @@ addressing (the full shape is in the ADR 0038 amendment):
 - Coverage decides where the source can serve: selection drops a source whose
   coverage excludes the subject, so investors never configure it. Declare
   honestly; qualities are claims, not proof of an account's entitlements.
-- A filings source lists the `authorities` it serves (`sec`, `esma`, `fca`,
-  `sedar`); core combines one source per authority.
+- A filings source lists the `authorities` it serves (`sec`, `fca`, `sedar`,
+  and `oam-<country>` per EEA national mechanism); core combines one source per
+  authority. Its rows tag each filing's `kind` from core's vocabulary.
 - A market-wide concept (`market_movers`) is about no subject, so its entry
   names `operations` only, without `level` or `via`:
   `"market_movers": {"operations": {"gainers": "movers", "losers": "movers"}}`.

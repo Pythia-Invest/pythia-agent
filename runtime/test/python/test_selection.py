@@ -10,7 +10,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from test_concepts import APPLE, PLUGINS, SUBJECTS
+from test_concepts import APPLE, MECHANISMS as XBRL_MECHANISMS, PLUGINS, SUBJECTS
 from test_identity_contracts import identity, load, load_reference
 from pythia_identity_fixture import filings, page, store  # noqa: E402
 
@@ -132,18 +132,18 @@ class SelectionTest(Reference):
                                                operations={"filings": "mirror_filings"})]
         filings = self.sections("asml_xams", plugins)["filings"]
         self.assertEqual([(item["plugin"], item["authorities"]) for item in filings["sources"]],
-                         [("pythia-xbrl-filings", ["esma", "fca"]), ("pythia-sec", ["sec"])])
+                         [("pythia-xbrl-filings", XBRL_MECHANISMS), ("pythia-sec", ["sec"])])
         [also] = filings["alternatives"]
         self.assertEqual((also["plugin"], also["request"]["arguments"]["use"]), ("pythia-secmirror", "pythia-secmirror"))
         self.assertEqual(filings["label"], "filings.xbrl.org + SEC EDGAR")
 
     def test_select_is_a_plain_filter(self):
         entries = [{"plugin": "a", "status": "disabled", "authorities": ["sec"]},
-                   {"plugin": "b", "status": "ready", "authorities": ["esma", "fca"]},
+                   {"plugin": "b", "status": "ready", "authorities": ["oam-nl", "fca"]},
                    {"plugin": "c", "status": "ready", "authorities": ["sec"]},
                    {"plugin": "d", "status": "resolving", "authorities": ["sec"]}]
         chosen, alternatives, skipped = identity.concepts.select(entries, combine=identity.Combine.PER_AUTHORITY)
-        self.assertEqual([(entry["plugin"], served) for entry, served in chosen], [("b", ("esma", "fca")), ("c", ("sec",))])
+        self.assertEqual([(entry["plugin"], served) for entry, served in chosen], [("b", ("oam-nl", "fca")), ("c", ("sec",))])
         self.assertEqual(([e["plugin"] for e in alternatives], [e["plugin"] for e in skipped]), (["d"], ["a"]))
         chosen, alternatives, _ = identity.concepts.select(entries)
         self.assertEqual((chosen[0][0]["plugin"], [e["plugin"] for e in alternatives]), ("b", ["c", "d"]))
@@ -171,7 +171,7 @@ class SelectionTest(Reference):
 class FilingsMergeTest(unittest.TestCase):
     SEC = {"plugin": "pythia-sec", "provider": "sec", "label": "SEC EDGAR", "authorities": ["sec"]}
     XBRL = {"plugin": "pythia-xbrl-filings", "provider": "xbrl-filings", "label": "filings.xbrl.org",
-            "authorities": ["esma", "fca"]}
+            "authorities": ["oam-nl", "fca"]}
 
     def sec(self):
         return {"schema_version": 1, "outcome": "ok", "data": {"source": {"url": "https://www.sec.gov/x"}, "filings": [
@@ -188,31 +188,66 @@ class FilingsMergeTest(unittest.TestCase):
              "filed_at": None, "period_end": "2024-12-31", "url": "https://filings.xbrl.org/s"}]}}
 
     def test_sources_merge_newest_first_each_item_tagged(self):
-        merged = filings.merge_filings([(self.XBRL, ("esma", "fca"), self.xbrl(), None), (self.SEC, ("sec",), self.sec(), None)])
+        merged = filings.merge_filings([(self.XBRL, ("oam-nl", "fca"), self.xbrl(), None), (self.SEC, ("sec",), self.sec(), None)])
         self.assertEqual([(item["form"], item["authority"], item["source"]) for item in merged["filings"]],
-                         [("6-K", "sec", "SEC EDGAR"), ("20-F", "sec", "SEC EDGAR"), ("ESEF", "esma", "filings.xbrl.org"),
+                         [("6-K", "sec", "SEC EDGAR"), ("20-F", "sec", "SEC EDGAR"), ("ESEF", "oam-nl", "filings.xbrl.org"),
                           ("UKSEF", "fca", "filings.xbrl.org")])
         self.assertEqual((merged["partial"], merged["skipped"]), (False, []))
-        self.assertEqual(set(merged["filings"][0]), {"id", "form", "title", "filed_at", "period_end", "date", "date_basis",
-                                                     "url", "authority", "source", "provider", "plugin"})
+        self.assertEqual(set(merged["filings"][0]), {
+            "id", "kind", "form", "title", "filed_at", "filed_time", "period_end", "date", "date_basis", "event_codes",
+            "basis", "language", "format", "parties", "url", "authority", "report_period", "report_key", "source",
+            "provider", "plugin"})
+
+    def test_a_report_is_one_period_under_one_authority_and_parallel_reports_share_the_period(self):
+        sec, xbrl = self.sec(), self.xbrl()
+        sec["data"]["filings"][0].update(kind="annual", basis="us_gaap")
+        sec["data"]["filings"].append({**sec["data"]["filings"][0], "accession": "0000937966-26-000030", "form": "20-F/A"})
+        xbrl["data"]["filings"][0]["kind"] = "annual"
+        xbrl["data"]["filings"].append({**xbrl["data"]["filings"][0], "report_id": "3", "accession": "c" * 64,
+                                        "country": "GB"})  # the same ESEF report collected by the UK mechanism
+        merged = filings.merge_filings([(self.XBRL, ("oam-nl", "fca"), xbrl, None), (self.SEC, ("sec",), sec, None)],
+                                       issuer="issuer:lei:X")
+        items = {(item["form"], item["authority"]): item for item in merged["filings"]}
+        annual, amended, esef = items[("20-F", "sec")], items[("20-F/A", "sec")], items[("ESEF", "oam-nl")]
+        self.assertEqual(annual["report_key"], "issuer:lei:X|annual|2025-12-31|sec")
+        self.assertEqual(amended["report_key"], annual["report_key"])  # an amendment is a version of the report
+        self.assertEqual((annual["basis"], esef["basis"]), ("us_gaap", None))  # an attribute, never the identity
+        self.assertEqual(esef["report_key"], "issuer:lei:X|annual|2025-12-31|oam-nl")
+        self.assertNotEqual(esef["report_key"], items[("ESEF", "fca")]["report_key"])
+        self.assertEqual({item["report_period"] for item in (annual, esef, items[("ESEF", "fca")])},
+                         {"issuer:lei:X|annual|2025-12-31"})  # parallel reports of one period
+        self.assertEqual((items[("6-K", "sec")]["report_key"], items[("6-K", "sec")]["report_period"]), (None, None))
+        self.assertEqual(len(merged["filings"]), 6)  # neither versions nor parallels are merged
+
+    def test_kinds_filter_and_an_unknown_kind_or_mechanism(self):
+        sec, xbrl = self.sec(), self.xbrl()
+        sec["data"]["filings"][0].update(kind="annual", accepted_at="2026-02-11T21:05:00Z")
+        sec["data"]["filings"][1]["kind"] = "bulletin"
+        xbrl["data"]["filings"][0]["country"] = "UA"  # a country Pythia names no mechanism for
+        merged = filings.merge_filings([(self.XBRL, ("oam-nl", "fca"), xbrl, None), (self.SEC, ("sec",), sec, None)])
+        self.assertEqual([(item["form"], item["kind"]) for item in merged["filings"]],
+                         [("6-K", "other"), ("20-F", "annual"), ("UKSEF", "other")])
+        self.assertEqual(merged["filings"][1]["filed_time"], "2026-02-11T21:05:00Z")
+        annual = filings.merge_filings([(self.SEC, ("sec",), sec, None)], kinds=["annual"])
+        self.assertEqual([item["form"] for item in annual["filings"]], ["20-F"])
 
     def test_esef_reports_sort_by_their_indexed_date_and_forms_filter_with_aliases(self):
         xbrl = self.xbrl()
         xbrl["data"]["filings"][0]["indexed_at"] = "2026-03-04"  # filings.xbrl.org has no filing date
-        merged = filings.merge_filings([(self.XBRL, ("esma", "fca"), xbrl, None), (self.SEC, ("sec",), self.sec(), None)])
+        merged = filings.merge_filings([(self.XBRL, ("oam-nl", "fca"), xbrl, None), (self.SEC, ("sec",), self.sec(), None)])
         self.assertEqual([(item["form"], item["date"], item["date_basis"]) for item in merged["filings"]],
                          [("6-K", "2026-04-15", "filed"), ("ESEF", "2026-03-04", "indexed"),
                           ("20-F", "2026-02-11", "filed"), ("UKSEF", "2024-12-31", "period_end")])
-        annual = filings.merge_filings([(self.XBRL, ("esma", "fca"), xbrl, None), (self.SEC, ("sec",), self.sec(), None)],
+        annual = filings.merge_filings([(self.XBRL, ("oam-nl", "fca"), xbrl, None), (self.SEC, ("sec",), self.sec(), None)],
                                        forms=["annual"])
         self.assertEqual([item["form"] for item in annual["filings"]], ["ESEF", "20-F", "UKSEF"])
         self.assertEqual([item["form"] for item in filings.merge_filings(
-            [(self.XBRL, ("esma",), xbrl, None)], forms=["AFR"])["filings"]], ["ESEF"])
+            [(self.XBRL, ("oam-nl",), xbrl, None)], forms=["AFR"])["filings"]], ["ESEF"])
 
     def test_a_source_that_does_not_know_the_entity_lists_nothing_and_is_not_a_failure(self):
         unknown = {"schema_version": 1, "outcome": "error", "data": None,
                    "issues": [{"code": "missing_observation", "message": "The provider did not return an observation."}]}
-        merged = filings.merge_filings([(self.XBRL, ("esma", "fca"), unknown, None), (self.SEC, ("sec",), self.sec(), None)])
+        merged = filings.merge_filings([(self.XBRL, ("oam-nl", "fca"), unknown, None), (self.SEC, ("sec",), self.sec(), None)])
         self.assertEqual((merged["partial"], merged["skipped"], len(merged["sources"])), (False, [], 2))
 
     def test_an_incomplete_source_keeps_its_rows_and_marks_the_list_partial(self):
@@ -224,17 +259,17 @@ class FilingsMergeTest(unittest.TestCase):
                          [("incomplete", "Older SEC filings could not be searched.")])
 
     def test_an_authority_another_source_serves_is_left_out(self):
-        merged = filings.merge_filings([(self.XBRL, ("esma",), self.xbrl(), None)])
+        merged = filings.merge_filings([(self.XBRL, ("oam-nl",), self.xbrl(), None)])
         self.assertEqual([item["form"] for item in merged["filings"]], ["ESEF"])
 
     def test_a_failed_source_is_skipped_and_the_list_partial(self):
         failed = {"schema_version": 1, "outcome": "error", "data": None,
                   "issues": [{"code": "rate_limit", "message": "SEC is rate limited."}]}
-        merged = filings.merge_filings([(self.XBRL, ("esma", "fca"), self.xbrl(), None), (self.SEC, ("sec",), failed, None)])
+        merged = filings.merge_filings([(self.XBRL, ("oam-nl", "fca"), self.xbrl(), None), (self.SEC, ("sec",), failed, None)])
         self.assertTrue(merged["partial"])
         self.assertEqual(merged["skipped"], [{"source": "SEC EDGAR", "provider": "sec", "plugin": "pythia-sec",
                                               "code": "failed", "reason": "SEC is rate limited."}])
-        self.assertEqual({item["authority"] for item in merged["filings"]}, {"esma", "fca"})
+        self.assertEqual({item["authority"] for item in merged["filings"]}, {"oam-nl", "fca"})
 
 
 class CoreReadsTest(Reference):
@@ -262,7 +297,8 @@ class CoreReadsTest(Reference):
         def dispatch(tool, sent, cancelled=None):
             self.sent[tool] = sent
             return json.dumps(answers[tool])
-        schemas = {"pythia_sec_filings": {"parameters": {"properties": {"native_ref": {}, "limit": {}, "forms": {}}}}}
+        schemas = {"pythia_sec_filings": {"parameters": {"properties": {"native_ref": {}, "limit": {}, "forms": {},
+                                                                        "kinds": {}}}}}
         registry = types.SimpleNamespace(dispatch=dispatch, get_schema=schemas.get)
         with unittest.mock.patch.dict("sys.modules", {"tools": types.ModuleType("tools"),
                                                       "tools.registry": types.SimpleNamespace(registry=registry)}), \
@@ -277,6 +313,11 @@ class CoreReadsTest(Reference):
         self.assertEqual(self.sent["pythia_sec_filings"]["forms"], ["10-K", "20-F", "40-F", "ESEF", "UKSEF"])
         self.assertNotIn("forms", self.sent["pythia_xbrl_filings_filings"])  # its schema takes no forms
         self.assertEqual([item["form"] for item in body["data"]["filings"]], ["20-F", "ESEF", "UKSEF"])
+        by_kind = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": merge.sec()},
+                            kinds=["quarterly"])
+        self.assertEqual(self.sent["pythia_sec_filings"]["kinds"], ["quarterly"])
+        self.assertNotIn("kinds", self.sent["pythia_xbrl_filings_filings"])
+        self.assertEqual(by_kind["outcome"], "empty")  # core filters every answer by kind
         named = self.read({"pythia_sec_filings": merge.sec(), "pythia_xbrl_filings_filings": merge.xbrl()}, use="edgar")
         self.assertEqual(named["outcome"], "ok")
         self.assertEqual(self.read({}, use="bloomberg")["outcome"], "empty")
