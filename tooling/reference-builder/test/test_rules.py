@@ -45,9 +45,11 @@ class PrimaryVenueTest(unittest.TestCase):
     def test_uk_issuer_without_home_evidence_keeps_firds(self):
         self.assertEqual(rules.primary_venue("GB00BP6MXD84", "XAMS", False, [figi_row("0QB8", "LN", "F1", "S1")])[:2], ("XAMS", "firds_relevant_venue"))
 
-    def test_frankfurt_floor_moves_to_xetra_only_with_a_live_xetra_line(self):
+    def test_a_german_floor_moves_to_xetra_only_with_a_live_xetra_line(self):
         self.assertEqual(rules.primary_venue("DE0007164600", "XFRA", True, [])[0], "XETR")
         self.assertEqual(rules.primary_venue("DE0007164600", "XFRA", False, [])[0], "XFRA")
+        self.assertEqual(rules.primary_venue("DE000FRE5EN2", "XDUS", True, [])[:2], ("XETR", "german_floor_to_xetra"))
+        self.assertEqual(rules.primary_venue("DE000FRE5EN2", "TGAT", True, [])[0], "TGAT")  # not a floor exchange
 
     def test_eea_issuer_keeps_firds_even_with_us_lines(self):
         fanout = [figi_row("ASML", "UW", "F1", "S2")]
@@ -75,6 +77,15 @@ class NamesAndClassesTest(unittest.TestCase):
         self.assertEqual(rules.split_ticker("BRK/B"), ("BRK", "B"))
         self.assertEqual(rules.split_glued_class("NCCA", "NCC AB/SH A"), ("NCC", "A"))
         self.assertIsNone(rules.split_glued_class("ASML", "ASML HOLDING/SH"))
+        self.assertEqual(rules.split_glued_class("CARLB", "Carlsberg AS/B Aktie"), ("CARL", "B"))
+        self.assertIsNone(rules.split_glued_class("KRY", "KRY/SHS VTG FPD EUR 0.125"))
+
+    def test_nasdaq_nordic_writes_the_class_after_a_space(self):
+        self.assertEqual(rules.exchange_ticker("VOLV", "B", "XSTO"), "VOLV B")
+        self.assertEqual(rules.exchange_ticker("NOVO", "B", "XCSE"), "NOVO B")
+        self.assertIsNone(rules.exchange_ticker("BRK", "B", "XNYS"))
+        self.assertIsNone(rules.exchange_ticker("KESKO", "B", "XHEL"))  # Helsinki keeps KESKOB
+        self.assertIsNone(rules.exchange_ticker("ASML", None, "XAMS"))
 
     def test_sec_non_share_lines_are_labelled(self):
         self.assertEqual(rules.sec_row_class("Common Stock", "AAPL"), "share")
@@ -94,7 +105,11 @@ class DisplayNameTest(unittest.TestCase):
                  ("COMPAGNIE DE SAINT-GOBAIN", ""): "Compagnie de Saint-Gobain", ("THE MAGNUM ICE CREAM COMPANY N.V.", ""):
                  "The Magnum Ice Cream Company N.V.", ("O'REILLY AUTOMOTIVE INC", ""): "O'Reilly Automotive Inc",
                  ("SHELL PLC", "SHELL"): "Shell PLC",
-                 ("JPMORGAN CHASE & CO", "JPM"): "JPMorgan Chase & Co"}
+                 ("JPMORGAN CHASE & CO", "JPM"): "JPMorgan Chase & Co",
+                 ("NESTLÉ S.A.", ""): "Nestlé S.A.", ("A.P. MØLLER - MÆRSK A/S", "MAERSK"): "A.P. Møller - Mærsk A/S",
+                 ("INDUSTRIA DE DISEÑO TEXTIL, S.A.", ""): "Industria de Diseño Textil, S.A.",
+                 ("ORLEN SPÓŁKA AKCYJNA", ""): "Orlen Spółka Akcyjna",
+                 ("TÜRKİYE HALK BANKASI", ""): "Türkiye Halk Bankasi"}
         for (name, ticker), shown in cases.items():
             self.assertEqual(rules.display_case(name, frozenset({ticker})), shown)
 

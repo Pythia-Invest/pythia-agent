@@ -21,6 +21,7 @@
       "XAMS": ".AS",
       "XBRU": ".BR",
       "XLIS": ".LS",
+      "XMIL": ".MI",
       "XDUB": ".IR",
       "XOSL": ".OL",
       "XPAR": ".PA",

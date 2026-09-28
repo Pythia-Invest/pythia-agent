@@ -34,7 +34,9 @@ assertion, never a key, so those securities are keyed by share-class FIGI and
 listings by FIGI. `id_aliases` maps every other key a subject could have had
 (ISIN-, FIGI-, LEI- or CIK-based) to its ID; an alias that is itself a subject,
 or names two subjects, is dropped and counted. Identifier assertions carry
-authority `snapshot`. It also carries core's curated native-coin seed
+authority `snapshot`. Venues carry their ISO 10383 market category (`RMKT`,
+`MLTF`…), which search uses to prefer a regulated listing over open-market
+trading. It also carries core's curated native-coin seed
 (`runtime/managed/core/identity/native_coins.json`: chains, provider chain ids
 and each provider's coin id for BTC, ETH, SOL and a few other native coins), so
 search finds those coins without a provider. Securities carry a notability
@@ -88,26 +90,49 @@ table under `writer_ignored`.
 - **Primary venue.** Start from the FIRDS relevant venue. For a non-EEA ISIN
   with a real home-exchange line in OpenFIGI, use the home exchange (Shell and
   Unilever move to XLON). A US ISIN's primary is its first US exchange line
-  from the SEC or the symbol directory: OpenFIGI shows US lines on every US
-  exchange, so it cannot name the home one. Move Frankfurt floor to Xetra when
-  a live Xetra line exists. Known debatable results in the XAMS build: DSM-Firmenich moves to
+  from the SEC: OpenFIGI shows US lines on every US exchange, so it cannot name
+  the home one. A non-US security with a SEC exchange line and no line in its
+  ISIN's country (Linde, Accenture, Medtronic: Irish holding companies of US
+  businesses) takes that US line too (`us_exchange_no_home_line`), unless its
+  primary is an EEA regulated-market admission: Stellantis and Ferrari stay on
+  Euronext Milan. Move a German floor exchange (Frankfurt, Stuttgart, Munich,
+  Düsseldorf, Hamburg, Hanover, Berlin) to Xetra when a live Xetra line exists
+  (`german_floor_to_xetra`), except that a regional regulated-market admission
+  moves only to a regulated Xetra line. Known debatable results in the XAMS build: DSM-Firmenich moves to
   XSWX; Coca-Cola Europacific Partners and Accsys Technologies (AIM plus
   Euronext Amsterdam) move to XLON. OpenFIGI does not tell AIM from the LSE
   main market, so the rule cannot separate these cases without turnover
   evidence from both venues.
 - **OpenFIGI multi-row answers.** Prefer the venue's main exchange code, reject
   currency-suffixed MTF tickers, then prefer the shortest ticker.
+- **Share-class tickers.** On Nasdaq Stockholm and Copenhagen a class OpenFIGI
+  glues on (`VOLVB`, found through the FISN `…/SH B` or `…/B Aktie`) is written
+  as the venue writes it, after a space (`VOLV B`), which core's ticker grammar
+  accepts; core turns the space into `-` for provider symbols (`VOLV-B.ST`).
+  Helsinki writes classes glued (`KESKOB`) and keeps them so.
 - **Names.** Use the GLEIF legal name when it is Latin script. Otherwise use the
   typed alternative-language name, then the transliterated legal name. Never use
   a previous name. SEC titles drop their state and ADR markers (`/DE/`,
   ` DE`, `/ADR`), and display names re-case all-capitals names (`rules.display_case`): legal forms
   keep their usual spelling (N.V., PLC, AG, Inc), and the issuer's tickers,
   words without a vowel and short uncommon words stay capitals (ASML, KPN,
-  ING). Mixed-case names are kept as written.
+  ING); accented capitals re-case like any other (Nestlé, Møller, Spółka,
+  Türkiye).
+  Mixed-case names are kept as written.
 - **CIK to LEI.** Link by identifier agreement first: a FIRDS US ISIN mapped to
   the SEC ticker, a shared share-class FIGI, or GLEIF's SEC EDGAR registration.
   Fall back to a unique normalised name match on both sides. Conflicts become
-  flags, never merges.
+  flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
+  title matches the LEI's names wins, then CIK order (FIRDS gives Lee
+  Enterprises' ISIN Berkshire Hathaway's LEI); when none matches, none links
+  (`lei_contested_unnamed`: FIRDS puts venue and data-vendor LEIs such as TP
+  ICAP's or Bloomberg's on US ISINs). Generic words (GROUP, HOLDINGS, BANK…)
+  do not count as a match. Two cases are flagged for review
+  and left as built:
+  an identifier link whose SEC title shares no name word with any GLEIF name of
+  the LEI (`cik_link_suspect`: a rename, or a wrong LEI in FIRDS such as Lee
+  Enterprises under Berkshire Hathaway's), and a CIK-only issuer named like a
+  LEI issuer (`issuer_split_lei_cik`: probably one company split in two).
 - **Receipts.** Every `depositary_receipt_of` names a security of the build. A
   FIRDS receipt's stated underlying ISIN is kept when a security of the build
   carries it; FIRDS often names a superseded ISIN or one outside the scope, so
@@ -157,7 +182,9 @@ The audit locates each entry (ISIN, share-class FIGI, CAIP-19, FIGI, then
 ticker at MIC) and scores checks by category: `coverage`, `lifecycle` (delisted
 names and former ISINs and tickers stay inactive), `issuer`, `security`,
 `separate` (two entries never share a security), `listing` (ticker, currency,
-FIGI), `primary`, `relation`, `fold` (core's search directory), `symbols`
+FIGI), `primary`, `relation`, `fold` (core's search directory, and for entries
+with `search`, the line the row for that query shows: the first of `search.rows`
+the build has), `symbols`
 (core's page derivation with the installed `contract.json` files) and
 `subject_key` (the ID core's current key rule derives from the entry's
 identifiers). `subject_key` is reported apart from the headline score: a
@@ -168,7 +195,16 @@ kinds present) are n/a, not failures; an entry with no in-scope line is out of
 scope. A check that passed in `truth/baseline.json` and fails now, or a subject
 ID that changed without an `id_aliases` row, is a regression and fails the
 command. The builder runs the same audit after writing a snapshot and records
-the scores under `truth_audit` in the manifest; it never blocks a build.
+the scores under `truth_audit` in the manifest; it never blocks a build. Both
+also list build counts to review from the manifest's audit: primaries set by
+`us_exchange_no_home_line`, live securities written without a primary listing,
+`issuer_split_lei_cik` and `cik_link_suspect` flags, and every `skipped_*`
+count (identifiers or relations the schema rejected). The baseline is taken on a
+default-scope build (every EEA venue and US lines); an XAMS-only build reports
+checks it cannot pass without other venues as regressions. `--write-baseline`
+lists every truth entry's subject ID that changed since the previous baseline
+and writes nothing unless `--accept-id-changes` is given; the accepted changes
+are kept in the baseline under `accepted_id_changes`.
 
 Conventions: US tickers use the SEC's `-` class separator (`BRK-B`); Nordic
 tickers keep the exchange's space (`VOLV B`, Yahoo `VOLV-B.ST`); the listing
