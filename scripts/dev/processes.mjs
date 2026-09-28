@@ -36,6 +36,29 @@ export function identityMatches(expected) {
   );
 }
 
+/**
+ * True only when the recorded process provably no longer exists: its PID is
+ * free, or the PID now belongs to a process with another start time or
+ * command. A PID that exists but whose identity cannot be read is ambiguous
+ * and counts as alive.
+ */
+export function processProvablyGone(expected) {
+  if (!expected || !Number.isSafeInteger(expected.pid) || expected.pid <= 1)
+    return false;
+  try {
+    process.kill(expected.pid, 0);
+  } catch (error) {
+    if (error.code === "ESRCH") return true;
+    if (error.code !== "EPERM") return false;
+  }
+  const current = processIdentity(expected.pid);
+  return Boolean(
+    current &&
+      (current.started !== expected.started ||
+        current.command_sha256 !== expected.command_sha256),
+  );
+}
+
 export async function assertPortsFree(ports, host = "127.0.0.1") {
   for (const [name, port] of Object.entries(ports)) {
     await new Promise((resolve, reject) => {
