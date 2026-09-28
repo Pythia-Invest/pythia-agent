@@ -3,8 +3,9 @@
 `identity-search` and `identity-subject` are local reads of the reference file,
 identity.sqlite3 and the installed plugins' contracts; neither calls a provider.
 `identity-resolve` runs one plugin's declared resolve tool, bounded by a short
-timeout, and stores the decided binding or queue item. The resolution-queue
-operations live in `queue_ops`.
+timeout, and stores the decided binding or queue item. `reference-status`
+describes the installed reference package. The resolution-queue operations live
+in `queue_ops`.
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from .identity import (
 from . import queue_ops, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import batch_from_json, batch_to_json, lifecycle, page, search, store
+from .identity import batch_from_json, batch_to_json, lifecycle, page, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -89,7 +90,7 @@ class Identity:
             return self._store
 
     def reference_path(self, *, again: bool = False) -> Path | None:
-        """The newest reference build. Its first use carries local rows to its subject IDs (Lifecycle A), so every
+        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A), so every
         read and write after it sees current IDs; a failure is retried on the next use. `again` carries rows
         written meanwhile under an older build's IDs."""
         path = store.reference_path(self.data_dir)
@@ -97,7 +98,7 @@ class Identity:
             try:
                 ref = store.open_reference(path)
                 try:
-                    done = lifecycle.rekey(self.store, ref, lifecycle.release_id(ref, path.stem), again=again)
+                    done = lifecycle.rekey(self.store, ref, reference_package.release_key(path), again=again)
                 finally:
                     ref.close()
                 if done:
@@ -132,6 +133,10 @@ class Identity:
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
         return _envelope("ok" if data["groups"] else "empty", data)
+
+    def reference_status(self, _arguments: dict, **_context: Any) -> str:
+        data = reference_package.status(self.data_dir)  # an unreadable package reads as none installed
+        return _envelope("ok", data) if data["installed"] else _envelope("empty", data, issue=NO_REFERENCE)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -369,7 +374,9 @@ def register(ctx: Any) -> None:
                                                   (queue_ops.QUEUE_SCHEMA, partial(queue_ops.read_queue, identity),
                                                    "identity-queue", True),
                                                   (queue_ops.VERDICT_SCHEMA, partial(queue_ops.submit_verdict, identity),
-                                                   "identity-verdict", False)):
+                                                   "identity-verdict", False),
+                                                  (reference_package.STATUS_SCHEMA, identity.reference_status,
+                                                   "reference-status", True)):
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])

@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { atomicWriteJson, ensurePrivateTree, readJson } from "./files.mjs";
 import { redactedEnvironment, runtimeEnvironment } from "./environment.mjs";
 import { refreshManagedPlugins } from "./managed-plugins.mjs";
+import { installLocalReference } from "./reference-package.mjs";
 import {
   assertHermesRuntimePath,
   developmentPrivateRoots,
@@ -208,6 +209,8 @@ export async function bootstrapRuntime(paths, options = {}) {
   if (options.inheritSharedModel !== false)
     inheritModelDefaults(paths, values.hermes_api_key);
   refreshManagedPlugins(paths, values.hermes_api_key, { freshProfile });
+  // Development only: an installed Pythia gets reference data through its own import step.
+  if (options.localReference !== false) installLocalReference(paths);
   const environment = runtimeEnvironment(paths, values.hermes_api_key);
   if (freshProfile) writeInitializationReceipt(paths, "complete");
   atomicWriteJson(paths.runtimeReceipt, {
