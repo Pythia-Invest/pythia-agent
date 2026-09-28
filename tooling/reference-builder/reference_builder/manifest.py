@@ -15,6 +15,8 @@ LICENCES = {
     "gleif_lei_records": "CC0 1.0",
     "sec_company_tickers": "US federal government work (public domain)",
     "sec_fund_tickers": "US federal government work (public domain)",
+    "sec_ncen": "US federal government work (public domain)",
+    "sec_ncen_index": "US federal government work (public domain)",
     "openfigi": "FIGI and associated metadata under the MIT licence (OMG FIGI standard, Annex D.6)",
 }
 

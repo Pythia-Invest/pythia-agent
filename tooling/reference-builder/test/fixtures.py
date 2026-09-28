@@ -133,7 +133,7 @@ def figi_row(ticker, exch, figi, scf, sec_type2="Common Stock", composite=None, 
 
 
 class FakeOpenFigi:
-    """Answers from a dict keyed by (idType, idValue, micCode|exchCode); records every job."""
+    """Answers from a dict keyed by (idType, idValue, micCode|exchCode[, currency]); records every job."""
 
     def __init__(self, answers: dict[tuple, list[dict]]):
         self.answers = answers
@@ -144,6 +144,6 @@ class FakeOpenFigi:
         out = []
         for job in jobs:
             key = (job["idType"], job["idValue"], job.get("micCode") or job.get("exchCode"))
-            rows = self.answers.get(key)
+            rows = self.answers.get((*key, job["currency"])) if "currency" in job else self.answers.get(key)
             out.append({"data": rows} if rows else {"warning": "No identifier found."})
         return out

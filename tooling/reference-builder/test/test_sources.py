@@ -3,11 +3,12 @@
 import json
 import tempfile
 import unittest
+import zipfile
 from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 
-from reference_builder import config, firds, gleif, mic, sec
+from reference_builder import config, firds, gleif, mic, ncen, sec
 from reference_builder.fetch import Downloader
 from reference_builder.openfigi import OpenFigi
 from reference_builder.rules import display_name
@@ -130,3 +131,24 @@ class SecAndMicTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NcenTest(unittest.TestCase):
+    def test_the_latest_filing_names_each_fund_line_and_its_exchange(self):
+        # Shaped after the SEC's Form N-CEN data set readme: tab-separated tables joined on FUND_ID.
+        def data_set(directory, name, exchange_rows, fund_rows):
+            path = Path(directory) / name
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("SECURITY_EXCHANGE.tsv", "FUND_ID\tFUND_EXCHANGE\tFUND_TICKER_SYMBOL\n" +
+                                 "".join(f"{f}\t{e}\t{t}\n" for f, e, t in exchange_rows))
+                archive.writestr("FUND_REPORTED_INFO.tsv", "FUND_ID\tFUND_NAME\tSERIES_ID\tLEI\tIS_ETF\n" +
+                                 "".join(f"{f}\t{n}\t{s}\t\t{etf}\n" for f, n, s, etf in fund_rows))
+            return str(path)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old = data_set(tmp, "a.zip", [("F1", "XNAS", "EXA")], [("F1", "Example ETF", "S1", "Y")])
+            new = data_set(tmp, "b.zip", [("F2", "ARCX", "EXA"), ("F3", "ARCX", "CEF"), ("F4", "ELSE", "ODD")],
+                           [("F2", "Example ETF", "S1", "Y"), ("F3", "Closed Fund", "S3", "N"), ("F4", "Odd", "S4", "Y")])
+            found = ncen.parse([("2026q2", new), ("2025q3", old)])
+        self.assertEqual(list(found), ["EXA"])
+        self.assertEqual((found["EXA"].mic, found["EXA"].operating_mic, found["EXA"].quarter), ("ARCX", "XNYS", "2026q2"))

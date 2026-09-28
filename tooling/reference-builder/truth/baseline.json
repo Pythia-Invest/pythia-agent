@@ -456,8 +456,16 @@
     "argenx:symbols:yahoo:ARGX.BR",
     "arkk:coverage:found",
     "arkk:fold:row",
+    "arkk:listing:ARKK@XCBO:currency",
+    "arkk:listing:ARKK@XCBO:figi",
+    "arkk:listing:ARKK@XCBO:present",
+    "arkk:listing:ARKK@XCBO:ticker",
+    "arkk:primary:home",
     "arkk:security:kind",
+    "arkk:subject_key:ARKK@XCBO",
     "arkk:subject_key:security",
+    "arkk:symbols:eodhd:ARKK.US",
+    "arkk:symbols:yahoo:ARKK",
     "arm-ads:coverage:found",
     "arm-ads:fold:row",
     "arm-ads:issuer:cik",
@@ -1795,8 +1803,16 @@
     "investor-b:symbols:yahoo:INVE-B.ST",
     "ivv:coverage:found",
     "ivv:fold:row",
+    "ivv:listing:IVV@XNYS:currency",
+    "ivv:listing:IVV@XNYS:figi",
+    "ivv:listing:IVV@XNYS:present",
+    "ivv:listing:IVV@XNYS:ticker",
+    "ivv:primary:home",
     "ivv:security:kind",
+    "ivv:subject_key:IVV@XNYS",
     "ivv:subject_key:security",
+    "ivv:symbols:eodhd:IVV.US",
+    "ivv:symbols:yahoo:IVV",
     "iwda:coverage:found",
     "iwda:fold:row",
     "iwda:listing:IWDA@XAMS:figi",
@@ -3497,8 +3513,16 @@
     "volvo-b:symbols:yahoo:VOLV-B.ST",
     "voo:coverage:found",
     "voo:fold:row",
+    "voo:listing:VOO@XNYS:currency",
+    "voo:listing:VOO@XNYS:figi",
+    "voo:listing:VOO@XNYS:present",
+    "voo:listing:VOO@XNYS:ticker",
+    "voo:primary:home",
     "voo:security:kind",
+    "voo:subject_key:VOO@XNYS",
     "voo:subject_key:security",
+    "voo:symbols:eodhd:VOO.US",
+    "voo:symbols:yahoo:VOO",
     "vopak:coverage:found",
     "vopak:fold:row",
     "vopak:issuer:lei",
@@ -3516,8 +3540,16 @@
     "vopak:symbols:yahoo:VPK.AS",
     "vti:coverage:found",
     "vti:fold:row",
+    "vti:listing:VTI@XNYS:currency",
+    "vti:listing:VTI@XNYS:figi",
+    "vti:listing:VTI@XNYS:present",
+    "vti:listing:VTI@XNYS:ticker",
+    "vti:primary:home",
     "vti:security:kind",
+    "vti:subject_key:VTI@XNYS",
     "vti:subject_key:security",
+    "vti:symbols:eodhd:VTI.US",
+    "vti:symbols:yahoo:VTI",
     "vusa:coverage:found",
     "vusa:fold:row",
     "vusa:listing:VUSA@XAMS:figi",
@@ -3859,7 +3891,9 @@
     "arkk": {
       "security": "security:figi:BBG007FJMV49",
       "issuer": "issuer:lei:254900636IK9WKHH6949",
-      "listings": {}
+      "listings": {
+        "ARKK@XCBO": "listing:figi:BBG007FJMVT2"
+      }
     },
     "arm-ads": {
       "security": "security:figi:BBG01J1GY084",
@@ -4475,7 +4509,9 @@
     "ivv": {
       "security": "security:figi:BBG001SFB7R6",
       "issuer": "issuer:lei:5493007M4YMN8XL48C14",
-      "listings": {}
+      "listings": {
+        "IVV@XNYS": "listing:figi:BBG000BVZ697"
+      }
     },
     "iwda": {
       "security": "security:isin:IE00B4L5Y983",
@@ -5103,7 +5139,7 @@
     },
     "tsll": {
       "security": "security:figi:BBG0193YH5W6",
-      "issuer": null,
+      "issuer": "issuer:lei:549300ICR6HAVCT16R84",
       "listings": {
         "TSLL@XNAS": "listing:figi:BBG0193YH565"
       }
@@ -5235,7 +5271,9 @@
     "voo": {
       "security": "security:figi:BBG001TC6MC1",
       "issuer": "issuer:lei:12WZ1W76P8QD4VJ6OB47",
-      "listings": {}
+      "listings": {
+        "VOO@XNYS": "listing:figi:BBG0015VYNZ7"
+      }
     },
     "vopak": {
       "security": "security:isin:NL0009432491",
@@ -5247,7 +5285,9 @@
     "vti": {
       "security": "security:figi:BBG001SHTB03",
       "issuer": "issuer:lei:HJ2RZRUQEVF2A5SPRB21",
-      "listings": {}
+      "listings": {
+        "VTI@XNYS": "listing:figi:BBG000HRBDF4"
+      }
     },
     "vusa": {
       "security": "security:isin:IE00B3XXRP09",

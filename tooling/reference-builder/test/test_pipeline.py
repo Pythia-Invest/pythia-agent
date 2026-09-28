@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import assemble, firds, gleif, linking, manifest, mic, schema, sec, writer
+from reference_builder import assemble, firds, gleif, linking, manifest, mic, ncen, schema, sec, writer
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
 from reference_builder.model import Issuer, Listing, SecFund, SecTicker, Snapshot
@@ -239,8 +239,50 @@ class AllVenuesTest(unittest.TestCase):
         self.assertEqual((security.kind, security.issuer_id, security.name, tsll.is_primary), ("etf", None, "DIRX DLY TSLA BUL 2X ETF", True))
         self.assertFalse(any(l.ticker in ("VOO", "LACAX") for l in self.snap.listings.values()))
         audit = self.snap.audit["us_etfs"]
-        self.assertEqual((audit["placed_nasdaq"], audit["unplaced_not_nasdaq"]), (1, 1))
+        self.assertEqual((audit["placed_nasdaq"], audit["unplaced_not_in_ncen"]), (1, 1))
         self.assertEqual(self.snap.listings["XNYS:SPY"].row_class, "etf")
+
+    def test_a_fund_etf_off_nasdaq_is_placed_on_the_exchange_n_cen_names(self):
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(WIDE_FIRDS), Scope().cfi_prefixes), Counter())
+        listed = {"VOO": ncen.NcenListing("VOO", "ARCX", "XNYS", "Vanguard S&P 500 ETF", "S000002839", None, "2026q1")}
+        answers = WIDE_OPENFIGI | {("TICKER", "VOO", "UP"): [figi_row("VOO", "UP", "BBGVOOUP0001", "BBGVOOSC0001", sec_type="ETP")]}
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(), mic.parse(MIC_CSV.encode()), admissions, None,
+                                     sec.parse(WIDE_SEC), {"XAMS"}, WIDE_FUNDS, listed), gleif_fetch, FakeOpenFigi(answers))
+        line = snap.listings["ARCX:VOO"]
+        self.assertEqual((line.mic, line.operating_mic, line.figi, line.name, line.is_primary),
+                         ("ARCX", "XNYS", "BBGVOOUP0001", "Vanguard S&P 500 ETF", True))
+        self.assertEqual(snap.audit["us_etfs"]["placed_ncen"], 1)
+
+    def test_a_us_etf_firds_lists_in_europe_joins_the_fund_file_etf(self):
+        isin = "US9229087443"
+        admissions = {}
+        records = [firds_record(isin, "FRAB", APPLE_LEI, cfi="CEOGES", name="VANGUARD VALUE ETF", relevant="XFRA")]
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        answers = {("ID_ISIN", isin, "US"): [figi_row("VTV", "US", "BBGVTVUS0001", "BBGVTVSC0001", sec_type="ETP")],
+                   ("TICKER", "VTV", "US"): [figi_row("VTV", "US", "BBGVTVUS0001", "BBGVTVSC0001", sec_type="ETP")],
+                   ("TICKER", "VTV", "UP"): [figi_row("VTV", "UP", "BBGVTVUP0001", "BBGVTVSC0001", sec_type="ETP")]}
+        listed = {"VTV": ncen.NcenListing("VTV", "ARCX", "XNYS", "Vanguard Value ETF", None, None, "2026q1")}
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(), mic.parse(MIC_CSV.encode()), admissions, None, [], set(),
+                                     [SecFund("VTV")], listed), gleif_fetch, FakeOpenFigi(answers))
+        self.assertEqual(snap.listings["ARCX:VTV"].security_id, f"isin:{isin}")
+        self.assertTrue(snap.listings["ARCX:VTV"].is_primary)
+        self.assertEqual(snap.securities[f"isin:{isin}"].share_class_figi, "BBGVTVSC0001")
+
+    def test_a_ucits_etf_gets_its_london_and_six_lines_one_per_trading_currency(self):
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(WIDE_FIRDS), Scope().cfi_prefixes), Counter())
+        answers = WIDE_OPENFIGI | {
+            ("ID_ISIN", ETF_ISIN, None): [figi_row("CSPX", "LN", "BBGCSPXLN001", "BBGETFSC0001"),
+                                          figi_row("CSSPX", "SW", "BBGCSPXSW001", "BBGETFSC0001")],
+            ("ID_ISIN", ETF_ISIN, "LN", "USD"): [figi_row("CSPX", "LN", "BBGCSPXLN001", "BBGETFSC0001")],
+            ("ID_ISIN", ETF_ISIN, "LN", "GBp"): [figi_row("CSP1", "LN", "BBGCSPXLN002", "BBGETFSC0001")],
+            ("ID_ISIN", ETF_ISIN, "SW", "USD"): [figi_row("CSSPX", "SW", "BBGCSPXSW001", "BBGETFSC0001")]}
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [],
+                                     {"XETA"}), gleif_fetch, FakeOpenFigi(answers))
+        lines = sorted((l.ticker, l.operating_mic, l.currency, l.is_primary) for l in snap.listings.values()
+                       if l.security_id == f"isin:{ETF_ISIN}" and l.source == "openfigi")
+        self.assertEqual(lines, [("CSP1", "XLON", "GBP", False), ("CSPX", "XLON", "USD", False), ("CSSPX", "XSWX", "USD", False)])
 
     def test_eu_and_us_etf_canaries_apply_to_the_default_scope(self):
         names = {c["name"] for c in manifest.default_canaries(Scope())}

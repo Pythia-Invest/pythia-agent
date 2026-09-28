@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 
-from . import rules
+from . import etf_lines, rules
 from .config import Scope
 from .model import FirdsRecord, GleifEntity, Issuer, Listing, Relationship, Security, SecFund, SecTicker, Snapshot, Transparency, Venue
 
@@ -31,6 +31,7 @@ class Inputs:
     sec_tickers: list[SecTicker]
     figi_mic_codes: set[str]
     sec_funds: list[SecFund] = field(default_factory=list)
+    ncen: dict = field(default_factory=dict)  # ticker -> ncen.NcenListing: US ETFs' listing exchange (Form N-CEN)
 
 
 def operating(venues: dict[str, Venue], mic: str | None) -> str | None:
@@ -143,6 +144,8 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
         by_security[listing.security_id or ""].append(listing)
     for isin, records in scoped.items():
         _security(snap, inputs, isin, records, by_security[f"isin:{isin}"], fanout.get(isin, []), audit)
+    etf_lines.add(snap, [isin for isin, rs in scoped.items() if not isin.startswith("US") and rules.firds_kind(rs[0].cfi) == "etf"],
+                  figi_map)
     return entities
 
 

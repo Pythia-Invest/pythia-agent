@@ -63,6 +63,14 @@ supply SEC tickers and EU issuer and security names. The OpenFIGI step adds EU
 tickers and FIGIs. Build progress and incomplete coverage are labelled. A free
 key is the fast path, and it is never required.
 
+**ETF listing sources (checked 2026-09-28).** US ETFs take their listing
+exchange from the SEC's Form N-CEN data sets (public domain, fetched with the
+same SEC contact). UCITS ETFs take their London and SIX lines from OpenFIGI.
+The builder does not use Nasdaq's `otherlisted.txt` or the CTA and NYSE symbol
+files (personal, non-commercial terms), nor the LSE, Euronext, SIX or Xetra
+instrument lists (their terms forbid automated retrieval or reuse). FCA FIRDS
+(UK venues) waits for the FCA to confirm reuse.
+
 **Load and breakage are per device.** Each install fetches from the sources
 itself. Weekly full refreshes of the ISIN-to-LEI file alone would pull about
 1.4 TB a month from GLEIF across 10,000 installs. Refreshes must therefore use

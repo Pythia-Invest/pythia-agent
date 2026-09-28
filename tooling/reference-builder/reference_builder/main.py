@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import firds, manifest, mic, schema, sec, truth_report, writer
+from . import firds, manifest, mic, ncen, schema, sec, truth_report, writer
 from .assemble import Inputs
 from .config import BUILDER_VERSION, USER_AGENT, BuildConfig, Scope, load_openfigi_key, load_sec_identity, parse_mics
 from .fetch import Downloader, log, utc_now
@@ -60,11 +60,12 @@ def run(config: BuildConfig) -> int:
 
     sec_rows = sec.parse(sec.fetch(downloads, config.contact, config.sec_file, day)) if config.scope.sec else []
     funds = sec.parse_funds(sec.fetch_funds(downloads, config.contact, day)) if config.scope.sec and not config.sec_file else []
+    listed_funds = ncen.parse(ncen.fetch(downloads, sec._agent(config.contact), day)) if funds else {}
     figi = OpenFigi(config.cache_dir, USER_AGENT, load_openfigi_key(), timedelta(days=config.openfigi_max_age_days))
     log(f"OpenFIGI: {'keyed' if figi.keyed else 'keyless (slower rate limits)'}")
     gleif = GleifClient(config.cache_dir, USER_AGENT, timedelta(days=config.gleif_max_age_days))
 
-    inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes(), funds)
+    inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes(), funds, listed_funds)
     snap = build_snapshot(inputs, gleif.fetch, figi.map)
     snap.audit["firds_records"] = dict(sorted(record_counts.items()))
     snap.audit["fitrs_isins"] = len(transparency) if transparency is not None else None

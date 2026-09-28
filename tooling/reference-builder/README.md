@@ -22,6 +22,8 @@ python3 tooling/reference-builder/run.py --help
 | Activity and turnover | `firds.py` | ESMA FITRS `FULECR` equity transparency results for shares, depositary receipts and ETFs |
 | Issuers | `gleif.py` | GLEIF `lei-records` API, batched by LEI |
 | US tickers | `sec.py` | SEC `company_tickers_exchange.json` and the fund file `company_tickers_mf.json` |
+| US ETF listing exchanges | `ncen.py` | SEC Form N-CEN data sets (the latest five quarters): the exchange each ETF lists on, its name, series and LEI |
+| UCITS ETF London and SIX lines | `etf_lines.py` | OpenFIGI `/v3/mapping`, one job per ISIN and per trading currency |
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
 | Snapshot and manifest | `schema.py`, `writer.py`, `manifest.py` | |
@@ -79,14 +81,21 @@ table under `writer_ignored`.
   debt instruments in FIRDS and are not covered yet.
 - **US ETFs.** The SEC company file leaves most exchange-traded funds out. The
   SEC fund file carries only CIK, series, class and symbol: no fund name and
-  no exchange. Its tickers go through OpenFIGI's US line for the name and the
-  security type (`ETP` is exchange-traded; mutual-fund classes are not).
+  no exchange. Its tickers go through OpenFIGI's US line for the security type
+  (`ETP` is exchange-traded; mutual-fund classes are not) and the FIGIs.
   OpenFIGI shows an ETF's lines on every US exchange alike, except that only a
-  Nasdaq-listed ETF has a Nasdaq (`UQ`) line, so Nasdaq ETFs are placed on
-  XNAS and the others are counted as `unplaced_not_nasdaq` in the audit.
-  Placed ETFs are issuer-less `etf` securities (a fund trust's CIK covers every
-  series); an ETF that FIRDS also lists joins that security by share-class
-  FIGI. SEC company-file lines OpenFIGI types as `ETP` are ETFs too.
+  Nasdaq-listed ETF has a Nasdaq (`UQ`) line. Form N-CEN (Item E.1) names the
+  listing exchange of the others (NYSE Arca, NYSE, Cboe BZX), and the fund's
+  name; the ETF is placed there with OpenFIGI's line on that exchange. N-CEN is
+  filed once a year, so an ETF launched since its registrant last filed is
+  counted as `unplaced_not_in_ncen`. Placed ETFs are issuer-less `etf`
+  securities (a fund trust's CIK covers every series). A US ETF FIRDS lists in
+  the EEA under its US ISIN gets its share class from OpenFIGI's US line of the
+  ISIN, so the SEC and fund-file lines join that security.
+- **UCITS ETFs outside the EEA.** FIRDS covers only EEA venues. An ETF's London
+  and SIX lines come from OpenFIGI, one per trading currency (London's pence
+  lines are recorded in GBP). They are never marked primary: no open source
+  names a UCITS ETF's home listing.
 - **Primary venue.** Start from the FIRDS relevant venue. For a non-EEA ISIN
   with a real home-exchange line in OpenFIGI, use the home exchange (Shell and
   Unilever move to XLON). That line is written with its venue's trading currency

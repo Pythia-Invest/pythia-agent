@@ -30,6 +30,7 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
     audit = snap.audit.setdefault("sec", Counter())
     tickers = inputs.sec_tickers
     audit["tickers"] = len(tickers)
+    _firds_us_etf_share_classes(snap, figi_map, audit)
     answers = figi_map([_ticker_job(t.ticker, "US") for t in tickers])
     rows = {t.ticker: _pick(a.get("data") or []) for t, a in zip(tickers, answers)}
     audit["openfigi_found"] = sum(1 for r in rows.values() if r)
@@ -51,35 +52,57 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
     _mark_us_primaries(snap, inputs.venues)
 
 
-def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
-    """Exchange-traded funds from the SEC fund file, placed with OpenFIGI, as issuer-less ETF securities.
+def _firds_us_etf_share_classes(snap: Snapshot, figi_map: FigiMap, audit: Counter) -> None:
+    """FIRDS lists many US ETFs on EEA venues under their US ISIN, without a FIGI on those lines. OpenFIGI's US
+    line of the ISIN gives the share class, so the SEC and fund-file lines join that security instead of
+    becoming a second one (its local ID is aliased to the FIGI key)."""
+    lone = sorted(s.isin for s in snap.securities.values()
+                  if s.kind == "etf" and s.isin and s.isin.startswith("US") and not s.share_class_figi)
+    for isin, answer in zip(lone, figi_map([{"idType": "ID_ISIN", "idValue": i, "exchCode": "US"} for i in lone])):
+        row = _pick(answer.get("data") or [])
+        if row and row.get("shareClassFIGI") and row.get("securityType") == "ETP":
+            snap.securities[f"isin:{isin}"].share_class_figi = row["shareClassFIGI"]
+            audit["firds_us_etf_share_class"] += 1
 
-    The fund file names no fund and no exchange. OpenFIGI's US line gives the name
-    and the security type (ETP is exchange-traded; mutual-fund classes are not). It
-    shows ETF lines on every US exchange alike, except that only a Nasdaq-listed
-    ETF has a Nasdaq (`UQ`) line, so only Nasdaq ETFs can be placed; the others are
-    counted as unplaced. A fund trust's CIK covers every series it runs, so it is
-    no issuer for search; an ETF that FIRDS also lists joins that security.
+
+def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
+    """Exchange-traded funds from the SEC fund file, placed on their listing exchange, as issuer-less ETF securities.
+
+    The fund file names no fund and no exchange. OpenFIGI's US line gives the security
+    type (ETP is exchange-traded; mutual-fund classes are not) and the FIGIs; it shows
+    an ETF's lines on every US exchange alike, except that only a Nasdaq-listed ETF has
+    a Nasdaq (`UQ`) line. Form N-CEN (`inputs.ncen`) names the listing exchange and the
+    fund; an ETF found in neither is counted as unplaced. A fund trust's CIK covers every
+    series it runs, so it is no issuer for search; an ETF that FIRDS also lists joins
+    that security.
     """
     audit = snap.audit.setdefault("us_etfs", Counter())
     have = {t.ticker for t in inputs.sec_tickers}
     funds = [f for f in inputs.sec_funds if f.ticker not in have]
     rows = [_pick(a.get("data") or []) for a in figi_map([_ticker_job(f.ticker, "US") for f in funds])]
     etfs = [(f, row) for f, row in zip(funds, rows) if row and row.get("securityType") == "ETP"]
-    nasdaq = figi_map([_ticker_job(f.ticker, "UQ") for f, _ in etfs])
+    nasdaq = [_pick(a.get("data") or []) for a in figi_map([_ticker_job(f.ticker, "UQ") for f, _ in etfs])]
     audit["fund_tickers"], audit["exchange_traded"] = len(funds), len(etfs)
+    # Not on Nasdaq: the exchange N-CEN names, and OpenFIGI's line on that exchange for its FIGI.
+    elsewhere = [i for i, ((fund, _), line) in enumerate(zip(etfs, nasdaq))
+                 if not line and inputs.ncen.get(fund.ticker) and inputs.ncen[fund.ticker].mic in NCEN_EXCH_CODE]
+    answers = figi_map([_ticker_job(etfs[i][0].ticker, NCEN_EXCH_CODE[inputs.ncen[etfs[i][0].ticker].mic]) for i in elsewhere])
+    placed = {i: (inputs.ncen[etfs[i][0].ticker], _pick(a.get("data") or [])) for i, a in zip(elsewhere, answers)}
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
-    for (fund, row), on_nasdaq in zip(etfs, nasdaq):
-        line = _pick(on_nasdaq.get("data") or [])
+    for index, ((fund, row), on_nasdaq) in enumerate(zip(etfs, nasdaq)):
+        ncen, line = placed.get(index, (None, None))
+        mic, operating_mic = (ncen.mic, ncen.operating_mic) if line else ("XNAS", "XNAS")
+        line = on_nasdaq or line
         if not line:
-            audit["unplaced_not_nasdaq"] += 1
+            audit["unplaced_not_in_ncen" if fund.ticker not in inputs.ncen else "unplaced_no_exchange_line"] += 1
             continue
-        audit["placed_nasdaq"] += 1
+        audit["placed_nasdaq" if on_nasdaq else "placed_ncen"] += 1
         root, klass = rules.split_ticker(fund.ticker)
+        name = (inputs.ncen.get(fund.ticker) and inputs.ncen[fund.ticker].name) or row.get("name")
         listing = Listing(
-            listing_id=f"XNAS:{fund.ticker}", source="sec_funds", row_class="etf", mic="XNAS", operating_mic="XNAS",
+            listing_id=f"{mic}:{fund.ticker}", source="sec_funds", row_class="etf", mic=mic, operating_mic=operating_mic,
             country="US", ticker=fund.ticker, ticker_root=root, ticker_class=klass, ticker_source="sec_funds", currency="USD",
-            name=row.get("name"), figi=line.get("figi"), composite_figi=row.get("compositeFIGI"),
+            name=name, figi=line.get("figi"), composite_figi=row.get("compositeFIGI"),
             share_class_figi=row.get("shareClassFIGI"), security_type=row.get("securityType"),
         )
         security = share_classes.get(listing.share_class_figi or "")
@@ -92,6 +115,10 @@ def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
                 security_id=listing.security_id, kind="etf", source="sec_funds", share_class_figi=listing.share_class_figi,
                 name=listing.name))
         snap.listings[listing.listing_id] = listing
+
+
+# Bloomberg exchange codes of the US venues N-CEN names (NYSE Arca, NYSE, NYSE American, Cboe BZX).
+NCEN_EXCH_CODE = {"ARCX": "UP", "XNYS": "UN", "XASE": "UA", "BATS": "UF"}
 
 
 def _ticker_job(ticker: str, exchange: str) -> dict:
