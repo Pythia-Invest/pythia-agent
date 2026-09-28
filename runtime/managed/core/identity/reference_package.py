@@ -231,7 +231,7 @@ def _install(package: Path, root: Path) -> dict:
     name = f"{manifest['build_id']}-{manifest['database']['sha256'][:12]}"
     with _lock(root):
         installed = (_pointer(root) or {}).get("current")
-        if installed == name and _package(root, name):
+        if installed == name and _whole(root, name):
             return {"changed": False}
         _sweep(root, keep=installed)  # leftovers of an interrupted install
         staging = root / "packages" / f"{_STAGING}{uuid.uuid4().hex}"
@@ -239,13 +239,25 @@ def _install(package: Path, root: Path) -> dict:
         try:
             _copy_verified(source, staging / manifest["database"]["file"], manifest)
             _write(staging / PACKAGE_FILE, manifest)
-            staging.replace(root / "packages" / name)
+            target = root / "packages" / name
+            if target.exists():  # a damaged copy of this same package: set it aside for the sweep, then replace it
+                target.replace(root / "packages" / f"{_STAGING}damaged-{uuid.uuid4().hex}")
+            staging.replace(target)
         except BaseException:
             shutil.rmtree(staging, ignore_errors=True)  # only this call's own staging directory
             raise
         _write(root / INSTALLED_FILE, {"current": name, "installed_at": _now()})  # the atomic switch
         _sweep(root, keep=name)
     return {"changed": True}
+
+
+def _whole(root: Path, name: str) -> bool:
+    """The installed copy still reads: its package.json is valid and its database has the recorded size."""
+    found = _package(root, name)
+    try:
+        return bool(found) and (found[0] / found[1]["database"]["file"]).stat().st_size == found[1]["database"]["bytes"]
+    except OSError:
+        return False
 
 
 def _sweep(root: Path, keep: str | None) -> None:

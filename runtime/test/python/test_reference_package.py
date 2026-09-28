@@ -80,6 +80,19 @@ class InstallTest(unittest.TestCase):
         self.assertFalse(reference_package.install(source / "package.json", self.data)["changed"])
         self.assertEqual(len(self.installed_packages()), 1)
 
+    def test_reinstalling_repairs_a_damaged_installed_copy(self):
+        source = make_package(self.root / "out")
+        reference_package.install(source, self.data)
+        [installed] = (self.data / "reference" / "packages").iterdir()
+        (installed / "package.json").write_text("{not json")
+        self.assertIsNone(store.reference_path(self.data))
+        self.assertTrue(reference_package.install(source, self.data)["changed"])
+        self.assertEqual(store.reference_path(self.data).parent, installed)
+        self.assertEqual(self.installed_packages(), [installed.name])
+        (installed / "reference-20260926.sqlite3").write_bytes(b"truncated")  # and a truncated database
+        self.assertTrue(reference_package.install(source, self.data)["changed"])
+        self.assertFalse(reference_package.install(source, self.data)["changed"])
+
     def test_a_new_package_replaces_the_installed_one_and_leftovers_are_swept(self):
         reference_package.install(make_package(self.root / "25", "reference-20260925"), self.data)
         packages = self.data / "reference" / "packages"
