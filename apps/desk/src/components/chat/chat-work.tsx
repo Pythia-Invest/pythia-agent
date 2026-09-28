@@ -8,7 +8,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { DeskUIMessage } from "@/client/chat-message";
+import { deskKeys } from "@/client/query-cache";
 import { useWork } from "@/client/queries";
 import { useChatReading } from "@/client/use-chat-attention";
 import { workRevision, workState } from "@/client/work-state";
@@ -17,6 +19,7 @@ import { AgentDirectory } from "./agent-panel";
 import { AgentDetail } from "./agent-work";
 import type { ConversationPosition } from "./conversation";
 import { TurnWork } from "./turn-work";
+import { type AwaitingReply, wakeFollow } from "./wake-follow";
 
 /** Navigation changes only the reading surface; ChatSession keeps the parent run alive. */
 export function ChatWork({
@@ -32,6 +35,7 @@ export function ChatWork({
   conversation: (
     position: ConversationPosition,
     onAtLatestChange: (atLatest: boolean) => void,
+    awaiting: AwaitingReply,
   ) => ReactNode;
   composer: ReactNode;
 }) {
@@ -64,6 +68,20 @@ export function ChatWork({
   useEffect(() => {
     setAgentsWorking(state.agents.some((agent) => agent.status === "running"));
   }, [state.agents]);
+  // Hermes answers finished background agents in a turn Desk does not
+  // stream; refresh the transcript until that reply is saved.
+  const cache = useQueryClient();
+  const [now, setNow] = useState(() => Date.now());
+  const wake = wakeFollow(state.agents, messages, busy, now);
+  useEffect(() => {
+    if (!wake.poll) return;
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+      void cache.invalidateQueries({ queryKey: deskKeys.messages(sessionId) });
+      void cache.invalidateQueries({ queryKey: deskKeys.sessions });
+    }, 4_000);
+    return () => window.clearInterval(timer);
+  }, [wake.poll, cache, sessionId]);
   const agent =
     state.agents.find((a) => a.id === selected?.agent.id) ?? selected?.agent;
   const plan = busy && state.plan?.items.length ? state.plan.items : undefined;
@@ -108,7 +126,7 @@ export function ChatWork({
             onShowAllAgents: () => setAgentsOpen(true),
           }}
         >
-          {conversation(mainPosition.current, setAtLatest)}
+          {conversation(mainPosition.current, setAtLatest, wake.show)}
         </TurnWork.Provider>
       )}
       <AgentDirectory

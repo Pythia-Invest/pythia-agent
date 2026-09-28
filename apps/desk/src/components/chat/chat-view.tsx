@@ -227,8 +227,9 @@ function ChatSession({
         messages={chat.messages}
         busy={busy}
         composer={composer}
-        conversation={(position, onAtLatestChange) => (
+        conversation={(position, onAtLatestChange, awaiting) => (
           <Conversation
+            awaitingReply={awaiting}
             onAtLatestChange={onAtLatestChange}
             position={position}
             approvalPending={approvalPending}

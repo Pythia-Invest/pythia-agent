@@ -112,6 +112,7 @@ export async function readWork(
         goal: s.preview || "Research agent",
         ...(s.title ? { title: s.title } : {}),
         status: agentStatus(s),
+        ...(s.ended_at ? { endedAt: s.ended_at } : {}),
         ...(s.model ? { model: s.model } : {}),
       })),
   };

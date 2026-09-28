@@ -115,7 +115,13 @@ every five seconds. Background children keep working after the parent's run
 ends and rarely report back on its stream, so their saved sessions decide:
 a child Hermes has not ended is working while its native activity (which
 includes Hermes's mid-turn heartbeat) is under 20 minutes old, Hermes's own
-longest stall threshold; past that its status is unknown and it is not polled. Older pages are loaded on demand and are
+longest stall threshold; past that its status is unknown and it is not polled. Hermes
+answers finished background agents in a turn it starts itself and saves for
+clients to poll (`gateway/wake.py`), so once an agent ends Desk refreshes the
+transcript every few seconds until the delegation notice and its answer are
+saved, within Hermes's wake timeout. While no reply is saved it shows the same
+working line as a run, and a reply in progress is followed through its saved
+steps. Older pages are loaded on demand and are
 not rescanned by interval polling or ordinary live updates.
 The recent-window query cache retains up to 32 observed plan snapshots and 200
 agent/assignment records so work does not vanish when a recent-history window

@@ -183,6 +183,7 @@ describe("native work projection", () => {
         goal: "Research agent",
         title: "Source coverage",
         status: "ended",
+        endedAt: 10,
       },
     ]);
     expect(result.historyMore).toBe(true);

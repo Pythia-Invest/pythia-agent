@@ -15,6 +15,8 @@ export type WorkAgent = {
   model?: string;
   status: "running" | "completed" | "stopped" | "failed" | "unknown" | "ended";
   summary?: string;
+  /** When Hermes ended the child's session, in epoch seconds. */
+  endedAt?: number;
 };
 export type WorkAssignment = { goal: string; context?: string };
 export type WorkPage = {

@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { DeskUIMessage } from "@/client/chat-message";
 import type { OptimisticSteer } from "@/client/desk-chat";
+import type { AwaitingReply } from "./wake-follow";
 import { AssistantMessage, type RespondToApproval } from "./assistant-message";
 import { CHAT_MEASURE_CLASS } from "./chat-opening";
 import { SystemNote } from "./message-parts";
@@ -44,6 +45,8 @@ export interface ConversationProps {
   onRespondToApproval: RespondToApproval;
   /** A reply is being produced for the last message. */
   streaming: boolean;
+  /** Hermes is writing a reply Desk does not stream (see wake-follow). */
+  awaitingReply?: AwaitingReply;
   /** Epoch ms the current turn was submitted; the origin for the first wait. */
   turnStartedAt: number;
   /** Guidance sent to the running reply that it has not yet reported. */
@@ -81,6 +84,7 @@ export function Conversation({
   onRetry,
   onRespondToApproval,
   streaming,
+  awaitingReply = false,
   turnStartedAt,
   steers = [],
 }: ConversationProps) {
@@ -272,7 +276,12 @@ export function Conversation({
                   if (viewport) lastScrollTopRef.current = viewport.scrollTop;
                 }}
                 approvalPending={approvalPending}
-                finalized={finalized}
+                // The reply in progress is followed through its saved steps.
+                finalized={
+                  awaitingReply === "tail" && message === lastMessage
+                    ? false
+                    : finalized
+                }
                 latest={message === lastMessage}
                 key={message.id}
                 message={message}
@@ -280,13 +289,17 @@ export function Conversation({
                   !streaming && message === lastMessage ? onRetry : undefined
                 }
                 onRespondToApproval={onRespondToApproval}
-                streaming={streaming && message === lastMessage}
+                streaming={
+                  (streaming || awaitingReply === "tail") &&
+                  message === lastMessage
+                }
                 {...(message === lastMessage ? { sending } : {})}
                 turnStartedAt={turnStartedAt}
               />
             ),
           )}
-          {streaming && lastMessage?.role === "user" ? (
+          {(streaming && lastMessage?.role === "user") ||
+          awaitingReply === "reply" ? (
             <PendingReply turnStartedAt={turnStartedAt} />
           ) : null}
           {afterMessages}
