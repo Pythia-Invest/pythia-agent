@@ -315,9 +315,9 @@ version; a changed rule is a new version with aliases from the old IDs.
 ### Rationale and consequences
 
 An open kind vocabulary keeps each new asset class additive; SQLite cannot
-change a check constraint without rebuilding the table. Grouping by investable entity
-plus declared `fold` relations gives one general rule instead of cases per
-asset class. Curated crypto keys and a hostable key rule keep the promise that
+change a check constraint without rebuilding the table. Grouping by
+investable entity plus declared `fold` relations gives one general rule
+instead of cases per asset class. Curated crypto keys and a hostable key rule keep the promise that
 installs and rebuilds agree on every ID, which watchlists, notes, holdings and
 a later team edition depend on.
 
@@ -327,7 +327,8 @@ a later team edition depend on.
   the reference builder and the truth set adopt these rules.
 - Rejected: `series` or `index` as extra levels (they are not tradable lines of
   an issuer); `fold` for share classes (they are economically different;
-  `share_class_of` is `related`, and they already group under their company); keying multi-chain tokens by a provider's
-  primary platform (installs would disagree); keying CGS-area securities by
+  `share_class_of` is `related`, and they already group under their company);
+  keying multi-chain tokens by a provider's primary platform (installs would
+  disagree); keying CGS-area securities by
   ISIN (a hosted build could not carry them); aliases from build-to-build diffs
   (lost on a fresh install).
