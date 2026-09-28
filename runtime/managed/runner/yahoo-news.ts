@@ -2,9 +2,8 @@
 import { symbols, type Client } from "./yahoo.js";
 // Yahoo's search answers at most about 50 news items per query (measured
 // 2026-09-28: 49-50; a newsCount of 300 returned none) and has no offset, so
-// one query per bound symbol plus the name is the deepest read it allows.
+// one query per bound symbol is the deepest read it allows.
 const NEWS_PER_QUERY = 50;
-const NEWS_CAPPED = 45;
 const NEWS_SYMBOLS = 8;
 const NEWS_DAYS = 31;
 // The search news item fields and types the adapter knows (yahoo-finance2
@@ -21,6 +20,12 @@ const NEWS_FIELDS = new Set([
 ]);
 const NEWS_TYPES = new Set(["STORY", "VIDEO"]);
 const NAME = /^[\p{L}\p{N}][\p{L}\p{N}\p{M} .,&'()-]{0,99}$/u;
+// Yahoo's crypto pair form. Its text search finds almost nothing for "BTC-USD"
+// but all of Bitcoin's items for "Bitcoin"; for equities the name query only
+// repeated the main-line symbol's answer (measured 2026-09-28), so a name is
+// accepted for a crypto pair alone.
+const CRYPTO_PAIR =
+  /^[A-Z0-9]{2,15}-(?:USD|EUR|GBP|JPY|CAD|AUD|CHF|USDT|USDC|BTC|ETH)$/u;
 const DAY = /^\d{4}-\d{2}-\d{2}$/u;
 function newsDay(value: unknown, fallback: number): number {
   if (value === undefined) return fallback;
@@ -46,7 +51,7 @@ function newsLink(value: unknown): string | null {
   }
 }
 /** An issuer's news on Yahoo: one query per Yahoo symbol Pythia binds to the
- * issuer (home and US lines) and one for its name, keeping only items Yahoo
+ * issuer (home and US lines), plus the asset's name for a crypto pair, keeping only items Yahoo
  * tags with one of those symbols within a dated window. Yahoo's tag is its own
  * "main" line (ASML and SHEL for ASML.AS and SHEL.L, NESN.SW for Nestlé's US
  * line) and its search is text search, so one listing symbol alone misses the
@@ -74,7 +79,8 @@ export async function symbolNews(
     !Number.isInteger(limit) ||
     Number(limit) < 1 ||
     Number(limit) > 200 ||
-    (name !== undefined && (typeof name !== "string" || !NAME.test(name)))
+    (name !== undefined &&
+      (typeof name !== "string" || !NAME.test(name) || !CRYPTO_PAIR.test(code)))
   )
     throw Error("invalid_request");
   const today = Date.parse(
@@ -108,7 +114,7 @@ export async function symbolNews(
     unreadable_items: 0,
   };
   const kept = new Map<string, Record<string, unknown>>();
-  let outside = 0;
+  const outside = new Set<string>();
   let completeFrom: number | null = null;
   const report = queries.map((entry, index) => {
     const news = Array.isArray(answers[index]?.news) ? answers[index].news : [];
@@ -149,13 +155,11 @@ export async function symbolNews(
       const hits = ((related as string[] | undefined) ?? []).filter((tag) =>
         tags.has(tag),
       );
-      if (!hits.length) continue;
+      if (!hits.length || kept.has(row.uuid)) continue;
       if (at < start || at >= end) {
-        outside++;
+        outside.add(row.uuid);
         continue;
       }
-      const known = kept.get(row.uuid);
-      if (known) continue;
       kept.set(row.uuid, {
         uuid: row.uuid,
         title: row.title.slice(0, 512),
@@ -167,23 +171,24 @@ export async function symbolNews(
         related_tickers: (related as string[]).slice(0, 20),
       });
     }
-    const capped = news.length >= NEWS_CAPPED;
-    // A capped query may have left out items older than its oldest answer.
-    if (capped && oldest !== null)
+    // Yahoo answers newest first. A query whose oldest item is inside the
+    // window stopped there: older items may be missing (or there are none).
+    const stops = oldest !== null && oldest > start;
+    if (stops && oldest !== null)
       completeFrom =
         completeFrom === null ? oldest : Math.max(completeFrom, oldest);
     return {
       query: entry.query,
       kind: entry.kind,
       returned: news.length,
-      capped,
+      stops_in_window: stops,
       oldest: oldest === null ? null : new Date(oldest).toISOString(),
     };
   });
   const all = [...kept.values()].sort((a, b) =>
     String(b.published_at).localeCompare(String(a.published_at)),
   );
-  const incomplete = completeFrom !== null && completeFrom > start;
+  const incomplete = completeFrom !== null;
   const issues = [
     ...(drift.unreadable_items ? ["invalid_value"] : []),
     ...(drift.unknown_fields.size || drift.unknown_types.size
@@ -202,12 +207,12 @@ export async function symbolNews(
         from: new Date(start).toISOString().slice(0, 10),
         to: new Date(last).toISOString().slice(0, 10),
       },
-      // Items at or after this instant are as complete as Yahoo's per-query
-      // cap allows; null when no query reached the cap.
+      // The newest oldest-item among queries that stopped inside the window:
+      // items before it may be missing. Null when every query reached back.
       complete_from:
         completeFrom === null ? null : new Date(completeFrom).toISOString(),
       queries: report,
-      outside_window: outside,
+      outside_window: outside.size,
       drift: {
         unknown_fields: [...drift.unknown_fields].sort(),
         unknown_types: [...drift.unknown_types].sort(),

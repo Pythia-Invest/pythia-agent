@@ -44,10 +44,7 @@ independent one.
   in `other_symbols`.
 - Article text (`content`) is returned only when the read asks for it, up to
   8,000 characters per article, and is never stored.
-- Unknown item fields and undecoded references raise `schema_drift`. An empty
-  answer for a ticker whose earlier items fall in the window raises
-  `no_items_drift` instead of an ordinary empty list; that memory lasts for the
-  running session only and holds no content.
+- Unknown item fields and undecoded references raise `schema_drift`.
 
 ## Identifiers
 

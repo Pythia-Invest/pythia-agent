@@ -40,7 +40,6 @@ export const MANAGED_PLUGINS = Object.freeze([
       "worker_budget.py",
       "worker_reads.py",
       "connector.py",
-      "coverage.py",
       "diagnostics.py",
       "failures.py",
       "resident_worker.py",

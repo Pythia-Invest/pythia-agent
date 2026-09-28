@@ -3,7 +3,6 @@ import importlib
 import json
 import hashlib
 import os
-from datetime import datetime, timedelta
 from pathlib import Path
 
 from .configuration import Configuration
@@ -13,7 +12,7 @@ from .series import MODES, STREAM_MODES, definition, selector
 from .results import envelope, base, issue, read, window
 from .catalogue_pages import catalogue_page
 
-NEWS_WARNINGS = frozenset({'schema_drift', 'no_items_drift'})
+NEWS_WARNINGS = frozenset({'schema_drift'})
 
 
 def helpers(ctx):
@@ -56,20 +55,6 @@ def register(ctx):
         print(json.dumps({'streaming': streams.mode()}))
     ctx.register_cli_command('eodhd-streaming', 'Explicitly enable Cboe EDGX demo or account streaming; does not change existing series', stream_setup, stream_config)
     metadata_cache = importlib.import_module(wire.__package__ + '.cache').ReadCache(max_entries=128, ttl_seconds=300)
-    coverage = budgets.NewsCoverage()
-
-    def news(raw):
-        # An empty answer for a ticker whose earlier items fall in this window is drift, not silence.
-        data, ticker = raw['data'], raw['data']['provider_ref']['native_id']
-        window = data['window']
-        end = (datetime.fromisoformat(window['end']) + timedelta(days=1)).date().isoformat()
-        found = {ticker: [article['published_at'] for article in data['articles']]}
-        previous = coverage.observe('eodhd', [ticker], found, window['start'] + 'T00:00:00+00:00', end + 'T00:00:00+00:00')
-        if not previous:
-            return raw
-        # Never mutate the shared read-cache entry.
-        data = {**data, 'drift': {**data['drift'], 'previously_covered': previous}}
-        return {**raw, 'data': data, 'issues': [*raw.get('issues', []), 'no_items_drift']}
 
     def installed():
         try:
@@ -145,8 +130,6 @@ def register(ctx):
             if operation in ('news', 'fundamentals'):
                 reference(clean['native_ref'])
                 raw = call(operation, clean)
-                if operation == 'news' and raw.get('data'):
-                    raw = news(raw)
                 if operation == 'fundamentals' and raw.get('issues') == ['access_denied'] and raw.get('http_status') == 403:
                     # Fundamentals are a separately licensed dataset. A plan
                     # without it is a visible capability gap: not a failed read

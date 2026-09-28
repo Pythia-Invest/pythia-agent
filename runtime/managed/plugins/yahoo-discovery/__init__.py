@@ -2,14 +2,13 @@
 import importlib
 import json
 import os
-from datetime import datetime, timedelta
 from pathlib import Path
 from .definition import TOOLS, TOOLSET, schemas
 from .identity import candidate, reference
 from .series import definition, selector, MODES
 from .results import envelope, issue, base, read, window, now
 
-NEWS_WARNINGS = frozenset({'schema_drift', 'window_incomplete', 'no_items_drift', 'truncated', 'invalid_value'})
+NEWS_WARNINGS = frozenset({'schema_drift', 'window_incomplete', 'truncated', 'invalid_value'})
 
 
 def register(ctx):
@@ -26,23 +25,6 @@ def register(ctx):
     reads = connector.WorkerReads(process)
     quote_batches = connector.NativeBatch(size=20, age=60)
     definitions = schemas(wire)
-    coverage = connector.NewsCoverage()
-
-    def news(raw):
-        # An empty answer for symbols whose earlier items fall in this window is drift, not silence.
-        result = raw['data']['result']
-        found = {}
-        for item in result['news']:
-            for key in item['matched']:
-                found.setdefault(key, []).append(item['published_at'])
-        window = result['window']
-        end = (datetime.fromisoformat(window['to']) + timedelta(days=1)).date().isoformat()
-        previous = coverage.observe('yahoo', result['symbols'], found, window['from'] + 'T00:00:00+00:00', end + 'T00:00:00+00:00')
-        if not previous or 'window_incomplete' in raw['issues']:
-            return raw
-        # Never mutate the shared read-cache entry.
-        result = {**result, 'drift': {**result['drift'], 'previously_covered': previous}}
-        return {**raw, 'data': {**raw['data'], 'result': result}, 'issues': [*raw['issues'], 'no_items_drift']}
 
     def paths():
         root, node = os.environ.get('PYTHIA_MANAGED_ROOT', ''), os.environ.get('PYTHIA_NODE', '')
@@ -126,8 +108,6 @@ def register(ctx):
                     if not isinstance(args['options'], dict): raise ValueError('invalid_request')
                 raw = call(clean['operation'] if operation == 'research' else 'dashboard', args)
                 reading_news = operation == 'research' and clean['operation'] == 'news'
-                if reading_news and raw.get('data'):
-                    raw = news(raw)
                 return failures.qualify_items(failures.qualify_failure(envelope(raw['data'], [
                     issue(code, 'warning' if reading_news and code in NEWS_WARNINGS else 'error') for code in raw['issues']]), raw))
             if request:

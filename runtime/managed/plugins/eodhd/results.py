@@ -27,7 +27,6 @@ MESSAGES = {
     'identity_unresolved': 'Exact common-stock catalogue metadata could not be resolved uniquely.',
     'price_unit_unknown': 'The source does not establish a qualified price currency scale for this catalogue item.',
     'schema_drift': 'EODHD news carried fields, character references or items Pythia does not recognise; see drift.',
-    'no_items_drift': 'EODHD returned no news although items seen earlier fall in this window; the source may have changed. This is not an absence of news.',
 }
 
 

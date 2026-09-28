@@ -95,40 +95,6 @@ class Provider(unittest.TestCase):
                          {'code': 'not_entitled', 'severity': 'warning', 'source_code': '403'})
         self.assertEqual((news['outcome'], news['issues'][0]['code']), ('error', 'access_denied'))
 
-    def test_empty_news_for_a_ticker_seen_in_the_window_is_drift_not_silence(self):
-        provider = importlib.import_module('test_eodhd.__init__')
-        answers = [
-            [{'id': 'a', 'title': 'Synthetic', 'url': 'https://example.test/a', 'published_at': '2026-01-05T10:00:00.000Z',
-              'symbols': ['SYNTH.US'], 'other_symbols': 0}],
-            [],
-            [],
-        ]
-        def worker(_command, request, *_args, **_kwargs):
-            arguments = request['arguments']
-            return {'data': {'dataset': 'news', 'provider_ref': arguments['native_ref'], 'observed_at': '2026-01-08T00:00:00Z',
-                             'window': {'start': arguments.get('from', '2026-01-01'), 'end': arguments.get('to', '2026-01-08')},
-                             'symbols': ['SYNTH.US'], 'articles': answers.pop(0), 'limitations': [],
-                             'drift': {'unknown_fields': [], 'undecoded_entities': 0, 'unreadable_items': 0}},
-                    'issues': [], 'complete': True}
-        process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=worker)
-        ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, core())), \
-                patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
-                patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
-            provider.register(ctx)
-            tool = ctx.tools[provider.TOOLS['news']]
-            native = identity.native('SYNTH.US')
-            first = json.loads(tool({'native_ref': native, 'from': '2026-01-01', 'to': '2026-01-08'}))
-            empty = json.loads(tool({'native_ref': native, 'from': '2026-01-02', 'to': '2026-01-08'}))
-            # A window that does not contain the earlier item is an ordinary empty answer.
-            quiet = json.loads(tool({'native_ref': native, 'from': '2025-12-01', 'to': '2025-12-31'}))
-        self.assertEqual((first['outcome'], first['issues']), ('ok', []))
-        self.assertEqual(empty['outcome'], 'partial')
-        self.assertEqual([(item['code'], item['severity']) for item in empty['issues']], [('no_items_drift', 'warning')])
-        self.assertEqual(empty['data']['drift']['previously_covered'][0]['key'], 'SYNTH.US')
-        self.assertEqual((quiet['issues'], quiet['data']['articles']), ([], []))
-        self.assertNotIn('previously_covered', quiet['data']['drift'])
-
     def test_identifier_operation_is_explicit_and_preserves_denial(self):
         provider = importlib.import_module('test_eodhd.__init__')
         calls = []
