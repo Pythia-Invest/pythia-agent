@@ -14,12 +14,15 @@ reference builder ──▶ package directory ──▶ import step ──▶ in
 
 ## The package
 
-A package is a directory with two files:
+A package is a directory with two files, and a third when the build left
+questions open:
 
 - `reference-<YYYYMMDD>.sqlite3` is the versioned reference database. Its
   layout is core's `identity/sql/reference.sql`, and its `release` table
   records `schema_version` and the build ID (`release`).
 - `package.json` is the manifest that describes the database.
+- `questions-<YYYYMMDD>.json`, named by `claims`, lists what the build could
+  not decide from its sources.
 
 | Field | Meaning |
 | --- | --- |
@@ -31,7 +34,7 @@ A package is a directory with two files:
 | `database` | `file` (a plain file name in the same directory), `bytes` and `sha256`: the checksum of the SQLite file. |
 | `sources` | One entry per source file or API: `source`, `url`, `version`, `as_of` (retrieval date), `retrieved_at`, `licence`, and `notice`, the attribution to show wherever that data is shown. |
 | `quality` | The builder's quality summary: table row counts, canary results, the assembly audit and the identity truth-set scores (`tables`, `canaries`, `audit`, `truth_audit`). |
-| `claims` | **Reserved** for the builder's typed claims, open questions and verdicts, which will ship as a separate file in the package that this key names. Format 3 packages omit it and format 3 core ignores it. Its layout, and whether it needs a new format version, are decided when the builder emits it. |
+| `claims` | Optional: `file`, `bytes` and `sha256` of `questions-<YYYYMMDD>.json`, the questions the build left open where its sources did not decide a value (`{"build_id", "questions": [...]}`, each in core subject IDs with the resolution queue's `kind`, `reason`, candidates and evidence). The installer copies and verifies it with the database; on the release's first use, core imports its questions into the resolution queue once each. An older core ignores the key. |
 
 The builder writes `package.json` into its output directory
 (`.local/reference-builder/out/`, or `--out`) after each build, beside the
@@ -57,8 +60,9 @@ into the core plugin's native data directory,
 1. Reads `package.json` and refuses a package whose `format_version` is not the
    one this core reads. The message says whether to update Pythia or rebuild
    the package.
-2. Copies the database into a staging directory, hashing it as it copies, and
-   refuses the package if the checksum or size differs from `package.json`,
+2. Copies the database (and the `claims` file, when named) into a staging
+   directory, hashing it as it copies, and refuses the package if a checksum
+   or size differs from `package.json`,
    or if the database's schema version or build ID disagrees with it. A refusal
    leaves the installed package untouched and is recorded in `refused.json`
    until a package installs, so Settings can show it.
