@@ -1,0 +1,62 @@
+"""Curated market subjects (rule `native_markets@1`, ADR 0043): `markets.json`.
+
+A venue market such as a perp is its own `market` subject with a Pythia-curated
+key; no open identifier names it. The table names its underlying (`derivative_on`,
+a related subject, never folded) and the native reference of each plugin that
+serves it. Standard library only; the file is read on first use.
+"""
+from __future__ import annotations
+
+import json
+from functools import cache
+from pathlib import Path
+from typing import Any, Mapping
+
+from .model import ProviderRef
+from .schemes import Kind, registered_kind, subject_kind
+
+MARKETS_RULE = "native_markets@1"
+
+
+@cache
+def curated() -> dict[str, Mapping[str, Any]]:
+    """The shipped table, read once per process."""
+    return parse(json.loads((Path(__file__).parent / "markets.json").read_text(encoding="utf-8")))
+
+
+def parse(document: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    """The curated market table by subject ID; raises ValueError on a malformed entry."""
+    if document.get("rule_id") != MARKETS_RULE:
+        raise ValueError("markets: unknown rule")
+    table = {}
+    for entry in document["markets"]:
+        if registered_kind(entry["id"]) is not Kind.MARKET or subject_kind(entry["derivative_on"]["id"]) not in set(Kind):
+            raise ValueError(f"markets: {entry['id']} is malformed")
+        for ref in entry["refs"]:
+            ProviderRef(ref["provider"], ref["native_id"], ref["native_scope"])
+        table[entry["id"]] = entry
+    return table
+
+
+def load_market(table: Mapping[str, Mapping[str, Any]], subject_id: str) -> dict[str, Any] | None:
+    """A curated market, shaped like `load_subject`'s answer so sections compose alike, or None if unknown."""
+    entry = table.get(subject_id)
+    if entry is None:
+        return None
+    underlying = entry["derivative_on"]["id"]
+    return {
+        "id": subject_id, "level": Kind.MARKET, "ids": {Kind.MARKET: subject_id}, "values": {}, "evidence": [],
+        "asset_class": entry["asset_class"], "kind": None, "listing": None,
+        "refs": {ref["provider"]: ProviderRef(ref["provider"], ref["native_id"], ref["native_scope"])
+                 for ref in entry["refs"]},
+        "view": {"subject": {"id": subject_id, "level": str(Kind.MARKET), "name": entry["name"], "kind": None},
+                 "identifiers": {}, "issuer": None, "security": None, "listings": [],
+                 "related": [{"id": underlying, "type": "derivative_on", "direction": "to",
+                              "kind": subject_kind(underlying), "name": entry["derivative_on"]["name"]}]},
+    }
+
+
+def markets_on(table: Mapping[str, Mapping[str, Any]], subject_ids: list[str]) -> list[dict[str, Any]]:
+    """Curated markets that are derivatives on these subjects, as `related` rows of the underlying's page."""
+    return [{"id": entry["id"], "type": "derivative_on", "direction": "from", "kind": str(Kind.MARKET),
+             "name": entry["name"]} for entry in table.values() if entry["derivative_on"]["id"] in subject_ids]

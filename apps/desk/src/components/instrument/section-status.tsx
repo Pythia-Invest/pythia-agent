@@ -67,13 +67,17 @@ export function SectionPlaceholder({
     disabled: {
       icon: <CircleSlash />,
       title: `${section.label} is turned off`,
-      fallback: "Enable the plugin to show this section.",
+      fallback: `Enable it with \`hermes plugins enable ${section.plugin}\` for this profile, then reopen this page.`,
     },
   };
   const status = known[section.status];
-  const unsupported = !["quote", "chart", "profile", "filings"].includes(
-    section.section,
-  );
+  const unsupported = ![
+    "quote",
+    "chart",
+    "live",
+    "profile",
+    "filings",
+  ].includes(section.section);
   const shown = unsupported
     ? {
         icon: <Shapes />,

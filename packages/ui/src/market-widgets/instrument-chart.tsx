@@ -84,6 +84,15 @@ function timeTicks(
   const label = daily
     ? formatter(timeZone, { weekday: "short", day: "numeric" })
     : formatter(timeZone, { hour: "2-digit", minute: "2-digit" });
+  // A live window of minutes is labelled every few minutes.
+  if (!daily && hours < 3) {
+    const minutes = span / 60_000;
+    const step =
+      ([1, 2, 5, 10, 15, 30].find((s) => minutes / s <= 6) ?? 60) * 60_000;
+    for (let t = Math.ceil(start / step) * step; t <= end; t += step)
+      if (visible(t)) ticks.push({ time: t, label: label.format(t) });
+    return ticks;
+  }
   // A compressed axis labels each session where it resumes.
   if (daily && gaps.length) {
     const resumes = [start, ...gaps.map((gap) => gap.end)];

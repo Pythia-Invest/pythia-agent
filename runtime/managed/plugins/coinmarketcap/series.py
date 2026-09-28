@@ -137,7 +137,7 @@ def read_result(request, series=None, observations=(), issues=()):
     stamp = now()
     return {'schema_version': 1, 'outcome': ('partial' if problems else 'ok') if values else ('error' if problems else 'empty'),
             'request': request, 'series': series, 'observations': values,
-            'selection': {'view': request['view'], 'reason': 'pinned' if series else 'unavailable', 'preference_revision': None, 'alternatives': []},
+            'selection': {'view': request['view'], 'reason': 'pinned' if series else 'unavailable', 'alternatives': []},
             'provenance': {'provider': PROVIDER, 'native_ref': series['provider_ref'], 'adapter_version': '1', 'retrieved_at': stamp,
                            'source_time': known[-1]['value'] if known else None, 'revision_vintage': None,
                            'source_detail': None} if series else None,

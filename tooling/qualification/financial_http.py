@@ -1,7 +1,7 @@
 """Exercise copied Pythia handlers on the pinned native API app, without providers.
 
 Synthetic bounded specialist work verifies isolation, HTTP admission and cleanup.
-The real financial backend verifies shared tool/HTTP lifetime and durable prefs.
+The real financial backend verifies shared tool/HTTP lifetime.
 """
 import asyncio
 import copy
@@ -26,6 +26,9 @@ from native_hermes_source import validate_source_binding
 from widget_presentations import qualify_widget_presentations
 
 FINANCIAL_PATH = '/v1/pythia/plugins/pythia-market-data/query'
+READ = {'action': 'describe'}  # a provider-free financial read
+# A subscribable read that calls no provider: a subject core cannot route here is an empty series list.
+SUBSCRIBABLE = {'action': 'series', 'binding': {'kind': 'listing', 'id': 'listing:isin:NL0010273215:XAMS:EUR'}}
 SYNTHETIC_PATH = '/v1/pythia/plugins/synthetic/query'
 
 
@@ -195,12 +198,12 @@ async def main():
                 with patch('subprocess.Popen', side_effect=AssertionError('No command or model subprocess is allowed')):
                     await qualify_widget_presentations(post, disable, root)
                     for auth in ({}, {'Authorization': 'Bearer wrong'}):
-                        assert (await post({'action': 'get_preferences'}, auth=auth)).status == 401
+                        assert (await post(READ, auth=auth)).status == 401
                     adapter._api_key = ''
-                    assert (await post({'action': 'get_preferences'})).status == 401
+                    assert (await post(READ)).status == 401
                     adapter._api_key = key
                     assert instances == []
-                    assert (await post({'action': 'get_preferences'}, '/p/not-served' + FINANCIAL_PATH)).status == 404
+                    assert (await post(READ, '/p/not-served' + FINANCIAL_PATH)).status == 404
                     assert (await post({}, '/v1/pythia/plugins/synthetic/synthetic_undeclared')).status == 404
                     assert counts['undeclared'] == 0
                     unrelated_value = await (await post({}, SYNTHETIC_PATH)).json()
@@ -215,14 +218,14 @@ async def main():
                     assert invalid.status == 415
                     invalid = await client.post(base + FINANCIAL_PATH, headers={**headers, 'Content-Type': 'application/json'}, data=b'x' * 70000)
                     assert invalid.status == 413
-                    assert (await post({'action': 'get_preferences', 'profile': 'another'})).status == 400
-                    first = await post({'action': 'get_preferences'})
+                    assert (await post({**READ, 'profile': 'another'})).status == 400
+                    first = await post(READ)
                     assert first.status == 200, await first.text()
                     assert len(instances) == 1
                     # Real native SSE route: two browsers share one resource,
                     # auth and revocation are enforced on retained snapshots.
                     subscription = {'resources': [{'plugin': 'pythia-market-data', 'operation': 'query',
-                                                   'arguments': {'action': 'get_preferences'}}]}
+                                                   'arguments': SUBSCRIBABLE}]}
                     assert (await client.post(base + '/v1/pythia/updates', json=subscription)).status == 401
                     async def update(response):
                         while True:
@@ -238,7 +241,7 @@ async def main():
                     revoked = await update(stream_b)
                     assert revoked['type'] == 'reset' and 'data' not in revoked, revoked
                     stream_b.close()
-                    assert (await post({'action': 'get_preferences'})).status == 403
+                    assert (await post(READ)).status == 403
                     independent = await post({}, SYNTHETIC_PATH)
                     assert independent.status == 200, await independent.text()
                     assert (await independent.json())['data']['plugin'] == 'synthetic'
@@ -264,15 +267,14 @@ async def main():
                     config.write_text(initial_config)
                     disable('synthetic')
                     assert (await post({}, SYNTHETIC_PATH)).status == 403
-                    assert (await post({'action': 'get_preferences'})).status == 200
+                    assert (await post(READ)).status == 200
                     config.write_text(initial_config)
-                    await post({'action': 'set_preferences', 'operation': 'latest', 'providers': ['coingecko']})
                     tokens = set_session_vars(platform='api_server')
                     try:
-                        agent = json.loads(registry.dispatch(schemas.TOOL_NAME, {'action': 'get_preferences'}))
+                        agent = json.loads(registry.dispatch(schemas.TOOL_NAME, READ))
                     finally:
                         clear_session_vars(tokens)
-                    assert agent['data']['orders']['latest'] == ['coingecko']
+                    assert agent['outcome'] == 'ok', agent
                     assert len(instances) == 1
                     # Exercise the real reader's memory caches and pin semantics
                     # with a synthetic source; the transport/registry stay native.
@@ -307,7 +309,6 @@ async def main():
                     pinned['view'] = {'kind': 'source', 'series_id': series['id']}
                     pin_args = {'action': 'read', 'request': pinned, 'series': series}
                     before = await (await post(pin_args)).json()
-                    await post({'action': 'set_preferences', 'operation': 'latest', 'providers': ['yahoo']})
                     after = await (await post(pin_args)).json()
                     assert before == after and after['outcome'] == 'ok'
                     assert counts['prices'] == 2
@@ -326,28 +327,22 @@ async def main():
                     assert ordinary_receipt != readonly_receipt
                     reused = await (await post(many, read_only=True, reuse_scope=readonly_receipt)).json()
                     assert reused == {'schema_version': 1, 'reuse': readonly_receipt}, reused
-                    before_preferences = (await (await post({'action': 'get_preferences'})).json())['data']
-                    mutation = {'action': 'set_preferences', 'operation': 'latest', 'providers': ['synthetic']}
+                    unclassified = {'action': 'set_preferences', 'operation': 'latest', 'providers': ['synthetic']}  # retired
                     for receipt in (None, readonly_receipt):
-                        denied = await post(mutation, read_only=True, reuse_scope=receipt)
+                        denied = await post(unclassified, read_only=True, reuse_scope=receipt)
                         assert denied.status == 403 and (await denied.json())['error']['code'] == 'read_only_required'
-                        unchanged = await (await post({'action': 'get_preferences'})).json()
-                        assert unchanged['data'] == before_preferences, unchanged
-                    assert (await post(mutation)).status == 200
-                    changed = await (await post({'action': 'get_preferences'})).json()
-                    assert changed['data']['orders']['latest'] == ['synthetic'], changed
                     await qualify_agent_cancellation(backend, schemas.TOOL_NAME, pin_args, package)
                     # Concurrent health remains responsive while provider work waits.
                     slow_request = asyncio.create_task(post({'wait': True}, SYNTHETIC_PATH))
                     assert await asyncio.to_thread(started.wait, 2)
                     assert (await client.get(base + '/health')).status == 200
-                    queued = asyncio.create_task(post({'action': 'get_preferences'}))
+                    queued = asyncio.create_task(post(READ))
                     assert (await slow_request).status == 504
                     assert (await queued).status in (200, 504)  # Queue wait shares the caller deadline.
                     assert await asyncio.to_thread(stopped.wait, 2)
                     # Allow the completed-worker callback to release admission.
                     for _ in range(20):
-                        response = await post({'action': 'get_preferences'})
+                        response = await post(READ)
                         if response.status != 429:
                             break
                         await asyncio.sleep(0.01)
@@ -363,7 +358,7 @@ async def main():
                         pass
                     assert await asyncio.to_thread(stopped.wait, 2)
                     for _ in range(20):
-                        response = await post({'action': 'get_preferences'})
+                        response = await post(READ)
                         if response.status != 429:
                             break
                         await asyncio.sleep(0.01)

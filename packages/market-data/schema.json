@@ -1175,17 +1175,6 @@
             "unavailable"
           ]
         },
-        "preference_revision": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 1
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "alternatives": {
           "type": "array",
           "items": {
@@ -1197,7 +1186,7 @@
           "maxItems": 10000
         }
       },
-      "required": ["view", "reason", "preference_revision", "alternatives"],
+      "required": ["view", "reason", "alternatives"],
       "additionalProperties": false
     },
     "coverage": {

@@ -250,6 +250,18 @@ class TransportTest(QueueFixture):
 
 
 class SubjectOperationTest(QueueFixture):
+    def test_price_sources_name_the_providers_the_investor_put_in_source_order(self):
+        core = load_core()
+        from pythia_core_queue_fixture import identity_ops
+        reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("yahoo"), plugin("eodhd")]), \
+                unittest.mock.patch.object(identity_ops.Identity, "order", lambda _self: ("pythia-eodhd", "unknown")):
+            routed = ops.price_sources(ASML)
+        ops.store.db.close()
+        del core
+        self.assertEqual((routed["reason"], routed["named"]), (None, ["eodhd"]))  # an unknown name names no provider
+
     def test_a_share_class_is_listed_once_under_other_securities_not_related(self):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops

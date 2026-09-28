@@ -169,7 +169,6 @@
           "series_id": "series:synthetic-equity-daily"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -316,7 +315,6 @@
           }
         },
         "reason": "preference",
-        "preference_revision": 1,
         "alternatives": []
       },
       "provenance": {
@@ -461,7 +459,6 @@
           }
         },
         "reason": "preference",
-        "preference_revision": 1,
         "alternatives": []
       },
       "provenance": {
@@ -675,7 +672,6 @@
           "series_id": "series:synthetic-equity-daily"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -822,7 +818,6 @@
           }
         },
         "reason": "preference",
-        "preference_revision": 1,
         "alternatives": []
       },
       "provenance": {
@@ -996,7 +991,6 @@
           "series_id": "series:synthetic-equity-daily"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -1076,7 +1070,6 @@
           "series_id": "series:synthetic-equity-daily"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": null,
@@ -1296,7 +1289,6 @@
           }
         },
         "reason": "preference",
-        "preference_revision": 1,
         "alternatives": []
       },
       "provenance": {
@@ -1515,7 +1507,6 @@
           "series_id": "series:synthetic-equity-close"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
@@ -1663,7 +1654,6 @@
           "series_id": "series:synthetic-equity-close-snapshot"
         },
         "reason": "pinned",
-        "preference_revision": null,
         "alternatives": []
       },
       "provenance": {
