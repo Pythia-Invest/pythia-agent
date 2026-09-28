@@ -172,6 +172,18 @@ class XbrlSemantics(unittest.TestCase):
         self.assertEqual(assets['source_detail']['values']['taxonomy_uri'], 'https://xbrl.ifrs.org/taxonomy/2025-03-27/ifrs-full')
         self.assertEqual(assets['entity'], {'scheme': 'lei', 'value': LEI})
 
+    def test_revenue_reads_the_first_standard_revenue_concept_a_report_tags(self):
+        report = reports.select(metadata(), LEI)
+        duration = '2025-01-01T00:00:00/2026-01-01T00:00:00'
+        only = facts.read(document(fact(value='7', concept='RevenueFromContractsWithCustomers', period=duration)),
+                          LEI, report, STAMP)
+        self.assertEqual([(row['metric'], row['concept'], row['value']) for row in only['facts']],
+                         [('revenue', 'RevenueFromContractsWithCustomers', '7')])
+        both = facts.read(document(fact(value='7', concept='RevenueFromContractsWithCustomers', period=duration),
+                                   fact(value='9', concept='Revenue', period=duration)), LEI, report, STAMP)
+        self.assertEqual([(row['concept'], row['value']) for row in both['facts']], [('Revenue', '9')])
+        self.assertFalse(any('conflicting' in note for note in both['limitations']))
+
     def test_dimensions_never_become_consolidated_metrics_and_native_read_keeps_them(self):
         raw = document(fact(**{'ifrs:ProductsAxis': 'custom:DeviceMember'}))
         report = reports.select(metadata(), LEI)

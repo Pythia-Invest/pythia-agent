@@ -1,7 +1,7 @@
 """Hyperliquid's one native operation: a `live_market` snapshot of a perp, pushed while watched."""
 import json
 
-TOOLSET = 'pythia-hyperliquid'
+TOOLSET = 'pythia-core'  # core's one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
 TOOLS = {'live_market': 'pythia_hyperliquid_live_market'}
 
 

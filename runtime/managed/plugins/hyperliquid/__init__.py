@@ -2,7 +2,7 @@
 
 Installed disabled: enabling the plugin is the investor's explicit choice to open a
 socket to Hyperliquid under its terms. The Desk subscribes through the shared update
-channel (ADR 0030); the agent gets one snapshot through the same native tool.
+channel (ADR 0030); the agent gets one snapshot through the provider tool `hyperliquid_live_market`.
 """
 import json
 
@@ -73,3 +73,10 @@ def register(ctx):
     pythia.platform.declare_operation(schema, plugin=ctx.plugin_id, operation='live_market', handler=handler,
                                       support=LiveSupport(pythia.platform.admission), updates=True, read_only=True)
     ctx.register_tool(name=TOOLS['live_market'], toolset=TOOLSET, schema=schema, handler=handler)
+    pythia.platform.register_agent_tool(
+        ctx, 'hyperliquid_live_market', TOOLS['live_market'],
+        'Live Hyperliquid perp state: order book, trades, funding. Live market state of one Hyperliquid '
+        'perpetual only: the top 5 order-book levels per side, recent trades, the last trade at each minute of the '
+        'past 15, and mark, oracle, hourly funding rate and open interest (in coins). Pass the perp\'s market '
+        'subject id, which pythia_instrument of the coin lists among its related instruments. Not for quotes or '
+        'returns of a stock or coin; those are pythia_prices. It can take up to 10 seconds.')

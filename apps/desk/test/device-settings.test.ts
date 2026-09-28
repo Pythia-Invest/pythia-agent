@@ -467,12 +467,15 @@ describe("device settings", () => {
     );
   });
 
-  it("does not offer mutation for Hermes's essential agent skill", async () => {
+  it("does not offer mutation for the essential skill or Pythia toolsets", async () => {
     const { command, restart, service } = harness();
     const before = command.mock.calls.length;
     await expect(
       service.setSkillEnabled("hermes-agent", false),
     ).rejects.toMatchObject({ code: "essential_skill" });
+    await expect(
+      service.setToolsetEnabled("pythia-core", true),
+    ).rejects.toMatchObject({ code: "pythia_toolset" });
     expect(command.mock.calls.length).toBe(before);
     expect(restart).not.toHaveBeenCalled();
   });

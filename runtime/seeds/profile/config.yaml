@@ -2,6 +2,14 @@ skills:
   external_dirs:
     - "${PYTHIA_MANAGED_SKILLS_DIR}"
   disabled: []
+  # Agent-initiated skill writing is off for now (docs/architecture/agent-tools.md): no background skill review,
+  # every skill_manage write is staged for the investor's approval (`/skills pending`), and the curator (below)
+  # does not rewrite skills. Turn it back on with `hermes config set skills.creation_nudge_interval 10`,
+  # `hermes config set skills.write_approval false` and `hermes config set curator.enabled true`.
+  creation_nudge_interval: 0
+  write_approval: true
+curator:
+  enabled: false
 plugins:
   enabled:
     - pythia
@@ -40,5 +48,33 @@ platform_toolsets:
     - todo
     - vision
     - web
+# Plugin operations live in core's hidden pythia-core toolset: runnable by Pythia, never offered to the model. The
+# agent's Pythia tools (pythia-desk) and the plugins' provider tools (a toolset per plugin) serve Desk chat
+# (api_server); cli and cron sessions have no trusted caller for them yet (docs/architecture/agent-tools.md).
+known_plugin_toolsets:
+  cli:
+    - pythia-core
+    - pythia-desk
+    - pythia-sec
+    - pythia-xbrl-filings
+    - pythia-gleif
+    - pythia-eodhd
+    - pythia-yahoo-discovery
+    - pythia-coinmarketcap
+    - pythia-openfigi
+    - pythia-hyperliquid
+  cron:
+    - pythia-core
+    - pythia-desk
+    - pythia-sec
+    - pythia-xbrl-filings
+    - pythia-gleif
+    - pythia-eodhd
+    - pythia-yahoo-discovery
+    - pythia-coinmarketcap
+    - pythia-openfigi
+    - pythia-hyperliquid
+  api_server:
+    - pythia-core
 auxiliary:
   free_only: true

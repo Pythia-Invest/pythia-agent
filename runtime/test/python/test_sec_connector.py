@@ -396,7 +396,8 @@ class SecConfiguration(unittest.TestCase):
         tools = {}
         ctx = SimpleNamespace(register_tool=lambda **tool: tools.update({tool['name']: tool}))
         selection = SimpleNamespace(native_access_scope=lambda: {'cacheable': True, 'scope': 'fixture'})
-        platform = SimpleNamespace(platform=lambda: SimpleNamespace(configuration=settings('missing')))
+        platform = SimpleNamespace(platform=lambda: SimpleNamespace(configuration=settings('missing'),
+                                                                    register_agent_tool=lambda *_args, **_kwargs: None))
         self.enterContext(patch.object(plugin, 'helpers', return_value=(wire, connector, selection, platform)))
         plugin.register(ctx)
         self.assertTrue(all(tool['check_fn']() for tool in tools.values()))

@@ -3,7 +3,7 @@ from .selection import CRITERIA
 from .wire import parameter_schema
 
 TOOL_NAME = "pythia_market_data"
-TOOLSET = "pythia-market-data"
+TOOLSET = "pythia-core"  # core's one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
 ACTIONS = ["describe", "call", "details", "series", "read", "read_many"]
 TEXT = {"type": "string", "minLength": 1, "maxLength": 512}
 SCHEMA = {
