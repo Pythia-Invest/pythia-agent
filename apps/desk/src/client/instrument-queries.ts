@@ -64,12 +64,10 @@ export function useResolvedSections(
         .map((section) => section.plugin),
     ),
   ];
+  // Core says which level each section's plugin addresses it through.
   const issuerLevel = (plugin: string) =>
     sections.every(
-      (section) =>
-        section.plugin !== plugin ||
-        section.section === "profile" ||
-        section.section === "filings",
+      (section) => section.plugin !== plugin || section.via === "issuer",
     );
   const resolutions = useQueries({
     queries: plugins.map((plugin) => {

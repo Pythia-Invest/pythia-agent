@@ -34,12 +34,15 @@ PREFERENCE = "search_listing_preference"  # declared in configuration.json
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
     "description": "Search the device's local directory of securities, listings and crypto assets by name, ticker "
-                   "or identifier (ISIN, LEI, FIGI, CIK). Local only; no provider is called.",
+                   "or identifier (ISIN, LEI, FIGI, CIK). Answers groups (a company, a fund or a crypto asset), "
+                   "each with its most relevant listings and its total listing count; pass `group` with a group's "
+                   "id instead of `query` to list all of its listings. Local only; no provider is called.",
     "parameters": {"type": "object", "properties": {
         "query": {"type": "string", "minLength": 1, "maxLength": 128},
+        "group": {"type": "string", "minLength": 1, "maxLength": 256},
         "kinds": {"type": "array", "items": {"type": "string", "enum": list(search.KINDS)}, "maxItems": 16},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
-        "required": ["query", "limit"], "additionalProperties": False},
+        "required": ["limit"], "additionalProperties": False},
 }
 SUBJECT_SCHEMA = {
     "name": "pythia_identity_subject",
@@ -88,14 +91,17 @@ class Identity:
     def search(self, arguments: dict, **_context: Any) -> str:
         empty = {"groups": [], "lookup": []}
         query = str(arguments.get("query") or "").strip()[:128]
+        group = str(arguments.get("group") or "").strip()[:256]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
             path = store.reference_path(self.data_dir)
             if path is None:
                 return _envelope("empty", empty, issue=NO_REFERENCE)
             directory = search.directory(path, store.open_reference)
-            data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), prefer=self._preference(),
-                                    suffixes=_suffixes, bindings=self._bindings) if query else empty
+            kinds = arguments.get("kinds")
+            data = (directory.group(group, kinds=kinds) if group
+                    else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
+                                          suffixes=_suffixes) if query else empty)
         except (sqlite3.Error, OSError):  # search degrades, never errors out
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
@@ -146,18 +152,6 @@ class Identity:
         except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
             return "primary"
         return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
-
-    def _bindings(self, listing_ids: list[str]) -> dict[str, list[dict]]:
-        """Confirmed bindings for search rows; optional, so a store problem only drops them."""
-        out: dict[str, list[dict]] = {}
-        try:
-            rows = self.store.bindings(listing_ids)
-        except sqlite3.Error:
-            logger.warning("identity store unreadable; search rows carry no bindings", exc_info=True)
-            return out
-        for row in rows:
-            out.setdefault(row["subject_id"], []).append({"plugin": row["plugin"], "ref": row["native_id"]})
-        return out
 
     # ---- internals -----------------------------------------------------------------------------------------------
 

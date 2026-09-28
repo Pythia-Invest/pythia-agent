@@ -11,11 +11,12 @@ import {
 } from "@pythia/widget-sdk";
 import { LoaderCircle, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { LookupOffer, SearchGroup } from "../search";
+import { type LookupOffer, rowTarget, type SearchGroup } from "../search";
 import {
   type LookupRunner,
   type SearchBackend,
   useDirectorySearch,
+  useGroupListings,
 } from "./controller";
 import {
   type SearchOption,
@@ -36,11 +37,13 @@ export type InvestmentSearchProps = {
   /** Runs the explicit single-plugin lookup the directory offers at the
    * bottom of the panel. Without it, no lookup action is shown. */
   lookup?: LookupRunner | undefined;
-  /** The chosen row's subject id, which an instrument page addresses. */
-  onSelect(subjectId: string): void;
-  /** The subject id of a row the user highlights with pointer or keyboard
-   * (not the automatic first row), so a host can prepare that page. */
-  onHighlight?: ((subjectId: string) => void) | undefined;
+  /** The chosen row: its instrument's subject id, which the instrument page
+   * is, and the listing id whose price the page shows (the same id for a
+   * crypto asset or a row without a known instrument). */
+  onSelect(subjectId: string, listingId: string): void;
+  /** The same ids for a row the user highlights with pointer or keyboard (not
+   * the automatic first row), so a host can prepare that page. */
+  onHighlight?: ((subjectId: string, listingId: string) => void) | undefined;
   /** Register the Cmd/Ctrl+K shortcut. Disable when several instances mount. */
   shortcut?: boolean | undefined;
   className?: string | undefined;
@@ -99,12 +102,26 @@ export function InvestmentSearch({
   const fresh = Boolean(response) && !result.isPlaceholderData;
   const shownLookup = lookupState?.query === trimmed ? lookupState : undefined;
   const found = shownLookup?.status === "done" ? shownLookup.groups : NO_GROUPS;
+  // "All N listings" is a group read of its own, only once a group is opened.
+  const groupReads = useGroupListings(
+    search,
+    trimmed,
+    filter,
+    (response?.groups ?? NO_GROUPS).filter(
+      (group) => expanded.has(group.id) && group.listings > group.rows.length,
+    ),
+  );
   const options = useMemo(
     () => [
-      ...searchOptions(response?.groups ?? NO_GROUPS, "directory", expanded),
+      ...searchOptions(
+        response?.groups ?? NO_GROUPS,
+        "directory",
+        expanded,
+        groupReads.rows,
+      ),
       ...searchOptions(found, "lookup", expanded),
     ],
-    [response, found, expanded],
+    [response, found, expanded, groupReads.rows],
   );
   const status: PanelStatus = !trimmed
     ? "prompt"
@@ -192,8 +209,10 @@ export function InvestmentSearch({
       // Only a highlight the user moved (keyboard or pointer); the automatic
       // first-row highlight follows every keystroke and is not a signal.
       onItemHighlighted={(option, details) => {
-        if (option?.row && details.reason !== "none")
-          onHighlight?.(option.row.id);
+        if (option?.row && details.reason !== "none") {
+          const { subjectId, listingId } = rowTarget(option.row);
+          onHighlight?.(subjectId, listingId);
+        }
       }}
       itemToStringValue={(option) => option.row?.ticker ?? option.group.name}
       filter={null}
@@ -295,8 +314,13 @@ export function InvestmentSearch({
               onFilter={setFilter}
               onRetry={() => void result.refetch()}
               onLookup={(offer) => void runLookup(offer)}
-              onChoose={(option) => option.row && onSelect(option.row.id)}
+              onChoose={(option) => {
+                if (!option.row) return;
+                const { subjectId, listingId } = rowTarget(option.row);
+                onSelect(subjectId, listingId);
+              }}
               expanded={expanded}
+              pending={groupReads.pending}
               onToggle={(groupId) => {
                 toggled.current = true;
                 setExpanded((current) => {

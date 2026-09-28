@@ -30,8 +30,8 @@ US_LISTED = ("XNAS", "XNYS", "XCBO")
 PREFERENCES = ("primary", "EU", "US")
 # The search contract's kinds (packages/market-data/src/search.ts); the reference holds a subset.
 KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other")
-SHOWN = 3  # compact listing rows per company group before "all listings"
-MAX_ROWS = 40  # listings one group carries at most
+SHOWN = 3  # relevant listing rows a search group carries
+GROUP_ROWS = 500  # listings one group read ("all listings") carries at most
 
 ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 LEI = re.compile(r"^[A-Z0-9]{18}[0-9]{2}$")
@@ -221,17 +221,18 @@ class Directory:
     def instrument_listings(self, security: str) -> list[dict]:
         """The listings of the instrument a security belongs to: its own lines, then those of each security
         that folds into it (a receipt), one security after another. The instrument's primary (else home,
-        exchange) listing comes first and is marked primary, even when a receipt carries its own primary flag.
+        exchange) listing comes first; it is marked primary only when flagged so, never a receipt's line.
         Empty for a security not in the directory."""
         with self.lock:
             rows = self.db.execute(
-                "SELECT listing, ticker, mic, venue, currency, kind, security <> inst FROM doc"
+                "SELECT listing, ticker, mic, venue, currency, kind, security <> inst, prim FROM doc"
                 " WHERE inst = (SELECT inst FROM doc WHERE security = ? LIMIT 1) AND crypto = 0"
                 " ORDER BY security <> inst, security, prim DESC, fus, otc, home DESC, mic, listing",
                 (security,)).fetchall()
         # `folded`: a line of a security that folds into the instrument (a receipt), not of the instrument's own.
+        # Only a flagged line of the instrument's own security is its primary; with none, no line claims it.
         return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind"), row), folded=bool(row[6]),
-                     primary=index == 0) for index, row in enumerate(rows)]
+                     primary=index == 0 and not row[6] and bool(row[7])) for index, row in enumerate(rows)]
 
     def other_instruments(self, security: str) -> list[dict]:
         """The other instruments of a security's search group (a company's other share classes, preferreds and
@@ -252,60 +253,71 @@ class Directory:
                 for inst, names, kind, listing, ticker, mic, venue, currency, _size in ordered]
 
     def search(self, query: str, *, limit: int, kinds: Iterable[str] | None = None, prefer: str = "primary",
-               suffixes: Callable[[], dict[str, set[str]]] = dict,
-               bindings: Callable[[list[str]], dict[str, list[dict]]] = lambda ids: {}) -> dict[str, Any]:
-        """The SearchResponse (packages/market-data/src/search.ts): listings grouped per company (ADR 0037), a
-        fund, ETF or crypto asset on its own. Groups compete by their best line; each group's first `shown`
-        rows are its relevant listings, the rest are for "all listings"."""
+               suffixes: Callable[[], dict[str, set[str]]] = dict) -> dict[str, Any]:
+        """The SearchResponse (packages/market-data/src/search.ts): core's search groups (ADR 0037). Groups compete
+        by their best line; each carries its relevant listings (at most `SHOWN`) and how many it has in all."""
         allowed = set(kinds) if kinds else None
         groups: dict[str, list] = {}
         for score, line, key in self.lines(query, prefer, suffixes):
-            # A type filter matches the instrument or the line (a folded receipt for "depositary_receipt").
-            if allowed is not None and line["ikind"] not in allowed and line["kind"] not in allowed:
+            if not _allowed(line, allowed):
                 continue
             group = groups.setdefault(line["grp"], [score, {}])
             group[0] = max(group[0], score)
             group[1].setdefault(line["security"], []).append((score, key, line))
-        chosen = sorted(groups.items(), key=lambda item: -item[1][0])[:limit]
         out = []
-        for key, (_score, securities) in chosen:
+        for key, (_score, securities) in sorted(groups.items(), key=lambda item: -item[1][0])[:limit]:
             # The lead is the best line of the best instrument (receipts folded in), then the main share's
-            # primary listing and a line of each other matched security (receipts, classes): one the query
-            # names, else that security's own primary listing.
+            # primary listing (only a flagged one) and a line of each other matched security (receipts,
+            # classes): one the query names, else that security's own primary listing.
             folded: dict[str, list] = {}
             for members in securities.values():
                 folded.setdefault(members[0][2]["inst"], []).extend(members)
             lead = max(max(folded.values(), key=lambda m: _order(m, "ikind")), key=lambda entry: entry[1])[2]
             best = [max(members, key=lambda entry: (entry[1][:2], entry[2]["prim"], entry[1]))[2]
                     for members in sorted(securities.values(), key=lambda m: _order(m, "kind"), reverse=True)]
-            everything = self._group_lines(key)
+            everything = self._group_lines(key, allowed)
+            primary = everything[:1] if everything and everything[0]["prim"] else []
             shown: list[dict] = []
-            for line in [lead, *everything[:1], *best]:
+            for line in [lead, *primary, *best]:
                 if len(shown) < SHOWN and all(line["listing"] != item["listing"] for item in shown):
                     shown.append(line)
-            rest = [line for line in everything if all(line["listing"] != item["listing"] for item in shown)]
-            out.append((key, lead, [*shown, *rest][:MAX_ROWS], len(shown)))
-        bound = bindings([line["listing"] for *_head, rows, _shown in out for line in rows])
+            out.append(_group(key, lead, shown, max(len(everything), len(shown))))
+        return {"groups": out, "lookup": []}
 
-        def row(line: dict) -> dict:
-            return {"id": line["listing"], "ticker": line["ticker"], "name": _own(line["names"]) or line["name"],
-                    "kind": line["kind"], "mic": line["mic"], "venue": line["venue"], "country": line["country"],
-                    "currency": line["currency"], "bindings": bound.get(line["listing"], [])[:16]}
+    def group(self, key: str, *, kinds: Iterable[str] | None = None) -> dict[str, Any]:
+        """One search group with all its listings (at most `GROUP_ROWS`), in `_group_lines` order: the SearchResponse
+        a group's "All N listings" reads. No groups for an unknown key."""
+        everything = self._group_lines(key, set(kinds) if kinds else None)
+        if not everything:
+            return {"groups": [], "lookup": []}
+        return {"groups": [_group(key, everything[0], everything[:GROUP_ROWS], len(everything))], "lookup": []}
 
-        return {"groups": [{"id": key, "name": lead["name"], "kind": lead["ikind"], "shown": shown,
-                            "rows": [row(line) for line in rows]} for key, lead, rows, shown in out],
-                "lookup": []}
-
-    def _group_lines(self, key: str) -> list[dict]:
-        """Every listing of a search group: the main share's lines first (primary, then exchange, then OTC),
-        then other share classes, receipts, preferreds and notes."""
+    def _group_lines(self, key: str, allowed: set[str] | None = None) -> list[dict]:
+        """Every listing of a search group that the type filter allows: the main share's lines first (primary,
+        then exchange, then OTC), then other share classes, receipts, preferreds and notes."""
         with self.lock:
             lines = self._fetch("d.grp = ?", (key,))
         lines.sort(key=lambda line: (-KIND_ORDER.get(line["kind"], 1), -(line["size"] or 0), line["security"],
                                      -line["prim"], line["fus"], line["otc"], -line["home"], line["mic"] or "",
                                      line["listing"]))
         seen: set[str] = set()  # a crypto asset's chain deployments are one listing
-        return [line for line in lines if not (line["listing"] in seen or seen.add(line["listing"]))]
+        return [line for line in lines if _allowed(line, allowed)
+                and not (line["listing"] in seen or seen.add(line["listing"]))]
+
+
+def _allowed(line: dict, allowed: set[str] | None) -> bool:
+    """A type filter matches the instrument or the line (a folded receipt for "depositary_receipt")."""
+    return allowed is None or line["ikind"] in allowed or line["kind"] in allowed
+
+
+def _group(key: str, lead: dict, lines: list[dict], listings: int) -> dict:
+    """A SearchGroup: named by its lead line, with these listing rows and its true listing count. Each row names
+    its instrument (`inst`), which the page opens, and its own listing, which the page shows."""
+    return {"id": key, "name": lead["name"], "kind": lead["ikind"], "listings": listings,
+            "rows": [{"id": line["listing"], "instrument": line["inst"], "ticker": line["ticker"],
+                      "name": _own(line["names"]) or line["name"], "kind": line["kind"], "mic": line["mic"],
+                      "venue": line["venue"], "country": line["country"], "currency": line["currency"]}
+                     for line in lines]}
 
 
 def _own(names: str | None) -> str | None:

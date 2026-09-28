@@ -28,11 +28,15 @@ export type InstrumentKind = (typeof INSTRUMENT_KINDS)[number];
 
 const text = (max: number) => z.string().min(1).max(max);
 
-/** One listing of a company group, or a crypto asset. */
+/** One listing of a search group, or a crypto asset. */
 export const searchRowSchema = z.object({
-  /** Subject id of the listing (crypto: of the asset). Instrument pages
-   * address it; it is never a provider symbol. */
+  /** Subject id of the listing (crypto: of the asset). The instrument page
+   * shows its price; it is never a provider symbol. */
   id: text(256),
+  /** Subject id of the instrument the listing belongs to (a receipt's is the
+   * share it folds into), which the instrument page is; absent when unknown,
+   * as for an explicit lookup's answer. */
+  instrument: text(256).nullish(),
   ticker: text(64),
   /** The listed security's own name (a share class, registry shares). */
   name: text(512),
@@ -44,26 +48,28 @@ export const searchRowSchema = z.object({
   /** ISO 3166 country of the venue. */
   country: z.string().length(2).nullable(),
   currency: text(16).nullable(),
-  /** Confirmed provider bindings only; candidates are never shown. */
-  bindings: z.array(z.object({ plugin: text(64), ref: text(256) })).max(16),
 });
 export type SearchRow = z.infer<typeof searchRowSchema>;
-export type SearchBinding = SearchRow["bindings"][number];
+
+/** Where a chosen row leads: the instrument's page, showing that listing. */
+export function rowTarget(row: SearchRow) {
+  return { subjectId: row.instrument ?? row.id, listingId: row.id };
+}
 
 /** One of core's search groups (ADR 0037): a company (its share classes,
- * receipts and registry lines), a fund, ETF or ETN, or a crypto asset, with
- * its listings. The first `shown` rows are the
- * relevant ones (a listing the query names, the preferred market, the
- * primary listing, other classes and receipts); the rest are for "all
- * listings". */
+ * receipts and registry lines), a fund, ETF or ETN, or a crypto asset. A
+ * search answer carries its relevant listings (a listing the query names, the
+ * preferred market, the primary listing, other classes and receipts) and
+ * `listings`, how many it has in all; a group read (`SearchRequest.group`)
+ * carries all of them. */
 export const searchGroupSchema = z.object({
   /** Issuer, fund or crypto-asset subject id. */
   id: text(256),
   name: text(512),
   /** The company's main instrument kind, for type labels. */
   kind: z.enum(INSTRUMENT_KINDS),
-  shown: z.number().int().min(1),
-  rows: z.array(searchRowSchema).min(1).max(40),
+  listings: z.number().int().min(1),
+  rows: z.array(searchRowSchema).min(1).max(500),
 });
 export type SearchGroup = z.infer<typeof searchGroupSchema>;
 
@@ -77,6 +83,9 @@ export type LookupOffer = SearchResponse["lookup"][number];
 
 export type SearchRequest = {
   query: string;
+  /** A group id from an earlier answer: read all of that group's listings
+   * instead of searching. */
+  group?: string;
   /** Type filter; omitted means every kind. */
   kinds?: InstrumentKind[];
   /** Maximum number of groups. */

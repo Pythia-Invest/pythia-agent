@@ -215,9 +215,15 @@ installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange); the main share's primary listing and a line of each other matched
-security (one the query names, else that security's primary listing) follow,
-at most three in all, then the rest. Core declares the key
+exchange); the main share's primary listing (only a line flagged primary; a
+missing primary venue is not filled with another line) and a line of each
+other matched security (one the query names, else that security's primary
+listing) follow, at most three in all. A group states how many listings it has;
+"All N listings" reads the rest as a separate group read, so a search answer
+stays small for the agent as well. A type filter picks groups and narrows their
+listings. Each row names its instrument, and choosing a row opens that
+instrument's page on the row's listing: a receipt's row opens the share it
+folds into. Core declares the key
 in its `configuration.json`. "Look up in X"
 explicitly calls one provider's `resolve`, and the result joins like any other
 claim.

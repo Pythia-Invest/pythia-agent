@@ -110,13 +110,15 @@ class SearchTest(Fixture):
     def test_a_company_groups_its_listings_receipts_included(self):
         group, = self.directory.search("asml", limit=5)["groups"]
         us = "listing:figi:BBG000K6N6G7"
-        self.assertEqual({key: group[key] for key in ("name", "kind", "shown")},
-                         {"name": "ASML Holding N.V.", "kind": "ordinary", "shown": 2})
-        self.assertEqual(group["rows"][0], {"id": ASML, "ticker": "ASML", "name": "ASML Holding N.V.",
-                                            "kind": "ordinary", "mic": "XAMS", "venue": "Euronext Amsterdam",
-                                            "country": "NL", "currency": "EUR", "bindings": []})
-        # The registry shares are a listing row of the same company, with their own type.
-        self.assertEqual((group["rows"][1]["id"], group["rows"][1]["kind"]), (us, "depositary_receipt"))
+        self.assertEqual({key: group[key] for key in ("name", "kind", "listings")},
+                         {"name": "ASML Holding N.V.", "kind": "ordinary", "listings": 2})
+        self.assertEqual(group["rows"][0], {"id": ASML, "instrument": "security:isin:NL0010273215", "ticker": "ASML",
+                                            "name": "ASML Holding N.V.", "kind": "ordinary", "mic": "XAMS",
+                                            "venue": "Euronext Amsterdam", "country": "NL", "currency": "EUR"})
+        # The registry shares are a listing row of the same company, with their own type; the page they open is
+        # the share's instrument, which they fold into.
+        self.assertEqual({key: group["rows"][1][key] for key in ("id", "kind", "instrument")},
+                         {"id": us, "kind": "depositary_receipt", "instrument": "security:isin:NL0010273215"})
 
     def test_another_securitys_row_is_its_own_primary_listing(self):
         # A registry share line elsewhere would win on the foreign-on-US penalty; the row shows the primary.
@@ -124,7 +126,8 @@ class SearchTest(Fixture):
             db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
                        " VALUES ('listing:asml-nyrs:XMUN', 'security:figi:BBG001SCG0R3', 'XMUN', 'XMUN', 'ASMF', 'USD', 0)")
         group, = search.Directory(self.ref).search("asml", limit=5)["groups"]
-        self.assertEqual([row["id"] for row in group["rows"][:group["shown"]]], [ASML, "listing:figi:BBG000K6N6G7"])
+        self.assertEqual([row["id"] for row in group["rows"]], [ASML, "listing:figi:BBG000K6N6G7"])
+        self.assertEqual(group["listings"], 3)
 
     def test_the_listing_preference_picks_the_representative_unless_the_query_names_one(self):
         us = "listing:figi:BBG000K6N6G7"
@@ -138,16 +141,32 @@ class SearchTest(Fixture):
         self.assertEqual(self.rows("SHEL")[:1], [SHEL])  # a receipt ticker that only starts the name
         self.assertEqual(self.rows("shell")[:1], [SHELL])
 
-    def test_a_group_carries_all_listings_after_the_relevant_ones(self):
+    def test_a_group_carries_its_relevant_listings_and_a_group_read_all_of_them(self):
         group = self.directory.search("shell", limit=1)["groups"][0]
         # Home line, then the receipt the name starts; the OTC line waits for "all listings".
-        self.assertEqual(([row["id"] for row in group["rows"]], group["shown"]), ([SHELL, SHEL, SHELL_OTC], 2))
+        self.assertEqual(([row["id"] for row in group["rows"]], group["listings"]), ([SHELL, SHEL], 3))
+        everything, = self.directory.group(group["id"])["groups"]
+        self.assertEqual(([row["id"] for row in everything["rows"]], everything["listings"]),
+                         ([SHELL, SHELL_OTC, SHEL], 3))
+        self.assertEqual(self.directory.group("issuer:unknown")["groups"], [])
+
+    def test_only_a_flagged_primary_fills_the_primary_slot(self):
+        # No Shell line is flagged primary: the OTC query's group shows that line, not an unflagged "primary".
+        group, = self.directory.search("RYDAF", limit=1)["groups"]
+        self.assertEqual([row["id"] for row in group["rows"]], [SHELL_OTC])
+
+    def test_a_type_filter_narrows_a_groups_listings(self):
+        group, = self.directory.search("shell", limit=1, kinds=["depositary_receipt"])["groups"]
+        self.assertEqual(([row["id"] for row in group["rows"]], group["listings"]), ([SHEL], 1))
+        everything, = self.directory.group(group["id"], kinds=["depositary_receipt"])["groups"]
+        self.assertEqual([row["id"] for row in everything["rows"]], [SHEL])
 
     def test_the_page_lists_the_instruments_lines(self):
         listings = self.directory.instrument_listings("security:figi:BBG0147BN6H1")
-        # The receipt carries the only primary flag; the company's home line still leads, marked primary.
+        # The receipt carries the only primary flag: the company's home line still leads, but no line is marked
+        # primary, since none of the share's own lines is flagged.
         self.assertEqual([(item["id"], item["kind"], item["primary"]) for item in listings],
-                         [(SHELL, "ordinary", True), (SHELL_OTC, "ordinary", False),
+                         [(SHELL, "ordinary", False), (SHELL_OTC, "ordinary", False),
                           (SHEL, "depositary_receipt", False)])
         # The receipt's line is folded in: the page sets it apart from the share's own lines.
         self.assertEqual([item["folded"] for item in listings], [False, False, True])
@@ -175,13 +194,12 @@ class SearchTest(Fixture):
         self.assertEqual(self.directory.other_instruments("security:figi:BBG0147BN6H1"), [])
         self.assertEqual(self.directory.other_instruments("security:bank:etn"), [])
 
-    def test_crypto_rows_address_the_asset_and_carry_stored_bindings(self):
-        bound = {BTC: [{"plugin": "coinmarketcap", "ref": "1"}]}
-        group = self.directory.search("BTC", limit=5, bindings=lambda ids: bound)["groups"][0]
+    def test_crypto_rows_address_the_asset(self):
+        group = self.directory.search("BTC", limit=5)["groups"][0]
         row, = group["rows"]  # one asset, however many chain deployments
-        self.assertEqual(group["shown"], 1)
-        self.assertEqual({key: row[key] for key in ("id", "mic", "country", "bindings")},
-                         {"id": BTC, "mic": None, "country": None, "bindings": bound[BTC]})
+        self.assertEqual(group["listings"], 1)
+        self.assertEqual({key: row[key] for key in ("id", "instrument", "mic", "country")},
+                         {"id": BTC, "instrument": BTC, "mic": None, "country": None})
 
     def test_an_issuers_main_share_and_preferred_come_before_its_notes(self):
         # The bank's ETN is a product: its own group, after the company's.
@@ -191,10 +209,16 @@ class SearchTest(Fixture):
 
 
 class PageTest(Fixture):
+    def test_a_security_page_names_the_listing_it_prices(self):
+        view = page.load_subject(self.ref, "security:isin:NL0010273215")["view"]
+        self.assertEqual((view["subject"]["level"], view["subject"]["listing"]), ("security", ASML))
+
     def test_sections_use_derived_addresses_without_a_call(self):
         _subject, sections = self.compose(ASML, [plugin("gleif", operations={"gleif_profile": "gleif-profile"}),
                                                  plugin("eodhd"), plugin("yahoo")])
         quote, profile = sections["quote"], sections["profile"]
+        # Each section says which level its plugin addresses, so a client can resolve issuer data once.
+        self.assertEqual((quote["via"], profile["via"]), ("listing", "issuer"))
         self.assertEqual((quote["plugin"], quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
                          ("pythia-yahoo", "ready", "ASML.AS", "derived"))
         self.assertEqual(quote["alternatives"], [{"plugin": "pythia-eodhd", "label": "EODHD", "status": "resolving"}])

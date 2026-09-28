@@ -1,11 +1,17 @@
 "use client";
-import { type PluginTransport, useQuery } from "@pythia/widget-sdk";
+import {
+  type PluginTransport,
+  useQuery,
+  useQueryClient,
+} from "@pythia/widget-sdk";
+import { useMemo } from "react";
 import { z } from "zod";
 import {
   type LookupRequest,
   type SearchRequest,
   type SearchResponse,
   type SearchGroup,
+  type SearchRow,
   searchResponseSchema,
 } from "../search";
 import { TYPE_FILTERS, type TypeFilter } from "./search-model";
@@ -52,6 +58,67 @@ export function useDirectorySearch(
     retry: false,
     refetchOnWindowFocus: false,
   });
+}
+
+type GroupRead = { id: string; rows: readonly SearchRow[] | null };
+
+/** All listings of the given groups, each its own cached group read, keyed by
+ * group id once read; `pending` names the groups still loading or failed. */
+export function useGroupListings(
+  search: SearchBackend,
+  query: string,
+  filter: TypeFilter,
+  groups: readonly SearchGroup[],
+) {
+  const client = useQueryClient();
+  const kinds = TYPE_FILTERS.find((type) => type.value === filter)?.kinds;
+  const ids = groups.map((group) => group.id);
+  const reads = useQuery<GroupRead[]>({
+    queryKey: [...searchQueryKey, "groups", ids, filter],
+    queryFn: ({ signal }) =>
+      Promise.all(
+        ids.map((id) =>
+          client
+            .fetchQuery({
+              queryKey: [...searchQueryKey, "group", id, filter],
+              queryFn: () =>
+                search(
+                  { query, group: id, limit: 1, ...(kinds ? { kinds } : {}) },
+                  signal,
+                ),
+              staleTime: 30_000,
+              gcTime: 5 * 60_000,
+            })
+            .then(
+              (response) => ({
+                id,
+                rows:
+                  response.groups.find((group) => group.id === id)?.rows ??
+                  null,
+              }),
+              () => ({ id, rows: null }),
+            ),
+        ),
+      ),
+    enabled: ids.length > 0,
+    // Groups already read stay shown while another group's read runs.
+    placeholderData: (previous) => previous,
+    staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const key = ids.join("\n");
+  return useMemo(() => {
+    const done = new Map(reads.data?.map((read) => [read.id, read.rows]));
+    const rows = new Map<string, readonly SearchRow[]>();
+    const pending = new Map<string, "loading" | "error">();
+    for (const id of key ? key.split("\n") : []) {
+      const read = done.get(id);
+      if (read) rows.set(id, read);
+      else pending.set(id, read === null ? "error" : "loading");
+    }
+    return { rows, pending };
+  }, [reads.data, key]);
 }
 
 const envelopeSchema = z.object({

@@ -66,23 +66,30 @@ export type SearchOption = {
   row?: SearchRow | undefined;
 };
 
-/** Each group's relevant listings (all of them when expanded), then its
- * toggle when it has more listings than it shows. */
+/** Each group's relevant listings (all of them when expanded and read),
+ * then its toggle when it has more listings than the search answer carries.
+ * `full` holds the group reads of expanded groups, by group id. */
 export function searchOptions(
   groups: readonly SearchGroup[],
   source: RowSource,
   expanded: ReadonlySet<string> = new Set(),
+  full: ReadonlyMap<string, readonly SearchRow[]> = new Map(),
 ): SearchOption[] {
   return groups.flatMap((group) => {
-    const open = expanded.has(group.id);
-    const rows = open ? group.rows : group.rows.slice(0, group.shown);
+    // Expanded, the relevant rows stay first and the rest follow in core's
+    // order, so nothing already shown moves.
+    const all = expanded.has(group.id) ? full.get(group.id) : undefined;
+    const shown = new Set(group.rows.map((row) => row.id));
+    const rows = all
+      ? [...group.rows, ...all.filter((row) => !shown.has(row.id))]
+      : group.rows;
     const options: SearchOption[] = rows.map((row) => ({
       key: `${source}:${group.id}:${row.id}`,
       group,
       source,
       row,
     }));
-    if (group.rows.length > group.shown)
+    if (group.listings > group.rows.length)
       options.push({ key: `${source}:${group.id}:toggle`, group, source });
     return options;
   });

@@ -11,6 +11,7 @@ import { Combobox } from "@pythia/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import {
+  demoGroupListings,
   demoLookup,
   demoLookupOffers,
   demoLookupGroup,
@@ -32,6 +33,9 @@ function options(
     searchDemoDirectory(query, { kinds }).groups,
     "directory",
     expanded,
+    new Map(
+      [...(expanded ?? [])].map((id) => [id, demoGroupListings(id)] as const),
+    ),
   );
 }
 

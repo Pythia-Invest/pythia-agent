@@ -16,11 +16,12 @@ const IDENTIFIERS = [
   ["caip19", "CAIP-19"],
 ] as const;
 
-/** The listing whose price the page shows: the composition's own subject
- * when it is a listing, else the primary one. */
+/** The listing whose price the composition shows: its own subject when it
+ * is a listing, else the one core priced it through. */
 export function currentListing(page: SubjectPage): SubjectListing | undefined {
+  const priced = page.subject.listing ?? page.subject.id;
   return (
-    page.listings.find((listing) => listing.id === page.subject.id) ??
+    page.listings.find((listing) => listing.id === priced) ??
     page.listings.find((listing) => listing.primary) ??
     page.listings[0]
   );
@@ -161,16 +162,15 @@ function ListingSelector({
                       <span className="w-16 flex-none truncate font-semibold text-body">
                         {listing.ticker ?? listing.mic}
                       </span>
+                      {/* The venue truncates; the currency, which tells a
+                          receipt's lines apart, stays. The group names the
+                          kind. */}
                       <span className="min-w-0 flex-1 truncate text-foreground-secondary">
-                        {[listing.venue ?? listing.mic, listing.currency]
-                          .filter(Boolean)
-                          .join(" · ")}
+                        {listing.venue ?? listing.mic}
                       </span>
-                      {listing.kind ? (
-                        <span className="flex-none text-foreground-secondary">
-                          {KIND_LABELS[listing.kind]}
-                        </span>
-                      ) : null}
+                      <span className="flex-none text-foreground-secondary">
+                        {listing.currency}
+                      </span>
                     </Menu.RadioItem>
                   ))}
                 </Menu.Group>

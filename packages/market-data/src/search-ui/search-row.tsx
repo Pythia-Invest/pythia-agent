@@ -1,5 +1,5 @@
 import { ComboboxItem } from "@pythia/widget-sdk";
-import { ChevronDown, ChevronUp, Plug } from "lucide-react";
+import { ChevronDown, ChevronUp, LoaderCircle, Plug } from "lucide-react";
 import { connectors } from "./connector-icons";
 import { KIND_LABELS, ROW_LABELS, type SearchOption } from "./search-model";
 
@@ -44,7 +44,9 @@ function countryFlag(country: string): string {
 /** What a listing is beyond its company: a share class or registry shares
  * named after the company ("Class C"), else nothing. */
 function ownDetail({ group, row }: SearchOption) {
-  if (!row || row.name === group.name) return null;
+  // A row named like the group or a shorter form of it ("ASML Holding" under
+  // "ASML Holding N.V.") adds nothing.
+  if (!row || group.name.startsWith(row.name)) return null;
   return row.name.startsWith(group.name)
     ? row.name.slice(group.name.length).replace(/^[\s,.-]+/u, "") || null
     : row.name;
@@ -119,10 +121,14 @@ export function SearchRowOption({
             {countryFlag(row.country)}
           </span>
         ) : null}
+        {/* Both shrink, the detail far sooner, so a long venue truncates
+            before it pushes the currency aside. */}
         {venue ? (
-          <span className="flex-none text-foreground">{venue}</span>
+          <span className="min-w-0 truncate text-foreground">{venue}</span>
         ) : null}
-        {detail ? <span className="min-w-0 truncate">· {detail}</span> : null}
+        {detail ? (
+          <span className="min-w-0 shrink-1000 truncate">· {detail}</span>
+        ) : null}
       </span>
       <span className="w-9 flex-none text-foreground-secondary">
         {row.currency}
@@ -134,38 +140,54 @@ export function SearchRowOption({
   );
 }
 
-/** The group's toggle between its relevant listings and all of them. It is
- * an ordinary option, so the arrow keys reach it and Enter toggles it. */
+/** Where a group's "all listings" stands: collapsed, being read, shown, or
+ * failed to load (the toggle then collapses; opening it again retries). */
+export type ToggleState = "collapsed" | "loading" | "expanded" | "error";
+
+/** The group's toggle between its relevant listings and all of them, read on
+ * demand. It is an ordinary option, so the arrow keys reach it and Enter
+ * toggles it. */
 export function ToggleOption({
   option,
-  expanded,
+  state,
   onToggle,
 }: {
   option: SearchOption;
-  expanded: boolean;
+  state: ToggleState;
   onToggle(): void;
 }) {
   const { group } = option;
-  const hidden = group.rows.length - group.shown;
-  const label = expanded
-    ? "Fewer listings"
-    : `All ${group.rows.length} listings`;
+  const all = `All ${group.listings} listings`;
+  const label = {
+    collapsed: all,
+    loading: `Loading ${all.toLowerCase()}…`,
+    expanded: "Fewer listings",
+    error: `${all} could not be loaded`,
+  }[state];
   return (
     <ComboboxItem
       value={option}
       aria-label={
-        expanded
-          ? `Show fewer listings of ${group.name}`
-          : `Show all ${group.rows.length} listings of ${group.name} (${hidden} more)`
+        state === "collapsed"
+          ? `Show all ${group.listings} listings of ${group.name} (${group.listings - group.rows.length} more)`
+          : state === "expanded"
+            ? `Show fewer listings of ${group.name}`
+            : `${label}. Show fewer listings of ${group.name}`
       }
       onClick={onToggle}
       data-slot="investment-search-toggle"
+      data-state={state}
       className="min-h-7 gap-1.5 py-0.5 pr-2.5 pl-4 text-foreground-secondary text-xs"
     >
-      {expanded ? (
-        <ChevronUp aria-hidden="true" className="size-3.5 flex-none" />
-      ) : (
+      {state === "loading" ? (
+        <LoaderCircle
+          aria-hidden="true"
+          className="size-3.5 flex-none animate-spin motion-reduce:animate-none"
+        />
+      ) : state === "collapsed" ? (
         <ChevronDown aria-hidden="true" className="size-3.5 flex-none" />
+      ) : (
+        <ChevronUp aria-hidden="true" className="size-3.5 flex-none" />
       )}
       {label}
     </ComboboxItem>

@@ -43,6 +43,9 @@ export type SearchPanelProps = {
   onChoose(option: SearchOption): void;
   /** Groups showing all their listings, by group id. */
   expanded?: ReadonlySet<string> | undefined;
+  /** An expanded group's read of all its listings, when it is not shown yet
+   * ("loading") or failed ("error"); expanded groups not named here show all. */
+  pending?: ReadonlyMap<string, "loading" | "error"> | undefined;
   /** A group's toggle was chosen by pointer or Enter. */
   onToggle?: ((groupId: string) => void) | undefined;
 };
@@ -83,7 +86,11 @@ export function SearchPanel(props: SearchPanelProps) {
       ) : (
         <ToggleOption
           option={option}
-          expanded={props.expanded?.has(option.group.id) ?? false}
+          state={
+            props.expanded?.has(option.group.id)
+              ? (props.pending?.get(option.group.id) ?? "expanded")
+              : "collapsed"
+          }
           onToggle={() => props.onToggle?.(option.group.id)}
         />
       )}

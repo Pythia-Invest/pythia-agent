@@ -1,7 +1,7 @@
 /**
  * Synthetic companies for the investment search demonstration. Names,
  * tickers, venues and ISINs mirror public reference data so the cases are
- * recognisable; bindings are synthetic. There are no prices.
+ * recognisable. There are no prices.
  */
 import type { InstrumentKind, SearchRow } from "@pythia/market-data/search";
 
@@ -13,9 +13,6 @@ export type Company = {
   kind: InstrumentKind;
   rows: SearchRow[];
 };
-
-export const yahoo = (ref: string) => ({ plugin: "yahoo", ref });
-const eodhd = (ref: string) => ({ plugin: "eodhd", ref });
 
 export function line(
   id: string,
@@ -33,30 +30,16 @@ export function line(
     venue,
     country: null,
     currency: null,
-    bindings: [],
     ...fields,
   };
 }
 
-function coin(
-  id: string,
-  name: string,
-  ticker: string,
-  refs: [string, string],
-): Company {
+function coin(id: string, name: string, ticker: string): Company {
   return {
     id,
     name,
     kind: "coin",
-    rows: [
-      line(id, ticker, name, null, {
-        kind: "coin",
-        bindings: [
-          { plugin: "coinmarketcap", ref: refs[0] },
-          { plugin: "coingecko", ref: refs[1] },
-        ],
-      }),
-    ],
+    rows: [line(id, ticker, name, null, { kind: "coin" })],
   };
 }
 
@@ -80,7 +63,6 @@ export const demoCompanies: readonly Company[] = [
           mic: "XAMS",
           country: "NL",
           currency: "EUR",
-          bindings: [yahoo("ASML.AS"), eodhd("ASML.AS")],
         },
       ),
       line("listing:isin:NL0010273215:XETR:EUR", "ASME", ASML, "Xetra", {
@@ -92,7 +74,6 @@ export const demoCompanies: readonly Company[] = [
         mic: "OTCM",
         country: "US",
         currency: "USD",
-        bindings: [yahoo("ASMLF")],
       }),
       // The New York Registry Shares are a listing of the same company.
       line(
@@ -105,7 +86,6 @@ export const demoCompanies: readonly Company[] = [
           mic: "XNAS",
           country: "US",
           currency: "USD",
-          bindings: [yahoo("ASML"), eodhd("ASML.US")],
         },
       ),
     ],
@@ -124,7 +104,6 @@ export const demoCompanies: readonly Company[] = [
           mic: "XAMS",
           country: "NL",
           currency: "EUR",
-          bindings: [yahoo("ASM.AS")],
         },
       ),
     ],
@@ -144,7 +123,6 @@ export const demoCompanies: readonly Company[] = [
           mic: "XNAS",
           country: "US",
           currency: "USD",
-          bindings: [yahoo("GOOGL")],
         },
       ),
       line(
@@ -156,7 +134,6 @@ export const demoCompanies: readonly Company[] = [
           mic: "XNAS",
           country: "US",
           currency: "USD",
-          bindings: [yahoo("GOOG")],
         },
       ),
       line(
@@ -197,7 +174,6 @@ export const demoCompanies: readonly Company[] = [
           mic: "XAMS",
           country: "NL",
           currency: "EUR",
-          bindings: [yahoo("SHELL.AS")],
         },
       ),
       line(
@@ -209,7 +185,6 @@ export const demoCompanies: readonly Company[] = [
           mic: "XLON",
           country: "GB",
           currency: "GBP",
-          bindings: [yahoo("SHEL.L")],
         },
       ),
       line(
@@ -222,7 +197,6 @@ export const demoCompanies: readonly Company[] = [
           mic: "XNYS",
           country: "US",
           currency: "USD",
-          bindings: [yahoo("SHEL")],
         },
       ),
       line("listing:isin:GB00BP6MXD84:XETR:EUR", "R6C0", SHELL, "Xetra", {
@@ -269,17 +243,12 @@ export const demoCompanies: readonly Company[] = [
     "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
     "Bitcoin",
     "BTC",
-    ["1", "bitcoin"],
   ),
-  coin("security:caip19:eip155:1/slip44:60", "Ether", "ETH", [
-    "1027",
-    "ethereum",
-  ]),
+  coin("security:caip19:eip155:1/slip44:60", "Ether", "ETH"),
   coin(
     "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
     "Solana",
     "SOL",
-    ["5426", "solana"],
   ),
   {
     id: "index:demo:AEX",

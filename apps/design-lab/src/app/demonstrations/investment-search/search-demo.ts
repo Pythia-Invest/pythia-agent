@@ -2,8 +2,8 @@
  * Synthetic in-memory directory for the investment search demonstration.
  *
  * Names, tickers, venues and ISINs mirror public reference data so the cases
- * are recognisable; subject ids follow the identity fixtures. Bindings, dates,
- * ranking and lookup answers are synthetic. There are no prices and no
+ * are recognisable; subject ids follow the identity fixtures. Dates, ranking
+ * and lookup answers are synthetic. There are no prices and no
  * provider data.
  */
 import type {
@@ -15,12 +15,7 @@ import type {
   SearchRow,
 } from "@pythia/market-data/search";
 
-import {
-  type Company,
-  demoCompanies,
-  line,
-  yahoo,
-} from "./search-demo-companies";
+import { type Company, demoCompanies, line } from "./search-demo-companies";
 
 export const demoLookupOffers: SearchResponse["lookup"] = [
   { plugin: "yahoo", label: "Yahoo Finance" },
@@ -28,9 +23,9 @@ export const demoLookupOffers: SearchResponse["lookup"] = [
 
 const SHOWN = 3;
 
-/** The relevant listings first, as the core orders them: a listing whose
- * ticker the query names, the primary listing, then the first line of each
- * other class or receipt; the rest wait for "all listings". */
+/** The relevant listings, as the core orders them: a listing whose ticker
+ * the query names, the primary listing, then the first line of each other
+ * class or receipt; the rest wait for a group read ("All N listings"). */
 function demoGroup(company: Company, query: string): SearchGroup {
   const typed = query.toUpperCase();
   const named = company.rows.filter((row) => row.ticker === typed);
@@ -43,16 +38,23 @@ function demoGroup(company: Company, query: string): SearchGroup {
   const relevant: SearchRow[] = [];
   for (const row of [...named, ...firstOfEach])
     if (relevant.length < SHOWN && !relevant.includes(row)) relevant.push(row);
+  return { ...demoAll(company), rows: relevant };
+}
+
+/** A group with all its listings: the answer to a group read. */
+function demoAll(company: Company): SearchGroup {
   return {
     id: company.id,
     name: company.name,
     kind: company.kind,
-    shown: relevant.length,
-    rows: [
-      ...relevant,
-      ...company.rows.filter((row) => !relevant.includes(row)),
-    ],
+    listings: company.rows.length,
+    rows: company.rows,
   };
+}
+
+/** All listings of one demo group, by its id, as a group read answers. */
+export function demoGroupListings(id: string): SearchRow[] {
+  return demoCompanies.find((company) => company.id === id)?.rows ?? [];
 }
 
 /** 0 exact ticker or ISIN, 1 ticker prefix, 2 name word prefix, 3 name text. */
@@ -106,6 +108,12 @@ function wait(ms: number, signal: AbortSignal) {
 export function demoSearch(delay = 0) {
   return async (request: SearchRequest, signal: AbortSignal) => {
     await wait(delay, signal);
+    const company = demoCompanies.find((entry) => entry.id === request.group);
+    if (request.group)
+      return {
+        groups: company ? [demoAll(company)] : [],
+        lookup: demoLookupOffers,
+      };
     return searchDemoDirectory(request.query, request);
   };
 }
@@ -125,11 +133,7 @@ export function demoLookupGroup(symbol: string): SearchGroup {
     id: `issuer:demo:${symbol}`,
     name,
     kind: "ordinary",
-    shown: 1,
-    rows: [
-      line(`listing:demo:${symbol}`, symbol, name, null, {
-        bindings: [yahoo(symbol)],
-      }),
-    ],
+    listings: 1,
+    rows: [line(`listing:demo:${symbol}`, symbol, name, null)],
   };
 }

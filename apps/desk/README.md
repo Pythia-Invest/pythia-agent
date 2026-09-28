@@ -203,14 +203,18 @@ instrument and the evidence, and "Match" / "Not a match" (or "Confirm" /
 or "Agent: not a match") send `identity-verdict` with an optional note. Answered and settled questions are shown through the
 Status filter.
 
-`/instrument/[subject]` is one instrument's page (URL-encoded subject id);
-`?listing=` names the listing whose quote and chart it shows. The header's
+`/instrument/[subject]` is one instrument's page (URL-encoded subject id,
+normally the instrument's security); `?listing=` names the listing whose quote
+and chart it shows. A search row opens its instrument with its own listing, so
+a receipt's row opens the share's page on the receipt's line. The header's
 listing selector (`TICKER · Venue · CCY ▾`) lists every line of the instrument
 as core folds it (ADR 0037): the security's own listings, then those of its
 depositary receipts and registry shares. Choosing one updates `?listing=` in
 place (`history.replaceState`); only the price and chart follow it, while the
-header and the issuer's profile and filings stay and keep their reads. A
-`?listing=` that is not one of the instrument's lines is ignored. The shell routes `pythia:open-subject`
+header and the issuer's profile and filings stay and keep their reads
+(sections core marks `via: issuer` resolve once per instrument). A `?listing=`
+that is not one of the instrument's lines is ignored, and one that cannot be
+read fails in the price card only. The shell routes `pythia:open-subject`
 window events there. The page renders core's
 local `pythia`/`identity-subject` composition at once, then loads each section
 on its own: `resolving` sections through `identity-resolve` (an explicit invoke,

@@ -38,6 +38,9 @@ const MARKET_PLUGIN = "pythia-market-data";
 const MARKET_PRESENTATION = "instrument-panel";
 const CHART_PRESENTATION = "instrument-chart";
 
+/** Blocks that show the chosen listing's price. */
+const PRICE_BLOCKS = new Set<PageBlock["type"]>(["market", "quote", "chart"]);
+
 /** Grid placement by block type: prices lead, the profile sits beside them on
  * wide screens and filings span the page. One column on narrow screens. */
 const SPAN: Record<PageBlock["type"], string> = {
@@ -94,7 +97,13 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
     instrument.data?.listings.some((listing) => listing.id === requested)
       ? requested
       : null;
-  const page = useSubjectPage(listingId ?? subjectId);
+  const listing = useSubjectPage(listingId ?? subjectId);
+  // A chosen listing that cannot be read fails in its price card only; the
+  // instrument's own composition carries the rest of the page.
+  const listingFailed = Boolean(
+    listingId && listing.isError && instrument.data,
+  );
+  const page = listingFailed ? instrument : listing;
   // Resolution follows the composition on screen: while another listing's
   // composition loads, the previous one (a placeholder) keeps its cached
   // resolutions and nothing is resolved on its behalf.
@@ -150,7 +159,12 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
               block={block}
               className={SPAN[block.type]}
             >
-              {servable ? (
+              {listingFailed && PRICE_BLOCKS.has(block.type) ? (
+                <SectionFailure
+                  message={`This listing's price could not be read. ${listing.error?.message ?? ""}`}
+                  onRetry={() => void listing.refetch()}
+                />
+              ) : servable ? (
                 <BlockContent block={block} page={view} retryResolve={retry} />
               ) : (
                 <SectionPlaceholder

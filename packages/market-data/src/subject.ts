@@ -41,6 +41,9 @@ const pluginRequestSchema = z.object({
 export const subjectSectionSchema = z.object({
   /** "quote" | "chart" | "profile" | "filings"; later types render as placeholders. */
   section: text,
+  /** The level the plugin addresses this section through ("issuer" for a
+   * company profile or filings, "listing" for a quote). */
+  via: text.nullish(),
   plugin: text,
   label: text,
   status: text,
@@ -90,6 +93,9 @@ export const subjectPageSchema = z.object({
     level: text,
     name: text,
     kind: z.enum(INSTRUMENT_KINDS).nullish().catch(null),
+    /** The listing whose quote and chart this composition shows (a
+     * security's or issuer's page shows one of its listings). */
+    listing: text.nullish(),
   }),
   identifiers: z.record(z.string(), optionalText).default({}),
   issuer: z

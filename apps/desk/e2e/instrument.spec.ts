@@ -9,6 +9,8 @@ const primary = "listing:isin:XS0000000001:XAMS:EUR";
 const secondary = "listing:isin:XS0000000001:XETR:EUR";
 /** Registry shares that fold into the instrument: a line of its own security. */
 const receipt = "listing:figi:BBG0SYNTHADR";
+/** The instrument itself: the security the receipt folds into. */
+const security = "security:isin:XS0000000001";
 const lei = "529900SYNTHETIC00001";
 
 function page_(subject: string) {
@@ -26,9 +28,10 @@ function page_(subject: string) {
   return {
     subject: {
       id: subject,
-      level: "listing",
+      level: subject === security ? "security" : "listing",
       name: "Synthetic Holding N.V.",
       kind: ofReceipt ? "depositary_receipt" : "ordinary",
+      listing: subject === security ? primary : subject,
     },
     identifiers: ofReceipt
       ? { isin: "US0000000002", lei, ticker: "SYNY", mic: "XNAS" }
@@ -116,6 +119,51 @@ async function routeIdentity(page: Page) {
       );
       return route.fulfill({
         json: { schema_version: 1, data: { ...view, sections } },
+      });
+    }
+    if (body.operation === "identity-search") {
+      const row = (id: string, ticker: string, kind: string, extra = {}) => ({
+        id,
+        instrument: security,
+        ticker,
+        name: "Synthetic Holding N.V.",
+        kind,
+        mic: null,
+        venue: null,
+        country: null,
+        currency: null,
+        ...extra,
+      });
+      return route.fulfill({
+        json: {
+          schema_version: 1,
+          outcome: "ok",
+          data: {
+            groups: [
+              {
+                id: `issuer:lei:${lei}`,
+                name: "Synthetic Holding N.V.",
+                kind: "ordinary",
+                listings: 3,
+                rows: [
+                  row(primary, "SYN", "ordinary", {
+                    mic: "XAMS",
+                    venue: "Euronext Amsterdam",
+                    country: "NL",
+                    currency: "EUR",
+                  }),
+                  row(receipt, "SYNY", "depositary_receipt", {
+                    mic: "XNAS",
+                    venue: "Nasdaq",
+                    country: "US",
+                    currency: "USD",
+                  }),
+                ],
+              },
+            ],
+            lookup: [],
+          },
+        },
       });
     }
     if (body.operation === "identity-resolve") {
@@ -383,4 +431,70 @@ test("the header stays the instrument's while a receipt's price is shown", async
   await expect(
     header.locator('[data-slot="instrument-identifiers"]'),
   ).toContainText("XS0000000001");
+});
+
+test("a receipt's search row opens the instrument's page on that listing", async ({
+  page,
+}) => {
+  await routeIdentity(page);
+  await page.goto("/workspace");
+  const field = page.getByRole("combobox", { name: "Search investments" });
+  await field.click();
+  await field.fill("synthetic");
+  await page.getByRole("option", { name: /^SYNY,/ }).click();
+  // The page is the instrument (the security the receipt folds into); the
+  // receipt is only the listing whose price it shows.
+  await expect(page).toHaveURL(
+    new RegExp(
+      `/instrument/${encodeURIComponent(security)}\\?listing=${encodeURIComponent(receipt)}$`,
+    ),
+  );
+  await expect(
+    page.getByRole("button", { name: /^Listing: SYNY · Nasdaq · USD/ }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Quote" })
+      .locator('[data-slot="instrument-sources"]'),
+  ).toContainText("EODHD");
+  const header = page.locator('[data-slot="instrument-header"]');
+  await expect(header.getByText("Stock", { exact: true })).toBeVisible();
+  await expect(header.getByText("Depositary receipt")).toHaveCount(0);
+  await expect(
+    header.locator('[data-slot="instrument-identifiers"]'),
+  ).toContainText("XS0000000001");
+});
+
+test("a chosen listing that cannot be read fails in its price card only", async ({
+  page,
+}) => {
+  await routeIdentity(page);
+  await page.route(/\/api\/data\/read$/u, async (route) => {
+    const body = route.request().postDataJSON();
+    if (
+      body.operation === "identity-subject" &&
+      body.arguments.subject_id === secondary
+    )
+      return route.fulfill({
+        json: {
+          schema_version: 1,
+          outcome: "empty",
+          data: null,
+          issues: [{ code: "unavailable", message: "Unknown subject." }],
+        },
+      });
+    return route.fallback();
+  });
+  await page.goto(
+    `/instrument/${encodeURIComponent(primary)}?listing=${encodeURIComponent(secondary)}`,
+  );
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Synthetic Holding N.V." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Quote" }).getByRole("alert"),
+  ).toContainText("This listing's price could not be read.");
+  await expect(
+    page.getByText("This instrument could not be opened."),
+  ).toHaveCount(0);
 });

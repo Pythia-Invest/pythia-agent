@@ -112,7 +112,8 @@ def load_subject(ref: sqlite3.Connection, subject_id: str) -> dict[str, Any] | N
         "kind": security["kind"] if security else None,
         "listing": listing,
         "view": {
-            "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None},
+            "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None,
+                        "listing": listing["id"] if listing else None},
             "identifiers": {key: value for key, value in identifiers.items() if value},
             "issuer": {"id": issuer["id"], "name": issuer["name"], "lei": values.get("lei"), "cik": values.get("cik")}
             if issuer else None,
@@ -207,7 +208,8 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     wants_resolve = not row and not derived and bool(resolve_input(info, subject))
     if not (row or derived or wants_resolve):
         return None
-    answer = {"section": str(section), "plugin": info.key, "label": info.label, "status": "ready", "binding": None,
+    answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "label": info.label, "status": "ready",
+              "binding": None,
               "binding_status": None, "request": None, "alternatives": [], "reason": None}
     missing = info.missing[0] if info.missing else None
     queued = next((item for item in queue if item["plugin"] == info.manifest.plugin), None)

@@ -24,28 +24,42 @@ function row(ticker: string, venue = "Euronext Amsterdam"): SearchRow {
     venue,
     country: "NL",
     currency: "EUR",
-    bindings: [],
   };
 }
 
-/** A company group; `shown` of its rows are the relevant ones. */
+/** Every group's full listings, for group reads. */
+const everything = new Map<string, SearchRow[]>();
+
+/** A company group whose search answer carries `shown` of its rows. */
 function group(rows: SearchRow[], shown = rows.length): SearchGroup {
   const [lead] = rows;
+  const id = `issuer:${lead?.ticker}`;
+  everything.set(id, rows);
   return {
-    id: `issuer:${lead?.ticker}`,
+    id,
     name: `${lead?.ticker} Holding`,
     kind: "ordinary",
-    shown,
-    rows,
+    listings: rows.length,
+    rows: rows.slice(0, shown),
   };
 }
 
-/** A directory whose answers the test releases one query at a time. */
+/** A directory whose answers the test releases one query at a time; a group
+ * read answers at once. */
 function directory() {
   const pending = new Map<string, (groups: SearchGroup[]) => void>();
   const requests: SearchRequest[] = [];
   const search: SearchBackend = (request) => {
     requests.push(request);
+    if (request.group) {
+      const rows = everything.get(request.group) ?? [];
+      return Promise.resolve({
+        groups: [
+          { ...group(rows), id: request.group, listings: rows.length, rows },
+        ],
+        lookup: [],
+      });
+    }
     return new Promise<SearchResponse>((resolve) =>
       pending.set(request.query, (groups) => resolve({ groups, lookup: [] })),
     );
@@ -76,7 +90,9 @@ function Harness({ search }: { search: SearchBackend }) {
         query={query}
         onQueryChange={setQuery}
         search={search}
-        onSelect={(id) => selected.push(id)}
+        onSelect={(id, listing) =>
+          selected.push(id === listing ? id : `${id}?listing=${listing}`)
+        }
         onHighlight={(id) => highlighted.push(id)}
         shortcut={false}
       />
@@ -120,6 +136,7 @@ async function press(key: string) {
 beforeEach(async () => {
   selected.length = 0;
   highlighted.length = 0;
+  everything.clear();
   host = document.body.appendChild(document.createElement("div"));
   root = createRoot(host);
 });
@@ -202,13 +219,17 @@ describe("investment search", () => {
   });
 
   it("shows a company's relevant listings; its toggle reveals all of them in place", async () => {
-    const { search, answer } = directory();
+    const { search, answer, requests } = directory();
     await act(async () => root.render(<Harness search={search} />));
     await type("asml");
     const company = group(
       [
         row("ASML"),
-        { ...row("ASML-US", "Nasdaq"), kind: "depositary_receipt" },
+        {
+          ...row("ASML-US", "Nasdaq"),
+          kind: "depositary_receipt",
+          instrument: "security:ASML",
+        },
         row("ASME", "Xetra"),
         row("ASMLF", "OTC Markets"),
       ],
@@ -247,6 +268,8 @@ describe("investment search", () => {
     );
     expect(selected).toEqual([]);
     expect(field().getAttribute("aria-expanded")).toBe("true");
+    // Only the opened group was read in full.
+    expect(requests.filter((request) => request.group)).toHaveLength(1);
     // A revealed listing opens like any other.
     await act(async () =>
       document
@@ -254,5 +277,28 @@ describe("investment search", () => {
         ?.click(),
     );
     expect(selected).toEqual(["listing:ASMLF"]);
+  });
+
+  it("opens a receipt's row as its instrument's page, showing that listing", async () => {
+    const { search, answer } = directory();
+    await act(async () => root.render(<Harness search={search} />));
+    await type("asml");
+    await answer("asml", [
+      group([
+        { ...row("ASML"), instrument: "security:ASML" },
+        {
+          ...row("ASML-US", "Nasdaq"),
+          kind: "depositary_receipt",
+          instrument: "security:ASML",
+        },
+      ]),
+    ]);
+    await until(() => expect(rows()).toEqual(["ASML", "ASML-US"]));
+    await act(async () =>
+      document
+        .querySelector<HTMLElement>('[role="option"][aria-label^="ASML-US,"]')
+        ?.click(),
+    );
+    expect(selected).toEqual(["security:ASML?listing=listing:ASML-US"]);
   });
 });
