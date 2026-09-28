@@ -33,12 +33,17 @@ DECIMAL = {"type": "string", "pattern": r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$", "maxL
 INSTANT = {"type": "string", "format": "date-time", "pattern": r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"}
 DATE = {"type": "string", "format": "date", "pattern": r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
 POSITIVE = {"type": "integer", "minimum": 1}
+# Coverage kinds a source declares and connector detail evidence scopes; not subjects.
 SCOPE = enum("company", "instrument", "listing", "crypto")
+# A subject is a backbone subject (ADR 0037): its level and its deterministic subject ID.
+LEVEL = enum("issuer", "security", "composite", "listing")
+SUBJECT_ID = {"type": "string", "maxLength": 320,
+              "pattern": r"^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/%-]{4,300}$"}
 VERSION = enum(1)
 
 DEFS = {
     "market_data_type": enum("realtime", "delayed", "frozen", "delayed_frozen", "eod", "unknown"),
-    "subject": obj({"kind": SCOPE, "id": ID}),
+    "subject": obj({"kind": LEVEL, "id": SUBJECT_ID}),
     "provider_ref": obj({"provider": NAMESPACE, "native_id": TEXT,
                          "native_scope": TEXT}, {"qualifiers": ref("qualifiers")}),
     "qualifiers": obj({}, {"currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
@@ -56,12 +61,6 @@ DEFS = {
         "value": TEXT, "qualifiers": ref("qualifiers"), "adapter_version": TEXT,
         "observed_at": nullable(INSTANT), "retrieved_at": INSTANT,
         "effective": ref("window"), "authority": enum("source_asserted", "query_only", "unknown"),
-    }),
-    "mapping": obj({
-        "schema_version": VERSION, "id": ID, "provider_ref": ref("provider_ref"),
-        "target": ref("subject"), "status": enum("candidate", "confirmed", "conflicting", "rejected"),
-        "evidence_ids": array(ID), "rule_version": TEXT, "revision": POSITIVE,
-        "active_override": nullable(obj({"id": ID, "effect": enum("positive", "negative"), "evidence_ids": array(ID, 1)})),
     }),
     "unit": union(
         obj({"kind": enum("currency"), "code": {"type": "string", "pattern": "^[A-Z]{3}$"}, "scale": DECIMAL}),
@@ -144,7 +143,7 @@ DEFS = {
         "requirements_satisfied": {"type": "boolean"}, "issues": array(ref("issue"))},
         {"price_context": ref("price_context")}),
     "contribution": obj({"schema_version": VERSION, "provider": NAMESPACE, "adapter_version": TEXT,
-        "operations": array(obj({"operation": enum("search", "details", "series", "latest", "history", "read_batch"),
+        "operations": array(obj({"operation": enum("details", "series", "latest", "history", "read_batch"),
                                  "tool": NAMESPACE, "effect": enum("read")}), 1),
         "subject_kinds": array(SCOPE, 1)}, {"requires_broker_app": {"type": "boolean"},
         "observation_cache": enum("default", "disabled"),

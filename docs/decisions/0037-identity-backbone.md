@@ -166,8 +166,10 @@ auditable: swapping a resolver changes who answers, not what an answer may do.
 
 ## Consequences
 
-- The market-data identity modules and `packages/market-data/IDENTITY.md` stay
-  until a later piece migrates their mappings to bindings.
+- The market-data identity layer is retired: market data routes subject reads
+  through core's bindings and keeps no mappings of its own. Old mappings are
+  kept aside, not migrated; core derives or resolves addresses again (ADR 0012,
+  retirement amendment).
 - The core payload gains the standard-library-only `identity` package and DDL.
 - The reference builder and search bar adopt these contracts (table names,
   `ev:` evidence IDs, authority names, subject ID forms).

@@ -157,30 +157,52 @@ class Identity:
 
     # ---- internals -----------------------------------------------------------------------------------------------
 
-    def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
-        path, ref = self.reference()
-        if ref is None:
-            return None, NO_REFERENCE
+    def price_sources(self, subject_id: str) -> dict:
+        """Where market data for a subject comes from: its asset class and the native references
+        that serve its quote and chart, in core's order, or the reason there are none. Local only."""
         try:
-            subject = page.load_subject(ref, subject_id)
-            if subject is None:
-                return None, "Unknown subject."
-            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
-        finally:
-            ref.close()
+            path, subject, lookups, _issue = self._load(subject_id)
+        except ValueError:  # a malformed subject id
+            return unrouted("unknown_subject")
+        except (sqlite3.Error, OSError):
+            logger.warning("identity unreadable for a market-data read", exc_info=True)
+            return unrouted("no_reference_data")
+        if subject is None:
+            return unrouted("unknown_subject" if path else "no_reference_data")
+        return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, installed(), **lookups),
+                "reason": None}
+
+    def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
+        path, subject, lookups, issue = self._load(subject_id)
+        if subject is None:
+            return None, issue
         security = subject["ids"].get(Level.SECURITY)
         if subject["asset_class"] == "equity" and security:  # the listings search's "+N" counts, receipts included
             listings = search.directory(path, store.open_reference).instrument_listings(security)
             subject["view"]["listings"] = listings or subject["view"]["listings"]
+        sections = page.compose(subject, installed(), **lookups)
+        return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
+
+    def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
+        """The reference path and the subject from it, with the store lookups page composition reads."""
+        path, ref = self.reference()
+        if ref is None:
+            return None, None, {}, NO_REFERENCE
+        try:
+            subject = page.load_subject(ref, subject_id)
+            if subject is None:
+                return path, None, {}, "Unknown subject."
+            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM native_coins")}
+        finally:
+            ref.close()
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
-        queue = identity_store.open_queue(subject_ids)
-        sections = page.compose(subject, installed(), stored=lambda target, provider: stored.get((target, provider)),
-                                coins=lambda provider, caip19: coins.get((provider, caip19)), queue=queue,
-                                misses=identity_store.misses(subject_id))
-        return {**subject["view"], "sections": sections, "queue": queue}, None
+        lookups = {"stored": lambda target, provider: stored.get((target, provider)),
+                   "coins": lambda provider, caip19: coins.get((provider, caip19)),
+                   "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id)}
+        return path, subject, lookups, None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
         """Run the plugin's resolve once; store what the authority rule decides.
@@ -275,9 +297,22 @@ def installed() -> list[page.PluginInfo]:
     return found
 
 
+def unrouted(reason: str) -> dict:
+    return {"asset_class": None, "refs": [], "reason": reason}
+
+
+def price_sources(subject_id: str) -> dict:
+    """Market-data routing for one subject through the registered core (exported as `platform.price_sources`)."""
+    return CURRENT.price_sources(subject_id) if CURRENT is not None else unrouted("core_unavailable")
+
+
+CURRENT: Identity | None = None  # the one registered core identity of this process
+
+
 def register(ctx: Any) -> None:
+    global CURRENT
     from .platform import declare_operation
-    identity = Identity(ctx)
+    identity = CURRENT = Identity(ctx)
     for schema, handler, operation, read_only in ((SEARCH_SCHEMA, identity.search, "identity-search", True),
                                                   (SUBJECT_SCHEMA, identity.subject, "identity-subject", True),
                                                   (RESOLVE_SCHEMA, identity.resolve, "identity-resolve", False)):

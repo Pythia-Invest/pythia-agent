@@ -16,12 +16,12 @@
       "type": "object",
       "properties": {
         "kind": {
-          "enum": ["company", "instrument", "listing", "crypto"]
+          "enum": ["issuer", "security", "composite", "listing"]
         },
         "id": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-          "maxLength": 256
+          "maxLength": 320,
+          "pattern": "^(issuer|security|composite|listing):(lei|cik|isin|figi|caip19|provisional):[A-Za-z0-9._:/%-]{4,300}$"
         }
       },
       "required": ["kind", "id"],
@@ -244,91 +244,6 @@
         "retrieved_at",
         "effective",
         "authority"
-      ],
-      "additionalProperties": false
-    },
-    "mapping": {
-      "type": "object",
-      "properties": {
-        "schema_version": {
-          "enum": [1]
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-          "maxLength": 256
-        },
-        "provider_ref": {
-          "$ref": "#/$defs/provider_ref"
-        },
-        "target": {
-          "$ref": "#/$defs/subject"
-        },
-        "status": {
-          "enum": ["candidate", "confirmed", "conflicting", "rejected"]
-        },
-        "evidence_ids": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-            "maxLength": 256
-          },
-          "minItems": 0,
-          "maxItems": 10000
-        },
-        "rule_version": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512
-        },
-        "revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "active_override": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-                  "maxLength": 256
-                },
-                "effect": {
-                  "enum": ["positive", "negative"]
-                },
-                "evidence_ids": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-                    "maxLength": 256
-                  },
-                  "minItems": 1,
-                  "maxItems": 10000
-                }
-              },
-              "required": ["id", "effect", "evidence_ids"],
-              "additionalProperties": false
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "schema_version",
-        "id",
-        "provider_ref",
-        "target",
-        "status",
-        "evidence_ids",
-        "rule_version",
-        "revision",
-        "active_override"
       ],
       "additionalProperties": false
     },
@@ -1482,14 +1397,7 @@
             "type": "object",
             "properties": {
               "operation": {
-                "enum": [
-                  "search",
-                  "details",
-                  "series",
-                  "latest",
-                  "history",
-                  "read_batch"
-                ]
+                "enum": ["details", "series", "latest", "history", "read_batch"]
               },
               "tool": {
                 "type": "string",
