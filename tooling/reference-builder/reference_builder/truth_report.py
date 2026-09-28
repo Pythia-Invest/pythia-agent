@@ -9,6 +9,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from . import invariants
 from .schema import identity
 from .truth import TRUTH_DIR, Audit, Reference, audit
 
@@ -167,12 +168,21 @@ def build_report(reference: Path, cfi: tuple[str, ...], log, build_audit: dict |
     counts = attention(build_audit) if build_audit is not None else None
     for line in format_attention(counts) if counts is not None else []:
         log(line)
+    try:  # first, so the manifest has the counts even when the truth-set audit fails
+        checked = invariants.run(reference)
+    except Exception as error:  # nor do the invariants
+        log(f"invariants skipped: {error!r}")
+        checked = []
+    for result in checked:
+        if result.mark != "ok":
+            log(f"  invariant {result.name} ({result.severity}): {result.count} against the limit {result.limit}, {result.mark}")
+    found = {"invariants": {r.name: r.count for r in checked}, "invariants_failed": [r.name for r in checked if r.failed]}
     try:
         report = audit(reference, load_truth(), cfi=cfi)
         regressed = regressions(report, load_baseline(), aliases_of(reference))
     except Exception as error:  # the report never fails a build
         log(f"truth-set audit skipped: {error!r}")
-        return {"error": repr(error), "attention": counts}
+        return {"error": repr(error), "attention": counts} | found
     scores = report.scores()
     headline = [c for check, c in scores.items() if check != "subject_key"]
     passed = sum(c.get("pass", 0) for c in headline)
@@ -185,7 +195,13 @@ def build_report(reference: Path, cfi: tuple[str, ...], log, build_audit: dict |
         log(fold_odd(report.fold_odd, limit=10))
     return {"truth_version": report.truth_version, "key_rule": key_rule(), "entries_in_scope": report.in_scope, "scores": scores,
             "regressions": len(regressed), "attention": counts,
-            "fold_odd": dict(Counter(kind for kind, _ in report.fold_odd))}
+            "fold_odd": dict(Counter(kind for kind, _ in report.fold_odd))} | found
+
+
+def previous_reference(reference: Path) -> Path | None:
+    """The next older snapshot beside `reference` (snapshots are named by build date)."""
+    older = [p for p in sorted(reference.parent.glob("reference-*.sqlite3")) if p.name < reference.name]
+    return older[-1] if older else None
 
 
 def newest_reference(out_dir: Path) -> Path | None:
@@ -208,6 +224,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="with --write-baseline: accept subject IDs that changed since the previous baseline")
     parser.add_argument("--failures", action="store_true", help="list every failing check")
     parser.add_argument("--json", type=Path, help="also write the full results as JSON")
+    parser.add_argument("--previous", type=Path, help="reference to list new invariant rows against "
+                        "(default: the next older reference-*.sqlite3 beside --reference)")
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
     reference = args.reference or newest_reference(WORK_DIR / "out")
     if reference is None or not reference.exists():
@@ -220,12 +238,24 @@ def main(argv: list[str] | None = None) -> int:
     print(format_report(report, regressed, baseline=baseline))
     build_audit = manifest_audit(reference)
     print("\n" + "\n".join(format_attention(attention(build_audit) if build_audit is not None else None)))
+    checked = invariants.run(reference)
+    previous = args.previous or previous_reference(reference)
+    before = None
+    if previous and any(r.over for r in checked):
+        try:
+            before = invariants.run(previous)
+        except Exception as error:  # an unreadable previous build only loses the new-row listing
+            print(f"previous build {previous} unreadable ({error!r}): listing examples instead", file=sys.stderr)
+            previous = None
+    print("\n" + "\n".join(invariants.format_results(checked, before, previous.name if previous else "")))
     if args.failures:
         print("\nFailing checks:")
         print("\n".join(f"  {r.key}: {r.reason}" for r in report.results if r.status == "fail"))
     if args.json:
         args.json.write_text(json.dumps({"scores": report.scores(), "regressions": regressed,
-                                         "results": [r.__dict__ for r in report.results]}, indent=1) + "\n", encoding="utf-8")
+                                         "results": [r.__dict__ for r in report.results],
+                                         "invariants": [r.summary() for r in checked]}, indent=1) + "\n",
+                             encoding="utf-8")
     if args.write_baseline:
         # A re-take never accepts a subject-ID change silently: it lists every change, and one that no
         # `id_aliases` row resolves needs --accept-id-changes and is kept in the baseline.
@@ -244,4 +274,4 @@ def main(argv: list[str] | None = None) -> int:
         data = baseline_of(report) | {"accepted_id_changes": accepted}
         baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
-    return 1 if regressed else 0
+    return 1 if regressed or any(r.failed for r in checked) else 0

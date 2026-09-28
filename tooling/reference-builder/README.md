@@ -24,6 +24,7 @@ python3 tooling/reference-builder/run.py --help
 | US tickers | `sec.py` | SEC `company_tickers_exchange.json` and the fund file `company_tickers_mf.json` |
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
+| Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
 | Snapshot and manifest | `schema.py`, `writer.py`, `manifest.py` | |
 
 `schema.py` is the only module that knows the table layout. The file is core's
@@ -205,6 +206,32 @@ checks it cannot pass without other venues as regressions. `--write-baseline`
 lists every truth entry's subject ID that changed since the previous baseline
 and writes nothing unless `--accept-id-changes` is given; the accepted changes
 are kept in the baseline under `accepted_id_changes`.
+
+The same command then checks 16 whole-build invariants (`invariants.py`): rules
+every row must satisfy, so a systematic error shows up as a count rather than as one
+truth entry. Twelve are errors: a line on a German exchange or Vienna not in euros,
+a withdrawn currency code (BGN since 2026, XXX), a share or receipt in its ISIN
+country's currency instead of its venue's (RFQ platforms, internalisers and ETFs,
+which list in several currencies, excepted), a ticker whose currency suffix
+disagrees with its line, one ticker on one venue naming two securities, a listing
+segment where most lines have no ticker, more than one or an inactive primary, an
+open-market primary beside a NYSE/Nasdaq line, name casing and encoding, and a
+trading venue recorded as issuer. Four are warnings to review: a US share with no US
+line (usually delisted), an old ISIN left active beside its successor, a financing
+vehicle as issuer, and a Munich primary beside a Xetra line.
+
+An error above its limit fails the command; a warning never does. Limits are the
+exact counts on the default-scope build of the FIRDS week of 2026-09-26. Rules with
+a pending fix also carry headroom: twice the drift measured against the previous
+week (a few rows where the count did not move; 460 rows on 74,796 German-venue
+currency lines), stored as a share of the count so it shrinks with every lowered
+limit and is 0 once a rule is cleared. Ordinary weekly data passes and a jump fails.
+A count below its limit is reported as `under (lower to N)`: a fix lowers the limit
+in the same change. Raising a limit needs a stated reason in the pull request. When
+a rule fails, the audit lists the rows that are new since the previous build
+(`--previous`, by default the next older `reference-*.sqlite3` beside the file). The
+builder records the counts under `truth_audit.invariants` in the manifest, even when
+the truth-set audit fails, and never blocks on them.
 
 Conventions: US tickers use the SEC's `-` class separator (`BRK-B`); Nordic
 tickers keep the exchange's space (`VOLV B`, Yahoo `VOLV-B.ST`); the listing
