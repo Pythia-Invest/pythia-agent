@@ -1,50 +1,43 @@
 # <Source> source record
 
 Copy this file to `docs/sources/<source>.md` when onboarding starts, and keep it
-current. The stages and their exit criteria are defined in
-[source onboarding](../architecture/source-onboarding.md). Mark each item as
-done, open or not applicable, and give the evidence behind it.
+current. [Source onboarding](../architecture/source-onboarding.md) defines the
+stages. Mark each item done, open or not applicable, and give the evidence.
 
-- **Status:** one of:
-  - not started;
-  - in onboarding (stage N);
-  - trusted (signed off YYYY-MM-DD in PR #N);
-  - suspended (reason).
-- **Owner:** the adapter module(s) or plugin package.
-- **Scope:** the files, endpoints, categories and venues in scope.
-- **Measured on:** the source files or builds and their dates.
+- **Status:** not started / in onboarding (stage N) / trusted (signed off
+  YYYY-MM-DD, PR #N) / suspended (reason).
+- **Owner:** the adapter module or plugin package.
+- **Scope:** the files, endpoints, categories and venues covered.
+- **Measured on:** the source files or builds, with their dates.
+- **Changes to other sources' adapters:** each change, and why this source
+  needed it.
 
 ## 1. Field semantics
 
-| Field (spec number, path) | Official definition, with citation | Pythia meaning | Measured behaviour | Read today |
+| Field (spec number, path) | Official definition, citation | Pythia meaning | Measured behaviour | Read today |
 | --- | --- | --- | --- | --- |
 | | | | | |
 
-Relevant fields not read, and why:
+Relevant unread fields, and announced specification changes:
 
 - …
 
-## 2. Adapter
+## 2. Adapter and drift alarms
 
-- [ ] Every field in the table has one parse and one claim meaning.
-- [ ] Claims are keyed by a global identifier.
-- [ ] The adapter picks no winner, reads no other source, and records an empty
-  answer as absence.
-- [ ] Unknown codes, malformed identifiers, placeholders and missing elements
-  are counted.
-- [ ] A structural break fails the stage visibly and keeps the last good build.
+- [ ] Every field has one parse and one claim meaning, keyed by a global
+  identifier.
+- [ ] The adapter picks no winner and reads no other source.
+- [ ] An empty answer is recorded as absence.
+- [ ] Only direct field values carry `snapshot` authority.
+- [ ] Unexpected input is counted, never coerced.
+- [ ] A structural break fails the stage and keeps the last good build.
 - [ ] Network-free tests use synthetic fixtures that cite the specification.
 
-## 3. Drift fingerprint
-
-| Check | Baseline | Alarm |
+| Fingerprint check | Baseline | Alarm |
 | --- | --- | --- |
 | | | |
 
-- [ ] The fingerprint is written to the manifest on every build.
-- [ ] A test with a changed synthetic input trips the alarm.
-
-## 4. Data audit
+## 3. Data audit
 
 Random sample:
 
@@ -52,37 +45,35 @@ Random sample:
 - size;
 - seed;
 - the primary sources it was labelled against;
-- labelling date.
+- the labelling date.
 
 | Field | Precision (Wilson 95%) | n |
 | --- | --- | --- |
 | | | |
 
-Invariants: the name, limit and reason for each, and the named fix for any
-ratchet.
+Invariants:
+
+- the name, limit and reason of each;
+- the named fix behind any ratchet.
 
 ### Odd cases
 
-| Case | Count (build) | Example | Explanation | Handling | Status |
+| Case | Count (unit) | Example | Explanation | Handling | Status |
 | --- | --- | --- | --- | --- | --- |
 | | | | | | |
 
-## 5. Judgement cases
+## 4. Judgement cases
 
-| Question type | Why code can't decide it | Question set | Gold set (size, strata, split, hash) | Threshold or suggest-only | Final-output check |
-| --- | --- | --- | --- | --- | --- |
-| | | | | | |
+| Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |
+| --- | --- | --- | --- | --- |
+| | | | | |
 
 Classes assigned to code or to Repairs instead:
 
 - …
 
-## 6. Sign-off
+## Sign-off
 
 - [ ] Every stage meets its exit criteria.
 - [ ] Every open item is closed, or accepted with a limit and an owner.
-- [ ] Reviewer, date and PR are recorded.
-
-Open items accepted at sign-off:
-
-- …
+- [ ] The reviewer, date and PR are recorded.

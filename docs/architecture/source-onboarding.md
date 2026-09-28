@@ -1,283 +1,304 @@
 # Onboarding a data source
 
-A data source is anything that supplies investment evidence: a reference source
-read by the reference builder (FIRDS, GLEIF, SEC, OpenFIGI, ISO 10383) or a
-provider plugin (Yahoo, EODHD, CoinGecko, IBKR). Core turns that evidence into
-identity and pages show it, so a misread field reaches every row at once. We
-trust a source only when four things hold:
+A data source supplies investment evidence. It is either a reference source read
+by the reference builder (FIRDS, GLEIF, SEC, OpenFIGI, ISO 10383) or a provider
+plugin (Yahoo, EODHD, CoinGecko, IBKR). Core turns that evidence into identity,
+so one misread field reaches every row at once.
 
-- we know what each field means;
-- we will notice when the source changes;
+We trust a source only when all of these hold:
+
+- we know what each of its fields means;
+- we will notice when it changes;
 - we have measured its error rate on random rows;
-- we have checked that the cases needing judgement come out right.
+- we have checked that its judgement cases come out right.
 
-This page is the standard, and [ADR 0042](../decisions/0042-source-onboarding-standard.md)
-records the decision. Each source keeps its record in `docs/sources/<source>.md`,
+This page is the standard. [ADR 0042](../decisions/0042-source-onboarding-standard.md)
+records the decision. Each source keeps a record in `docs/sources/<source>.md`,
 copied from the [template](../sources/template.md). [FIRDS](../sources/firds.md)
 is the first.
 
+**When the stages apply:**
+
+- adding a source;
+- reading a new field from a source;
+- adding a judgement question type;
+- widening what a source may confirm.
+
+Routine maintenance of a source that has not been onboarded yet does not start
+its onboarding.
+
 ## One source at a time
 
-Onboard sources one at a time. Adapter work on the next source starts after the
-current one signs off. Each source has its own odd cases, and only a full audit
-finds them. Doing several at once is how the reference builder came to misread
-fields and pile up per-case rules.
+- **Only one source is in onboarding at a time.** Onboarding here means the
+  audit, the judgement work and sign-off. Each source has its own odd cases,
+  and only a full audit finds them.
+- **The current source may change another source's adapter** when it needs that
+  source's evidence. For example, FIRDS needs the operator LEIs from ISO 10383.
+  Record the change in both source records. It must not widen what the other
+  source confirms.
 
-A source is not trusted until it signs off. Until then:
+**What "confirm" means.** To confirm is to create or change an identity binding,
+subject or relation without review. A source that has not signed off:
 
-- its evidence may be ingested and shown with its provenance;
-- it does not auto-confirm identity: its matches go to the resolution queue as
-  suggestions, and no rule or judgement question built on it confirms without
-  review;
-- it is not enabled by default in fresh profiles, and it is not the default
-  source for any page section.
+- does not confirm;
+- is not enabled by default in fresh profiles;
+- is not the default source for any page section.
 
-The sources in use before this standard are the one exception: they keep their
-current role while they are onboarded in turn, starting with FIRDS. A change must not widen what a source
-may confirm before that source signs off.
+Until core records each source's trust status, a new source that has not signed
+off ships disabled. That code gate must land before the first source outside
+the pre-standard list is merged. The sources in use before this standard are
+listed in ADR 0042. They keep their current role while they are onboarded in
+turn, starting with FIRDS.
 
-## Stages and exit criteria
+## Stages
 
 ### 1. Field semantics
 
-For each field the adapter reads, record these things:
+For every field the adapter reads, record:
 
-- the official definition, with a citation (specification, field number, Q&A);
-- the one meaning Pythia gives the field;
-- its measured behaviour: how many values per identifier, the null and
-  placeholder rates, and its vocabulary.
+- the official definition, with a citation to the specification, field number
+  or Q&A;
+- the one meaning Pythia gives it;
+- its measured behaviour: values per identifier, null and placeholder rates, and
+  vocabulary.
 
-Also list the unread fields that could answer a question we ask.
-
-**Exit:** every field that is read has a cited definition and exactly one
-meaning. Relevant unread fields are listed with a reason. Any gap between
-measured behaviour and the definition is listed as an odd case.
-
-### 2. A defensive adapter that emits typed claims
-
-- The adapter emits claims keyed by a global identifier (ISIN, LEI, CIK, FIGI,
-  ticker@MIC).
-- Each claim carries these properties:
-  - a meaning from core's fixed vocabulary, for example `notional_currency`
-    rather than `currency`;
-  - the source field;
-  - the as-of date;
-  - a record digest.
-- It never picks a winner and never reads another source. An empty answer is
-  recorded as absence of evidence, not as a negative fact.
-- Unexpected input is surfaced, not coerced:
-  - unknown codes, malformed identifiers, placeholder dates and missing
-    elements are counted on every build;
-  - a structural break fails that source's stage visibly and keeps the last
-    good build ([ADR 0031](../decisions/0031-connector-execution-and-visible-failures.md),
-    [ADR 0039](../decisions/0039-local-first-reference-data-and-rights.md)).
-- Network-free tests use synthetic fixtures that cite the specification. They
-  cover each field's parse and each odd case.
-
-The reference builder does not write claims yet. Until it does, an adapter
-change carries the meaning in its names and types in the same way.
+Also list the unread fields that could answer a question we ask, and any
+announced change to the specification.
 
 **Exit:**
 
-- every field in the stage 1 table has a parse and a test;
-- no field feeds two meanings;
-- every odd case has a counter.
+- every field that is read has a citation and exactly one meaning;
+- every gap between the measured behaviour and the definition is an odd case.
 
-### 3. Drift detection
+### 2. A defensive adapter with drift alarms
 
-Each build computes a fingerprint of the source and records it in the manifest.
-It covers these checks:
+**Claims.** The adapter emits claims keyed by a global identifier. Each claim
+carries:
 
-- the set of elements or columns;
-- value vocabularies;
-- per-field null and placeholder rates;
+- a meaning from core's vocabulary (`notional_currency`, not `currency`);
+- the source field;
+- the as-of date;
+- a record digest.
+
+**Behaviour.** The adapter never picks a winner and never reads another source.
+It records an empty answer as absence, not as a negative fact.
+
+**Authority.** Only a value read directly from a source field carries
+`snapshot` authority. Every derived value carries its own:
+
+- a rule output is `rule_confirmed`, with its `rule_id`;
+- a venue default is a labelled default;
+- a judge answer is `model_*`.
+
+A derived value must never gain T0 authority over a provider's identifier.
+
+**Unexpected input** is counted, never coerced:
+
+- unknown codes;
+- malformed identifiers;
+- placeholders;
+- missing elements.
+
+**Fingerprint.** Each build records a fingerprint in the manifest and compares
+it with the last good build. It covers:
+
+- the element set and vocabularies;
+- null and placeholder rates;
 - the per-identifier value counts from stage 1;
-- answer rates per request type;
+- answer rates;
 - record counts per segment.
 
-The build compares the fingerprint with the last good build. Every check has an
-alarm threshold:
+A structural break fails that source's stage and keeps the last good build
+([ADR 0031](../decisions/0031-connector-execution-and-visible-failures.md),
+[ADR 0039](../decisions/0039-local-first-reference-data-and-rights.md)). A
+shift past its threshold is reported with examples.
 
-- a structural break fails the stage;
-- a shift past its threshold is reported with examples.
+**Live connectors** have no builds. For one, the connector checks each response
+against the expected schema and vocabulary instead.
 
-This is how we find out that a provider has changed something before users do.
+Builds run on users' devices, so maintainer builds must see an alarm first.
+Users see the visible stage failure.
 
-**Exit:**
-
-- the fingerprint is written on every build;
-- every stage 1 assumption has a check;
-- a test feeds a synthetic changed input and trips the alarm.
-
-### 4. A full data audit
-
-- **Random sample.** Draw a stratified random sample over the source's natural
-  dimensions, for example kind × venue type × region. Freeze it with a seed.
-  - Label it field by field against primary sources: the exchange, the
-    issuer's filings, GLEIF or the SEC. Never label against another aggregator
-    or against the build's own inputs.
-  - Report per-field precision with Wilson 95% bounds.
-- **Truth set.** A hand-picked truth set is a regression suite, not the quality
-  measure. Never edit a truth entry to match a build.
-- **Invariants.** They run on every build as smoke alarms. They encode a
-  standard or logic, such as a withdrawn ISO 4217 code or one ticker naming two
-  securities on one venue. They do not encode name patterns, and they never
-  change data.
-  - A limit is 0.
-  - A ratchet at today's count is allowed only while a named fix is under way.
-- **Odd cases.** List every odd case in the source record with:
-  - its count;
-  - an example;
-  - the explanation;
-  - its handling: adapter, precedence rule, judgement question or accepted
-    limit.
+**Tests** are network-free and use synthetic fixtures that cite the
+specification. They cover each field, each odd case, and one changed input that
+trips an alarm.
 
 **Exit:**
 
-- the sample is labelled and its precision is published;
+- every stage 1 field has a parse, a counter and a fingerprint check;
+- no field feeds two meanings.
+
+The reference builder does not write claims yet. Until it does, carry each
+meaning in names and types in the same way.
+
+### 3. A full data audit
+
+**Random sample.**
+
+- Draw a stratified random sample over the source's natural dimensions, for
+  example kind × venue type × region, and freeze it with a seed.
+- Label each field against a primary source, such as the exchange or the
+  issuer's filings.
+  - Never label a field against the audited source, or against a value derived
+    from it.
+  - Another build input may serve only as the registry for its own identifier:
+    GLEIF for the LEI, the SEC for the CIK.
+- Publish per-field precision with Wilson 95% bounds.
+
+**Truth set.** A hand-picked truth set is a regression suite, not the quality
+measure. Never edit an entry to match a build.
+
+**Invariants** run on every build as smoke alarms.
+
+- They encode a standard or a logical rule, not a name pattern. For example, a
+  withdrawn ISO 4217 code, or one ticker naming two securities on one venue.
+- They never change data.
+- Their limit is 0, or a ratchet only while a named fix is under way.
+
+**Odd cases.** List every odd case in the source record with:
+
+- its count, with the unit;
+- an example;
+- an explanation;
+- its handling: adapter, precedence rule, judgement question or accepted limit.
+
+For a live connector, the maintainer probes the sample periodically.
+
+**Exit:**
+
+- the precision figures are published;
 - every odd case is explained or marked open;
-- no invariant limit accepts a known error without a named fix.
+- no limit accepts a known error without a named fix.
 
-### 5. Judgement cases
+### 4. Judgement cases
 
 Some cases need judgement that no field settles. For example: is this LEI the
-issuer, a subsidiary, or unrelated? Each such case becomes a question type
-answered by a resolver plugin that acts as a classifier, such as Jev
-([ADR 0037](../decisions/0037-identity-backbone.md)). A question type has
-these parts:
+issuer, a subsidiary, or unrelated? Each such case becomes a question type,
+answered by a resolver plugin such as Jev
+([ADR 0037](../decisions/0037-identity-backbone.md)).
 
-- **The question.** Its closed-world candidates, the evidence it receives, and
-  the relations a verdict may produce.
-- **A versioned question set.** See [Writing judgement questions](#writing-judgement-questions).
-- **A gold set.** It is stratified and includes hard strata and negatives. It
-  is split into dev and test, and the split is frozen before any tuning.
-- **A threshold per relation.** It is fitted on dev and checked on test.
-  - `model_confirmed` applies only where the band's precision on test has a
-    Wilson 95% lower bound of at least 99%. With zero errors, that takes about
-    385 assertions.
-  - Otherwise the question type is suggest-only: `model_suggested`, and the
-    answer goes to Repairs.
-- **Core's `decide()`.** Every verdict passes through it, so no verdict
-  confirms against identifier evidence, and the depositary-receipt guard always
-  holds.
-- **A check of final outputs.** During development, run the judge on a build
-  and inspect a sample of the values it finally writes, not only the verdict
-  scores. What matters is whether the data that reaches the user is right.
-
-Not every hard case is a judgement case:
+Code handles the other hard cases:
 
 - comparisons, dates, counts and identifier agreement belong in code;
-- a question the model could answer only from memory stays unknown or goes to
-  Repairs. Examples are an exchange symbol, or a home market with no evidence.
+- a question answerable only from memory stays unknown or goes to Repairs.
 
-**Exit:**
+**Every question type needs:**
 
-- every residual class is assigned to code, to a question type or to Repairs;
-- each question type has its question set, gold set, and either a threshold or
-  a suggest-only status;
-- each has a recorded check of final outputs.
+- a versioned question set;
+- verdicts that pass through core's `decide()`;
+- a development check. Run the judge on a sampled build, inspect the final
+  written values rather than the verdict scores, and record the error rate.
 
-### 6. Sign-off
+Without more, a question type is **suggest-only**: `model_suggested`, and the
+answers go to Repairs.
 
-Sign-off is a reviewed pull request that sets the record's status to `trusted`
-and is approved by the project maintainer. The record then states:
+**Auto-confirm (`model_confirmed`) also needs** a gold set per relation:
+
+- stratified, including hard strata and negatives;
+- split into dev and test, and frozen before any tuning;
+- with a threshold fitted on dev whose test precision has a Wilson 95% lower
+  bound of at least 99%. With no errors, that takes about 385 assertions.
+
+**Exit:** every residual class is assigned to code, a question type or Repairs,
+and each question type has its development check recorded.
+
+### Sign-off
+
+Sign-off is a reviewed pull request that sets the record's status to `trusted`.
+It is approved by the project maintainer and cites:
 
 - the evidence for each stage;
-- the builds and sample that were measured;
+- the measured builds and sample;
 - the date.
 
-Every open item is either closed or accepted with a limit and an owner.
+Every open item is closed, or accepted with a limit and an owner.
 
-After sign-off, the source may do two things:
-
-- auto-confirm within its signed-off question types;
-- become a default.
-
-Any of these reopens the affected stage:
+Any of these reopens the affected stage and suspends trust in the affected
+fields until it passes again:
 
 - a drift alarm;
 - a change to the specification;
 - a new field use;
 - a new question type.
 
-Trust in the affected fields is suspended until that stage passes again.
-
 ## Good and bad adapter code
 
-Good code encodes documented semantics or a standard. It is general and holds
-up when new data arrives. For example, RTS 23 field 5 is the "LEI of issuer or
-trading venue operator".
+**Good code** encodes a documented meaning or a standard, is general, and still
+holds when new data arrives. Examples:
 
-- The adapter emits it as `issuer_or_venue_operator_lei`.
-- An LEI that ISO 10383 lists as a venue operator's leaves the issuer unknown
-  and opens a question.
-- No names are compared.
+- **A field read as the standard defines it.** RTS 23 field 5 is the "LEI of
+  issuer or trading venue operator", so it is emitted as
+  `issuer_or_venue_operator_lei`. When ISO 10383 lists the LEI as a venue
+  operator's, the issuer stays unknown and a question opens. No names are
+  compared.
+- **A standard parsed.** A share class read from the ISO 18774 FISN.
+- **An identifier join.** Rows joined on a shared composite FIGI.
 
-Other good examples are parsing a share class from the ISO 18774 FISN, and
-joining rows on a shared composite FIGI.
+**Bad code** hides what the evidence says. Examples:
 
-Bad code takes one of three forms.
+- **A hand list standing in for an unread field.** An ordered list of "home"
+  venues keyed by ISIN country moved shares away from the only listing their
+  issuer requested.
+- **A tie-break that hides ambiguity.** When two securities claim one ticker on
+  one venue, sorting by the shortest ticker picks one silently. Two claimants
+  are a conflict to show.
+- **A name heuristic used as identity.** For example, spotting a financing
+  vehicle by a name pattern, or linking an issuer through a unique normalised
+  name. Use GLEIF Level 2 relationships or a judgement question instead. Names
+  may be judge features or alarm descriptions, never identity.
 
-- **A hand list standing in for a field nobody reads.**
-  - Example: an ordered list of "home" venues keyed by ISIN country put Chubb
-    on SIX in CHF.
-  - The evidence says otherwise. FIRDS field 8 shows that the issuer requested
-    no EEA admission, and the SEC registrant lists on NYSE.
-- **A tie-break that hides ambiguity.**
-  - Example: preferring the shortest ticker among OpenFIGI rows gave Société
-    Générale's Stuttgart line `GLE`. That is also Gladstone Commercial's
-    ticker there. A later rule then quietly dropped the ticker from one line.
-  - Two claimants are a conflict to show, not a list to sort.
-- **A name heuristic used as identity.**
-  - Examples: spotting a financing vehicle by a name pattern, or linking an
-    issuer through a unique normalised name.
-  - Use GLEIF Level 2 relationships instead, or ask a judgement question and
-    keep the answer a suggestion.
-  - Names may be judge features and alarm descriptions, never identity.
-
-A rule that encodes a named case rather than a source meaning has no stopping
-point. It fixes its own examples and moves the errors somewhere else.
+A rule written for a named case has no stopping point. It fixes its own examples
+and moves the errors elsewhere.
 
 ## Where judgement material lives
 
-| Material | Where | Why |
-| --- | --- | --- |
-| Question sets (Jev prompts), versioned as `<question>@<n>` | Public source, next to the code that asks them. Build-time questions go under `tooling/reference-builder/judge/`; runtime questions go in the resolver plugin's package | Reviewed like code. The version is part of every verdict's input digest |
-| Eval harness: scorer, calibrator fit, threshold selection | Public source, beside the question sets. Its tests use synthetic rows | Anyone can reproduce the numbers |
-| Gold labels built only from open identifiers whose terms permit reproduction | May be committed, like the truth set | Public evidence |
-| Gold labels on licensed provider rows, raw requests and responses, and verdicts | On the device (`.local/`) or in private working records; never committed | Provider terms, the repository rule against committing provider responses and model output, and [ADR 0039](../decisions/0039-local-first-reference-data-and-rights.md) |
-| Evaluation summary | The source record | Public evidence for sign-off |
+**Public source:**
 
-The evaluation summary covers:
+- **Question sets.** Each is versioned as `<question>@<n>` and has one owner:
+  the resolver plugin that asks it at runtime, or
+  `tooling/reference-builder/judge/` for a question asked only at build time.
+  The builder imports a shared question from its owner instead of copying it.
+  The version enters every verdict's input digest.
+- **The eval harness** (scorer, calibrator and threshold selection), placed
+  beside the question sets. Its tests use synthetic rows.
+- **Gold labels built only from open identifiers** whose terms permit
+  reproduction. They may be committed, like the truth set.
 
-- the gold manifest: strata, sizes, seed, split and file hash;
+**Never committed.** These stay on the device (`.local/`) or in private working
+records:
+
+- gold labels on licensed provider rows;
+- raw model requests and responses;
+- verdicts.
+
+The reasons are provider terms, the repository rule against committing provider
+responses and model output, and
+[ADR 0039](../decisions/0039-local-first-reference-data-and-rights.md).
+
+**The source record holds the evaluation summary:**
+
+- the gold manifest: strata, sizes, seed, split and hash;
 - the labelling protocol;
 - the model and question versions;
 - the thresholds;
 - precision with its bounds;
-- the check of final outputs.
+- the development check.
 
 ## Writing judgement questions
 
 Follow the [prompting guidance](../prompting.md). For Jev in particular:
 
-- **Pin the model version and record it.** Each of these makes a new question
-  version that needs a new calibration:
-  - a new model version;
-  - a change to the wording;
-  - a change to how the evidence is rendered.
+- **Pin the model version.** A new model version, wording or evidence rendering
+  is a new question version and needs a new calibration.
 - **Give every option a positive criterion.** Include `none` and `several`,
-  keep candidates closed-world, and pass names and identifiers as data in the
-  state.
-- **Keep arithmetic, dates, counts and identifier comparison in code.** Send
-  only the evidence the question needs, because irrelevant state degrades
+  keep candidates closed-world, and pass names and identifiers as data.
+- **Send only the evidence the question needs.** Irrelevant state degrades the
   answers.
-- **Calibrate per question and per relation.** Never carry a threshold from
-  one question type to another, or from one question form to another. Use the
-  option probabilities, not the vendor's `confidence` field.
-- **Keep the test split untouched.** Do not tune wording on it. If a fix was
-  prompted by errors seen on test, draw a fresh test split before quoting its
-  numbers.
+- **Calibrate per question and per relation.** Never reuse a threshold across
+  question types or forms. Put the calibrated option probability in the
+  verdict's `confidence`.
+- **Tune only on dev.** A wording fix prompted by errors seen on test needs a
+  fresh test split before its numbers count.
 - **Let mechanical guards win.** The depositary-receipt, share-class and
   identifier-contradiction guards override the model.
 - **Use made-up values in examples.**
