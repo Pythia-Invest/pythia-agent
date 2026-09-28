@@ -105,3 +105,10 @@ item decided by core's authority rule) that Desk triggers on the investor's
 navigation, not a plugin action and not a feature mutation. It goes through the
 explicit invoke route, runs once per page open and never again on focus,
 reconnect or remount; everything else the page loads stays a read.
+
+## Amendment (2026-09-28)
+
+[ADR 0040](0040-data-concepts-and-agent-tools.md) moves the market-data feature's top-bar module into a replaceable markets UI
+plugin. The product default renderer then names that plugin's presentation
+instead of `pythia-market-data`; the selection, fallback and withdrawal rules
+above are unchanged.

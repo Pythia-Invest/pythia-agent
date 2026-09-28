@@ -118,7 +118,7 @@ catalogue or `resolve`; no search or matching code.
 
 ## Amendment (2026-09-28): contract version, concepts, operations, rights and functions
 
-**Status: next implementation.** All managed contracts live in this repository
+**Status: accepted; the next implementation.** All managed contracts live in this repository
 today; the first third-party or forked plugin would freeze whatever shape
 exists. Every change below is made in one pass, before that happens.
 
@@ -131,7 +131,8 @@ attribution, whether data may be hosted) lived only in READMEs.
 These passages are superseded: the `content` block, `catalogue.tool` and
 `resolve.tool` holding Hermes tool names, the fixed per-section default orders
 under "Page sections never wait on a provider", and "Adding a section is a core
-change" (now: adding a concept is a core change).
+change" (now: adding a concept is a core change). "`catalogue.mode` is the one
+provider term core enforces" gives way to the `rights` block below.
 
 ```json
 {
@@ -155,11 +156,13 @@ change" (now: adding a concept is a core change).
 
 Values are illustrative, not a provider's actual terms.
 
-- **`contract_version`** is a required integer. Core refuses a contract with a
-  higher version than it supports and shows the plugin as `needs_update`, a
-  visible status like `needs_configuration`; it never ignores fields silently.
-  Adding an optional field keeps the version; changing a field's meaning or
-  removing one raises it.
+- **`contract_version`** is a required integer, and the validator reads it
+  before anything else. A contract with a higher version than core supports is
+  not validated further: core shows the plugin as `needs_update` (Pythia must be
+  updated to use it), a visible status like `needs_configuration`, and never
+  reports it as invalid or ignores fields silently. Because the validator
+  rejects unknown fields, any added, removed or changed field raises the
+  version.
 - **`concepts`** replaces `content`. Each entry names a core concept, its
   `level` and `via` (as before; `level` may be `security`, and later a
   non-instrument kind the concept allows), the plugin operation per concept
@@ -169,8 +172,8 @@ Values are illustrative, not a provider's actual terms.
   declared through `declare_operation`. A Hermes adapter maps operations to
   tools, so another harness reads the same contract.
 - **`rights`** holds the provider terms core enforces mechanically:
-  `cache` (`none`, `{"ttl_seconds": n}` or `unlimited`; core drops claim and
-  content rows past their TTL when a store opens), `hostable` (whether data from
+  `cache` (`none`, `{"ttl_seconds": n}` or `unlimited`; core drops the plugin's
+  claim rows and cached reads past their TTL when a store opens), `hostable` (whether data from
   this plugin may appear in a published package; false for every provider
   plugin), and `attribution` (text and link that every surface showing the data
   renders). `catalogue.mode` keeps bulk versus resolve-only. Each plugin still

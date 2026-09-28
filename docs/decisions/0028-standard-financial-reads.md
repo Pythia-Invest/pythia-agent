@@ -106,3 +106,14 @@ Provider switches inside widgets, a second plugin registry, ticker-based
 association, automatic fallback after failures, stitching histories and rewriting
 existing user recipes would each obscure ownership or change financial meaning.
 None is part of this refactor.
+
+## Amendment (2026-09-28)
+
+[ADR 0040](0040-data-concepts-and-agent-tools.md) moves source selection and preferences from the market-data feature into
+core. Preferences become one ordered plugin list per concept with an optional
+per-asset-class override, replacing the finer scopes above, and a declared
+quality never overrides them. An unpinned read may fall back once, labelled
+with the reason, when the selected source fails or is unavailable; this
+supersedes "failed observation reads do not authorize fallback" and the
+rejection of "automatic fallback after failures" for unpinned reads only.
+Pinned reads, reads that name a source and the ban on stitching histories stand.

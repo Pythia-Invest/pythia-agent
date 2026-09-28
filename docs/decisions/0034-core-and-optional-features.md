@@ -65,3 +65,11 @@ would duplicate runtime ownership. Renaming installed identities or deleting
 saved provider values is unnecessary for clarifying source ownership.
 Keeping an otherwise empty Python environment for one standard-library lifecycle
 probe would unnecessarily couple core supervision to a former provider environment.
+
+## Amendment (2026-09-28)
+
+[ADR 0040](0040-data-concepts-and-agent-tools.md) makes data concepts and the market-data concept layer part of core. The
+market-data feature's widgets and top-bar module become a replaceable markets UI
+plugin; provider connectors stay plugins. The Pythia profile keeps the
+`terminal` and `code_execution` toolsets off until provider credentials are out
+of the agent's reach, so the "future scripting plugin" above waits for that too.

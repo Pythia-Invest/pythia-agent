@@ -72,7 +72,7 @@ identity) and able to serve the requested operation. It orders them by:
 
    ```json
    "source_preferences": {
-     "market_data": {"default": ["pythia-eodhd", "pythia-yahoo"], "crypto": ["pythia-coinmarketcap"]},
+     "market_data": {"default": ["pythia-eodhd", "pythia-yahoo-discovery"], "crypto": ["pythia-coinmarketcap"]},
      "filings": {"default": ["pythia-sec", "pythia-xbrl-filings"]}
    }
    ```
@@ -112,7 +112,7 @@ Page sections, concept tools and provider functions return one envelope:
 ```json
 {"schema_version": 1, "outcome": "ok",
  "subject": {"subject_id": "listing:isin:NL0010273215:XAMS:EUR", "requested_as": "..."},
- "source": {"plugin": "pythia-yahoo", "as_of": "2026-09-26T15:35:00Z",
+ "source": {"plugin": "pythia-yahoo-discovery", "as_of": "2026-09-26T15:35:00Z",
             "delay_minutes": 15, "mode": "preferred"},
  "alternatives": [{"plugin": "pythia-eodhd", "status": "available"}],
  "more": [{"plugin": "pythia-sec", "offers": ["XBRL facts"]}],
@@ -185,12 +185,12 @@ help), so another harness needs only its own tool registration.
 
 ### Terminal and code execution stay off
 
-Provider keys live in `<config>/secrets.json`, read in-process by plugins. The
-agent's `terminal` and Hermes `execute_code` run as the same OS user, so file
-permissions do not keep them from that file. Until credentials are isolated from
-the agent's shell, the Pythia profile keeps the `terminal` and `code_execution`
-toolsets off on every platform. See
-[credential custody](../architecture/credential-custody.md#agent-shell-and-code-execution).
+Provider keys live in `<config>/secrets.json`, which any tool running as the
+investor can read. The Pythia profile keeps the `terminal` and `code_execution`
+toolsets off. The native file tools can still read that file; closing that is a
+separate change whose approach (a workspace read limit with a write allowlist,
+or keys in the OS keychain) is still being decided. See
+[credential custody](../architecture/credential-custody.md).
 
 ### Evaluation
 
@@ -205,7 +205,7 @@ phase reruns it with the same model and inputs. Live runs stay opt-in, as
 
 1. **Keep the design possible** (with the identity work): the contract shape of
    the ADR 0038 amendment, subject IDs on every interface, the envelope on every
-   section result, `may_run`, and the terminal and code-execution toolsets off.
+   section result, and `may_run`.
 2. **Market data in core**: selection, preferences, labelled fallback,
    `pythia_find`, `pythia_instrument`, `pythia_market_data`, and the markets UI
    plugin reading through core. Evaluation rerun.

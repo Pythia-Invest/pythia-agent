@@ -188,15 +188,16 @@ auditable: swapping a resolver changes who answers, not what an answer may do.
 
 Funds, bonds, FX, indices, rate series and DeFi protocols and markets must fit
 the backbone without re-keying anything, and search and pages need a general
-rule for what belongs together. A review of those scenarios found four places
-where the text above would force a breaking change once investors hold state.
-This amendment settles them while no stored user state depends on the old form.
+rule for what belongs together. A review of those scenarios found places where
+the text above would force a breaking change once investors hold state. This
+amendment settles them while no stored user state depends on the old form.
 
-These passages are superseded: "Four levels" (the closed level set), the
-subject-ID table and its "first available key wins" precedence, the provisional
-example `security:provisional:eodhd:catalogue:GSPC.INDX`, the security key
-`security:caip19:<home deployment>`, the fixed list under "Typed relations",
-and the one-row-per-instrument presentation under "Search is a local read".
+These passages are superseded: "Four levels" as a closed set and "enforced by
+the types and the SQL", the subject-ID table and its "first available key wins"
+precedence, the provisional example `security:provisional:eodhd:catalogue:GSPC.INDX`,
+the security key `security:caip19:<home deployment>`, the fixed list under
+"Typed relations", and the one-row-per-instrument presentation under "Search is
+a local read".
 
 ### Subject kinds are separate from levels
 
@@ -221,25 +222,29 @@ levels live in core's vocabulary module, not in SQL. The persistent
 `identity.sqlite3` checks only an ID's format, so a new kind or relation never
 needs a table rebuild; the rebuilt `reference.sqlite3` may keep its checks.
 
-### Relation types declare their grouping behaviour
+### Search groups by company; relations declare grouping behaviour
 
-Relations never merge subjects. Each relation type declares one behaviour:
+Relations never merge subjects. Search groups results **per company**: the
+company name, then a compact set of its relevant listings (the one the query
+names, the preferred market or currency, the primary line) and an entry that
+expands to all of them. Share classes, preferreds and products of the same
+issuer group under it naturally, as distinct instruments; a crypto asset heads
+its own group.
+
+Each relation type declares one behaviour that extends or limits that grouping:
 
 | Behaviour | Meaning | Examples |
 | --- | --- | --- |
-| `fold` | The same economic thing: shown in one group, still separate subjects with their own identifiers and data | `depositary_receipt_of`, `share_class_of`, `native_deployment_of` |
-| `related` | Different things: shown nearby, never folded into a group | `wraps`, `bridged_from`, `staked_as`, `tracks`, `derivative_on`, `tokenized_from`, `successor_of` |
+| `fold` | Sameness across subjects that must share one group although they are distinct securities or deployments, possibly under different issuers | `depositary_receipt_of` (a receipt issued by a depositary bank joins its underlying's company), `native_deployment_of` (a chain deployment of a curated asset) |
+| `related` | Different things: shown nearby as links, never in the group | `wraps`, `bridged_from`, `staked_as`, `tracks`, `successor_of`; later, for example, `derivative_on` and `tokenized_from` |
 
-A **group** is the closure of a subject under the instrument hierarchy and
-`fold` relations; it is headed by the issuer when there is one, else by the root
-asset. Search results and pages derive from these declarations, not from rules
-per asset class. Search shows one entry per group: the name, a compact set of
-its relevant listings (the one the query names, the preferred market or
-currency, the primary line) and an entry that expands to all of them. The
-listing page offers the group's other listings in its header, and `related`
-subjects appear as links beside the group. A new relation type states its
-behaviour when it is added, so an unforeseen case gets grouping without new
-code.
+A **group** is the issuer's subjects, or the root asset's when there is no
+issuer, closed under `fold` relations. Search and pages derive grouping from
+these declarations, not from rules per asset class: a new relation type states
+its behaviour when it is added, so an unforeseen case groups without new code.
+The listing page's header switches between the instrument's own lines, folded
+lines such as depositary receipts included; it never lists another share class.
+There is no per-instrument memory; saved listings belong to watchlists later.
 
 ### Crypto keys come from curated tables
 
@@ -247,8 +252,7 @@ A multi-chain asset takes its portable key only from core's curated
 canonical-asset table (rule `canonical_assets@1`): Pythia-authored, versioned
 and open, like `native_coins@1`. Each row names the asset's canonical issuance
 deployment, which gives the key `security:caip19:<deployment>`, and lists the
-deployments that are the same security (a natively issued multi-chain
-stablecoin, canonical-bridge L2 ether). A bridged or wrapped variant is its own
+deployments that are the same security. A bridged or wrapped variant is its own
 security linked by `bridged_from` or `wraps`.
 
 A token with no curated row gets a **provisional** ID, declared non-portable,
@@ -256,62 +260,71 @@ that becomes an alias once curated. A provider's "primary platform" or grouping
 is a claim; it never sets a key, and disagreement between providers becomes a
 queue conflict.
 
-Two chains need Pythia identifier profiles, fixed before any ID is minted:
+Two identifier profiles are **proposed**, to be confirmed with the first plugin
+that mints such IDs:
 
 - **Sui coin types** (`sui_coin@1`): chain `sui:mainnet`, asset namespace
-  `coin`, reference the full coin type with its address as 64 lowercase hex and
-  every character outside CAIP-19's reference set percent-encoded. A reference
-  longer than CAIP-19's 128 characters (generic types such as LP coins) becomes
-  `h-` plus the lowercase hex SHA-256 of the normalized type, and the full type
-  is kept as an identifier assertion.
-- **HyperCore** (`hypercore@1`) is a venue, not a CAIP-2 chain. A spot token
-  keys through its linked HyperEVM deployment (`eip155:999/erc20:<address>`)
-  when one exists, else provisionally by token index. Order books and perpetuals
-  are `market` subjects keyed by venue, such as `market:venue:hyperliquid:BTC`.
+  `coin`, reference the full coin type with every address in it (including
+  those inside type arguments) as 64 lowercase hex, and every character outside
+  CAIP-19's reference set percent-encoded. A reference longer than CAIP-19's 128
+  characters (generic types such as LP coins) becomes `h-` plus the lowercase
+  hex SHA-256 of the normalized type, and the full type is kept as an assertion.
+- **HyperCore** (`hypercore@1`) is a venue, not a CAIP-2 chain. The profile
+  names only deployments (listings): a HyperCore spot token is
+  `listing:caip19:eip155:999/erc20:<address>` when it is linked to a HyperEVM
+  contract, else a provisional listing by token index. The token's security key
+  still follows the canonical-asset rule: a curated row, else provisional.
+  Order books and perpetuals are `market` subjects keyed by venue, such as
+  `market:venue:hyperliquid:BTC`.
 
 ### Keys follow a versioned rule
 
 Key precedence is the versioned rule `subject_key@1`, recorded in each
 reference build. It uses only identifiers that every build path has and may
-host: EU/EEA ISINs (from FIRDS and GLEIF), share-class and composite FIGIs, LEI,
-CIK and Pythia's curated tables. Securities with ISINs from the CUSIP Global
-Services area (US, Canada, Bermuda, the Cayman Islands and the other
-jurisdictions it assigns) are keyed by share-class FIGI even when the ISIN is
-known; the ISIN stays an identifier assertion. Their composites and listings key
-by composite FIGI and FIGI.
+host: ISINs outside the CGS area, share-class and composite FIGIs, LEI, CIK and
+Pythia's curated tables. The **CGS area** is a fixed list of ISIN country
+prefixes in core (`CGS_AREA`: the US and Canada, the US territories, and the
+offshore centres whose ISINs carry a CUSIP or CINS number); changing the list is
+a new rule version. A CGS-area security is keyed by share-class FIGI even when
+its ISIN is known, and the ISIN stays an identifier assertion. Until a
+share-class FIGI is known it has a provisional, non-portable ID, aliased once
+the FIGI appears.
 
 | Kind | `subject_key@1`, first available key wins |
 | --- | --- |
 | Issuer | `issuer:lei:<LEI>`, else `issuer:cik:<CIK>` |
-| Security | `security:isin:<ISIN>` outside the CGS area, else `security:figi:<share-class FIGI>`, else `security:caip19:<curated deployment>` |
-| Composite | `composite:figi:<composite FIGI>`, else the security's ISIN key plus country |
-| Listing | `listing:isin:<ISIN>:<operating MIC>:<currency>` outside the CGS area, else `listing:figi:<FIGI>`, else `listing:caip19:<deployment>` |
+| Security | `security:isin:<ISIN>` outside the CGS area, else `security:figi:<share-class FIGI>`, else `security:caip19:<curated deployment>`, else provisional |
+| Composite | the security key plus country, e.g. `composite:figi:<share-class FIGI>:US` |
+| Listing | `listing:isin:<ISIN>:<operating MIC>:<currency>` outside the CGS area, else `listing:figi:<FIGI>`, else `listing:caip19:<deployment>`, else provisional |
 
 ASML's NASDAQ line, the New York Registry Shares (ISIN USN070592100), is
 therefore `security:figi:<its share-class FIGI>`, linked to
 `security:isin:NL0010273215` by `depositary_receipt_of`.
 
-The builder emits **deterministic aliases**: every lower-precedence key a
-subject could have had (such as `security:isin:US…`), computed from the record
-itself rather than from a diff against an earlier build. An old or foreign ID
-therefore resolves on a fresh install or after a skipped build. A later rule
-version ships with the alias map from the one before. New open evidence never
-re-keys a subject under the same rule version.
+The builder writes **deterministic aliases**: every other key a subject could
+have had (such as `security:isin:US…`), computed from the record itself rather
+than from a diff against an earlier build, so an old or foreign ID resolves on
+a fresh install or after a skipped build. Aliases derived from CGS-area ISINs
+are local-only evidence: they are written on the device, never into a hosted
+artifact. New open evidence never re-keys a subject under the same rule
+version; a changed rule is a new version with aliases from the old IDs.
 
 ### Rationale and consequences
 
 An open kind vocabulary keeps each new asset class additive; SQLite cannot
-change a check constraint without rebuilding the table. Declared relation
-behaviour gives one general grouping rule instead of cases per asset class.
-Curated crypto keys and a hostable key rule keep the promise that installs,
-rebuilds and a hosted build agree on every ID, which watchlists, notes, holdings
-and a later team edition depend on.
+change a check constraint without rebuilding the table. Grouping by company
+plus declared `fold` relations gives one general rule instead of cases per
+asset class. Curated crypto keys and a hostable key rule keep the promise that
+installs and rebuilds agree on every ID, which watchlists, notes, holdings and
+a later team edition depend on.
 
 - Today's `security:isin:US…` and `composite:isin:…:US` IDs are re-keyed once,
   with aliases, before investor state holds them.
-- The identity package, both SQL files, the manifest validator's level
-  checks, the reference builder and the truth set adopt these rules.
+- The identity package, both SQL files, the manifest validator's level checks,
+  the reference builder and the truth set adopt these rules.
 - Rejected: `series` or `index` as extra levels (they are not tradable lines of
-  an issuer); keying multi-chain tokens by a provider's primary platform (installs
-  would disagree); keying CGS-area securities by ISIN (a hosted build could not
-  carry them); aliases from build-to-build diffs (lost on a fresh install).
+  an issuer); `fold` for share classes (they are economically different and
+  already group under their issuer); keying multi-chain tokens by a provider's
+  primary platform (installs would disagree); keying CGS-area securities by
+  ISIN (a hosted build could not carry them); aliases from build-to-build diffs
+  (lost on a fresh install).

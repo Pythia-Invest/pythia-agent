@@ -115,60 +115,49 @@ maintain.
 rule that Pythia adds no cloud dependency, under the same content limits. It
 would also tie forks and self-hosters to Pythia's uptime.
 
-## Amendment (2026-09-28): plugin-owned prebuilt data packages
+## Proposed amendment (2026-09-28): plugin-owned prebuilt data packages
+
+**Status: proposed, not accepted.** The ruling above stays in force, including
+"Pythia publishes no snapshot", until the founder rules on this proposal in an
+accepted amendment or successor ADR.
 
 A cold local build takes tens of minutes and loads every source once per
-device. Investors also need fixes to reference data without waiting for their
-own next rebuild. A review of the open sources' terms found that GLEIF (CC0),
-SEC tables (public, cited), ESMA FIRDS and FITRS (credited, marked as
-transformed) and FIGIs (public domain) may be republished with a notice, while
-US and Canadian ISINs and ISIN-to-FIGI pairs, the Nasdaq Trader files and all
-provider data must stay on the device.
+device, and investors want reference fixes without waiting for their own next
+rebuild. The direction under consideration is that a plugin may ship prebuilt
+packages of its own data, built in CI by the same builder code a device runs.
+A review of published terms suggests GLEIF (CC0), SEC tables (public, cited),
+ESMA FIRDS and FITRS (credited, marked as transformed) and FIGIs (public
+domain) may be republished with a notice. It is not legal advice, and the open
+points of "If Pythia later publishes a snapshot" above still apply.
 
-These passages are superseded: "Pythia publishes no snapshot" under the
-builder ruling, and the rejected alternative "A central published snapshot
-now". The rest of this ADR stands: local building is the default path and no
-Pythia service exists.
+Invariants any accepted version must keep:
 
-**A plugin may ship prebuilt packages of its own data.** A package is local to
-the plugin that owns it, built in CI by the same builder code a device runs.
-Only open-data plugins host packages: every source in the package must be on
-the hostable list and the plugin's contract must declare `rights.hostable:
-true` ([ADR 0038](0038-plugin-addressing-contract.md)). Provider plugins never
-do. CI refuses to publish a package with a source labelled unknown or
-local-only.
+- **Open-data plugins only.** Every source in a package is on the hostable list
+  and the plugin's contract declares `rights.hostable: true`
+  ([ADR 0038](0038-plugin-addressing-contract.md)). Provider plugins never host
+  packages, and publishing refuses a source labelled unknown or local-only.
+- **A local rebuild is always possible.** Packages are an accelerator, never a
+  requirement; the investor can build everything on the device.
+- **Identical IDs.** Keys use only hostable identifiers (`subject_key@1`,
+  [ADR 0037](0037-identity-backbone.md)), so a package and a local build derive
+  the same subject IDs.
+- **Local-only data stays local.** CGS-area ISINs and the aliases derived from
+  them, ISIN-to-FIGI pairs (OMG FIGI Annex D.2 restricts them for every ISIN),
+  provider data, model verdicts and investor state are added on the device and
+  never enter a package.
+- **Static files, no service.** Each plugin publishes a versioned index and its
+  packages, each with a NOTICE and per-source URL, as-of date and licence. There
+  is no server, account or API.
 
-**Static, signed and versioned.** Each plugin publishes static files: a signed
-index and its packages. There is no server, account or API. An index entry
-names the plugin, package, data version, schema version, key rule
-(`subject_key@1`, [ADR 0037](0037-identity-backbone.md)), each source with its
-URL, as-of date and licence, the SHA-256 and the size. Every package carries a
-NOTICE with the attribution its sources require. The device verifies the index
-signature against the release trust root it already holds and each package's
-hash before use.
+Open questions for the ruling:
 
-- **Update.** On refresh the device reads the index, downloads a newer package
-  whose schema version it supports, assembles the packages and its local stages
-  into one reference build and replaces the previous build atomically.
-- **Rollback.** The device keeps the previous builds and returns to the last
-  good one when a new build fails its checks.
-- **Yank.** A bad version is marked yanked in the next index. Devices stop
-  using it, fall back to the newest version that is not yanked, or rebuild
-  locally.
-
-**A local rebuild is always possible.** Packages are an accelerator, never a
-requirement; the investor can turn them off and build everything on the
-device. Keys use only hostable identifiers, so a package and a local build
-derive identical subject IDs. Local-only data (US and Canadian ISINs, their
-ISIN-to-FIGI pairs, the investor's provider claims) is added on the device and
-never enters a package. Model verdicts and investor state never enter one
-either.
-
-Consequences: the reference builder gains a package mode, and core an index
-reader and assembly step within the existing background refresh; there is no
-new daemon. Before the first public package: Bloomberg's confirmation for
-OpenFIGI metadata, a referenced-only MIC subset, a recorded permission date for
-filings.xbrl.org facts, and confirmation of ESMA's terms for bulk
-redistribution. Rejected: one central Pythia snapshot (it couples every plugin
-to one release and owner, and a disabled plugin's data would still ship), and a
-hosted query service (a runtime dependency the product rules out).
+- **Signing:** which key signs a package index, who holds it, and how a device
+  comes to trust it. Code releases have no published signer today, and reusing
+  a code-release key for CI-built data would widen that key's custody.
+- **Update:** how often a device checks the index, and how packages and local
+  stages assemble into one reference build within the existing background
+  refresh.
+- **Rollback and yank:** how many builds a device keeps, and how a bad version
+  is withdrawn so devices fall back or rebuild locally.
+- **Rights:** the conditions listed under "If Pythia later publishes a
+  snapshot", including ANNA and national-agency terms for republishing ISINs.

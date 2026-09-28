@@ -38,17 +38,3 @@ checks config readback, and restarts Hermes before submitting the run. It never
 writes YAML directly or changes existing/partial selections, shared defaults,
 or credentials. If interrupted between setters, complete the partial selection
 through native Hermes configuration; no automatic repair guesses user intent.
-
-## Agent shell and code execution
-
-Plugins read provider keys in-process from `<config>/secrets.json`. The
-agent's `terminal` and Hermes `execute_code` run as the same OS user, so file
-mode `0600` does not keep them from that file, and Hermes's environment
-scrubbing does not cover files. Until credentials are isolated from the agent's
-shell (for example by a terminal backend whose OS profile denies `<config>`),
-the Pythia profile keeps the `terminal` and `code_execution` toolsets off on
-every platform. Provider depth reaches the agent through core's declared,
-read-only functions instead ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md)),
-which run in the backend process and never return a key, bearer or credential
-path. A future code mode calls only those functions, from a sandbox without
-network or file access.
