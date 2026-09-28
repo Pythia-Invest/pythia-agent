@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 
 from . import rules
 from .assemble import FigiMap, Inputs, operating
-from .model import GleifEntity, Issuer, Listing, Relationship, Security, SecTicker, Snapshot, Venue
+from .model import GleifEntity, Issuer, Listing, Relationship, Security, SecTicker, Snapshot
 from .sec import EXCHANGE_MIC, LISTED_MICS
 
 SEC_EDGAR_RA = "RA000665"

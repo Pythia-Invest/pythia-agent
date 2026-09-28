@@ -1,5 +1,6 @@
 """End to end on hand-made rows: assembly, CIK links, primary venues, gates and files."""
 
+import dataclasses
 import json
 import sqlite3
 import tempfile
@@ -116,7 +117,7 @@ class PipelineTest(unittest.TestCase):
         link_receipts(self.snap)  # a receipt might be of the preferred: never guessed
         self.assertNotIn(receipt, {item.from_id for item in self.snap.relationships})
 
-    def test_a_stated_underlying_outside_the_build_or_inactive_yields_to_the_issuer_rule_and_is_counted(self):
+    def test_a_stated_underlying_outside_the_build_or_inactive_is_a_question_with_the_issuers_share(self):
         receipt = self.snap.listings["XNAS:ASML"].security_id
         issuer = self.snap.securities[receipt].issuer_id
         self.snap.securities["isin:NL9999999998"] = Security("isin:NL9999999998", "share", "esma_firds", issuer_id=issuer,
@@ -127,9 +128,11 @@ class PipelineTest(unittest.TestCase):
                 self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", stated, "esma_firds",
                                                            "firds_underlying_isin")]
                 self.snap.audit.clear()
+                self.snap.questions.clear()
                 link_receipts(self.snap)
-                edges = {(item.from_id, item.to_id, item.rule_id) for item in self.snap.relationships}
-                self.assertIn((receipt, f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
+                self.assertNotIn(receipt, {item.from_id for item in self.snap.relationships}, "never the issuer rule's guess")
+                self.assertEqual([(q.question, q.subject_id, q.candidates) for q in self.snap.questions],
+                                 [("receipt_underlying", receipt, (f"isin:{ASML_ISIN}",))])
                 self.assertEqual(self.snap.audit["relations"][reason], 1)
                 self.assertIn((receipt, reason, stated), {(f.subject_id, f.flag, f.detail) for f in self.snap.flags})
 
@@ -141,11 +144,13 @@ class PipelineTest(unittest.TestCase):
         line = self.snap.listings["XCBO:EXLT"]
         self.assertEqual((line.mic, line.operating_mic, line.is_primary), ("XCBO", "XCBO", True))
 
-    def test_uk_issuer_gets_its_home_line_as_primary(self):
+    def test_an_eea_request_beside_a_home_line_outside_the_eea_is_a_question(self):
+        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line.
         shell = self.snap.securities[f"isin:{SHELL_ISIN}"]
-        self.assertEqual((shell.primary_mic, shell.primary_rule), ("XLON", "home_listing_evidence"))
-        self.assertTrue(self.snap.listings["XLON:SHEL"].is_primary)
-        self.assertFalse(self.snap.listings[f"XAMS:{SHELL_ISIN}"].is_primary)
+        self.assertEqual((shell.primary_mic, shell.primary_rule), (None, "requested_in_eea_listed_outside"))
+        self.assertFalse(any(l.is_primary for l in self.snap.listings.values() if l.security_id == shell.security_id))
+        asked = {q.subject_id: q for q in self.snap.questions if q.question == "home_market"}
+        self.assertEqual(set(asked[shell.security_id].candidates), {"XLON:SHEL", f"XAMS:{SHELL_ISIN}"})
 
     def test_terminated_line_stays_with_its_validity_window(self):
         fund = self.snap.listings[f"XAMS:{FUND_ISIN}"]
@@ -201,9 +206,9 @@ WIDE_FIRDS = fulins([
     firds_record(ASML_ISIN, "XETB", ASML_LEI, name="ASML HOLDING"),  # two Xetra segments: one Xetra line
     firds_record(ASML_ISIN, "XETA", ASML_LEI, name="ASML HOLDING"),
     firds_record(ASML_ISIN, "CEUX", ASML_LEI, name="ASML HOLDING"),  # Cboe Europe trades it; it lists on XAMS
-    firds_record(APPLE_ISIN, "FRAB", APPLE_LEI, name="APPLE INC", relevant="XFRA"),
+    firds_record(APPLE_ISIN, "FRAB", APPLE_LEI, name="APPLE INC", relevant="XFRA", requested="false"),
     firds_record(ETF_ISIN, "XETA", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
-    firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
+    firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM", requested="false"),
     firds_record(DARK_ISIN, "CEUX", NN_LEI, name="DARK ONLY", relevant="CEUX"),
     firds_record(UNKNOWN_US_ISIN, "FRAB", APPLE_LEI, name="NO FIGI YET", relevant="XFRA"),  # OpenFIGI has no line
 ])
@@ -254,7 +259,7 @@ class AllVenuesTest(unittest.TestCase):
         self.assertEqual(self.lines(DARK_ISIN), ["CEUX"])
         etf = self.snap.securities[f"isin:{ETF_ISIN}"]
         self.assertEqual((self.lines(ETF_ISIN), etf.primary_mic, etf.primary_rule, etf.kind),
-                         (["XETA"], "XETR", "trading_venue_to_listing_venue", "etf"))
+                         (["XETA"], "XETR", "issuer_requested", "etf"))
         self.assertTrue(self.snap.listings[f"XETA:{ETF_ISIN}"].is_primary)
 
     def test_us_share_traded_in_europe_keeps_its_us_home_line_and_rank(self):
@@ -313,64 +318,63 @@ class AllVenuesTest(unittest.TestCase):
 
 SAP_ISIN, SAP_LEI = "DE0007164600", "529900D6BF99LW9R2E68"
 WORLD_ISIN, WORLD_LEI = "IE00B4L5Y983", "549300AAAAAAAAAAAA04"  # iShares Core MSCI World UCITS ETF
-
-
-class FallbackPrimaryTest(unittest.TestCase):
-    """Truth set: when FIRDS names a trading-only venue, the primary is the venue an investor knows."""
-
-    def primaries(self, records):
-        admissions = {}
-        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
-        inputs = Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [], set())
-        snap = build_snapshot(inputs, gleif_fetch, FakeOpenFigi({}))
-        return {s.isin: (s.primary_mic, next((l.mic for l in snap.listings.values() if l.security_id == s.security_id and l.is_primary), None))
-                for s in snap.securities.values() if s.isin}
-
-    def test_sap_goes_to_xetra_and_a_ucits_etf_to_frankfurt_not_the_first_regional_by_mic(self):
-        german = (("DUSB", "2003-01-02"), ("HAMB", "2001-01-02"), ("XGAT", "2010-01-04"), ("FRAB", "2005-01-03"), ("CEUX", "2009-01-02"))
-        records = [firds_record(SAP_ISIN, segment, SAP_LEI, name="SAP SE", relevant="CEUX", first=first) for segment, first in (*german, ("XETB", "2008-01-02"))]
-        records += [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first) for segment, first in german]
-        self.assertEqual(self.primaries(records), {SAP_ISIN: ("XETR", "XETB"), WORLD_ISIN: ("XFRA", "FRAB")})
-
-    def test_a_regional_regulated_admission_moves_only_to_a_regulated_xetra_line(self):
-        on_mtf = [firds_record(SAP_ISIN, segment, SAP_LEI, relevant="DUSA") for segment in ("DUSA", "XETB")]
-        on_regulated = [firds_record(WORLD_ISIN, segment, WORLD_LEI, relevant="DUSA") for segment in ("DUSA", "XETA")]
-        self.assertEqual(self.primaries(on_mtf + on_regulated), {SAP_ISIN: ("XDUS", "DUSA"), WORLD_ISIN: ("XETR", "XETA")})
-
-    def test_without_a_preferred_venue_the_earliest_listing_wins(self):
-        records = [firds_record(WORLD_ISIN, segment, WORLD_LEI, cfi="CEOGES", relevant="CEUX", first=first)
-                   for segment, first in (("DUSB", "2012-01-02"), ("HAMB", "2011-01-03"), ("CEUX", "2009-01-02"))]
-        self.assertEqual(self.primaries(records), {WORLD_ISIN: ("XHAM", "HAMB")})
-
-
 LINDE_ISIN, LINDE_LEI = "IE000S9YS762", "5299003QR1WT0EF88V51"
 STLA_ISIN, STLA_LEI = "NL00150001Q9", "549300LKT9PW7ZIBDF31"
 
 
-class UsHomeTest(unittest.TestCase):
-    """A non-US share whose only lines are European secondary ones and a US exchange line is at home in the US."""
+class FirdsPrimaryTest(unittest.TestCase):
+    """RTS 23 field 8 decides an EEA primary; where the evidence does not, the primary is unknown and asked."""
 
-    def test_the_us_line_is_primary_unless_the_eea_primary_is_a_regulated_market(self):
-        records = [firds_record(LINDE_ISIN, "MUNB", LINDE_LEI, name="LINDE PLC", relevant="MUNB"),
-                   firds_record(LINDE_ISIN, "XGAT", LINDE_LEI, name="LINDE PLC", relevant="MUNB"),
-                   firds_record(STLA_ISIN, "MTAA", STLA_LEI, name="STELLANTIS", relevant="MTAA"),
-                   firds_record(STLA_ISIN, "XGAT", STLA_LEI, name="STELLANTIS", relevant="MTAA")]
+    def build(self, records, tickers=(), answers=None, scope=Scope(sec=False)):
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        inputs = Inputs(date(2026, 9, 25), scope, mic.parse(MIC_CSV.encode()), admissions, None, list(tickers),
+                        {"MUNB", "MTAA"})
+        return build_snapshot(inputs, gleif_fetch, FakeOpenFigi(answers or {}))
+
+    def primaries(self, snap):
+        return {s.isin: (s.primary_mic, s.primary_rule) for s in snap.securities.values() if s.isin}
+
+    def test_the_requested_market_decides_and_frankfurt_lists_on_xetra(self):
+        records = [firds_record(SAP_ISIN, "FRAA", SAP_LEI, relevant="FRAA"), firds_record(SAP_ISIN, "XETA", SAP_LEI, relevant="FRAA"),
+                   firds_record(SAP_ISIN, "DUSB", SAP_LEI, relevant="FRAA", requested="false"),
+                   # The issuer sought Xetra only; Düsseldorf's open market is the most liquid.
+                   firds_record(WORLD_ISIN, "XETA", WORLD_LEI, cfi="CEOGES", relevant="DUSB"),
+                   firds_record(WORLD_ISIN, "DUSB", WORLD_LEI, cfi="CEOGES", relevant="DUSB", requested="false")]
+        venues = mic.parse(MIC_CSV.encode())
+        for code in ("XETR", "XFRA"):  # ISO 10383: Deutsche Börse AG operates both
+            venues[code] = dataclasses.replace(venues[code], lei="529900G3SW56SHYNPR95")
+        admissions = {}
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(sec=False), venues, admissions, None, [], set()),
+                              gleif_fetch, FakeOpenFigi({}))
+        self.assertEqual(self.primaries(snap), {SAP_ISIN: ("XETR", "issuer_requested_most_liquid"),
+                                                WORLD_ISIN: ("XETR", "issuer_requested")})
+
+    def test_without_a_request_or_with_several_the_primary_is_asked(self):
+        records = [firds_record(WORLD_ISIN, "DUSB", WORLD_LEI, cfi="CEOGES", relevant="DUSB", requested="false"),
+                   firds_record(WORLD_ISIN, "HAMB", WORLD_LEI, cfi="CEOGES", relevant="DUSB", requested="false"),
+                   firds_record(SAP_ISIN, "XAMS", SAP_LEI, relevant="CEUX"), firds_record(SAP_ISIN, "MTAA", SAP_LEI, relevant="CEUX"),
+                   firds_record(ASML_ISIN, "XGLO", ASML_LEI, relevant="XGLO")]  # a venue habit: no evidence
+        snap = self.build(records)
+        self.assertEqual(self.primaries(snap), {WORLD_ISIN: (None, "most_liquid_only"), SAP_ISIN: (None, "issuer_requested_several"),
+                                                ASML_ISIN: (None, "most_liquid_only")})
+        self.assertEqual(sorted(q.subject_id for q in snap.questions if q.question == "home_market"),
+                         sorted(f"isin:{isin}" for isin in (WORLD_ISIN, SAP_ISIN, ASML_ISIN)))
+
+    def test_a_us_line_decides_without_an_eea_request_and_is_a_question_beside_one(self):
+        records = [firds_record(LINDE_ISIN, "MUNB", LINDE_LEI, name="LINDE PLC", relevant="MUNB", requested="false"),
+                   firds_record(STLA_ISIN, "MTAA", STLA_LEI, name="STELLANTIS", relevant="MTAA")]
         answers = {("ID_ISIN", LINDE_ISIN, "MUNB"): [figi_row("LIN", "GM", "BBGLINDEGM01", "BBGLINDESC01")],
                    ("TICKER", "LIN", "US"): [figi_row("LIN", "US", "BBGLINDEUS01", "BBGLINDESC01")],
                    ("ID_ISIN", STLA_ISIN, "MTAA"): [figi_row("STLAM", "IM", "BBGSTLAIM001", "BBGSTLASC001")],
                    ("TICKER", "STLA", "US"): [figi_row("STLA", "US", "BBGSTLAUS001", "BBGSTLASC001")]}
-        admissions = {}
-        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
         tickers = sec.parse(sec_json([(1707925, "Linde plc", "LIN", "Nasdaq"), (1605484, "Stellantis N.V.", "STLA", "NYSE")]))
-        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(), mic.parse(MIC_CSV.encode()), admissions, None, tickers,
-                                     {"MUNB", "MTAA"}), gleif_fetch, FakeOpenFigi(answers))
-        linde, stellantis = snap.securities[f"isin:{LINDE_ISIN}"], snap.securities[f"isin:{STLA_ISIN}"]
-        self.assertEqual((linde.primary_mic, linde.primary_rule), ("XNAS", "us_exchange_no_home_line"))
-        self.assertEqual([l.listing_id for l in snap.listings.values() if l.security_id == linde.security_id and l.is_primary],
-                         ["XNAS:LIN"])
-        self.assertEqual((stellantis.primary_mic, stellantis.primary_rule), ("XMIL", "firds_relevant_venue"))
-        self.assertFalse(snap.listings["XNYS:STLA"].is_primary)
-        self.assertEqual(snap.audit["securities"]["by_primary_rule"]["us_exchange_no_home_line"], 1)
+        snap = self.build(records, tickers, answers, Scope())
+        self.assertEqual(self.primaries(snap), {LINDE_ISIN: ("XNAS", "us_exchange_listing"),
+                                                STLA_ISIN: (None, "requested_in_eea_listed_outside")})
+        self.assertTrue(snap.listings["XNAS:LIN"].is_primary)
+        self.assertIn(f"isin:{STLA_ISIN}", {q.subject_id for q in snap.questions if q.question == "home_market"})
 
 
 class CikLinkTest(unittest.TestCase):
