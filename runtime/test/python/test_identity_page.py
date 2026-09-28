@@ -136,6 +136,26 @@ class SearchTest(Fixture):
         self.assertEqual({key: row[key] for key in ("id", "mic", "country", "listings", "bindings")},
                          {"id": BTC, "mic": None, "country": None, "listings": 0, "bindings": bound[BTC]})
 
+    def test_unless_the_query_names_a_listing_the_row_shows_one_a_plugin_can_price(self):
+        self.assertEqual(self.rows("shell")[:1], [SHELL])
+        self.assertEqual(self.rows("shell", priced=lambda: {"OTCM"})[:1], [SHELL_OTC])
+        self.assertEqual(self.rows("shell", priced=lambda: {"XAMS", "OTCM"})[:1], [SHELL])
+        self.assertEqual(self.rows("shell", prefer="EU", priced=lambda: {"OTCM"})[:1], [SHELL])  # the preference first
+        self.assertEqual(self.rows("SHEL", priced=lambda: {"OTCM"})[:1], [SHEL])  # a typed ticker still names its line
+
+    def test_a_foreign_companys_primary_us_line_represents_it(self):
+        with sqlite3.connect(self.path) as db:
+            db.execute("INSERT INTO venues VALUES ('XETR', 'XETR', 'Xetra', 'DE')")
+            db.execute("INSERT INTO issuers (id, name, country) VALUES ('issuer:lei:LINDE', 'Linde plc', 'IE')")
+            db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind)"
+                       " VALUES ('security:linde', 'issuer:lei:LINDE', 'x', 'equity', 'ordinary')")
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?1, 'security:linde', ?2, ?2, 'LIN', ?3, ?4)",
+                           [("listing:linde:xetr", "XETR", "EUR", 0), ("listing:linde:xnys", "XNYS", "USD", 1)])
+        directory = search.Directory(self.ref)
+        rows = directory.search("linde", limit=5, priced=lambda: {"XETR", "XNYS"})["rows"]
+        self.assertEqual([row["id"] for row in rows], ["listing:linde:xnys"])
+
     def test_an_issuers_main_share_and_preferred_come_before_its_notes(self):
         self.assertEqual(self.rows("bank corp"), ["listing:bank:common", "listing:bank:preferred"])
 
@@ -150,6 +170,17 @@ class PageTest(Fixture):
         self.assertEqual(quote["alternatives"], [{"plugin": "pythia-eodhd", "label": "EODHD", "status": "resolving"}])
         self.assertEqual(profile["request"], {"plugin": "pythia-gleif", "operation": "gleif-profile", "arguments": {
             "native_ref": {"provider": "gleif", "native_id": LEI, "native_scope": "lei"}}})
+
+    def test_priced_venues_are_the_mic_tables_of_usable_quote_plugins(self):
+        self.assertEqual(page.priced_venues([plugin("yahoo"), plugin("eodhd"), plugin("gleif")]), {"XAMS", "XNAS"})
+        self.assertEqual(page.priced_venues([plugin("yahoo", enabled=False)]), set())
+
+    def test_a_nordic_class_ticker_becomes_a_dashed_provider_symbol(self):
+        contract = {**CONTRACTS["yahoo"], "addressing": {**CONTRACTS["yahoo"]["addressing"], "mic_table": {"XSTO": ".ST"}}}
+        yahoo = page.PluginInfo(key="pythia-yahoo", manifest=identity.validate_manifest(contract))
+        subject = {"values": {}, "asset_class": "equity", "listing": {"ticker": "VOLV B", "mic": "XSTO", "operating_mic": "XSTO"}}
+        ref, _rule = page.derive(yahoo, identity.Level.LISTING, subject, lambda provider, caip19: None)
+        self.assertEqual(ref.native_id, "VOLV-B.ST")
 
     def test_an_old_us_id_resolves_through_its_alias(self):
         old, current = "listing:isin:USN070592100:XNAS:USD", "listing:figi:BBG000K6N6G7"  # before subject_key@1

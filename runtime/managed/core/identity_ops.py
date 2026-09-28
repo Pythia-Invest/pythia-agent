@@ -95,7 +95,8 @@ class Identity:
                 return _envelope("empty", empty, issue=NO_REFERENCE)
             directory = search.directory(path, store.open_reference)
             data = directory.search(query, limit=limit, kinds=arguments.get("kinds"), prefer=self._preference(),
-                                    suffixes=_suffixes, bindings=self._bindings) if query else empty
+                                    suffixes=_suffixes, priced=_priced,
+                                    bindings=self._bindings) if query else empty
         except (sqlite3.Error, OSError):  # search degrades, never errors out
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
@@ -269,6 +270,15 @@ def _suffixes() -> dict[str, set[str]]:
             if code.startswith("."):
                 venues.setdefault(code.upper(), set()).add(mic)
     return venues
+
+
+def _priced() -> set[str]:
+    """Venues where an installed plugin can price a line; without them search still answers, unranked by it."""
+    try:
+        return page.priced_venues(installed())
+    except Exception:  # search degrades, never errors out
+        logger.warning("plugin contracts unreadable; search ignores price availability", exc_info=True)
+        return set()
 
 
 def installed() -> list[page.PluginInfo]:

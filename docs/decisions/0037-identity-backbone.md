@@ -211,7 +211,11 @@ installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange). Core declares the key in its `configuration.json`. "Look up in X"
+exchange). Within that preference, a line an installed, usable plugin can price
+comes first (its operating MIC is in the `mic_table` of a plugin whose quote is
+addressed per listing), so the page a row opens can show a price even when the
+primary market is out of the reference's scope. Core declares the key in its
+`configuration.json`. "Look up in X"
 explicitly calls one provider's `resolve`, and the result joins like any other
 claim.
 

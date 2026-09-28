@@ -148,8 +148,24 @@ def derive(info: PluginInfo, level: Level, subject: dict, coins: Callable[[str, 
         if level is Level.LISTING and listing is not None and listing["ticker"] and listing["mic"]:
             suffix = manifest.mic_table.get(listing["operating_mic"] or listing["mic"])
             if suffix is not None:
-                return ProviderRef(manifest.provider, listing["ticker"] + suffix, scope.native_scope), "mic_table@1"
+                # A provider symbol has no space: the venue's class separator (`VOLV B`) becomes `-` (`VOLV-B.ST`).
+                symbol = listing["ticker"].replace(" ", "-") + suffix
+                return ProviderRef(manifest.provider, symbol, scope.native_scope), "mic_table@2"
     return None
+
+
+def priced_venues(plugins: list[PluginInfo]) -> set[str]:
+    """Operating MICs where a usable plugin addresses a quote from the listing's ticker (its MIC table).
+
+    Search shows an instrument through such a line when the query names none, so the page it opens can
+    show a price."""
+    venues: set[str] = set()
+    for info in plugins:
+        entry = info.manifest.content.get(Section.QUOTE)
+        if (info.enabled and not info.missing and entry is not None and entry.via is Level.LISTING
+                and any(scope.level is Level.LISTING for scope in info.manifest.native)):
+            venues |= set(info.manifest.mic_table)
+    return venues
 
 
 def resolve_input(info: PluginInfo, subject: dict) -> dict[str, str]:
