@@ -88,10 +88,10 @@ class Reader:
             number = identity.from_reference(clean['native_ref'])
             if operation == 'filings':
                 raw = fetch('submissions', number)
-                limit, forms = clean.get('limit', 20), clean.get('forms')
+                limit, forms, kinds = clean.get('limit', 20), clean.get('forms'), clean.get('kinds')
                 pages, issues = [], []
-                if forms:  # an annual report must not be crowded out: read older pages back five years, at most three
-                    first = filings.filings(raw['data'], number, raw['observed_at'], limit, forms)
+                if forms or kinds:  # an annual report must not be crowded out: read older pages back five years, at most three
+                    first = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, kinds=kinds)
                     since = (datetime.now(timezone.utc) - timedelta(days=5 * 366)).date().isoformat()
                     deadline = time.monotonic() + PAGING_SECONDS
                     if len(first['filings']) < limit and (first['coverage']['searched_back_to'] or '9') > since:
@@ -105,7 +105,7 @@ class Reader:
                                 issues.append({'code': 'incomplete', 'severity': 'warning', 'message':
                                                'Older SEC filings could not be searched; the list is incomplete.'})
                                 break
-                result = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, pages)
+                result = filings.filings(raw['data'], number, raw['observed_at'], limit, forms, pages, kinds)
                 if issues:
                     result['coverage']['complete'] = False
                 return envelope(result, [*issues, *self.drift(operation, result.get('drift'))])

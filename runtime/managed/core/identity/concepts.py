@@ -33,13 +33,35 @@ class Combine(StrEnum):
     PER_AUTHORITY = "per_authority"  # one source per filing authority; the lists merge by date
 
 
-class FilingAuthority(StrEnum):
-    """Who a filing is filed with. A source declares the authorities it serves."""
+# EEA states (ISO 3166), each with its own officially appointed mechanism for regulated information
+# (Transparency Directive 2004/109/EC, art. 21).
+EEA = ("AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU", "IE", "IS", "IT", "LI",
+       "LT", "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", "SK")
+# The mechanism a filing is filed with. A source declares the mechanisms it serves, so one national source (the AMF
+# for France) can serve its country alone. An EEA mechanism is named by its country (`oam-fr`), not its regulator:
+# regulators share names across countries (FMA in Austria and Liechtenstein, Finanstilsynet in Denmark and Norway).
+FilingAuthority = StrEnum("FilingAuthority", {
+    "SEC": "sec",      # US SEC EDGAR
+    "FCA": "fca",      # UK: the FCA National Storage Mechanism
+    "SEDAR": "sedar",  # Canada: SEDAR+
+    **{f"OAM_{code}": f"oam-{code.lower()}" for code in EEA}})
 
-    SEC = "sec"      # US SEC EDGAR
-    ESMA = "esma"    # EU/EEA issuers' ESEF reports, filed with national officially appointed mechanisms
-    FCA = "fca"      # UK issuers' reports on the FCA National Storage Mechanism
-    SEDAR = "sedar"  # Canadian SEDAR+
+
+class FilingKind(StrEnum):
+    """What a filing is, across forms and mechanisms. A source tags each filing; anything else is `other`."""
+
+    ANNUAL = "annual"                      # annual report: 10-K, 20-F, 40-F, an ESEF annual financial report
+    HALF_YEAR = "half_year"                # half-year report
+    QUARTERLY = "quarterly"                # quarterly report: 10-Q
+    EARNINGS_RELEASE = "earnings_release"  # results announcement: an 8-K with Item 2.02
+    EVENT = "event"                        # material-event disclosure: other 8-Ks, EU inside information
+    OWNERSHIP = "ownership"                # insider and major-holder filings: Forms 3, 4, 5, 144, Schedules 13D/G
+    PROSPECTUS = "prospectus"              # registration statements and prospectuses: S-1, F-3, 424B
+    OTHER = "other"
+
+
+# Kinds of periodic report: each has a report identity (`filings.report_key`) that links its versions and parallels.
+REPORT_KINDS = frozenset({FilingKind.ANNUAL, FilingKind.HALF_YEAR, FilingKind.QUARTERLY, FilingKind.EARNINGS_RELEASE})
 
 
 class Licence(StrEnum):
@@ -149,8 +171,10 @@ REGISTRY: dict[Concept, ConceptSpec] = {
 ELIGIBLE = frozenset({"ready", "resolving"})  # resolving: a lookup runs before the first read, then it serves
 # Skips that signal something went wrong rather than the investor's own setup: they warrant a visible notice.
 NOTICE = frozenset({"conflict", "unresolved"})
-# Filing authority of an item by the filer's country, for a source serving several authorities.
-AUTHORITY_BY_COUNTRY = {"US": FilingAuthority.SEC, "GB": FilingAuthority.FCA, "CA": FilingAuthority.SEDAR}
+# Filing authority of an item by the country of the mechanism a source collected it from, for a source serving
+# several: not the filer's country (filings.xbrl.org lists TotalEnergies' report under both FR and GB).
+AUTHORITY_BY_COUNTRY = {"US": FilingAuthority.SEC, "GB": FilingAuthority.FCA, "CA": FilingAuthority.SEDAR,
+                        **{code: FilingAuthority(f"oam-{code.lower()}") for code in EEA}}
 
 
 def parse_order(text: str | None) -> tuple[str, ...]:

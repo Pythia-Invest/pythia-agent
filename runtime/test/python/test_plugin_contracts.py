@@ -132,7 +132,14 @@ class ShippedContracts(unittest.TestCase):
 
     def test_filing_sources_declare_their_authorities(self):
         self.assertEqual(manifest('sec').concepts[identity.Concept.FILINGS].authorities, ('sec',))
-        self.assertEqual(manifest('xbrl-filings').concepts[identity.Concept.FILINGS].authorities, ('esma', 'fca'))
+        # One authority per national mechanism, so a national source can serve its country alone.
+        mechanisms = manifest('xbrl-filings').concepts[identity.Concept.FILINGS].authorities
+        self.assertTrue({'fca', 'oam-fr', 'oam-nl'} <= set(mechanisms))
+        self.assertNotIn('oam-de', mechanisms)  # filings.xbrl.org collects no German reports
+        contract = json.loads((PLUGINS / 'xbrl-filings/contract.json').read_text())
+        contract['concepts']['filings']['authorities'] = ['esma']
+        with self.assertRaises(identity.ManifestError):
+            identity.validate_manifest(contract)
 
 if __name__ == '__main__':
     unittest.main()

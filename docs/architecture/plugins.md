@@ -250,8 +250,9 @@ addressing (the full shape is in the ADR 0038 amendment):
 - Coverage decides where the source can serve: selection drops a source whose
   coverage excludes the subject, so investors never configure it. Declare
   honestly; qualities are claims, not proof of an account's entitlements.
-- A filings source lists the `authorities` it serves (`sec`, `esma`, `fca`,
-  `sedar`); core combines one source per authority.
+- A filings source lists the `authorities` it serves (`sec`, `fca`, `sedar`,
+  and `oam-<country>` per EEA national mechanism); core combines one source per
+  authority. Its rows tag each filing's `kind` from core's vocabulary.
 - `rights` states the licence class, how long data may stay on the device,
   whether it may be published (false for provider data) and any attribution
   the provider requires. `limits` may state the provider's published rate

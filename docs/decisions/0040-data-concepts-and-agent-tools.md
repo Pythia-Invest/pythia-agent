@@ -63,7 +63,8 @@ classes and, where narrower than addressing, operating MICs, optionally
 narrowed per operation: EODHD's live stream covers US listings only while its
 quotes and history stay global), **qualities**
 per operation from the registry's closed vocabulary, and for filings the
-**authorities** it serves (`sec`, `esma`, `fca`, `sedar`). Qualities are the
+**authorities** it serves (`sec`, `fca`, `sedar`, and `oam-fr`, `oam-nl`… for
+the EEA's national mechanisms; see the amendment below). Qualities are the
 plugin's claim, not proof of the investor's entitlement: a result reports the
 quality it actually has.
 
@@ -152,9 +153,11 @@ market-data read path knows plugin, operation and item, and selection must
 evaluate the operation a chart period actually reads. That is the next step
 for this item.
 
-**Core's filing item** is `{id, form, title, filed_at, period_end, date,
-date_basis, url, authority, source, provider, plugin}`: dates are ISO or
-null, `id` is the accession number or report hash. `date` orders the list:
+**Core's filing item** is `{id, kind, form, title, filed_at, filed_time,
+period_end, date, date_basis, event_codes, basis, language, format, parties,
+url, authority, report_key, parallel, source, provider, plugin}` (the v2
+fields are in the amendment below): dates are ISO or null, `id` is the
+accession number or report hash. `date` orders the list:
 the filing date (`date_basis: filed`), else the day the source indexed the
 report (`indexed`: filings.xbrl.org publishes no filing date, only when it
 indexed a report), else the period end. The Desk labels an indexed date as
@@ -171,7 +174,8 @@ ownership filings (Forms 3, 4, 5, 144 and Schedule 13G), so a default read shows
 the reports; naming one of those forms reads it (`13G` matches both SEC names).
 `use` names one source, by plugin id, provider, label or
 a common name (sec, edgar, esef). A source serving several authorities
-(filings.xbrl.org: ESMA and FCA) tags each item by the filer's country. Each
+(filings.xbrl.org: the FCA and most EEA mechanisms) tags each item by the
+country of the mechanism it was collected from, not the filer's. Each
 source runs only if Pythia may run its native tool for this caller
 (`eligible_tools`), with the caller's cancellation; one Pythia may not run is
 skipped as unavailable. A source still to be looked up is listed as skipped,
@@ -183,6 +187,67 @@ the Desk chat model sees (toolset `pythia-desk`), and so is `filings`
 (`pythia_filings_combined`). The agent-tools work separates "may run" from
 "visible to the model" (a hidden `pythia-core` toolset); `filings` moves there
 with it, and the agent's filings tool calls this read.
+
+### Amendment (2026-09-28): filings item v2, one authority per mechanism, report identity
+
+**One authority per national mechanism.** `esma` was one authority for every
+EEA country, so a national source (the AMF for France) could only replace
+filings.xbrl.org everywhere or nowhere. Each EEA state's officially appointed
+mechanism is now its own authority, named by its country (`oam-fr`, `oam-nl`),
+beside `sec`, `fca` and `sedar`; regulators' names are not used because they
+repeat across countries (FMA in Austria and Liechtenstein, Finanstilsynet in
+Denmark and Norway). filings.xbrl.org declares the mechanisms it collects from
+(26 EEA countries and the UK; not Germany, Ireland, Bulgaria or Liechtenstein,
+measured 2026-09-28), and its country is the mechanism's, not the filer's:
+TotalEnergies' report is listed under both FR and GB. The selection rule is
+unchanged: one source per authority, so a France-only source put first serves
+France and leaves Belgium to filings.xbrl.org.
+
+**Filing item v2.** Each item carries `kind` (`annual`, `half_year`,
+`quarterly`, `earnings_release`, `event`, `ownership`, `prospectus`,
+`other`; the source tags it, core keeps only these), `filed_time` (the exact
+UTC time of filing, as SEC's acceptance time), `event_codes` (8-K items),
+`basis`, `language`, `format` (`ixbrl`, `html`, `pdf`, `xml`, `text`),
+`report_key`, `parallel` (below) and `parties`
+(`{role, scheme, id}`; only what the source states: SEC names the company as
+filer of its reports and claims no party for an ownership form, whose filer or
+subject EDGAR does not say). An 8-K is an `earnings_release` with Item 2.02,
+otherwise an `event`, the kind that also holds EU inside information. The
+combined read and the SEC plugin take `kinds`; `ownership` reads the insider
+and major-holder forms that a default read leaves out.
+
+**Report identity and parallel reports.** A company can report one period
+under two regimes, as an instrument has several listings: ASML files a 20-F
+with the SEC and an ESEF annual report with the AFM for the same year, under
+different accounting bases. The backbone models this explicitly. A periodic
+report (annual, half-year, quarterly, earnings release) is identified by
+`report_key` = issuer, kind, period end, **authority and accounting basis**
+(`basis`: `us_gaap` or `ifrs` where the source states it, else `unstated`: SEC
+states US GAAP for 10-K and 10-Q, filings.xbrl.org IFRS for ESEF, whose
+taxonomy is the IFRS taxonomy; a 20-F's basis is not in EDGAR's list).
+- **Versions** share one `report_key`: the format and language versions of one
+  document, and its amendments (a 10-K/A). The Desk shows them as one row with
+  a chip per version.
+- **Parallel reports** are the other reports of the same issuer, kind and
+  period under another authority or basis. Each item lists them in `parallel`
+  (their `report_key`s). They stay separate reports: the 20-F and the ESEF
+  report, and also one ESEF report collected by two mechanisms (TotalEnergies
+  in France and the UK), since the authority is part of the identity. How the
+  Desk and the agent present parallel reports is decided separately; for now
+  they are separate rows.
+
+Grouping and linking are exact equality and never merge or pick: every item
+keeps its id and link. Fundamentals (P8) reuse the identity: each statement
+figure's provenance carries the `report_key` of the report it was read from
+(the same `filings.report_key`), so a statement column is one report, and
+statements of parallel reports are told apart by authority and basis. A report
+listed with an `unstated` basis keeps that key; its figures state the basis
+their taxonomy shows.
+
+Rejected: grouping on `(issuer, period_end, kind)` alone (it folds a 20-F into
+the ESEF report); treating parallel reports as versions of one report; fuzzy
+grouping without a period (a later, calibrated Jev question); naming
+mechanisms by regulator.
 
 ### Live market data
 

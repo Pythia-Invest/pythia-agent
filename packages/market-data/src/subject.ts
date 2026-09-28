@@ -198,10 +198,22 @@ export const filingsSchema = z.object({
   filings: z
     .array(
       z.object({
+        id: optionalText,
+        /** annual, half_year, quarterly, earnings_release, event,
+         * ownership, prospectus or other. */
+        kind: optionalText,
         title: optionalText,
         period_end: optionalText,
         filed_at: optionalText,
+        /** The exact UTC time of filing, where the source has it. */
+        filed_time: optionalText,
         form: optionalText,
+        format: optionalText,
+        /** A periodic report's identity (issuer, kind, period end,
+         * authority, accounting basis): items sharing it are versions of one
+         * report (format, language, amendment), shown as one row and never
+         * merged. */
+        report_key: optionalText,
         url: z.string().nullish(),
         language: optionalText,
         source: optionalText,

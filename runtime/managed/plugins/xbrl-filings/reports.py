@@ -75,6 +75,11 @@ def filings(raw, identifier, observed_at, limit):
             'country': row['country'], 'title': row['form'] + ' report', 'period_end': row['period_end'],
             # Not a filing date: the day filings.xbrl.org indexed the report, a documented proxy for ordering.
             'filed_at': None, 'indexed_at': indexed(row['added_raw']), 'language': None,
+            # ESEF and UKSEF are the EU and UK annual financial report formats: inline XBRL, filed by the entity.
+            # ESEF tags IFRS consolidated statements (Regulation (EU) 2019/815, art. 4); UKSEF's basis varies.
+            'kind': 'annual' if row['form'] in ('ESEF', 'UKSEF') else 'other', 'format': 'ixbrl',
+            'basis': 'ifrs' if row['form'] == 'ESEF' else None,
+            'parties': [{'role': 'filer', 'scheme': 'lei', 'id': identifier}],
             'url': row['url'], 'links': row['links'], 'machine_readable': available(row),
             'source_detail': detail(row)} for row in rows[:limit]],
         'latest': latest(rows, total),

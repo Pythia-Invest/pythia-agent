@@ -20,6 +20,7 @@ import sqlite3
 from typing import Any
 
 from .identity import filings, page
+from .identity.concepts import FilingKind
 from .identity.page import Section
 from .queue_ops import SUBJECT_ID
 
@@ -30,10 +31,13 @@ PLUGIN_ID = {"type": "string", "minLength": 1, "maxLength": 128}
 FILINGS_SCHEMA = {
     "name": "pythia_filings_combined",
     "description": "A company's regulatory filings from every connected filings source, one source per filing "
-                   "authority (SEC; ESEF reports of EU issuers; UK), merged newest first. Each item names its source "
-                   "and authority; a source that failed is listed under skipped and the list is marked partial. "
-                   "`date` orders the list; `date_basis` says what it is: filed, indexed (the day the source indexed "
-                   "a report that has no published filing date, not a filing date) or period_end.",
+                   "authority (sec; the national mechanism for European reports: oam-fr, oam-nl, fca…), merged newest "
+                   "first. Each item names its kind, source and authority; a source that failed is listed under "
+                   "skipped and the list is marked partial. `date` orders the list; `date_basis` says what it is: "
+                   "filed, indexed (the day the source indexed a report that has no published filing date, not a "
+                   "filing date) or period_end; `filed_time` is the exact UTC filing time where known. Items with one "
+                   "`report_key` are versions of one report (format, language, amendment); `parallel` names the reports of the "
+                   "same period under another authority or accounting basis (a 20-F beside an ESEF report).",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT_ID,
         "use": {**PLUGIN_ID, "description": "Read this source for its authorities instead of the chosen one: a plugin "
@@ -43,7 +47,11 @@ FILINGS_SCHEMA = {
                   "description": "Only these forms (10-K, 20-F, ESEF; AFR or annual for annual reports); an "
                                  "amendment matches its form. Sources search beyond their most recent filings. "
                                  "Without forms, SEC insider and major-holder filings are left out; name them "
-                                 "(3, 4, 5, 144, 13G) to read them."}},
+                                 "(3, 4, 5, 144, 13G) or ask for the ownership kind to read them."},
+        "kinds": {"type": "array", "minItems": 1, "maxItems": 8,
+                  "items": {"type": "string", "enum": [kind.value for kind in FilingKind]},
+                  "description": "Only these kinds of filing: annual, half_year, quarterly, earnings_release, event "
+                                 "(material events, inside information), ownership, prospectus, other."}},
         "required": ["subject_id"], "additionalProperties": False},
 }
 def _envelope(outcome: str, data: Any, issue: str | None = None) -> str:
@@ -73,6 +81,7 @@ class ConceptReads:
         from . import identity_ops
         subject_id, use = str(arguments.get("subject_id") or ""), arguments.get("use")
         forms = [str(item) for item in arguments.get("forms") or []][:8]
+        kinds = [str(item) for item in arguments.get("kinds") or []][:8]
         try:
             _path, subject, lookups, issue = self.identity._load(subject_id)
         except ValueError:
@@ -105,7 +114,7 @@ class ConceptReads:
                                 "reason": f"{answer['label']} is not available in this profile"})
                 continue
             call = contextvars.copy_context().run
-            futures[self._pool.submit(call, self._dispatch, tool, answer["binding"], forms, cancelled)] = (
+            futures[self._pool.submit(call, self._dispatch, tool, answer["binding"], forms, cancelled, kinds)] = (
                 answer, authorities)
         done, pending = concurrent.futures.wait(futures, timeout=READ_BUDGET)
         for future in futures:
@@ -116,7 +125,7 @@ class ConceptReads:
                 continue
             result, failure = future.result()
             parts.append((answer, authorities, result, failure))
-        merged = filings.merge_filings(parts, forms)
+        merged = filings.merge_filings(parts, forms, kinds, subject["ids"].get("issuer") or subject["id"])
         rest = {entry["plugin"] for entry, _ in chosen}
         merged["skipped"] = [*merged["skipped"], *waiting,
                              *({**page.source(answer), "code": answer["status"],
@@ -129,8 +138,8 @@ class ConceptReads:
         return _envelope(outcome, merged)
 
     @staticmethod
-    def _dispatch(tool: str, binding: dict, forms: list[str] = (),
-                  cancelled: Any = lambda: False) -> tuple[dict | None, str | None]:
+    def _dispatch(tool: str, binding: dict, forms: list[str] = (), cancelled: Any = lambda: False,
+                  kinds: list[str] = ()) -> tuple[dict | None, str | None]:
         from tools.registry import registry
         arguments: dict[str, Any] = {"native_ref": binding, "limit": FILINGS_LIMIT}
         try:
@@ -140,6 +149,8 @@ class ConceptReads:
         if forms and "forms" in accepted:  # a source that can search by form does; core filters every answer
             expanded = [name for item in forms for name in filings.FORM_ALIASES.get(item.upper(), (item,))]
             arguments["forms"] = list(dict.fromkeys(expanded))[:8]
+        if kinds and "kinds" in accepted:
+            arguments["kinds"] = kinds
         try:
             if cancelled():
                 return None, "The read was cancelled"

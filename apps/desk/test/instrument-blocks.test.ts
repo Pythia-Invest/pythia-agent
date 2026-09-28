@@ -1,6 +1,7 @@
 import type { SubjectSection } from "@pythia/market-data/subject";
 import { describe, expect, it } from "vitest";
 import {
+  groupReports,
   newestPerAuthority,
   pageBlocks,
   usingSource,
@@ -103,8 +104,8 @@ describe("combined filings rows", () => {
         id: `6-K ${index}`,
         authority: "sec",
       })),
-      { id: "ESEF 2025", authority: "esma" },
-      { id: "ESEF 2024", authority: "esma" },
+      { id: "ESEF 2025", authority: "oam-nl" },
+      { id: "ESEF 2024", authority: "oam-nl" },
     ];
     const shown = newestPerAuthority(rows, 10);
     expect(shown).toHaveLength(10);
@@ -113,5 +114,21 @@ describe("combined filings rows", () => {
       rows.slice(0, 9).map((row) => row.id),
     );
     expect(newestPerAuthority(rows.slice(0, 3), 10)).toEqual(rows.slice(0, 3));
+  });
+});
+
+describe("filings reports", () => {
+  it("group a report's versions under its newest, never merging them", () => {
+    const annual = "issuer|annual|2025-12-31|sec|us_gaap";
+    const rows = [
+      { id: "8-K", report_key: null },
+      { id: "10-K/A", report_key: annual },
+      { id: "ESEF", report_key: "issuer|annual|2025-12-31|oam-nl|ifrs" },
+      { id: "10-K", report_key: annual },
+      { id: "6-K", report_key: null },
+    ];
+    expect(
+      groupReports(rows).map((group) => group.map((row) => row.id)),
+    ).toEqual([["8-K"], ["10-K/A", "10-K"], ["ESEF"], ["6-K"]]);
   });
 });

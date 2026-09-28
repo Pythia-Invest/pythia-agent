@@ -125,6 +125,8 @@ class XbrlSemantics(unittest.TestCase):
         self.assertEqual((row['filed_at'], row['indexed_at'], row['language']), (None, '2026-02-10', None))
         self.assertEqual(result['source'], {'label': 'filings.xbrl.org', 'url': 'https://filings.xbrl.org'})
         self.assertEqual((row['period_end'], row['form'], row['country']), ('2025-12-31', 'ESEF', 'ZZ'))
+        self.assertEqual((row['kind'], row['basis'], row['format'], row['parties']),
+                         ('annual', 'ifrs', 'ixbrl', [{'role': 'filer', 'scheme': 'lei', 'id': LEI}]))
         base = f'https://filings.xbrl.org/{LEI}/2025-12-31/ESEF/ZZ/0/'
         self.assertEqual(row['links'], {'viewer': base + 'report/ixbrlviewer.html', 'report': base + 'report/report.xhtml',
                                         'package': base + 'report.zip', 'json': base + 'report.json'})
