@@ -39,6 +39,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "desk_view.py",
   "identity_ops.py",
   "queue_ops.py",
+  "read_checks.py",
   "search_venues.py",
   "concept_ops.py",
   "native_ops.py",

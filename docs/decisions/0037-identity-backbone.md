@@ -211,7 +211,34 @@ schema, one connection and transactional joins across claims and bindings.
 **Ingest join.** Each record is joined once, at ingest; the first match wins and
 a contradiction stops the chain: ISIN plus operating MIC and currency; ISIN
 alone (`self` only); share-class or composite FIGI; exact `ticker_mic` as a weak
-binding re-verified on page open; otherwise a provisional subject and a residual.
+binding checked on its reads (below); otherwise a provisional subject and a residual.
+
+**Read checks** (rule `read_check@1`, amended 2026-09-28). A derived address
+(a ticker plus the contract's MIC suffix) can point at the wrong instrument: a
+same-ticker company elsewhere, or another currency line. So what a source
+states about itself in a read that already happens (market data describes each
+routed reference before reading it) becomes that plugin's record in `claims`
+and is compared with the subject's reference data, in code, with no extra
+provider call and no job. Clear mismatches are three: another ISIN than the
+security's; another currency than the listing's trading currency (minor units
+such as GBX count as their major currency); a venue, mapped through the
+contract's `venue_codes`, where the security has no line. Names, instrument
+types, unmapped venue codes and anything unstated are never compared, so a
+name variant is not a conflict. A match stamps `verified_at`: on the binding,
+or for a derived address on its own check row (`candidate`), which the page
+shows as the section's `verified_at`. A mismatch on a derived address marks
+that row `conflicting` and opens a `binding` conflict in Repairs, citing the
+subject's evidence; the page and every market-data read (the Desk's and the
+agent's) then refuse that source like any conflict, and a user's `same_listing`
+confirms it. A mismatch on a confirmed binding opens the question once but does
+not unbind it: identifier evidence or a verdict decided it. The rules resolver
+never re-asks a read check (it is no resolve answer). Each subject, reference
+and stated value is checked once per 15 minutes per process. The currency rule
+relies on the listing currency being the trading currency; a reference that
+still carries FIRDS' notional currency on German venues would conflict there.
+Rejected: a background re-verification job and a verification call per page
+open (extra provider traffic), fuzzy name matching (never decisive), and
+refusing a confirmed binding on a content difference.
 
 **Search is a local read** of the directory: no provider call, no identity
 write, no reconciliation. Core's `identity-search` builds the directory in

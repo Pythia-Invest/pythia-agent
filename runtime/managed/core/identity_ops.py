@@ -21,7 +21,7 @@ from typing import Any
 from .identity import (
     MANIFEST_FILE, ClaimError, Level, ManifestError, ManifestNeedsUpdate, check_batch, validate_manifest,
 )
-from . import queue_ops, search_venues
+from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
 from .identity import batch_from_json, batch_to_json, lifecycle, page, search, store
@@ -76,6 +76,7 @@ class Identity:
         self.reset_told = False  # whether a set-aside store was reported (once per process)
         self._lock = threading.Lock()
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="pythia-resolve")
+        self.checked: dict[tuple, tuple[str, float]] = {}  # read_checks: check -> (outcome, monotonic expiry)
 
     @property
     def data_dir(self) -> Path:
@@ -243,8 +244,10 @@ class Identity:
             ref.close()
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
-        stored = {(row["subject_id"], row["provider"]): row
-                  for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
+        # A confirmed binding wins over a read check row of the same subject and provider.
+        stored = {(row["subject_id"], row["provider"]): row for row in sorted(
+            identity_store.bindings(subject_ids, ("confirmed", "conflicting", "candidate")),
+            key=lambda row: row["status"] == "confirmed")}
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),
                    "coins": lambda provider, caip19: coins.get((provider, caip19)),
                    "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
@@ -354,6 +357,11 @@ def unrouted(reason: str) -> dict:
 def price_sources(subject_id: str) -> dict:
     """Market-data routing for one subject through the registered core (exported as `platform.price_sources`)."""
     return CURRENT.price_sources(subject_id) if CURRENT is not None else unrouted("core_unavailable")
+
+
+def check_read(subject_id: str, native_ref: dict, stated: dict) -> str:
+    """A read check through the registered core (exported as `platform.check_read`)."""
+    return read_checks.check_read(CURRENT, subject_id, native_ref, stated) if CURRENT is not None else "unchecked"
 
 
 CURRENT: Identity | None = None  # the one registered core identity of this process

@@ -51,6 +51,7 @@ SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRel
         Level.SECURITY: VerdictRelation.SAME_SECURITY, Level.ISSUER: VerdictRelation.SAME_ISSUER}
 RESOLVE_RULE = "resolve_answer@1"  # a resolve answer to open identifiers binds unless identifier evidence contradicts it
 NATIVE_COINS_RULE = "native_coins@1"
+READ_RULE = "read_check@1"  # what a read states about the reference it served agrees with the reference (read_checks)
 
 
 @dataclass(frozen=True)
@@ -181,7 +182,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     answer = {"section": str(section), "via": str(entry.via), "plugin": info.key, "provider": info.manifest.provider,
               "label": info.label,
               "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
-              "binding_status": None, "request": None, "alternatives": [], "reason": None,
+              "binding_status": None, "verified_at": None, "request": None, "alternatives": [], "reason": None,
               "authorities": [str(item) for item in entry.authorities]}
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
@@ -191,10 +192,15 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     if coverage.markets is not None and market not in coverage.markets:
         return {**answer, "status": "not_covering", "reason": f"{info.label} does not cover {market or 'this market'}"}
     target = subject["ids"].get(entry.via)
-    row = stored(target, info.manifest.provider) if target and _addressable(info, entry.via, subject) else None
-    derived = None if row or not target or not _addressable(info, entry.via, subject) else derive(info, entry.via, subject, coins)
-    wants_resolve = (bool(target) and _addressable(info, entry.via, subject) and not row and not derived
-                     and bool(resolve_input(info, subject)))
+    addressable = bool(target) and _addressable(info, entry.via, subject)
+    row = stored(target, info.manifest.provider) if addressable else None
+    check = None
+    if row is not None and row["status"] != "confirmed":  # the last read check of a derived address, not a binding
+        check, row = row, None
+    derived = None if row or not addressable else derive(info, entry.via, subject, coins)
+    if check is not None and (derived is None or _ref(check) != derived[0]):
+        check = None  # the reference derives another address now: that check was of the old one
+    wants_resolve = addressable and not row and not derived and bool(resolve_input(info, subject))
     if not (row or derived or wants_resolve):
         return {**answer, "status": "not_addressable", "reason": f"{info.label} has no address for this {subject['level']}"}
     missing = info.missing[0] if info.missing else None
@@ -205,7 +211,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     if missing:
         return {**answer, "status": "needs_configuration",
                 "reason": f"{info.label} needs configuration: add {missing['key']} to {missing['file']}"}
-    if (conflict and not (row and row["status"] == "confirmed")) or (row and row["status"] == "conflicting"):
+    if (conflict and not row) or (check is not None and check["status"] == "conflicting"):
         return {**answer, "status": "conflict", "reason": f"{info.label}'s record contradicts the reference; queued for review"}
     if wants_resolve and (queued or info.key in misses):
         reason = misses.get(info.key) or f"{info.label}'s answer is queued for review ({queued['reason']})"
@@ -213,16 +219,21 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     if wants_resolve:
         return {**answer, "status": "resolving", "reason": f"Looking up in {info.label}"}
     if row:
-        ref, state = ProviderRef(row["provider"], row["native_id"], row["native_scope"]), row["status"]
+        ref, state, verified = _ref(row), row["status"], row["verified_at"]
     else:
         ref, rule = derived
         state = "confirmed" if rule == NATIVE_COINS_RULE else "derived"
+        verified = check["verified_at"] if check is not None else None
     request = None
     if section in (Section.PROFILE, Section.FILINGS):
         if operation not in info.operations:  # the contract names it, but no native tool declares it
             return {**answer, "status": "unresolved", "reason": f"{info.label} exposes no {section} operation"}
         request = {"plugin": info.key, "operation": operation, "arguments": {"native_ref": ref.wire()}}
-    return {**answer, "binding": ref.wire(), "binding_status": state, "request": request}
+    return {**answer, "binding": ref.wire(), "binding_status": state, "verified_at": verified, "request": request}
+
+
+def _ref(row: Mapping[str, Any]) -> ProviderRef:
+    return ProviderRef(row["provider"], row["native_id"], row["native_scope"])
 
 
 def answers(subject: dict, plugins: list[PluginInfo], section: Section, *, order: tuple[str, ...] = (),

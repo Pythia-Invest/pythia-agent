@@ -33,7 +33,9 @@ reference, not an identifier. `details` preserves Yahoo's venue and currency
 qualifiers and asserts no identity evidence. Core addresses a Yahoo listing from
 open identifiers through this plugin's MIC suffix table
 ([ADR 0038](../../../../docs/decisions/0038-plugin-addressing-contract.md)); that
-derived symbol is an address, never evidence.
+derived symbol is an address, never evidence. The contract's `venue_codes` map
+Yahoo's exchange codes (`NMS`, `GER`) to operating MICs, so core can check the
+venue and currency a read states against the listing (ADR 0037, "Read checks").
 Yahoo `EQUITY` is not promoted to Common Stock or proof of an issuer. Name or
 ticker similarity never creates a canonical relationship.
 

@@ -195,8 +195,9 @@ class IdentityStore:
     @_locked
     def put_binding(self, binding: Binding, verdict_id: str | None = None) -> bool:
         """One current binding per provider reference. A newer decision for the same subject replaces it. A
-        reference bound to another subject is re-pointed only from a rejected or provisional (agent) binding by a
-        stronger answer, which supersedes the agent's item; otherwise it returns False: that is a conflict."""
+        reference bound to another subject is re-pointed only from a row that is not confirmed (rejected, or a read
+        check of a derived address) or from a provisional (agent) binding by a stronger answer, which supersedes the
+        agent's item; otherwise it returns False: that is a conflict."""
         ref = binding.provider_ref
         registered_kind(binding.subject_id)  # the store keeps registered kinds and key schemes only
         before = self.binding_for(ref)
@@ -207,7 +208,7 @@ class IdentityStore:
             " subject_id=excluded.subject_id, kind=excluded.kind, status=excluded.status,"
             " authority=excluded.authority, rule_id=excluded.rule_id, evidence_ids=excluded.evidence_ids,"
             " verified_at=excluded.verified_at, verdict_id=excluded.verdict_id WHERE bindings.subject_id = excluded.subject_id"
-            " OR bindings.status = 'rejected'"
+            " OR bindings.status <> 'confirmed'"
             " OR (bindings.authority = 'agent_confirmed' AND excluded.authority <> 'agent_confirmed')",
             (uuid.uuid4().hex, binding.plugin, ref.provider, ref.native_id, ref.native_scope, binding.subject_id,
              binding.kind, binding.status, binding.authority, binding.rule_id, json.dumps(list(binding.evidence_ids)),
@@ -217,6 +218,28 @@ class IdentityStore:
             self.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE resolved_by = ?"
                             " AND state = 'resolved'", (now(), before["verdict_id"]))
         return changed
+
+    @_locked
+    def put_check(self, ref: ProviderRef, subject_id: str, plugin: str, rule_id: str, evidence_ids: Iterable[str],
+                  matched: bool) -> None:
+        """Record a read check of the reference a subject is served through (ADR 0037). A match stamps
+        `verified_at`. A derived address has no binding, so its check is its own row, decided by `rule_id`:
+        `candidate` while its reads match, `conflicting` once one contradicts the reference. A confirmed binding
+        is never changed by a check, and a row of another subject or a rejected one is left alone."""
+        kind, stamp = registered_kind(subject_id), now()
+        row = self.binding_for(ref)
+        if row is not None and (row["subject_id"] != subject_id or row["status"] in ("confirmed", "rejected")):
+            if matched and row["subject_id"] == subject_id and row["status"] == "confirmed":
+                self.db.execute("UPDATE bindings SET verified_at = ? WHERE id = ?", (stamp, row["id"]))
+            return
+        self.db.execute(
+            "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, kind, status, authority,"
+            " rule_id, evidence_ids, verified_at) VALUES (?,?,?,?,?,?,?,?,'rule_confirmed',?,?,?)"
+            " ON CONFLICT (provider, native_scope, native_id) DO UPDATE SET status = excluded.status,"
+            " evidence_ids = excluded.evidence_ids, verified_at = COALESCE(excluded.verified_at, bindings.verified_at)",
+            (uuid.uuid4().hex, plugin, ref.provider, ref.native_id, ref.native_scope, subject_id, kind,
+             "candidate" if matched else "conflicting", rule_id, json.dumps(list(evidence_ids)),
+             stamp if matched else None))
 
     @_locked
     def bound_subject(self, ref: ProviderRef) -> str | None:

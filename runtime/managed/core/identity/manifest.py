@@ -110,6 +110,7 @@ class Manifest:
     rights: Rights
     limits: Limits | None = None
     contract_version: int = CONTRACT_VERSION
+    venue_codes: Mapping[str, str] = field(default_factory=dict)  # the provider's venue code -> operating MIC ("NMS": "XNAS")
 
     def native_scope(self, native_scope: str) -> NativeScope | None:
         return next((item for item in self.native if item.native_scope == native_scope), None)
@@ -276,7 +277,7 @@ def validate_manifest(document: Any) -> Manifest:
         raise ManifestNeedsUpdate(version)
     body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights"},
                    {"concepts", "catalogue", "resolve", "limits"})
-    addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table"})
+    addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table", "venue_codes"})
     native = []
     if not isinstance(addressing.get("native", []), list):
         raise ManifestError("addressing.native: list required")
@@ -299,6 +300,11 @@ def validate_manifest(document: Any) -> Manifest:
     mic_table = {_match(MIC, mic, "addressing.mic_table"): code for mic, code in table.items()}
     if not all(isinstance(code, str) and len(code) <= 16 for code in mic_table.values()):
         raise ManifestError("addressing.mic_table: provider venue codes are short text")
+    codes = addressing.get("venue_codes", {})
+    codes = _object(codes, "addressing.venue_codes", set(), set(codes) if isinstance(codes, Mapping) else set())
+    if not all(0 < len(code) <= 16 for code in codes):
+        raise ManifestError("addressing.venue_codes: provider venue codes are short text")
+    venue_codes = {code: _match(MIC, mic, f"addressing.venue_codes.{code}") for code, mic in codes.items()}
 
     catalogue = _object(body.get("catalogue", {"mode": "resolve_only"}), "catalogue", {"mode"}, {"operation", "scopes"})
     mode = _enum(CatalogueMode, catalogue["mode"], "catalogue.mode")
@@ -325,4 +331,4 @@ def validate_manifest(document: Any) -> Manifest:
     return Manifest(_match(NAMESPACE, body["plugin"], "manifest.plugin"),
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
                     tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
-                    _rights(body["rights"]), _limits(body["limits"]) if "limits" in body else None, version)
+                    _rights(body["rights"]), _limits(body["limits"]) if "limits" in body else None, version, venue_codes)

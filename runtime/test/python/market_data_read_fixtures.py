@@ -31,6 +31,8 @@ class Sources:
         self.after_read = None
         self.read_transform = None
         self.extra = []  # further references core routes the subject through
+        self.checks = []  # (subject id, reference, stated) core was asked to check
+        self.refuse = set()  # providers whose reads core refuses for the subject
 
     def definition(self, provider, suffix="daily"):
         result = copy.deepcopy(EXAMPLE["series"])
@@ -71,9 +73,14 @@ class Sources:
             return None
         return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra]}
 
+    def check_read(self, subject_id, native_ref, stated):
+        self.checks.append((subject_id, native_ref, stated))
+        return "refused" if native_ref["provider"] in self.refuse else "verified"
+
     def backend(self, directory, canonical=True, **kwargs):
         return Backend(directory, subjects=self.subjects if canonical else lambda subject_id: None,
-                       source_call=self.call, source_projection=self.project, access_scope=lambda: self.access, **kwargs)
+                       source_call=self.call, source_projection=self.project, access_scope=lambda: self.access,
+                       check_read=self.check_read, **kwargs)
 
 
 def request(view=None, requirements=None):

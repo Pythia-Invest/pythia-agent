@@ -26,6 +26,22 @@ def core_price_sources(subject_id):
     return support.price_sources(subject_id)
 
 
+def core_check_read(subject_id, native_ref, stated):
+    from ._platform import platform
+    try:
+        support = platform()
+    except (RuntimeError, ImportError):  # no enabled core with platform support v1
+        return "unchecked"
+    check = getattr(support, "check_read", None)  # an older core has no read check
+    return check(subject_id, native_ref, stated) if check else "unchecked"
+
+
+def stated(series):
+    """What a source's own series say about the reference they describe: its currency and venue code."""
+    qualifiers = next((value["provider_ref"].get("qualifiers") or {} for value in series), {})
+    return {key: qualifiers[key] for key in ("currency", "venue") if qualifiers.get(key)}
+
+
 def envelope(data, *, mutation=False, issues=(), outcome="ok"):
     result = {"schema_version": 1, "outcome": outcome, "data": data, "issues": list(issues)}
     if mutation:
@@ -33,12 +49,15 @@ def envelope(data, *, mutation=False, issues=(), outcome="ok"):
     return result
 
 
+CONFLICT_ISSUE = {"code": "binding_conflict", "severity": "warning",
+                  "message": "A source's own record contradicts this instrument's reference data; it is queued for review."}
 ISSUER_ISSUE = {"code": "issuer_subject", "severity": "error",
                 "message": "An issuer has no price. Read one of its securities or listings; pythia_identity_subject lists them."}
 
 
 class Backend:
-    def __init__(self, data_dir, *, source_call=None, source_projection=None, access_scope=None, subjects=None, cache=None):
+    def __init__(self, data_dir, *, source_call=None, source_projection=None, access_scope=None, subjects=None, cache=None,
+                 check_read=None):
         # Injection is an ordinary code/test boundary, never part of native args.
         from .execution import call_source
         from .contributions import project
@@ -46,6 +65,7 @@ class Backend:
         self._project = source_projection or project
         self._access_scope = access_scope or native_access_scope
         self._subjects = subjects or core_price_sources
+        self._check_read = check_read or core_check_read
         self.preferences = Preferences(data_dir)
         self.cache = cache or ReadCache()
         self.metadata_cache = ReadCache(max_entries=128, ttl_seconds=300)
@@ -119,6 +139,15 @@ class Backend:
             memo[binding["id"]] = route
         return route
 
+    def refused(self, binding, native, response):
+        """Whether core refuses a reference it routed for a subject once the source described it: what the series
+        state about themselves contradicts the subject's reference data (ADR 0037). An explicit reference is the
+        caller's own choice and is not checked."""
+        if "provider" in binding or response.get("outcome") != "ok":
+            return False
+        said = stated(response.get("data") or [])
+        return bool(said) and self._check_read(binding["id"], native, said) == "refused"
+
     def details(self, native_ref):
         native = validate("provider_ref", native_ref)
         return self.source(native["provider"], "details", {"native_ref": native})
@@ -147,6 +176,9 @@ class Backend:
             response = self.describe_series(native, criteria)
             issues.extend(response.get("issues", []))
             if response.get("outcome") not in ("ok", "empty", "partial"):
+                continue
+            if self.refused(binding, native, response):
+                issues.append(CONFLICT_ISSUE)
                 continue
             for value in response.get("data", []):
                 series = validate("series", value)

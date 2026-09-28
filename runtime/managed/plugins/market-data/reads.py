@@ -17,6 +17,7 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
                 "ambiguous_series": "Several source series match; specify more criteria or pin a descriptor.",
                 "ambiguous_source": "Several sources are eligible; set a source order or pin a descriptor.",
                 "incompatible_series": "The selected source has no compatible series.",
+                "binding_conflict": "The source's own record contradicts this instrument's reference data (its ISIN, currency or venue); it is queued for review in Settings, Repairs, and not used.",
                 "unavailable": "The selected source is unavailable in this native caller context.",
                 "explicit_source_required": "Available broker data requires an explicit native reference, pinned series or saved source preference.",
                 "source_error": "The selected source read failed; alternatives require a separate read.",
@@ -102,6 +103,7 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
     eligible = [ref for ref in eligible if ref["provider"] in candidates_by_provider and all(
         key not in criteria or key not in ref.get("qualifiers", {}) or
         ref["qualifiers"][key] == criteria[key] for key in ("currency", "venue", "route"))]
+    refused = None
     for candidate_provider in candidates_by_provider:
         if sum(ref["provider"] == candidate_provider for ref in eligible) > 8:
             return None, "ambiguous_series", candidate_provider, []
@@ -112,6 +114,9 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
             response = backend.describe_series(ref, criteria)
             if response.get("outcome") not in ("ok", "empty"):
                 return None, "source_error", candidate_provider, response.get("issues", [])
+            if backend.refused(binding, ref, response):  # the source's own record contradicts the subject
+                refused = candidate_provider
+                continue
             for value in response.get("data", []):
                 series = validate("series", value)
                 # A reference may omit qualifiers the source adds (Yahoo's venue and
@@ -131,6 +136,8 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
             if explicit and not compatible_ref(binding, selected["provider_ref"]):
                 return None, "incompatible_series", candidate_provider, []
             return selected, None, candidate_provider, []
+    if refused:
+        return None, "binding_conflict", refused, []
     return None, "incompatible_series", chosen, []
 
 
@@ -166,7 +173,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                     if available(sources, source["contribution"]["provider"], request["operation"])]
     selected, error, chosen_provider, source_issues = _choose(backend, request, criteria, descriptor, sources, preferences)
     if error:
-        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error in ("incompatible_series", "ambiguous_series", "ambiguous_source", "issuer_subject") else "unavailable"
+        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error in ("incompatible_series", "ambiguous_series", "ambiguous_source", "issuer_subject", "binding_conflict") else "unavailable"
         alternatives = [item for item in alternatives if item != "provider:" + (chosen_provider or "")]
         return read_failure(request, error, reason=reason, alternatives=alternatives, provider=chosen_provider, source_issues=source_issues)
     provider = selected["provider_ref"]["provider"]
