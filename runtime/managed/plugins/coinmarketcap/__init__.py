@@ -8,7 +8,7 @@ import importlib
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -17,7 +17,7 @@ from .catalogue import RANK_DEPTH, market_caps, page as catalogue_page
 from .definition import TOOLS, TOOLSET, schemas
 from .identity import candidate, reference
 from .profile import profile as coin_profile
-from .series import (CHUNK_DAYS, INTERVALS, MODES, coins, currency_quote, definition, envelope, issue, now, read_result,
+from .series import (INTERVALS, MODES, coins, currency_quote, definition, envelope, issue, now, read_result,
                      samples, selector, timestamp)
 
 WORKER = Path(__file__).with_name('worker.py')
@@ -161,21 +161,10 @@ def register(ctx):
                 start, end = request['window']['start'], request['window']['end']
                 if not start or not end or start['kind'] != 'instant' or end['kind'] != 'instant':
                     raise ValueError('unsupported_window')
-                # Daily reads longer than one request page through 90-day windows.
-                first, last = (datetime.fromisoformat(edge['value'].replace('Z', '+00:00')) for edge in (start, end))
-                # A window ending later today reads up to now.
-                last = min(last, datetime.now(timezone.utc))
-                points, cursor = [], first
-                while True:
-                    stop = min(last, cursor + timedelta(days=CHUNK_DAYS if mode == 'sample_daily' else 7))
-                    raw = checked(call('history', {'id': identifier, 'convert': unit, 'time_start': cursor.isoformat(),
-                                                   'time_end': stop.isoformat(), 'interval': INTERVALS[mode]}))
-                    rows = coins(raw['data'], [identifier])
-                    points += samples(rows[identifier], unit) if identifier in rows else []
-                    if stop >= last:
-                        break
-                    cursor = stop + timedelta(seconds=1)
-                points = sorted(dict(points).items())
+                raw = checked(call('history', {'id': identifier, 'convert': unit, 'time_start': start['value'],
+                                               'time_end': end['value'], 'interval': INTERVALS[mode]}))
+                rows = coins(raw['data'], [identifier])
+                points = samples(rows[identifier], unit) if identifier in rows else []
             bounds = {name: timestamp(edge['value']) for name, edge in request['window'].items() if edge and edge['kind'] == 'instant'}
             observations = []
             for stamp, value in points:

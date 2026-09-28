@@ -8,9 +8,6 @@ from .identity import PROVIDER, reference
 
 MODES = {'latest': ('tick', 1), 'sample_15m': ('minute', 15), 'sample_hourly': ('hour', 1), 'sample_daily': ('day', 1)}
 INTERVALS = {'sample_15m': '15m', 'sample_hourly': 'hourly', 'sample_daily': 'daily'}
-# Daily history pages through 90-day requests; a year (plus a day for
-# date-to-date windows) is what the plans with historical quotes serve.
-DAILY_DAYS, CHUNK_DAYS = 366, 90
 CODES = {'unavailable', 'invalid_request', 'invalid_response', 'access_denied', 'authentication_failed', 'unsupported_series',
          'unsupported_window', 'rate_limit', 'timeout', 'network_error', 'provider_error', 'response_limit', 'cancelled',
          'requirements_unmet', 'busy'}
@@ -108,7 +105,7 @@ def definition(native, mode, currency):
              'source_detail': {'namespace': PROVIDER, 'values': {'price_basis': 'source_aggregate'}}}
     value['id'] = 'series:coinmarketcap:' + hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()[:32]
     value['read_support'] = {'operations': ['latest' if mode == 'latest' else 'history'], 'window_kind': 'instant',
-                             'max_span_seconds': (DAILY_DAYS if mode == 'sample_daily' else 7) * 86400}
+                             'max_span_seconds': (90 if mode == 'sample_daily' else 7) * 86400}
     value['source_detail']['values']['read_selector'] = json.dumps(
         {'version': 1, 'native_ref': native, 'mode': mode, 'currency': currency}, separators=(',', ':'))
     return value

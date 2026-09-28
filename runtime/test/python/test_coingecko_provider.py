@@ -288,29 +288,6 @@ class Provider(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'invalid_response'):
             dashboard.read({'kind': 'quotes', 'symbols': ['ethereum']}, 'USD', call, failures)
 
-    def test_a_free_year_of_daily_samples_pages_in_ninety_day_requests(self):
-        provider = importlib.import_module('test_cg.__init__')
-        now = datetime.now(timezone.utc)
-        daily = series.definition(NATIVE, 'sample_daily', 'USD', 'demo')
-        self.assertEqual(daily['read_support']['max_span_seconds'], 366 * 86400)
-        req = request(daily)
-        req['window'] = {'start': {'kind': 'instant', 'value': (now - timedelta(days=365, hours=6)).isoformat()},
-                         'end': {'kind': 'instant', 'value': now.isoformat()}}
-        endpoint, controls = series.bounds(req, 'sample_daily', now)
-        # The free plan's year: a start just past it is clipped, not refused.
-        self.assertEqual(endpoint, 'chart')
-        self.assertGreater(controls['from'], (now - timedelta(days=365)).timestamp())
-        calls = []
-        def call(op, args):
-            calls.append(args)
-            return {'data': {'prices': [[args['from'] * 1000, '1']]}, 'error': None}
-        joined = provider.chunked(call, {'id': 'bitcoin', 'currency': 'usd', **controls})
-        self.assertEqual(len(calls), 5)
-        self.assertTrue(all(b['from'] == a['to'] + 1 for a, b in zip(calls, calls[1:])))
-        self.assertTrue(all(c['to'] - c['from'] <= 90 * 86400 for c in calls))
-        self.assertEqual(len(joined['data']['prices']), 5)
-        self.assertEqual(series.definition(NATIVE, 'sample_daily', 'USD', 'paid')['read_support']['max_span_seconds'], 36600 * 86400)
-
     def test_recent_chart_is_the_unkeyed_five_minute_day(self):
         req = {'mode': 'keyless', 'token': None, 'operation': 'recent_chart', 'arguments': {'id': 'bitcoin', 'currency': 'usd', 'days': 1}}
         url = worker.request_spec(req).full_url

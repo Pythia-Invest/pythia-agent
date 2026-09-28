@@ -17,7 +17,6 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
                 "ambiguous_series": "Several source series match; specify more criteria or pin a descriptor.",
                 "ambiguous_source": "Several sources are eligible; set a source order or pin a descriptor.",
                 "incompatible_series": "The selected source has no compatible series.",
-                "incompatible_series:window": "The selected source cannot serve this window: its history for this series is shorter. Read a shorter window.",
                 "unavailable": "The selected source is unavailable in this native caller context.",
                 "explicit_source_required": "Available broker data requires an explicit native reference, pinned series or saved source preference.",
                 "source_error": "The selected source read failed; alternatives require a separate read.",
@@ -44,30 +43,6 @@ def semantic_series(series):
     return {key: value for key, value in series.items() if key not in ("subject", "source_detail", "read_support")}
 
 
-def utc_days(request, series):
-    """A daily series kept in UTC instants (a 24/7 market's days) serves a
-    session-date window as those whole UTC days, so a date-bounded read and
-    the instant-bounded chart read return the same samples."""
-    support = series.get("read_support") or {}
-    edges = request["window"]
-    if (support.get("window_kind") != "instant" or series["interval"]["kind"] != "day" or series.get("timezone") != "UTC"
-            or not any(edge and edge["kind"] == "session_date" for edge in edges.values())):
-        return request
-    clock = {"start": "T00:00:00+00:00", "end": "T23:59:59+00:00"}
-    window = {name: {"kind": "instant", "value": edge["value"] + clock[name]} if edge and edge["kind"] == "session_date" else edge
-              for name, edge in edges.items()}
-    return {**request, "window": window}
-
-
-def window_refusal(series, request):
-    """A matching series that only fails on the window's length says so."""
-    request = utc_days(request, series)
-    kind = (series.get("read_support") or {}).get("window_kind")
-    shorter = all(edge is None or edge["kind"] == kind for edge in request["window"].values()) and supports_read(
-        series, {**request, "window": {"start": None, "end": None}})
-    return "incompatible_series:window" if shorter else "incompatible_series"
-
-
 def _choose(backend, request, criteria, descriptor, sources, preferences):
     from .preferences import applicable_order
     operation = request["operation"]
@@ -76,8 +51,8 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
         series = validate("series", descriptor)
         require(series["id"] == view["series_id"], "read", "descriptor ID differs from pinned view")
         require(matches(series, criteria), "read", "pinned descriptor differs from criteria")
-        if not supports_read(series, utc_days(request, series)):
-            return None, window_refusal(series, request), series["provider_ref"]["provider"], []
+        if not supports_read(series, request):
+            return None, "incompatible_series", series["provider_ref"]["provider"], []
         return series, None, series["provider_ref"]["provider"], []
     require(descriptor is None, "read", "Pythia view does not accept a pinned descriptor")
     binding = view["subject"]
@@ -114,7 +89,6 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
     eligible = [ref for ref in eligible if ref["provider"] in candidates_by_provider and all(
         key not in criteria or key not in ref.get("qualifiers", {}) or
         ref["qualifiers"][key] == criteria[key] for key in ("currency", "venue", "route"))]
-    refusal = refused = None
     for candidate_provider in candidates_by_provider:
         if sum(ref["provider"] == candidate_provider for ref in eligible) > 8:
             return None, "ambiguous_series", candidate_provider, []
@@ -131,11 +105,7 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
                 # currency); every qualifier it does carry must still match.
                 if not compatible_ref(ref, series["provider_ref"]):
                     return None, "invalid_response", candidate_provider, []
-                if not matches(series, criteria):
-                    continue
-                if not supports_read(series, utc_days(request, series)):
-                    if refusal is None:
-                        refusal, refused = window_refusal(series, request), candidate_provider
+                if not matches(series, criteria) or not supports_read(series, request):
                     continue
                 previous = unique.get(series["id"])
                 if previous and semantic_series(previous) != semantic_series(series):
@@ -148,8 +118,7 @@ def _choose(backend, request, criteria, descriptor, sources, preferences):
             if explicit and not compatible_ref(binding, selected["provider_ref"]):
                 return None, "incompatible_series", candidate_provider, []
             return selected, None, candidate_provider, []
-    # Name why the first source with a matching series could not serve it.
-    return None, refusal or "incompatible_series", refused or chosen, []
+    return None, "incompatible_series", chosen, []
 
 
 def _completed_only(result):
@@ -184,7 +153,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                     if available(sources, source["contribution"]["provider"], request["operation"])]
     selected, error, chosen_provider, source_issues = _choose(backend, request, criteria, descriptor, sources, preferences)
     if error:
-        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error.split(":", 1)[0] in ("incompatible_series", "ambiguous_series", "ambiguous_source", "issuer_subject") else "unavailable"
+        reason = "unresolved" if error.startswith("unresolved_identity") else "incompatible" if error in ("incompatible_series", "ambiguous_series", "ambiguous_source", "issuer_subject") else "unavailable"
         alternatives = [item for item in alternatives if item != "provider:" + (chosen_provider or "")]
         return read_failure(request, error, reason=reason, alternatives=alternatives, provider=chosen_provider, source_issues=source_issues)
     provider = selected["provider_ref"]["provider"]
@@ -193,7 +162,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     alternatives = [item for item in alternatives if item != "provider:" + provider]
     if not available(sources, provider, request["operation"]):
         return read_failure(request, "unavailable", alternatives=alternatives, provider=provider, selected=selected)
-    native_request = copy.deepcopy(utc_days(request, selected))
+    native_request = copy.deepcopy(request)
     native_request["view"] = {"kind": "source", "series_id": selected["id"]}
     native_arguments = {"request": native_request, "source_selector": selector(selected)}
     key = fingerprint({"request": request, "criteria": criteria, "series": selected, "access": access,
@@ -228,8 +197,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     if result["outcome"] == "error":
         result["issues"].append({"code": "selected_source", "severity": "warning",
                                  "message": f"Selected source: {provider}. Requested series: {selected['id']}. Alternatives require a separate read."})
-    # The request as read: whole UTC days stay instants in the result.
-    result["request"] = utc_days(request, selected)
+    result["request"] = request
     result["selection"] = {"view": request["view"], "reason": "pinned" if request["view"]["kind"] == "source" else "preference",
                            "preference_revision": (preferences["revision"] or None) if request["view"]["kind"] == "pythia" else None,
                            "alternatives": alternatives}

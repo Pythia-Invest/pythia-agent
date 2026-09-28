@@ -13,7 +13,7 @@ import tempfile
 import threading
 import unittest
 
-from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, read_module, request, run_read, wire
+from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, request, run_read, wire
 from market_data_fixture import native
 
 
@@ -47,20 +47,6 @@ class SharedReadsTests(unittest.TestCase):
         value = run_read(self.backend)
         self.assertEqual(value["provenance"]["provider"], "synthetic_other")
         self.assertEqual([provider for provider, _, _ in self.price_calls()], ["synthetic_other"])
-
-    def test_utc_daily_series_serve_date_windows_and_name_short_history(self):
-        series = copy.deepcopy(self.sources.definitions["ibkr"][0])
-        series.update(timezone="UTC", read_support={"operations": ["history"], "window_kind": "instant", "max_span_seconds": 90 * 86400})
-        dated = request()
-        dated["window"] = {"start": {"kind": "session_date", "value": "2026-01-01"}, "end": {"kind": "session_date", "value": "2026-01-31"}}
-        # Whole UTC days: the same samples a chart reads with instant bounds.
-        self.assertEqual(read_module.utc_days(dated, series)["window"], {
-            "start": {"kind": "instant", "value": "2026-01-01T00:00:00+00:00"},
-            "end": {"kind": "instant", "value": "2026-01-31T23:59:59+00:00"}})
-        self.assertIs(read_module.utc_days(dated, {**series, "timezone": "America/New_York"}), dated)
-        # A matching series that only lacks history names the window as the reason.
-        dated["window"]["start"]["value"] = "2025-01-01"
-        self.assertEqual(read_module.window_refusal(series, dated), "incompatible_series:window")
 
     def test_coordinated_reads_deduplicate_and_reuse_qualified_metadata(self):
         item = {"request": request(), "criteria": CRITERIA}
