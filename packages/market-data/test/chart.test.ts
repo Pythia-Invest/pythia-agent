@@ -310,4 +310,21 @@ describe("drawing budget and missing schedules", () => {
     const path = periodPath("1D", bars, undefined, false);
     expect(path.path?.points.map((p) => p.value)).toEqual([101, 102]);
   });
+
+  it("draws a round-the-clock market without a schedule as the past 24 hours", () => {
+    const series = declared("m5", { kind: "minute", count: 5 }, 60);
+    const now = Date.parse("2026-09-28T00:30:00Z");
+    const times = Array.from({ length: 2 * 288 }, (_, i) =>
+      new Date(now - (2 * 288 - i) * 300_000).toISOString(),
+    );
+    const path = periodPath(
+      "1D",
+      read(series, times),
+      undefined,
+      false,
+      now,
+    ).path;
+    expect(path?.window).toEqual({ start: now - 86_400_000, end: now });
+    expect(path?.points.length).toBeGreaterThan(280);
+  });
 });

@@ -80,13 +80,38 @@ function compressed(groups: Point[][], bar: number) {
   return gaps;
 }
 
-function sessions(list: readonly Point[], zone: string | undefined) {
-  const groups = new Map<string, Point[]>();
+const HOUR = 3_600_000;
+
+/** Sessions by the exchange's local date when its zone is known; otherwise
+ * split where the data pauses (longer than an hour or four bars). */
+function sessions(
+  list: readonly Point[],
+  zone: string | undefined,
+  bar: number,
+) {
+  const groups: Point[][] = [];
+  const pause = Math.max(4 * bar, HOUR);
+  let key: string | undefined;
+  let previous: Point | undefined;
   for (const p of list) {
-    const key = localDate(p.time, zone) ?? "";
-    groups.set(key, [...(groups.get(key) ?? []), p]);
+    const next = zone ? localDate(p.time, zone) : undefined;
+    const split = zone
+      ? next !== key
+      : !previous || p.time - previous.time > pause;
+    if (split || !groups.length) groups.push([]);
+    (groups.at(-1) as Point[]).push(p);
+    key = next;
+    previous = p;
   }
-  return [...groups.values()];
+  return groups;
+}
+
+/** Trades around the clock: the latest unbroken run lasts most of a day. */
+function roundTheClock(list: readonly Point[], bar: number) {
+  const last = sessions(list, undefined, bar).at(-1);
+  return Boolean(
+    last && (last.at(-1) as Point).time - (last[0] as Point).time >= 20 * HOUR,
+  );
 }
 
 type Drawn = { path?: InstrumentPath; message?: string };
@@ -125,17 +150,26 @@ function oneDay(
   const session = result.price_context?.session_window;
   const bar = series ? intervalMs(series) : 0;
   if (!series || !session) {
-    // No schedule: the last session as returned, with its own bounds.
-    const last = sessions(all, undefined).at(-1);
+    // No schedule: the last session as returned. An unfinished session is
+    // drawn at the length of the one before it, never stretched to fill.
+    const groups = sessions(all, undefined, bar);
+    const last = groups.at(-1);
     const first = last?.[0];
     if (!last || !first) return { message: "No trades in the last session." };
+    const prior = groups.at(-2);
+    const length = prior
+      ? (prior.at(-1) as Point).time - (prior[0] as Point).time + bar
+      : 0;
     const date = localDate(first.time, undefined);
     const baseline = sessionBaseline(result, quote, undefined, date);
     return {
       path: {
         ...bars(last, bar),
-        label: `${detail} · Last session ${date} as returned; the source supplies no trading schedule`,
-        session: { start: first.time, end: (last.at(-1) as Point).time + bar },
+        label: `${detail} · Last session as returned; the source supplies no trading schedule`,
+        session: {
+          start: first.time,
+          end: Math.max((last.at(-1) as Point).time + bar, first.time + length),
+        },
         ...(baseline ? { baseline } : {}),
       },
     };
@@ -202,7 +236,14 @@ export function periodPath(
   const bar = intervalMs(series);
   const dates = series.time_anchor === "session_date";
   const daily = series.interval.kind === "day";
-  if (period === "1D" && !continuous) return oneDay(result, quote, all, detail);
+  // Sources without a schedule may still trade around the clock (crypto,
+  // FX, futures on Yahoo): those use elapsed time like continuous markets.
+  const clock =
+    continuous ||
+    (!daily &&
+      !result.price_context?.session_window &&
+      roundTheClock(all, bar));
+  if (period === "1D" && !clock) return oneDay(result, quote, all, detail);
   const before = (list: Point[], start: number) =>
     list.filter((p) => p.time < start).at(-1);
   const baseline = (prior: Point | undefined, first: Point) =>
@@ -212,7 +253,7 @@ export function periodPath(
           label: `Close before this period (${new Date(prior.time).toISOString().slice(0, 10)})`,
         }
       : { value: first.value, label: "First observation available" };
-  if (continuous && !daily) {
+  if (clock && !daily) {
     // Continuous markets have no closed time: elapsed time, rolling window.
     const days = period === "1D" ? 1 : period === "5D" ? 5 : 30;
     const window = { start: now - days * DAY, end: now };
@@ -238,7 +279,7 @@ export function periodPath(
       .map((p) => [p]);
   } else {
     const zone = result.price_context?.session_window?.timezone;
-    const all_sessions = sessions(all, zone);
+    const all_sessions = sessions(all, zone, bar);
     const start = periodStart(period, now);
     groups =
       period === "5D"
