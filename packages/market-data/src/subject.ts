@@ -53,7 +53,7 @@ export const sectionAlternativeSchema = z.object({
 export type SectionAlternative = z.infer<typeof sectionAlternativeSchema>;
 
 /** A source that declares the concept but does not serve this subject, with
- * core's plain reason (code: not_covering, not_entitled, disabled, ...). */
+ * core's plain reason (code: not_covering, not_addressable, disabled, ...). */
 export const sectionSkipSchema = sourceSchema.extend({
   code: text,
   reason: text,
@@ -79,7 +79,7 @@ export const subjectSectionSchema = z.object({
     .array(sourceSchema.extend({ authorities: z.array(text).default([]) }))
     .nullish(),
   /** Set only when a source ranked ahead of the chosen one could have served
-   * and did not (named by the investor, refused, contradicted): amber. */
+   * and did not (named by the investor, contradicted, not found): amber. */
   notice: sectionSkipSchema.nullish(),
 });
 export type SubjectSection = z.infer<typeof subjectSectionSchema>;

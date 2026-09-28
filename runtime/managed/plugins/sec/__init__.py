@@ -5,6 +5,7 @@ configuration through core; identity decisions stay with Pythia's core.
 """
 import importlib
 import json
+import time
 from datetime import datetime, timedelta, timezone
 
 from . import financials, identity
@@ -14,6 +15,7 @@ from .definition import TOOLS, schemas
 # Retained-copy ages per SEC resource, in seconds.
 AGES = {'directory': 86400, 'submissions': 300, 'submissions_page': 86400, 'companyfacts': 3600}
 PAGES = 3  # older submissions pages read at most, for a forms search
+PAGING_SECONDS = 20  # one deadline for all of them
 # SEC's own contact rule, reported under core's needs_configuration code.
 INVALID_CONTACT = {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [{
     'code': 'needs_configuration', 'severity': 'error',
@@ -69,11 +71,11 @@ class Reader:
             budget = self.connector.connection('sec', contact, concurrency=2, per_minute=120)
             reuse = not refresh and (scope is None or scope.get('cacheable', False))
 
-            def fetch(endpoint, number=None, page=None):
+            def fetch(endpoint, number=None, page=None, timeout=15):
                 request = {'operation': endpoint, 'contact': contact, **({'cik': number} if number else {}),
                            **({'page': page} if page else {})}
                 return self.reads.read([__file__], request, {}, cancelled=cancelled, cache_scope=scope,
-                                       age=AGES[endpoint] if reuse else 0, budget=budget, timeout=15)
+                                       age=AGES[endpoint] if reuse else 0, budget=budget, timeout=timeout)
 
             if operation == 'resolve':
                 return self.resolve(clean, fetch)
@@ -81,14 +83,26 @@ class Reader:
             if operation == 'filings':
                 raw = fetch('submissions', number)
                 limit, forms = clean.get('limit', 20), clean.get('forms')
-                pages = []
+                pages, issues = [], []
                 if forms:  # an annual report must not be crowded out: read older pages back five years, at most three
                     first = financials.filings(raw['data'], number, raw['observed_at'], limit, forms)
                     since = (datetime.now(timezone.utc) - timedelta(days=5 * 366)).date().isoformat()
+                    deadline = time.monotonic() + PAGING_SECONDS
                     if len(first['filings']) < limit and (first['coverage']['searched_back_to'] or '9') > since:
                         for name in financials.older_pages(raw['data'], since)[:PAGES]:
-                            pages.append(fetch('submissions_page', number, name)['data'])
-                return envelope(financials.filings(raw['data'], number, raw['observed_at'], limit, forms, pages))
+                            left = deadline - time.monotonic()
+                            try:  # best effort: an older page never costs the filings already read
+                                if left < 1:
+                                    raise TimeoutError('timeout')
+                                pages.append(fetch('submissions_page', number, name, timeout=min(15, left))['data'])
+                            except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+                                issues.append({'code': 'incomplete', 'severity': 'warning', 'message':
+                                               'Older SEC filings could not be searched; the list is incomplete.'})
+                                break
+                result = financials.filings(raw['data'], number, raw['observed_at'], limit, forms, pages)
+                if issues:
+                    result['coverage']['complete'] = False
+                return envelope(result, issues)
             if operation == 'facts' and len(set(clean['concepts'])) != len(clean['concepts']):
                 raise ValueError('invalid_request')
             raw = fetch('companyfacts', number)

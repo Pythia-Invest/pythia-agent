@@ -193,6 +193,14 @@ class FilingsMergeTest(unittest.TestCase):
         merged = filings.merge_filings([(self.XBRL, ("esma", "fca"), unknown, None), (self.SEC, ("sec",), self.sec(), None)])
         self.assertEqual((merged["partial"], merged["skipped"], len(merged["sources"])), (False, [], 2))
 
+    def test_an_incomplete_source_keeps_its_rows_and_marks_the_list_partial(self):
+        incomplete = {**self.sec(), "issues": [{"code": "incomplete", "severity": "warning",
+                                                "message": "Older SEC filings could not be searched."}]}
+        merged = filings.merge_filings([(self.SEC, ("sec",), incomplete, None)])
+        self.assertEqual((len(merged["filings"]), merged["partial"]), (2, True))
+        self.assertEqual([(item["code"], item["reason"]) for item in merged["skipped"]],
+                         [("incomplete", "Older SEC filings could not be searched.")])
+
     def test_an_authority_another_source_serves_is_left_out(self):
         merged = filings.merge_filings([(self.XBRL, ("esma",), self.xbrl(), None)])
         self.assertEqual([item["form"] for item in merged["filings"]], ["ESEF"])

@@ -31,7 +31,9 @@ FILINGS_SCHEMA = {
     "name": "pythia_filings_combined",
     "description": "A company's regulatory filings from every connected filings source, one source per filing "
                    "authority (SEC; ESEF reports of EU issuers; UK), merged newest first. Each item names its source "
-                   "and authority; a source that failed is listed under skipped and the list is marked partial.",
+                   "and authority; a source that failed is listed under skipped and the list is marked partial. "
+                   "`date` orders the list; `date_basis` says what it is: filed, indexed (the day the source indexed "
+                   "a report that has no published filing date, not a filing date) or period_end.",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT_ID,
         "use": {**PLUGIN_ID, "description": "Read this source for its authorities instead of the chosen one: a plugin "
@@ -149,14 +151,10 @@ class ConceptReads:
         return result, None
 
 
-CURRENT: "ConceptReads | None" = None
-
-
 def register(ctx: Any, identity: Any) -> None:
-    global CURRENT
     from .identity_ops import PLUGIN, TOOLSET
     from .platform import declare_operation
-    reads = CURRENT = ConceptReads(identity)
+    reads = ConceptReads(identity)
     # Registered like core's other Desk operations; see the ADR 0040 note on model visibility.
     declare_operation(FILINGS_SCHEMA, plugin=PLUGIN, operation="filings", handler=reads.filings, read_only=True)
     ctx.register_tool(name=FILINGS_SCHEMA["name"], toolset=TOOLSET, schema=FILINGS_SCHEMA, handler=reads.filings,
