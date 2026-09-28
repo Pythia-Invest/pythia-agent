@@ -20,23 +20,28 @@ FIXTURES = Path(__file__).parent / "fixtures/identity"
 PROVENANCE = {"plugin": "eodhd", "source": "eodhd", "adapter_version": "1", "retrieved_at": "2026-09-25T10:00:00Z"}
 
 YAHOO = {
-    "plugin": "yahoo", "provider": "yahoo",
+    "contract_version": 1, "plugin": "yahoo", "provider": "yahoo",
     "addressing": {"native": [{"native_scope": "symbol", "level": "listing", "asset_classes": ["equity"]}],
                    "schemes": {"listing": ["ticker_mic"], "security": ["isin"]},
                    "mic_table": {"XAMS": ".AS", "XNAS": ""}},
-    "content": {"quote": {"level": "listing", "via": "listing", "tool": "yahoo_quote"},
-                "news": {"level": "security", "via": "listing", "tool": "yahoo_news"}},
-    "resolve": {"tool": "yahoo_resolve", "input_schemes": ["isin"], "echoes": ["ticker_mic"]},
+    "concepts": {"market_data": {"level": "listing", "via": "listing", "operations": {"quote": "latest", "daily": "history"},
+                                 "coverage": {"asset_classes": ["equity"]},
+                                 "qualities": {"daily": {"adjustment": ["split_dividend"]}}},
+                 "news": {"level": "security", "via": "listing", "operations": {"list": "news"}}},
+    "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": ["ticker_mic"]},
+    "rights": {"licence": "personal", "cache": "none", "hostable": False},
 }
 EODHD = {
-    "plugin": "eodhd", "provider": "eodhd",
+    "contract_version": 1, "plugin": "eodhd", "provider": "eodhd",
     "addressing": {"native": [{"native_scope": "catalogue", "level": "listing"}, {"native_scope": "composite", "level": "composite"}],
                    "schemes": {"security": ["isin", "share_class_figi"], "issuer": ["lei", "cik"]},
                    "mic_table": {"XAMS": "AS"}},
-    "content": {"quote": {"level": "listing", "via": "listing", "tool": "eodhd_quote"},
-                "financials": {"level": "issuer", "via": "listing", "tool": "eodhd_fundamentals"}},
-    "catalogue": {"mode": "bulk", "tool": "eodhd_catalogue", "scopes": ["as", "us"]},
-    "resolve": {"tool": "eodhd_resolve", "input_schemes": ["isin", "figi", "lei"], "echoes": ["isin", "figi"]},
+    "concepts": {"market_data": {"level": "listing", "via": "listing", "operations": {"quote": "latest"}},
+                 "fundamentals": {"level": "issuer", "via": "listing", "operations": {"statements": "fundamentals"}}},
+    "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["as", "us"]},
+    "resolve": {"operation": "resolve", "input_schemes": ["isin", "figi", "lei"], "echoes": ["isin", "figi"]},
+    "rights": {"licence": "personal", "cache": {"ttl_seconds": 86400}, "hostable": False},
+    "limits": {"plan": "EOD+Intraday", "unit": "call", "per_day": 100000},
 }
 
 
@@ -207,15 +212,44 @@ class ManifestTest(unittest.TestCase):
     def test_accepts_resolve_only_and_bulk_catalogue_plugins(self):
         yahoo = identity.validate_manifest(YAHOO)
         self.assertIs(yahoo.catalogue, identity.CatalogueMode.RESOLVE_ONLY)
+        self.assertEqual(yahoo.concepts[identity.Concept.MARKET_DATA].qualities, {"daily": {"adjustment": ("split_dividend",)}})
         eodhd = identity.validate_manifest(EODHD)
-        self.assertIs(eodhd.content[identity.Section.FINANCIALS].level, identity.Level.ISSUER)
+        self.assertIs(eodhd.concepts[identity.Concept.FUNDAMENTALS].level, identity.Level.ISSUER)
+        self.assertEqual((eodhd.catalogue_operation, eodhd.rights.cache_seconds, eodhd.limits.per_day),
+                         ("catalogue", 86400, 100000))
+        self.assertEqual(eodhd.plugin_operations, {"latest", "fundamentals", "catalogue", "resolve"})
 
     def test_rejects_contract_violations_at_their_path(self):
+        market = lambda value: value["concepts"]["market_data"]  # noqa: E731
         cases = {
             "manifest.search": lambda value: value.update(search={"tool": "yahoo_search"}),
+            "manifest.contract_version": lambda value: value.pop("contract_version"),
             "addressing.schemes.listing": lambda value: value["addressing"]["schemes"].update(listing=["isin"]),
-            "content.chart.via": lambda value: value["content"].update(
-                chart={"level": "listing", "via": "security", "tool": "yahoo_chart"}),
+            "concepts.market_data.via": lambda value: market(value).update(via="security"),
+            "concepts.prices": lambda value: value["concepts"].update(prices=market(value)),
+            "concepts: object required": lambda value: value.update(concepts=5),
+            "concepts: object required ": lambda value: value.update(concepts=[{}]),
+            "limits.cost": lambda value: value.update(limits={"plan": "Free", "unit": "call", "cost": [{}]}),
+            "limits: object required": lambda value: value.update(limits=[{}]),
+            "addressing.mic_table": lambda value: value["addressing"].update(mic_table=[{}]),
+            "concepts.market_data.coverage.asset_classes": lambda value: market(value)["coverage"].update(asset_classes=[]),
+            "concepts.market_data.qualities.quote.delay_minutes": lambda value: market(value)["qualities"].update(
+                quote={"delay": "realtime", "delay_minutes": 15}),
+            "concepts.market_data.operations.stream": lambda value: market(value)["operations"].update(stream="live"),
+            "concepts.market_data.operations.quote": lambda value: market(value)["operations"].update(quote="Yahoo Quote"),
+            "concepts.market_data.qualities.daily.speed": lambda value: market(value)["qualities"]["daily"].update(speed=1),
+            "concepts.market_data.qualities.daily.adjustment": lambda value: market(value)["qualities"].update(
+                daily={"adjustment": ["dividend"]}),
+            "concepts.market_data.qualities.intraday": lambda value: market(value)["qualities"].update(
+                intraday={"delay": "eod"}),
+            "concepts.market_data.coverage.asset_classes ": lambda value: market(value)["coverage"].update(
+                asset_classes=["bond"]),
+            "concepts.filings.authorities": lambda value: value["concepts"].update(
+                filings={"level": "issuer", "via": "security", "operations": {"list": "filings"}}),
+            "concepts.news.tool": lambda value: value["concepts"]["news"].update(tool="yahoo_news"),
+            "rights.licence": lambda value: value["rights"].update(licence="professional"),
+            "rights.attribution.url": lambda value: value["rights"].update(attribution={"text": "Yahoo", "url": "http://x"}),
+            "manifest.functions": lambda value: value.update(functions=[]),
             "addressing.native[0]": lambda value: (value.pop("resolve"), value["addressing"].pop("mic_table")),
             "catalogue": lambda value: value.update(catalogue={"mode": "resolve_only", "scopes": ["all"]}),
             "addressing.native": lambda value: value["addressing"].update(native=5),
@@ -226,7 +260,16 @@ class ManifestTest(unittest.TestCase):
             with self.subTest(path=path):
                 with self.assertRaises(identity.ManifestError) as caught:
                     identity.validate_manifest(document)
-                self.assertTrue(str(caught.exception).startswith(path), caught.exception)
+                self.assertNotIsInstance(caught.exception, identity.ManifestNeedsUpdate)
+                self.assertTrue(str(caught.exception).startswith(path.strip()), caught.exception)
+
+    def test_a_newer_contract_needs_an_update_rather_than_being_invalid(self):
+        # A future shape: fields this core has never seen are not reported as invalid.
+        document = {**copy.deepcopy(YAHOO), "contract_version": 2, "concepts": {"orderbook": {}}, "entitlements": {}}
+        with self.assertRaises(identity.ManifestNeedsUpdate) as caught:
+            identity.validate_manifest(document)
+        self.assertEqual(caught.exception.version, 2)
+        self.assertEqual(identity.contract_version(document), 2)
 
 
 class ClaimTest(unittest.TestCase):
