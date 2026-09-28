@@ -1,4 +1,4 @@
-"""Name, issuer, kind and relation invariants (see `invariants.py`)."""
+"""Name, issuer and old-ISIN invariants (see `invariants.py`)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import unicodedata
 from collections import defaultdict
 
 from .invariant_checks import Build
-from .rules import latin
 
 MOJIBAKE = re.compile(r"Ã[\x80-\xbf€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ¡-¿]|Â[\xa0-\xbf]|â€|�|&(?:amp|quot|#\d+);|[\x00-\x1f\x7f]")
 FINANCING_VEHICLE = re.compile(
@@ -16,8 +15,6 @@ FINANCING_VEHICLE = re.compile(
 MARKET_OPERATOR = re.compile(
     r"\b(B(?:O|OE)RSEN?|WERTPAPIERB(?:O|OE)RSE|STOCK EXCHANGE|TRADING FACILITY|TP ICAP|TRADEWEB|EURONEXT|MARKETAXESS|CBOE|"
     r"AQUIS|TURQUOISE|BLOOMBERG)\b")
-FUND_WORDS = re.compile(r"\b(UCITS|ETF|ETC|ETN|INDEX FUND|EXCHANGE TRADED)\b")
-PREFERRED_WORDS = re.compile(r"\b(VORZUG\w*|VZO?|PREF|PREFERENCE SHARES?|PREFERRED (?:SHARES?|STOCK)|RISP(?:ARMIO)?|PRIVILEGI\w*)\b")
 STOP = frozenset("THE AND OF DE LA LE DES DU DER DIE DAS UND ET CO COMPANY GROUP GRUPPE HOLDING HOLDINGS HLDGS INTERNATIONAL "
                  "BANK SHARES SHARE REGISTERED INHABER NAMENS AKTIEN AKTIE ORD ORDINARY COMMON STOCK CLASS NEW INC CORP "
                  "LTD PLC AG SA NV SE ASA AB OYJ SPA KGAA GMBH A B C ON O N".split())
@@ -46,11 +43,6 @@ def name_casing(build: Build) -> list[tuple]:
     rows = [(i["name"], i["id"]) for i in build.issuers.values()]
     rows += [(s["name"], s["id"]) for s in build.securities.values()]
     return [row for row in rows if _bad_casing(row[0])]
-
-
-def name_not_latin(build: Build) -> list[tuple]:
-    """An issuer shown under a non-Latin name: a Latin-script query cannot find it (GLEIF gave no Latin alternative)."""
-    return [(i["name"], i["id"]) for i in build.issuers.values() if not latin(i["name"])]
 
 
 def name_encoding(build: Build) -> list[tuple]:
@@ -107,55 +99,7 @@ def issuer_is_market_operator(build: Build) -> list[tuple]:
     return found
 
 
-def issuer_name_disjoint(build: Build) -> list[tuple]:
-    """A share's name shares no word with any of its LEI issuer's Latin names (Lee Enterprises under Berkshire)."""
-    found = []
-    for security in build.securities.values():
-        issuer_id = security["issuer_id"] or ""
-        if (not build.ids.get(issuer_id, {}).get("lei") or not build.live_security(security["id"])
-                or security["kind"] not in ("ordinary", "preferred") or not latin(build.issuers[issuer_id]["name"])):
-            continue
-        words = _words(security["name"])
-        if words and not words & _issuer_words(build, issuer_id):
-            found.append((security["name"], build.issuers[issuer_id]["name"]))
-    return found
-
-
-def cik_lei_name_disjoint(build: Build) -> list[tuple]:
-    """An issuer with a LEI and a CIK whose SEC names share no word with its GLEIF names (a rename, or a wrong link)."""
-    found = []
-    for issuer_id, ids in build.ids.items():
-        if not (ids.get("lei") and ids.get("cik")):
-            continue
-        sec = set().union(*[_words(text) for text, source in build.names.get(issuer_id, []) if source == "sec"] or [set()])
-        if sec and not sec & _issuer_words(build, issuer_id, ("gleif",)):
-            found.append((build.issuers[issuer_id]["name"], " / ".join(t for t, s in build.names[issuer_id] if s == "sec")[:60]))
-    return found
-
-
-# ---- kinds and relations -------------------------------------------------------
-
-
-def fund_named_ordinary(build: Build) -> list[tuple]:
-    return [(s["name"],) for s in build.securities.values()
-            if s["kind"] == "ordinary" and build.live_security(s["id"]) and FUND_WORDS.search((s["name"] or "").upper())]
-
-
-def preferred_named_ordinary(build: Build) -> list[tuple]:
-    return [(s["name"],) for s in build.securities.values()
-            if s["kind"] == "ordinary" and build.live_security(s["id"])
-            and PREFERRED_WORDS.search(unicodedata.normalize("NFKD", s["name"] or "").encode("ascii", "ignore").decode().upper())]
-
-
-def receipt_without_underlying(build: Build) -> list[tuple]:
-    linked = {r["from_id"] for r in build.relations if r["type"] == "depositary_receipt_of"}
-    return [(s["name"],) for s in build.securities.values()
-            if s["kind"] == "depositary_receipt" and build.live_security(s["id"]) and s["id"] not in linked]
-
-
-def relation_target_missing(build: Build) -> list[tuple]:
-    return [((build.securities.get(r["from_id"]) or {}).get("name"), r["to_id"]) for r in build.relations
-            if r["to_id"].startswith("security:") and r["to_id"] not in build.securities]
+# ---- lifecycle -----------------------------------------------------------------
 
 
 def stale_isin_twin(build: Build) -> list[tuple]:

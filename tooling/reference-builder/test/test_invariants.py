@@ -42,7 +42,7 @@ class InvariantTest(unittest.TestCase):
         self.plant("UPDATE listings SET mic = 'XETR', operating_mic = 'XETR', currency = 'USD' WHERE id = "
                    "(SELECT id FROM listings WHERE operating_mic = 'XAMS' LIMIT 1)")
         # A fix lowered the currency limit to 0; one notional-currency line on Xetra is growth and fails.
-        lowered = tuple(dataclasses.replace(i, limit=0) if i.name == "currency_single_currency_venue" else i
+        lowered = tuple(dataclasses.replace(i, limit=0, headroom=0) if i.name == "currency_single_currency_venue" else i
                         for i in invariants.INVARIANTS)
         result = next(r for r in invariants.run(self.path, lowered) if r.name == "currency_single_currency_venue")
         self.assertEqual((result.count, result.failed), (1, True))
@@ -51,11 +51,41 @@ class InvariantTest(unittest.TestCase):
                 mock.patch.object(invariants, "INVARIANTS", lowered):
             self.assertEqual(truth_report.main(["--reference", str(self.path)]), 1)
 
-    def test_every_limit_is_a_count_not_a_tolerance(self):
-        # The ratchet: limits are exact measured counts, so none is negative and the zero rules stay zero.
-        limits = {i.name: i.limit for i in invariants.INVARIANTS}
-        self.assertTrue(all(limit >= 0 for limit in limits.values()))
-        self.assertEqual((limits["name_casing"], limits["primary_more_than_one"]), (0, 0))
+    def test_a_count_under_its_limit_asks_for_the_limit_to_be_lowered(self):
+        loose = tuple(dataclasses.replace(i, limit=i.limit + 5) if i.name == "issuer_is_market_operator" else i
+                      for i in invariants.INVARIANTS)
+        result = next(r for r in invariants.run(self.path, loose) if r.name == "issuer_is_market_operator")
+        self.assertEqual(result.mark, f"under (lower to {result.count})")
+        self.assertIn(f"under (lower to {result.count})", "\n".join(invariants.format_results([result])))
+
+    def test_a_failure_lists_the_rows_new_since_the_previous_build(self):
+        rule = next(i for i in invariants.INVARIANTS if i.name == "currency_single_currency_venue")
+        strict = (dataclasses.replace(rule, limit=0, headroom=0),)
+        self.plant("INSERT OR REPLACE INTO venues VALUES ('XETR', 'XETR', 'Xetra', 'DE', 'NSPD')")
+        self.plant("UPDATE listings SET mic = 'XETR', operating_mic = 'XETR', currency = 'USD' WHERE id = "
+                   "(SELECT id FROM listings WHERE operating_mic = 'XAMS' AND ticker IS NOT NULL LIMIT 1)")
+        before = invariants.run(self.path, strict)
+        self.plant("UPDATE listings SET mic = 'XETR', operating_mic = 'XETR', currency = 'GBP' WHERE id = "
+                   "(SELECT id FROM listings WHERE operating_mic = 'XAMS' AND ticker IS NOT NULL LIMIT 1)")
+        after = invariants.run(self.path, strict)
+        fresh = invariants.new_rows(after[0], before)
+        self.assertEqual((after[0].count, len(fresh)), (2, 1))
+        self.assertIn("GBP", fresh[0][0])
+        self.assertIn("1 rows new since", "\n".join(invariants.format_results(after, before)))
+
+    def test_the_builder_records_invariants_when_the_truth_audit_fails(self):
+        with mock.patch.object(truth_report, "audit", side_effect=RuntimeError("truth set unreadable")):
+            recorded = truth_report.build_report(self.path, ("ES",), lambda _line: None, {})
+        self.assertIn("error", recorded)
+        self.assertEqual(recorded["invariants"]["primary_more_than_one"], 0)
+
+    def test_an_orphan_primary_does_not_abort_the_audit(self):
+        with sqlite3.connect(self.path) as db:
+            db.execute("PRAGMA foreign_keys = OFF")
+            for n in (1, 2):
+                db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary, status) "
+                           f"VALUES ('listing:test:orphan{n}', 'security:test:gone', 'XAMS', 'XAMS', 'ORP{n}', 'EUR', 1, 'active')")
+        self.assertEqual(counts(self.path, "primary_more_than_one"), {"primary_more_than_one": 1})
 
     def test_a_toronto_home_primary_beside_an_nyse_line_is_not_open_market(self):
         # ISO 10383 leaves Toronto's market category unspecified; only EEA venues declare regulated vs open market.

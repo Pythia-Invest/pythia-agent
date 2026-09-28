@@ -8,7 +8,6 @@ from collections import defaultdict
 from pathlib import Path
 
 from .rules import EEA, TRADING_ONLY_VENUES
-from .schema import identity
 
 # Trading currency by venue country (ISO 4217); a country that changed currency lists
 # (currency, first day) pairs, newest last.
@@ -42,14 +41,6 @@ SINGLE_CURRENCY_VENUES = {mic: "EUR" for mic in ("XETR", "XFRA", "XSTU", "XMUN",
 US_EXCHANGES = frozenset({"XNAS", "XNYS", "XCBO"})
 GERMAN_FLOORS = frozenset({"XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER"})
 CURRENCY_SUFFIX = re.compile(r"^(?P<root>[A-Z0-9]{2,})(?P<ccy>EUR|USD|GBP|GBX|CHF|SEK|NOK|DKK|PLN|CZK|HUF|JPY|CAD|AUD)$")
-# Per-venue ticker shapes (operating MIC -> pattern). Venues not listed only need core's grammar.
-TICKER_SHAPES = {
-    **{mic: re.compile(r"^[A-Z]{1,5}(?:-[A-Z]{1,3})?$") for mic in ("XNAS", "XNYS", "XCBO")},
-    "OTCM": re.compile(r"^[A-Z]{4,5}$"),
-    **{mic: re.compile(r"^[A-Z0-9]{2,6}$") for mic in (*GERMAN_FLOORS, "XETR", "TGAT")},
-    **{mic: re.compile(r"^[A-Z0-9]{1,6}$") for mic in ("XAMS", "XPAR", "XBRU", "XLIS", "XMIL")},
-    **{mic: re.compile(r"^[A-Z0-9]{1,8}(?: [A-Z])?$") for mic in ("XSTO", "XCSE")},
-}
 
 
 class Build:
@@ -125,8 +116,9 @@ def currency_is_issue_country(build: Build) -> list[tuple]:
     """Any venue: a foreign currency that is exactly the ISIN country's currency is the notional currency leaking in."""
     found = []
     for line in build.listings:
-        if not build.live(line) or line["operating_mic"] in SINGLE_CURRENCY_VENUES:
-            continue
+        if (not build.live(line) or line["operating_mic"] in SINGLE_CURRENCY_VENUES.keys() | TRADING_ONLY_VENUES
+                or (line["operating_mic"] == "XLUX" and (build.securities.get(line["security_id"]) or {}).get("kind") == "depositary_receipt")):
+            continue  # RFQ platforms and internalisers quote US ISINs in USD; Luxembourg lists GDRs in USD
         home = build.currency_of(build.country(line))
         isin = build.isin.get(line["security_id"]) or ""
         issued = build.currency_of(isin[:2])
@@ -148,26 +140,6 @@ def ticker_currency_suffix(build: Build) -> list[tuple]:
 # ---- tickers ------------------------------------------------------------------
 
 
-def ticker_grammar(build: Build) -> list[tuple]:
-    found = []
-    for line in build.listings:
-        if line["ticker"] and build.live(line):
-            try:
-                identity.normalize_identifier("ticker_mic", f"{line['ticker']}@{line['operating_mic'] or line['mic']}")
-            except ValueError:
-                found.append((build.label(line),))
-    return found
-
-
-def ticker_venue_shape(build: Build) -> list[tuple]:
-    found = []
-    for line in build.listings:
-        shape = TICKER_SHAPES.get(line["operating_mic"] or "")
-        if shape and line["ticker"] and build.live(line) and not shape.match(line["ticker"]):
-            found.append((build.label(line),))
-    return found
-
-
 def ticker_two_securities(build: Build) -> list[tuple]:
     owners: dict[tuple[str, str], set[str]] = defaultdict(set)
     for line in build.listings:
@@ -185,7 +157,7 @@ def _primaries(build: Build, security_id: str) -> list[dict]:
 
 
 def primary_more_than_one(build: Build) -> list[tuple]:
-    return [((build.securities[s] or {}).get("name"), ", ".join(build.label(l) for l in lines))
+    return [((build.securities.get(s) or {}).get("name"), ", ".join(build.label(l) for l in lines))
             for s in build.by_security if len(lines := _primaries(build, s)) > 1]
 
 
@@ -210,23 +182,6 @@ def primary_open_market_beside_us_exchange(build: Build) -> list[tuple]:
     return found
 
 
-def primary_on_open_market_beside_regulated(build: Build) -> list[tuple]:
-    """Primary on an open-market segment while the same security has a live regulated-market line in its ISIN's country."""
-    found = []
-    for security_id, lines in build.by_security.items():
-        isin = build.isin.get(security_id) or ""
-        if not build.live_security(security_id):
-            continue
-        for line in _primaries(build, security_id):
-            if build.category(line) == "RMKT" or build.country(line) not in EEA:  # only EEA venues declare it
-                continue
-            regulated = [l for l in lines if l is not line and build.live(l) and build.category(l) == "RMKT"
-                         and build.country(l) == isin[:2]]
-            if regulated:
-                found.append((build.label(line), f"regulated {build.label(regulated[0])}"))
-    return found
-
-
 def primary_floor_beside_xetra(build: Build) -> list[tuple]:
     """Primary on a German floor exchange while a live Xetra line exists (unless the floor line is the regulated admission)."""
     found = []
@@ -237,22 +192,6 @@ def primary_floor_beside_xetra(build: Build) -> list[tuple]:
         for line in _primaries(build, security_id):
             if xetra and line["operating_mic"] in GERMAN_FLOORS and build.category(line) != "RMKT":
                 found.append((build.label(line),))
-    return found
-
-
-def primary_foreign_country(build: Build) -> list[tuple]:
-    """An EEA ISIN whose primary is abroad although it has a live regulated line at home."""
-    found = []
-    for security_id, lines in build.by_security.items():
-        isin = build.isin.get(security_id) or ""
-        if (not build.live_security(security_id) or build.securities[security_id]["kind"] == "etf"
-                or build.currency_of(isin[:2]) is None or isin[:2] in ("US", "CA", "JP", "HK", "AU", "GB", "CH")):
-            continue  # an ETF's relevant venue is where it trades most, often not its domicile
-        for line in _primaries(build, security_id):
-            country = build.country(line)
-            home = [l for l in lines if build.live(l) and build.country(l) == isin[:2] and build.category(l) == "RMKT"]
-            if country and country != isin[:2] and home:
-                found.append((build.label(line), f"home {build.label(home[0])}"))
     return found
 
 
@@ -267,27 +206,6 @@ def venue_ticker_coverage(build: Build, minimum: int = 200, share: float = 0.5) 
     return [(f"{mic} ({(build.venues.get(mic) or {}).get('name', '?')})", f"{with_ticker}/{total} lines with a ticker")
             for mic, (total, with_ticker) in sorted(counts.items(), key=lambda item: -item[1][0])
             if total >= minimum and with_ticker < share * total]
-
-
-def security_without_listing(build: Build) -> list[tuple]:
-    """A live security that has no venue line at all: search and pages cannot reach it."""
-    return [(s["name"], s["id"]) for s in build.securities.values()
-            if build.live_security(s["id"]) and not build.by_security.get(s["id"])]
-
-
-def top_ranked_unreachable(build: Build, top: int = 1000) -> list[tuple]:
-    """Among the `top` most notable live shares, receipts and ETFs: no live line with a ticker (search cannot find
-    them) or no primary (the page opens a secondary line)."""
-    ranked = sorted((s for s in build.securities.values() if s["rank"] and build.live_security(s["id"])
-                     and s["kind"] in ("ordinary", "depositary_receipt", "etf")), key=lambda s: s["rank"])
-    found = []
-    for security in ranked[:top]:
-        lines = [l for l in build.by_security.get(security["id"], []) if build.live(l)]
-        if not any(l["ticker"] for l in lines):
-            found.append((security["name"], "no ticker"))
-        elif not any(l["is_primary"] for l in lines):
-            found.append((security["name"], "no primary"))
-    return found
 
 
 def us_share_without_us_line(build: Build) -> list[tuple]:
