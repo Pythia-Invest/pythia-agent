@@ -1,6 +1,7 @@
 # ESMA FIRDS source record
 
-- **Status:** SIGNOFF_STATUS
+- **Status:** in onboarding, sign-off proposed (below). The sign-off gate
+  (PR #62) is not merged, so no `signoff` is recorded in code yet.
   - Stage 1: the field table below is complete for the fields the builder
     reads.
   - Stage 2: the adapter emits typed claims, counts unexpected input and
@@ -144,9 +145,14 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
 ## 3. Data audit
 
-- **Random sample:** not drawn yet. The plan is about 600 live securities,
-  stratified by kind × venue type (regulated, floor, trading-only) × region,
-  labelled against exchange sites, issuer filings and GLEIF.
+- **Random sample:** 100 rows, seed 20260928, from the local build: 70
+  decided values (issuer 30 and primary 30, each stratified by the venue type
+  of the relevant or primary venue: regulated, MTF, other; receipt underlying
+  10) and 30 questions (issuer 8, home market 14 across its three causes,
+  receipt 8). Each is labelled against a primary source: the GLEIF record, the
+  exchange's page, the issuer's or fund issuer's page, the depositary's
+  programme page. [The sample](firds-signoff-sample.md) lists every row with
+  its evidence. Results are under sign-off.
 - **Truth set:** `tooling/reference-builder/truth/` is a regression suite,
   not a quality measure.
 - **Invariants:** `invariants.py` (PR #45). The ratchet limits there are
@@ -213,4 +219,36 @@ Classes assigned to code or to Repairs instead:
 
 ## Sign-off
 
-Not started.
+**Proposed, for the maintainer's review.** Measured on the offline build of
+2026-09-28 (FIRDS week of 2026-09-26) and [the sample](firds-signoff-sample.md):
+
+| Field | Decided values labelled | Correct | Wilson 95% | Wrong or unclear |
+| --- | --: | --: | --- | --- |
+| Issuer (field 5) | 30 | 28 | 78.7–98.2% | field 5 names another company: Ubiquiti under Ubiquity Global Services; China Risun under its Hong Kong subsidiary |
+| Primary (field 8) | 30 | 26 | 70.3–94.7% | wrong: an HSBC UCITS ETF whose home is London, which FIRDS cannot see; Orpea's old ISIN, requested only on a Crédit Agricole internaliser. Unclear: two ETFs whose issuer names no primary listing |
+| Receipt underlying (field 26) | 10 | 10 | 72.2–100% | |
+| All decided | 70 | 64 (91.4%) | 82.5–96.0% | |
+
+Questions: 25 of 30 were right to ask (83%). Five could have been decided: two
+US shares (General Dynamics, PepsiCo) and BCE, whose field 8 names an EEA
+venue beside their SEC or home line, which the rule sends to a question by
+design; RELX (London beside Amsterdam); and IBU-tec, whose requested venues
+span entities. Only 9 of the 30 questions carry the true answer among their
+candidates: most answers lie outside the build (TSX Venture, Cboe NL, Tel
+Aviv, an LEI GLEIF does not hold), so an answer must be able to name a
+subject outside the candidates.
+
+Proposal:
+
+- **Issuer and receipt underlying:** sign off. The known error class, field 5
+  naming another company that is no venue operator (Legence under Avio,
+  Ubiquiti), needs a second source: the SEC registrant's issuer claim, owned by
+  the SEC onboarding.
+- **Primary:** sign off for shares; ETF primaries are an accepted limit until a
+  source that sees non-EEA listings (OpenFIGI home rows for ETFs, an exchange
+  list) is onboarded. Owner: the OpenFIGI onboarding.
+- **Open with an owner:** the `JBUL` field 8 pattern; the Crédit Agricole
+  internaliser answering field 8 true; questions whose answer is not among
+  their candidates (core queue).
+- **Judgement:** all three question types stay suggest-only until each has a
+  gold set.
