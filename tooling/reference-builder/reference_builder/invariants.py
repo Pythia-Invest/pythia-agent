@@ -90,7 +90,7 @@ INVARIANTS: tuple[Invariant, ...] = (
               primary_open_market_beside_us_exchange, 1, "Bending Spoons (Italian ISIN, Nasdaq listing) on Munich"),
     Invariant("primary_floor_beside_xetra", "error",
               "The primary is a German floor exchange's open market although a live Xetra line exists.",
-              primary_floor_beside_xetra, 4, "four Munich m:access names; check before lowering"),
+              primary_floor_beside_xetra, 4, "four Munich lines (Northern Data, Elexxion...); check before lowering"),
     Invariant("primary_open_market_beside_regulated", "warning",
               "The primary is an open-market segment although a live regulated line exists in the ISIN's country.",
               primary_on_open_market_beside_regulated, 3),
