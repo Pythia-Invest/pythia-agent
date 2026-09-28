@@ -11,6 +11,7 @@ also feed a drift fingerprint (`drift.py`).
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import re
 import urllib.parse
@@ -24,7 +25,9 @@ from typing import BinaryIO
 
 from .drift import Fingerprint
 from .fetch import Downloader, log, request
+from .invariant_checks import WITHDRAWN
 from .model import FirdsRecord, Transparency
+from .schema import identity
 
 FIRDS_INDEX = "https://registers.esma.europa.eu/solr/esma_registers_firds_files/select"
 FITRS_INDEX = "https://registers.esma.europa.eu/solr/esma_registers_fitrs_files/select"
@@ -235,12 +238,30 @@ def observe(fingerprint: Fingerprint, element: ET.Element, record: FirdsRecord |
         "venue": record.mic,
         "notional_currency": record.currency,
         "issuer_requested": _text(element, "TradgVnRltdAttrbts/IssrReq"),  # raw, so an unknown value shows
+        # field 8 per segment: a segment that starts answering differently shows as a new pair or a count shift
+        "venue_issuer_requested": f"{record.mic}={_text(element, 'TradgVnRltdAttrbts/IssrReq')}",
     })
     ident = record.isin
     if placeholder_date(record.termination):
         fingerprint.count("termination_placeholder", ident)
     if (_text(element, UNDERLYING) or "").startswith("NOISIN"):
         fingerprint.count("underlying_placeholder", ident)
+    for name, scheme, value in (("malformed_isin", "isin", record.isin), ("malformed_issuer_lei", "lei", record.issuer_lei),
+                                ("malformed_underlying_isin", "isin", record.underlying_isin)):
+        if value and not _well_formed(scheme, value):
+            fingerprint.count(name, ident)
+    if record.currency and WITHDRAWN.get(record.currency, "9999") <= (record.published or "9999"):
+        fingerprint.count("withdrawn_notional_currency", ident)
+
+
+@functools.lru_cache(maxsize=1 << 16)
+def _well_formed(scheme: str, value: str) -> bool:
+    """Core's identifier grammar and check digit."""
+    try:
+        identity.normalize_identifier(scheme, value)
+    except ValueError:
+        return False
+    return True
 
 
 def claims(admissions: dict[tuple[str, str], FirdsRecord]) -> Iterator[tuple]:
@@ -286,6 +307,8 @@ SINGLE_VALUED = {"issuer_or_venue_operator_lei": "isins_with_two_issuer_leis",
 
 def measure(fingerprint: Fingerprint, db) -> None:
     """Per-identifier counts from the build's FIRDS claims (`db` is the claims connection)."""
+    for name in ("malformed_isin", "malformed_issuer_lei", "malformed_underlying_isin", "withdrawn_notional_currency"):
+        fingerprint.metrics.setdefault(name, 0)
     for meaning, name in SINGLE_VALUED.items():
         fingerprint.metrics.setdefault(name, 0)
         for (subject,) in db.execute("SELECT subject_key FROM claims WHERE source = ? AND meaning = ? GROUP BY subject_key "

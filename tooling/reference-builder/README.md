@@ -191,43 +191,17 @@ comparison by field (issuer, primary, currency, receipt underlying).
 
 ### FIRDS field semantics
 
-Sources: [RTS 23](https://ec.europa.eu/finance/securities/docs/isd/mifid/rts/160714-rts-23-annex_en.pdf)
-Annex Table 3 (field numbers), the
-[ESMA Q&A on MiFIR data reporting](https://www.esma.europa.eu/sites/default/files/library/esma70-1861941480-56_qas_mifir_data_reporting.pdf)
-and [RTS 22 Art. 16](https://eur-lex.europa.eu/eli/reg_del/2017/590/oj/eng).
-Counts are from the `FULINS_E` and `FULINS_C` files of 2026-09-26 (321,306
-`ES`, `ED` and `CE` records, 29,002 ISINs). Each quirk has a counter in the
-audit (`odd cases`) or the fingerprint (`metrics`).
-
-| Field | XML path | Official meaning | Claim `meaning` (slot) | Quirks, measured |
-| --- | --- | --- | --- | --- |
-| 1 | `FinInstrmGnlAttrbts/Id` | ISIN of the instrument | the subject key | |
-| 2 | `FinInstrmGnlAttrbts/FullNm` | full name of the instrument | `instrument_full_name` (name) | Each venue reports its own spelling: 19,483 ISINs carry several (`full_name_differs_by_venue`) |
-| 3 | `FinInstrmGnlAttrbts/ClssfctnTp` | ISO 10962 CFI | `cfi` (kind) | Argentine CEDEARs are `ESXXXX` shares that state an underlying (`underlying_stated_for_a_non_receipt`: 302) |
-| 5 | `Issr` | LEI of the issuer **or of the trading venue operator**; a UCITS sub-fund's own LEI (Q&A 1502); for a receipt, the underlying issuer's (Q&A 1503) | `issuer_or_venue_operator_lei` (issuer) | One value per ISIN (`isins_with_two_issuer_leis`: 0). 838 ISINs carry an LEI that ISO 10383 lists for a venue's operating entity, 634 of them a venue reporting that ISIN (`issuer_lei_is_venue_operator`); the most frequent are TP ICAP (423), Bloomberg MTF (118) and Frankfurter Wertpapierbörse (53). A bank or exchange that operates a venue can also be the real issuer. 1,171 sub-fund LEIs are shared by 3,398 ETF classes (`etf_subfund_lei_shared_by_classes`) |
-| 6 | `TradgVnRltdAttrbts/Id` | segment MIC, otherwise operating MIC | `admitted_to_trading` (listing) | |
-| 7 | `FinInstrmGnlAttrbts/ShrtNm` | ISO 18774 FISN | `fisn` (name) | |
-| 8 | `TradgVnRltdAttrbts/IssrReq` | the issuer requested or approved the admission, or the venue knows of its approval (Q&A 1687) | `issuer_requested_admission` (listing), `true` or `false` | True on 30,115 records. 71 segments answer true on every one of their records (`issuer_requested_on_every_record`), among them Borsa Italiana ETFplus (2,061), Euronext Paris (1,004) and Warsaw's GlobalConnect segment `XGLO` (53, mostly US and German shares), where a true looks like a venue convention rather than a request. The German floors almost never answer true. 17,866 ISINs have no issuer-requested EEA admission; 2,413 have requested admissions in several countries |
-| 9 | `TradgVnRltdAttrbts/AdmssnApprvlDtByIssr` | date the issuer approved the admission | `issuer_approval_date` (listing) | Set on 26,253 records |
-| 10 | `TradgVnRltdAttrbts/ReqForAdmssnDt` | date of the request for admission | `admission_request_date` (listing) | Set on 28,312 records |
-| 11 | `TradgVnRltdAttrbts/FrstTradDt` | date of admission or of the first trade | `first_trade_date` (listing) | |
-| 12 | `TradgVnRltdAttrbts/TermntnDt` | **where available**, the date trading or admission ends | `termination_date` (listing) | 19,103 of 19,430 dates are `9999` placeholders, which are no claim (`termination_placeholder`); 28 lie in the past. A missing date does not mean the line trades |
-| 13 | `FinInstrmGnlAttrbts/NtnlCcy` | currency of the notional; RTS 23 has no trading-currency field for equities | `notional_currency` (currency) | Instrument level: one value per ISIN on every venue (`isins_with_two_notional_currencies`: 0), so it cannot tell a venue's trading currency: 39,750 German lines carry USD |
-| 26 | `DerivInstrmAttrbts/UndrlygInstrm/Sngl/ISIN` | for depositary receipts, the ISIN of the instrument represented | `underlying_isin` (underlying) | 3,505 of 3,666 receipts state one; 121 state their own ISIN; 705 name an ISIN outside the build's FIRDS scope; `NOISIN…` placeholders (203 records) are no claim |
-| – | `TechAttrbts/RlvntTradgVn` | the most relevant market in terms of liquidity (RTS 22 Art. 16), set yearly | `most_liquid_eu_market` (primary) | A liquidity measure, not the home listing: it is issuer-requested for 10,778 ISINs and not for 358 whose issuer requested another venue |
-
-Not read: `CmmdtyDerivInd` (field 4, the commodity-derivative indicator),
-`TechAttrbts/RlvntCmptntAuthrty` and `TechAttrbts/PblctnPrd`. ESMA's revised
-RTS 23 adds field 6b, the venue of first admission, which only the primary venue
-will populate; it would be direct evidence for the primary listing. The current
-files do not carry it; the fingerprint reports it as a new field when they do.
+The [FIRDS source record](../../docs/sources/firds.md) lists every field the
+adapter reads: its official definition with citations, its claim meaning, its
+measured behaviour and its odd cases with their counters.
 
 ### Drift fingerprint
 
 `drift.py` records, per build, what a source delivered: every element path and
 how many records carry it, the values of categorical fields (for FIRDS: CFI
-category, segment MIC, notional currency, field 8), and named counts
-(placeholders, identifiers with two values of a single-valued field). The build
+category, segment MIC, notional currency, field 8, and field 8 per segment),
+and named counts (placeholders, malformed identifiers, withdrawn currencies,
+identifiers with two values of a single-valued field). The build
 compares it with the previous claims file's and reports, with examples:
 
 - a new or missing element, and a presence rate that moved by 5 points or more;
@@ -239,9 +213,7 @@ compares it with the previous claims file's and reports, with examples:
 These are alarms to review and never block. A `break` is a change the adapter
 cannot absorb: no records, or a field it reads that the source stopped sending.
 A break stops the build before the snapshot is written (`--no-gates` writes it
-anyway) and fails `just reference-audit`. Against the files of 2026-09-19 the
-fingerprint raised one alarm: Hanover's `HANB` segment grew from 4,336 to 8,305
-records.
+anyway) and fails `just reference-audit`.
 
 ## Identity truth set and audit
 

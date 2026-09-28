@@ -54,6 +54,16 @@ class FirdsAdapterTest(unittest.TestCase):
                          "a missing field 8 is absence, not false")
         self.assertEqual((fingerprint.metrics["termination_placeholder"], fingerprint.metrics["underlying_placeholder"]), (1, 1))
 
+    def test_malformed_identifiers_and_withdrawn_currencies_are_counted_not_coerced(self):
+        fingerprint = drift.Fingerprint(firds.SOURCE)
+        found = admissions(fulins([
+            firds_record("NL0000000002", "XAMS", "NOT-AN-LEI", currency="BGN"),  # check digit wrong; lev withdrawn in 2026
+            firds_record(ASML_ISIN, "XAMS", ASML_LEI),
+        ]), fingerprint)
+        self.assertEqual(len(found), 2, "kept as reported")
+        self.assertEqual({k: fingerprint.metrics[k] for k in ("malformed_isin", "malformed_issuer_lei", "withdrawn_notional_currency")},
+                         {"malformed_isin": 1, "malformed_issuer_lei": 1, "withdrawn_notional_currency": 1})
+
     def test_store_refuses_an_unknown_meaning_or_a_field_read_two_ways(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = claims.ClaimStore(Path(tmp) / "claims-x.sqlite3")

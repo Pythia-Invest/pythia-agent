@@ -32,7 +32,7 @@ OUTCOME = {
     ("issuer", "firds_leis_disagree"): ("conflict", "issuer_identity"),
     ("issuer", "venue_operator_lei_of_reporting_venue"): ("unknown", "issuer_identity"),
     ("issuer", "venue_operator_lei_of_other_venue"): ("unknown", "issuer_identity"),
-    ("issuer", "today_differs"): ("decided", None),
+    ("issuer", "today_differs"): ("conflict", "issuer_identity"),
     ("primary", "none_today_issuer_requested"): ("decided", None),
     ("primary", "co_primary_requested_in_several_countries"): ("co_primary", None),
     ("primary", "contradicted_issuer_requested_another"): ("conflict", "home_market"),
@@ -46,7 +46,7 @@ OUTCOME = {
     ("receipt_underlying", "no_firds_underlying"): ("unknown", "receipt_underlying"),
     ("receipt_underlying", "firds_underlyings_disagree"): ("conflict", "receipt_underlying"),
     ("receipt_underlying", "today_missing"): ("decided", None),
-    ("receipt_underlying", "today_differs"): ("decided", None),
+    ("receipt_underlying", "today_differs"): ("conflict", "receipt_underlying"),
     ("receipt_underlying", "stated_for_a_non_receipt"): ("decided", None),
 }
 INSTRUMENT = ("instrument_full_name", "cfi", "issuer_or_venue_operator_lei", "notional_currency", "underlying_isin",
@@ -319,7 +319,8 @@ def report(store, snap: Snapshot, venues: dict[str, Venue], as_of: str, fingerpr
     store.diff(rows)
     alarms = drift.compare(previous, fingerprint, READ_PATHS)
     found = {"claims": store.count(), "quirks": quirks(claims, index, as_of), "diff": summary, "alarms": alarms,
-             "metrics": fingerprint.get("metrics", {})}
+             "metrics": fingerprint.get("metrics", {}),
+             "fingerprint": {key: value for key, value in fingerprint.items() if key != "examples"}}
     store.put("reports", SOURCE, found)
     return found
 
