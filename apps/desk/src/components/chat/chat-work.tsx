@@ -14,7 +14,6 @@ import { useChatReading } from "@/client/use-chat-attention";
 import { workRevision, workState } from "@/client/work-state";
 import type { WorkAgent } from "@/work/types";
 import { AgentDirectory } from "./agent-panel";
-import { agentFinished } from "./agent-presentation";
 import { AgentDetail } from "./agent-work";
 import type { ConversationPosition } from "./conversation";
 import { TurnWork } from "./turn-work";
@@ -39,7 +38,6 @@ export function ChatWork({
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [atLatest, setAtLatest] = useState(true);
   const [agentsWorking, setAgentsWorking] = useState(false);
-  const [agentsUnconfirmed, setAgentsUnconfirmed] = useState(false);
   const [selected, setSelected] = useState<{
     agent: WorkAgent;
     position: ConversationPosition;
@@ -51,17 +49,13 @@ export function ChatWork({
     following: true,
   });
   const positions = useRef(new Map<string, ConversationPosition>());
-  // Watch native work closely while anything is moving: the run, its
-  // agents, or a list or conversation someone is reading. An agent whose
-  // outcome is unconfirmed is checked on slowly until its session ends.
+  // Watch native work while anything is moving: the run, its agents (which
+  // keep working in the background after the run ends), or a list or
+  // conversation someone is reading.
   const query = useWork(
     sessionId,
     workRevision(messages, busy),
-    busy || agentsWorking || agentsOpen || selected
-      ? "live"
-      : agentsUnconfirmed
-        ? "idle"
-        : false,
+    busy || agentsWorking || agentsOpen || Boolean(selected),
   );
   const state = useMemo(
     () => workState(query.data?.pages ?? [], messages, busy),
@@ -69,7 +63,6 @@ export function ChatWork({
   );
   useEffect(() => {
     setAgentsWorking(state.agents.some((agent) => agent.status === "running"));
-    setAgentsUnconfirmed(state.agents.some((agent) => !agentFinished(agent)));
   }, [state.agents]);
   const agent =
     state.agents.find((a) => a.id === selected?.agent.id) ?? selected?.agent;

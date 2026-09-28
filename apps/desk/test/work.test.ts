@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { projectWork, readAgent, readWork } from "@/server/work";
+import { agentStatus, projectWork, readAgent, readWork } from "@/server/work";
 import { workState, planRows, mergeObservedWork } from "@/client/work-state";
 import { RunEventMapper } from "@/client/hermes-run-mapper";
 import { activityTurn } from "@/components/chat/turn-model";
@@ -186,6 +186,50 @@ describe("native work projection", () => {
       },
     ]);
     expect(result.historyMore).toBe(true);
+  });
+
+  it("reads an unended child as working while Hermes shows its activity", () => {
+    const now = 10_000;
+    expect(agentStatus({ ended_at: 9_000, last_active: 9_999 }, now)).toBe(
+      "ended",
+    );
+    expect(agentStatus({ last_active: now - 60 }, now)).toBe("running");
+    expect(agentStatus({ last_active: now - 1_200 }, now)).toBe("running");
+    // Past Hermes's own stall threshold, working and abandoned look alike.
+    expect(agentStatus({ last_active: now - 1_201 }, now)).toBe("unknown");
+    expect(agentStatus({}, now)).toBe("unknown");
+  });
+
+  it("lets the saved session speak once a child's start event is stale", () => {
+    const page = (status: "running" | "ended" | "unknown"): WorkPage => ({
+      plans: [],
+      assignments: [],
+      offset: 0,
+      historyMore: false,
+      agentsMore: false,
+      agents: [{ id: "child", sessionId: "child", goal: "Check", status }],
+    });
+    const started: DeskUIMessage[] = [
+      {
+        id: "turn",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agent",
+            id: "agent:child",
+            data: { id: "child", goal: "Check", status: "running" },
+          },
+        ],
+      },
+    ];
+    const status = (saved: "running" | "ended" | "unknown", busy: boolean) =>
+      workState([page(saved)], started, busy).agents[0]?.status;
+    // A background child keeps working after the parent's run has ended.
+    expect(status("running", false)).toBe("running");
+    expect(status("ended", false)).toBe("ended");
+    expect(status("unknown", false)).toBe("unknown");
+    expect(status("unknown", true)).toBe("running");
+    expect(workState([], started, false).agents[0]?.status).toBe("unknown");
   });
 
   it("rejects an unrelated child before reading any transcript", async () => {

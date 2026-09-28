@@ -6,6 +6,7 @@ import {
 import type {
   PlanItem,
   PlanSnapshot,
+  WorkAgent,
   WorkAssignment,
   WorkPage,
 } from "@/work/types";
@@ -110,10 +111,29 @@ export async function readWork(
         sessionId: s.id,
         goal: s.preview || "Research agent",
         ...(s.title ? { title: s.title } : {}),
-        status: s.ended_at ? "ended" : "unknown",
+        status: agentStatus(s),
         ...(s.model ? { model: s.model } : {}),
       })),
   };
+}
+
+/**
+ * A child session Hermes has not ended is working while it shows activity.
+ * `last_active` includes Hermes's mid-turn heartbeat
+ * (hermes_state_common.py:_sql_session_last_active), and Hermes itself treats
+ * a child as stalled after at most 1200s without progress
+ * (tools/delegate_tool.py:_HEARTBEAT_STALE_CYCLES_IN_TOOL). Past that, Desk
+ * cannot tell working from abandoned and says so.
+ */
+export const AGENT_STALE_SECONDS = 1200;
+export function agentStatus(
+  session: { ended_at?: number | null; last_active?: number | null },
+  now = Date.now() / 1000,
+): WorkAgent["status"] {
+  if (session.ended_at) return "ended";
+  return session.last_active && now - session.last_active <= AGENT_STALE_SECONDS
+    ? "running"
+    : "unknown";
 }
 
 export async function readAgent(

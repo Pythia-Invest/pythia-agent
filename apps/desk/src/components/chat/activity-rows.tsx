@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Circle,
   CircleAlert,
+  CircleDashed,
   CircleDot,
   Copy,
   LoaderCircle,
@@ -32,7 +33,7 @@ export function AgentMark({ status }: { status: WorkAgent["status"] }) {
         : status === "stopped"
           ? Square
           : status === "unknown"
-            ? Circle
+            ? CircleDashed
             : Check;
   return (
     <Icon

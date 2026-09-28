@@ -72,17 +72,22 @@ export function workState(
       if (part.type !== "data-agent") continue;
       const live = part.data;
       const saved = agents.get(live.id);
-      const running = live.status === "running";
+      const streaming = busy && message === messages.at(-1);
       agents.set(live.id, {
         ...saved,
         ...live,
-        // A parent ending proves nothing about a child's result.
+        // An explicit outcome from the stream wins. A "started" event only
+        // lasts while its stream does: after that the saved session speaks
+        // (background children rarely report back on the parent's stream),
+        // and without one a parent ending proves nothing about the child.
         status:
-          running && saved?.status === "ended"
-            ? "ended"
-            : running && (!busy || message !== messages.at(-1))
-              ? "unknown"
-              : live.status,
+          live.status !== "running"
+            ? live.status
+            : saved?.status === "ended"
+              ? "ended"
+              : streaming
+                ? "running"
+                : (saved?.status ?? "unknown"),
       });
     }
   return {
