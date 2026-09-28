@@ -158,12 +158,16 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
 def issuer_lei(claims: Claims, venues: Venues, entities: dict[str, GleifEntity], isin: str) -> str | None:
     """RTS 23 field 5 names the issuer or the trading venue operator. Its one LEI is the issuer unless ISO 10383
     lists it for a venue's operating entity; then it is the issuer only when GLEIF registers that entity in the
-    ISIN's country (a bank's or exchange's own share), and otherwise unknown, with a question."""
-    leis = claims.isins.get(isin, {}).get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
+    ISIN's country (a bank's or exchange's own share; for a receipt, field 5 is the underlying issuer's LEI, so
+    the underlying's ISIN, ESMA Q&A 1503), and otherwise unknown, with a question."""
+    values = claims.isins.get(isin, {})
+    leis = values.get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
     lei = next(iter(leis)) if len(leis) == 1 else None
     if lei and venues.operated.get(lei):
+        underlying = sorted(values.get(Meaning.UNDERLYING_ISIN, set()) - {isin})
+        home = (underlying[0] if underlying and len(underlying) == 1 else isin)[:2]
         entity = entities.get(lei)
-        return lei if entity and entity.country == isin[:2] else None
+        return lei if entity and entity.country == home else None
     return lei
 
 
