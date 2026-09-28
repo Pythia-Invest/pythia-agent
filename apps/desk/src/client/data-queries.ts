@@ -102,6 +102,17 @@ export function useDataQueries<T>(specifications: DataQuery<T>[]) {
       },
     })),
   });
+  // Demand is handed over: a changed spec list registers its watches before
+  // the previous ones are released, so a resource in both keeps its
+  // publication instead of being re-read (a period or view switch).
+  const held = useRef<(() => void)[]>([]);
+  useEffect(
+    () => () => {
+      for (const stop of held.current) stop();
+      held.current = [];
+    },
+    [updates],
+  );
   useEffect(() => {
     for (const spec of latest.current) {
       if (spec.enabled && !updates.hasPublication(spec.resource)) {
@@ -186,9 +197,9 @@ export function useDataQueries<T>(specifications: DataQuery<T>[]) {
             }
           }),
     );
-    return () => {
-      for (const stop of stops) stop();
-    };
+    const previous = held.current;
+    held.current = stops;
+    for (const stop of previous) stop();
   }, [signature, client, updates]);
   return queries.map((query, index) => {
     const spec = specifications[index];
