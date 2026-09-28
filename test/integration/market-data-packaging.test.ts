@@ -86,6 +86,20 @@ function fixture(profile = "fixture") {
 }
 
 describe("native market-data lifecycle payload", () => {
+  it("copies every Python module a managed plugin imports", () => {
+    // A module left out of the list breaks the plugin's import in a profile.
+    for (const { source, name, files } of MANAGED_PLUGINS) {
+      const modules = readdirSync(join(repository, "runtime/managed", source), {
+        recursive: true,
+      })
+        .map(String)
+        .filter(
+          (path) => path.endsWith(".py") && !path.includes("__pycache__"),
+        );
+      expect(files, name).toEqual(expect.arrayContaining(modules));
+    }
+  });
+
   it("copies allowlisted nested inputs and preserves native choices and plugin state", () => {
     const paths = fixture("profile with spaces");
     const config = `plugins:
