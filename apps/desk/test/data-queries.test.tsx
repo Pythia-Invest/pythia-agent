@@ -54,18 +54,17 @@ test("a resource kept across a spec change keeps its data; unmount releases dema
   const client = new QueryClient();
   const root = createRoot(document.createElement("div"));
   // Updates arrive from the data channel's own timers, outside act().
-  const render = async (specs: DataQuery<unknown>[]) => {
+  const render = (specs: DataQuery<unknown>[]) =>
     root.render(
       <QueryClientProvider client={client}>
         <Probe specs={specs} />
       </QueryClientProvider>,
     );
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  };
-  await render([query("A")]);
-  expect(seen.at(-1)).toEqual(["A"]);
+  render([query("A")]);
+  await vi.waitFor(() => expect(seen.at(-1)).toEqual(["A"]));
   const before = seen.length;
-  await render([query("B"), query("A")]);
+  render([query("B"), query("A")]);
+  await vi.waitFor(() => expect(seen.at(-1)).toEqual(["B", "A"]));
   // A never went back to loading while B was added.
   expect(seen.slice(before).every((data) => data[1] === "A")).toBe(true);
   expect(dataUpdates(api).hasPublication(resource("A"))).toBe(true);

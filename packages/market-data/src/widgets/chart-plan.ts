@@ -183,7 +183,8 @@ export function chartPlan(
       continue;
     }
     const start = periodStart(period, now);
-    const least = start === undefined ? 0 : Math.floor((now - start) / DAY) + 1;
+    // Whole days since the period's start: 365, or 366 across a Feb 29.
+    const least = start === undefined ? 0 : Math.floor((now - start) / DAY);
     const needed = start === undefined ? 0 : least + 13;
     const long = period === "5Y" || period === "MAX" ? weekly : undefined;
     const series = long && covers(long, least) ? long : daily;

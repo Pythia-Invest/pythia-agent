@@ -83,14 +83,15 @@ function compressed(groups: Point[][], bar: number) {
 const HOUR = 3_600_000;
 
 /** Sessions by the exchange's local date when its zone is known; otherwise
- * split where the data pauses (longer than an hour or four bars). */
+ * split where the data pauses (longer than three hours or four bars). */
 function sessions(
   list: readonly Point[],
   zone: string | undefined,
   bar: number,
 ) {
   const groups: Point[][] = [];
-  const pause = Math.max(4 * bar, HOUR);
+  // Long enough that a midday break (Tokyo, Hong Kong) stays one session.
+  const pause = Math.max(4 * bar, 3 * HOUR);
   let key: string | undefined;
   let previous: Point | undefined;
   for (const p of list) {
@@ -256,7 +257,10 @@ export function periodPath(
   if (clock && !daily) {
     // Continuous markets have no closed time: elapsed time, rolling window.
     const days = period === "1D" ? 1 : period === "5D" ? 5 : 30;
-    const window = { start: now - days * DAY, end: now };
+    // A market closed for the weekend (FX, futures) ends at its last trade.
+    const latest = all.at(-1)?.time ?? now;
+    const end = now - latest > 3 * HOUR ? latest : now;
+    const window = { start: end - days * DAY, end };
     const inside = all.filter(
       (p) => p.time >= window.start && p.time <= window.end,
     );

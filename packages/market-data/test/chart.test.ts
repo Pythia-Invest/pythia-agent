@@ -327,4 +327,50 @@ describe("drawing budget and missing schedules", () => {
     expect(path?.window).toEqual({ start: now - 86_400_000, end: now });
     expect(path?.points.length).toBeGreaterThan(280);
   });
+
+  it("keeps EODHD's year across a leap day", () => {
+    const eodhd = [declared("d1", { kind: "day", count: 1 }, 366)];
+    for (const at of ["2028-09-28T10:00:00Z", "2028-03-01T10:00:00Z"])
+      expect(chartPlan(eodhd, Date.parse(at)).reads.get("1Y")).toBeDefined();
+  });
+
+  it("ends a weekend market's 24 hours at its last trade", () => {
+    const series = declared("m2", { kind: "minute", count: 2 }, 60);
+    // Trades from Monday 22:00 to Friday 21:58 UTC; it is now Sunday.
+    const start = Date.parse("2026-09-20T22:00:00Z");
+    const end = Date.parse("2026-09-25T21:58:00Z");
+    const times = Array.from({ length: (end - start) / 120_000 + 1 }, (_, i) =>
+      new Date(start + i * 120_000).toISOString(),
+    );
+    const path = periodPath(
+      "1D",
+      read(series, times),
+      undefined,
+      false,
+      Date.parse("2026-09-27T12:00:00Z"),
+    ).path;
+    expect(path?.window?.end).toBe(end);
+    expect(path?.points.length).toBeGreaterThan(700);
+  });
+
+  it("keeps a midday break inside one session", () => {
+    const series = declared("m5", { kind: "minute", count: 5 }, 60);
+    const times = [
+      "2026-09-25T00:00:00Z",
+      "2026-09-25T05:55:00Z",
+      "2026-09-28T00:00:00Z",
+      "2026-09-28T02:25:00Z",
+      // One-hour lunch break, then the afternoon.
+      "2026-09-28T03:30:00Z",
+      "2026-09-28T04:30:00Z",
+    ];
+    const path = periodPath(
+      "1D",
+      read(series, times),
+      undefined,
+      false,
+      Date.parse("2026-09-28T04:31:00Z"),
+    ).path;
+    expect(path?.points.map((p) => p.value)).toEqual([102, 103, 104, 105]);
+  });
 });

@@ -22,8 +22,10 @@ pre-market. The page needs that design at page scale, plus longer periods.
     pre-market.
   - Markets that trade around the clock show the past 24 hours.
   - Without a schedule, the chart shows the last session found in the data,
-    split where trading pauses. A running session is never stretched to fill
-    the width.
+    split where trading pauses for more than three hours, so a midday break
+    stays inside its session. A running session is never stretched to fill
+    the width. A round-the-clock market closed for the weekend ends its 24
+    hours at its last trade.
 - **Multi-day views (5D and longer) compress closed-market time.**
   - Regular sessions join into one continuous line and fill. Jumps at the
     open are expected.
@@ -34,13 +36,13 @@ pre-market. The page needs that design at page scale, plus longer periods.
     labelled where trading resumes.
 - **Bar size per period**, chosen from the series each source declares, aims
   at 200–800 points:
-  - 1D: 2-minute bars (1-minute where available);
+  - 1D: 2-minute bars, then 1-minute where 2-minute bars are not declared;
   - 5D: 5-minute bars;
   - 1M: 30-minute bars;
   - 6M, YTD and 1Y: daily bars;
   - 5Y and Max: weekly bars.
-  - Reads use the source's declared maximum span. A shorter span is used when
-    it still covers the period.
+  - Each read uses the period's preferred lookback, capped at the declared
+    span. A shorter span is used when it still covers the period.
   - A period that no declared series covers explains why instead of showing a
     different window.
 - **At most 800 points are drawn.** Larger results are downsampled with the
