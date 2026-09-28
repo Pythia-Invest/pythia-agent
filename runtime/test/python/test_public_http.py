@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
-from test_market_data_identity import PACKAGE
+from market_data_fixture import PACKAGE
 
 http = importlib.import_module(PACKAGE + '.public_http')
 governor = importlib.import_module(PACKAGE + '.governor')

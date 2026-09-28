@@ -6,7 +6,7 @@ import importlib
 from threading import Event
 import unittest
 
-from test_market_data_identity import PACKAGE, PLATFORM
+from market_data_fixture import PACKAGE, PLATFORM
 
 cache = importlib.import_module(PACKAGE + '.cache')
 context = importlib.import_module(PLATFORM + '.request_context')

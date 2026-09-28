@@ -15,7 +15,10 @@ function input(id: string): ReadInput {
   const request = fixture().request;
   request.view = {
     kind: "pythia",
-    subject: { kind: "crypto", id: `crypto:${id}` },
+    subject: {
+      kind: "security",
+      id: `security:provisional:fictional:coin:${id}`,
+    },
   };
   return { request, criteria: { measurement: "aggregate_price" } };
 }

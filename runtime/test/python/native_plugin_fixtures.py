@@ -7,7 +7,7 @@ Native discovery and ownership are exercised separately by assembled qualificati
 import sys
 from types import ModuleType, SimpleNamespace
 
-from test_market_data_identity import platform_module
+from market_data_fixture import platform_module
 
 
 def bind_feature_platform(package):

@@ -6,7 +6,6 @@ and /coins/{id}/market_chart, checked 2026-09-25. Coin IDs, symbols and
 addresses below are invented.
 """
 from contextlib import contextmanager
-import copy
 import importlib
 import importlib.util
 import io
@@ -23,7 +22,7 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
 from native_plugin_fixtures import Context
-from test_market_data_identity import PACKAGE
+from market_data_fixture import PACKAGE
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed'
 package = types.ModuleType('test_cg')
@@ -37,7 +36,6 @@ config = importlib.import_module('test_cg.config')
 dashboard = importlib.import_module('test_cg.dashboard')
 wire = importlib.import_module(PACKAGE + '.wire')
 failures = importlib.import_module(PACKAGE + '.connector')
-store = importlib.import_module(PACKAGE + '.identity')
 spec = importlib.util.spec_from_file_location('cg_worker', ROOT / 'runner/coingecko/main.py')
 worker = importlib.util.module_from_spec(spec); spec.loader.exec_module(worker)
 NATIVE = {'provider': 'coingecko', 'native_scope': 'coin', 'native_id': 'synthetic-coin'}
@@ -358,21 +356,11 @@ class Provider(unittest.TestCase):
             self.assertNotIn('SYNTHETIC', json.dumps(result))
             error.close()
 
-    def test_native_crypto_identity_and_network_evidence_do_not_merge_coins(self):
+    def test_network_evidence_keeps_each_coin_and_network_distinct(self):
         one = identity.candidate({'id':'synthetic-coin','name':'Same','symbol':'same','platforms': {'ethereum':'0xAbC','solana':'0xAbC','':''}}, True)
-        two = identity.candidate({'id':'other-coin','name':'Same','symbol':'same','platforms': {'ethereum':'0xAbC'}}, True)
-        for candidate in (one, two):
-            for evidence in candidate['evidence']: wire.validate('evidence', evidence)
-        with tempfile.TemporaryDirectory() as root:
-            db = store.IdentityStore(root)
-            a = db.save(one['provider_ref'], 'crypto', db.ingest(one['provider_ref'], one['evidence']))
-            b = db.save(two['provider_ref'], 'crypto', db.ingest(two['provider_ref'], two['evidence']))
-            self.assertEqual(a['mapping']['status'], 'confirmed')
-            self.assertNotEqual(a['mapping']['target'], b['mapping']['target'])
-            self.assertEqual(len(db.bindings(a['mapping']['target'])['mappings']), 1)
-            query = copy.deepcopy(one['evidence']); query[0]['authority'] = 'query_only'
-            db.refresh(a['mapping']['id'], db.ingest(one['provider_ref'], [{**e,'id':e['id']+'-query'} for e in query]))
-            self.assertEqual(db.bindings(a['mapping']['target'])['mappings'], [])
+        for evidence in one['evidence']: wire.validate('evidence', evidence)
+        contracts = [e['qualifiers']['network'] for e in one['evidence'] if e['scheme'] == 'contract_address']
+        self.assertEqual(len(contracts), len(set(contracts)))
 
     def test_stable_selectors_windows_and_actual_shapes(self):
         now = datetime.now(timezone.utc)
