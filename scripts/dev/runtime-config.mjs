@@ -9,6 +9,10 @@ import {
 } from "./files.mjs";
 import { runtimeEnvironment } from "./environment.mjs";
 import { run } from "./runtime-source.mjs";
+import {
+  inheritCustomProvider,
+  validateSharedEndpoint,
+} from "./runtime-provider-defaults.mjs";
 
 export function runtimeCommands(paths) {
   const hermes = join(paths.hermesSource, ".venv", "bin", "hermes");
@@ -177,14 +181,28 @@ export function inheritModelDefaults(
     if (typeof value !== "string")
       throw new Error("Shared model selection must use native string fields.");
     if (key === "base_url") {
-      const url = new URL(value);
-      if (url.username || url.password || url.search || url.hash)
-        throw new Error(
-          "Shared model endpoint must not contain credentials, query parameters or fragments.",
-        );
+      validateSharedEndpoint(value);
     }
     selection[key] = value;
   }
+  const read = (profile, key, missing) => {
+    try {
+      return JSON.parse(
+        execute(paths, ["-p", profile, "config", "get", key, "--json"], apiKey),
+      );
+    } catch (error) {
+      if (
+        missing !== undefined &&
+        error instanceof Error &&
+        error.message.includes(`Config key not set: ${key}`)
+      )
+        return missing;
+      throw error;
+    }
+  };
+  inheritCustomProvider(selection, paths.profile, read, (profile, key, value) =>
+    execute(paths, ["-p", profile, "config", "set", key, value], apiKey),
+  );
   // Upstream treats bare `model` as string-typed even for a JSON object.
   // Dotted native setters create the mapping without writing YAML ourselves.
   for (const [key, value] of Object.entries(selection)) {
