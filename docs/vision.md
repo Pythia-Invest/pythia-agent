@@ -240,9 +240,9 @@ installation keeps working offline.
 
 - **Pythia owns its domain engine and its state:** subjects and sources,
   mandates and guard, the ledger, portfolio, jobs, order tickets and approvals.
-  Its stores live in Pythia's own data directory. Today the identity store,
-  reference packages and document cache still live in Hermes's plugin data
-  directory; moving them is roadmap stage 0.
+  Its stores live in Pythia's own data directory: the identity store and
+  reference packages in `<data>/store`, and the document cache in Pythia's
+  cache directory.
 - **An agent harness runs agent turns.** Today this is Hermes. The goal is a
   single adapter, which keeps the harness replaceable, and plugins that use a
   small, versioned Pythia platform interface and never import harness

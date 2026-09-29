@@ -160,7 +160,12 @@ export function uninstall(paths, { purge = false, actions = {} } = {}) {
   safeRemove(paths.runtimeRoot, paths.dataRoot, "runtime");
   if (existsSync(paths.installFile)) rmSync(paths.installFile);
   if (existsSync(paths.runtimeReceipt)) rmSync(paths.runtimeReceipt);
-  const retained = [paths.checkout, paths.workspace, paths.knowledge];
+  const retained = [
+    paths.checkout,
+    paths.workspace,
+    paths.knowledge,
+    paths.store,
+  ];
   if (purge) {
     safeRemove(paths.configRoot, dirname(paths.configRoot), "pythia");
     safeRemove(paths.stateRoot, dirname(paths.stateRoot), "pythia");

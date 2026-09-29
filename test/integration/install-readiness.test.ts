@@ -532,17 +532,19 @@ describe("installed readiness and recovery", () => {
     expect(existsSync(paths.configRoot)).toBe(true);
   });
 
-  it("purges config, state, and cache but retains authoritative Markdown", () => {
+  it("purges config, state, and cache but retains authoritative Markdown and the store", () => {
     const { paths } = fixture();
     for (const path of [
       paths.configRoot,
       paths.stateRoot,
       paths.cacheRoot,
       paths.knowledge,
+      paths.store,
     ]) {
       mkdirSync(path, { recursive: true, mode: 0o700 });
     }
     writeFileSync(join(paths.knowledge, "case.md"), "Keep me\n");
+    writeFileSync(join(paths.store, "identity.sqlite3"), "The answers\n");
     const result = uninstall(paths, {
       purge: true,
       actions: {
@@ -562,5 +564,10 @@ describe("installed readiness and recovery", () => {
     expect(readFileSync(join(paths.knowledge, "case.md"), "utf8")).toBe(
       "Keep me\n",
     );
+    // The investor's identity answers stay, like the workspace (ADR 0034).
+    expect(readFileSync(join(paths.store, "identity.sqlite3"), "utf8")).toBe(
+      "The answers\n",
+    );
+    expect(result.retained).toContain(paths.store);
   });
 });

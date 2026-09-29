@@ -228,9 +228,10 @@ may require a new Hermes session; it does not require a source refresh.
 Managed plugins are refreshed by copy, not symlink. Profile/SOUL/workspace seeds
 are installed only in the first profile-initialization
 transaction and are preserved thereafter. `just dev-reset` removes this
-worktree's process/test state and fetch caches; it does not remove ownership
-receipts, the shared Hermes credential root, profile, workspace or retained
-legacy Markdown knowledge. If first profile
+worktree's process/test state and caches, including fetched downloads and the
+document cache; it does not remove ownership receipts, the shared Hermes
+credential root, profile, workspace, Pythia's store or retained legacy Markdown
+knowledge. If first profile
 initialization is interrupted, Pythia refuses to adopt the partial scaffold.
 `just dev-init-recover` accepts only the matching incomplete transaction
 receipt and removes only that named partial profile before a clean retry.
@@ -239,9 +240,13 @@ appears, so that case fails closed for manual inspection instead of deleting it.
 
 ## Reference data
 
-Search and instrument pages read the reference package installed for the
-stack, never the builder's output folder
-([reference packages](architecture/reference-package.md)). `just dev-init`,
+Search and instrument pages read the reference package installed in the
+stack's store, `<data>/store/reference/`, never the builder's output folder
+([reference packages](architecture/reference-package.md)). The store is per
+worktree (`just dev-paths` prints its data root), and core finds it through
+`PYTHIA_DATA_ROOT`. A store from before the move to `<data>/store` is moved
+there the first time the stack uses it; the old identity file stays behind as
+`identity.moved.sqlite3`. `just dev-init`,
 `just dev` and `just dev-refresh` install this checkout's
 `.local/reference-builder/out/` package when there is one; set
 `PYTHIA_DEV_REFERENCE_PACKAGE` to use another package directory. To install

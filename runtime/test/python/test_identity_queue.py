@@ -246,7 +246,7 @@ class TransportTest(QueueFixture):
         from pythia_core_queue_fixture import identity_ops, queue_ops
         from pythia_core_queue_fixture.platform import request_context
         reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.tmp.name) / "core")
         item = self.ask(answer(), subject=self.bare())
         arguments = {"item_id": item.id, "relation": "same_listing", "chosen_id": ASML}
         with unittest.mock.patch.object(identity_ops, "installed", lambda: []):
@@ -272,7 +272,7 @@ class SubjectOperationTest(QueueFixture):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops
         reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.tmp.name) / "core")
         with unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("yahoo"), plugin("eodhd")]), \
                 unittest.mock.patch.object(identity_ops.Identity, "order", lambda _self: ("pythia-eodhd", "unknown")):
             routed = ops.price_sources(ASML)
@@ -285,7 +285,7 @@ class SubjectOperationTest(QueueFixture):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops
         reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.tmp.name) / "core")
         mirror = {**CONTRACTS["eodhd"], "plugin": "mirror", "provider": "mirror",
                   "addressing": {**CONTRACTS["eodhd"]["addressing"],
                                  "native": [{"native_scope": "catalogue", "level": "listing", "asset_classes": ["equity"]}]}}
@@ -311,7 +311,7 @@ class SubjectOperationTest(QueueFixture):
         core = load_core()
         from pythia_core_queue_fixture import concept_ops, identity_ops
         reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.tmp.name) / "core")
         reads = concept_ops.ConceptReads(ops)
         reads.eligible = lambda: None
         registry = types.SimpleNamespace(dispatch=lambda *_a, **_k: json.dumps(FilingsMergeTest().xbrl()),
@@ -353,7 +353,7 @@ class SubjectOperationTest(QueueFixture):
                        " retrieved_at) VALUES ('ev:class', 'share_class_of', ?, 'security:isin:NL0010273215', 'curated',"
                        " 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')", (other,))
         reference_package.install(make_package(Path(self.tmp.name) / "out", source=path), Path(self.tmp.name) / "core")
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.tmp.name) / "core")
         with unittest.mock.patch.object(identity_ops, "installed", lambda: []):
             view = json.loads(ops.subject({"subject_id": ASML}))["data"]
             status = json.loads(ops.reference_status({}))

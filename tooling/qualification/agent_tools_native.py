@@ -149,7 +149,8 @@ def main() -> int:
         (home / "config.yaml").write_text(seed)
         # The Yahoo worker's availability check only needs its built file and a node path; nothing runs it here.
         environment = {"PATH": os.environ.get("PATH", ""), "HOME": str(root), "HERMES_HOME": str(home),
-                       "PYTHIA_CONFIG_ROOT": str(config), "HERMES_SOURCE": str(options.hermes_source),
+                       "PYTHIA_CONFIG_ROOT": str(config), "PYTHIA_DATA_ROOT": str(root), "PYTHIA_CACHE_ROOT": str(root),
+                       "HERMES_SOURCE": str(options.hermes_source),
                        "PYTHIA_MANAGED_ROOT": str(managed), "PYTHIA_NODE": shutil.which("node") or "",
                        "PROBE_QUERIES": json.dumps(list(QUERIES))}
         completed = subprocess.run([sys.executable, "-c", CHILD], cwd=options.hermes_source, env=environment,
