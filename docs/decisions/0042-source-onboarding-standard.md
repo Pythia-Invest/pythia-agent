@@ -195,3 +195,53 @@ rather than to a plugin's name. Reviewed answers over open data may ship as a
 Pythia-maintained answer list (ADR 0044, amendment A7). Gold labels on licensed
 data and raw model exchanges stay on the device. Further source audits are paused until a
 strategy's universe or a second user needs them.
+
+## Amendment (2026-09-29): builder rules name kinds of evidence
+
+**Context.** [ADR 0044](0044-product-direction.md) A2 requires rules that name
+kinds of evidence and trust levels, never sources, and that are published,
+versioned and overridable locally. The reference builder's rules tested
+source names in ten places: only FIRDS securities had their primary decided
+and questions asked, OpenFIGI's lines counted as evidence outside the EEA,
+SEC securities took their first US exchange line as primary, and a stated
+receipt underlying was checked only when FIRDS stated it. The rules version
+had stayed at 1 through many rule changes.
+
+**Ruling.**
+
+- Every row the builder assembles carries the kind of evidence it rests on:
+  an admission register (FIRDS), a listing directory (OpenFIGI's
+  home-exchange lines), a registrant filing (the SEC ticker and fund files)
+  and, on a receipt edge, a stated underlying. Rules test the kind. A
+  source's name is provenance only, so a second source of the same kind
+  decides alike.
+- An onboarded source's adapter sets the kind on each row it creates. A new
+  kind is a rule change, reviewed like one.
+- `just check` fails when a builder module other than its adapters and
+  audits, or a core identity module, compares a field named source, plugin or
+  provider with a literal. A test renames every source and expects the same
+  decisions. Core's list of bundled plugins (`BUNDLED`) is still trust by
+  name; it stays until trust follows a hashed release, later in roadmap
+  stage 0.
+- The builder version is the rules version. It is recorded on every
+  assertion, in `package.json` and in the release table. Every rule change
+  bumps it with a line in the builder README's "Rules versions".
+- "Overridable locally" means open rules the user can change and rebuild, and
+  the user's own verdicts on the device. There is no rule-override
+  configuration.
+
+**Rationale.** A rule keyed on a source's name gives that source authority by
+name, which A2 and A4 remove. The same rule keyed on the kind of evidence
+keeps its meaning when a source is replaced or joined by another of its kind.
+
+**Consequences.** On the 2026-09-28 build the change of names alone decides
+nothing differently. Where no rule decides, the builder now leaves the
+disagreement open: identifier links that conflict become `issuer_identity`
+questions instead of a winner by CIK order. Trust levels still come from the
+builder's `snapshot` authority until trust follows a hashed release.
+
+**Rejected alternatives.**
+
+- A per-source trust table inside the builder: trust by name again.
+- A second rules-version constant beside the builder version: two numbers to
+  keep in step.

@@ -41,6 +41,12 @@ def entity_from_api(record: dict) -> GleifEntity:
     )
 
 
+def record_digest(entity: GleifEntity) -> str:
+    """A GLEIF record's digest, cited as evidence (`record:<digest>`): of the fields the build reads, since the cache
+    keeps no source bytes."""
+    return hashlib.blake2b(json.dumps(_entity_to_json(entity), sort_keys=True).encode(), digest_size=8).hexdigest()
+
+
 def _entity_to_json(entity: GleifEntity) -> dict:
     data = dict(entity.__dict__)
     data["names"] = [list(n) for n in entity.names]

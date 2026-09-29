@@ -10,7 +10,7 @@ from .assemble import FigiMap, GleifFetch, Inputs, build_eu
 from .claims import Venues
 from .linking import build_sec
 from .receipts import link_receipts
-from .model import Snapshot, Venue
+from .model import Evidence, Snapshot, Venue
 
 
 def build_snapshot(inputs: Inputs, gleif_fetch: GleifFetch, figi_map: FigiMap) -> Snapshot:
@@ -58,7 +58,7 @@ def summarise(snap: Snapshot) -> dict:
     """Numbers only: counts per rule outcome, no row data."""
     audit = {name: dict(sorted(counter.items())) for name, counter in snap.audit.items() if isinstance(counter, Counter)}
     listings = list(snap.listings.values())
-    eu = [l for l in listings if l.source == "esma_firds"]
+    eu = [l for l in listings if l.evidence == Evidence.ADMISSION_REGISTER]
     audit["listings"] = {
         "by_source": dict(sorted(Counter(l.source for l in listings).items())),
         "by_status": dict(sorted(Counter(l.status for l in listings).items())),

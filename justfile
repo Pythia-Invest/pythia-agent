@@ -31,6 +31,7 @@ check:
     bash -n install.sh scripts/install/platform.sh scripts/install/preflight.sh
     node tooling/check-structure.mjs
     node tooling/check-boundaries.mjs
+    python3 tooling/reference-builder/check_names.py
     pnpm run check:types
     pnpm run check
     pnpm run build:runtime

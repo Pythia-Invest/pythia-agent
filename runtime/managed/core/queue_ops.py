@@ -16,7 +16,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from .identity import queue as questions
-from .identity import build_questions, reference_package, schemes, store
+from .identity import build_questions, location, reference_package, schemes, store
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -105,8 +105,9 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
         surface(identity, [str(arguments["subject_id"])])
     try:
         _path, ref = identity.reference()
-        if ref is None:
-            return _envelope("empty", None, issue=NO_REFERENCE)
+        if ref is None:  # an earlier store left beside this one is still worth saying (Repairs shows the notice)
+            earlier = location.both_present(identity.data_dir)
+            return _envelope("empty", {"notice": earlier} if earlier else None, issue=NO_REFERENCE)
         try:
             if arguments.get("item_id"):
                 view = questions.inspect(identity.store, ref, str(arguments["item_id"]))
@@ -117,6 +118,8 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
                                  if plugin else None, limit=limit, notice=not identity.reset_told,
                                  settled=arguments.get("settled") is True)
             identity.reset_told = identity.reset_told or "notice" in data
+            if "notice" not in data and (earlier := location.both_present(identity.data_dir)):
+                data["notice"] = earlier  # until the earlier copy is deleted by hand
         finally:
             ref.close()
     except (sqlite3.Error, OSError):

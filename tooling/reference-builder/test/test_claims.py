@@ -16,7 +16,7 @@ from reference_builder.config import BuildConfig, Scope
 from reference_builder.pipeline import build_snapshot
 from reference_builder.schema import identity
 
-from .fixtures import ASML_ISIN, ASML_LEI, MIC_CSV, FakeOpenFigi, firds_record, fulins, gleif_item, stream
+from .fixtures import ASML_ISIN, ASML_LEI, MIC_CSV, NN_ISIN, NN_LEI, FakeOpenFigi, firds_record, fulins, gleif_item, stream
 from .test_pipeline import OPENFIGI, SHELL_ISIN, SHELL_LEI, gleif_fetch
 
 OPERATOR_LEI = "529900OPERATORLEI001"  # illustrative: the LEI ISO 10383 lists for the Frankfurt open market
@@ -201,7 +201,9 @@ class BuildTest(unittest.TestCase):
                 mock.patch("urllib.request.urlopen", side_effect=AssertionError("network access in a test")):
             return main.run(config)
 
-    RECORDS = [firds_record(ASML_ISIN, "XAMS", ASML_LEI, name="ASML HOLDING"), firds_record(SHELL_ISIN, "XAMS", SHELL_LEI)]
+    # NN's share states ASML as its underlying (field 26): the build leaves that open as a question.
+    RECORDS = [firds_record(ASML_ISIN, "XAMS", ASML_LEI, name="ASML HOLDING"), firds_record(SHELL_ISIN, "XAMS", SHELL_LEI),
+               firds_record(NN_ISIN, "XAMS", NN_LEI, name="NN GROUP", underlying=ASML_ISIN)]
 
     def test_the_package_carries_the_questions_and_a_firds_break_stops_the_build(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -215,9 +217,10 @@ class BuildTest(unittest.TestCase):
                                                                       "questions-20260926.json", "reference-20260926.sqlite3"])
             package = json.loads((out / "package.json").read_text())
             questions = claims.read(out / package["claims"]["file"])["questions"]
-            self.assertEqual([(q["question"], q["kind"], q["reason"], q["subject_ids"]) for q in questions],
-                             [("home_market", "residual", "ambiguous", [f"security:isin:{SHELL_ISIN}"])],
-                             "Shell sought Amsterdam and OpenFIGI shows London, a line the package cannot write")
+            self.assertEqual([(q["question"], q["kind"], q["reason"], q["subject_ids"], q["candidate_ids"]) for q in questions],
+                             [("receipt_conflict", "conflict", "relation", [f"security:isin:{NN_ISIN}"],
+                               [f"security:isin:{ASML_ISIN}"])],
+                             "Shell's unknown primary is no question (ADR 0044, A5)")
 
             gone = [r.replace("<IssrReq>true</IssrReq>", "") for r in self.RECORDS]  # ESMA stops sending field 8
             self.assertEqual(self.run_build(tmp, "2026-10-03", gone), 2)

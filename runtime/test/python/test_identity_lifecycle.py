@@ -57,7 +57,7 @@ class LifecycleTest(QueueFixture):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops
         data = Path(self.tmp.name) / "core"
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=data)))
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=data)
         with unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("eodhd")]):
             self.install(self.path, "reference-20260926", data)  # the release the rows were written under
             self.assertEqual(json.loads(ops.subject({"subject_id": ASML}))["data"]["subject"]["id"], ASML)
@@ -86,7 +86,7 @@ class LifecycleTest(QueueFixture):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops
         data = Path(self.tmp.name) / "core"
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=data)))
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=data)
         with unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("eodhd")]):
             self.install(self.path, "reference-20261001", data)
             ops.subject({"subject_id": ASML})
@@ -102,7 +102,7 @@ class LifecycleTest(QueueFixture):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops, queue_ops
         data = Path(self.tmp.name) / "core"
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=data)))
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=data)
         settled = []
         with unittest.mock.patch.object(identity_ops, "installed", lambda: []), \
                 unittest.mock.patch.object(queue_ops.questions, "settle_by_rules",

@@ -34,7 +34,7 @@ questions open:
 | `database` | `file` (a plain file name in the same directory), `bytes` and `sha256`: the checksum of the SQLite file. |
 | `sources` | One entry per source file or API: `source`, `url`, `version`, `as_of` (retrieval date), `retrieved_at`, `licence`, and `notice`, the attribution to show wherever that data is shown. |
 | `quality` | The builder's quality summary: table row counts, canary results, the assembly audit and the identity truth-set scores (`tables`, `canaries`, `audit`, `truth_audit`). |
-| `claims` | Optional: `file`, `bytes` and `sha256` of `questions-<YYYYMMDD>.json`, the questions the build left open where its sources did not decide a value (`{"build_id", "questions": [...]}`, each in core subject IDs with the resolution queue's `kind`, `reason`, candidates and evidence). The installer copies and verifies it with the database. Core queues a question, once, only when the investor opens or watches its instrument or the agent uses it; `home_market` and a question without candidates are never queued, and a new release supersedes the previous build's open questions. The user's answer is a local override ([ADR 0037](../decisions/0037-identity-backbone.md), amendment "questions on touch"). An older core ignores the key. |
+| `claims` | Optional: `file`, `bytes` and `sha256` of `questions-<YYYYMMDD>.json`, the questions the build left open where its sources did not decide a value (`{"build_id", "questions": [...]}`, each in core subject IDs with the resolution queue's `kind`, `reason`, candidates and evidence). `issuer_identity` has two shapes with the same fields: on a security it asks who issued it (FIRDS field 5 names a venue operator's LEI, or its receipts contradict it; `values` holds the claimed LEIs), and on a CIK-only issuer it asks whether that CIK is the candidate LEI's issuer (identifier links disagree; `values` holds the candidate LEIs). The installer copies and verifies it with the database. Core queues a question, once, only when the investor opens or watches its instrument or the agent uses it; `home_market` and a question without candidates are never queued, and a new release supersedes the previous build's open questions. The user's answer is a local override ([ADR 0037](../decisions/0037-identity-backbone.md), amendment "questions on touch"). An older core ignores the key. |
 
 The builder writes `package.json` into its output directory
 (`.local/reference-builder/out/`, or `--out`) after each build, beside the
@@ -54,8 +54,13 @@ just reference-status              # what is installed, and the last refusal, as
 ```
 
 These recipes run core's installer with the stack's Hermes Python and install
-into the core plugin's native data directory,
-`<profile>/plugin-data/<core namespace>/reference/`. The installer:
+into Pythia's store directory, `<data>/store/reference/`, where `<data>` is the
+stack's data root ([ADR 0034](../decisions/0034-core-and-optional-features.md),
+2026-09-29 amendment). A reference an earlier Pythia installed in the core
+plugin's Hermes data directory moves there first: core moves it on first use,
+and an install moves it before installing. It moves by rename or, across file
+systems, as a verified install that keeps the source, and it keeps its package
+name, so nothing is re-keyed. The installer:
 
 1. Reads `package.json` and refuses a package whose `format_version` is not the
    one this core reads. The message says whether to update Pythia or rebuild
@@ -77,7 +82,7 @@ to an older build is an ordinary install of that package, a release change
 like any other. `packages/` belongs to the
 installer: it removes anything else there, including leftovers of an
 interrupted install, so never point it at a package inside that directory. One
-installer runs at a time per data directory. Search and pages never wait for
+installer runs at a time per store directory. Search and pages never wait for
 it.
 
 In development, `just dev-init`, `just dev` and `just dev-refresh` install this
@@ -121,17 +126,18 @@ gap.
 exceeds them by more than 2%):
 
 - `primary_missing` is at 11,997: live securities with lines whose evidence
-  decided no primary. They are home-market questions, and SEC or OpenFIGI
+  decided no primary. The primary is a choice, not an identity fact (ADR
+  0044, A5), so they are counted and not asked; the rest are SEC or OpenFIGI
   gaps until those sources are onboarded.
-- `questions_open` is at 11,964: questions the build left open in the
-  package's `claims` file (10,271 `home_market`, 629 `issuer_identity`, 895
-  receipt questions and 169 SEC name-only issuer questions).
+- `questions_open` is at 1,698 since rules version 2: questions the build
+  left open in the package's `claims` file (637 `issuer_identity`, 895
+  receipt questions and 166 SEC name-only issuer questions). It asks no
+  `home_market` question (10,271 before).
 - Shares without a primary: `share_primary_silent` is at 1,072: 1,052 SEC
-  OTC-only shares, which no rule places, and 20 home-market questions whose
-  most liquid venue has no line. A security without a written primary is
-  priced on its most liquid EU line (9,770 lines), labelled so and never
-  primary. The ISIN-country line suggests an answer for 189 shares but
-  decides none. See the [FIRDS record](../sources/firds.md).
+  OTC-only shares, which no rule places, and 20 shares whose most liquid
+  venue has no line. A security without a written primary is priced on its
+  most liquid EU line (9,770 lines), labelled so and never primary. See the
+  [FIRDS record](../sources/firds.md).
 - Issuers: 12 shares whose receipts name another live issuer in FIRDS field 5
   (Nestlé's Toronto CDRs name Nestlé S.A., its share names Nestlé Capital
   Markets), and 3 receipts of them filed under the same field 5 (Nestlé's

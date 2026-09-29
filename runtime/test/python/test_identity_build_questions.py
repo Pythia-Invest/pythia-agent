@@ -67,7 +67,7 @@ class BuildQuestionFixture(QueueFixture):
         self.data = Path(self.tmp.name) / "core"
         self.plugins = []
         self.enterContext(unittest.mock.patch.object(identity_ops, "installed", lambda: self.plugins))
-        self.ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=self.data)))
+        self.ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=self.data)
 
     def tearDown(self):
         self.ops.store.db.close()

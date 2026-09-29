@@ -230,6 +230,10 @@ describe("installed packaging", () => {
     expect(
       serviceEnvironmentValues(paths, executables).desk.PYTHIA_WORKSPACE,
     ).toBe(paths.workspace);
+    expect(serviceEnvironmentValues(paths, executables).hermes).toMatchObject({
+      PYTHIA_DATA_ROOT: paths.dataRoot,
+      PYTHIA_CACHE_ROOT: paths.cacheRoot,
+    });
     expect(environments.hermes).toContain('HERMES_DISABLE_LAZY_INSTALLS="1"');
     expect(environments.desk).toContain(
       `PYTHIA_LIFECYCLE_COMMAND="${paths.installedCommand}"`,

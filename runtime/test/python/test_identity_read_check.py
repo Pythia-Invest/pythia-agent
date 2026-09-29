@@ -35,7 +35,7 @@ class ReadCheckTest(Fixture):
         patch = unittest.mock.patch.object(identity_ops, "installed", self.installed)
         patch.start()
         self.addCleanup(patch.stop)
-        self.ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        self.ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.tmp.name) / "core")
         self.addCleanup(lambda: self.ops.store.db.close())
 
     def check(self, subject_id=ASML, **stated):

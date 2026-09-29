@@ -124,8 +124,10 @@ class _Ids:
                        operating_mic=listing.operating_mic or listing.mic, currency=listing.currency)
         if found:
             return found
-        if listing.ticker:
-            return identity.provisional_id("listing", listing.source, "ticker", f"{listing.mic}.{listing.ticker}")
+        if listing.ticker:  # with its registrant's CIK where known: a ticker alone names the next company to reuse it
+            issuer = self.snap.issuers.get(listing.issuer_id or "")
+            native = ".".join(part for part in (listing.mic, issuer.cik if issuer else None, listing.ticker) if part)
+            return identity.provisional_id("listing", listing.source, "ticker", native)
         return local_line(security.isin, listing.operating_mic or listing.mic, listing.currency) if security.isin else None
 
 
@@ -218,10 +220,10 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             candidates[alias].add(subject)
         country = issuer.country if issuer.country and len(issuer.country) == 2 else None
         status = "inactive" if issuer.entity_status == "INACTIVE" else "active"
-        shown = rules.display_case(issuer.name, tickers.get(key, frozenset()), sec=issuer.source == "sec")
+        shown = rules.display_case(issuer.name, tickers.get(key, frozenset()), sec=issuer.name_rule == "sec_title")
         tables["issuers"].append({"id": subject, "name": shown[:512], "country": country, "status": status})
         if issuer.lei:
-            assert_(subject, "lei", issuer.lei, "gleif" if issuer.source == "gleif" else "esma_firds")
+            assert_(subject, "lei", issuer.lei, issuer.source)  # GLEIF's record, else the FIRDS field 5 it came from
         if issuer.cik:
             assert_(subject, "cik", issuer.cik, "sec", record=issuer.cik_rule)
         for text, _kind, _language, source in issuer.names:
@@ -244,7 +246,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             "id": subject, "issuer_id": ids.issuers.get(security.issuer_id or ""),
             "name": rules.display_case(title or (issuer.name if issuer else None) or subject,
                                        tickers.get(security.issuer_id or "", frozenset()),
-                                       sec=bool(issuer and issuer.source == "sec"))[:512], "asset_class": "equity",
+                                       sec=bool(issuer and issuer.name_rule == "sec_title"))[:512], "asset_class": "equity",
             "kind": KIND.get(security.kind, "other"), "status": STATUS.get(security.activity, "unknown"),
             "rank": security.rank})
         if security.isin:
@@ -360,8 +362,9 @@ def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[s
 
 # How a build question sits in core's resolution queue (identity/resolution.py): its kind and reason.
 QUESTION_SHAPE = {
-    "issuer_identity": ("conflict", "identifier"),  # field 5 names a venue operator's LEI, or receipts contradict it
-    "home_market": ("residual", "ambiguous"),  # several lines could be the primary, or none is evidenced
+    # Field 5 names a venue operator's LEI, receipts contradict it, or identifiers link a CIK to several LEIs or one
+    # LEI to several CIKs its names match.
+    "issuer_identity": ("conflict", "identifier"),
     "receipt_underlying": ("residual", "no_key"),  # no underlying this build holds is stated for a receipt
     "receipt_conflict": ("conflict", "relation"),  # a share (CFI) states an underlying (field 26)
     "issuer_identity_name_candidate": ("residual", "ambiguous"),  # a CIK only a name ties to one LEI issuer (#73)
@@ -369,8 +372,7 @@ QUESTION_SHAPE = {
 
 
 def questions(snap: Snapshot) -> list[dict]:
-    """The build's open questions in core subject IDs: `package.json`'s `claims`. Curation questions, answered
-    centrally (ADR 0044) and never queued for the investor; a rule's `suggested` answer is a proposal, not a fact."""
+    """The build's open questions in core subject IDs: `package.json`'s `claims`."""
     ids, found = _Ids(snap), []
 
     def subject(working: str) -> str | None:
@@ -386,7 +388,5 @@ def questions(snap: Snapshot) -> list[dict]:
                           "candidate_ids": [c for c in dict.fromkeys(map(subject, question.candidates)) if c],
                           "evidence_ids": list(question.evidence),
                           "scheme": "lei" if question.question == "issuer_identity" else None,
-                          "values": list(question.values),
-                          **({"suggested": {"chosen_id": chosen, "rule": question.suggested[1]}}
-                             if question.suggested and (chosen := subject(question.suggested[0])) else {})})
+                          "values": list(question.values)})
     return found

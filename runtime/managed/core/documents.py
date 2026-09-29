@@ -83,15 +83,18 @@ def _matching(rows: Any, report_key: str | None, document_id: str | None) -> lis
 # ---- the disposable cache ----------------------------------------------------------------------------------------
 
 class Cache:
-    """Extracted documents on disk, one JSON file per filing id; losing a file only means reading it again."""
+    """Extracted documents on disk, one JSON file per filing id; losing a file only means reading it again. Without a
+    directory nothing is kept, and every read fetches the document again."""
 
-    def __init__(self, directory: Path, limit: int = CACHE_BYTES):
-        self.directory, self.limit = Path(directory), limit
+    def __init__(self, directory: Path | None, limit: int = CACHE_BYTES):
+        self.directory, self.limit = directory and Path(directory), limit
 
     def path(self, document_id: str) -> Path:
         return self.directory / (hashlib.sha256(f"{EXTRACTOR}|{document_id}".encode()).hexdigest()[:32] + ".json")
 
     def get(self, document_id: str) -> dict | None:
+        if self.directory is None:
+            return None
         path = self.path(document_id)
         try:
             document = json.loads(path.read_text("utf-8"))
@@ -101,6 +104,8 @@ class Cache:
         return document if isinstance(document, dict) and document.get("id") == document_id else None
 
     def put(self, document: dict) -> None:
+        if self.directory is None:
+            return
         try:
             self.directory.mkdir(parents=True, exist_ok=True)
             path = self.path(document["id"])
@@ -143,7 +148,8 @@ class Reader:
 
     @property
     def cache(self) -> Cache:
-        return Cache(Path(self.identity.data_dir) / "documents")
+        root = os.environ.get("PYTHIA_CACHE_ROOT") or ""  # the per-stack cache root the lifecycle passes to Hermes
+        return Cache(Path(root) / "documents" if os.path.isabs(root) else None)
 
     def read(self, arguments: dict, **context: Any) -> str:
         subject_id = str(arguments.get("subject_id") or "")

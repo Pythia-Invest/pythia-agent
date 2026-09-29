@@ -1,9 +1,10 @@
 """Thin store module for the two backbone files (ADR 0037): open, create, read and write.
 
 The reference SQLite file is read-only: the one in the installed reference
-package under `<core data dir>/reference` (`reference_package`, ADR 0039).
-`identity.sqlite3` lives in the core plugin's data directory and is created
-private on first use. Portable SQL only; callers own nothing but the path.
+package under `<store>/reference` (`reference_package`, ADR 0039).
+`identity.sqlite3` lives in Pythia's store directory, `<data>/store`
+(`location`, ADR 0034), and is created private on first use. Portable SQL only;
+callers own nothing but the path.
 """
 from __future__ import annotations
 

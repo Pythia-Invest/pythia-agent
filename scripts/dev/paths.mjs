@@ -93,6 +93,7 @@ export function resolveStackPaths(options = {}) {
     basicMemoryConfig: join(configRoot, "basic-memory", identity.id),
     basicMemoryCache: join(cacheRoot, "basic-memory"),
     workspace: join(dataRoot, "workspace"),
+    store: join(dataRoot, "store"),
     deskViewState: join(stateRoot, "desk-view"),
     knowledge: join(dataRoot, "knowledge"),
     processRoot: join(stateRoot, "processes"),
