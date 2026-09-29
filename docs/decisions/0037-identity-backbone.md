@@ -550,11 +550,11 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
   claims establish depends on claim type and trust level, not on its origin,
   and the absence of competing evidence never increases it.
 
-Not built yet: the build's questions ship in the package's claims file and core
-queues none; subjects come only from the reference build and core's curated
-tables; and the builder's `snapshot` evidence outranks a plugin's claims. These
+Not built yet: subjects come only from the reference build and core's curated
+tables, and the builder's `snapshot` evidence outranks a plugin's claims. These
 change in roadmap stage 0 (ADR 0044's amendment "data any plugin can
-extend").
+extend"). Questions for relevant instruments are built; see the amendment
+"questions on touch, answers as local overrides" below.
 
 ### Consequential failures (roadmap stage 0)
 
@@ -752,3 +752,118 @@ ticker. About 1,590 securities had such IDs on the 2026-09-28 build.
 Rejected alternative: comparing issuers across releases in Lifecycle A to
 detect a reused ticker. It would be a heuristic in the re-key, while the key
 itself can carry the registrant.
+
+## Amendment (2026-09-29): questions on touch, answers as local overrides
+
+Roadmap stage 0 and [ADR 0044](0044-product-direction.md) A2 and A5 make the
+reference build's open questions (the package's `claims` file) the investor's
+questions, but only for instruments that matter, and let the user's answer
+change what this device shows.
+
+**When a question is queued.** One gate, `queue_ops.surface`, queues the
+build's questions about a subject and its family (listing, security, issuer and
+composite). An issuer question is also about its candidates: a CIK-only
+registrant is on no page, so its question is queued when a candidate issuer's
+page is touched. The gate runs when a subject is touched:
+
+- the Desk reads a subject page (`identity-subject`): the instrument page, a
+  markets card or a watchlist row, including Pythia's default watchlist;
+- the agent reads an instrument (`pythia_instrument`), its prices or its
+  filings, or asks for one subject's questions (`pythia_identity_questions`
+  with `subject_id`).
+
+Search, `pythia_find`, market movers, market-data price routing and settling
+never queue. Each question is asked once per question key: one already open or
+answered is not asked again, nor one dismissed with the same candidates. A
+dismissed question returns when a later release offers other candidates. A new
+release supersedes the previous build's open questions (`queue.retire_build`),
+and the next touch asks the new release's. A fresh install queues nothing. No
+venue category is filtered: an instrument that trades only on an internaliser,
+request-for-quote or dark venue is asked about when it is opened.
+
+Some questions stay in the package, and the log counts them once per package:
+
+- `home_market`, even from an older package: which listing a view shows is a
+  choice (below), not an identity question;
+- a question with no candidate. Its only answer would be "None of these", and
+  the page already says the fact is unknown ("Issuer unknown"). It becomes
+  queueable when a later release offers candidates;
+- a malformed question, logged as a warning. An unreadable claims file is
+  warned about once and read again on the next touch.
+
+Holdings, forecasts and operations become touch points in stage 1.
+
+This is a bounded, idempotent write on those reads, and a touch of a subject
+already asked about takes no write lock. The rule that rules settle the queue
+only inside write operations (`settle_by_rules`) is unchanged.
+
+**Answers.** A build question takes one relation: `same_issuer` for an issuer
+question, `depositary_receipt_of` for a receipt question, or `none`. The agent's
+answer is recorded as a suggestion and the question stays open. The user's
+answer resolves it with a `user_attested` verdict; "None of these" dismisses it
+and the fact stays unknown. An answer goes through `decide` with the question's
+own subject standing in for the provider record. For a receipt answer the record
+is a receipt, so the depositary-receipt guard refuses a receipt as the
+underlying. A user verdict never beats identifier evidence: an issuer answer
+whose identifiers contradict the question's subject (two different CIKs, two
+different LEIs) is refused. When evidence is weighed by trust level (roadmap
+stage 0), this narrows to unanimous confirm-level identifier proof. This
+replaces "a question without a provider record takes no verdict" for the
+build's questions.
+
+**The local override is the resolved question.** No new table: the resolved
+row and its user verdict are the override, and every read of a subject applies
+it (`build_questions.load_subject`):
+
+- an issuer answer makes the chosen issuer the security's, in place of any the
+  reference names, so profile and filings route to it; a name match between an
+  SEC registrant and an LEI issuer joins both issuers' identifiers on both
+  pages, so SEC and ESEF filings both route;
+- a receipt answer is a `related` entry (`depositary_receipt_of`, marked
+  `user_attested`) on the receipt's page and its share's. Search does not fold
+  it yet: that waits for the evidence-combining resolver.
+
+Lifecycle A re-points the row's subject IDs on a re-key, and the question key
+stops a later release asking again, so an answer survives releases with no new
+code. The user can undo it: Reopen in Repairs supersedes the answered question,
+keeps its verdict in the history, and asks it again as the installed release
+asks it; the agent cannot.
+
+**Known gap.** A later release whose evidence contradicts an override does not
+yet raise a conflict question. The override stays applied, so nothing changes
+silently, but nothing tells the user either. W2-evidence (package facts) and
+W3-ingest (plugin claims) add conflict questions, raised when relevant and
+showing both values.
+
+**Repairs.** A build question is titled by what it asks ("Issuer unclear",
+"Same company?", "Receipt's share unknown", "Share or receipt?"), shows its
+subject with its identifiers and its candidates, and no provider-record rows.
+It names its source "Pythia reference": that label names the origin and grants
+no authority. A build question is a row with that tag and no provider record,
+and `reference` is a reserved plugin name, so no plugin can pose as the build. A settled question shows the chosen answer. The page's issuer
+carries `authority: user_attested` when the user's answer set it.
+
+**The default listing** (A5: a documented default, not an identity question).
+An equity security or company page, and market-data reads of it, use the first
+of the instrument's own lines in this order (`search.Directory.instrument_listings`):
+
+1. a primary line the sources decide (`is_primary`);
+2. not a foreign company's receipt or OTC line on a US venue;
+3. not OTC;
+4. a line in the ISIN's or the issuer's country;
+5. FIRDS' most liquid EU market for a security without a decided primary;
+6. then by MIC and listing ID.
+
+A view's own choice rides in `?listing=`, and search's lead line follows the
+investor's `search_listing_preference`. The page labels the lead line `(home)`
+only for a decided primary, and says so when it is the most liquid EU line.
+
+Rejected alternatives:
+
+- **Hooking the store lookups every read uses.** They also run on every
+  market-data price read and on each resolve, so a price refresh would queue
+  questions.
+- **A touch log, recents or a relevance score.** The queue row records the
+  touch; nothing else is needed.
+- **An override table.** The resolved question already holds the subject, the
+  answer and its verdict, and lifecycle already re-keys it.

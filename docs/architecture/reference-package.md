@@ -34,7 +34,7 @@ questions open:
 | `database` | `file` (a plain file name in the same directory), `bytes` and `sha256`: the checksum of the SQLite file. |
 | `sources` | One entry per source file or API: `source`, `url`, `version`, `as_of` (retrieval date), `retrieved_at`, `licence`, and `notice`, the attribution to show wherever that data is shown. |
 | `quality` | The builder's quality summary: table row counts, canary results, the assembly audit and the identity truth-set scores (`tables`, `canaries`, `audit`, `truth_audit`). |
-| `claims` | Optional: `file`, `bytes` and `sha256` of `questions-<YYYYMMDD>.json`, the questions the build left open where its sources did not decide a value (`{"build_id", "questions": [...]}`, each in core subject IDs with the resolution queue's `kind`, `reason`, candidates and evidence). `issuer_identity` has two shapes with the same fields: on a security it asks who issued it (FIRDS field 5 names a venue operator's LEI, or its receipts contradict it; `values` holds the claimed LEIs), and on a CIK-only issuer it asks whether that CIK is the candidate LEI's issuer (identifier links disagree; `values` holds the candidate LEIs). The installer copies and verifies it with the database. These are curation questions, answered centrally ([ADR 0044](../decisions/0044-product-direction.md)); core queues none of them, and supersedes any reference-build rows an earlier core queued. An older core ignores the key. |
+| `claims` | Optional: `file`, `bytes` and `sha256` of `questions-<YYYYMMDD>.json`, the questions the build left open where its sources did not decide a value (`{"build_id", "questions": [...]}`, each in core subject IDs with the resolution queue's `kind`, `reason`, candidates and evidence). `issuer_identity` has two shapes with the same fields: on a security it asks who issued it (FIRDS field 5 names a venue operator's LEI, or its receipts contradict it; `values` holds the claimed LEIs), and on a CIK-only issuer it asks whether that CIK is the candidate LEI's issuer (identifier links disagree; `values` holds the candidate LEIs). The installer copies and verifies it with the database. Core queues a question, once, only when the investor opens or watches its instrument (for an issuer question, also a candidate's) or the agent uses it; `home_market` and a question without candidates are never queued, and a new release supersedes the previous build's open questions. The user's answer is a local override ([ADR 0037](../decisions/0037-identity-backbone.md), amendment "questions on touch"). An older core ignores the key. |
 
 The builder writes `package.json` into its output directory
 (`.local/reference-builder/out/`, or `--out`) after each build, beside the
@@ -151,8 +151,8 @@ exceeds them by more than 2%):
   Markets), and 3 receipts of them filed under the same field 5 (Nestlé's
   ADR), have an unknown issuer and an `issuer_identity` question with both
   LEIs as candidates. Two were right as filed: Welltower, whose page says
-  "Issuer unknown" and whose profile and filings need the issuer until a
-  curator answers, and an old Barrick ISIN. The
+  "Issuer unknown" and whose profile and filings need the issuer until the
+  user answers its question, and an old Barrick ISIN. The
   builder reads no GLEIF parent relationships, so a wrong field 5 that no
   receipt contradicts stays as filed (JTEKT under Toyota Industries;
   `issuer_financing_vehicle` warns on 36 issuers named like financing
@@ -160,11 +160,11 @@ exceeds them by more than 2%):
 - Currency read checks: London, Johannesburg and Tel Aviv home lines (1,096)
   quote in a minor unit and carry no trading currency, so a price source's
   stated currency is not compared there; the venue still is.
-- World-level questions are answered centrally, never on the investor's
-  device (ADR 0044 ruling 7). The curator's back office that answers them
-  (carried-forward answers, rules, Jev, an evidence-gathering agent and
-  curator approval) is designed but not built, so today these questions stay
-  open and the package leaves those fields unknown.
+- The package leaves the fields its sources do not decide unknown, with a
+  question. Core asks one only when its instrument is opened, watched or used
+  by the agent, and the user's answer changes that device's reads, never the
+  package ([ADR 0037](../decisions/0037-identity-backbone.md), amendment
+  "questions on touch").
 - SEC is `grandfathered`, not signed off. Remaining steps
   ([SEC record](../sources/sec.md#sign-off)): typed claims for the CIK to LEI
   links, the judgement questions written and checked on a sampled build, and

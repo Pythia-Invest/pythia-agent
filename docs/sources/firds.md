@@ -13,8 +13,9 @@
     not decide.
   - Stage 3: a stratified random sample of 100 rows is labelled against
     primary sources (below and [the sample](firds-signoff-sample.md)).
-  - Stage 4: the questions ship in the package as curation questions,
-    answered centrally per ADR 0044, never in the investor's Repairs.
+  - Stage 4: the questions ship in the package, and core queues one in
+    Repairs only when its instrument is opened, watched or used by the agent
+    (ADR 0037, amendment "questions on touch").
   - FIRDS was in use before the
     [onboarding standard](../architecture/source-onboarding.md), so it keeps its
     current role until it signs off.
@@ -172,8 +173,8 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
   The SEC stage adds 166 name-only issuer questions (#73) and 8
   `issuer_identity` questions on CIKs whose identifier links conflict. All
-  1,698 are in the package's `claims` file, answered centrally per ADR 0044;
-  none reaches the investor's Repairs queue. A security
+  1,698 are in the package's `claims` file; core queues one only when its
+  instrument is opened, watched or used by the agent. A security
   without a primary the package can write is priced on its line at the most
   liquid EU market (9,770 lines), labelled so and never primary. The
   `share_primary_silent` invariant counts every live share that has neither a
@@ -225,10 +226,11 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity`: 614 open) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
 | The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 859 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
 
-The questions ship in the package's `claims` file as curation questions,
-answered centrally per ADR 0044, not by the investor or the investor's agent.
+The questions ship in the package's `claims` file. Core queues one when its
+instrument becomes relevant; the agent may suggest an answer and the user's
+answer is a local override (ADR 0037, amendment "questions on touch").
 
-Classes assigned to code or to curation instead:
+Classes assigned to code or to a question instead:
 
 - **Code:**
   - ISIN successions, from first-trade dates, admission counts and GLEIF
@@ -236,9 +238,10 @@ Classes assigned to code or to curation instead:
   - fund share classes, from the sub-fund LEI;
   - a receipt's underlying, from field 26 and `successor_of`;
   - the trading currency, from venue-specific evidence.
-- **Unknown, with a curation question (answered centrally per ADR 0044):** the
-  trading currency until a venue-specific source exists (`trading_currency`);
-  a receipt with no usable field 26 (`receipt_underlying`).
+- **Unknown, with a question in the package:** a receipt with no usable
+  field 26 (`receipt_underlying`).
+- **Unknown, without a question:** the trading currency until a venue-specific
+  source exists.
 - **Unknown and counted, never asked:** the primary venue when no
   issuer-sought listing exists, or when an EEA request conflicts with a
   primary outside the EEA. Which listing a view shows is a preference or a

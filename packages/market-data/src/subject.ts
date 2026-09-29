@@ -315,8 +315,8 @@ export function filingDocumentRequest(
   };
 }
 
-/** Query key of one subject's page, shared by the search bar's prefetch and
- * the instrument route so a chosen row opens on cached data. */
+/** Query key of one subject's page, shared by the instrument route and markets
+ * rows so a row opens on cached data. Search never reads it: a read queues. */
 export function subjectQueryKey(subjectId: string) {
   return ["plugin", SUBJECT_PLUGIN, "identity-subject", subjectId] as const;
 }

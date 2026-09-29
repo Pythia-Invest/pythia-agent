@@ -26,6 +26,7 @@ from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
 CONTRACT_VERSION = 1  # the newest contract shape this core reads
+RESERVED = frozenset({"reference"})  # tags the reference build's own questions in core's queue (build_questions)
 OPERATION = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")  # a plugin operation name, as `declare_operation` accepts
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 LIMIT_UNITS = ("call", "credit", "request")
@@ -163,6 +164,14 @@ def _object(value: Any, path: str, required: set[str], optional: set[str] = froz
     for name in sorted(required - set(value)):
         raise ManifestError(f"{path}.{name}: required")
     return value
+
+
+def _name(value: Any) -> str:
+    """A plugin's own name; a reserved one would let it pose as a core-tagged source."""
+    name = _match(NAMESPACE, value, "manifest.plugin")
+    if name in RESERVED:
+        raise ManifestError(f"manifest.plugin: {name} is reserved")
+    return name
 
 
 def _match(pattern: re.Pattern[str], value: Any, path: str) -> str:
@@ -378,7 +387,7 @@ def validate_manifest(document: Any) -> Manifest:
     addressable |= {Level.LISTING} if mic_table else set()
     concepts = {Concept(key): _concept(key, item, addressable)
                 for key, item in _object(body.get("concepts", {}), "concepts", set(), set(Concept)).items()}
-    return Manifest(_match(NAMESPACE, body["plugin"], "manifest.plugin"),
+    return Manifest(_name(body["plugin"]),
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
                     tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
                     _rights(body["rights"]), *_signoff(body["signoff"]),
