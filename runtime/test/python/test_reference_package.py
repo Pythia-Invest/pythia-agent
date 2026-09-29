@@ -167,6 +167,18 @@ class InstallTest(unittest.TestCase):
         with self.assertRaisesRegex(reference_package.PackageError, "build reference-20260926"):
             reference_package.install(source, self.data)
 
+    def test_the_included_sources_are_reported_and_must_be_names(self):
+        source = make_package(self.root / "out")
+        manifest = json.loads((source / "package.json").read_text())
+        for included in ([1], "esma_firds"):
+            with self.subTest(included=included):
+                (source / "package.json").write_text(json.dumps(manifest | {"included_sources": included}))
+                with self.assertRaisesRegex(reference_package.PackageError, "invalid fields: included_sources"):
+                    reference_package.install(source, self.data)
+        (source / "package.json").write_text(json.dumps(manifest | {"included_sources": ["esma_firds"]}))
+        installed = reference_package.install(source, self.data)["installed"]
+        self.assertEqual(installed["included_sources"], ["esma_firds"])
+
     def test_the_command_line_reports_refusals_plainly(self):
         script = Path(reference_package.__file__)
         bad = make_package(self.root / "bad")

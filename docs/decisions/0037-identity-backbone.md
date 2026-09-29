@@ -910,7 +910,7 @@ non-portable ID".
   were re-keyed. Every old ID aliases to a subject of the new build, and
   1,178 relations moved with their endpoints. The aliases grew from 212,012
   to 269,525. The build's 1,698 questions are unchanged; 603 now name a
-  `cgs_isin` subject. The truth set scores 3,033 of 3,114, as before, with
+  `cgs_isin` subject. The truth set scores as before (3,033 of 3,114), with
   no regression. FIGI-keyed subjects keep their IDs.
 - The reference format does not change: only IDs, aliases and
   `release.subject_key` do.

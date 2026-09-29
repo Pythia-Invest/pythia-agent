@@ -17,6 +17,7 @@ LICENCES = {
     "sec_company_tickers": "US federal government work (public domain)",
     "sec_fund_tickers": "US federal government work (public domain)",
     "openfigi": "FIGI and associated metadata under the MIT licence (OMG FIGI standard, Annex D.6)",
+    "canonical_assets": "Pythia-authored, Apache License 2.0",
 }
 
 def licence(source: str) -> str:

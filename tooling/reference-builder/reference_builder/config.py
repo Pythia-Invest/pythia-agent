@@ -72,12 +72,10 @@ class BuildConfig:
     gleif_max_age_days: int = 1
     listing_file_max_age_days: int = 1
 
-    def included_sources(self) -> list[str]:
-        """The sources this build reads, as `package.json` lists them: every source can be omitted with its `--no-`
-        flag, except the ISO 10383 venue codes and core's curated crypto table."""
-        read = {"esma_firds": self.scope.firds, "esma_fitrs": self.fitrs, "gleif": self.gleif,
-                "openfigi": self.openfigi, "sec": self.scope.sec}
-        return ["iso10383_mic", *(source for source, included in read.items() if included), "canonical_assets"]
+    def __post_init__(self) -> None:
+        if not self.scope.firds:  # FITRS and GLEIF are read for FIRDS's ISINs and LEIs
+            object.__setattr__(self, "fitrs", False)
+            object.__setattr__(self, "gleif", False)
 
 
 def parse_mics(value: str | None) -> tuple[str, ...] | None:

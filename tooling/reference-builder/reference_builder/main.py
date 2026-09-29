@@ -38,14 +38,14 @@ def parse_args(argv: list[str]) -> BuildConfig:
                         help="build from the download cache only, whatever its age; stop if something is not cached")
     args = parser.parse_args(argv)
     defaults = BuildConfig(scope=Scope(), as_of=args.as_of)
-    return BuildConfig(  # FITRS and GLEIF are read for FIRDS's ISINs and LEIs
+    return BuildConfig(
         scope=Scope(mics=parse_mics(args.mics), sec=not args.no_sec, firds=not args.no_firds),
         as_of=args.as_of,
         out_dir=args.out or defaults.out_dir,
         cache_dir=args.cache or defaults.cache_dir,
         deltas=args.deltas,
-        fitrs=not args.no_fitrs and not args.no_firds,
-        gleif=not args.no_gleif and not args.no_firds,
+        fitrs=not args.no_fitrs,
+        gleif=not args.no_gleif,
         openfigi=not args.no_openfigi,
         gates=not args.no_gates,
         contact=load_sec_identity() if not args.no_sec and not args.sec_file and not args.offline else None,
@@ -76,7 +76,7 @@ def run(config: BuildConfig) -> int:
     firds_claims = claims.load(firds.claims(admissions))  # the claims the build decides from
     if config.scope.firds:
         firds.measure(fingerprint, firds_claims.isins)
-    log(f"claims: {firds_claims.count} FIRDS claims; sources: {', '.join(config.included_sources())}")
+    log(f"claims: {firds_claims.count} FIRDS claims")
     transparency = None
     if config.fitrs:
         transparency = firds.load_transparency([firds.download(downloads, "esma_fitrs", d) for d in firds.fitrs_files(USER_AGENT, config.as_of, config.scope.cfi_prefixes)], config.as_of)
@@ -107,7 +107,7 @@ def run(config: BuildConfig) -> int:
         gleif = GleifClient(config.cache_dir, USER_AGENT, max_age(config.gleif_max_age_days))
 
     inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes() if figi else set(),
-                    funds, firds_claims, openfigi=figi is not None)
+                    funds, firds_claims, openfigi=figi is not None, gleif=gleif is not None)
     snap = build_snapshot(inputs, gleif.fetch if gleif else lambda _leis: {}, figi.map if figi else _unanswered)
     dropped = [f"{f.subject_id} ({f.flag.removeprefix('firds_underlying_')})" for f in snap.flags
                if f.flag in ("firds_underlying_inactive", "firds_underlying_outside_build")]
@@ -140,7 +140,13 @@ def run(config: BuildConfig) -> int:
     if figi_meta:
         sources.append({"source": "openfigi", "url": MAPPING_URL, "version": "v3", "retrieved_at": figi_meta["answers_to"] or started,
                         "sha256": None, "bytes": None, "licence": manifest.licence("openfigi")})
+    seed = writer.describe(schema.CORE / "canonical_assets.json")  # core's curated crypto table, in every build
+    sources.append({"source": "canonical_assets", "url": None, "version": schema.identity.CANONICAL_ASSETS_RULE,
+                    "retrieved_at": started, "sha256": seed["sha256"], "bytes": seed["bytes"],
+                    "licence": manifest.licence("canonical_assets")})
     sources = _unique_sources(sources)
+    included = list(dict.fromkeys(entry["source"].split(":")[0] for entry in sources))  # `package.json` lists them
+    log(f"sources: {', '.join(included)}")
 
     build_id = f"reference-{stamp}"
     meta = {"build_id": build_id, "schema_version": str(schema.SCHEMA_VERSION), "builder_version": BUILDER_VERSION,
@@ -161,7 +167,7 @@ def run(config: BuildConfig) -> int:
         "wall_seconds": round(time.monotonic() - clock, 1),
         "scope": config.scope.describe() | {"firds_deltas": config.deltas, "fitrs": config.fitrs, "gleif": config.gleif,
                                             "openfigi": config.openfigi},
-        "included_sources": config.included_sources(),
+        "included_sources": included,
         "snapshot": writer.describe(snapshot_path),
         "tables": counts,
         "sources": sources,
