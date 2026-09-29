@@ -27,8 +27,12 @@ PROVIDERS = ("coingecko", "coinmarketcap")
 
 
 def _contract(value: str) -> str:
-    """EVM addresses compare case-insensitively; other chains' references are exact."""
-    return value.lower() if re.fullmatch(r"0x[0-9a-fA-F]{40}", value) else value
+    """EVM addresses compare case-insensitively; a Sui coin type as a raw type with a long-form address (the curated
+    reference is percent-encoded, ADR 0037); other chains' references are exact."""
+    if re.fullmatch(r"0x[0-9a-fA-F]{40}", value):
+        return value.lower()
+    move = re.fullmatch(r"0x([0-9a-fA-F]{1,64})(::\w+::\w+)", urllib.parse.unquote(value))
+    return f"0x{move[1].lower():0>64}{move[2]}" if move else value
 
 
 def check(seed: dict, provider: str, listed: dict[str, dict[str, set[str]]]) -> list[str]:

@@ -69,12 +69,14 @@ def _row(rank, quote, drift):
         if not all(_number(value) for value in values.values()):
             raise ValueError('price')
         time = _time(quote['regularMarketTime'])
+        exchange, state = quote.get('exchange'), quote.get('marketState')
+        if not all(value is None or isinstance(value, str) for value in (exchange, state)):
+            raise ValueError('venue')  # a list or object here is a broken row, not a new venue or state
     except (KeyError, ValueError, TypeError):
         drift['malformed_rows'] += 1
         return None
     name = quote.get('longName') or quote.get('shortName')
     volume = quote.get('regularMarketVolume')
-    exchange, state = quote.get('exchange'), quote.get('marketState')
     mic = VENUES.get(exchange)
     if mic is None:
         drift['venues'].add(str(exchange))

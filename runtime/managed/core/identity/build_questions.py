@@ -72,8 +72,8 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
         relation = SAME[own]
     elif item["reason"] == "binding" and candidates and subject_kind(candidates[0]) == "issuer":
         relation = VerdictRelation.SAME_ISSUER
-    fact = f"its {scheme}" if own else "who issued this security" if relation is VerdictRelation.SAME_ISSUER \
-        else "which security this depositary receipt represents"
+    fact = f"its {scheme}" if own else "which security this depositary receipt represents" \
+        if relation is not VerdictRelation.SAME_ISSUER else "which company this is" if issuer else "who issued this security"
     text = {
         "identifier": (f"Which {scheme} is this? " if own and not issuer else
                        "Which company is this? " if issuer else "Who issued this security? ")
@@ -189,14 +189,14 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     return subject
 
 
-def replace_answer(store, row: dict, relation: str) -> None:
+def replace_answer(store, row: dict, relation: str, now: str) -> None:
     """The user's answer replaces their earlier one about the same fact (the question's subject and scheme, and the
     relation), which is superseded and kept as history. Called inside the answer's transaction."""
     store.db.execute(
-        "UPDATE queue SET state = 'superseded' WHERE id IN (SELECT q.id FROM queue q JOIN verdicts v"
+        "UPDATE queue SET state = 'superseded', updated_at = ? WHERE id IN (SELECT q.id FROM queue q JOIN verdicts v"
         " ON v.id = q.resolved_by WHERE q.plugins = ? AND q.provider_ref IS NULL AND q.state = 'resolved' AND q.id <> ?"
         " AND json_extract(q.subject_ids, '$[0]') = ? AND q.scheme IS ? AND v.relation = ?)",
-        (json.dumps([BUILD]), row["id"], row["subject_ids"][0], row["scheme"], relation))
+        (now, json.dumps([BUILD]), row["id"], row["subject_ids"][0], row["scheme"], relation))
 
 
 def _index(items: list[dict]) -> dict[str, list[QueueItem]]:
@@ -251,16 +251,18 @@ def _contradicted(subject: dict, answer: dict, release: str | None, values: tupl
 def _issuer(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:
     """The chosen issuer becomes the security's, in place of any the reference names, so profile and filings route
     to it. A name match joins two issuers: the registrant's page and the chosen issuer's carry both issuers'
-    identifiers, the chosen one's first."""
+    identifiers, the chosen one's first. Where the release gives the registrant an LEI or CIK of its own that the
+    chosen issuer's differs from, the answer is contradicted: it stays applied, and the registrant is the other
+    candidate."""
     ids, question, chosen = subject["ids"], answer["question"], answer["chosen"]
     if chosen == question:  # "this company is itself": an answer to its contested identifier (`_value`)
         return
-    drop = frozenset()
+    drop, own = frozenset(), {}
     if question == ids[Level.SECURITY]:
         _contradicted(subject, answer, ids[Level.ISSUER])  # the issuer the release names for the security, if any
         other, drop = chosen, frozenset({Level.ISSUER})
     elif question == ids[Level.ISSUER]:
-        other = chosen
+        other, own = chosen, {scheme: subject["values"].get(scheme) for scheme in ("lei", "cik")}
     elif ids[Level.ISSUER] == chosen and subject_kind(question) == "issuer":
         other = question
     else:
@@ -271,6 +273,8 @@ def _issuer(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:
     ids[Level.ISSUER] = chosen
     joined = weighing.weigh((_assertion(item) for item in
                              ref.execute("SELECT * FROM assertions WHERE subject_id = ?", (other,))), subject["trust"])
+    if any(value and joined["values"].get(scheme) not in (None, value) for scheme, value in own.items()):
+        _contradicted(subject, answer, question)
     for name in ("evidence", "shown"):
         subject[name] = [*(item for item in subject[name] if SCHEME_LEVEL[item.scheme] not in drop), *joined[name]]
     values = subject["values"]

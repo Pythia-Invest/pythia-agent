@@ -77,6 +77,14 @@ class InstrumentFlagsTest(AgentToolFixture):
         # Reading it asked the contested identifier as a question (ADR 0037, questions on touch).
         self.assertEqual(flags["identity_question_open"], {"count": 1, "reasons": ["identifier"]})
 
+    def test_one_sources_two_values_are_no_conflicting_identifier(self):
+        # OpenFIGI's two composite FIGIs for one composite: one source's several values contest nothing (#109).
+        add(self.path, "composite:isin:NL0010273215:NL", "composite_figi", "BBG000K6MRN4", "openfigi")
+        add(self.path, ASML_SECURITY, "isin", OTHER_ISIN, "gleif")  # GLEIF again, beside its own ISIN
+        data = self.read(ASML)
+        self.assertEqual(data["flags"], [])
+        self.assertEqual(data["provenance"]["isin"]["source"], "gleif")
+
     def test_issuer_unknown_for_a_share_the_data_names_no_issuer_for(self):
         self.assertNotIn("issuer_unknown", self.flags(SHELL))
         with self.reference() as db:

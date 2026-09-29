@@ -354,7 +354,9 @@ Today:
 
 - subjects come only from the reference build and core's curated tables, and
   plugins contribute data but not subjects;
-- reference sources are builder adapters that cannot be disabled;
+- reference sources are builder adapters: a build can leave out any of them
+  except the ISO 10383 venue codes and core's curated crypto table, and lists
+  the ones it includes, but a device cannot yet remove an installed package;
 - only confirm-level plugins bind, and only onto reference subjects;
 - the build's open questions are queued only when an instrument is opened,
   watched or used by the agent, not yet when it is held or forecast.

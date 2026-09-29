@@ -718,7 +718,12 @@ This amendment supersedes:
   record. A plugin therefore normalises a coin type before emitting it and
   leaves out one that is refused.
 - Native USDC on Sui now has a key form. Adding it to the curated table is a
-  separate data change.
+  separate data change. It was added on 2026-09-30 (builder rules version 3):
+  Circle's coin type `0xdba3…00e7::usdc::USDC`, from Circle's USDC contract
+  address page, is a listing of the one USDC security,
+  `listing:caip19:sui:mainnet/coin:0xdba3…00e7%3A%3Ausdc%3A%3AUSDC`. The
+  drift check covers it through a Sui chain row per provider. Bridged
+  (Wormhole) USDC on Sui is another coin type and stays a separate subject.
 
 ### Rejected alternatives
 
@@ -869,6 +874,56 @@ Rejected alternatives:
 - **An override table.** The resolved question already holds the subject, the
   answer and its verdict, and lifecycle already re-keys it.
 
+## Amendment (2026-09-30): a CGS-area ISIN keys a device-local subject (`subject_key@2`)
+
+A CGS-area security that no share-class FIGI names had a provisional ID in
+the FIRDS namespace, `security:provisional:esma_firds:isin:<ISIN>`, and its
+lines without a FIGI `listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`.
+The builder minted them itself, outside the key rule. Another source with the
+same ISIN would have minted a different ID, which
+[ADR 0044](0044-product-direction.md) A3 rules out: identifiers come from
+identifiers, not sources.
+
+- **Ruling.** Key rule `subject_key@2` adds the key scheme `cgs_isin`, last
+  in precedence at its level:
+  - a security whose only key is a CGS-area ISIN is
+    `security:cgs_isin:<ISIN>`;
+  - a listing of it with no FIGI and no CAIP-19 is
+    `listing:cgs_isin:<ISIN>:<operating MIC>:<currency>`;
+  - a composite has no `cgs_isin` key.
+- **Device-local.** CGS ISINs stay licensed, local-only evidence, so the key
+  is no more hostable than the ISIN itself. It is the same from every source
+  and every rebuild on a device. When a share-class FIGI or listing FIGI
+  appears, the build aliases the local ID to the portable FIGI key, as
+  before.
+- **Aliases.** Every build aliases the FIRDS-namespaced forms to the subject's
+  current ID, and a FIGI-keyed subject also aliases its `cgs_isin` form, so a
+  saved ID of either form resolves. Lifecycle A re-points local rows on the
+  first read of the new release.
+
+This amendment supersedes, in the Subject IDs section, `subject_key@1` and
+"until a share-class FIGI is known, such a security has a provisional,
+non-portable ID".
+
+### Consequences
+
+- On the offline build of 2026-09-28, 4,380 securities and 17,116 listings
+  were re-keyed. Every old ID aliases to a subject of the new build, and
+  1,178 relations moved with their endpoints. The aliases grew from 212,012
+  to 269,525. The build's 1,698 questions are unchanged; 603 now name a
+  `cgs_isin` subject. The truth set scores as before (3,033 of 3,114), with
+  no regression. FIGI-keyed subjects keep their IDs.
+- The reference format does not change: only IDs, aliases and
+  `release.subject_key` do.
+
+### Rejected alternatives
+
+- **Keeping the FIRDS namespace.** A key would depend on the source that
+  supplied the ISIN.
+- **Keying such securities `security:isin:<CGS ISIN>`.** That would make
+  licensed evidence a portable key, which the key rule has refused since
+  `subject_key@1`.
+
 ## Amendment (2026-09-30): evidence counts by kind and trust level
 
 **Context.** [ADR 0044](0044-product-direction.md) A1, A2 and A4 say evidence
@@ -905,13 +960,17 @@ trust level to count at.
   - An address is `confirmed` only where confirm-level evidence states it: a
     package's provider coin ids at the package's level. Addresses from core's
     market table are `derived` until plugins declare their own.
-- **Contested facts.** Any valid confirm-level value of a single-valued scheme
-  that differs from a record's contradicts it, whoever asserted it. Where
-  confirm-level assertions disagree, the fact is contested: every value is
-  kept, none is applied (`values` holds only agreed values), and the view
-  carries `contested`: each value with the sources stating it, which the
-  instrument page shows where the identifier goes and the agent reads as a
-  `conflicting_identifier` flag. Every answer but the user's is blocked.
+- **Contested facts.** A valid confirm-level source that asserts only other
+  values of a single-valued scheme than a record's contradicts it, whoever it
+  is. Where different confirm-level sources assert different values, the fact
+  is contested: every value is kept, none is applied (`values` holds only
+  agreed values), and the view carries `contested`: each value with the
+  sources stating it, which the instrument page shows where the identifier
+  goes and the agent reads as a `conflicting_identifier` flag. Every answer
+  but the user's is blocked. One source's several values are not a contest:
+  the first it stored applies, no `contested` is marked, and each of them names
+  the subject (OpenFIGI's two composite FIGIs for a German composite, the
+  regional composite's and Tradegate's).
 - **The user decides.** A user's answer, a verdict or a build-question
   override, is refused only by unanimous confirm-level identifier proof: where
   the evidence for a scheme agrees on one other value. A contested identifier
@@ -921,14 +980,15 @@ trust level to count at.
   - a contested identifier, as a `conflict`/`identifier` question whose
     candidates are the subjects its values name under the subject-key rule. The
     answer gives the subject that value. A value that names no subject (a
-    CUSIP-area ISIN, a composite FIGI) leaves the fact contested and shown but
-    unasked;
-  - a user's answer that the installed release contradicts at confirm level (it
-    names another issuer for the security, another underlying for the receipt,
-    or another value for the identifier), as a `conflict`/`binding` question
-    whose candidates are the answer's choice and the release's. The answer
-    stays applied until the user answers; that answer supersedes the earlier
-    one, which stays in the history.
+    composite FIGI) leaves the fact contested and shown but unasked;
+  - a user's answer that the installed release contradicts at confirm level, as
+    a `conflict`/`binding` question whose candidates are the answer's choice and
+    the release's. The release names another issuer for the security, another
+    underlying for the receipt or another value for the identifier, or it gives
+    a registrant the user matched to a company an LEI or CIK of its own that
+    differs from that company's (the registrant itself is then the other
+    candidate). The answer stays applied until the user answers; that answer
+    supersedes the earlier one, which stays in the history.
 
   Both are tagged like the build's questions and answered the same way, so
   the answer is a local override, and a new release supersedes them while
@@ -945,9 +1005,11 @@ and stores working without a schema bump.
 
 **Consequences.**
 
-- On today's packages a contested fact is rare: the builder writes one value
-  per scheme and asks where its sources disagree. Contests appear once plugin
-  evidence joins the union.
+- Today's packages contest nothing. Their only scheme with a second value is
+  OpenFIGI's composite FIGI: 10,288 German composites carry two, from one
+  source, covering 54,354 of 135,595 listings of a recent offline build.
+  Otherwise the builder writes one value per scheme and asks where its sources
+  disagree. Contests appear once plugin evidence joins the union.
 - A resolve answer against a contested identifier becomes a conflict for the
   user, never a binding.
 - A package installed with `--display` confirms nothing: resolve answers wait
@@ -969,3 +1031,6 @@ and stores working without a schema bump.
   writes them there, and a schema bump belongs to device subjects.
 - **Letting the user's answer beat unanimous proof:** a user who disagrees with
   every confirm-level contributor demotes one of them instead.
+- **Contesting every second value:** one source's several values would mark
+  40% of today's listings contested, and flag them to the agent, when no two
+  sources disagree.

@@ -17,6 +17,7 @@ LICENCES = {
     "sec_company_tickers": "US federal government work (public domain)",
     "sec_fund_tickers": "US federal government work (public domain)",
     "openfigi": "FIGI and associated metadata under the MIT licence (OMG FIGI standard, Annex D.6)",
+    "canonical_assets": "Pythia-authored, Apache License 2.0",
 }
 
 def licence(source: str) -> str:
@@ -33,21 +34,24 @@ EU_CANARIES = (
 )
 
 
-def default_canaries(scope, funds: bool = True) -> list[dict]:
+def default_canaries(scope, funds: bool = True, openfigi: bool = True) -> list[dict]:
     """Must-resolve subjects per scope; a failing canary fails the build.
 
-    `funds` says whether the SEC fund file was loaded (an offline `--sec-file` build has none).
+    `funds` says whether the SEC fund file was loaded (an offline `--sec-file` build has none). Without OpenFIGI
+    (`openfigi`) no line has a FIGI or an EU ticker, nothing joins a SEC line to a FIRDS security, and no fund is
+    placed, so those checks are left out.
     """
+    figi, ticker = (["figi"], ["ticker"]) if openfigi else ([], [])
     canaries = [
         {"name": name, "isin": isin, "mic": mic,
-         "require": ["ticker", "figi", "lei", "primary"] + (["cik"] if scope.sec and isin == ASML_ISIN else [])}
+         "require": ticker + figi + ["lei", "primary"] + (["cik"] if scope.sec and openfigi and isin == ASML_ISIN else [])}
         for name, isin, mic in EU_CANARIES if scope.covers(mic)
     ]
     if scope.sec:
-        if scope.covers("XAMS"):
+        if scope.covers("XAMS") and openfigi:
             canaries.append({"name": "ASML Nasdaq line under the same issuer", "ticker": "ASML", "mic": "XNAS", "same_issuer_as_isin": ASML_ISIN, "require": ["figi", "cik"]})
-        canaries.append({"name": "Apple on Nasdaq", "ticker": "AAPL", "mic": "XNAS", "require": ["figi", "cik", "primary"]})
-        if funds:
+        canaries.append({"name": "Apple on Nasdaq", "ticker": "AAPL", "mic": "XNAS", "require": figi + ["cik", "primary"]})
+        if funds and openfigi:
             canaries.append({"name": "Direxion Daily TSLA Bull 2X ETF", "ticker": "TSLL", "mic": "XNAS", "require": ["figi", "primary"]})
     return canaries
 

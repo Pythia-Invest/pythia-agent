@@ -8,8 +8,8 @@ import sqlite3
 from pathlib import Path
 
 from test_identity_build_questions import (
-    ISSUER, NAME, NASDAQ, NOTE, RECEIPT, RECEIPT_OF, REGISTRANT, SECURITY, OPERATOR_ISSUER, BuildQuestionFixture,
-    issuer_question,
+    ISSUER, NAME, NASDAQ, NOTE, OPERATOR, OPERATOR_ISSUER, RECEIPT, RECEIPT_OF, REGISTRANT, SECURITY,
+    BuildQuestionFixture, issuer_question,
 )
 from test_identity_contracts import PROVENANCE, assertion_row, identity, insert
 from test_identity_page import ASML, BTC, CONTRACTS, plugin
@@ -50,11 +50,35 @@ class ContestedTest(QueueFixture):
                 user = self.submit(item, "user", **USER)  # where confirm-level evidence disagrees, the user decides
                 self.assertEqual((user["outcome"], user["state"]), ("confirmed", "resolved"))
 
+    def test_one_sources_two_composite_figis_are_not_a_contest(self):
+        # OpenFIGI gives many German composites two composite FIGIs (the regional composite and Tradegate's).
+        composite = "composite:isin:NL0010273215:NL"
+        add(self.path, composite, "composite_figi", "BBG000K6MRN4", "openfigi")  # beside its BBG000C1HSN8
+        subject = page.load_subject(self.ref, ASML)
+        self.assertNotIn("contested", subject["view"])
+        self.assertEqual((subject["contested"], subject["values"]["composite_figi"]), ({}, "BBG000C1HSN8"))  # its first
+        add(self.path, composite, "composite_figi", "BBG000BDTBL9", "vendor")  # another source disagrees: contested
+        self.assertEqual(page.load_subject(self.ref, ASML)["view"]["contested"], {"composite_figi": [
+            {"value": "BBG000BDTBL9", "sources": ["vendor"]}, {"value": "BBG000C1HSN8", "sources": ["openfigi"]},
+            {"value": "BBG000K6MRN4", "sources": ["openfigi"]}]})
+
     def test_a_user_answer_is_refused_only_under_unanimous_confirm_level_proof(self):
         item = self.ask(answer(("isin", B)))  # the record names another ISIN than every confirm-level assertion
         self.assertEqual(self.submit(item, "user", **USER)["outcome"], "blocked")
         add(self.path, SECURITY, "isin", B, "vendor")  # a second confirm-level contributor names the record's ISIN
         self.assertEqual(self.submit(item, "user", **USER)["outcome"], "confirmed")
+
+    def test_none_is_refused_when_one_candidates_own_evidence_names_the_record(self):
+        add(self.path, RECEIPT, "isin", "USN070592100", "vendor")  # the second candidate's ISIN, from another source too
+        batch = answer(("isin", A), mic="XAMS")  # the record names ASML's ISIN on ASML's venue
+        for claim in identity.batch_to_json(batch)["claims"]:
+            self.identity.put_claim(batch.plugin, batch.provider, claim)
+        item = identity.QueueItem(id="q-two", kind="residual", reason="ambiguous",
+                                  subject_ids=("listing:provisional:eodhd:catalogue:ASML.AS",),
+                                  candidate_ids=(ASML, NASDAQ), evidence_ids=(), state="open", opened_at=NOW,
+                                  plugins=("eodhd",), provider_ref=batch.claims[0].native_ref)
+        self.identity.put_queue_item(item)
+        self.assertEqual(self.submit(item, "user", relation="none", chosen_id=None, **USER)["outcome"], "blocked")
 
     def test_display_level_evidence_neither_blocks_nor_corroborates(self):
         display = store.open_reference(self.path, trust.DISPLAY)
@@ -163,6 +187,24 @@ class AnswerTest(BuildQuestionFixture):
         self.page(ASML)  # the share's page shows the answer too, so touching it is relevant
         [conflict] = self.open()
         self.assertEqual((conflict["reason"], conflict["candidate_ids"]), ("binding", [SECURITY, NOTE]))
+
+    def test_a_later_release_contradicting_a_same_company_answer_asks_too(self):
+        no_cik = [("DELETE FROM assertions WHERE subject_id = ? AND scheme = 'cik'", (ISSUER,))]
+        self.install([NAME], self.world(sql=no_cik))
+        self.queue_ops.read_queue(self.ops, {"subject_id": REGISTRANT})
+        [asked] = self.open()
+        self.assertEqual(self.answer(asked["id"], "same_issuer", ISSUER)["state"], "resolved")
+        self.page(REGISTRANT)
+        self.assertEqual(self.open(), [], "the registrant has no identifier of its own that ASML's contradicts")
+        second = self.world("second", sql=no_cik)
+        add(second, REGISTRANT, "lei", OPERATOR, "gleif")  # the next release gives the registrant an LEI of its own
+        self.install([], second, "reference-20260927")
+        self.assertEqual(self.page(REGISTRANT)["issuer"]["id"], ISSUER, "the answer stays applied until the user decides")
+        [conflict] = self.open()
+        self.assertEqual((conflict["reason"], conflict["candidate_ids"]), ("binding", [ISSUER, REGISTRANT]))
+        self.assertEqual(self.answer(conflict["id"], "same_issuer", REGISTRANT)["state"], "resolved")
+        view = self.page(REGISTRANT)
+        self.assertEqual((view["issuer"]["id"], view["issuer"]["lei"], self.open()), (REGISTRANT, OPERATOR, []))
 
     def test_a_contested_identifier_is_asked_on_touch_and_the_users_answer_decides_it(self):
         contested = self.world("contested")

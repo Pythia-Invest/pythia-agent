@@ -4,6 +4,7 @@ import { identityRepair } from "../src/client/repairs";
 import {
   answerText,
   identityContext,
+  matchDialog,
 } from "../src/components/repairs/identity-kind";
 
 const RECEIPT = "security:figi:BBG001SCG0R3";
@@ -81,5 +82,13 @@ describe("a reference build question in Repairs", () => {
     expect(
       answerText(built, { relation: "same_issuer", chosen_id: ISSUER }),
     ).toBe("Issued by ASML Holding N.V.");
+  });
+
+  it("ends the answer's sentence once after a name ending in a period", () => {
+    const { description } = matchDialog(built, {
+      relation: "same_issuer",
+      chosen_id: ISSUER,
+    });
+    expect(description).toMatch(/^Issued by ASML Holding N\.V\. Your answer/u);
   });
 });

@@ -9,6 +9,16 @@ import { DAY, WORDS, type ChartPeriod } from "./chart-plan";
 
 /** Paths, period changes and statistics from supplied reads only. */
 export type Point = { time: number; value: number };
+/** A time's calendar date (YYYY-MM-DD) in a time zone, UTC when none. */
+export function localDate(time: number, zone: string | null | undefined) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: zone ?? "UTC" }).format(
+      time,
+    );
+  } catch {
+    return undefined;
+  }
+}
 export function points(
   result: ReadResult,
   field: "close" | "high" | "low" = "close",
@@ -43,6 +53,13 @@ export function periodChange(
   };
 }
 
+const MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+/** "28 Sep" for a session date (YYYY-MM-DD); spelled out, as ICU may write "Sept". */
+function dayMonth(date: string) {
+  const [, month = 1, day] = date.split("-").map(Number);
+  return `${day} ${MONTHS[month - 1]}`;
+}
+
 /** Statistics only from fields the source supplies. Session values come from
  * the latest daily bar and carry its date; the 52-week range from daily bars. */
 export function statistics(
@@ -54,23 +71,47 @@ export function statistics(
   const bar = year?.observations.at(-1);
   const series = year?.series;
   const scale = series ? seriesField(series).unit.scale : "1";
+  // A source may leave the quote's session out of its daily bars until that
+  // session settles (Yahoo sends its bar without a close), so the latest bar
+  // can be an earlier session than the price: its values then name their date.
+  const quoted = quote?.observations.at(-1)?.time;
+  const quoteDay =
+    quoted?.kind === "instant"
+      ? localDate(
+          Date.parse(quoted.value),
+          quote?.series?.timezone ?? series?.timezone,
+        )
+      : quoted?.kind === "session_date"
+        ? quoted.value
+        : undefined;
+  const earlier =
+    bar?.time.kind === "session_date" &&
+    quoteDay !== undefined &&
+    bar.time.value < quoteDay
+      ? ` (${dayMonth(bar.time.value)})`
+      : "";
   if (bar?.shape === "ohlc" && series) {
     const date = bar.time.kind === "unknown" ? "date unknown" : bar.time.value;
     const detail = `Daily bar for ${date} · ${series.dataset} · completion ${bar.completion.state}`;
     stats.push(
       {
         id: "open",
-        label: "Open",
+        label: `Open${earlier}`,
         value: decimalNumber(bar.open, scale),
         detail,
       },
       {
         id: "high",
-        label: "High",
+        label: `High${earlier}`,
         value: decimalNumber(bar.high, scale),
         detail,
       },
-      { id: "low", label: "Low", value: decimalNumber(bar.low, scale), detail },
+      {
+        id: "low",
+        label: `Low${earlier}`,
+        value: decimalNumber(bar.low, scale),
+        detail,
+      },
     );
   }
   const close = quote?.price_context?.reference_close;
@@ -84,7 +125,7 @@ export function statistics(
   if (bar?.shape === "ohlc" && bar.volume !== undefined && series)
     stats.push({
       id: "volume",
-      label: "Volume",
+      label: `Volume${earlier}`,
       value: decimalNumber(bar.volume),
       format: "quantity",
       detail: `Daily bar volume for ${bar.time.kind === "unknown" ? "unknown date" : bar.time.value} · ${series.dataset}`,
