@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   listingGroups,
   listingLabel,
+  listingVenue,
 } from "../src/components/instrument/listing-groups";
 
 function line(
@@ -52,16 +53,44 @@ describe("instrument listing groups", () => {
   });
 
   it("names a listing by ticker, venue and currency", () => {
-    expect(
-      listingLabel(line("asml", { venue: "Euronext Amsterdam", mic: "XAMS" })),
-    ).toBe("ASML · Euronext Amsterdam · EUR");
+    const asml = line("asml", { venue: "Euronext Amsterdam", mic: "XAMS" });
+    expect(listingLabel(asml, [line("other"), asml])).toBe(
+      "ASML · Euronext Amsterdam · EUR",
+    );
   });
 });
 
-describe("the most liquid EU line", () => {
-  it("names why it is priced, never as primary", () => {
-    expect(
-      listingLabel(line("race", { venue: "Tradegate", most_liquid: true })),
-    ).toBe("RACE · Tradegate (most liquid EU line) · EUR");
+describe("the lead line's home", () => {
+  it("calls a decided primary the home", () => {
+    const asml = line("asml", {
+      venue: "Euronext Amsterdam",
+      mic: "XAMS",
+      primary: true,
+    });
+    expect(listingLabel(asml, [asml])).toBe(
+      "ASML · Euronext Amsterdam (home) · EUR",
+    );
+  });
+
+  it("names why the most liquid EU line is priced, never as primary", () => {
+    const race = line("race", { venue: "Tradegate", most_liquid: true });
+    expect(listingLabel(race, [race])).toBe(
+      "RACE · Tradegate (most liquid EU line) · EUR",
+    );
+  });
+
+  it("says the home is unknown on the lead line when no primary is decided", () => {
+    const shel = line("shel", { venue: "London Stock Exchange", mic: "XLON" });
+    const xetr = line("r6c", { venue: "Xetra", mic: "XETR" });
+    const adr = line("shel-us", { mic: "XNYS", folded: true });
+    const listings = [shel, xetr, adr];
+    expect(listings.map((listing) => listingVenue(listing, listings))).toEqual([
+      "London Stock Exchange (home unknown)",
+      "Xetra",
+      "XNYS",
+    ]);
+    // A crypto deployment has no venue, so no home to know.
+    const chain = line("usdc", { ticker: "USDC" });
+    expect(listingLabel(chain, [chain])).toBe("USDC · EUR");
   });
 });

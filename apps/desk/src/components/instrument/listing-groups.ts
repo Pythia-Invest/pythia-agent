@@ -32,17 +32,41 @@ export function listingGroups(
   return groups.filter((group) => group.listings.length > 0);
 }
 
-/** The venue, and for a line priced because no primary is known, why. */
-export function listingVenue(listing: SubjectListing) {
-  const venue = listing.venue ?? listing.mic;
-  return listing.most_liquid ? `${venue} (most liquid EU line)` : venue;
+/**
+ * What the instrument's lead line is, so order never implies a home: core's
+ * decided primary is the home; with none, the lead is FIRDS' most liquid EU
+ * line or its home is unknown. Core puts a primary first, so a lead that is
+ * neither has no primary anywhere. A line without a venue (a crypto
+ * deployment) has no home to know.
+ */
+function homeNote(
+  listing: SubjectListing,
+  listings: readonly SubjectListing[],
+) {
+  if (listing.primary) return "home";
+  if (listing.most_liquid) return "most liquid EU line";
+  const lead = listings.find((line) => !line.folded);
+  return listing.mic && listing.id === lead?.id ? "home unknown" : null;
 }
 
-/** "ASML · Euronext Amsterdam · EUR": how a listing names itself. */
-export function listingLabel(listing: SubjectListing) {
+/** The venue, and on the lead line whether it is the home. */
+export function listingVenue(
+  listing: SubjectListing,
+  listings: readonly SubjectListing[],
+) {
+  const venue = listing.venue ?? listing.mic;
+  const note = homeNote(listing, listings);
+  return note ? `${venue} (${note})` : venue;
+}
+
+/** "ASML · Euronext Amsterdam (home) · EUR": how a listing names itself. */
+export function listingLabel(
+  listing: SubjectListing,
+  listings: readonly SubjectListing[],
+) {
   return [
     listing.ticker ?? listing.mic ?? "Listing",
-    listingVenue(listing),
+    listingVenue(listing, listings),
     listing.currency,
   ]
     .filter(Boolean)

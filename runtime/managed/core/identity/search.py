@@ -334,10 +334,15 @@ def _allowed(line: dict, allowed: set[str] | None) -> bool:
 
 def _group(key: str, lead: dict, lines: list[dict], listings: int) -> dict:
     """A SearchGroup: named by its lead line, with these listing rows and its true listing count. Each row names
-    its instrument (`inst`), which the page opens, and its own listing, which the page shows."""
+    its instrument (`inst`), which the page opens, and its own listing, which the page shows.
+
+    In a company's group, the lines of its lead instrument (receipts folded in; the row's kind names a receipt)
+    carry the company's name, not the security's FIRDS short name ("HSBC Hldgs PLC DL-,50"). Another instrument
+    (a share class, a preferred) and a fund's or crypto asset's line keep their own security name."""
     return {"id": key, "name": lead["name"], "kind": lead["ikind"], "listings": listings,
             "rows": [{"id": line["listing"], "instrument": line["inst"], "ticker": line["ticker"],
-                      "name": _own(line["names"]) or line["name"], "kind": line["kind"], "mic": line["mic"],
+                      "name": line["name"] if line["inst"] == lead["inst"] and line["grp"] != line["inst"] else
+                      _own(line["names"]) or line["name"], "kind": line["kind"], "mic": line["mic"],
                       "venue": line["venue"], "country": line["country"], "currency": line["currency"]}
                      for line in lines]}
 
