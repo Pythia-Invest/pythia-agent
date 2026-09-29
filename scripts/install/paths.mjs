@@ -58,7 +58,7 @@ export function resolveInstallPaths(environment = process.env) {
   return {
     id: "production",
     profile,
-    ports: { hermes: 8645, memory: 8643, desk: 8644 },
+    ports: { hermes: 8645, memory: 8643, desk: 8644, settings: 8646 },
     checkout,
     repositoryRoot: checkout,
     configRoot,
@@ -91,6 +91,7 @@ export function resolveInstallPaths(environment = process.env) {
     ),
     serviceEnvironments: {
       hermes: join(configRoot, "service-hermes.environment"),
+      settings: join(configRoot, "service-hermes-settings.environment"),
       desk: join(configRoot, "service-desk.environment"),
     },
     serviceLauncher: checkout

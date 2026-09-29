@@ -108,9 +108,7 @@ describe("managed plugin historical ownership", () => {
     const { destination } = fixture();
     refreshManagedPlugin(source, destination);
     writeFileSync(join(destination, "desk_view.py"), "custom");
-    expect(refreshManagedPlugin(source, destination).status).toBe(
-      "preserved",
-    );
+    expect(refreshManagedPlugin(source, destination).status).toBe("preserved");
     expect(readFileSync(join(destination, "desk_view.py"), "utf8")).toBe(
       "custom",
     );

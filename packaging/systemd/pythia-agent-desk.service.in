@@ -7,7 +7,7 @@ PartOf=pythia-agent.target
 [Service]
 Type=simple
 EnvironmentFile=@@DESK_ENVIRONMENT_FILE@@
-UnsetEnvironment=API_SERVER_KEY EODHD_API_TOKEN EDGAR_IDENTITY
+UnsetEnvironment=API_SERVER_KEY EODHD_API_TOKEN EDGAR_IDENTITY PYTHIA_HERMES_SETTINGS_TOKEN
 WorkingDirectory=@@DESK_ROOT@@
 ExecStart=@@PYTHON@@ @@SERVICE_LAUNCHER@@ desk @@NODE@@ @@NEXT@@ start --hostname 127.0.0.1 --port 8644
 Restart=on-failure

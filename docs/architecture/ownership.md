@@ -8,7 +8,10 @@ The versioned checkout owns Pythia's skills, plugins, tools, applications,
 dependency locks, and operating code. An explicit install or rebuild activates
 the chosen checkout; the routine preview updater advances recorded clean
 `main`. Hermes is an exact, unmodified dependency managed by Pythia, not a
-second product control plane.
+second product control plane. Pythia runs two processes from the same pin:
+Hermes's API server, which hosts chat, and Hermes's own settings server, which
+Desk's Settings reads and writes through
+([ADR 0021](../decisions/0021-hermes-settings-server.md)).
 
 Pythia sets Hermes's native `HERMES_DISABLE_LAZY_INSTALLS=1` when running
 the agent, so importing an optional provider does not silently change the

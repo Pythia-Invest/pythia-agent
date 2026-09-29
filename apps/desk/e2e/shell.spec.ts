@@ -42,7 +42,14 @@ test("separates the navigation rail from the chat list", async ({ page }) => {
     "href",
     "/",
   );
-  for (const name of ["Chat", "Markets", "Watchlist", "Workspace", "Filings"]) {
+  for (const name of [
+    "Chat",
+    "Markets",
+    "Watchlist",
+    "Workspace",
+    "Filings",
+    "Capabilities",
+  ]) {
     await expect(rail.getByRole("link", { name, exact: true })).toBeVisible();
   }
   await expect(
@@ -114,17 +121,23 @@ test("settings follows the device by default and can override it", async ({
   await openDesk(page);
   await openNavigation(page);
   await page.getByRole("link", { name: "Settings" }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page).toHaveURL(/\?settings=$/);
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await settings
+    .getByRole("navigation", { name: "Settings sections" })
+    .getByRole("link", { name: "Appearance" })
+    .click();
 
   const html = page.locator("html");
-  const trigger = page.getByRole("combobox", { name: "Theme" });
-  await expect(trigger).toHaveText("System");
+  const theme = settings.getByRole("group", { name: "Theme" });
+  const choice = (name: string) =>
+    theme.getByRole("button", { name, exact: true });
+  await expect(choice("System")).toHaveAttribute("aria-pressed", "true");
   await expect(html).toHaveAttribute("data-theme-preference", "system");
 
   const target =
     (await html.getAttribute("data-theme")) === "dark" ? "Light" : "Dark";
-  await trigger.click();
-  await page.getByRole("option", { name: target }).click();
+  await choice(target).click();
   await expect(html).toHaveAttribute("data-theme", target.toLowerCase());
   await expect(html).toHaveAttribute(
     "data-theme-preference",
@@ -132,13 +145,10 @@ test("settings follows the device by default and can override it", async ({
   );
 
   // Returning to System hands control back to the device.
-  await trigger.click();
-  await page.getByRole("option", { name: "System" }).click();
+  await choice("System").click();
   await expect(html).toHaveAttribute("data-theme-preference", "system");
   await page.reload();
-  await expect(page.getByRole("combobox", { name: "Theme" })).toHaveText(
-    "System",
-  );
+  await expect(choice("System")).toHaveAttribute("aria-pressed", "true");
 });
 
 test("docks Pythia beside a page and keeps the open conversation", async ({

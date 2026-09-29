@@ -41,6 +41,8 @@ export function stackIdentity(repositoryRoot) {
       hermes: firstPort,
       memory: firstPort + 1,
       desk: firstPort + 2,
+      // Above the three-port slots, so existing stacks keep their addresses.
+      settings: 43000 + portSlot,
     },
   };
 }

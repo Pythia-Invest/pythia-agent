@@ -21,6 +21,7 @@ import {
   readJson,
 } from "../../scripts/dev/files.mjs";
 import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
+import { secrets } from "../../scripts/dev/runtime-config.mjs";
 import {
   developmentPrivateRoots,
   installSeeds,
@@ -115,7 +116,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
     }
   });
 
-  it("removes ambient credentials and starts only Hermes and Desk", () => {
+  it("removes ambient credentials and gives each service only its own bearer", () => {
     const root = temporaryRoot();
     const paths = resolveStackPaths({ environment: environment(root) });
     const clean = runtimeEnvironment(paths, "safe-local-key-value", {
@@ -164,20 +165,65 @@ describe("private roots, environment, seeds, and copied assets", () => {
     expect(clean.PYTHIA_DEV_LIFECYCLE_CLI).toBe(
       join(paths.repositoryRoot, "scripts", "dev", "cli.mjs"),
     );
-    const services = developmentServices(paths, clean);
+    const services = developmentServices(paths, clean, "settings-bearer-value");
     expect(services[0]?.cwd).toBe(paths.workspace);
-    expect(services.map((service) => service.name)).toEqual(["hermes", "desk"]);
-    expect(services[0]?.environment.API_SERVER_KEY).toBe(
-      "safe-local-key-value",
+    expect(services.map((service) => service.name)).toEqual([
+      "hermes",
+      "hermes-settings",
+      "desk",
+    ]);
+    const [hermes, settings, desk] = services;
+    expect(hermes?.environment.API_SERVER_KEY).toBe("safe-local-key-value");
+    expect(hermes?.environment.HERMES_DASHBOARD_SESSION_TOKEN).toBeUndefined();
+    // The settings server gets only its own bearer, on loopback, for
+    // Pythia's profile alone.
+    expect(settings?.environment.API_SERVER_KEY).toBeUndefined();
+    expect(settings?.environment.HERMES_DASHBOARD_SESSION_TOKEN).toBe(
+      "settings-bearer-value",
     );
-    expect(services[1]?.environment.API_SERVER_KEY).toBe(
-      "safe-local-key-value",
+    expect(settings?.args).toEqual([
+      "-p",
+      paths.profile,
+      "serve",
+      "--isolated",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(paths.ports.settings),
+    ]);
+    expect(desk?.environment.API_SERVER_KEY).toBe("safe-local-key-value");
+    expect(desk?.environment.PYTHIA_HERMES_SETTINGS_TOKEN).toBe(
+      "settings-bearer-value",
+    );
+    expect(desk?.environment.PYTHIA_HERMES_SETTINGS_URL).toBe(
+      `http://127.0.0.1:${paths.ports.settings}`,
     );
     expect(
       JSON.stringify(
         redactedEnvironment({ API_SERVER_KEY: "x", SECRET: "x", OK: "y" }),
       ),
     ).not.toContain("x");
+  });
+
+  it("adds a settings bearer to an existing store without rotating the API key", () => {
+    const root = temporaryRoot();
+    const paths = resolveStackPaths({ environment: environment(root) });
+    mkdirSync(paths.configRoot, { recursive: true, mode: 0o700 });
+    const store = join(paths.configRoot, "secrets.json");
+    const apiKey = "A".repeat(43);
+    writeFileSync(
+      store,
+      JSON.stringify({ schema_version: 1, hermes_api_key: apiKey }),
+      { mode: 0o600 },
+    );
+    const upgraded = secrets(paths);
+    expect(upgraded.hermes_api_key).toBe(apiKey);
+    expect(upgraded.hermes_settings_token).toMatch(/^[\w-]{43}$/u);
+    expect(upgraded.hermes_settings_token).not.toBe(apiKey);
+    // Stable once issued, and stored privately.
+    expect(secrets(paths)).toEqual(upgraded);
+    expect(readJson(store)).toEqual(upgraded);
+    expect(lstatSync(store).mode & 0o077).toBe(0);
   });
 
   it("keeps the legacy service only during an explicit staged transition", () => {
@@ -202,13 +248,15 @@ describe("private roots, environment, seeds, and copied assets", () => {
     const services = developmentServices(
       paths,
       runtimeEnvironment(paths, "fixture-key", {}),
+      "fixture-settings-bearer",
     );
     expect(services.map((service) => service.name)).toEqual([
       "hermes",
+      "hermes-settings",
       "desk",
       "basic-memory",
     ]);
-    const legacy = services[2];
+    const legacy = services[3];
     expect(legacy?.environment.API_SERVER_KEY).toBeUndefined();
     expect(legacy?.environment.PYTHIA_DESK_VIEW_STATE).toBeUndefined();
     expect(legacy?.environment.BASIC_MEMORY_CONFIG_DIR).toBe(

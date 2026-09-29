@@ -18,6 +18,7 @@ import { atomicWrite } from "./files.mjs";
 
 export const UNIT_NAMES = [
   "pythia-agent-hermes.service",
+  "pythia-agent-hermes-settings.service",
   "pythia-agent-desk.service",
   "pythia-agent.target",
 ];
@@ -86,6 +87,14 @@ export function serviceEnvironmentValues(paths, executables) {
     API_SERVER_PORT: String(paths.ports.hermes),
     PATH: path,
   };
+  // Hermes's settings server reads and writes the same profile; it needs no
+  // Pythia roots and never the chat API bearer.
+  const settings = {
+    HOME: process.env.HOME ?? "",
+    HERMES_HOME: paths.hermesRoot,
+    HERMES_DISABLE_LAZY_INSTALLS: "1",
+    PATH: path,
+  };
   const desk = {
     PYTHIA_MANAGED_ROOT: paths.managedRoot,
     PYTHIA_WORKSPACE: paths.workspace,
@@ -95,6 +104,7 @@ export function serviceEnvironmentValues(paths, executables) {
     PYTHIA_CONFIG_ROOT: paths.configRoot,
     PYTHIA_STATE_ROOT: paths.stateRoot,
     PYTHIA_HERMES_API_URL: `http://127.0.0.1:${paths.ports.hermes}`,
+    PYTHIA_HERMES_SETTINGS_URL: `http://127.0.0.1:${paths.ports.settings}`,
     PYTHIA_HERMES_EXECUTABLE: executables.hermes,
     PYTHIA_HERMES_PROFILE: paths.profile,
     PYTHIA_LIFECYCLE_COMMAND: paths.installedCommand,
@@ -104,7 +114,7 @@ export function serviceEnvironmentValues(paths, executables) {
     HOSTNAME: "127.0.0.1",
     PATH: path,
   };
-  return { hermes, desk };
+  return { hermes, settings, desk };
 }
 
 export function serviceEnvironments(paths, executables) {
@@ -121,6 +131,9 @@ function replacements(paths, executables) {
   return {
     "@@HERMES_ENVIRONMENT_FILE@@": systemdPath(
       paths.serviceEnvironments.hermes,
+    ),
+    "@@SETTINGS_ENVIRONMENT_FILE@@": systemdPath(
+      paths.serviceEnvironments.settings,
     ),
     "@@DESK_ENVIRONMENT_FILE@@": systemdPath(paths.serviceEnvironments.desk),
     "@@CHECKOUT@@": systemdPath(paths.checkout),
@@ -179,6 +192,7 @@ export function installUnits(paths, units) {
 export function writeServiceEnvironment(paths, _apiKey, executables) {
   const values = serviceEnvironments(paths, executables);
   atomicWrite(paths.serviceEnvironments.hermes, values.hermes);
+  atomicWrite(paths.serviceEnvironments.settings, values.settings);
   atomicWrite(paths.serviceEnvironments.desk, values.desk);
   // Releases before this split persisted the bearer in one shared file. It is
   // not an authority and must not survive once role-scoped transport exists.
@@ -226,6 +240,20 @@ export function unitExpectations(paths, executables) {
       "gateway",
       "run",
       "--external-supervisor",
+    ],
+    "pythia-agent-hermes-settings.service": [
+      executables.python,
+      paths.serviceLauncher,
+      "hermes-settings",
+      executables.hermes,
+      "-p",
+      paths.profile,
+      "serve",
+      "--isolated",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(paths.ports.settings),
     ],
     "pythia-agent-desk.service": [
       executables.python,

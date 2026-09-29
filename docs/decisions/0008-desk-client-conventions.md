@@ -90,6 +90,72 @@ folder contents were rejected: they either mask the wait or introduce stale
 research metadata. Browser qualification delays application scripts and blocks
 APIs to prove the listing exists in initial HTML on desktop and mobile.
 
+## Settings (2026-09, Hermes Desktop's structure)
+
+Settings follows Hermes Desktop's Settings, whose structure, layout and
+copy Desk adapts (MIT; see `apps/desk/NOTICE.md`). Pythia builds on Hermes,
+so its settings are Hermes's settings plus Pythia's own, presented the way
+Hermes's own app presents them. The owner chose this after the hand-written
+Pythia pages (an Overview, General, Models, Data sources, Folders, Skills,
+Tools, Updates) proved too thin to scale to more providers and plugins.
+
+It fills the window over the current page. A sidebar holds Back, search and
+a tree of sections: Model (Main model, Fallback models, Auxiliary models),
+Chat, Appearance, Workspace, Safety, Memory & Context, Advanced; a spacer;
+Providers (Accounts, API keys, Custom endpoints); a spacer; About. The open section lists its pages; choosing a section opens its first
+page. A dot marks a section that needs the user. The page header is a
+breadcrumb, not a title. There is no overview page.
+
+- **One schema, one row.** Every setting is a field described the same way
+  (label, description, type, choices) whether Hermes or Pythia owns it, and
+  renders as the same row: label and description on the left, the control on
+  the right, stacking in a narrow pane. Hermes's fields come from its config
+  schema with Hermes Desktop's labels and choices; Pythia's (theme and the
+  folders) are declared in the same form in `use-pythia-fields.ts`. Which Hermes fields each page shows is one registry,
+  `apps/desk/src/settings/hermes-pages.ts`, which is also the server's write
+  allowlist.
+- **Saving.** Ordinary values save themselves a moment after they change,
+  sending only the fields that changed; a failure shows under the field.
+  Credentials are fields that show a stand-in ("•••• 4f2a") and edit in
+  place with an explicit Save and Remove. Provider connections belong to
+  their connectors ([ADR 0034](0034-core-and-optional-features.md)), so
+  Settings has no data-source page of its own.
+- **Pages that need more than rows**: Main model (provider, then model, then
+  Apply; Hermes may ask to confirm an expensive model), Accounts (connected
+  sign-ins first, the rest behind a disclosure; a device sign-in shows the
+  provider's code and page and finishes on its own; CLI-only providers show
+  their command), API keys (searchable provider cards, the main key inline),
+  Custom endpoints, and About.
+- **Skills, tools, MCP connectors and plugins** are a separate Capabilities
+  destination with tabs, search and an All / On / Off filter, as in Hermes
+  Desktop. Pythia's own plugin cannot be switched off.
+
+The page is addressed by `settings=<section>/<page>` on whatever page is open;
+opening adds a history entry that Back or Escape closes, and moving between
+pages replaces it. Older addresses (`general`, `models`, `data-sources`,
+`folders`, `updates`) map to current pages, and `skills` and `tools` to
+Capabilities. On a phone Settings starts at its list, every page a row under
+its section, and a chosen page fills the screen with "‹ Settings".
+
+Search matches every word against page names, section names, keywords and
+each field's label and key, pages first; Enter opens the page and marks the
+field briefly.
+
+**Version and updates.** The sidebar no longer shows a version watermark.
+About shows the Pythia mark, "Version x · channel" (a branch build adds its
+commit) and one status card: up to date with when it last checked, an update
+ready with Update now, installing, installed with Reload, or what failed and
+how to recover, plus Check now and Release notes. Desk checks for updates
+once a day while open (on load and on focus after a day), as Hermes Desktop
+does; the owner accepted this change from explicit-only checks. When an
+update is ready, installing or needs a reload, one entry appears in the
+sidebar footer and opens the same status in a dialog. Applying an update
+still belongs to the installed lifecycle owner.
+
+Rejected: the previous grouped pages with an Overview, generic "Configured"
+labels, credential dialogs, a pop-up over the page, a scroll-spy list, and a
+watermark version in the navigation.
+
 ## Phone layout (2026-09)
 
 Below 900px each desktop component keeps its identity, controls and place in

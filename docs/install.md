@@ -41,11 +41,15 @@ state, data, and cache locations; installs a `pythia` command in
 
 - `pythia-agent.target`
 - `pythia-agent-hermes.service`
+- `pythia-agent-hermes-settings.service` (Hermes's settings server, which
+  Desk's Settings uses)
 - `pythia-agent-desk.service`
 
 It enables user lingering so the stack can run after logout. It does not create
 a system service, install a global Hermes, or modify another Pythia/lab service.
-The defaults are Hermes on `127.0.0.1:8645` and Desk at <http://127.0.0.1:8644>.
+The defaults are Hermes on `127.0.0.1:8645`, its settings server on
+`127.0.0.1:8646` and Desk at <http://127.0.0.1:8644>. Only Desk's server talks
+to the settings server; see [ADR 0021](decisions/0021-hermes-settings-server.md).
 
 Managed plugin files are copied into the native Hermes profile after locked
 dependencies are prepared. Profile, SOUL and workspace defaults

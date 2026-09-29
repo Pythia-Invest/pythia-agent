@@ -38,6 +38,7 @@ import {
   releaseStatusService,
   type ReleaseStatusService,
 } from "./release-status";
+import { createHermesSettingsRoutes } from "./hermes-settings-routes";
 import { createSettingsRoutes } from "./settings-routes";
 import type { ApprovalChoice, DeskRunEvent, HermesClient } from "./types";
 
@@ -367,6 +368,7 @@ export function createDeskRoutes(
       }
     },
     ...createSettingsRoutes(settings),
+    ...createHermesSettingsRoutes(),
   };
 }
 

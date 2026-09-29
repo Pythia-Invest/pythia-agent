@@ -33,7 +33,7 @@ The technical-preview updater follows `origin/main` only when the installed
 source records clean `main`. It accepts a fast-forward only and runs only after an explicit user action. Stable tag discovery and signature verification are designed for a later
 stable channel; no stable release is currently published.
 
-On an installed device, **Settings → Updates** shows the activated version,
+On an installed device, **Settings → About** shows the activated version,
 build and channel. **Check now** performs release discovery, and Desk also checks once a day
 while it is open; opening Settings reads local inventory only. When an
 update is available, **Update now** invokes the same lifecycle through an
