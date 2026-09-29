@@ -6,7 +6,7 @@ import {
   createNativeSessionContextRoutes,
   createNativeSessionContextReader,
 } from "./native-session-context";
-import { deskViewStore, type DeskViewStore } from "./view-context/store";
+import { deskViewStore } from "./view-context/store";
 import { createWorkspaceRoutes } from "./workspace/routes";
 import { createTopBarRoutes } from "./top-bar-routes";
 import { createPluginInvokeRoutes } from "./plugin-invoke-routes";
@@ -14,7 +14,7 @@ import { createWidgetRoutes } from "./widget-routes";
 import { createPluginReadRoutes } from "./plugin-read-routes";
 import { createDataUpdateRoutes } from "./data-update-routes";
 import { createFinancialDataRoutes } from "./financial-data-routes";
-import { workspaceStore, type WorkspaceStore } from "./workspace/store";
+import { workspaceStore } from "./workspace/store";
 import {
   result,
   routeError,
@@ -102,10 +102,10 @@ export function createDeskRoutes(
   settings: DeviceSettingsService = deviceSettingsService,
   releases: ReleaseStatusService = releaseStatusService,
   attachments: AttachmentStore = attachmentStore,
-  workspace: WorkspaceStore = workspaceStore,
-  views: DeskViewStore = deskViewStore,
-  sessionContext = createNativeSessionContextReader(),
 ) {
+  const workspace = workspaceStore;
+  const views = deskViewStore;
+  const sessionContext = createNativeSessionContextReader();
   return {
     ...createWorkRoutes(client),
     ...createReleaseRoutes(releases),
