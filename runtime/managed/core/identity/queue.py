@@ -56,7 +56,7 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
                                   if level == subject_kind(candidate)), "unrelated")]
-    built = build_questions.asked(item) if plugin == BUILD and not native else None
+    built = build_questions.asked(item) if item["plugins"] == [BUILD] and not native else None
     if built:  # a reference build question: its own text, and one relation per candidate
         label, question = build_questions.LABEL, built[0]
         answers = [{"relation": str(built[1]), "chosen_id": candidate} for candidate in item["candidate_ids"]]
