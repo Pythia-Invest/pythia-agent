@@ -63,7 +63,8 @@ if (unitPayload.includes("CLOSURE_CANARY_SECRET")) {
 if (
   unitPayload.includes("basic-memory") ||
   Object.keys(installedEnvironments).some(
-    (role) => !["hermes", "desk"].includes(role),
+    // The settings role is Hermes's own settings server (ADR 0021).
+    (role) => !["hermes", "settings", "desk"].includes(role),
   )
 ) {
   violations.push(
@@ -95,6 +96,7 @@ const expectedUnitFragments = [
   `ExecStart="${executables.python}" "${paths.serviceLauncher}" hermes "${executables.hermes}" -p pythia gateway run --external-supervisor`,
   `WorkingDirectory=${join(paths.checkout, "apps", "desk")}\n`,
   `ExecStart="${executables.python}" "${paths.serviceLauncher}" desk "${executables.node}" "${executables.next}" start --hostname 127.0.0.1 --port 8644`,
+  `ExecStart="${executables.python}" "${paths.serviceLauncher}" hermes-settings "${executables.hermes}" -p pythia serve --isolated --host 127.0.0.1 --port 8646`,
 ];
 for (const fragment of expectedUnitFragments) {
   if (!unitPayload.includes(fragment)) {

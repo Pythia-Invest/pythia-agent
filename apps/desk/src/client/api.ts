@@ -207,6 +207,13 @@ export class DeskApi extends BrowserRequest {
     return this.json<DeviceSettingsSnapshot>("/api/settings");
   }
 
+  hermes<T>(path: string, body?: unknown, method: "POST" | "PATCH" = "POST") {
+    return this.json<T>(
+      `/api/hermes/${path}`,
+      body === undefined ? {} : { method, body: JSON.stringify(body) },
+    );
+  }
+
   updateStatus(check = false) {
     return this.json<DeskReleaseStatus>(
       `/api/update-status${check ? "?check=1" : ""}`,

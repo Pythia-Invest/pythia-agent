@@ -112,7 +112,14 @@ describe("worktree identity and native command construction", () => {
     const identity = stackIdentity("/tmp/Example Worktree");
     expect(identity).toEqual(stackIdentity("/tmp/Example Worktree"));
     expect(identity.profile).toMatch(/^pythia-[a-f0-9]{12}$/u);
-    expect(new Set(Object.values(identity.ports)).size).toBe(3);
+    expect(new Set(Object.values(identity.ports)).size).toBe(4);
+    // Every stack's three consecutive ports fall below 43000, so no stack's
+    // settings server can take another stack's Hermes, memory or Desk port.
+    expect(Math.max(identity.ports.hermes, identity.ports.desk)).toBeLessThan(
+      43000,
+    );
+    expect(identity.ports.settings).toBeGreaterThanOrEqual(43000);
+    expect(identity.ports.settings).toBeLessThan(50000);
   });
 
   it("rejects a profile root that would disable Hermes loop liveness", () => {

@@ -104,7 +104,7 @@ or adopts another running service.
 ```sh
 just dev-init               # hydrate and configure exact pinned runtimes
 just dev-init-recover       # remove a receipt-proven partial first profile
-just dev                    # Hermes + Desk, one foreground owner
+just dev                    # Hermes, its settings server and Desk, one foreground owner
 just dev-refresh            # explicitly prepare and replace selected consumers
 just status                 # owner-verified state for this worktree only
 just stop                   # graceful stop for this worktree only
@@ -115,8 +115,12 @@ just auth-status openai-codex
 just model                 # choose shared provider/model defaults, once
 ```
 
-`just dev` binds only `127.0.0.1` and exits with an actionable error if one of
-its ports is occupied. Before launching Hermes, it also waits boundedly for the
+`just dev` runs three services: Hermes's API server, Hermes's settings server
+(`hermes serve --isolated`, which Desk's Settings reads and writes through; see
+[ADR 0021](decisions/0021-hermes-settings-server.md)) and Desk. The settings
+server's port is `43000` plus the stack's slot, apart from the three
+consecutive ports of the other services. `just dev` binds only `127.0.0.1` and
+exits with an actionable error if one of its ports is occupied. Before launching Hermes, it also waits boundedly for the
 API port to become reusable under Hermes's native bind semantics. `Ctrl-C` and
 `just stop` propagate through the same foreground owner and clean up both
 children. A stale or foreign process receipt is reported but never signalled,

@@ -165,6 +165,9 @@ export async function doctor(paths) {
     hermes: await endpoint(`http://127.0.0.1:${paths.ports.hermes}/health`, {
       headers,
     }),
+    settings: await endpoint(
+      `http://127.0.0.1:${paths.ports.settings}/api/status`,
+    ),
     desk: await endpoint(`http://127.0.0.1:${paths.ports.desk}/api/health`),
   };
   const relationship = paths.checkout
@@ -200,6 +203,7 @@ export async function doctor(paths) {
     ports: {
       host: "127.0.0.1",
       hermes: paths.ports.hermes,
+      settings: paths.ports.settings,
       desk: paths.ports.desk,
     },
     ownership: {

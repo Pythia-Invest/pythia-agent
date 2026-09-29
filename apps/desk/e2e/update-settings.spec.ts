@@ -1,25 +1,10 @@
 import { expect, type Page, test } from "@playwright/test";
+import { checkedToday, hermesSettings } from "./settings-fixture";
 import { fixture } from "./stream-fixture";
 
-/** The browser remembers today's check, so a test starts without one. */
-async function checkedToday(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem(
-      "pythia.updates.checked-at",
-      String(Date.now()),
-    );
-  });
-}
-
-/** Settings › Updates: a tab beside the page, or a select on a narrow screen. */
+/** Settings › About › Version & updates, in the Settings dialog. */
 async function openUpdates(page: Page) {
-  await page.goto("/settings");
-  if ((page.viewportSize()?.width ?? 1280) >= 640) {
-    await page.getByRole("tab", { name: "Updates", exact: true }).click();
-  } else {
-    await page.getByRole("combobox", { name: "Settings section" }).click();
-    await page.getByRole("option", { name: "Updates", exact: true }).click();
-  }
+  await page.goto("/?settings=about/updates");
 }
 
 const current = "a".repeat(40);
@@ -43,6 +28,7 @@ const update = {
 async function updateFixture(page: Page) {
   await checkedToday(page);
   const state = await fixture(page);
+  await hermesSettings(page);
   await page.route("**/api/settings", (route) =>
     route.fulfill({
       json: {
@@ -335,6 +321,7 @@ test("checks once a day on its own and marks a ready update in the sidebar", asy
   page,
 }) => {
   await fixture(page);
+  await hermesSettings(page);
   let checks = 0;
   await page.route("**/api/update-status**", (route) => {
     if (new URL(route.request().url()).searchParams.has("check")) {

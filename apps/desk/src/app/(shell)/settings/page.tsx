@@ -1,6 +1,15 @@
-import { SettingsView } from "@/components/shell/settings-view";
+import { redirect } from "next/navigation";
+import { resolvePage } from "@/components/settings/sections";
 
-/** Device-level settings for this desk. */
-export default function SettingsPage() {
-  return <SettingsView />;
+/** Settings is a dialog over Desk; this address opens it over Chat. */
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ section?: string; page?: string }>;
+}) {
+  const { section, page } = await searchParams;
+  const address = page ?? section;
+  if (address === "skills" || address === "tools")
+    redirect(`/capabilities?tab=${address}`);
+  redirect(`/?settings=${resolvePage(address)?.id ?? ""}`);
 }

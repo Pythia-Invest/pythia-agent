@@ -35,6 +35,7 @@ import { useLocalLayout } from "@/layout/use-local-layout";
 import { useDockTabs } from "./use-dock-tabs";
 import { NavDrawer, NavRail } from "./nav-rail";
 import { usePhoneChatList } from "./use-phone-chat-list";
+import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { ModuleTopBar } from "./module-top-bar";
 import {
   chatTitle,
@@ -324,113 +325,117 @@ export function DeskShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <Drawer.Root
-      open={!wide && drawerOpen}
-      onOpenChange={setDrawerOpen}
-      swipeDirection="right"
-    >
-      {/* One canvas for every routed workspace. Pages and layout wrappers
+    <>
+      <Drawer.Root
+        open={!wide && drawerOpen}
+        onOpenChange={setDrawerOpen}
+        swipeDirection="right"
+      >
+        {/* One canvas for every routed workspace. Pages and layout wrappers
           stay transparent; bounded cards and auxiliary panels own elevation. */}
-      <div className="flex h-dvh overflow-hidden bg-canvas text-foreground">
-        {navigation}
-        {!wide ? (
-          <NavDrawer
-            onNavigateHome={handleNewChat}
-            onClose={() => setDrawerOpen(false)}
-            pathname={pathname}
-          />
-        ) : null}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <ModuleTopBar
-            chats={(sessions.data ?? []).map((session) => ({
-              id: session.id,
-              title: chatTitle(session),
-            }))}
-            openChat={(id) => {
-              if ((sessions.data ?? []).some((session) => session.id === id))
-                router.push(`/c/${encodeURIComponent(id)}`);
-            }}
-            prepareChat={(text) => {
-              const current = drafts.get("new").text;
-              drafts.update("new", {
-                text: current ? `${current}\n\n${text}` : text,
-              });
-              handleNewChat();
-            }}
-            leading={
-              <Drawer.Trigger
-                render={
-                  <IconButton
-                    className="min-[900px]:hidden"
-                    label="Open navigation"
-                    size="sm"
-                  >
-                    <Menu className="stroke-[1.6]" />
-                  </IconButton>
-                }
-              />
-            }
-            onQueryChange={setSearchQuery}
-            query={searchQuery}
-            title={destinationTitle(pathname)}
-          />
-          <div className="relative flex min-h-0 flex-1">
-            {chatSurface ? (
-              <ChatPanel
-                {...chatList}
-                panelRef={phoneList}
-                className={cn(
-                  "hidden min-[900px]:flex min-[900px]:[[data-desk-list-open=false]_&]:hidden",
-                  // On a phone the same collapsible list opens over the
-                  // conversation rather than beside it.
-                  phoneListOpen &&
-                    "max-[899px]:absolute max-[899px]:inset-0 max-[899px]:z-20 max-[899px]:flex max-[899px]:w-full max-[899px]:border-r-0 max-[899px]:bg-canvas",
-                )}
-                onHide={() =>
-                  wide
-                    ? updateLayout({ listOpen: false })
-                    : setPhoneListOpen(false)
-                }
-              />
-            ) : null}
-            {chatSurface ? (
-              // Under the phone list the conversation is out of reach.
-              <div className="contents" inert={phoneListOpen && !wide}>
-                <WorkspaceCompanion>{surface}</WorkspaceCompanion>
-              </div>
-            ) : (
-              <ShellDock
-                open={layout.dockOpen}
-                onOpenChange={(open) => updateLayout({ dockOpen: open })}
-                width={layout.dockWidth}
-                ready={layoutReady}
-                sheetOpen={dockSheetOpen}
-                onSheetOpenChange={setDockSheetOpen}
-                dock={(onHide) => (
-                  <AgentDock
-                    onCloseChat={dock.close}
-                    onHide={onHide}
-                    onNewChat={() => dock.draft({ reuse: !wide })}
-                    onSelectChat={dock.open}
-                    onTogglePin={handleTogglePin}
-                    pinnedIds={pinnedIds}
-                    activeId={dock.activeId}
-                    onSelectTab={dock.select}
-                    onDraftChange={dock.edit}
-                    onStarted={dock.started}
-                    sessions={sessions.data ?? []}
-                    tabs={dock.tabs}
-                    workingIds={workingIds}
-                    unreadIds={unreadIds}
-                  />
-                )}
-              >
-                {surface}
-              </ShellDock>
-            )}
+        <div className="flex h-dvh overflow-hidden bg-canvas text-foreground">
+          {navigation}
+          {!wide ? (
+            <NavDrawer
+              onNavigateHome={handleNewChat}
+              onClose={() => setDrawerOpen(false)}
+              pathname={pathname}
+            />
+          ) : null}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <ModuleTopBar
+              chats={(sessions.data ?? []).map((session) => ({
+                id: session.id,
+                title: chatTitle(session),
+              }))}
+              openChat={(id) => {
+                if ((sessions.data ?? []).some((session) => session.id === id))
+                  router.push(`/c/${encodeURIComponent(id)}`);
+              }}
+              prepareChat={(text) => {
+                const current = drafts.get("new").text;
+                drafts.update("new", {
+                  text: current ? `${current}\n\n${text}` : text,
+                });
+                handleNewChat();
+              }}
+              leading={
+                <Drawer.Trigger
+                  render={
+                    <IconButton
+                      className="min-[900px]:hidden"
+                      label="Open navigation"
+                      size="sm"
+                    >
+                      <Menu className="stroke-[1.6]" />
+                    </IconButton>
+                  }
+                />
+              }
+              onQueryChange={setSearchQuery}
+              query={searchQuery}
+              title={destinationTitle(pathname)}
+            />
+            <div className="relative flex min-h-0 flex-1">
+              {chatSurface ? (
+                <ChatPanel
+                  {...chatList}
+                  panelRef={phoneList}
+                  className={cn(
+                    "hidden min-[900px]:flex min-[900px]:[[data-desk-list-open=false]_&]:hidden",
+                    // On a phone the same collapsible list opens over the
+                    // conversation rather than beside it.
+                    phoneListOpen &&
+                      "max-[899px]:absolute max-[899px]:inset-0 max-[899px]:z-20 max-[899px]:flex max-[899px]:w-full max-[899px]:border-r-0 max-[899px]:bg-canvas",
+                  )}
+                  onHide={() =>
+                    wide
+                      ? updateLayout({ listOpen: false })
+                      : setPhoneListOpen(false)
+                  }
+                />
+              ) : null}
+              {chatSurface ? (
+                // Under the phone list the conversation is out of reach.
+                <div className="contents" inert={phoneListOpen && !wide}>
+                  <WorkspaceCompanion>{surface}</WorkspaceCompanion>
+                </div>
+              ) : (
+                <ShellDock
+                  open={layout.dockOpen}
+                  onOpenChange={(open) => updateLayout({ dockOpen: open })}
+                  width={layout.dockWidth}
+                  ready={layoutReady}
+                  sheetOpen={dockSheetOpen}
+                  onSheetOpenChange={setDockSheetOpen}
+                  dock={(onHide) => (
+                    <AgentDock
+                      onCloseChat={dock.close}
+                      onHide={onHide}
+                      onNewChat={() => dock.draft({ reuse: !wide })}
+                      onSelectChat={dock.open}
+                      onTogglePin={handleTogglePin}
+                      pinnedIds={pinnedIds}
+                      activeId={dock.activeId}
+                      onSelectTab={dock.select}
+                      onDraftChange={dock.edit}
+                      onStarted={dock.started}
+                      sessions={sessions.data ?? []}
+                      tabs={dock.tabs}
+                      workingIds={workingIds}
+                      unreadIds={unreadIds}
+                    />
+                  )}
+                >
+                  {surface}
+                </ShellDock>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </Drawer.Root>
+      </Drawer.Root>
+      {/* Outside the drawer, so it is not a nested dialog. */}
+      <SettingsDialog />
+    </>
   );
 }

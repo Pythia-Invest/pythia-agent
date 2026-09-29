@@ -20,4 +20,5 @@ export {
   deskReady,
   developmentServices,
   hermesReady,
+  hermesSettingsReady,
 } from "./supervisor-services.mjs";

@@ -18,6 +18,11 @@ import { PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { type Destination, destinations } from "./destinations";
+import {
+  openSettings,
+  settingsHref,
+} from "@/components/settings/settings-address";
+import { useOpenSettings } from "@/components/settings/settings-dialog";
 import { UpdateIndicator } from "./update-indicator";
 
 export interface NavRailProps {
@@ -90,7 +95,7 @@ export function NavRail({
     setAnimate(true);
     onToggleCollapsed();
   };
-  const settingsActive = pathname.startsWith("/settings");
+  const settingsSection = useOpenSettings();
   return (
     <div
       data-slot="desk-navigation-frame"
@@ -173,15 +178,17 @@ export function NavRail({
         </SidebarContent>
         <SidebarFooter className="flex flex-none flex-col items-stretch gap-0.5 border-t-0 p-2">
           <SidebarLink
-            active={settingsActive}
+            active={settingsSection !== null}
             className={cn(
               "gap-2.5 text-body",
               "flex-1",
               persistent &&
                 "[[data-desk-rail-collapsed=true]_&]:justify-center [[data-desk-rail-collapsed=true]_&]:px-0",
             )}
-            render={<Link href="/settings" />}
-            onClick={() => {
+            render={<a href={settingsHref()} />}
+            onClick={(event) => {
+              event.preventDefault();
+              openSettings();
               if (!persistent) onToggleCollapsed();
             }}
             title="Settings"

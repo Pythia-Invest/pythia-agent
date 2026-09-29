@@ -169,6 +169,37 @@ For optional HTTPS access through native Tailscale Serve, see
 [hosting](../../docs/hosting.md). Host and account are operator configuration,
 not repository defaults. Tailscale is never required for local access.
 
+Settings follows Hermes Desktop's Settings ([ADR 0008](../../docs/decisions/0008-desk-client-conventions.md#settings-2026-09-hermes-desktops-structure),
+[notices](NOTICE.md)). It fills the window over the current page, which keeps
+running underneath. The sidebar holds Back, search and a section tree (Model,
+Chat, Appearance, Workspace, Safety, Memory & Context, Advanced; Providers;
+About); the open section lists its pages, and a dot marks one
+that needs you. Pages show a breadcrumb and rows with the control on the
+right. Every setting, Hermes's or Pythia's, is a field in the same schema and
+renders through `components/settings/config-field.tsx`: Hermes fields come
+from its config schema (which fields each page shows is
+`src/settings/hermes-pages.ts`), Pythia's are declared in
+`components/settings/use-pythia-fields.ts`. Values save themselves a moment
+after they change; credentials show a stand-in and edit in place with Save
+and Remove. Providers covers subscription sign-ins, API keys and custom
+endpoints. Skills, tools, MCP connectors and plugins are on the Capabilities
+page (`/capabilities`). `settings=<section>/<page>` opens Settings on any
+page; older section names and `/settings?section=` redirect.
+
+Desk's server reads and writes Hermes's settings through Hermes's own settings
+server (`hermes serve`, loopback only, its own bearer), never from the browser;
+`server/hermes-settings-shape.ts` keeps credentials, local paths and
+Pythia-owned config out of what the browser sees and can change
+([ADR 0021](../../docs/decisions/0021-hermes-settings-server.md)).
+
+About shows the version and update status: Check now, Update now for an
+available installed-device build, progress through the restart, and **Reload
+Desk** once the selected build is active. Desk checks once a day while open;
+an entry in the navigation footer appears only when an update is ready,
+installing or needs a reload. Dirty source is preserved and refused;
+development cannot apply installed updates. See [ADR 0017](../../docs/decisions/0017-updates-from-desk.md)
+for the update, reconnection and host recovery boundaries.
+
 Device settings keep the two native Hermes controls separate: skills change
 the profile's global `skills.disabled` list, while Desk tools change only the
 `api_server` platform. Desk runs the pinned Hermes command under one external
@@ -349,6 +380,7 @@ dock beside a destination opens as a full-screen sheet from a floating button.
 There are no tabs on a phone: the dock header names the current chat beside
 New chat and the chat history button, which opens a bottom sheet for switching,
 and the file viewer is a full-screen sheet that names its file beside Close.
+Settings starts at its list of pages and opens one page at a time.
 
 ### Persisted layout
 

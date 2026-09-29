@@ -74,7 +74,9 @@ open, on load and when the window regains focus after a day, as Hermes Desktop
 does; **Check now** remains. The browser records when it last checked, so a
 reload or second tab does not check again. The check's answer is kept apart
 from local inventory reads, which still never contact a remote. Settings ›
-Updates shows the version and update status, and the navigation footer shows
+About shows the version and update status (see
+[ADR 0008](0008-desk-client-conventions.md#settings-2026-09-hermes-desktops-structure)),
+and the navigation footer shows
 one entry only while an update is ready, installing, needing a reload or
 failed; it opens the same controls in a dialog. Applying an update is
 unchanged.
