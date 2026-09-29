@@ -6,11 +6,12 @@ local override:
 
 - **A contested fact.** Confirm-level assertions of one of the subject's single-valued identifiers disagree
   (`evidence.weigh`), so no value applies. The candidates are the subjects each value names under the subject-key
-  rule, and the answer gives the subject that value. A value that names no subject (a CUSIP-area ISIN, a composite
-  FIGI) leaves the fact contested and shown, but unasked.
+  rule, and the answer gives the subject that value. A value that names no subject (a composite FIGI) leaves the
+  fact contested and shown, but unasked.
 - **An answer the release contradicts.** The installed release, at confirm level, names another issuer, underlying or
-  identifier value than the user's answer (`build_questions.load_subject`). The answer stays applied until the user
-  answers this question, whose candidates are the two.
+  identifier value than the user's answer, or gives a registrant the user matched to a company identifiers of its own
+  (`build_questions.load_subject`). The answer stays applied until the user answers this question, whose candidates
+  are the two.
 
 Each is asked once per question key, like the build's (`build_questions.import_build`).
 """

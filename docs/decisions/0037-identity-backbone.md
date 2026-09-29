@@ -959,11 +959,15 @@ trust level to count at.
   - An address is `confirmed` only where confirm-level evidence states it: a
     package's provider coin ids at the package's level. Addresses from core's
     market table are `derived` until plugins declare their own.
-- **Contested facts.** Any valid confirm-level value of a single-valued scheme
-  that differs from a record's contradicts it, whoever asserted it. Where
-  confirm-level assertions disagree, the fact is contested: every value is
-  kept, none is applied (`values` holds only agreed values), and the view
-  carries `contested`. Every answer but the user's is blocked.
+- **Contested facts.** A valid confirm-level source that asserts only other
+  values of a single-valued scheme than a record's contradicts it, whoever it
+  is. Where different confirm-level sources assert different values, the fact
+  is contested: every value is kept, none is applied (`values` holds only
+  agreed values), and the view carries `contested`. Every answer but the
+  user's is blocked. One source's several values are not a contest: the first
+  it stored applies, no `contested` is marked, and each of them names the
+  subject (OpenFIGI's two composite FIGIs for a German composite, the regional
+  composite's and Tradegate's).
 - **The user decides.** A user's answer, a verdict or a build-question
   override, is refused only by unanimous confirm-level identifier proof: where
   the evidence for a scheme agrees on one other value. A contested identifier
@@ -973,14 +977,15 @@ trust level to count at.
   - a contested identifier, as a `conflict`/`identifier` question whose
     candidates are the subjects its values name under the subject-key rule. The
     answer gives the subject that value. A value that names no subject (a
-    CUSIP-area ISIN, a composite FIGI) leaves the fact contested and shown but
-    unasked;
-  - a user's answer that the installed release contradicts at confirm level (it
-    names another issuer for the security, another underlying for the receipt,
-    or another value for the identifier), as a `conflict`/`binding` question
-    whose candidates are the answer's choice and the release's. The answer
-    stays applied until the user answers; that answer supersedes the earlier
-    one, which stays in the history.
+    composite FIGI) leaves the fact contested and shown but unasked;
+  - a user's answer that the installed release contradicts at confirm level, as
+    a `conflict`/`binding` question whose candidates are the answer's choice and
+    the release's. The release names another issuer for the security, another
+    underlying for the receipt or another value for the identifier, or it gives
+    a registrant the user matched to a company an LEI or CIK of its own that
+    differs from that company's (the registrant itself is then the other
+    candidate). The answer stays applied until the user answers; that answer
+    supersedes the earlier one, which stays in the history.
 
   Both are tagged like the build's questions and answered the same way, so
   the answer is a local override, and a new release supersedes them while
@@ -997,9 +1002,11 @@ and stores working without a schema bump.
 
 **Consequences.**
 
-- On today's packages a contested fact is rare: the builder writes one value
-  per scheme and asks where its sources disagree. Contests appear once plugin
-  evidence joins the union.
+- Today's packages contest nothing. Their only scheme with a second value is
+  OpenFIGI's composite FIGI: 10,288 German composites carry two, from one
+  source, covering 54,354 of 135,595 listings of a recent offline build.
+  Otherwise the builder writes one value per scheme and asks where its sources
+  disagree. Contests appear once plugin evidence joins the union.
 - A resolve answer against a contested identifier becomes a conflict for the
   user, never a binding.
 - A package installed with `--display` confirms nothing: resolve answers wait
@@ -1021,3 +1028,6 @@ and stores working without a schema bump.
   writes them there, and a schema bump belongs to device subjects.
 - **Letting the user's answer beat unanimous proof:** a user who disagrees with
   every confirm-level contributor demotes one of them instead.
+- **Contesting every second value:** one source's several values would mark
+  40% of today's listings contested, and flag them to the agent, when no two
+  sources disagree.

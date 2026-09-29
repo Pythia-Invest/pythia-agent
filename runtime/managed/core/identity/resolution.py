@@ -14,6 +14,7 @@ from enum import StrEnum
 from typing import Iterable, Mapping, Sequence
 
 from .claims import DIGEST, IdentifierValue
+from .evidence import disagree
 from .model import IdentifierAssertion, Provenance, ProviderRef, _coerce, _require
 from .schemes import INSTANT, NAMESPACE, SCHEME_LEVEL, SINGLE_VALUED, Level, Scheme, subject_kind, subject_level
 from .vocabulary import KIND_OF_RECORD, Authority, EvidenceTier, IdentifierRole, InstrumentKind, VerdictRelation
@@ -164,16 +165,25 @@ class Verdict:
 
 
 def _current(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion],
-             as_of: str) -> tuple[dict[str, str], dict[str, set[str]]]:
-    """The record's own values by scheme, and the values the T0 evidence asserts for those single-valued schemes,
-    valid at `as_of`."""
+             as_of: str) -> tuple[dict[str, str], dict[str, list[IdentifierAssertion]]]:
+    """The record's own values by scheme, and the T0 evidence for those single-valued schemes valid at `as_of`."""
     claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
-    found: dict[str, set[str]] = {}
+    found: dict[str, list[IdentifierAssertion]] = {}
     for item in evidence:
         if item.scheme in SINGLE_VALUED and item.scheme in claims and item.tier is EvidenceTier.T0 \
                 and item.validity.contains(as_of):
-            found.setdefault(item.scheme, set()).add(item.value)
+            found.setdefault(item.scheme, []).append(item)
     return claims, found
+
+
+def _against(claim: str, items: list[IdentifierAssertion], unanimous: bool) -> bool:
+    """A source asserts only other values than `claim`; with `unanimous`, every source agrees on them (`disagree`)."""
+    if unanimous:
+        return not disagree(items) and all(item.value != claim for item in items)
+    sources: dict[tuple[str, str], set[str]] = {}
+    for item in items:
+        sources.setdefault((item.provenance.plugin, item.provenance.source), set()).add(item.value)
+    return any(claim not in values for values in sources.values())
 
 
 def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str, *,
@@ -182,24 +192,25 @@ def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[Identifie
 
     `claimed`: the record's identifiers; only those naming the record itself count.
     `evidence`: the confirm-level assertions on the chosen subject and its ancestors (display-level evidence never
-    blocks; callers leave it out). A T0 assertion of a single-valued scheme, valid at `as_of`, contradicts when its
-    value differs, whoever asserted it, so where confirm-level contributors disagree every answer is blocked. With
-    `unanimous` (the user's answer), only a scheme whose evidence agrees on one other value contradicts.
+    blocks; callers leave it out). The T0 assertions of a single-valued scheme, valid at `as_of`, contradict when a
+    source asserts only other values, whoever it is, so where confirm-level sources disagree every answer is blocked.
+    One source that asserts several values contradicts none of them. With `unanimous` (the user's answer), only
+    evidence whose sources agree contradicts.
     """
     claims, found = _current(claimed, evidence, as_of)
-    return any(values != {claims[scheme]} for scheme, values in found.items() if not unanimous or len(values) == 1)
+    return any(_against(claims[scheme], items, unanimous) for scheme, items in found.items())
 
 
 def corroborates(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str,
                  level: Level, same_venue: bool = False, *, unanimous: bool = False) -> bool:
     """Identifier evidence names the question's own subject: one of the record's own single-valued identifiers at
-    that `level` equals a valid T0 assertion (with `unanimous`, the only value its evidence asserts). A listing is
+    that `level` equals a valid T0 assertion (with `unanimous`, one whose sources agree). A listing is
     also named by its security's ISIN on the same venue (`same_venue`). A shared issuer LEI or a sibling venue's ISIN
     says nothing about which instrument this is."""
     claims, found = _current(claimed, evidence, as_of)
     named = {level} | ({Level.SECURITY} if level is Level.LISTING and same_venue else set())
-    return any(SCHEME_LEVEL[scheme] in named and claims[scheme] in values and (not unanimous or len(values) == 1)
-               for scheme, values in found.items())
+    return any(SCHEME_LEVEL[scheme] in named and any(item.value == claims[scheme] for item in items)
+               and not (unanimous and disagree(items)) for scheme, items in found.items())
 
 
 def resolve_evidence(evidence: Iterable[IdentifierAssertion], sent: Mapping[str, str], level: Level) -> tuple[str, ...]:

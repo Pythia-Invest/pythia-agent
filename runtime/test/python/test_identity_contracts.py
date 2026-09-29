@@ -402,9 +402,9 @@ class ResolutionTest(unittest.TestCase):
                  "input_digest": "sha256:" + "0" * 64, "provenance": {**PROVENANCE, "plugin": "jev", "source": "jev"}}
         return identity.Verdict(**{**value, **overrides})
 
-    def figi(self, value, authority="source_asserted"):
+    def figi(self, value, authority="source_asserted", source="openfigi"):
         return identity.IdentifierAssertion(subject_id=self.LISTING, scheme="figi", value=value, authority=authority,
-                                            provenance={**PROVENANCE, "plugin": "openfigi", "source": "openfigi"})
+                                            provenance={**PROVENANCE, "plugin": source, "source": source})
 
     def decide(self, verdict, claimed_figi="BBG000C1HT47", evidence=None, **facts):
         item = self.item("listing:provisional:eodhd:catalogue:ASML.AS", self.LISTING)
@@ -428,9 +428,9 @@ class ResolutionTest(unittest.TestCase):
         self.assertIs(self.decide(self.verdict(relation="ambiguous", chosen_id=None)), outcome.AMBIGUOUS)
 
     def test_two_confirm_level_values_block_every_answer_but_the_users(self):
-        # No source outranks another: where confirm-level evidence disagrees, no rule or model answer confirms.
+        # No source outranks another: where confirm-level sources disagree, no rule or model answer confirms.
         outcome = identity.VerdictOutcome
-        other = self.figi("BBG000K6N6G7")
+        other = self.figi("BBG000K6N6G7", source="vendor")
         user = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None,
                             prompt_version=None, input_digest=None, user_turn="desk:turn-1",
                             provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
@@ -447,6 +447,18 @@ class ResolutionTest(unittest.TestCase):
                             chosen_id=None, provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
         self.assertIs(self.decide(none, "BBG000C1HT47", [self.figi("BBG000C1HT47")]), outcome.BLOCKED)
         self.assertIs(self.decide(none, "BBG000C1HT47", [self.figi("BBG000C1HT47"), other]), outcome.NO_MATCH)
+
+    def test_one_sources_several_values_contest_nothing(self):
+        # OpenFIGI gives a German composite two composite FIGIs: either names it, and neither contradicts the other.
+        outcome = identity.VerdictOutcome
+        both = [self.figi("BBG000C1HT47"), self.figi("BBG000K6N6G7")]
+        user = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None,
+                            prompt_version=None, input_digest=None, user_turn="desk:turn-1",
+                            provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
+        for claimed in ("BBG000C1HT47", "BBG000K6N6G7"):
+            with self.subTest(claimed=claimed):
+                self.assertIs(self.decide(self.verdict(), claimed, both), outcome.CONFIRMED)
+        self.assertIs(self.decide(user, "BBG000BDTBL9", both, threshold=None), outcome.BLOCKED)  # one source, unanimous
 
     def test_a_format_5_packages_authorities_are_read_as_kinds_of_evidence(self):
         read = identity.stored_authority
