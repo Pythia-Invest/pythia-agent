@@ -121,7 +121,11 @@ export function publicPathSummary(paths) {
     data: paths.dataRoot,
     runtime: paths.runtimeRoot,
     profile: paths.profile,
-    ports: { hermes: paths.ports.hermes, desk: paths.ports.desk },
+    ports: {
+      hermes: paths.ports.hermes,
+      settings: paths.ports.settings,
+      desk: paths.ports.desk,
+    },
     desk_url: `http://127.0.0.1:${paths.ports.desk}`,
   };
 }

@@ -1,7 +1,9 @@
 /**
  * What the browser receives from Hermes's settings server, after Desk's
  * server has narrowed it: only fields Settings shows, never a credential
- * value, local path or command line.
+ * value or local path. A provider that signs in outside the app carries the
+ * command Hermes suggests (for example `claude setup-token`), shown so the
+ * user can run it on the device.
  */
 
 export type ConfigFieldType =

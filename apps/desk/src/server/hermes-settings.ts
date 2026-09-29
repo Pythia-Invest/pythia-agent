@@ -1,3 +1,5 @@
+import { capabilityMutationLock } from "./device-settings";
+import { defaultRestart, withFileLock } from "./device-settings-native";
 import { HermesApiError } from "./hermes-records";
 import type {
   AccountSignIn,
@@ -80,8 +82,10 @@ function transport(environment: NodeJS.ProcessEnv, fetcher: typeof fetch) {
         json && typeof json === "object" && "detail" in json
           ? (json as { detail?: unknown }).detail
           : undefined;
+      // A refusal explains itself; a server failure's detail can carry
+      // internal paths or traces, so it stays on the host.
       throw new HermesApiError(
-        typeof detail === "string" && detail.trim()
+        response.status < 500 && typeof detail === "string" && detail.trim()
           ? detail.trim().slice(0, 300)
           : `Hermes's settings service answered ${response.status}.`,
         response.status >= 500 ? 502 : response.status,
@@ -92,7 +96,17 @@ function transport(environment: NodeJS.ProcessEnv, fetcher: typeof fetch) {
   };
 }
 
-const segment = (value: string) => encodeURIComponent(value);
+/**
+ * One path segment of a settings-server URL. A name that could be read as a
+ * path of its own is refused, not encoded: Hermes and its server decode
+ * `%2F` and strip slashes, so an encoded name could reach another resource
+ * (`pythia%2F` names Pythia's plugin, `..` its parent).
+ */
+function segment(value: string) {
+  if (/[/\\%]/u.test(value) || value === "." || value === "..")
+    throw new HermesApiError("That name isn't valid.", 400);
+  return encodeURIComponent(value);
+}
 const text = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : "";
 
@@ -106,8 +120,24 @@ function required(value: unknown, label: string, maximum = 256) {
 export function createHermesSettings(
   environment: NodeJS.ProcessEnv = process.env,
   fetcher: typeof fetch = fetch,
+  capability: {
+    restartHermes?: () => Promise<void>;
+    lockPath?: string;
+  } = {},
 ) {
   const call = transport(environment, fetcher);
+  // Plugins and MCP servers are loaded by Pythia's chat server when it starts,
+  // so switching one takes the device's capability lock and restarts it, as
+  // skills and toolsets do.
+  const restartHermes = capability.restartHermes ?? defaultRestart(environment);
+  const changeCapability = (write: () => Promise<unknown>) =>
+    withFileLock(
+      capability.lockPath ?? capabilityMutationLock(environment),
+      async () => {
+        await write();
+        await restartHermes();
+      },
+    );
 
   const service = {
     async config() {
@@ -118,7 +148,15 @@ export function createHermesSettings(
       return configView(schema, config);
     },
     async saveConfig(body: Json) {
-      await call("PUT", "/api/config", { config: configPatch(body) });
+      // Hermes's schema checks types; its current config restores list
+      // secrets the browser never saw.
+      const [schema, current] = await Promise.all([
+        call("GET", "/api/config/schema"),
+        call("GET", "/api/config"),
+      ]);
+      await call("PUT", "/api/config", {
+        config: configPatch(body, schema, current),
+      });
       return service.config();
     },
     async providers() {
@@ -237,9 +275,8 @@ export function createHermesSettings(
       return mcpServers(await call("GET", "/api/mcp/servers"));
     },
     async setMcpEnabled(name: string, enabled: boolean) {
-      await call("PUT", `/api/mcp/servers/${segment(name)}/enabled`, {
-        enabled,
-      });
+      const path = `/api/mcp/servers/${segment(name)}/enabled`;
+      await changeCapability(() => call("PUT", path, { enabled }));
       return service.mcp();
     },
     async plugins() {
@@ -248,11 +285,15 @@ export function createHermesSettings(
     async setPluginEnabled(name: string, enabled: boolean) {
       if (name === PYTHIA_PLUGIN)
         throw new HermesApiError("Pythia's own plugin stays on.", 400);
-      await call(
-        "POST",
-        `/api/dashboard/agent-plugins/${segment(name)}/${enabled ? "enable" : "disable"}`,
-        {},
-      );
+      // Only a plugin Hermes lists, by its exact name, can be switched.
+      const listed = await service.plugins();
+      const plugin = listed.find((item) => item.name === name);
+      if (!plugin)
+        throw new HermesApiError("There's no plugin with that name.", 404);
+      if (plugin.locked)
+        throw new HermesApiError("Pythia's own plugin stays on.", 400);
+      const path = `/api/dashboard/agent-plugins/${segment(name)}/${enabled ? "enable" : "disable"}`;
+      await changeCapability(() => call("POST", path, {}));
       return service.plugins();
     },
   };

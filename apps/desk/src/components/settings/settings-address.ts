@@ -33,10 +33,17 @@ const listeners = new Set<() => void>();
 function subscribe(listener: () => void) {
   listeners.add(listener);
   window.addEventListener("popstate", listener);
+  window.addEventListener("popstate", forgetPushOnClose);
   return () => {
     listeners.delete(listener);
     window.removeEventListener("popstate", listener);
+    window.removeEventListener("popstate", forgetPushOnClose);
   };
+}
+// Back closing Settings consumed the entry this page pushed; a later close
+// must not step back again and leave the page.
+function forgetPushOnClose() {
+  if (param() === null) pushed = false;
 }
 function announce() {
   for (const listener of listeners) listener();

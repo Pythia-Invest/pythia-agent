@@ -263,6 +263,12 @@ describe("installed packaging", () => {
       expect(readFileSync(path, "utf8")).not.toContain(secret);
     }
     expect(environments.settings).not.toContain("TOKEN");
+    // Every role that starts through the launcher reads its bearer from the
+    // private secrets file, which it finds through the config root.
+    for (const role of ["hermes", "settings", "desk"] as const)
+      expect(environments[role]).toContain(
+        `PYTHIA_CONFIG_ROOT="${paths.configRoot}"`,
+      );
     expect(environments.desk).toContain(
       'PYTHIA_HERMES_SETTINGS_URL="http://127.0.0.1:8646"',
     );

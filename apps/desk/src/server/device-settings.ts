@@ -34,6 +34,23 @@ export {
 } from "./device-settings-contract";
 export { lifecycleCommandEnvironment } from "./device-settings-native";
 
+/**
+ * The one lock every capability change on this device takes (skills,
+ * toolsets, plugins, MCP servers), so a change, its Hermes restart and its
+ * readback never interleave with another.
+ */
+export function capabilityMutationLock(
+  environment: NodeJS.ProcessEnv,
+  configRoot?: string,
+) {
+  return environment.PYTHIA_STATE_ROOT
+    ? join(resolve(environment.PYTHIA_STATE_ROOT), "capability-mutation.lock")
+    : join(
+        resolveConfigRoot(environment, configRoot),
+        "capability-mutation.lock",
+      );
+}
+
 export function createDeviceSettingsService(
   options: DeviceSettingsOptions = {},
 ): DeviceSettingsService {
@@ -45,16 +62,10 @@ export function createDeviceSettingsService(
   const delay = options.readbackDelayMs ?? 125;
 
   function paths() {
-    const configRoot = resolveConfigRoot(environment, options.configRoot);
     return {
       lock:
         options.lockPath ??
-        (environment.PYTHIA_STATE_ROOT
-          ? join(
-              resolve(environment.PYTHIA_STATE_ROOT),
-              "capability-mutation.lock",
-            )
-          : join(configRoot, "capability-mutation.lock")),
+        capabilityMutationLock(environment, options.configRoot),
     };
   }
 

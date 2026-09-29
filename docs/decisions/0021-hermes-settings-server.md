@@ -45,15 +45,25 @@ The browser never talks to it. Desk's server calls it through
   partial config it deep-merges. The main model changes through Hermes's
   model assignment. Pythia-owned config (the working folder, toolsets,
   plugins, MCP servers, provider definitions, Hermes's update settings) is
-  never shown or written.
+  never shown or written through this config path. Secrets are dropped at
+  any depth, including an `api_key` inside a fallback entry; because Hermes
+  replaces lists on save, an unchanged entry the browser sends back gets its
+  secret restored from Hermes's current config. A value must match its
+  field's declared type and choices. `terminal.env_passthrough` is not
+  offered, since it would hand a stored key to the agent's shell.
 - Provider keys come back as set or not with the last four characters Hermes
   displays; a key can be set or cleared only if Hermes lists it as a provider
   key. `/api/env/reveal`, raw config, and Hermes's own update endpoints are
   not exposed.
 - Sign-ins return the https verification page, user code and status, never a
   token preview or a local credential path.
-- Plugins and MCP servers can be switched on and off; Pythia's own plugin
-  cannot be switched off.
+- Plugins and MCP servers can be switched on and off through Hermes's own
+  plugin and MCP endpoints, which also rewrite platform toolsets. Each switch
+  takes the device's capability mutation lock and restarts Pythia's chat
+  server, as skills and toolsets do, because that server loads plugins and MCP
+  servers when it starts. Only a plugin Hermes lists can be switched, by its
+  exact name; path-like names are refused. Pythia's own plugin cannot be
+  switched off.
 
 Skills and `api_server` toolsets keep their existing native commands, restart
 and readback (credential custody), since those are what Pythia's chat server

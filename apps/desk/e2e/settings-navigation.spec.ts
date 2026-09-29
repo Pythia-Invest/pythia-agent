@@ -17,6 +17,20 @@ async function toList(page: Page) {
 test("marks only the sections that need attention", async ({ page }) => {
   await checkedToday(page);
   const state = await settingsFixture(page);
+  // A failed update needs the reader; a connected provider does not.
+  await page.route("**/api/update-status**", (route) =>
+    route.fulfill({
+      json: {
+        status: "ready",
+        channel: "preview",
+        current_version: "main",
+        current_revision: "a".repeat(40),
+        apply_supported: true,
+        update_available: false,
+        updater: "failed",
+      },
+    }),
+  );
   await page.goto("/settings");
   await expect(page).toHaveURL(/\/\?settings=$/);
   const navigation = settings(page).getByRole("navigation", {
@@ -27,7 +41,7 @@ test("marks only the sections that need attention", async ({ page }) => {
   ).toHaveCount(1);
   await expect(
     navigation
-      .getByRole("link", { name: /^Data sources/ })
+      .getByRole("link", { name: /^About/ })
       .getByRole("img", { name: "Needs attention" }),
   ).toBeVisible();
   expect(

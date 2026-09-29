@@ -34,9 +34,12 @@ export const hermesPages: readonly HermesPage[] = [
     fields: ["display.personality", "timezone", "display.show_reasoning"],
   },
   { id: "chat/attachments", fields: ["agent.image_input_mode"] },
+  // Not `terminal.env_passthrough`: it would let a browser hand a stored
+  // provider key to the agent's shell, where a chat can print it. It stays a
+  // host-side setting, like the credentials it would expose.
   {
     id: "workspace/shell",
-    fields: ["terminal.persistent_shell", "terminal.env_passthrough"],
+    fields: ["terminal.persistent_shell"],
   },
   {
     id: "workspace/files",

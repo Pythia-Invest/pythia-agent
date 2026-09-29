@@ -65,6 +65,77 @@ function field(raw: unknown): ConfigFieldSchema | null {
   };
 }
 
+/**
+ * Secrets never reach the browser at any depth: Hermes keeps some inline, for
+ * example an `api_key` inside a fallback provider entry.
+ */
+export function withoutSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutSecrets);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !SECRET_KEY.test(key))
+      .map(([key, item]) => [key, withoutSecrets(item)]),
+  );
+}
+
+/** Key-order independent, for matching a returned entry to its original. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (!isObject(value)) return JSON.stringify(value);
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
+    .join(",")}}`;
+}
+
+/**
+ * Hermes replaces a list on save rather than merging it, so an entry the
+ * browser returns unchanged gets back the secrets the browser never saw.
+ * New and edited entries carry none.
+ */
+function restoreSecrets(sent: unknown[], current: unknown): unknown[] {
+  if (!Array.isArray(current)) return sent;
+  const originals = new Map(
+    current
+      .filter(isObject)
+      .map((item) => [canonical(withoutSecrets(item)), item] as const),
+  );
+  return sent.map((item) => {
+    if (!isObject(item)) return item;
+    const original = originals.get(canonical(item));
+    return original ? { ...item, ...secretFields(original) } : item;
+  });
+}
+
+function secretFields(item: Json): Json {
+  return Object.fromEntries(
+    Object.entries(item).filter(([key]) => SECRET_KEY.test(key)),
+  );
+}
+
+/** A value matches its field's declared type and, for a choice, its options. */
+function fitsSchema(schema: unknown, value: unknown): boolean {
+  const declared = field(schema);
+  if (!declared || value === null) return true;
+  switch (declared.type) {
+    case "boolean":
+      return typeof value === "boolean";
+    case "number":
+      return typeof value === "number";
+    case "select":
+      return (
+        (typeof value === "string" || typeof value === "number") &&
+        (!declared.options?.length || declared.options.includes(String(value)))
+      );
+    case "string":
+    case "text":
+      return typeof value === "string";
+    case "list":
+      return Array.isArray(value);
+  }
+}
+
 /** The fields Settings shows, from Hermes's schema and config. */
 export function configView(schema: unknown, config: unknown): HermesConfigView {
   const fields =
@@ -82,7 +153,7 @@ export function configView(schema: unknown, config: unknown): HermesConfigView {
     if (!described) continue;
     view.schema[key] = described;
     const value = valueAt(record, key);
-    if (value !== undefined) view.values[key] = value;
+    if (value !== undefined) view.values[key] = withoutSecrets(value);
   }
   const model = record.model;
   view.model = isObject(model)
@@ -112,9 +183,13 @@ function jsonSafe(value: unknown, depth = 0): boolean {
 
 /**
  * A browser change, flat by key, as the nested partial config Hermes merges
- * into config.yaml. Only fields Settings shows can change.
+ * into config.yaml. Only fields Settings shows can change, each only to a
+ * value of its declared type; `schema` and `current` are Hermes's own.
  */
-export function configPatch(body: Json) {
+export function configPatch(body: Json, schema?: unknown, current?: unknown) {
+  const fields =
+    isObject(schema) && isObject(schema.fields) ? schema.fields : {};
+  const record = isObject(current) ? current : {};
   const changes = body.values;
   if (!isObject(changes) || !Object.keys(changes).length)
     throw new HermesApiError("Send at least one setting to change.", 400);
@@ -122,7 +197,7 @@ export function configPatch(body: Json) {
   for (const [key, value] of Object.entries(changes)) {
     if (!isEditableHermesKey(key))
       throw new HermesApiError(`Settings can't change ${key}.`, 400);
-    if (!jsonSafe(value))
+    if (!jsonSafe(value) || !fitsSchema(fields[key], value))
       throw new HermesApiError(`The value for ${key} isn't valid.`, 400);
     const parts = key.split(".");
     let target = nested;
@@ -130,7 +205,9 @@ export function configPatch(body: Json) {
       if (!isObject(target[part])) target[part] = {};
       target = target[part] as Json;
     }
-    target[parts.at(-1) as string] = value;
+    target[parts.at(-1) as string] = Array.isArray(value)
+      ? restoreSecrets(value, valueAt(record, key))
+      : value;
   }
   return nested;
 }

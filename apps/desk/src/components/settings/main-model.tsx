@@ -222,7 +222,9 @@ export function MainModelPage({
   );
 }
 
-type Fallback = { provider: string; model: string };
+/** An entry keeps every field Hermes stored (endpoint, key reference, mode),
+ * so saving the list never strips the others; the server restores secrets. */
+type Fallback = { provider: string; model: string } & Record<string, unknown>;
 
 const fallbacks = (value: unknown): Fallback[] =>
   Array.isArray(value)
@@ -231,7 +233,13 @@ const fallbacks = (value: unknown): Fallback[] =>
         typeof item === "object" &&
         "provider" in item &&
         "model" in item
-          ? [{ provider: String(item.provider), model: String(item.model) }]
+          ? [
+              {
+                ...(item as Record<string, unknown>),
+                provider: String(item.provider),
+                model: String(item.model),
+              },
+            ]
           : [],
       )
     : [];

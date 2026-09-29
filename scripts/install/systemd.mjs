@@ -87,12 +87,14 @@ export function serviceEnvironmentValues(paths, executables) {
     API_SERVER_PORT: String(paths.ports.hermes),
     PATH: path,
   };
-  // Hermes's settings server reads and writes the same profile; it needs no
-  // Pythia roots and never the chat API bearer.
+  // Hermes's settings server reads and writes the same profile and never gets
+  // the chat API bearer. The launcher still needs the config root to read its
+  // own settings bearer from the private secrets file.
   const settings = {
     HOME: process.env.HOME ?? "",
     HERMES_HOME: paths.hermesRoot,
     HERMES_DISABLE_LAZY_INSTALLS: "1",
+    PYTHIA_CONFIG_ROOT: paths.configRoot,
     PATH: path,
   };
   const desk = {
