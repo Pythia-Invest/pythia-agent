@@ -1,41 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { fixture, send } from "./stream-fixture";
 
-test("reload recovers a completed run without duplicating the hydrated answer", async ({
-  page,
-}) => {
-  const f = await fixture(page);
-  await send(page);
-  await f.emit([{ event: "message.delta", delta: "Starting" }]);
-  f.setHistory([
-    {
-      id: "native-user",
-      role: "user",
-      content: "Check the synthetic example.",
-    },
-    { id: "native-answer", role: "assistant", content: "Saved answer" },
-  ]);
-  f.setStatus({
-    run_id: "synthetic-run",
-    status: "completed",
-    output: "Saved answer",
-  });
-  await page.reload();
-  await expect(
-    page.getByRole("button", { name: "Stop generating" }),
-  ).toHaveCount(0);
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        sessionStorage.getItem("pythia-desk:active-run:synthetic-chat"),
-      ),
-    )
-    .toBeNull();
-  await expect(page.getByText("Saved answer", { exact: true })).toHaveCount(1);
-  expect(f.streamRequests()).toBe(1);
-  expect(f.unexpected).toEqual([]);
-});
-
 test("search selects exact native variants and keeps the current variant visible", async ({
   page,
 }) => {

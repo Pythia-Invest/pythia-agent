@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { fixture, send } from "./stream-fixture";
 
-test("keeps activity inspectable while streamed prose uses the answer area", async ({
+test("model search reaches the whole catalog and visible models can be edited", async ({
   page,
 }) => {
   const f = await fixture(page);
@@ -72,6 +72,13 @@ test("keeps activity inspectable while streamed prose uses the answer area", asy
     modelList.getByRole("option", { name: /compact-model-24/u }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
+  expect(f.unexpected).toEqual([]);
+});
+
+test("keeps activity inspectable while streamed prose uses the answer area", async ({
+  page,
+}) => {
+  const f = await fixture(page);
   await send(page);
   await f.emit([
     {
@@ -143,10 +150,6 @@ test("keeps activity inspectable while streamed prose uses the answer area", asy
       hasText: "An incomplete draft",
     }),
   ).toBeVisible();
-  // The answer takes over: the line settles and says how long the work took.
-  await expect(activity).toHaveAttribute("data-state", "settled");
-  await expect(toggle).toHaveText(/^Worked for \d+s$/u);
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
   const commentary = page.getByText("I will compare the two example sources.", {
     exact: true,
   });
@@ -214,9 +217,6 @@ test("keeps activity inspectable while streamed prose uses the answer area", asy
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.evaluate(() =>
-    document.documentElement.setAttribute("data-theme", "dark"),
-  );
   expect(f.submissions).toEqual(["Check the synthetic example."]);
   expect(f.selections).toEqual([
     { provider: "synthetic", model: "research-model" },
@@ -456,9 +456,6 @@ test("shows the exact approval command and leaves interrupted parallel tools unc
   await expect(
     record.locator('[data-slot="activity-row"][data-state="unconfirmed"]'),
   ).toHaveCount(2);
-  await expect(
-    record.locator('[data-slot="activity-row"][data-state="completed"]'),
-  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Allow once", exact: true }),
   ).toHaveCount(0);

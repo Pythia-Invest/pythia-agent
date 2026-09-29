@@ -36,7 +36,6 @@ export async function fixture(
   let queueAvailable = true;
   let streamRequests = 0;
   let steerFailure = false;
-  let creating: Promise<void> | undefined;
   const stops: string[] = [];
   const sessions = [{ id: "synthetic-chat", title: "Synthetic chat review" }];
   await page.exposeFunction("claimSyntheticQueue", () => {
@@ -189,7 +188,6 @@ export async function fixture(
       submissions.push(body.input);
       workspaces.push(body.workspace);
       selections.push(body.selection);
-      if (creating) await creating;
       queueAvailable = true;
       status = { run_id: "synthetic-run", status: "running" };
       return route.fulfill({
@@ -314,9 +312,6 @@ export async function fixture(
     streamRequests: () => streamRequests,
     rejectSteer: () => {
       steerFailure = true;
-    },
-    delayCreation: (pending: Promise<void>) => {
-      creating = pending;
     },
     setStatus: (next: RunStatus) => {
       status = next;

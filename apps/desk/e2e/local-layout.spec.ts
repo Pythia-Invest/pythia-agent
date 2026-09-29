@@ -4,7 +4,10 @@ import { fixture } from "./stream-fixture";
 test("saved navigation is applied before application JavaScript and survives hydration", async ({
   page,
 }, info) => {
-  test.skip(info.project.name !== "desktop");
+  test.skip(
+    info.project.name !== "desktop",
+    "Saved rail and dock sizes apply to the persistent desktop layout.",
+  );
   await fixture(page);
   await page.evaluate(() =>
     localStorage.setItem(
@@ -59,7 +62,10 @@ test("saved navigation is applied before application JavaScript and survives hyd
 test("dock restores width, persists a completed resize and reopens", async ({
   page,
 }, info) => {
-  test.skip(info.project.name !== "desktop");
+  test.skip(
+    info.project.name !== "desktop",
+    "Saved rail and dock sizes apply to the persistent desktop layout.",
+  );
   await fixture(page);
   await page.evaluate(() =>
     localStorage.setItem(
@@ -123,7 +129,10 @@ test("dock restores width, persists a completed resize and reopens", async ({
 test("desktop preferences leave mobile navigation expanded and dock optional", async ({
   page,
 }, info) => {
-  test.skip(info.project.name !== "phone");
+  test.skip(
+    info.project.name !== "phone",
+    "Checks that a phone ignores the desktop preferences applied above.",
+  );
   await page.addInitScript(() =>
     localStorage.setItem(
       "pythia-desk.shell",
@@ -136,17 +145,40 @@ test("desktop preferences leave mobile navigation expanded and dock optional", a
     ),
   );
   await fixture(page);
-  await page.getByRole("button", { name: "Open navigation" }).click();
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(/\/_next\/.*\.js(?:\?|$)/, async (route) => {
+    await pending;
+    await route.continue();
+  });
+  await page.reload({ waitUntil: "commit" });
+  const openNavigation = page.getByRole("button", { name: "Open navigation" });
+  try {
+    // Before application JavaScript the rail stays in the drawer.
+    await expect(openNavigation).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "Desk navigation" }),
+    ).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(
+    page.getByRole("textbox", { name: "Message Pythia" }),
+  ).toBeVisible();
+  await openNavigation.click();
   const navigation = page.getByRole("dialog", {
     name: "Navigation",
     exact: true,
   });
+  // The collapsed desktop rail hides the wordmark; the drawer keeps it.
+  await expect(
+    navigation.getByRole("link", { name: "Pythia home" }),
+  ).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "Workspace", exact: true }),
   ).toBeVisible();
-  await expect(
-    navigation.getByText("Workspace", { exact: true }),
-  ).not.toHaveCSS("position", "absolute");
   await navigation.getByRole("link", { name: "Markets", exact: true }).click();
   await expect(page.locator('[data-layout-panel="dock"]')).toBeHidden();
   await page.getByRole("button", { name: "Open Pythia" }).click();

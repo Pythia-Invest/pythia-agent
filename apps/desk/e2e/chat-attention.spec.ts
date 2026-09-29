@@ -129,25 +129,18 @@ test("a hidden browser document does not acknowledge a completed reply", async (
   await f.emit([
     { event: "run.completed", output: "Reply while browser was hidden." },
   ]);
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(sessionStorage.getItem("pythia-desk:unread-chats") ?? "[]"),
-      ),
-    )
-    .toContain("synthetic-chat");
+  const chats = await showChats(page);
+  await expect(chats.getByRole("img", { name: "Unread reply" })).toBeVisible();
+  // A phone's list covers the reply; hide it while the document is hidden.
+  if ((page.viewportSize()?.width ?? 0) < 900)
+    await chats.getByRole("button", { name: "Hide chats" }).click();
   await page.evaluate(() => {
     Reflect.deleteProperty(document, "visibilityState");
     document.dispatchEvent(new Event("visibilitychange"));
     window.dispatchEvent(new Event("focus"));
   });
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(sessionStorage.getItem("pythia-desk:unread-chats") ?? "[]"),
-      ),
-    )
-    .not.toContain("synthetic-chat");
+  const read = await showChats(page);
+  await expect(read.getByRole("img", { name: "Unread reply" })).toHaveCount(0);
   expect(f.unexpected).toEqual([]);
 });
 
@@ -198,13 +191,9 @@ test("a recovered terminal run and a rejected submission do not leave a working 
   await expect(page.getByText("Recovered reply.", { exact: true })).toHaveCount(
     1,
   );
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        sessionStorage.getItem("pythia-desk:active-run:synthetic-chat"),
-      ),
-    )
-    .toBeNull();
+  await expect(
+    page.getByRole("button", { name: "Stop generating" }),
+  ).toHaveCount(0);
   const chats = await showChats(page);
   await expect(chats.getByRole("img", { name: "Working" })).toHaveCount(0);
   if ((page.viewportSize()?.width ?? 0) < 900)
