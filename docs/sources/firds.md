@@ -167,7 +167,7 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   | Field | FIRDS decides | Asked instead (question type) |
   | --- | --: | --- |
   | Issuer | 28,101 securities carry field 5's LEI as issuer | 614 `issuer_identity`: an operator's LEI on a share outside its country |
-  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,032 with no request and no line outside the EEA, 208 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid; 137 carry a suggested answer (below) |
+  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid; 137 carry a suggested answer (below) |
   | Receipt underlying | 2,737 receipts link to the field 26 security of their own issuer | 902 `receipt_underlying` (58 because field 26 names another issuer's security), 10 `receipt_conflict` |
 
   The SEC stage adds 168 name-only issuer questions (#73). All 11,965 are
