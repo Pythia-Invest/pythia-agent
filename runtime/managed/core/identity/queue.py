@@ -55,14 +55,17 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
                                   if level == subject_kind(candidate)), "unrelated")]
+    settled = item["settled"] if item["state"] != "open" else None
     return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
                                        "candidate_ids", "opened_at", "updated_at")} | {
         # A question only the agent answered: its answer routes provisionally and the user may still override it.
-        "agent_answer": item["settled"] if item["state"] != "open" and item["settled"]
-        and item["settled"]["by"] == "agent" else None,
+        # On an open question: the agent's suggestion, which waits for the user.
+        "agent_answer": _suggestion(store, item) if item["state"] == "open"
+        else settled if settled and settled["by"] == "agent" else None,
         "label": label, "question": question, "record": _record(record) if record else None,
+        "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
         "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
-        "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
+        "settled_by": settled["by"] if settled else None,
         "evidence": _evidence(ref, item["evidence_ids"]),
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
@@ -101,7 +104,6 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
     if item is None:
         return None
     view = {**summary(store, ref, item), "scheme": item["scheme"], "values": item["values"],
-            "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
             "history": [{key: entry[key] for key in ("resolver", "authority", "relation", "chosen_id", "confidence",
                                                      "rationale", "outcome", "created_at", "item_state")}
                         for entry in store.history(item)]}
@@ -189,6 +191,14 @@ def retire_build(store: IdentityStore, now: str) -> int:
         store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ? AND state = 'open'",
                          (now, json.dumps([BUILD])))
         return store.db.execute("SELECT changes()").fetchone()[0]
+
+
+def _suggestion(store: IdentityStore, item: dict) -> dict | None:
+    """The agent's latest answer to this open question when it was kept as a suggestion (a source not yet audited)."""
+    latest = next((entry for entry in reversed(store.history(item))
+                   if entry["item_id"] == item["id"] and entry["resolver"] == "agent"), None)
+    return {"by": "agent", "relation": latest["relation"], "chosen_id": latest["chosen_id"]} \
+        if latest and latest["outcome"] == "suggested" else None
 
 
 def _same_venue(record: RecordClaim, subjects: list[dict]) -> bool:

@@ -62,6 +62,11 @@ class VerdictTest(QueueFixture):
         agent = self.submit(item, "agent", unaudited={"eodhd"})
         self.assertEqual(agent["outcome"], "suggested")  # the agent's answer is not review
         self.assertIsNone(self.identity.binding_for(item.provider_ref))
+        # The open question carries the suggestion, so Repairs shows it for the user to confirm.
+        [listed] = queue.listing(self.identity, self.ref, subject_id=ASML, kind=None, plugins=None, limit=20,
+                                 answered=False, notice=False)["items"]
+        self.assertEqual((listed["state"], listed["agent_answer"]),
+                         ("open", {"by": "agent", "relation": "same_listing", "chosen_id": ASML}))
         user = self.submit(item, "user", user_turn="desk:identity-verdict:test", unaudited={"eodhd"})
         self.assertEqual(user["outcome"], "confirmed")
         self.assertEqual(self.identity.binding_for(item.provider_ref)["subject_id"], ASML)
@@ -86,6 +91,10 @@ class VerdictTest(QueueFixture):
         # ASML's ISIN answering for the XAMS listing (no venue stated), but the reference is bound elsewhere.
         item = self.ask(answer(("isin", "NL0010273215")))
         self.assertEqual((item.kind, item.reason, set(item.subject_ids)), ("conflict", "binding", {nasdaq, ASML}))
+        # The listing names the instrument the record is bound to, not only the candidate.
+        view = queue.summary(self.identity, self.ref, self.identity.queue_item(item.id))
+        self.assertEqual({subject["id"] for subject in view["subjects"]}, {nasdaq, ASML})
+        self.assertIsNone(view["agent_answer"])
         for resolver, fields in (("agent", {}), ("user", {"user_turn": "desk:identity-verdict:test"})):
             result = self.submit(item, resolver, relation="unrelated", **fields)
             self.assertEqual((result["outcome"], result["state"]), ("blocked", "open"))

@@ -1,5 +1,5 @@
 "use client";
-import { SUBJECT_PLUGIN } from "@pythia/market-data/subject";
+import { coreData, SUBJECT_PLUGIN } from "@pythia/market-data/subject";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { busyRetry } from "./busy-retry";
@@ -20,6 +20,15 @@ const optionalText = z
   .string()
   .nullish()
   .transform((value) => value || null);
+
+const subject = z.object({
+  id: text,
+  /** False for a subject the reference does not know, such as the record's
+   * own provisional one. */
+  known: z.boolean().default(true),
+  name: optionalText,
+  identifiers: z.record(z.string(), optionalText).default({}),
+});
 
 export const identityQuestionSchema = z.object({
   id: text,
@@ -45,20 +54,16 @@ export const identityQuestionSchema = z.object({
       currency: optionalText,
     })
     .nullish(),
-  candidates: z
-    .array(
-      z.object({
-        id: text,
-        name: optionalText,
-        identifiers: z.record(z.string(), optionalText).default({}),
-      }),
-    )
-    .default([]),
+  /** What the question is about: the record's own subject or, for a record
+   * bound elsewhere, that instrument too. */
+  subjects: z.array(subject).default([]),
+  candidates: z.array(subject).default([]),
   /** The reference assertions the question cites. */
   evidence: z
     .array(z.object({ scheme: text, value: text, source: optionalText }))
     .default([]),
-  /** Set when only the agent answered: provisional, the user may override. */
+  /** The agent's answer: on an open question a suggestion waiting for the
+   * user; on a settled one provisional, which the user may override. */
   agent_answer: z
     .object({ relation: text, chosen_id: z.string().nullable() })
     .nullish(),
@@ -70,43 +75,39 @@ export const identityQuestionSchema = z.object({
 export type IdentityQuestion = z.infer<typeof identityQuestionSchema>;
 
 const listSchema = z.object({
-  data: z
-    .object({
-      items: z.array(identityQuestionSchema).default([]),
-      answered: z.array(identityQuestionSchema).default([]),
-      settled: z.array(identityQuestionSchema).default([]),
-      /** Once per runtime: an older identity store was kept aside. */
-      notice: z.string().nullish(),
-    })
-    .nullish(),
+  items: z.array(identityQuestionSchema).default([]),
+  answered: z.array(identityQuestionSchema).default([]),
+  settled: z.array(identityQuestionSchema).default([]),
+  /** Once per runtime: an older identity store was kept aside. */
+  notice: z.string().nullish(),
 });
 
 const verdictSchema = z.object({
-  data: z.object({
-    outcome: text,
-    state: z.string().optional(),
-    message: text,
-  }),
+  outcome: text,
+  state: z.string().optional(),
+  message: text,
 });
-export type IdentityVerdict = z.infer<typeof verdictSchema>["data"];
+export type IdentityVerdict = z.infer<typeof verdictSchema>;
 
 const questionsKey = ["plugin", SUBJECT_PLUGIN, "identity-queue"] as const;
 
 /** The device's identity questions: open ones and, apart from them, those only
  * the agent answered (provisional) and those rules or the user settled. The
- * queue op caps each list at 50. */
+ * queue op caps each list at 50. A queue core could not read throws with its
+ * reason, never reads as empty. */
 export function useIdentityQuestions() {
   const api = useDeskApi();
   return useQuery({
     queryKey: questionsKey,
     queryFn: async () =>
-      listSchema.parse(
+      coreData(
         await api.pluginRead({
           plugin: SUBJECT_PLUGIN,
           operation: "identity-queue",
           arguments: { answered: true, settled: true, limit: 50 },
         }),
-      ).data ?? { items: [], answered: [], settled: [] },
+        listSchema,
+      ),
     ...busyRetry,
   });
 }
@@ -123,7 +124,7 @@ export function useAnswerQuestion() {
       /** Recorded with the verdict. */
       note?: string;
     }) =>
-      verdictSchema.parse(
+      coreData(
         await api.pluginInvoke({
           plugin: SUBJECT_PLUGIN,
           operation: "identity-verdict",
@@ -134,7 +135,8 @@ export function useAnswerQuestion() {
             ...(answer.note ? { rationale: answer.note } : {}),
           },
         }),
-      ).data,
+        verdictSchema,
+      ),
     onSettled: () =>
       Promise.all([
         client.invalidateQueries({ queryKey: questionsKey }),

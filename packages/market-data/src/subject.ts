@@ -316,7 +316,10 @@ const answer = z.object({
 });
 
 /** Pythia envelopes answer "empty" or "error" with null data and an issue. */
-function coreData<T extends z.ZodType>(value: unknown, data: T): z.infer<T> {
+export function coreData<T extends z.ZodType>(
+  value: unknown,
+  data: T,
+): z.infer<T> {
   const parsed = answer.parse(value);
   if (parsed.data === null || parsed.data === undefined)
     throw Error(

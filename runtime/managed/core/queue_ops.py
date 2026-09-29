@@ -29,12 +29,11 @@ QUEUE_SCHEMA = {
     "name": "pythia_identity_queue",
     "description": "List open identity questions: provider records the device could not place on a subject "
                    "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
-                   "subject, plugin or kind. With answered, also lists the questions the agent already answered "
-                   "(agent_answer): they route provisionally until the user confirms or overrides them and are no "
-                   "longer open. With settled, also lists questions rules or the user settled (history). With "
-                   "item_id, returns one question in full: "
-                   "the provider record, the candidate subjects, the cited reference evidence and earlier verdicts. "
-                   "Local only.",
+                   "subject, plugin or kind. On an open question, agent_answer is the agent's suggestion awaiting "
+                   "the user. With answered, also lists questions only the agent answered: they route "
+                   "provisionally until the user confirms or overrides them. With settled, also lists questions "
+                   "rules or the user settled. With item_id, returns one question in full: its record, "
+                   "candidates, evidence and earlier verdicts. Local only.",
     "parameters": {"type": "object", "properties": {
         "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
         "subject_id": SUBJECT_ID,

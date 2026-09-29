@@ -24,7 +24,8 @@ export interface Repair<Data = unknown> {
   created: string;
   resolved: string | null;
   status: RepairStatus;
-  /** For status "agent": the agent's provisional answer in two or three words. */
+  /** The agent's answer in two or three words: provisional for status
+   * "agent", a suggestion waiting for the user on an open issue. */
   agentAnswer: string | null;
   /** Text the page's search matches. */
   search: string;
@@ -61,7 +62,8 @@ function identityRepair(item: IdentityQuestion): IdentityRepair {
     resolved: status === "open" ? null : item.updated_at,
     status,
     agentAnswer: item.agent_answer
-      ? item.agent_answer.relation.startsWith("same_")
+      ? item.agent_answer.chosen_id &&
+        item.agent_answer.relation !== "unrelated"
         ? "match"
         : "not a match"
       : null,

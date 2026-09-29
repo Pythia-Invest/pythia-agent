@@ -13,7 +13,7 @@ import {
   ToggleGroup,
 } from "@pythia/ui";
 import { ArrowLeft, ExternalLink, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { useFilingDocument } from "../../client/instrument-queries";
 
 type Filing = Filings["filings"][number];
@@ -70,13 +70,6 @@ function Body({
         seconds.
       </p>
     );
-  if (query.error)
-    return (
-      <p className="text-error text-sm" role="alert">
-        {query.error.message}
-      </p>
-    );
-  const document = query.data;
   const back = read ? (
     <Button
       variant="ghost"
@@ -88,6 +81,16 @@ function Body({
       Contents
     </Button>
   ) : null;
+  if (query.error)
+    return (
+      <div className="flex flex-col gap-3">
+        {back}
+        <p className="text-error text-sm" role="alert">
+          {query.error.message}
+        </p>
+      </div>
+    );
+  const document = query.data;
   if (document.passages)
     return (
       <div className="flex flex-col gap-3">
@@ -114,7 +117,7 @@ function Body({
             >
               {passage.citation.section_title}
             </button>
-            <p className="max-w-[68ch] whitespace-pre-line text-base">
+            <p className="max-w-[68ch] whitespace-pre-line text-base [overflow-wrap:anywhere]">
               {passage.text}
             </p>
           </article>
@@ -126,10 +129,19 @@ function Body({
       <div className="flex flex-col gap-3">
         {back}
         <h3 className="font-semibold text-base">{document.section.title}</h3>
-        <p className="max-w-[68ch] whitespace-pre-line text-base leading-relaxed">
+        <p className="max-w-[68ch] whitespace-pre-line text-base leading-relaxed [overflow-wrap:anywhere]">
           {document.text}
         </p>
         <div className="flex flex-wrap items-center gap-3">
+          {read && "section" in read && read.start ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRead({ section: read.section })}
+            >
+              From the section's start
+            </Button>
+          ) : null}
           {document.continue_from != null && read && "section" in read ? (
             <Button
               variant="secondary"
@@ -173,11 +185,14 @@ function Body({
  * with several versions shows them as a choice; none is picked silently. */
 export function FilingReader({
   subjectId,
+  open,
   variants,
   labels,
   onClose,
 }: {
   subjectId: string;
+  open: boolean;
+  /** Kept while the drawer closes, so it slides out as it was. */
   variants: readonly Filing[] | null;
   labels: readonly string[];
   onClose(): void;
@@ -188,6 +203,13 @@ export function FilingReader({
   const [chosen, setChosen] = useState<string | null>(null);
   const [read, setRead] = useState<Read>(null);
   const [words, setWords] = useState("");
+  const body = useRef<HTMLDivElement>(null);
+  // A new part replaces the button that asked for it: keep focus in the reader.
+  const navigate = (next: Read) => {
+    setRead(next);
+    body.current?.focus({ preventScroll: true });
+    body.current?.scrollIntoView({ block: "start" });
+  };
   const filing =
     readable.find((item) => item.id === chosen) ?? readable[0] ?? null;
   const search = (event: FormEvent) => {
@@ -196,10 +218,12 @@ export function FilingReader({
   };
   return (
     <Drawer.Root
-      open={Boolean(variants)}
-      onOpenChange={(open) => {
-        if (open) return;
-        onClose();
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      onOpenChangeComplete={(next) => {
+        if (next) return;
         setChosen(null);
         setRead(null);
         setWords("");
@@ -238,7 +262,8 @@ export function FilingReader({
                   label="Version"
                   value={filing?.id ? [filing.id] : []}
                   onValueChange={(value) => {
-                    if (value[0]) setChosen(value[0]);
+                    if (!value[0]) return; // the chosen version stays chosen
+                    setChosen(value[0]);
                     setRead(null);
                   }}
                   className="flex-wrap self-start"
@@ -263,18 +288,30 @@ export function FilingReader({
                   size="sm"
                   className="min-w-0 flex-1"
                 />
-                <Button type="submit" variant="secondary" size="sm">
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  size="sm"
+                  disabled={words.trim().length < 2}
+                  title={
+                    words.trim().length < 2
+                      ? "Type at least two characters"
+                      : undefined
+                  }
+                >
                   Search
                 </Button>
               </form>
               {filing ? (
-                <Body
-                  key={filing.id}
-                  subjectId={subjectId}
-                  filing={filing}
-                  read={read}
-                  setRead={setRead}
-                />
+                <div ref={body} tabIndex={-1} className="outline-none">
+                  <Body
+                    key={filing.id}
+                    subjectId={subjectId}
+                    filing={filing}
+                    read={read}
+                    setRead={navigate}
+                  />
+                </div>
               ) : (
                 <p className="text-foreground-secondary text-sm">
                   Pythia cannot read this format yet; open the original.

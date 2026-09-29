@@ -147,7 +147,7 @@ export function RepairsView() {
               cell: (repair) => (
                 <Badge tone={STATUS[repair.status].tone}>
                   {repair.agentAnswer
-                    ? `Agent: ${repair.agentAnswer}`
+                    ? `${repair.status === "open" ? "Agent suggests" : "Agent"}: ${repair.agentAnswer}`
                     : STATUS[repair.status].label}
                 </Badge>
               ),
@@ -214,9 +214,11 @@ export function RepairsView() {
           empty={
             repairs.isPending
               ? "Loading repairs…"
-              : repairs.all.length
-                ? "No repairs match these filters."
-                : "Nothing needs attention."
+              : repairs.error
+                ? "Repairs could not be read."
+                : repairs.all.length
+                  ? "No repairs match these filters."
+                  : "Nothing needs attention."
           }
         />
       </div>
