@@ -60,3 +60,10 @@ key does not authorize enabling it.
 Rejected: per-widget provider connections, blanket larger concurrency, retries
 at every layer, a new event broker, conflating SSE health with fresh data, and
 silently merging feeds or inventing bars to hide gaps.
+
+## Amendment (2026-09-29): Pythia-owned jobs
+
+[ADR 0044](0044-product-direction.md) introduces Pythia-owned jobs for mandate
+runs and event-driven research, which this ADR excluded ("no new durable
+scheduler"). Live subscriptions and coordinated reads are unchanged. The
+implementing ADR defines the jobs.

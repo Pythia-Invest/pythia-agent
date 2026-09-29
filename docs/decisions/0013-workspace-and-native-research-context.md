@@ -217,3 +217,11 @@ dependency, index or service. See the [uFuzzy API](https://github.com/leeoniya/u
 and [Meilisearch typo rules](https://www.meilisearch.com/docs/resources/internals/typo_tolerance)
 for the research behind this choice. Arbitrary abbreviations are intentionally
 removed in favor of predictable typo tolerance.
+
+## Amendment (2026-09-29): mandates get a limits file
+
+[ADR 0044](0044-product-direction.md) keeps the workspace schema-free with one
+exception. A strategy that runs as a mandate gets a small machine-checked limits
+file next to its prose brief, so that code can enforce its limits. Exploratory
+strategies and all other research stay free-form. The implementing ADR defines
+the file.
