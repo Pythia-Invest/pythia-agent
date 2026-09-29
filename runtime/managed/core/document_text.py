@@ -147,7 +147,9 @@ class _Strip:
                 self.carry = "" if final else text[found.start():]
                 return "".join(out)
             out.append(text[at:close + 1])
-            self.until, at = re.compile("</" + found[2], re.I), close + 1
+            if text[close - 1] != "/":  # a self-closing <script …/> has no body to drop
+                self.until = re.compile("</" + found[2], re.I)
+            at = close + 1
 
 
 def _chunks(response: Any, inflate: Any, check: Callable[[], None]) -> Iterator[bytes]:

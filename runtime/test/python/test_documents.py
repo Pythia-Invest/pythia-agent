@@ -96,6 +96,8 @@ class Extraction(unittest.TestCase):
             tracemalloc.stop()
         self.assertEqual(document["text"].split(), ["Before", "After"])
         self.assertLess(peak, 4_000_000)  # the parser never holds the 10 MB construct
+        closed = read('<p>Before</p><script src="viewer.js"/><style/><p>After</p><script>x</script><p>End</p>')
+        self.assertEqual(closed["text"].split(), ["Before", "After", "End"])  # self-closing tags drop nothing
         html = '<p>a</p><img src="data:x,Q"/><style>p{}</style><p title=\'data:y\'>b</p>'
         strip = document_text._Strip()  # a marker cut at any chunk boundary is still found
         self.assertEqual("".join(strip.feed(char) for char in html) + strip.feed("", final=True),
