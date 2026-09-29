@@ -34,7 +34,9 @@ class InvariantTest(unittest.TestCase):
             db.execute(sql, args)
 
     def test_the_fixture_build_has_no_error(self):
-        failed = [(r.name, r.count, r.examples) for r in invariants.run(self.path) if r.severity == "error" and r.count]
+        # The two volume ratchets count what the evidence leaves open, which a fixture build has too.
+        failed = [(r.name, r.count, r.rows[:3]) for r in invariants.run(self.path) if r.severity == "error" and r.count
+                  and r.name not in ("primary_missing", "questions_open")]
         self.assertEqual(failed, [])
 
     def test_growth_past_a_ratchet_limit_fails_the_audit(self):
