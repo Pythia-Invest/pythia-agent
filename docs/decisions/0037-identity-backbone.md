@@ -121,7 +121,7 @@ authority.
 | T0 identifier | `source_asserted`, `snapshot` | Yes |
 | T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`) | Yes |
 | T3 model verdict | `model_confirmed` at or above the threshold; `model_suggested` below | Only `model_confirmed` |
-| T3 agent answer | `agent_confirmed` (the Hermes agent) | Provisionally |
+| T3 agent answer | `agent_confirmed` (the Hermes agent) | No: it suggests (see the 2026-09-29 amendment) |
 | T4 attestation | `user_attested`, `curated` | Yes |
 
 A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
@@ -533,13 +533,14 @@ replace the provisional routing of the Hermes agent's answer described above
 - The agent's answer is still decided by `decide` and recorded with its own
   authority (`agent_confirmed`) and input digest. An answer that would bind or
   dismiss is recorded with outcome `suggested`: the question stays open, no
-  binding is written, and reads route as before.
+  binding is written, and nothing the investor sees changes.
 - `identity-queue` shows an open question's latest suggestion as
-  `agent_answer`. Repairs shows it with a one-click Confirm, which is the
-  user's own verdict (`user_attested`) and takes effect only then.
-- Answers the agent settled before this amendment keep their provisional
-  bindings. The user may still confirm or override them, and identifier
-  evidence still supersedes them.
+  `agent_answer`. Repairs shows it with Confirm, which opens the same short
+  dialog as any answer and records the user's own verdict (`user_attested`);
+  it takes effect only then.
+- The agent's answer never settles a question, so the queue no longer lists
+  agent-settled questions apart. Development stores from before this amendment
+  may still hold such answers; they are not migrated.
 
 Rejected alternative: keeping provisional routing (the answer routes until the
 user overrides it). The agent's answer would change what the investor sees

@@ -200,9 +200,9 @@ row's context and actions. Today the only kind is an identity question from
 core's `identity-queue`: its context shows the provider's record beside the
 instrument and the evidence. "Match" (one per candidate) and "Not a match"
 send `identity-verdict` with an optional note; an agent's suggestion, whose
-badge reads "Agent suggests: match", adds a one-click "Confirm" that sends it as
-the user's answer. Answers the agent settled before it only suggested read
-"Agent: match" and take the same actions. Answered and settled questions are shown through the
+badge reads "Agent suggests: match" (or "depositary receipt", "not a match"),
+adds "Confirm", which sends it as the user's answer through the same short
+dialog. Answered and settled questions are shown through the
 Status filter.
 
 `/instrument/[subject]` is one instrument's page (URL-encoded subject id,

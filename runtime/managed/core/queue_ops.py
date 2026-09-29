@@ -1,6 +1,6 @@
 """Resolution-queue operations on the native tool registry (ADR 0037).
 
-`identity-queue` is a local read of open, agent-answered and settled questions.
+`identity-queue` is a local read of open and settled questions.
 `identity-verdict` records one answer to a question: from the Desk it is the
 user's attestation, from a model tool call the agent's verdict; the transport
 decides which, never an argument. `settle` lets the rules resolver re-ask the
@@ -30,16 +30,14 @@ QUEUE_SCHEMA = {
     "description": "List open identity questions: provider records the device could not place on a subject "
                    "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
                    "subject, plugin or kind. On an open question, agent_answer is the agent's suggestion awaiting "
-                   "the user's confirmation. With answered, also lists older questions an agent answer settled "
-                   "provisionally, which the user may confirm or override. With settled, also lists questions "
-                   "rules or the user settled. With item_id, returns one question in full: its record, "
-                   "candidates, evidence and earlier verdicts. Local only.",
+                   "the user's confirmation. With settled, also lists questions rules or the user settled. With "
+                   "item_id, returns one question in full: its record, candidates, evidence and earlier verdicts. "
+                   "Local only.",
     "parameters": {"type": "object", "properties": {
         "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
         "subject_id": SUBJECT_ID,
         "plugin": {"type": "string", "minLength": 1, "maxLength": 128},
         "kind": {"type": "string", "enum": ["residual", "conflict"]},
-        "answered": {"type": "boolean"},
         "settled": {"type": "boolean"},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
         "additionalProperties": False},
@@ -64,7 +62,7 @@ VERDICT_SCHEMA = {
 
 
 def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
-    """identity-queue: open questions (and on request answered and settled ones), or one in full."""
+    """identity-queue: open questions (and on request settled ones), or one in full."""
     from .identity_ops import _envelope, installed
     limit = arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20
     try:
@@ -79,14 +77,14 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
             data = questions.listing(identity.store, ref, subject_id=arguments.get("subject_id"), kind=arguments.get("kind"),
                                  plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
                                  if plugin else None, limit=limit, notice=not identity.reset_told,
-                                 **{name: arguments.get(name) is True for name in ("answered", "settled")})
+                                 settled=arguments.get("settled") is True)
             identity.reset_told = identity.reset_told or "notice" in data
         finally:
             ref.close()
     except (sqlite3.Error, OSError):
         logger.warning("identity queue unavailable", exc_info=True)
         return _envelope("empty", None, issue="The identity store could not be read.")
-    found = any(data.get(name) for name in ("items", "answered", "settled", "notice"))
+    found = any(data.get(name) for name in ("items", "settled", "notice"))
     return _envelope("ok" if found else "empty", data)
 
 def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:

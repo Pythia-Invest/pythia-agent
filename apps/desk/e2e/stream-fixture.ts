@@ -39,6 +39,9 @@ export async function fixture(
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/browser-session")
       return route.fulfill({ json: { csrf_token: "synthetic" } });
+    // The shell asks which top bar to render: the core header.
+    if (path === "/api/desk/top-bar")
+      return route.fulfill({ json: { renderer: null, settings: {} } });
     if (path === "/api/capabilities")
       return route.fulfill({ json: { runSteer: true, modelOptions: true } });
     if (path === "/api/models")

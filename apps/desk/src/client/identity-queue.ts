@@ -62,8 +62,7 @@ export const identityQuestionSchema = z.object({
   evidence: z
     .array(z.object({ scheme: text, value: text, source: optionalText }))
     .default([]),
-  /** The agent's answer: on an open question a suggestion waiting for the
-   * user; on a settled one provisional, which the user may override. */
+  /** On an open question: the agent's suggestion, waiting for the user. */
   agent_answer: z
     .object({ relation: text, chosen_id: z.string().nullable() })
     .nullish(),
@@ -76,7 +75,6 @@ export type IdentityQuestion = z.infer<typeof identityQuestionSchema>;
 
 const listSchema = z.object({
   items: z.array(identityQuestionSchema).default([]),
-  answered: z.array(identityQuestionSchema).default([]),
   settled: z.array(identityQuestionSchema).default([]),
   /** Once per runtime: an older identity store was kept aside. */
   notice: z.string().nullish(),
@@ -91,9 +89,8 @@ export type IdentityVerdict = z.infer<typeof verdictSchema>;
 
 const questionsKey = ["plugin", SUBJECT_PLUGIN, "identity-queue"] as const;
 
-/** The device's identity questions: open ones and, apart from them, those only
- * the agent answered (provisional) and those rules or the user settled. The
- * queue op caps each list at 50. A queue core could not read throws with its
+/** The device's identity questions: open ones and, apart from them, those
+ * rules or the user settled. The queue op caps each list at 50. A queue core could not read throws with its
  * reason, never reads as empty. */
 export function useIdentityQuestions() {
   const api = useDeskApi();
@@ -104,7 +101,7 @@ export function useIdentityQuestions() {
         await api.pluginRead({
           plugin: SUBJECT_PLUGIN,
           operation: "identity-queue",
-          arguments: { answered: true, settled: true, limit: 50 },
+          arguments: { settled: true, limit: 50 },
         }),
         listSchema,
       ),

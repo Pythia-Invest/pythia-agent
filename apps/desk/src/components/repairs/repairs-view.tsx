@@ -17,7 +17,6 @@ import type { RepairAction, RepairKind } from "./kinds";
 
 const STATUS: Record<RepairStatus, { label: string; tone: BadgeTone }> = {
   open: { label: "Open", tone: "warning" },
-  agent: { label: "Answered by agent", tone: "info" },
   resolved: { label: "Resolved", tone: "success" },
   dismissed: { label: "Dismissed", tone: "neutral" },
 };
@@ -27,8 +26,8 @@ const STATUS_OPTIONS = (Object.keys(STATUS) as RepairStatus[]).map((value) => ({
 }));
 
 /** Settings → Repairs: what Pythia could not settle on its own, in the
- * back-office table. Rules and the agent normally fix these; the user may,
- * never has to. The Status filter shows answered and settled issues too. */
+ * back-office table. Rules fix most; the agent only suggests; the user
+ * confirms or answers, and never has to. The Status filter shows settled issues too. */
 export function RepairsView() {
   const repairs = useRepairs();
   const time = useLocalTime();
@@ -36,7 +35,7 @@ export function RepairsView() {
     identity: useIdentityKind() as RepairKind,
   };
   const [query, setQuery] = useState("");
-  const [statuses, setStatuses] = useState<string[]>(["open", "agent"]);
+  const [statuses, setStatuses] = useState<string[]>(["open"]);
   const [types, setTypes] = useState<string[]>([]);
   const [pending, setPending] = useState<{
     action: RepairAction;
@@ -82,8 +81,8 @@ export function RepairsView() {
             Repairs
           </h2>
           <p className="mt-1 mb-0 text-body text-foreground-secondary leading-ui">
-            Issues Pythia could not settle on its own. Rules and the agent
-            normally fix these; you can also fix one yourself.
+            Issues Pythia could not settle on its own. Rules fix most; the agent
+            may suggest an answer, which counts once you confirm it.
           </p>
         </div>
         {repairs.notice || message ? (
@@ -147,7 +146,7 @@ export function RepairsView() {
               cell: (repair) => (
                 <Badge tone={STATUS[repair.status].tone}>
                   {repair.agentAnswer
-                    ? `${repair.status === "open" ? "Agent suggests" : "Agent"}: ${repair.agentAnswer}`
+                    ? `Agent suggests: ${repair.agentAnswer}`
                     : STATUS[repair.status].label}
                 </Badge>
               ),

@@ -18,7 +18,6 @@ const SCHEMES: Record<string, string> = {
 };
 const SETTLED_BY: Record<string, string> = {
   rules: "Rules",
-  agent: "The agent (provisional)",
   user: "You",
 };
 /** A verdict that took effect; anything else keeps the dialog open with its reason. */
@@ -40,11 +39,14 @@ function nameOf(item: IdentityQuestion, id: string | null) {
   return found?.name ?? id ?? "—";
 }
 
-/** The agent's answer in words, naming the instrument it chose. */
-export function agentAnswerText(item: IdentityQuestion, answer: Answer) {
-  return isNoMatch(answer)
-    ? "Not this instrument"
-    : `Same instrument as ${nameOf(item, answer.chosen_id)}`;
+/** An answer in words, naming the instrument it chose; a depositary receipt
+ * is never "the same instrument" as its share. */
+export function answerText(item: IdentityQuestion, answer: Answer) {
+  if (isNoMatch(answer)) return "Not this instrument";
+  const name = nameOf(item, answer.chosen_id);
+  return answer.relation === "depositary_receipt_of"
+    ? `A depositary receipt of ${name}`
+    : `Same instrument as ${name}`;
 }
 
 /** Identity questions: the provider's record beside our instruments, the
@@ -64,11 +66,21 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
       return result.message;
     };
   const matchDialog = (item: IdentityQuestion, entry: Answer) => ({
-    title: "Same instrument",
-    description: `Bind ${item.label}'s record to ${nameOf(item, entry.chosen_id)}. Identifier evidence against it refuses the answer.`,
+    title:
+      entry.relation === "depositary_receipt_of"
+        ? "Depositary receipt"
+        : "Same instrument",
+    description: `${
+      entry.relation === "depositary_receipt_of"
+        ? `Record ${item.label}'s record as a depositary receipt of`
+        : `Bind ${item.label}'s record to`
+    } ${nameOf(item, entry.chosen_id)}. Identifier evidence against it refuses the answer.`,
     noteLabel: "Note",
     notePlaceholder: "Why this record is this instrument…",
-    confirmLabel: "Confirm match",
+    confirmLabel:
+      entry.relation === "depositary_receipt_of"
+        ? "Confirm receipt"
+        : "Confirm match",
     tone: "primary" as const,
   });
   const noMatchDialog = (item: IdentityQuestion) => ({
@@ -148,11 +160,8 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
         ...(item.agent_answer
           ? [
               {
-                label:
-                  item.state === "open"
-                    ? "Agent's suggestion"
-                    : "Agent's answer",
-                value: agentAnswerText(item, item.agent_answer),
+                label: "Agent's suggestion",
+                value: answerText(item, item.agent_answer),
               },
             ]
           : []),
@@ -167,18 +176,19 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
       ];
     },
     actions: ({ data: item, status }: IdentityRepair) => {
-      if (status !== "open" && status !== "agent") return [];
+      if (status !== "open") return [];
       const agent = item.agent_answer;
       const matches = item.answers.filter(
         (entry) => entry.chosen_id && entry.relation.startsWith("same_"),
       );
       const several = matches.length > 1;
       const actions: RepairAction[] = [];
-      // One click confirms the agent's answer as the user's (ADR 0044 ruling 8).
+      // Confirm sends the agent's answer as the user's own (ADR 0044 ruling 8),
+      // through the same short dialog as every answer.
       if (agent)
         actions.push({
           label: "Confirm",
-          hint: `Confirm the agent's answer: ${agentAnswerText(item, agent).toLowerCase()}`,
+          hint: `Confirm the agent's answer: ${answerText(item, agent).toLowerCase()}`,
           emphasis: "primary",
           dialog: isNoMatch(agent)
             ? noMatchDialog(item)

@@ -41,16 +41,6 @@ test("repairs list issues in the back-office table and record the user's fix wit
         data: {
           items: [question("q-open")],
           total: 1,
-          answered: [
-            question("q-agent", {
-              state: "resolved",
-              agent_answer: {
-                by: "agent",
-                relation: "same_listing",
-                chosen_id: LISTING,
-              },
-            }),
-          ],
           // Settled by the user: a Dismissed badge and no actions, hidden by default.
           settled: [
             question("q-user", {
@@ -85,19 +75,12 @@ test("repairs list issues in the back-office table and record the user's fix wit
   ).toBeVisible();
   const table = page.getByRole("table", { name: "Repairs" });
   const rows = table.locator('[data-slot="data-table-row"]');
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(1)).toContainText("Agent: match");
-  await expect(
-    rows.nth(1).getByRole("button", { name: "Confirm" }),
-  ).toBeVisible();
-  await expect(
-    rows.nth(1).getByRole("button", { name: "Not a match" }),
-  ).toBeVisible();
+  await expect(rows).toHaveCount(1);
 
   await page.getByRole("button", { name: /^Status/u }).click();
   await page.getByRole("menuitemcheckbox", { name: "Dismissed" }).click();
   await page.keyboard.press("Escape");
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(2);
   const settled = rows.filter({ hasText: "Dismissed" });
   await expect(settled).toHaveCount(1);
   await expect(
@@ -138,6 +121,7 @@ test("repairs list issues in the back-office table and record the user's fix wit
 });
 
 const OTHER = "listing:isin:XS0000000002:XNAS:USD";
+const SECURITY = "security:isin:XS0000000001";
 
 /** Serves one queue read and records every answer; each answer takes effect. */
 async function serveQueue(
@@ -193,7 +177,7 @@ test("repairs offer every candidate, the agent's suggestion and a way out of a q
             { relation: "ambiguous", chosen_id: null },
           ],
         }),
-        // An agent's answer on a source not yet audited waits for the user.
+        // The agent's answer is a suggestion; it waits for the user.
         question("q-suggested", {
           agent_answer: {
             by: "agent",
@@ -211,13 +195,27 @@ test("repairs offer every candidate, the agent's suggestion and a way out of a q
             { id: OTHER, known: true, name: "Synthetic Holding ADR" },
           ],
         }),
+        // A receipt suggestion reads as one, never as the same instrument.
+        question("q-receipt", {
+          agent_answer: {
+            by: "agent",
+            relation: "depositary_receipt_of",
+            chosen_id: SECURITY,
+          },
+          candidates: [{ id: SECURITY, name: "Synthetic Holding shares" }],
+          answers: [
+            { relation: "same_security", chosen_id: SECURITY },
+            { relation: "depositary_receipt_of", chosen_id: SECURITY },
+            { relation: "none", chosen_id: null },
+          ],
+        }),
       ],
     },
   });
   await page.goto("/settings/repairs");
   const table = page.getByRole("table", { name: "Repairs" });
   const rows = table.locator('[data-slot="data-table-row"]');
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(4);
 
   // Several candidates: each has its own Match, and the second one binds it.
   await rows.nth(0).getByRole("button", { name: "Match 2" }).click();
@@ -257,6 +255,12 @@ test("repairs offer every candidate, the agent's suggestion and a way out of a q
       { item_id: "q-none", relation: "none" },
       { item_id: "q-suggested", relation: "same_listing", chosen_id: OTHER },
     ]);
+
+  await expect(rows.nth(3)).toContainText("Agent suggests: depositary receipt");
+  await rows.nth(3).getByRole("button", { name: "Confirm" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Depositary receipt" }),
+  ).toContainText("as a depositary receipt of Synthetic Holding shares");
 });
 
 test("repairs never read an unreadable queue as nothing to do", async ({

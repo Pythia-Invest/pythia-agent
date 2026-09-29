@@ -437,9 +437,6 @@
           "type": "string",
           "enum": ["residual", "conflict"]
         },
-        "answered": {
-          "type": "boolean"
-        },
         "settled": {
           "type": "boolean"
         },
@@ -451,7 +448,7 @@
       },
       "additionalProperties": false
     },
-    "description": "Open identity questions in Repairs, for review. Provider records the device could not place on a subject (residuals) and records that contradict the reference identifiers (conflicts). Filter by subject, plugin or kind. On an open question, agent_answer is the agent's suggestion awaiting the user's confirmation. With answered, also lists older questions an agent answer settled provisionally, which the user may confirm or override. With settled, also lists questions rules or the user settled. With item_id, returns one question in full: its record, candidates, evidence and earlier verdicts. Local only."
+    "description": "Open identity questions in Repairs, for review. Provider records the device could not place on a subject (residuals) and records that contradict the reference identifiers (conflicts). Filter by subject, plugin or kind. On an open question, agent_answer is the agent's suggestion awaiting the user's confirmation. With settled, also lists questions rules or the user settled. With item_id, returns one question in full: its record, candidates, evidence and earlier verdicts. Local only."
   },
   {
     "name": "pythia_instrument",

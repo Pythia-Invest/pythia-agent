@@ -66,6 +66,14 @@ test("native model readiness and capability toggles use the existing API", async
     }
     return route.fulfill({ status: 404 });
   });
+  // Settings counts open repairs: none.
+  await page.route("**/api/data/read", (route) =>
+    route.request().postDataJSON().operation === "identity-queue"
+      ? route.fulfill({
+          json: { schema_version: 1, outcome: "empty", data: { items: [] } },
+        })
+      : route.fallback(),
+  );
   await page.route("**/api/update-status", (route) =>
     route.fulfill({
       json: {

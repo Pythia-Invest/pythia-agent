@@ -20,8 +20,7 @@ class Authority(StrEnum):
     RULE_CONFIRMED = "rule_confirmed"    # a versioned T1 rule, named by rule_id
     MODEL_CONFIRMED = "model_confirmed"  # a model verdict at or above its calibrated threshold
     MODEL_SUGGESTED = "model_suggested"  # a model verdict below it: a candidate, never routable
-    AGENT_CONFIRMED = "agent_confirmed"  # the Hermes agent's answer: a suggestion the user confirms (ADR 0044);
-                                         # bindings from before that route provisionally until superseded
+    AGENT_CONFIRMED = "agent_confirmed"  # the Hermes agent's answer: a suggestion the user confirms (ADR 0044)
     USER_ATTESTED = "user_attested"      # the user stated it, directly or through the agent
     CURATED = "curated"                  # a reviewed, Pythia-authored reference table
 
@@ -39,8 +38,6 @@ AUTHORITY_TIER: dict[Authority, EvidenceTier] = {
 }
 # Authorities that may carry a binding to `confirmed`.
 CONFIRMING = frozenset(Authority) - {Authority.MODEL_SUGGESTED}
-# Confirming, but only until a stronger answer (user attestation, identifier evidence or a rule) replaces it.
-PROVISIONAL = frozenset({Authority.AGENT_CONFIRMED})
 
 
 # Closed sets grow when a connector emits a new class or kind, with its store CHECKs.
