@@ -115,6 +115,8 @@ value, validity, provenance and authority; its evidence ID is a content hash.
 A record marks each ISIN it carries as `self`, `underlying` (a depositary line
 quoting its underlying's ISIN) or `unqualified` (a source such as EODHD that
 cannot tell). Only `self` values join by ISIN; the others become a residual.
+For a resolve answer only `underlying` does so far; an `unqualified` ISIN still
+binds (see "Consequential failures" below).
 The plugin marks the role and core cannot verify it, so a wrong mark surfaces
 as a conflict. A record has at most one `self` value per single-valued scheme
 (every scheme but `ticker_mic`).
@@ -553,6 +555,61 @@ queues none; subjects come only from the reference build and core's curated
 tables; and the builder's `snapshot` evidence outranks a plugin's claims. These
 change in roadmap stage 0 (ADR 0044's amendment "data any plugin can
 extend").
+
+### Consequential failures (roadmap stage 0)
+
+`runtime/test/python/test_identity_failures.py` tests the failures the roadmap
+names, on real identifiers from the identity truth set. Consequential
+operations do not exist yet, so the tests check what a record refers to, not
+what an operation does with it. They pin:
+
+- **Wrong share class.** Another class's ISIN or share-class FIGI is a
+  conflict. An issuer's LEI or CIK confirms only an issuer binding: a security
+  or listing answer that rests on it alone waits as a `no_key` residual.
+- **Receipt versus share.** The receipt guard blocks a receipt record. A record
+  that quotes the ISIN core sent as its `underlying` is an
+  `underlying_identifier` residual, never a binding. That check comes first, so
+  such a record is this residual even when it is a receipt or also contradicts
+  the subject, where it used to be a conflict; either way it never binds.
+- **Ticker reuse.** A line the reference marks inactive gets no address from its
+  ticker, neither through ADR 0038's MIC table nor through a scope named
+  `ticker_mic`, and sends no `ticker_mic` to a resolve, because the ticker may
+  name another company now. Its price section says the line no longer trades.
+  A confirmed binding on the line still serves (rule 5).
+- **Conflicting identifiers.** A source still quoting a former ISIN is a
+  conflict and re-keys nothing.
+- **Missing currency.** An ISIN keys no listing without a currency, and a line
+  that quotes in pence (Shell in London) shows no trading currency.
+- **Corporate actions.** `successor_of` is shown as a related link and never
+  followed. A saved reference to a former ISIN stays on its subject; when a
+  release drops that subject, its rows are kept and flagged.
+- **Ambiguity.** Several records for one lookup are an `ambiguous` residual, and
+  the agent's pick only suggests.
+
+Known gaps:
+
+- No source states corporate actions, so a holding whose ISIN changed stays on
+  its old subject until a plugin states `successor_of`. Carrying positions
+  across the action is a consequential operation (ADR 0044, A6).
+- An `unqualified` ISIN, such as EODHD's, still binds by `resolve_answer@1`,
+  and only read checks label it. Making it a residual would stop every EODHD
+  resolve.
+- A confirmed binding to a provider ticker (EODHD `X.US`, a symbol bound by
+  ISIN) keeps serving after its line is delisted, so once the ticker is reused it
+  quotes the new holder. Read checks compare venue and currency only, so they
+  pass it.
+- Market movers link a row's ticker and venue to any reference line with that
+  `ticker_mic`, a delisted one included.
+- Ticker reuse cannot be seen on a record without identifiers, because names
+  are never compared.
+- The builder's `receipt_issuer_share@1` links a receipt to its issuer's only
+  ordinary share in the build, which is wrong when the receipt's own class is
+  missing from the build.
+- A SEC line joined to a security by share-class FIGI is not flagged when SEC
+  names another issuer (CNDIF).
+- Source removal, plugin evidence about existing subjects, a reused native
+  reference and questions queued on relevance are tested by the stage 0 work
+  that builds them.
 
 ## Amendment (2026-09-29): the agent suggests, the user confirms
 

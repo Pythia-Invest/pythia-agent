@@ -27,7 +27,7 @@ from .concepts import NOTICE, REGISTRY, Combine, Concept, core_section, ranked, 
 from .manifest import ConceptEntry, Manifest
 from .markets import MARKETS_RULE
 from .model import Binding, ProviderRef
-from .resolution import QueueItem, Verdict, VerdictOutcome, decide
+from .resolution import QueueItem, Verdict, VerdictOutcome, decide, quotes_underlying, resolve_evidence
 from .schemes import CANONICAL_ASSETS_RULE, INSTRUMENT_KINDS, Kind, Level, provisional_id
 from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
 from .vocabulary import KIND_OF_RECORD, AssetClass, InstrumentKind, VerdictRelation
@@ -85,7 +85,8 @@ CORE_PLUGIN = "pythia"  # core's own operations (the combined filings read)
 ABSENT = frozenset({"not_covering", "not_addressable"})  # a section only these could serve is not shown
 # Why a source's answer waits in the resolution queue instead of binding, in the investor's words.
 QUEUED = {"unaudited": "the source is not yet audited, so its match waits for sign-off",
-          "ambiguous": "several of its records match", "no_key": "its record carries no identifier to check"}
+          "ambiguous": "several of its records match", "no_key": "its record carries no identifier to check",
+          "underlying_identifier": "its record names this instrument as its underlying, so it may be a receipt"}
 
 
 def named(name: str | None, plugins: list[PluginInfo]) -> str | None:
@@ -124,7 +125,7 @@ def ordered(plugins: list[PluginInfo], section: Section, order: tuple[str, ...] 
 # ---- addressing -------------------------------------------------------------------------------------------------
 
 def derive(info: PluginInfo, level: Level | Kind, subject: dict, coins: Callable[[str, str], str | None]) -> tuple[ProviderRef, str] | None:
-    """A native reference core builds without a call, with the rule that built it, or None."""
+    """A native reference core builds without a call, with the rule that built it, or None; none from a delisted ticker."""
     manifest, values, listing = info.manifest, subject["values"], subject["listing"]
     if level not in INSTRUMENT_KINDS:  # a market: the curated table names each serving plugin's reference
         ref = subject.get("refs", {}).get(manifest.provider)
@@ -142,7 +143,7 @@ def derive(info: PluginInfo, level: Level | Kind, subject: dict, coins: Callable
         accepted = manifest.schemes.get(level, ())
         if scope.native_scope in accepted and values.get(scope.native_scope):
             return ProviderRef(manifest.provider, values[scope.native_scope], scope.native_scope), f"{scope.native_scope}_ref@1"
-        if level is Level.LISTING and listing is not None and listing["ticker"] and listing["mic"]:
+        if level is Level.LISTING and listing is not None and listing["ticker"] and listing["mic"] and listing["status"] != "inactive":
             suffix = manifest.mic_table.get(listing["operating_mic"] or listing["mic"])
             if suffix is not None:
                 # A provider symbol has no space: the venue's class separator (`VOLV B`) becomes `-` (`VOLV-B.ST`).
@@ -172,11 +173,11 @@ def priced_venues(plugins: list[PluginInfo]) -> dict[str, frozenset[AssetClass]]
 
 
 def resolve_input(info: PluginInfo, subject: dict) -> dict[str, str]:
-    """The subject's identifiers in the schemes the plugin's resolve accepts."""
+    """The subject's identifiers in the schemes the plugin's resolve accepts; never a delisted line's ticker."""
     if info.manifest.resolve is None:
         return {}
     values, listing = dict(subject["values"]), subject["listing"]
-    if listing is not None and listing["ticker"] and (listing["operating_mic"] or listing["mic"]):
+    if listing is not None and listing["ticker"] and (listing["operating_mic"] or listing["mic"]) and listing["status"] != "inactive":
         values.setdefault("ticker_mic", f"{listing['ticker']}@{listing['operating_mic'] or listing['mic']}")
     return {scheme: values[scheme] for scheme in info.manifest.resolve.input_schemes if values.get(scheme)}
 
@@ -350,12 +351,11 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
                   now: str, as_of: str | None = None, bound_to: Callable[[ProviderRef], str | None] = lambda ref: None) -> tuple[Binding | None, QueueItem | None, list[RecordClaim]]:
     """Decide a resolve answer with the one authority rule: a binding, a queue item, or neither (no match).
 
-    The answer names a native reference for the identifiers core sent (`sent`). Rule
-    `resolve_answer@1` binds it to the subject unless identifier evidence or the
-    depositary-receipt guard contradicts it, or `bound_to` says the reference is already
-    confirmed for another subject (a conflict, never a re-point); several references are a residual.
-    A source not yet signed off (ADR 0042) never confirms: an answer that would bind is an `unaudited` residual
-    for review, with the evidence that matched.
+    The answer names a native reference for the identifiers core sent (`sent`); an issuer's LEI or CIK confirms only an
+    issuer. Rule `resolve_answer@1` binds it to the subject unless identifier evidence or the depositary-receipt guard
+    contradicts it, or `bound_to` says the reference is already confirmed for another subject (a conflict, never a
+    re-point). Several references, or a record quoting a sent identifier as its underlying's, are a residual. A source
+    not yet signed off (ADR 0042) never confirms: a would-be binding is an `unaudited` residual citing its evidence.
     """
     target, plugin = subject["ids"][level], info.manifest.plugin
     records = [claim for claim in batch.claims if isinstance(claim, RecordClaim) and claim.native_ref is not None
@@ -363,17 +363,16 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
                and scope.level is level]
     if not records:
         return None, None, []
-    evidence_ids = tuple(item.evidence_id for item in subject["evidence"] if sent.get(item.scheme) == item.value)
+    evidence_ids = resolve_evidence(subject["evidence"], sent, level)
     ref = records[0].native_ref
     base = {"candidate_ids": (target,), "state": "open", "opened_at": now, "plugins": (plugin,), "provider_ref": ref}
     # The record's own kind names what it is: a provider's index or FX record is never provisionally a security.
     local = (provisional_id(KIND_OF_RECORD.get(records[0].attributes.kind, level), ref.provider, ref.native_scope,
                             ref.native_id),)
-    if len({(claim.native_ref.native_scope, claim.native_ref.native_id) for claim in records}) > 1:
-        return None, QueueItem(id=uuid.uuid4().hex, kind="residual", reason="ambiguous", subject_ids=local,
-                               evidence_ids=(), **base), records
-    item = QueueItem(id=uuid.uuid4().hex, kind="residual", reason="no_key", subject_ids=local, evidence_ids=(), **base)
-    if records[0].attributes.kind in KIND_OF_RECORD:  # an index or FX record: its own subject, never this instrument
+    several = len({(claim.native_ref.native_scope, claim.native_ref.native_id) for claim in records}) > 1
+    reason = "ambiguous" if several else "underlying_identifier" if quotes_underlying(records[0].identifiers, sent) else "no_key"
+    item = QueueItem(id=uuid.uuid4().hex, kind="residual", reason=reason, subject_ids=local, evidence_ids=(), **base)
+    if reason != "no_key" or records[0].attributes.kind in KIND_OF_RECORD:  # several, its receipt, an index or FX record
         return None, item, records
     verdict = Verdict(item_id=item.id, resolver="rules", authority="rule_confirmed", relation=SAME[level],
                       chosen_id=target, rule_id=RESOLVE_RULE,
