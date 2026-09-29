@@ -23,7 +23,8 @@ BASES = frozenset({"us_gaap", "ifrs"})
 # A source that answers "no such entity" lists nothing for it; that is an empty list, not a failed source.
 NOTHING_LISTED = frozenset({"missing_observation"})
 # Form names an investor or agent uses for a form a source lists under another name.
-FORM_ALIASES = {"AFR": ("ESEF", "UKSEF"), "ANNUAL": ("10-K", "20-F", "40-F", "ESEF", "UKSEF"),
+# ACS is the FCA NSM's headline code for an annual financial report.
+FORM_ALIASES = {"AFR": ("ESEF", "UKSEF", "ACS"), "ANNUAL": ("10-K", "20-F", "40-F", "ESEF", "UKSEF", "ACS"),
                 "13G": ("SC 13G", "SCHEDULE 13G")}  # SEC renamed Schedule 13G in 2024; both names occur
 
 

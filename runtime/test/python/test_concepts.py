@@ -147,7 +147,7 @@ NOT_CRYPTO = [("coingecko", "not_covering"), ("coinmarketcap", "not_covering")]
 NOT_EQUITY = [("yahoo-discovery", "not_covering"), ("eodhd", "not_covering")]
 # Filings combine one source per authority into core's read, whatever the price configuration.
 MECHANISMS = json.loads((PLUGINS / "xbrl-filings/contract.json").read_text())["concepts"]["filings"]["authorities"]
-# The NSM (unsigned) has not been looked up for these subjects: it is listed as unresolved, never waited for.
+# The NSM (unsigned) is listed as unresolved: this fixture gives it no filings operation to read.
 FILINGS = {"profile": ("gleif", "ready", [], []),
            "filings": ("xbrl-filings", "ready", [], [("nsm", "unresolved")],
                        [("xbrl-filings", MECHANISMS), ("sec", ["sec"])])}

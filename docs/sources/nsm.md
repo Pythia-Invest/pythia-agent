@@ -3,10 +3,12 @@
 [Source onboarding](../architecture/source-onboarding.md) defines the stages
 ([ADR 0042](../decisions/0042-source-onboarding-standard.md)).
 
-- **Status:** in onboarding (stages 1 to 3 measured; not signed off). The plugin
-  ships `signoff: unsigned` and installed disabled: off in fresh profiles,
-  labelled "not yet audited", never confirming identity. The founder
-  spot-checks before any sign-off.
+- **Status:** display-level plugin ([ADR 0044](../decisions/0044-product-direction.md),
+  ruling 10): it shows disclosures with their source and never confirms
+  identity, so it needs declared coverage and terms, not sign-off. Stages 1 to 3
+  below were measured anyway and stay as its evidence. Until the code gate
+  adopts trust levels it ships `signoff: unsigned` and installed disabled: off
+  in fresh profiles and labelled "not yet audited".
 - **Owner:** `runtime/managed/plugins/nsm/` (`records.py` parses and counts
   drift; `__init__.py` reads, caches and raises the alarms).
 - **Scope:** the NSM search `POST https://api.data.fca.org.uk/search?index=nsm-search`,
@@ -205,10 +207,9 @@ Classes assigned to code or to Repairs instead:
 
 ## Sign-off
 
-- [ ] Every stage meets its exit criteria (kind precision rests on 14 labels;
-  the event gap is open).
-- [ ] The founder's spot-check of the sample.
-- [ ] Reviewer, date and PR are recorded.
+Not required: the plugin is display-level under ADR 0044 (ruling 10). Sign-off
+would be needed only if it were to suggest or confirm identity; the open items
+then are the event gap and kind precision resting on 14 labels.
 
-Open items accepted for the first version: the endpoint is undocumented and
-may be withdrawn (founder ruling C2); the empty-issuer alarm is per session.
+Open items accepted: the endpoint is undocumented and may be withdrawn
+(founder ruling C2); the empty-issuer alarm is per session.

@@ -60,10 +60,11 @@ def from_reference(value):
     return lei(value.get('native_id'))
 
 
-def codes(kinds):
-    """The headline codes that search for these filing kinds, or None when a kind has none (event, other)."""
+def searches(kinds):
+    """The searches that find these filing kinds: the headline codes of the kinds that have them (the whole
+    archive), and the newest page (None) for no kinds or for a kind without codes (event, other)."""
     wanted = [code for code, kind in KINDS.items() if kind in kinds]
-    return wanted if kinds and set(kinds) <= set(KINDS.values()) else None
+    return ([wanted] if wanted else []) + ([None] if not kinds or set(kinds) - set(KINDS.values()) else [])
 
 
 def query(identifier, type_codes=None):
@@ -173,7 +174,7 @@ def filings(parsed, limit):
         'published_at': row['published'], 'period_end': None, 'items': [], 'basis': None, 'language': None,
         'format': row['format'], 'url': row['url'], 'via': row['via'],
         'parties': [{'role': 'filer', 'scheme': 'lei', 'id': filer} for filer in row['filers']]}
-        for row in parsed['rows'][:limit]], 'total': parsed['total'], 'source': source()}
+        for row in parsed['rows'][:limit]], 'source': source()}
 
 
 def news(parsed, limit):
@@ -182,7 +183,7 @@ def news(parsed, limit):
     return {'news': [{
         'id': row['id'], 'title': row['headline'], 'url': row['url'], 'published_at': row['published'],
         'publisher': 'FCA NSM', 'language': None, 'kind': 'regulatory', 'category': row['category'],
-        'via': row['via']} for row in parsed['rows'][:limit]], 'total': parsed['total'], 'source': source()}
+        'via': row['via']} for row in parsed['rows'][:limit]], 'source': source()}
 
 
 def resolve(parsed, identifier, observed_at):

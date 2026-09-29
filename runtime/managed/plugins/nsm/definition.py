@@ -21,7 +21,7 @@ def schemas(wire):
                                'items': {'type': 'string', 'enum': list(FILING_KINDS)},
                                'description': 'Only these kinds. annual, half_year, quarterly, earnings_release, '
                                               'ownership and prospectus are searched through the whole archive; '
-                                              'event and other filter the newest 100 disclosures.'},
+                                              'event and other are found among the newest 100 disclosures.'},
                      'refresh': refresh}, ['native_ref']),
         'news': ({'native_ref': native_ref, 'limit': limit, 'refresh': refresh}, ['native_ref']),
     }

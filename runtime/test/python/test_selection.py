@@ -243,6 +243,8 @@ class FilingsMergeTest(unittest.TestCase):
         self.assertEqual([item["form"] for item in annual["filings"]], ["ESEF", "20-F", "UKSEF"])
         self.assertEqual([item["form"] for item in filings.merge_filings(
             [(self.XBRL, ("oam-nl",), xbrl, None)], forms=["AFR"])["filings"]], ["ESEF"])
+        for form in ("AFR", "annual"):  # the FCA NSM files an annual financial report under its code ACS
+            self.assertTrue(filings.form_matches("ACS", [form]))
 
     def test_a_source_that_does_not_know_the_entity_lists_nothing_and_is_not_a_failure(self):
         unknown = {"schema_version": 1, "outcome": "error", "data": None,
@@ -317,7 +319,7 @@ class CoreReadsTest(Reference):
         merge = FilingsMergeTest()
         body = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": merge.sec()},
                          forms=["annual"])
-        self.assertEqual(self.sent["pythia_sec_filings"]["forms"], ["10-K", "20-F", "40-F", "ESEF", "UKSEF"])
+        self.assertEqual(self.sent["pythia_sec_filings"]["forms"], ["10-K", "20-F", "40-F", "ESEF", "UKSEF", "ACS"])
         self.assertNotIn("forms", self.sent["pythia_xbrl_filings_filings"])  # its schema takes no forms
         self.assertEqual([item["form"] for item in body["data"]["filings"]], ["20-F", "ESEF", "UKSEF"])
         by_kind = self.read({"pythia_xbrl_filings_filings": merge.xbrl(), "pythia_sec_filings": merge.sec()},

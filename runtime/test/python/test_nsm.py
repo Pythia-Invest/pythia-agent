@@ -44,8 +44,8 @@ def disclosure(number=1, *, code='POS', kind='Transaction in Own Shares', leis=L
         'company': company, 'related_org': [], 'lei_remediation_flag': 'N', 'headline': kind, 'type': kind,
         'type_code': code, 'category_group': 'Corporate actions', 'classifications': '', 'classifications_code': '',
         'tag_esef': '', 'source': 'RNS', 'document_format': 'Plain text',
-        'download_link': f'NSM/RNS/{ident}.html', 'submitted_date': f'2026-09-2{number % 8}T10:16:55Z',
-        'publication_date': f'2026-09-2{number % 8}T10:15:10.500Z', 'document_date': '2026-09-28T10:16:55Z',
+        'download_link': f'NSM/RNS/{ident}.html', 'submitted_date': f'2026-09-{29 - number}T10:16:55Z',
+        'publication_date': f'2026-09-{29 - number}T10:15:10.500Z', 'document_date': '2026-09-28T10:16:55Z',
         'last_updated_date': '2026-09-28T10:16:55.123456789Z', **extra}}
 
 
@@ -97,14 +97,14 @@ class NsmSemantics(unittest.TestCase):
                           {'name': 'latest_flag', 'value': 'Y'}])
         row = filings['data']['filings'][0]
         self.assertEqual((row['accession'], row['form'], row['kind'], row['filed_at'], row['accepted_at']),
-                         ('00000000-0000-4000-8000-000000000001', 'POS', 'other', '2026-09-21', '2026-09-21T10:16:55Z'))
+                         ('00000000-0000-4000-8000-000000000001', 'POS', 'other', '2026-09-28', '2026-09-28T10:16:55Z'))
         self.assertEqual((row['format'], row['via'], row['period_end'], row['basis'], row['language']),
                          ('text', 'RNS', None, None, None))
         self.assertEqual(row['url'], 'https://data.fca.org.uk/artefacts/NSM/RNS/00000000-0000-4000-8000-000000000001.html')
         self.assertEqual(filings['data']['filings'][1]['kind'], 'ownership')
         item, = news['data']['news']
         self.assertEqual((item['title'], item['published_at'], item['publisher'], item['kind'], item['via']),
-                         ('Transaction in Own Shares', '2026-09-21T10:15:10Z', 'FCA NSM', 'regulatory', 'RNS'))
+                         ('Transaction in Own Shares', '2026-09-28T10:15:10Z', 'FCA NSM', 'regulatory', 'RNS'))
 
     def test_a_joint_disclosure_names_every_filer_and_the_issuers_own_name_resolves(self):
         joint = disclosure(1, code='PDI', kind='Base Prospectus', leis=f'{LEI};{OTHER}',
@@ -127,11 +127,17 @@ class NsmSemantics(unittest.TestCase):
                          {'name': 'type_code', 'value': ['ACS', 'IR']})
         self.assertEqual([row['form'] for row in result['data']['filings']], ['ACS'])  # the filter did not hold
         self.assertEqual((result['data']['filings'][0]['format'], result['issues'][0]['code']), ('ixbrl', 'source_drift'))
-        nsm, transport = reader(answer(disclosure(1)))
-        nsm.invoke('filings', {'native_ref': REF, 'kinds': ['event']})  # no code names an event: the newest page
-        self.assertEqual(len(transport.requests[0]['json']['criteriaObj']['criteria']), 2)
         inside = disclosure(3, code='MSCL', kind='Miscellaneous', classifications_code='3.1;2.2')
         self.assertEqual(records.disclosures(answer(inside), LEI)['rows'][0]['kind'], 'event')
+        nsm, transport = reader(answer(disclosure(1), inside))
+        events = nsm.invoke('filings', {'native_ref': REF, 'kinds': ['event'], 'limit': 1})
+        self.assertEqual(len(transport.requests[0]['json']['criteriaObj']['criteria']), 2)  # no code: the newest page
+        self.assertEqual([row['kind'] for row in events['data']['filings']], ['event'])  # filtered before the limit
+        # A mixed set searches the archive for the coded kinds and the newest page for the rest, once each row.
+        nsm, transport = reader(answer(annual), answer(disclosure(1), inside, annual))
+        mixed = nsm.invoke('filings', {'native_ref': REF, 'kinds': ['annual', 'event']})
+        self.assertEqual([len(request['json']['criteriaObj']['criteria']) for request in transport.requests], [3, 2])
+        self.assertEqual([row['form'] for row in mixed['data']['filings']], ['ACS', 'MSCL'])
 
     def test_unexpected_input_is_counted_never_coerced(self):
         rows = [disclosure(1, NewField='x'), disclosure(2, leis=OTHER), disclosure(3, latest_flag='N'),

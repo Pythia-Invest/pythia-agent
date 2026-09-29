@@ -61,7 +61,7 @@ registry is `identity.concepts.REGISTRY`.
 | `market_movers` | `most_active`, `gainers`, `losers` | a market, no subject | first eligible |
 
 `news` has a core item and a core read (see the amendment "Sources work
-together"); the FCA NSM plugin ([record](../sources/nsm.md)), not yet signed off, is the
+together"); the FCA NSM plugin ([record](../sources/nsm.md)), display-level, is the
 first bundled contract to declare it. `estimates` and `fundamentals`
 get their read and row shape with their first source's onboarding.
 

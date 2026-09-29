@@ -18,9 +18,11 @@ concepts ([ADR 0040](../../../../docs/decisions/0040-data-concepts-and-agent-too
 - `news`: every disclosure is a regulatory announcement, merged into core's news
   feed with the other news sources.
 
-It is keyless, ships `signoff: unsigned` and is installed disabled: it is off in
-fresh profiles, labelled "not yet audited" wherever its data appears, and never
-confirms identity ([ADR 0042](../../../../docs/decisions/0042-source-onboarding-standard.md)).
+It is keyless and display-level ([ADR 0044](../../../../docs/decisions/0044-product-direction.md),
+ruling 10): it shows disclosures with their source and never confirms identity.
+Until the code gate adopts trust levels it ships `signoff: unsigned`
+([ADR 0042](../../../../docs/decisions/0042-source-onboarding-standard.md)) and
+installed disabled: off in fresh profiles and labelled "not yet audited".
 Its source record is [docs/sources/nsm.md](../../../../docs/sources/nsm.md).
 
 ## Operations
@@ -37,8 +39,11 @@ Its source record is [docs/sources/nsm.md](../../../../docs/sources/nsm.md).
   inside information (`2.2`) is an event, and anything else `other`.
 - **Kinds search the archive.** Without `kinds`, one search returns the issuer's
   newest 100 disclosures; for a large issuer that is two months of buy-back and
-  holdings notices without its annual report. With kinds that have headline
-  codes, the search asks for those codes across the whole archive.
+  holdings notices without its annual report. Kinds that have headline codes are
+  searched by those codes across the whole archive; `event` and `other` have
+  none and are found among the newest 100. A set with both runs both searches.
+  Rows of other kinds are left out before `limit` applies. Core's `AFR` and
+  `annual` forms include the NSM's `ACS`.
 - The NSM states no report period, accounting basis or language: they are null.
 - A disclosure filed jointly (a base prospectus of an issuer and its finance
   subsidiary) lists every filer; it appears under each of them.
@@ -51,8 +56,8 @@ local budget is one request at a time and ten a minute. `refresh` reads fresh.
 
 Every answer is checked before it is kept (see the record's drift table):
 
-- a changed envelope is `invalid_response`; a 404 or 400 from the search (it
-  answers a query it cannot run with 404 "Unable to search the data") is
+- a changed envelope is `invalid_response`; a 404, 204 or 400 from the search
+  (it answers a query it cannot run with 404 "Unable to search the data") is
   `source_drift`; an issuer that listed disclosures earlier in the session and
   now lists none is `source_drift`;
 - a row that cannot be read safely (another issuer's LEI, a superseded version,

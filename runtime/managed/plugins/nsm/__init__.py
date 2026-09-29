@@ -56,29 +56,21 @@ class Reader:
                 identifier = records.lei(clean['identifiers']['lei'])
             else:
                 identifier = records.from_reference(clean['native_ref'])
-            type_codes = records.codes(clean.get('kinds') or ())
+            kinds = clean.get('kinds') or ()
             # A low local budget: the endpoint is the FCA's web page's, not an API offered for programs.
             budget = self.connector.connection(records.PROVIDER, concurrency=1, per_minute=10)
-
-            def prepare(raw):
-                try:
-                    records.disclosures(raw['data'], identifier, type_codes)
-                except (ValueError, KeyError, TypeError, AttributeError):
+            rows, drift = {}, []
+            for type_codes in records.searches(kinds):
+                raw, parsed = self.search(operation, identifier, type_codes, clean, budget, cancelled, cache_scope)
+                drift.append(parsed['drift'])
+                if not type_codes and not self.listed(identifier, parsed['total']):
                     self.connector.emit('source_drift', level='warning', provider=records.PROVIDER,
-                                        operation=operation, code='changed_shape', count=1)
-                    raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
-                return raw
-            raw = self.reads.read([__file__], {'operation': 'search', 'url': records.SEARCH_URL,
-                                               'json': records.query(identifier, type_codes)}, {},
-                                  cancelled=cancelled, budget=budget, age=0 if clean.get('refresh') else AGE,
-                                  timeout=20, prepare_result=prepare, cache_scope=['nsm:1', cache_scope])
-            parsed = records.disclosures(raw['data'], identifier, type_codes)
-            issues = self.drift(operation, parsed['drift'])
-            if not type_codes and not self.listed(identifier, parsed['total']):
-                self.connector.emit('source_drift', level='warning', provider=records.PROVIDER, operation=operation,
-                                    code='known_lei_empty', count=1)
-                return failure('source_drift', 'The NSM listed disclosures of this issuer earlier and now lists '
-                                               'none. Its undocumented search may have changed; retry later.')
+                                        operation=operation, code='known_lei_empty', count=1)
+                    return failure('source_drift', 'The NSM listed disclosures of this issuer earlier and now lists '
+                                                   'none. Its undocumented search may have changed; retry later.')
+                rows.update((row['id'], row) for row in parsed['rows'] if not kinds or row['kind'] in kinds)
+            issues = self.drift(operation, drift)
+            parsed = {'rows': sorted(rows.values(), key=lambda row: row['submitted'], reverse=True)}
             if operation == 'resolve':
                 return envelope(records.resolve(parsed, identifier, raw['observed_at']), issues)
             limit = clean.get('limit', 20)
@@ -89,13 +81,30 @@ class Reader:
             return failure('invalid_response', 'The NSM answered in a shape Pythia does not recognise. ' + REFUSED)
         except (RuntimeError, OSError) as error:
             raw = getattr(error, 'raw', {})
-            if raw.get('error') in ('missing_observation', 'invalid_request') and raw.get('limit_origin') == 'provider':
-                # The search answers an unknown issuer with an empty list; a 404 or 400 means it refused the query.
+            if raw.get('error') == 'missing_observation' or (raw.get('error') == 'invalid_request'
+                                                             and raw.get('limit_origin') == 'provider'):
+                # The search answers an unknown issuer with an empty list; a 404, 204 or 400 means it refused.
                 self.connector.emit('source_drift', level='warning', provider=records.PROVIDER, operation=operation,
                                     code='query_refused', count=1)
                 return failure('source_drift', REFUSED)
             detail = self.connector.detail(error)
             return self.connector.qualify_failure(failure(detail['code'], detail['message']), raw)
+
+    def search(self, operation, identifier, type_codes, clean, budget, cancelled, cache_scope):
+        """One search answer, checked before it is kept, and its parsed disclosures."""
+        def prepare(raw):
+            try:
+                records.disclosures(raw['data'], identifier, type_codes)
+            except (ValueError, KeyError, TypeError, AttributeError):
+                self.connector.emit('source_drift', level='warning', provider=records.PROVIDER,
+                                    operation=operation, code='changed_shape', count=1)
+                raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
+            return raw
+        raw = self.reads.read([__file__], {'operation': 'search', 'url': records.SEARCH_URL,
+                                           'json': records.query(identifier, type_codes)}, {},
+                              cancelled=cancelled, budget=budget, age=0 if clean.get('refresh') else AGE,
+                              timeout=20, prepare_result=prepare, cache_scope=['nsm:1', cache_scope])
+        return raw, records.disclosures(raw['data'], identifier, type_codes)
 
     def listed(self, identifier, total):
         """False when an issuer the NSM listed disclosures of in this session now has none: an archive does not
@@ -109,10 +118,10 @@ class Reader:
                 self._listed.popitem(last=False)
             return True
 
-    def drift(self, operation, drift):
-        """Unexpected NSM input, logged for maintainers; a warning in the answer when it removed rows."""
+    def drift(self, operation, answers):
+        """Unexpected NSM input in each answer's drift, logged for maintainers; a warning when it removed rows."""
         dropped = 0
-        for code, values in drift.items():
+        for code, values in ((code, values) for drift in answers for code, values in drift.items()):
             count = sum(values.values())
             dropped += count if code in DROPS else 0
             self.connector.emit('source_drift', level='warning' if code in DROPS else 'info',
