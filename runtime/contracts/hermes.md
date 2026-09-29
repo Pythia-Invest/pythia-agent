@@ -378,7 +378,13 @@ configured` even with an authenticated per-request selection. On the first
 explicit send only, Desk initializes an empty profile using native dotted
 provider/model setters, verifies their readback, and restarts Hermes before
 starting the run. It checks the native authenticated catalog first and never
-overwrites an existing or partial selection. Shared root defaults and
+overwrites an existing or partial selection. The catalog's `authenticated`
+flag means Hermes discovered a credential, not that the runtime can use it: an
+expired Claude Code token counts for discovery (`list_authenticated_providers`)
+but `resolve_anthropic_token` must refresh it. The provider is resolved inside
+the run, so Desk polls that first run's native status for about two minutes and,
+if it fails, unsets exactly the pair it saved (`hermes config unset`) and restarts
+Hermes; a kept failure would break every later request. Shared root defaults and
 credentials remain untouched. Later requests use ordinary native overrides.
 Evidence: the pinned `api_server.py` handlers `_handle_model_options`,
 `_request_agent_overrides`, `_request_reasoning_config`, and the run handler in

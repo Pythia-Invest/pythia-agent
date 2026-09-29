@@ -10,13 +10,24 @@ afterEach(() => {
   for (const root of roots.splice(0))
     rmSync(root, { recursive: true, force: true });
 });
-function fixture(initial: unknown = {}, authenticated = true) {
+function fixture(
+  initial: unknown = {},
+  authenticated = true,
+  runStatus = "completed",
+) {
   const root = mkdtempSync(join(tmpdir(), "pythia-first-model-"));
   roots.push(root);
   let stored = initial;
   const command = vi.fn(async (args: string[]) => {
     expect(args.slice(0, 2)).toEqual(["-p", "fixture"]);
     if (args[3] === "get") return { stdout: JSON.stringify(stored) };
+    if (args[3] === "unset") {
+      const field = args[4]?.split(".")[1] ?? "invalid";
+      stored = Object.fromEntries(
+        Object.entries(stored as object).filter(([key]) => key !== field),
+      );
+      return { stdout: "unset" };
+    }
     stored = {
       ...(stored as object),
       [args[4]?.split(".")[1] ?? "invalid"]: args[5],
@@ -25,6 +36,7 @@ function fixture(initial: unknown = {}, authenticated = true) {
   });
   const restartHermes = vi.fn(async () => {});
   const service = createDeviceSettingsService({
+    readbackDelayMs: 0,
     configRoot: root,
     environment: { NODE_ENV: "test" },
     profile: "fixture",
@@ -36,9 +48,10 @@ function fixture(initial: unknown = {}, authenticated = true) {
           { slug: "example", authenticated, models: [{ id: "model-one" }] },
         ],
       }),
+      getRun: async (run_id: string) => ({ run_id, status: runStatus }),
     } as HermesClient,
   });
-  return { service, command, restartHermes };
+  return { service, command, restartHermes, stored: () => stored };
 }
 const selection = { provider: "example", model: "model-one" };
 it.each([{}, "", null])(
@@ -86,4 +99,31 @@ it("does not start successfully if native readback or restart fails", async () =
   await expect(f.service.initializeModel(selection)).rejects.toThrow(
     "restart failed",
   );
+});
+it.each([
+  ["failed", "r-1", {}],
+  ["never started", null, {}],
+  ["completed", "r-1", { provider: "example", default: "model-one" }],
+])(
+  "keeps a first-send model only if its run does not fail: %s",
+  async (status, runId, expected) => {
+    const f = fixture({}, true, status);
+    expect(await f.service.initializeModel(selection)).toBe(true);
+    await f.service.settleInitialModel(selection, runId);
+    expect(f.stored()).toEqual(expected);
+    expect(f.restartHermes).toHaveBeenCalledTimes(
+      Object.keys(expected).length ? 1 : 2,
+    );
+  },
+);
+it("leaves a choice made since the first send alone", async () => {
+  const f = fixture(
+    { provider: "other", default: "model-two" },
+    true,
+    "failed",
+  );
+  expect(await f.service.initializeModel(selection)).toBe(false);
+  await f.service.settleInitialModel(selection, "r-1");
+  expect(f.stored()).toEqual({ provider: "other", default: "model-two" });
+  expect(f.restartHermes).not.toHaveBeenCalled();
 });

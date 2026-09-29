@@ -183,7 +183,8 @@ parameters, or fragments are rejected.
 For ordinary chat, use Desk's provider/model/reasoning picker instead. On the
 first send from an empty profile, Desk saves the explicitly selected,
 authenticated provider and model through native profile config commands and
-restarts Hermes before starting the run. This initializes only that profile,
+restarts Hermes before starting the run; if that run fails, Desk clears the
+saved pair again. This initializes only that profile,
 not shared defaults or credentials. Later choices are native per-message
 overrides without a restart and reset to the profile default on reload.
 Existing or partial profile choices are preserved. `just model` remains an

@@ -65,10 +65,25 @@ export function createWorkspaceRunRoutes(
             400,
           );
         }
-        if (selection) await settings.initializeModel(selection);
+        const initialized =
+          selection !== undefined &&
+          (await settings.initializeModel(selection));
+        let run: Awaited<ReturnType<HermesClient["startRun"]>>;
+        try {
+          run = await client.startRun(sessionId, input, selection);
+        } catch (error) {
+          if (selection && initialized)
+            await settings.settleInitialModel(selection, null).catch(() => {});
+          throw error;
+        }
+        // A first-send model that cannot run fails inside the run; do not keep it.
+        if (selection && initialized)
+          void settings
+            .settleInitialModel(selection, run.run_id)
+            .catch(() => {});
         return result(
           {
-            ...(await client.startRun(sessionId, input, selection)),
+            ...run,
             ...(turn.desk_view ? { desk_view: turn.desk_view } : {}),
           },
           202,

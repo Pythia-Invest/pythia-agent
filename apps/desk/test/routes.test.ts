@@ -61,7 +61,8 @@ function fakeClient() {
 
 function fakeSettings() {
   return {
-    initializeModel: vi.fn(async () => {}),
+    initializeModel: vi.fn(async () => false),
+    settleInitialModel: vi.fn(async () => {}),
     snapshot: vi.fn(async () => ({
       model_auth: {
         provider: "openai-codex" as const,
@@ -205,6 +206,12 @@ describe("Desk routes", () => {
     ).toBe(202);
     expect(client.startRun).toHaveBeenCalledWith("s", "hello", selection);
     expect(settings.initializeModel).toHaveBeenCalledWith(selection);
+    expect(settings.settleInitialModel).not.toHaveBeenCalled();
+    settings.initializeModel.mockResolvedValueOnce(true);
+    await routes.startRun(
+      mutation("/api/runs", { session_id: "s", input: "hello", selection }),
+    );
+    expect(settings.settleInitialModel).toHaveBeenCalledWith(selection, "r-1");
     client.startRun.mockClear();
     expect(
       (

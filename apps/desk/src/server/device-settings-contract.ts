@@ -30,7 +30,13 @@ export type DeviceSettingsSnapshot = {
 };
 
 export interface DeviceSettingsService {
-  initializeModel(selection: ModelSelection): Promise<void>;
+  /** Save an empty profile's first-send model; true when this call saved it. */
+  initializeModel(selection: ModelSelection): Promise<boolean>;
+  /** Keep a first-send model only if its run does not fail (null: it never started). */
+  settleInitialModel(
+    selection: ModelSelection,
+    runId: string | null,
+  ): Promise<void>;
   snapshot(): Promise<DeviceSettingsSnapshot>;
   setSkillEnabled(name: string, enabled: boolean): Promise<DeviceSkill>;
   setToolsetEnabled(name: string, enabled: boolean): Promise<HermesToolset>;

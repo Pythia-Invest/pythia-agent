@@ -6,6 +6,7 @@ import type { ModelSelection } from "./model-catalog";
 import type { HermesClient } from "./types";
 
 // Caller holds the profile mutation lock across native writes and restart.
+// Returns true only when this call saved the selection.
 export async function initializeProfileModel(
   selection: ModelSelection,
   profile: string,
@@ -25,10 +26,10 @@ export async function initializeProfileModel(
     stored !== "" &&
     (typeof stored !== "object" || Array.isArray(stored))
   )
-    return;
+    return false;
   const model = (stored || {}) as Record<string, unknown>;
   if (Object.values(model).some((value) => value !== null && value !== ""))
-    return;
+    return false;
   const catalog = await client.modelOptions();
   const provider = catalog.providers.find(
     (row) => row.slug === selection.provider,
@@ -60,5 +61,31 @@ export async function initializeProfileModel(
       "model_setup_failed",
     );
   }
+  await restartHermes();
+  return true;
+}
+
+/**
+ * Undo a first-send initialization whose run failed, so the profile is empty
+ * again instead of holding a provider that cannot run. Hermes resolves the
+ * profile default before any per-request choice, so a kept failure would break
+ * every later chat. Anything other than the exact saved pair is left alone.
+ */
+export async function releaseProfileModel(
+  selection: ModelSelection,
+  profile: string,
+  command: CommandRunner,
+  restartHermes: () => Promise<void>,
+) {
+  const stored = JSON.parse(
+    (await command(["-p", profile, "config", "get", "model", "--json"])).stdout,
+  ) as Record<string, unknown> | null;
+  if (
+    stored?.provider !== selection.provider ||
+    stored?.default !== selection.model
+  )
+    return;
+  for (const field of ["provider", "default"])
+    await command(["-p", profile, "config", "unset", `model.${field}`]);
   await restartHermes();
 }

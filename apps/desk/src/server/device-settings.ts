@@ -22,11 +22,20 @@ import {
 import { resolveConfigRoot } from "./device-settings-store";
 import { hermesClient } from "./hermes";
 import type { HermesToolset } from "./types";
-import { initializeProfileModel } from "./model-initialization";
+import {
+  initializeProfileModel,
+  releaseProfileModel,
+} from "./model-initialization";
 
 // Pythia's own toolsets are not agent choices: core shows `pythia-desk` and keeps every plugin operation in
 // hidden `pythia-core`. A data source is turned off by disabling its plugin (docs/architecture/agent-tools.md).
 const PYTHIA_TOOLSETS = new Set(["pythia-core", "pythia-desk"]);
+const TERMINAL_RUN = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "interrupted",
+]);
 
 export {
   DeviceSettingsError,
@@ -184,18 +193,38 @@ export function createDeviceSettingsService(
     );
   }
 
+  // Hermes resolves the provider inside the run; watch it about two minutes by default.
+  async function runOutcome(runId: string) {
+    for (let attempt = 0; attempt < attempts * 6; attempt += 1) {
+      await sleep(delay * 4);
+      const run = await client.getRun(runId).catch(() => null);
+      if (run && TERMINAL_RUN.has(run.status)) return run.status;
+    }
+    return "unknown";
+  }
+
   return {
     async initializeModel(selection) {
-      await withFileLock(paths().lock, async () => {
-        const profile = profileFrom(environment, options.profile);
-        await initializeProfileModel(
+      return withFileLock(paths().lock, async () =>
+        initializeProfileModel(
           selection,
-          profile,
+          profileFrom(environment, options.profile),
           command,
           client,
           restartHermes,
-        );
-      });
+        ),
+      );
+    },
+    async settleInitialModel(selection, runId) {
+      if (runId !== null && (await runOutcome(runId)) !== "failed") return;
+      await withFileLock(paths().lock, async () =>
+        releaseProfileModel(
+          selection,
+          profileFrom(environment, options.profile),
+          command,
+          restartHermes,
+        ),
+      );
     },
     async snapshot() {
       let profile: string | null = null;
