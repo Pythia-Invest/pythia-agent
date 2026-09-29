@@ -18,98 +18,110 @@ const SCHEMES: Record<string, string> = {
 };
 const SETTLED_BY: Record<string, string> = {
   rules: "Rules",
-  agent: "The agent (provisional)",
   user: "You",
 };
 /** A verdict that took effect; anything else keeps the dialog open with its reason. */
 const TAKEN = new Set(["confirmed", "no_match"]);
 
+type Answer = IdentityQuestion["answers"][number];
+
 function joined(...parts: (string | null | undefined)[]) {
   return parts.filter(Boolean).join(" · ") || "—";
 }
 
-function same(item: IdentityQuestion) {
-  return item.answers.find(
-    (entry) => entry.chosen_id && entry.relation.startsWith("same_"),
-  );
+/** "Not a match": `unrelated` to a candidate, or `none` of them. */
+function isNoMatch(answer: Answer) {
+  return !answer.chosen_id || answer.relation === "unrelated";
 }
 
-function notThis(item: IdentityQuestion) {
-  return item.answers.find((entry) => entry.relation === "unrelated");
+function nameOf(item: IdentityQuestion, id: string | null) {
+  const found = item.candidates.find((candidate) => candidate.id === id);
+  return found?.name ?? id ?? "—";
 }
 
-/** Identity questions: the provider's record beside our instrument, the
- * evidence, and the user's answer recorded with an optional note. */
+/** An answer in words, naming the instrument it chose; a depositary receipt
+ * is never "the same instrument" as its share. */
+export function answerText(item: IdentityQuestion, answer: Answer) {
+  if (isNoMatch(answer)) return "Not this instrument";
+  const name = nameOf(item, answer.chosen_id);
+  return answer.relation === "depositary_receipt_of"
+    ? `A depositary receipt of ${name}`
+    : `Same instrument as ${name}`;
+}
+
+/** Identity questions: the provider's record beside our instruments, the
+ * evidence, and the user's answer recorded with an optional note. Each
+ * candidate gets its own Match; "Not a match" answers none of them. */
 export function useIdentityKind(): RepairKind<IdentityQuestion> {
   const answer = useAnswerQuestion();
   const verdict =
-    (item: IdentityQuestion, relation: string, chosenId: string | null) =>
-    async (note: string) => {
+    (item: IdentityQuestion, entry: Answer) => async (note: string) => {
       const result = await answer.mutateAsync({
         itemId: item.id,
-        relation,
-        chosenId,
+        relation: entry.relation,
+        chosenId: entry.chosen_id,
         note,
       });
       if (!TAKEN.has(result.outcome)) throw new Error(result.message);
       return result.message;
     };
-  const match = (
-    item: IdentityQuestion,
-    label: string,
-    hint: string,
-  ): RepairAction[] => {
-    const entry = same(item);
-    return entry
-      ? [
-          {
-            label,
-            hint,
-            emphasis: "primary",
-            dialog: {
-              title: "Same instrument",
-              description: `Bind ${item.label}'s record to this instrument. Identifier evidence against it refuses the answer.`,
-              noteLabel: "Note",
-              notePlaceholder: "Why this record is this instrument…",
-              confirmLabel: "Confirm match",
-              tone: "primary",
-            },
-            run: verdict(item, entry.relation, entry.chosen_id),
-          },
-        ]
-      : [];
-  };
-  const dismiss = (
-    item: IdentityQuestion,
-    label: string,
-    hint: string,
-  ): RepairAction[] => {
-    const entry = notThis(item);
-    return entry
-      ? [
-          {
-            label,
-            hint,
-            emphasis: "secondary",
-            dialog: {
-              title: "Not this instrument",
-              description: `Record that ${item.label}'s record is a different instrument; its section then shows no match.`,
-              noteLabel: "Reason",
-              notePlaceholder: "Why this record is another instrument…",
-              confirmLabel: "Not this instrument",
-              tone: "danger",
-            },
-            run: verdict(item, entry.relation, entry.chosen_id),
-          },
-        ]
-      : [];
-  };
+  const matchDialog = (item: IdentityQuestion, entry: Answer) => ({
+    title:
+      entry.relation === "depositary_receipt_of"
+        ? "Depositary receipt"
+        : "Same instrument",
+    description: `${
+      entry.relation === "depositary_receipt_of"
+        ? `Record ${item.label}'s record as a depositary receipt of`
+        : `Bind ${item.label}'s record to`
+    } ${nameOf(item, entry.chosen_id)}. Identifier evidence against it refuses the answer.`,
+    noteLabel: "Note",
+    notePlaceholder: "Why this record is this instrument…",
+    confirmLabel:
+      entry.relation === "depositary_receipt_of"
+        ? "Confirm receipt"
+        : "Confirm match",
+    tone: "primary" as const,
+  });
+  const noMatchDialog = (item: IdentityQuestion) => ({
+    title: "Not this instrument",
+    description: `Record that ${item.label}'s record is none of the instruments offered; its section then shows no match.`,
+    noteLabel: "Reason",
+    notePlaceholder: "Why this record is another instrument…",
+    confirmLabel: "Not a match",
+    tone: "danger" as const,
+  });
   return {
     label: "Identity question",
     context: ({ data: item }: IdentityRepair) => {
       const record = item.record;
-      const candidate = item.candidates[0];
-      const ids = candidate?.identifiers ?? {};
+      const several = item.candidates.length > 1;
+      const candidates = item.candidates.flatMap((candidate, index) => {
+        const ids = candidate.identifiers;
+        const label = several ? `Instrument ${index + 1}` : "Instrument";
+        return [
+          { label, value: candidate.name ?? candidate.id },
+          {
+            label: `${label} venue · currency`,
+            value: joined(ids.mic, ids.currency),
+          },
+          {
+            label: `${label} identifiers`,
+            value: joined(
+              ...["isin", "figi", "lei", "cik", "caip19"].map((key) =>
+                ids[key] ? `${SCHEMES[key]} ${ids[key]}` : null,
+              ),
+            ),
+          },
+        ];
+      });
+      // A subject the question is about besides its candidates, such as the
+      // instrument a record is already bound to.
+      const others = item.subjects.filter(
+        (subject) =>
+          subject.known &&
+          !item.candidates.some((candidate) => candidate.id === subject.id),
+      );
       return [
         { label: "Issue", value: item.question },
         {
@@ -129,19 +141,13 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
             ),
           ),
         },
-        { label: "Instrument", value: candidate?.name ?? candidate?.id ?? "—" },
-        {
-          label: "Instrument venue · currency",
-          value: joined(ids.mic, ids.currency),
-        },
-        {
-          label: "Instrument identifiers",
-          value: joined(
-            ...["isin", "figi", "lei", "cik", "caip19"].map((key) =>
-              ids[key] ? `${SCHEMES[key]} ${ids[key]}` : null,
-            ),
-          ),
-        },
+        ...(candidates.length
+          ? candidates
+          : [{ label: "Instrument", value: "None offered" }]),
+        ...others.map((subject) => ({
+          label: "Other instrument",
+          value: subject.name ?? subject.id,
+        })),
         {
           label: "Evidence",
           value: joined(
@@ -154,10 +160,8 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
         ...(item.agent_answer
           ? [
               {
-                label: "Agent's answer",
-                value: item.agent_answer.relation.startsWith("same_")
-                  ? "Same instrument"
-                  : "Not this instrument",
+                label: "Agent's suggestion",
+                value: answerText(item, item.agent_answer),
               },
             ]
           : []),
@@ -172,35 +176,49 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
       ];
     },
     actions: ({ data: item, status }: IdentityRepair) => {
-      if (status === "open")
-        return [
-          ...match(item, "Match", "Same instrument: bind the record to it"),
-          ...dismiss(item, "Not a match", "Not this instrument"),
-        ];
-      if (status !== "agent" || !item.agent_answer) return [];
-      // Confirm repeats the agent's answer as the user's; Override gives the other one.
-      const agentSaidSame = item.agent_answer.relation.startsWith("same_");
-      return agentSaidSame
-        ? [
-            ...match(item, "Confirm", "Confirm the agent's match"),
-            ...dismiss(item, "Override", "Not this instrument, as you see it"),
-          ]
-        : [
-            ...dismiss(
-              item,
-              "Confirm",
-              "Confirm the agent's “not a match”",
-            ).map((action) => ({
-              ...action,
-              emphasis: "primary" as const,
-            })),
-            ...match(item, "Override", "Same instrument, as you see it").map(
-              (action) => ({
-                ...action,
-                emphasis: "secondary" as const,
-              }),
-            ),
-          ];
+      if (status !== "open") return [];
+      const agent = item.agent_answer;
+      const matches = item.answers.filter(
+        (entry) => entry.chosen_id && entry.relation.startsWith("same_"),
+      );
+      const several = matches.length > 1;
+      const actions: RepairAction[] = [];
+      // Confirm sends the agent's answer as the user's own (ADR 0044 ruling 8),
+      // through the same short dialog as every answer.
+      if (agent)
+        actions.push({
+          label: "Confirm",
+          hint: `Confirm the agent's answer: ${answerText(item, agent).toLowerCase()}`,
+          emphasis: "primary",
+          dialog: isNoMatch(agent)
+            ? noMatchDialog(item)
+            : matchDialog(item, agent),
+          run: verdict(item, agent),
+        });
+      matches.forEach((entry, index) => {
+        if (
+          agent &&
+          agent.relation === entry.relation &&
+          agent.chosen_id === entry.chosen_id
+        )
+          return;
+        actions.push({
+          label: several ? `Match ${index + 1}` : "Match",
+          hint: `Same instrument as ${nameOf(item, entry.chosen_id)}: bind the record to it`,
+          emphasis: agent ? "secondary" : "primary",
+          dialog: matchDialog(item, entry),
+          run: verdict(item, entry),
+        });
+      });
+      if (!agent || !isNoMatch(agent))
+        actions.push({
+          label: "Not a match",
+          hint: "The record is none of these instruments",
+          emphasis: "secondary",
+          dialog: noMatchDialog(item),
+          run: verdict(item, { relation: "none", chosen_id: null }),
+        });
+      return actions;
     },
   };
 }

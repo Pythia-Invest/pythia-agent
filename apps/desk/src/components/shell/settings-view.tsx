@@ -104,7 +104,8 @@ function ThemeChoice() {
 /** Existing Settings layout, with native controls in their corresponding panels. */
 export function SettingsView() {
   const [section, setSection] = useState("appearance");
-  const open = useRepairs().open.length;
+  const repairs = useRepairs();
+  const open = repairs.open.length;
   return (
     <Tabs
       orientation="vertical"
@@ -194,9 +195,11 @@ export function SettingsView() {
                       </Link>
                     }
                     description={
-                      open
-                        ? `${open} open ${open === 1 ? "issue" : "issues"}.`
-                        : "Nothing needs attention."
+                      repairs.error
+                        ? "Repairs could not be read."
+                        : open
+                          ? `${open} open ${open === 1 ? "issue" : "issues"}.`
+                          : "Nothing needs attention."
                     }
                     label="Open issues"
                   />

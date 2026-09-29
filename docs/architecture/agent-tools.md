@@ -33,7 +33,7 @@ tool gives and from which source.
 | `pythia_filings` | A company's filings from one source per filing authority (core's combined read), by kind, form and date. | external read; a lookup may record a binding |
 | `pythia_document` | A listed filing's outline, a bounded section or search passages, each with a citation ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md), the document reader amendment). | external read, then local: core caches the extracted text |
 | `pythia_identity_questions` | Open identity questions in Repairs. | local read |
-| `pythia_answer_identity_question` | The agent's provisional answer to one question; the investor confirms it in Repairs. | local write |
+| `pythia_answer_identity_question` | The agent's suggested answer to one question; it takes effect when the investor confirms it in Repairs. | local write |
 | `pythia_desk_view` | The Desk page the investor is looking at. | local read |
 
 **Provider tools (a toolset per plugin).**
@@ -63,7 +63,7 @@ agent.
 1. Core registers the concept tools in `pythia-desk`; a data plugin registers each investor-facing read as a provider tool, in a toolset named after the plugin, through `platform.register_agent_tool`, so Hermes offers it like any plugin or MCP tool.
 2. A provider tool wraps one of the plugin's own operation tools whose declaration says `read_only: true`; the model addresses it by subject id, and core fills the plugin's reference with the lookup the Desk page uses, so a disabled, unconfigured or conflicting source refuses as it does on the page.
 3. Every operation tool (latest, history, catalogue, resolve, filings reads, dashboards) is registered in core's hidden `pythia-core` toolset; Desk, core and provider tools run it through `may_run(plugin, operation)`, never through model visibility.
-4. A write is never a provider tool; a Pythia record write is a narrow core tool, visible only when the write is provisional. Permissions are Hermes's own.
+4. A write is never a provider tool; a Pythia record write is a narrow core tool, visible only when the write is a suggestion the investor confirms. Permissions are Hermes's own.
 5. An operation no investor question needs gets no provider tool.
 
 ## Naming convention
@@ -123,7 +123,7 @@ own controls apply to them: toolsets, availability checks, `pre_tool_call` hooks
 and approvals, as for any plugin tool.
 
 - Every provider tool is read-only by construction (rule 2).
-- The one Pythia record the agent writes, an identity answer, is provisional.
+- The one Pythia record the agent writes, an identity answer, is a suggestion; it changes nothing until the investor confirms it.
 - An operation tool that a provider tool runs is dispatched in-process, so a
   `pre_tool_call` hook sees the provider tool, not the operation tool.
 

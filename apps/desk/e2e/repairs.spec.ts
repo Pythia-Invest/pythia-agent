@@ -41,16 +41,6 @@ test("repairs list issues in the back-office table and record the user's fix wit
         data: {
           items: [question("q-open")],
           total: 1,
-          answered: [
-            question("q-agent", {
-              state: "resolved",
-              agent_answer: {
-                by: "agent",
-                relation: "same_listing",
-                chosen_id: LISTING,
-              },
-            }),
-          ],
           // Settled by the user: a Dismissed badge and no actions, hidden by default.
           settled: [
             question("q-user", {
@@ -85,21 +75,17 @@ test("repairs list issues in the back-office table and record the user's fix wit
   ).toBeVisible();
   const table = page.getByRole("table", { name: "Repairs" });
   const rows = table.locator('[data-slot="data-table-row"]');
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(1)).toContainText("Agent: match");
-  await expect(
-    rows.nth(1).getByRole("button", { name: "Override" }),
-  ).toBeVisible();
+  await expect(rows).toHaveCount(1);
 
   await page.getByRole("button", { name: /^Status/u }).click();
   await page.getByRole("menuitemcheckbox", { name: "Dismissed" }).click();
   await page.keyboard.press("Escape");
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(2);
   const settled = rows.filter({ hasText: "Dismissed" });
   await expect(settled).toHaveCount(1);
   await expect(
     settled.getByRole("button", {
-      name: /^(Match|Not a match|Confirm|Override)$/u,
+      name: /^(Match|Not a match|Confirm)$/u,
     }),
   ).toHaveCount(0);
 
@@ -132,4 +118,162 @@ test("repairs list issues in the back-office table and record the user's fix wit
       rationale: "Same synthetic line.",
     },
   ]);
+});
+
+const OTHER = "listing:isin:XS0000000002:XNAS:USD";
+const SECURITY = "security:isin:XS0000000001";
+
+/** Serves one queue read and records every answer; each answer takes effect. */
+async function serveQueue(
+  page: import("@playwright/test").Page,
+  queue: unknown,
+) {
+  const verdicts: unknown[] = [];
+  await page.route("**/api/data/read", (route) =>
+    route.request().postDataJSON().operation === "identity-queue"
+      ? route.fulfill({ json: { schema_version: 1, ...(queue as object) } })
+      : route.fallback(),
+  );
+  await page.route("**/api/data/invoke", (route) => {
+    const body = route.request().postDataJSON();
+    if (body.operation !== "identity-verdict") return route.fallback();
+    verdicts.push(body.arguments);
+    return route.fulfill({
+      json: {
+        schema_version: 1,
+        outcome: "ok",
+        data: { outcome: "confirmed", message: "Confirmed." },
+      },
+    });
+  });
+  return verdicts;
+}
+
+test("repairs offer every candidate, the agent's suggestion and a way out of a question without candidates", async ({
+  page,
+}) => {
+  const verdicts = await serveQueue(page, {
+    outcome: "ok",
+    data: {
+      items: [
+        question("q-two", {
+          candidates: [
+            { id: LISTING, name: "Synthetic Holding N.V." },
+            { id: OTHER, name: "Synthetic Holding ADR" },
+          ],
+          answers: [
+            { relation: "same_listing", chosen_id: LISTING },
+            { relation: "unrelated", chosen_id: LISTING },
+            { relation: "same_listing", chosen_id: OTHER },
+            { relation: "unrelated", chosen_id: OTHER },
+            { relation: "none", chosen_id: null },
+            { relation: "ambiguous", chosen_id: null },
+          ],
+        }),
+        question("q-none", {
+          candidates: [],
+          answers: [
+            { relation: "none", chosen_id: null },
+            { relation: "ambiguous", chosen_id: null },
+          ],
+        }),
+        // The agent's answer is a suggestion; it waits for the user.
+        question("q-suggested", {
+          agent_answer: {
+            by: "agent",
+            relation: "same_listing",
+            chosen_id: OTHER,
+          },
+          candidates: [{ id: OTHER, name: "Synthetic Holding ADR" }],
+          answers: [
+            { relation: "same_listing", chosen_id: OTHER },
+            { relation: "unrelated", chosen_id: OTHER },
+            { relation: "none", chosen_id: null },
+          ],
+          subjects: [
+            { id: LISTING, known: true, name: "Synthetic Holding N.V." },
+            { id: OTHER, known: true, name: "Synthetic Holding ADR" },
+          ],
+        }),
+        // A receipt suggestion reads as one, never as the same instrument.
+        question("q-receipt", {
+          agent_answer: {
+            by: "agent",
+            relation: "depositary_receipt_of",
+            chosen_id: SECURITY,
+          },
+          candidates: [{ id: SECURITY, name: "Synthetic Holding shares" }],
+          answers: [
+            { relation: "same_security", chosen_id: SECURITY },
+            { relation: "depositary_receipt_of", chosen_id: SECURITY },
+            { relation: "none", chosen_id: null },
+          ],
+        }),
+      ],
+    },
+  });
+  await page.goto("/settings/repairs");
+  const table = page.getByRole("table", { name: "Repairs" });
+  const rows = table.locator('[data-slot="data-table-row"]');
+  await expect(rows).toHaveCount(4);
+
+  // Several candidates: each has its own Match, and the second one binds it.
+  await rows.nth(0).getByRole("button", { name: "Match 2" }).click();
+  const dialog = page.getByRole("dialog", { name: "Same instrument" });
+  await expect(dialog).toContainText("Synthetic Holding ADR");
+  await dialog.getByRole("button", { name: "Confirm match" }).click();
+  await expect(dialog).toBeHidden();
+
+  // No candidate: the question can still be answered "none of these".
+  await expect(
+    rows.nth(1).getByRole("button", { name: /^Match/u }),
+  ).toHaveCount(0);
+  await rows.nth(1).getByRole("button", { name: "Not a match" }).click();
+  await page
+    .getByRole("dialog", { name: "Not this instrument" })
+    .getByRole("button", { name: "Not a match" })
+    .click();
+
+  // The agent's suggestion shows on the open question and one click confirms it.
+  await expect(rows.nth(2)).toContainText("Agent suggests: match");
+  await rows.nth(2).getByRole("button", { name: "Show context" }).click();
+  const context = table.locator('[data-slot="data-table-context"]');
+  await expect(context).toContainText(
+    "Same instrument as Synthetic Holding ADR",
+  );
+  await expect(context).toContainText("Synthetic Holding N.V."); // the other subject
+  await rows.nth(2).getByRole("button", { name: "Confirm" }).click();
+  await page
+    .getByRole("dialog", { name: "Same instrument" })
+    .getByRole("button", { name: "Confirm match" })
+    .click();
+
+  await expect
+    .poll(() => verdicts)
+    .toEqual([
+      { item_id: "q-two", relation: "same_listing", chosen_id: OTHER },
+      { item_id: "q-none", relation: "none" },
+      { item_id: "q-suggested", relation: "same_listing", chosen_id: OTHER },
+    ]);
+
+  await expect(rows.nth(3)).toContainText("Agent suggests: depositary receipt");
+  await rows.nth(3).getByRole("button", { name: "Confirm" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Depositary receipt" }),
+  ).toContainText("as a depositary receipt of Synthetic Holding shares");
+});
+
+test("repairs never read an unreadable queue as nothing to do", async ({
+  page,
+}) => {
+  await serveQueue(page, {
+    outcome: "empty",
+    data: null,
+    issues: [{ message: "The identity store could not be read." }],
+  });
+  await page.goto("/settings/repairs");
+  await expect(
+    page.locator('[data-slot="repairs"]').getByRole("alert"),
+  ).toContainText("The identity store could not be read.");
+  await expect(page.getByText("Nothing needs attention.")).toHaveCount(0);
 });

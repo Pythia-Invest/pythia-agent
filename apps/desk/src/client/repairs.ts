@@ -3,14 +3,14 @@ import { type IdentityQuestion, useIdentityQuestions } from "./identity-queue";
 
 /*
  * Repairs (modelled on Home Assistant's): issues Pythia could not settle on
- * its own. Rules and the agent normally fix them, so the page sits under
+ * its own. Rules fix most of them, so the page sits under
  * Settings. An issue is generic; its `kind` picks the renderer of its context
  * and actions. Today the only source is core's identity queue; another kind
  * (a plugin needing configuration, a data package update, a broken binding)
  * adds a source here and a renderer beside the page.
  */
 
-export type RepairStatus = "open" | "agent" | "resolved" | "dismissed";
+export type RepairStatus = "open" | "resolved" | "dismissed";
 
 export interface Repair<Data = unknown> {
   id: string;
@@ -24,7 +24,7 @@ export interface Repair<Data = unknown> {
   created: string;
   resolved: string | null;
   status: RepairStatus;
-  /** For status "agent": the agent's provisional answer in two or three words. */
+  /** On an open issue: the agent's suggestion in two or three words. */
   agentAnswer: string | null;
   /** Text the page's search matches. */
   search: string;
@@ -39,16 +39,23 @@ const IDENTITY_TITLES: Record<string, string> = {
   conflict: "Record conflicts with reference",
 };
 
+/** An answer's relation in two or three words; a receipt is never "a match". */
+function agentAnswerWords({
+  relation,
+  chosen_id,
+}: IdentityQuestion["answers"][number]) {
+  if (!chosen_id || relation === "unrelated") return "not a match";
+  return relation === "depositary_receipt_of" ? "depositary receipt" : "match";
+}
+
 function identityRepair(item: IdentityQuestion): IdentityRepair {
   const candidate = item.candidates[0];
   const status: RepairStatus =
     item.state === "open"
       ? "open"
-      : item.agent_answer
-        ? "agent"
-        : item.state === "dismissed"
-          ? "dismissed"
-          : "resolved";
+      : item.state === "dismissed"
+        ? "dismissed"
+        : "resolved";
   const record = item.record;
   return {
     id: `identity:${item.id}`,
@@ -60,11 +67,7 @@ function identityRepair(item: IdentityQuestion): IdentityRepair {
     created: item.opened_at,
     resolved: status === "open" ? null : item.updated_at,
     status,
-    agentAnswer: item.agent_answer
-      ? item.agent_answer.relation.startsWith("same_")
-        ? "match"
-        : "not a match"
-      : null,
+    agentAnswer: item.agent_answer ? agentAnswerWords(item.agent_answer) : null,
     search: [
       item.question,
       item.label,
@@ -84,11 +87,9 @@ function identityRepair(item: IdentityQuestion): IdentityRepair {
 export function useRepairs() {
   const identity = useIdentityQuestions();
   const data = identity.data;
-  const all = [
-    ...(data?.items ?? []),
-    ...(data?.answered ?? []),
-    ...(data?.settled ?? []),
-  ].map(identityRepair);
+  const all = [...(data?.items ?? []), ...(data?.settled ?? [])].map(
+    identityRepair,
+  );
   return {
     all,
     open: all.filter((repair) => repair.status === "open"),
