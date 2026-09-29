@@ -394,6 +394,15 @@ class ConceptToolTest(AgentToolFixture):
         self.assertNotIn("request", json.dumps(result))  # Desk's operation requests stay out of the agent's view
         self.assertEqual(result["data"]["identifiers"]["lei"], "724500Y6DUVHQD6OXN27")
 
+    def test_instrument_states_home_unknown_unless_a_primary_is_decided(self):
+        self.assertEqual(self.call_instrument()["data"]["home"], ASML)
+        installed = identity_ops.reference_package.current(Path(self.tmp.name))
+        with sqlite3.connect(installed) as db:
+            db.execute("UPDATE listings SET is_primary = 0")
+        data = self.call_instrument()["data"]
+        # The first line is still listed first; it is not the home.
+        self.assertEqual((data["listings"][0]["id"], data["home"]), (ASML, "unknown"))
+
     def test_prices_reads_the_first_source_and_names_it_without_fallback(self):
         seen = []
 

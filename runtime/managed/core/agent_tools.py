@@ -265,6 +265,9 @@ def instrument(arguments: dict, **_context: Any) -> str:
                         "alternatives": [{key: item.get(key) for key in ("source", "provider", "plugin", "status")}
                                          for item in section.get("alternatives", [])]}
                        for section in view.pop("sections", [])]
+    own = [line for line in view.get("listings", []) if not line.get("folded")]
+    if own:  # the home is core's decided primary line, never the first line's guess (R2)
+        view["home"] = next((line["id"] for line in own if line.get("primary")), "unknown")
     queue = view.pop("queue", [])
     view["provider_tools"] = provider_tools_for(str(arguments.get("subject_id") or ""))
     if queue:
