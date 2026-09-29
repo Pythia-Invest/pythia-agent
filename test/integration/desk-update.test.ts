@@ -3,7 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { atomicWriteJson } from "../../scripts/install/files.mjs";
+import {
+  atomicWriteJson,
+  writeTransaction,
+} from "../../scripts/install/files.mjs";
 import { resolveInstallPaths } from "../../scripts/install/paths.mjs";
 import { applyUpdate } from "../../scripts/update/apply.mjs";
 import {
@@ -186,6 +189,43 @@ describe("Desk delegates updates to the installed lifecycle", () => {
       }),
     ).toMatchObject({ started: false, code: "update_start_failed" });
     expect(failed).toHaveBeenCalledWith(["reset-failed", UPDATE_UNIT]);
+    // An idle unit is never reset.
+    const idle = vi.fn((args: string[]) =>
+      args[0] === "show" ? "inactive" : "",
+    );
+    startDeskUpdate(f.paths, expected, {
+      systemctl: idle,
+      spawnSync: () => ({ status: 1 }),
+    });
+    expect(idle).not.toHaveBeenCalledWith(["reset-failed", UPDATE_UNIT]);
+  });
+
+  it("lets a completed update of the installed build supersede a stale failed unit", () => {
+    const f = fixture();
+    const failed = () => "failed";
+    expect(installedUpdateStatus(f.paths, failed)).toMatchObject({
+      updater: "failed",
+    });
+    writeTransaction(f.paths, {
+      transaction_id: "update-1-1",
+      operation: "update",
+      phase: "complete",
+      new_revision: f.current,
+    });
+    expect(installedUpdateStatus(f.paths, failed)).toMatchObject({
+      updater: "idle",
+      last_update: { phase: "complete", target_revision: f.current },
+    });
+    // A completion of some other build leaves the failure visible.
+    writeTransaction(f.paths, {
+      transaction_id: "update-1-2",
+      operation: "update",
+      phase: "complete",
+      new_revision: f.target,
+    });
+    expect(installedUpdateStatus(f.paths, failed)).toMatchObject({
+      updater: "failed",
+    });
   });
 
   it("rechecks the selected target inside the locked updater before stop or source mutation", async () => {

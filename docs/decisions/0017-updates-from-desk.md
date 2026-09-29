@@ -78,3 +78,13 @@ Updates shows the version and update status, and the navigation footer shows
 one entry only while an update is ready, installing, needing a reload or
 failed; it opens the same controls in a dialog. Applying an update is
 unchanged.
+
+A failed update unit stays loaded in the user service manager until it is
+reset. Once an update of the installed build completes (for example through
+`pythia recover`), the status read no longer reports that stale failure, and
+while an update is still available Desk offers Try again, whose start resets
+the failed unit. A start whose reply is lost or ambiguous is treated as not
+started once, a few seconds later, the updater is still idle on the same
+build. Desk stops polling after the ten-minute update window if it cannot be
+reached, offering Retry connection. A failed daily check does not count as
+the day's check.

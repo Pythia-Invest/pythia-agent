@@ -111,7 +111,9 @@ export function UpdateStatus({ compact = false }: { compact?: boolean }) {
   else if (phase === "failed")
     detail = flow.requested
       ? "On the device, run pythia status and pythia doctor, fix what they report, then pythia recover to resume."
-      : "An earlier update attempt failed. Run pythia status and pythia doctor on the device.";
+      : flow.canApply
+        ? "An earlier update attempt failed. You can try again; if it fails again, run pythia status and pythia doctor on the device."
+        : "An earlier update attempt failed. Run pythia status and pythia doctor on the device.";
   else if (phase === "waiting")
     detail =
       "The update may still be running. Run pythia status on the device; don't start another update meanwhile.";
@@ -166,13 +168,14 @@ export function UpdateStatus({ compact = false }: { compact?: boolean }) {
               Reload Desk
             </Button>
           ) : null}
-          {phase === "available" ? (
+          {phase === "available" ||
+          (phase === "failed" && !flow.requested && flow.canApply) ? (
             <Button
               size="sm"
               disabled={!flow.canApply || flow.busy}
               onClick={flow.apply}
             >
-              Update now
+              {phase === "failed" ? "Try again" : "Update now"}
             </Button>
           ) : null}
           {flow.unreachable && phase !== "complete" ? (

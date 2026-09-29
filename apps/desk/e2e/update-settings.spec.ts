@@ -267,6 +267,72 @@ test("shows a rejected prerequisite without claiming an update started", async (
   expect(writes).toBe(1);
 });
 
+test("offers another attempt after an earlier failure", async ({
+  page,
+}) => {
+  await updateFixture(page);
+  let writes = 0;
+  await page.route("**/api/update-status**", async (route) => {
+    if (route.request().method() === "POST") {
+      writes++;
+      return route.fulfill({
+        json: { started: true, target_revision: target },
+      });
+    }
+    return route.fulfill({
+      json: new URL(route.request().url()).searchParams.has("check")
+        ? { ...update, updater: "failed" }
+        : { ...inventory, updater: "failed" },
+    });
+  });
+  await openUpdates(page);
+  const panel = page.locator('[data-slot="update-status"]');
+  await expect(panel).toContainText("An earlier update attempt failed.");
+  await panel.getByRole("button", { name: "Check now", exact: true }).click();
+  const retry = panel.getByRole("button", { name: "Try again" });
+  await expect(retry).toBeEnabled();
+  await retry.click();
+  await expect.poll(() => writes).toBe(1);
+});
+
+test("says an update did not start when its start reply was lost and nothing changed", async ({
+  page,
+}) => {
+  await updateFixture(page);
+  let writes = 0;
+  await page.route("**/api/update-status**", async (route) => {
+    if (route.request().method() === "POST") {
+      writes++;
+      return route.fulfill({
+        status: 503,
+        json: {
+          error: {
+            code: "update_start_unconfirmed",
+            message: "Desk could not confirm that the update started.",
+          },
+        },
+      });
+    }
+    return route.fulfill({
+      json: new URL(route.request().url()).searchParams.has("check")
+        ? update
+        : inventory,
+    });
+  });
+  await openUpdates(page);
+  const panel = page.locator('[data-slot="update-status"]');
+  await panel.getByRole("button", { name: "Check now", exact: true }).click();
+  await panel.getByRole("button", { name: "Update now" }).click();
+  // The idle updater on the same build proves nothing began.
+  await expect(panel.getByRole("alert")).toContainText(
+    "could not confirm that the update started",
+    { timeout: 15_000 },
+  );
+  await expect(panel).not.toContainText("Updating Pythia");
+  await expect(panel.getByRole("button", { name: "Update now" })).toBeEnabled();
+  expect(writes).toBe(1);
+});
+
 test("checks once a day on its own and marks a ready update in the sidebar", async ({
   page,
 }) => {

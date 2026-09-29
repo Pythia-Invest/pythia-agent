@@ -51,7 +51,17 @@ export function installedUpdateStatus(paths, query = systemctl) {
     };
   }
   const receipt = transactionReceipt(paths).value;
-  const updater = updaterState(query);
+  let updater = updaterState(query);
+  // A failed transient unit stays loaded until reset. Once an update of the
+  // installed build has completed (for example through pythia recover), that
+  // old failure no longer describes the device.
+  if (
+    updater === "failed" &&
+    receipt?.operation === "update" &&
+    receipt.phase === "complete" &&
+    receipt.new_revision === installation.revision
+  )
+    updater = "idle";
   let version = release.channel === "preview" ? "main" : "Stable";
   if (release.channel === "stable") {
     try {

@@ -17,7 +17,8 @@ import { updateComplete } from "./update-progress";
  * in all. The release status itself stays in the query cache.
  */
 
-type Requested = { revision: string; time: number };
+/** `unconfirmed`: when the start request failed without a clear refusal. */
+type Requested = { revision: string; time: number; unconfirmed?: number };
 type State = { requested: Requested | null; timedOut: boolean };
 
 const WAIT_MS = 600_000;
@@ -35,20 +36,25 @@ const subscribe = (listener: () => void) => {
 const CHECKED_KEY = "pythia.updates.checked-at";
 const DAY_MS = 86_400_000;
 
+// Without browser storage the day still counts within this page.
+let checkedInMemory: number | null = null;
+
 export function lastChecked() {
   try {
     const value = Number(window.localStorage.getItem(CHECKED_KEY));
-    return Number.isFinite(value) && value > 0 ? value : null;
+    return Number.isFinite(value) && value > 0 ? value : checkedInMemory;
   } catch {
-    return null;
+    return checkedInMemory;
   }
 }
 
-export function markChecked() {
+export function markChecked(at: number | null = Date.now()) {
+  checkedInMemory = at;
   try {
-    window.localStorage.setItem(CHECKED_KEY, String(Date.now()));
+    if (at === null) window.localStorage.removeItem(CHECKED_KEY);
+    else window.localStorage.setItem(CHECKED_KEY, String(at));
   } catch {
-    // Without storage the next visit simply checks again.
+    // The in-memory mark still limits this page to one check a day.
   }
 }
 
@@ -102,7 +108,14 @@ export function useUpdateFlow() {
   // check knows what is available. A check of another build no longer applies.
   const release: DeskReleaseStatus | undefined =
     checked && local && checked.current_revision === local.current_revision
-      ? { ...local, ...remote(checked) }
+      ? {
+          ...local,
+          ...remote(checked),
+          // The check also refuses a checkout that moved from the installed
+          // build; either refusal stands.
+          apply_supported:
+            local.apply_supported === true && checked.apply_supported !== false,
+        }
       : local;
   const complete = Boolean(
     requested && updateComplete(release, requested.revision),
@@ -110,6 +123,14 @@ export function useUpdateFlow() {
   const failed =
     release?.updater === "failed" &&
     (!requested || (!start.isPending && query.dataUpdatedAt > requested.time));
+  // A start whose reply was lost or ambiguous did not begin if, a few seconds
+  // later, the updater is still idle on the same build.
+  const notStarted = Boolean(
+    requested?.unconfirmed &&
+      release?.updater === "idle" &&
+      release.current_revision !== requested.revision &&
+      query.dataUpdatedAt > requested.unconfirmed + 5_000,
+  );
   const running =
     !complete &&
     !failed &&
@@ -125,6 +146,10 @@ export function useUpdateFlow() {
     !blocked &&
     release?.apply_supported === true &&
     Boolean(release?.target_revision && release?.current_revision);
+
+  useEffect(() => {
+    if (notStarted) set({ requested: null });
+  }, [notStarted]);
 
   useEffect(() => {
     if (!requested || complete || failed) return;
@@ -171,7 +196,7 @@ export function useUpdateFlow() {
     unreachable: query.isError || timedOut,
     check() {
       start.reset();
-      check.mutate(undefined, { onSuccess: markChecked });
+      check.mutate(undefined, { onSuccess: () => markChecked() });
     },
     apply() {
       if (!release?.current_revision || !release.target_revision) return;
@@ -189,6 +214,10 @@ export function useUpdateFlow() {
               error.status < 500
             )
               set({ requested: null });
+            else if (state.requested)
+              set({
+                requested: { ...state.requested, unconfirmed: Date.now() },
+              });
           },
         },
       );
@@ -214,9 +243,10 @@ export function useDailyUpdateCheck() {
     const due = () => {
       const checked = lastChecked();
       if (checked !== null && Date.now() - checked <= DAY_MS) return;
-      // Recorded first, so a second mount or tab doesn't check again.
+      // Recorded first, so a second mount or tab doesn't check again; a
+      // failed check gives the mark back so the next chance tries again.
       markChecked();
-      mutate();
+      mutate(undefined, { onError: () => markChecked(checked) });
     };
     due();
     window.addEventListener("focus", due);

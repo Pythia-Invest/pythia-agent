@@ -27,6 +27,9 @@ export function useReleaseStatus(watch?: { target: string; until: number }) {
     queryFn: () => api.updateStatus(),
     refetchInterval: (query) => {
       const data = query.state.data;
+      // A Desk that stays unreachable for the whole update window stops being
+      // polled; Retry connection asks again.
+      if (query.state.fetchFailureCount >= 200) return false;
       if (data?.updater === "running") return 3_000;
       return watch &&
         Date.now() < watch.until &&
