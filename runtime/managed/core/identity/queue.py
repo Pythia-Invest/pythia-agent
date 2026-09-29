@@ -21,6 +21,7 @@ from .schemes import subject_kind, subject_level
 from .store import IdentityStore
 from .vocabulary import Authority, InstrumentKind, VerdictRelation
 
+BUILD = "reference"  # rows an earlier core queued from the reference build's questions (now curation, ADR 0044)
 AGENT_MODEL = "hermes-agent"
 PROMPT_VERSION = "pythia_identity_verdict@1"
 CORE = "pythia"
@@ -179,6 +180,15 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
         message = _PROVISIONAL
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
+
+
+def retire_build(store: IdentityStore, now: str) -> int:
+    """Supersede open reference-build rows: the build's questions are curation questions, answered centrally (ADR
+    0044), never in the investor's Repairs (ADR 0037). Queues from before that decision may still hold some."""
+    with store.transaction():
+        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ? AND state = 'open'",
+                         (now, json.dumps([BUILD])))
+        return store.db.execute("SELECT changes()").fetchone()[0]
 
 
 def _same_venue(record: RecordClaim, subjects: list[dict]) -> bool:

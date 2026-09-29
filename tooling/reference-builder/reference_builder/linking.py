@@ -13,7 +13,7 @@ from collections import Counter, defaultdict
 
 from . import rules
 from .assemble import FigiMap, Inputs, operating
-from .model import GleifEntity, Issuer, Listing, Relationship, Security, SecTicker, Snapshot, Venue
+from .model import GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot
 from .sec import EXCHANGE_MIC, LISTED_MICS
 
 SEC_EDGAR_RA = "RA000665"
@@ -51,7 +51,7 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
             listing.security_id = _security_for(snap, listing, isins.get(ticker.ticker), share_classes)
     build_us_etfs(snap, inputs, figi_map)
     _flag_split_issuers(snap)
-    _mark_us_primaries(snap, inputs.venues)
+    _mark_us_primaries(snap)
 
 
 def build_us_etfs(snap: Snapshot, inputs: Inputs, figi_map: FigiMap) -> None:
@@ -129,7 +129,9 @@ def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, l
         row = _pick(answer.get("data") or [])
         match = by_ticker.get((row or {}).get("ticker", "").replace("/", "-"))
         if match:
-            evidence[match.cik].append((snap.securities[f"isin:{isin}"].issuer_id[4:], "isin_exch_us"))
+            issuer_id = snap.securities[f"isin:{isin}"].issuer_id
+            if issuer_id:  # none when FIRDS names a venue operator's LEI: that is no issuer to link
+                evidence[match.cik].append((issuer_id[4:], "isin_exch_us"))
             snap.audit["sec"]["isin_from_firds"] += 1
             isins[match.ticker] = isin
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
@@ -170,7 +172,7 @@ def _ask_name_candidates(snap: Snapshot, tickers: list[SecTicker], links: dict[s
         cik, lei = next(iter(ciks)), next(iter(leis))
         if cik in links or lei in claimed:
             continue
-        snap.flag(f"cik:{cik}", NAME_QUESTION, f"lei:{lei}")
+        snap.ask(NAME_QUESTION, f"cik:{cik}", [f"lei:{lei}"])
         audit["name_candidate_questions"] += 1
 
 
@@ -305,92 +307,24 @@ def _security_for(snap: Snapshot, listing: Listing, isin: str | None, share_clas
     return security_id
 
 
-def _mark_us_primaries(snap: Snapshot, venues: dict[str, Venue]) -> None:
-    """A US security's first exchange-listed line is its primary listing.
-
-    US securities are the SEC ones, and FIRDS securities with a US ISIN: OpenFIGI
-    shows US lines on every exchange, so it cannot name the home one. A non-US
-    security with a US exchange line and no line in its ISIN's country (Linde,
-    Accenture) has its home market in the US too, unless its primary is an EEA
-    regulated-market admission (Stellantis and Ferrari on Euronext Milan).
-    """
+def _mark_us_primaries(snap: Snapshot) -> None:
+    """A SEC security's first exchange-listed line is its primary listing: OpenFIGI shows US lines on every
+    exchange, so it cannot name the home one. FIRDS securities are decided in `reconcile`."""
     by_security: dict[str, list[Listing]] = defaultdict(list)
     for listing in snap.listings.values():
         if listing.security_id:
             by_security[listing.security_id].append(listing)
     for security_id, lines in by_security.items():
         security = snap.securities[security_id]
-        listed = sorted((l for l in lines if l.country == "US" and l.operating_mic in LISTED_MICS and l.currency),
-                        key=lambda l: (l.position is None, l.position or 0, l.listing_id))
-        if not listed:
-            continue
-        if security.source in ("sec", "sec_funds") or (security.isin or "").startswith("US"):
-            rule = "us_exchange_listing"
-        elif _us_home(security, lines, venues):
-            rule = "us_exchange_no_home_line"
-        else:
+        listed = us_lines(lines)
+        if not listed or security.source not in ("sec", "sec_funds"):
             continue
         for line in lines:
             line.is_primary = line is listed[0]
-        security.primary_mic, security.primary_rule = listed[0].operating_mic, rule
+        security.primary_mic, security.primary_rule = listed[0].operating_mic, "us_exchange_listing"
 
 
-def _us_home(security: Security, lines: list[Listing], venues: dict[str, Venue]) -> bool:
-    if not security.isin or any(l.country == security.isin[:2] and l.status != "inactive" for l in lines):
-        return False
-    current = next((l for l in lines if l.is_primary), None)
-    venue = venues.get(current.mic or "") if current else None
-    return not (venue and venue.category == "RMKT" and venue.country in rules.EEA)
-
-
-RECEIPT_RULE = "receipt_issuer_share@1"
-
-
-def link_receipts(snap: Snapshot) -> None:
-    """Every receipt's `depositary_receipt_of` names a security of this build, or the receipt has none.
-
-    A FIRDS-stated underlying ISIN is kept when an active security of the build carries it; FIRDS often names a
-    superseded ISIN (GSK, ArcelorMittal, Tenaris) or one outside the scope, so such an edge is dropped, flagged
-    and counted. A
-    receipt no source links (SEC ADRs and New York registry shares; OpenFIGI names no underlying) is linked to its
-    issuer's one active ordinary share. Several candidates narrow to the ones FIRDS lists (an ISIN); an issuer with
-    a preferred share, or still several candidates, gets no edge: a receipt of a preferred or of another class is
-    never guessed. Every drop and narrowing is counted in the build report."""
-    audit = snap.audit.setdefault("relations", Counter())
-    by_isin = {security.isin: key for key, security in snap.securities.items() if security.isin}
-    kept = []
-    for item in snap.relationships:
-        if item.relation == "depositary_receipt_of":
-            target = item.to_id if item.to_id in snap.securities else by_isin.get(item.to_id.split(":", 1)[1])
-            # A superseded underlying (Tenaris' old ISIN) may still be in the build, inactive: like a missing one,
-            # the edge is dropped, flagged and counted, and the issuer rule below decides.
-            reason = ("firds_underlying_outside_build" if target is None else
-                      "firds_underlying_inactive" if snap.securities[target].activity == "inactive" else None)
-            if reason:
-                audit[reason] += 1
-                snap.flag(item.from_id, reason, item.to_id)
-                continue
-            item = Relationship(item.from_id, item.relation, target, item.source, item.rule_id)
-        kept.append(item)
-    snap.relationships[:] = kept
-    stated = {item.from_id for item in kept if item.relation == "depositary_receipt_of"}
-    # Search keeps only active lines with a ticker; a share with none of them folds nothing in.
-    lined = {listing.security_id for listing in snap.listings.values() if listing.ticker and listing.status == "active"}
-    by_issuer: dict[str, list[Security]] = defaultdict(list)
-    for security in snap.securities.values():
-        if security.issuer_id:
-            by_issuer[security.issuer_id].append(security)
-    for security in snap.securities.values():
-        if security.kind != "dr" or security.security_id in stated or not security.issuer_id:
-            continue
-        siblings = by_issuer[security.issuer_id]
-        shares = [item for item in siblings if item.kind == "share" and item.activity == "active" and item.security_id in lined]
-        narrowed = len(shares) > 1
-        shares = [item for item in shares if item.isin] if narrowed else shares
-        if len(shares) != 1 or any(item.kind == "preferred" for item in siblings):
-            audit["receipt_without_underlying"] += 1
-            continue
-        snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", shares[0].security_id,
-                                               "pythia", RECEIPT_RULE))
-        audit[RECEIPT_RULE] += 1
-        audit["receipt_issuer_share_narrowed_to_firds"] += narrowed  # a guess worth seeing in the report
+def us_lines(lines: list[Listing]) -> list[Listing]:
+    """A security's US exchange lines (not OTC), in SEC file order."""
+    return sorted((l for l in lines if l.country == "US" and l.operating_mic in LISTED_MICS and l.currency),
+                  key=lambda l: (l.position is None, l.position or 0, l.listing_id))

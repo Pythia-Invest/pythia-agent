@@ -170,6 +170,17 @@ class VerdictTest(QueueFixture):
         self.assertEqual(self.identity.queue_item(item.id)["state"], "open")
 
 
+class BuildQuestionTest(QueueFixture):
+    def test_an_open_reference_build_row_is_superseded_on_the_next_release(self):
+        # Build questions are curation questions (ADR 0044): an earlier core may have queued some; they leave Repairs.
+        security = page.load_subject(self.ref, ASML)["ids"]["security"]
+        self.identity.put_queue_item(identity.QueueItem(
+            id="ref-old", kind="residual", reason="ambiguous", subject_ids=(security,), candidate_ids=(ASML,),
+            evidence_ids=(), state="open", opened_at=NOW, plugins=(queue.BUILD,)))
+        self.assertEqual(queue.retire_build(self.identity, NOW), 1)
+        self.assertEqual(self.identity.queue_item("ref-old")["state"], "superseded")
+
+
 class StoreTest(QueueFixture):
     def test_a_rolled_back_transaction_never_drops_another_threads_write(self):
         writer = threading.Thread(target=self.identity.put_miss, args=(ASML, "pythia-eodhd", "EODHD found no match", 60))

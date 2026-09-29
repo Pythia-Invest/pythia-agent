@@ -101,6 +101,11 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
     if baseline is not None:
         lines += ["", f"Regressions against the baseline ({baseline.get('reference', '?')}): {len(regressed) or 'none'}"]
         lines += [f"  {item}" for item in regressed]
+        # Checks the baseline accepts as failing until a named follow-up lands: one that passes now is an improvement.
+        expected = baseline.get("expected_failures") or {}
+        fixed = [key for key in expected if key in {r.key for r in report.results if r.status == "pass"}]
+        lines += [f"Expected failures: {len(expected)}, now passing: {len(fixed) or 'none'}"]
+        lines += [f"  {key} (was: {expected[key]})" for key in fixed]
     return "\n".join(lines)
 
 
@@ -108,11 +113,12 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
 # rather than a source, securities left without one, issuer links that look wrong, and every identifier or
 # relation the schema rejected (`skipped_*`, e.g. a ticker core's grammar refuses). Never a gate.
 ATTENTION = (
-    ("us_exchange_no_home_line", ("securities", "by_primary_rule"), "US primary: a US exchange line and no line in the ISIN's country"),
+    ("requested_in_eea_listed_outside", ("securities", "by_primary_rule"),
+     "primary asked: an EEA request beside a line outside the EEA"),
     ("securities_without_primary", ("schema",), "live securities without a primary listing"),
     ("issuer_split_lei_cik", ("flags",), "CIK-only issuers named like a LEI issuer (one company split in two?)"),
     ("cik_link_suspect", ("flags",), "CIK links whose SEC title shares no word with the LEI's names"),
-    ("issuer_identity_name_candidate", ("flags",), "CIK-only issuers whose name matches one LEI issuer: open questions"),
+    ("issuer_identity_name_candidate", ("questions",), "CIK-only issuers whose name matches one LEI issuer: open questions"),
 )
 
 
@@ -277,7 +283,9 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 1
         accepted = list(dict.fromkeys([*previous.get("accepted_id_changes", []), *unaliased]))  # kept across re-takes
-        data = baseline_of(report) | {"accepted_id_changes": accepted}
+        data = baseline_of(report) | {"accepted_id_changes": accepted,
+                                      "expected_failures": {key: why for key, why in (previous.get("expected_failures") or {}).items()
+                                                            if key not in baseline_of(report)["passed"]}}
         baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
     return 1 if regressed or firds_broken or sec_broken or any(r.failed for r in checked) else 0

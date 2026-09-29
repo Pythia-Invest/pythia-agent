@@ -24,7 +24,7 @@ python3 tooling/reference-builder/run.py --help
 | US tickers | `sec.py`, `sec_probe.py` | SEC `company_tickers_exchange.json` and the fund file `company_tickers_mf.json`, fingerprinted per build; `sec_probe.py` fingerprints the plugin's `submissions` and `companyfacts` for a fixed sample |
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
 | Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
-| Claims (shadow mode) | `claims.py`, `source_drift.py`, `firds_audit.py` | typed FIRDS claims, the FIRDS drift fingerprint and odd cases, and today's decisions against the claims (below) |
+| Claims and questions | `claims.py`, `reconcile.py`, `source_drift.py`, `firds_audit.py` | typed FIRDS claims, the decisions they make and the questions they leave, the FIRDS drift fingerprint and odd cases (below) |
 | Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
 | Snapshot, manifest and package | `schema.py`, `writer.py`, `manifest.py`, `package.py` | |
 
@@ -69,13 +69,8 @@ table under `writer_ignored`.
   pan-European venues that trade instruments listed elsewhere (Cboe Europe,
   Aquis, Turquoise, Posit, Blockmatch, Sigma X, OneChronos, TP ICAP, Tradeweb,
   Bloomberg MTF, MarketAxess, systematic internalisers and OTFs). Their lines
-  are left out unless one is the security's only market. When FIRDS names such
-  a venue as the relevant venue of a security with other lines, the primary
-  moves to one of those lines: lines in the ISIN's country first, then the
-  order of `rules.PRIMARY_FALLBACK` (Xetra, Euronext Paris, Euronext
-  Amsterdam, Euronext Milan, Frankfurt, Tradegate), then the earliest
-  listing. Regulated markets, growth markets, the German regional exchanges
-  and Tradegate all stay.
+  are left out unless one is the security's only market. Regulated markets,
+  growth markets, the German regional exchanges and Tradegate all stay.
 - **One line per venue operator.** A venue's segments (lit, off-book,
   midpoint, auction, a second retail book) are one listing, as core keys a
   listing by operating MIC and currency: the operator's own MIC wins, then a
@@ -92,22 +87,43 @@ table under `writer_ignored`.
   Placed ETFs are issuer-less `etf` securities (a fund trust's CIK covers every
   series); an ETF that FIRDS also lists joins that security by share-class
   FIGI. SEC company-file lines OpenFIGI types as `ETP` are ETFs too.
-- **Primary venue.** Start from the FIRDS relevant venue. For a non-EEA ISIN
-  with a real home-exchange line in OpenFIGI, use the home exchange (Shell and
-  Unilever move to XLON). A US ISIN's primary is its first US exchange line
-  from the SEC: OpenFIGI shows US lines on every US exchange, so it cannot name
-  the home one. A non-US security with a SEC exchange line and no line in its
-  ISIN's country (Linde, Accenture, Medtronic: Irish holding companies of US
-  businesses) takes that US line too (`us_exchange_no_home_line`), unless its
-  primary is an EEA regulated-market admission: Stellantis and Ferrari stay on
-  Euronext Milan. Move a German floor exchange (Frankfurt, Stuttgart, Munich,
-  Düsseldorf, Hamburg, Hanover, Berlin) to Xetra when a live Xetra line exists
-  (`german_floor_to_xetra`), except that a regional regulated-market admission
-  moves only to a regulated Xetra line. Known debatable results in the XAMS build: DSM-Firmenich moves to
-  XSWX; Coca-Cola Europacific Partners and Accsys Technologies (AIM plus
-  Euronext Amsterdam) move to XLON. OpenFIGI does not tell AIM from the LSE
-  main market, so the rule cannot separate these cases without turnover
-  evidence from both venues.
+- **Issuer (FIRDS securities).** RTS 23 field 5 is the LEI of the issuer *or of
+  the trading venue operator*. Its one LEI is the issuer, unless ISO 10383 lists
+  it for a venue's operating entity: then it is the issuer only when GLEIF
+  registers that entity in the ISIN's country (a bank's or an exchange's own
+  share; for a receipt, whose field 5 is the underlying issuer's LEI, the
+  underlying's country), and otherwise the issuer is unknown and asked
+  (`issuer_identity`).
+- **Primary venue (FIRDS securities, `reconcile.py`).** Field 8 names the EEA
+  admissions the issuer requested; it decides only an EEA primary.
+  - A request beside a line outside the EEA from another source (an OpenFIGI
+    home-exchange line, a SEC exchange line) leaves the primary unknown and
+    asked (`requested_in_eea_listed_outside`: Ferrari, Stellantis, Shell).
+  - Among requested admissions, the most liquid EU market (the relevant
+    venue) picks the line when it belongs to a requested venue's operating
+    entity (ISO 10383 LEI); with one requested venue, that venue. Deutsche
+    Börse runs the Frankfurt regulated market on Xetra and the floor, and
+    Xetra is its main venue (`reconcile.MAIN_VENUE`), so SAP lists on Xetra.
+    Requested venues of several entities with none the most liquid are asked.
+  - Field 8 on `firds.FIELD8_VENUE_HABIT` segments (Warsaw GlobalConnect,
+    Vorvel) decides nothing.
+  - Without a request, a line outside the EEA decides as before: a US ISIN's
+    first SEC exchange line, another ISIN's OpenFIGI home-exchange line, else
+    its SEC line. With none, the relevant venue is only a liquidity measure:
+    the primary is unknown and asked (`most_liquid_only`).
+  - Where the above leaves a share's primary unknown, its one line on an
+    exchange in its ISIN's country (not OTC, an MTF or a trading-only venue,
+    and one the package can write, with a trading currency) is attached to
+    its home-market question as a suggested answer (`suggested`, rule
+    `isin_country`: TotalEnergies on Euronext Paris beside NYSE). It is a
+    curation suggestion, never a decision (R2, ADR 0044): the share stays
+    unknown until a curator approves it; once calibrated, the curator's back
+    office can approve such suggestions in bulk. Funds are left out: an Irish or Luxembourg fund's
+    Dublin or Luxembourg line is often a technical listing.
+  - A security still without a primary the package can write is priced on
+    its line at FIRDS' most liquid EU market, marked `most_liquid` (the Desk labels it "most liquid EU
+    line") and never primary; core ranks it after home-country lines.
+  - A SEC security's primary is its first US exchange line.
 - **OpenFIGI multi-row answers.** Prefer the venue's main exchange code, reject
   currency-suffixed MTF tickers, then prefer the shortest ticker.
 - **Share-class tickers.** On Nasdaq Stockholm and Copenhagen a class OpenFIGI
@@ -130,8 +146,7 @@ table under `writer_ignored`.
   SEC title normalises to exactly one active LEI issuer's name, that match is an
   open issuer-identity question with the LEI as its candidate
   (`issuer_identity_name_candidate`; the name-only join once linked Biofrontera
-  Inc. to Biofrontera AG). The questions are flags until the builder carries
-  questions to core's queue. Conflicts become flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
+  Inc. to Biofrontera AG), carried in the package's questions file. Conflicts become flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
   title matches the LEI's names wins, then CIK order (FIRDS gives Lee
   Enterprises' ISIN Berkshire Hathaway's LEI); when none matches, none links
   (`lei_contested_unnamed`: FIRDS puts venue and data-vendor LEIs such as TP
@@ -143,11 +158,17 @@ table under `writer_ignored`.
   Enterprises under Berkshire Hathaway's), and a CIK-only issuer named like a
   LEI issuer (`issuer_split_lei_cik`: probably one company split in two).
 - **Receipts.** Every `depositary_receipt_of` names a security of the build. A
-  FIRDS receipt's stated underlying ISIN is kept when a security of the build
-  carries it; FIRDS often names a superseded ISIN or one outside the scope, so
-  such an edge is dropped and counted (`firds_underlying_outside_build`). SEC
-  ADRs and New York registry shares name no underlying (neither does
-  OpenFIGI), so rule `receipt_issuer_share@1` links a receipt to its issuer's
+  FIRDS receipt's stated underlying ISIN (field 26) is kept when an active
+  security of the build carries it and that security's issuer is the
+  receipt's (field 5 on a receipt is the underlying issuer's LEI, ESMA Q&A
+  1503). A stated security of another issuer (14 Canadian receipts stating
+  Thermo Fisher) is asked, with it as the first candidate. FIRDS often names a superseded ISIN or one
+  outside the scope; then, and when field 26 states none, the underlying is
+  unknown and asked (`receipt_underlying`, the issuer's shares as candidates).
+  A share whose CFI says share while field 26 states an underlying is asked
+  too (`receipt_conflict`). SEC ADRs and New York registry shares outside
+  FIRDS name no underlying (neither does OpenFIGI), so rule
+  `receipt_issuer_share@1` links a receipt to its issuer's
   one active ordinary share with an active ticker line (a share search cannot
   show folds nothing in), preferring the FIRDS share when the issuer also has
   a SEC-only line (counted). An issuer with a preferred share or several
@@ -165,44 +186,35 @@ table under `writer_ignored`.
   venue, or no snapshot is written (`--no-gates` writes it anyway for
   inspection).
 
-## Claims and the FIRDS adapter
+## Claims, questions and the FIRDS adapter
 
-Sources are being moved onto typed claims one at a time; FIRDS is the first.
 `firds.claims()` turns every FIRDS field the builder reads into a `Claim`
 `(subject_key, value, source, source_field, meaning, as_of, record_digest)`,
 in the one meaning RTS 23 gives it: `firds.FIELDS` maps each field to core's
 `SourceMeaning` vocabulary (`runtime/managed/core/identity/vocabulary.py`). The
 adapter picks no winner and reads no other source; a missing element or a
 placeholder is no claim. Instrument claims are keyed `isin:<ISIN>`, admission
-claims `isin:<ISIN>@<segment MIC>`.
+claims `isin:<ISIN>@<segment MIC>`. The build decides FIRDS securities' issuer,
+primary and receipt underlying from these claims (rules above).
 
-This is shadow mode: the snapshot is built exactly as before, and a build test
-holds it to that. The claims stay in memory. What persists is
-`firds-<date>.json` beside the snapshot, written last: the drift fingerprint
-(below), the audit report, and whether the build was good. The manifest
-carries the same report under `firds`.
+Where the evidence does not decide, the value stays empty and the build asks a
+question, never storing a guess as fact. `questions-<date>.json` holds them in
+core subject IDs (each with its question type, the resolution queue's `kind` and
+`reason`, candidates and evidence), and `package.json` names it under `claims`.
+These are curation questions about the world, answered centrally by a curator
+([ADR 0044](../../docs/decisions/0044-product-direction.md), "Where conflicts
+are resolved"), never by the investor: core installs and verifies the file with
+the package but queues none of it, so Repairs keeps only questions about the
+investor's own records (ADR 0037). The investor sees at most an unknown value.
+#73's name-only CIK→LEI matches are carried the same way
+(`issuer_identity_name_candidate`).
 
-The report gives, for each field FIRDS speaks to (issuer, primary, currency,
-receipt underlying), the outcome the FIRDS claims alone decide, whatever
-today's value is, and then how today's value compares:
-
-- `decided`: the claims name the value;
-- `co_primary`: the issuer requested admission in several countries;
-- `unknown` plus a question: FIRDS speaks to the field but does not decide it,
-  such as an issuer LEI that ISO 10383 lists for a venue operator, or field 8
-  seen only on a segment where it is a venue habit (`firds.FIELD8_VENUE_HABIT`);
-- `conflict` plus a question: two FIRDS claims cannot both hold;
-- `outside_firds`: FIRDS cannot decide it (a notional currency is not a trading
-  currency; no EEA request says nothing about a home market elsewhere). Other
-  sources must, and only what they leave open becomes a question.
-
-Where evidence does not decide, the answer is unknown plus a question, never a
-guess stored as fact. Answers a judge gives to those questions are suggestions
-until each question type is calibrated on a gold set.
-
-`just reference-audit` prints the FIRDS section: drift alarms against the
-previous good build's record, the odd cases with examples, field 8 per
-segment, the comparison by field and the open questions.
+`firds-<date>.json` beside the snapshot, written last, holds the drift
+fingerprint (below), the audit report and whether the build was good; the
+manifest carries the same report under `firds`. `just reference-audit` prints
+the FIRDS section: drift alarms against the previous good build's record, the
+odd cases with examples, field 8 per segment, how FIRDS securities got their
+primary line, and the open questions.
 
 ### FIRDS field semantics
 
@@ -298,8 +310,9 @@ scope. A check that passed in `truth/baseline.json` and fails now, or a subject
 ID that changed without an `id_aliases` row, is a regression and fails the
 command. The builder runs the same audit after writing a snapshot and records
 the scores under `truth_audit` in the manifest; it never blocks a build. Both
-also list build counts to review from the manifest's audit: primaries set by
-`us_exchange_no_home_line`, live securities written without a primary listing,
+also list build counts to review from the manifest's audit: primaries asked
+because an EEA request sits beside a line outside the EEA, live securities
+written without a primary listing,
 `issuer_split_lei_cik` and `cik_link_suspect` flags, and every `skipped_*`
 count (identifiers or relations the schema rejected). The baseline is taken on a
 default-scope build (every EEA venue and US lines); an XAMS-only build reports

@@ -11,13 +11,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 
-from . import rules
+from . import firds, rules
+from .claims import Claims, Meaning, Venues, load
 from .config import Scope
 from .model import FirdsRecord, GleifEntity, Issuer, Listing, Relationship, Security, SecFund, SecTicker, Snapshot, Transparency, Venue
 
 FigiMap = Callable[[list[dict]], list[dict]]
 GleifFetch = Callable[[set[str]], dict[str, GleifEntity]]
-XETRA_SEGMENTS = frozenset({"XETA", "XETR", "XETB", "XETS"})
 FIGI_MIC_OVERRIDE = {"BMEX": "XMAD"}
 
 
@@ -31,6 +31,12 @@ class Inputs:
     sec_tickers: list[SecTicker]
     figi_mic_codes: set[str]
     sec_funds: list[SecFund] = field(default_factory=list)
+    firds_claims: Claims | None = None  # built from `admissions` when not given
+
+    def claims(self) -> Claims:
+        if self.firds_claims is None:
+            self.firds_claims = load(firds.claims(self.admissions))
+        return self.firds_claims
 
 
 def operating(venues: dict[str, Venue], mic: str | None) -> str | None:
@@ -102,7 +108,9 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     audit = snap.audit.setdefault("eu", Counter())
     scoped = scope_isins(inputs)
     audit["scope_isins"] = len(scoped)
+    claims, venues = inputs.claims(), Venues(inputs.venues)
     entities = gleif_fetch({r.issuer_lei for rs in scoped.values() for r in rs if r.issuer_lei})
+    issuers = {isin: issuer_lei(claims, venues, entities, isin) for isin in scoped}
 
     plan = [(isin, seg, rec) for isin, rs in scoped.items() for seg, rec in sorted(_eu_listings(inputs, isin, rs).items())]
     answers = figi_map([_figi_job(inputs, isin, seg) for isin, seg, _ in plan])
@@ -117,12 +125,13 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
         rows = answer.get("data") or []
         row, pick = rules.pick_figi_row(rows, operating(inputs.venues, segment) or segment)
         audit[f"openfigi_{pick}"] += 1
-        issuer = _issuer(snap, entities, record)
+        lei = issuers[isin]
+        issuer = _issuer(snap, entities, lei, record) if lei else None
         op = operating(inputs.venues, segment)
         venue = inputs.venues.get(segment) or inputs.venues.get(op or "")
         listing = Listing(
             listing_id=f"{segment}:{isin}", source="esma_firds", row_class=rules.firds_kind(record.cfi),
-            security_id=f"isin:{isin}", issuer_id=issuer.issuer_id, mic=segment, operating_mic=op,
+            security_id=f"isin:{isin}", issuer_id=issuer.issuer_id if issuer else None, mic=segment, operating_mic=op,
             country=venue.country if venue else None, currency=record.currency, name=record.full_name,
             valid_from=record.first_trade, valid_to=record.termination,
         )
@@ -130,8 +139,8 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
             _apply_figi(listing, row, record.short_name)
         listing.status, listing.status_reasons = rules.admission_status(
             as_of=as_of, termination=record.termination, full_name=record.full_name, cfi=record.cfi,
-            entity_status=_entity_attr(entities, record.issuer_lei, "entity_status"),
-            registration_status=_entity_attr(entities, record.issuer_lei, "registration_status"),
+            entity_status=_entity_attr(entities, lei, "entity_status"),
+            registration_status=_entity_attr(entities, lei, "registration_status"),
             venue_count=len(scoped[isin]),
             has_transparency=None if inputs.transparency is None else isin in inputs.transparency,
             has_figi=row is not None,
@@ -142,8 +151,24 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     for listing in snap.listings.values():
         by_security[listing.security_id or ""].append(listing)
     for isin, records in scoped.items():
-        _security(snap, inputs, isin, records, by_security[f"isin:{isin}"], fanout.get(isin, []), audit)
+        _security(snap, inputs, isin, records, by_security[f"isin:{isin}"], fanout.get(isin, []), issuers[isin])
     return entities
+
+
+def issuer_lei(claims: Claims, venues: Venues, entities: dict[str, GleifEntity], isin: str) -> str | None:
+    """RTS 23 field 5 names the issuer or the trading venue operator. Its one LEI is the issuer unless ISO 10383
+    lists it for a venue's operating entity; then it is the issuer only when GLEIF registers that entity in the
+    ISIN's country (a bank's or exchange's own share; for a receipt, field 5 is the underlying issuer's LEI, so
+    the underlying's ISIN, ESMA Q&A 1503), and otherwise unknown, with a question."""
+    values = claims.isins.get(isin, {})
+    leis = values.get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
+    lei = next(iter(leis)) if len(leis) == 1 else None
+    if lei and venues.operated.get(lei):
+        underlying = sorted(values.get(Meaning.UNDERLYING_ISIN, set()) - {isin})
+        home = (underlying[0] if underlying and len(underlying) == 1 else isin)[:2]
+        entity = entities.get(lei)
+        return lei if entity and entity.country == home else None
+    return lei
 
 
 def _entity_attr(entities: dict[str, GleifEntity], lei: str | None, name: str) -> str | None:
@@ -151,16 +176,16 @@ def _entity_attr(entities: dict[str, GleifEntity], lei: str | None, name: str) -
     return getattr(entity, name) if entity else None
 
 
-def _issuer(snap: Snapshot, entities: dict[str, GleifEntity], record: FirdsRecord) -> Issuer:
-    issuer_id = f"lei:{record.issuer_lei}"
+def _issuer(snap: Snapshot, entities: dict[str, GleifEntity], lei: str, record: FirdsRecord) -> Issuer:
+    issuer_id = f"lei:{lei}"
     if issuer_id not in snap.issuers:
-        entity = entities.get(record.issuer_lei or "")
+        entity = entities.get(lei)
         if entity:
             snap.issuers[issuer_id] = issuer_from_gleif(entity)
         else:
             snap.issuers[issuer_id] = Issuer(
                 issuer_id=issuer_id, name=record.full_name or record.isin, source="esma_firds",
-                lei=record.issuer_lei, name_rule="firds_full_name",
+                lei=lei, name_rule="firds_full_name",
             )
             snap.flag(issuer_id, "lei_not_in_gleif")
     return snap.issuers[issuer_id]
@@ -182,25 +207,14 @@ def _apply_figi(listing: Listing, row: dict, fisn: str | None) -> None:
     listing.security_type = row.get("securityType2") or row.get("securityType")
 
 
-def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
+def _security(snap, inputs, isin, records, listings, fanout, lei) -> None:
     head = next((r for r in records if r.mic == r.relevant_mic), records[0])
-    relevant = next((r.relevant_mic for r in records if r.relevant_mic), None)
-    moved = operating(inputs.venues, relevant) in rules.TRADING_ONLY_VENUES and _listing_venue(isin, listings)
-    if moved:
-        relevant = moved.mic
     share_class = next((l.share_class_figi for l in listings if l.share_class_figi), None)
-    xetra = [r for r in records if r.mic in XETRA_SEGMENTS and not (r.termination and r.termination <= inputs.as_of.isoformat())]
-    # A regional regulated-market admission is the listing: it moves only to a regulated Xetra line.
-    xetra_live = bool(xetra) and (not _regulated(inputs, relevant) or any(_regulated(inputs, r.mic) for r in xetra))
-    primary_mic, rule, home_row = rules.primary_venue(isin, operating(inputs.venues, relevant), xetra_live, fanout)
-    if moved and rule == "firds_relevant_venue":
-        rule = "trading_venue_to_listing_venue"
-    audit[f"primary_{rule}"] += 1
     fitrs = (inputs.transparency or {}).get(isin)
     security = Security(
         security_id=f"isin:{isin}", kind=rules.firds_kind(head.cfi), source="esma_firds",
-        issuer_id=f"lei:{head.issuer_lei}", isin=isin, share_class_figi=share_class, cfi=head.cfi, fisn=head.short_name,
-        name=head.full_name, currency=head.currency, primary_mic=primary_mic, primary_rule=rule,
+        issuer_id=f"lei:{lei}" if lei else None, isin=isin, share_class_figi=share_class, cfi=head.cfi,
+        fisn=head.short_name, name=head.full_name, currency=head.currency,
         turnover_eur=fitrs.turnover_eur if fitrs else None, turnover_method=fitrs.methodology if fitrs else None,
     )
     snap.securities[security.security_id] = security
@@ -208,38 +222,16 @@ def _security(snap, inputs, isin, records, listings, fanout, audit) -> None:
         snap.flag(security.security_id, "also_us_listed")
     if head.cfi.startswith("ED") and head.underlying_isin and head.underlying_isin != isin:
         snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", f"isin:{head.underlying_isin}", "esma_firds", "firds_underlying_isin"))
-    _mark_primary(snap, security, listings, relevant, home_row)
-    states = {l.status for l in listings}
-    security.activity = "active" if "active" in states else ("suspect" if "suspect" in states else ("inactive" if states else "active"))
-
-
-def _regulated(inputs: Inputs, mic: str | None) -> bool:
-    venue = inputs.venues.get(mic or "")
-    return bool(venue and venue.category == "RMKT")
-
-
-def _listing_venue(isin: str, listings: list[Listing]) -> Listing | None:
-    """The primary line when FIRDS names a trading-only venue (see `rules.PRIMARY_FALLBACK`)."""
-    def order(line: Listing) -> tuple:
-        preferred = rules.PRIMARY_FALLBACK.index(line.operating_mic) if line.operating_mic in rules.PRIMARY_FALLBACK else len(rules.PRIMARY_FALLBACK)
-        return (line.country != isin[:2], preferred, line.valid_from or "9999", line.mic or "")
-
-    return min((l for l in listings if l.operating_mic not in rules.TRADING_ONLY_VENUES), key=order, default=None)
-
-
-def _mark_primary(snap, security, listings, relevant, home_row) -> None:
-    on_primary = [l for l in listings if l.operating_mic == security.primary_mic]
-    if on_primary:
-        best = sorted(on_primary, key=lambda l: (l.mic != rules.lit_segment(relevant or ""), l.status != "active", l.mic or ""))[0]
-        best.is_primary = True
-        return
-    if home_row and home_row.get("ticker"):
-        mic = security.primary_mic
+    home = rules.home_row(isin, fanout)
+    if home:  # a line outside FIRDS, in the ISIN's country: evidence for the primary, decided in `reconcile`
+        mic, row = home
         listing = Listing(
-            listing_id=f"{mic}:{home_row['ticker'].replace('/', '-')}", source="openfigi", row_class=security.kind,
+            listing_id=f"{mic}:{row['ticker'].replace('/', '-')}", source="openfigi", row_class=security.kind,
             security_id=security.security_id, issuer_id=security.issuer_id, mic=mic, operating_mic=mic,
-            country=security.isin[:2] if security.isin else None, is_primary=True, name=home_row.get("name"),
+            country=isin[:2], name=row.get("name"),
         )
-        _apply_figi(listing, home_row, security.fisn)
+        _apply_figi(listing, row, security.fisn)
         listing.status_reasons = ["home_line_from_openfigi"]
         snap.listings.setdefault(listing.listing_id, listing)
+    states = {l.status for l in listings}
+    security.activity = "active" if "active" in states else ("suspect" if "suspect" in states else ("inactive" if states else "active"))

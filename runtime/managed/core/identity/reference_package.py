@@ -24,13 +24,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 FORMAT = "pythia-reference-package"
-FORMAT_VERSION = 3       # the one number core checks: package layout and the SQLite's release.schema_version
+FORMAT_VERSION = 4       # the one number core checks: package layout and the SQLite's release.schema_version
 PACKAGE_FILE = "package.json"
 INSTALLED_FILE = "installed.json"  # which package under packages/ is installed; packages/ is the installer's own
 REFUSED_FILE = "refused.json"      # the last package the installer refused, until one installs
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _DATABASE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.sqlite3")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+_CLAIMS = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json")
 _STAGING = ".staging-"
 STATUS_SCHEMA = {  # core's read-only `reference-status` operation (identity_ops)
     "name": "pythia_reference_status",
@@ -59,6 +60,18 @@ def current(data_dir: Path) -> Path | None:
     directory, manifest = found
     path = directory / manifest["database"]["file"]
     return path if manifest["format_version"] == FORMAT_VERSION and path.is_file() else None
+
+
+def questions(path: Path) -> list[dict]:
+    """The open questions the installed package's build left (its optional `claims` file), for the resolution queue.
+    `path` is the installed SQLite file."""
+    try:
+        claims = read_manifest(Path(path).parent).get("claims")
+        found = json.loads((Path(path).parent / claims["file"]).read_text(encoding="utf-8")) if claims else {}
+    except (OSError, ValueError, PackageError):
+        return []
+    items = found.get("questions") if isinstance(found, dict) else None
+    return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
 
 def release_key(path: Path) -> str:
@@ -147,6 +160,10 @@ def read_manifest(package: Path) -> dict:
         ("sources", isinstance(manifest.get("sources"), list)
          and all(isinstance(entry, dict) and isinstance(entry.get("source"), str) for entry in manifest["sources"])),
         ("quality", isinstance(manifest.get("quality"), dict)),
+        ("claims", manifest.get("claims") is None or (
+            isinstance(manifest["claims"], dict) and isinstance(manifest["claims"].get("file"), str)
+            and _CLAIMS.fullmatch(manifest["claims"]["file"]) and isinstance(manifest["claims"].get("sha256"), str)
+            and type(manifest["claims"].get("bytes")) is int)),
     ) if not ok]
     if problems:
         raise PackageError(f"{path} is missing or has invalid fields: {', '.join(problems)}.")
@@ -177,6 +194,19 @@ def _copy_verified(source: Path, target: Path, manifest: dict) -> None:
     except FileNotFoundError:
         raise PackageError(f"The package names {source.name}, which is not in {source.parent}.") from None
     _verify(digest.hexdigest(), size, target, manifest)
+
+
+def _copy_claims(source: Path, target: Path, manifest: dict) -> None:
+    """Copy the package's claims file; refuse one whose checksum or size differs from the manifest."""
+    expected = manifest["claims"]
+    try:
+        data = source.read_bytes()
+    except FileNotFoundError:
+        raise PackageError(f"The package names {source.name}, which is not in {source.parent}.") from None
+    if hashlib.sha256(data).hexdigest() != expected["sha256"] or len(data) != expected["bytes"]:
+        raise PackageError(f"Checksum mismatch for {expected['file']}: the file is damaged or belongs to another "
+                           f"build. Nothing was installed.")
+    target.write_bytes(data)
 
 
 def _verify(sha256: str, size: int, path: Path, manifest: dict) -> None:
@@ -244,6 +274,8 @@ def _install(package: Path, root: Path) -> dict:
         staging.mkdir(mode=0o700)
         try:
             _copy_verified(source, staging / manifest["database"]["file"], manifest)
+            if manifest.get("claims"):
+                _copy_claims(source_dir / manifest["claims"]["file"], staging / manifest["claims"]["file"], manifest)
             _write(staging / PACKAGE_FILE, manifest)
             target = root / "packages" / name
             if target.exists():  # a damaged copy of this same package: set it aside for the sweep, then replace it

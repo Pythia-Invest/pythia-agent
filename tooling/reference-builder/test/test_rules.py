@@ -36,24 +36,15 @@ class ActivityTest(unittest.TestCase):
         self.assertEqual(status(has_figi=False, has_transparency=None)[0], "active", "FITRS not loaded is not evidence")
 
 
-class PrimaryVenueTest(unittest.TestCase):
-    def test_uk_issuer_moves_to_its_home_line_when_openfigi_shows_one(self):
+class HomeRowTest(unittest.TestCase):
+    def test_a_uk_issuer_has_its_home_line_when_openfigi_shows_one(self):
         fanout = [figi_row("0QB8", "LN", "F1", "S1"), figi_row("SHEL", "LN", "F2", "S1"), figi_row("SHELL", "NA", "F3", "S1")]
-        mic, rule, row = rules.primary_venue("GB00BP6MXD84", "XAMS", False, fanout)
-        self.assertEqual((mic, rule, row["ticker"]), ("XLON", "home_listing_evidence", "SHEL"))
+        mic, row = rules.home_row("GB00BP6MXD84", fanout)
+        self.assertEqual((mic, row["ticker"]), ("XLON", "SHEL"))
 
-    def test_uk_issuer_without_home_evidence_keeps_firds(self):
-        self.assertEqual(rules.primary_venue("GB00BP6MXD84", "XAMS", False, [figi_row("0QB8", "LN", "F1", "S1")])[:2], ("XAMS", "firds_relevant_venue"))
-
-    def test_a_german_floor_moves_to_xetra_only_with_a_live_xetra_line(self):
-        self.assertEqual(rules.primary_venue("DE0007164600", "XFRA", True, [])[0], "XETR")
-        self.assertEqual(rules.primary_venue("DE0007164600", "XFRA", False, [])[0], "XFRA")
-        self.assertEqual(rules.primary_venue("DE000FRE5EN2", "XDUS", True, [])[:2], ("XETR", "german_floor_to_xetra"))
-        self.assertEqual(rules.primary_venue("DE000FRE5EN2", "TGAT", True, [])[0], "TGAT")  # not a floor exchange
-
-    def test_eea_issuer_keeps_firds_even_with_us_lines(self):
-        fanout = [figi_row("ASML", "UW", "F1", "S2")]
-        self.assertEqual(rules.primary_venue("NL0010273215", "XAMS", False, fanout)[0], "XAMS")
+    def test_an_order_book_code_or_an_eea_isin_is_no_home_line(self):
+        self.assertIsNone(rules.home_row("GB00BP6MXD84", [figi_row("0QB8", "LN", "F1", "S1")]))
+        self.assertIsNone(rules.home_row("NL0010273215", [figi_row("ASML", "UW", "F1", "S2")]))
 
 
 class FigiPickTest(unittest.TestCase):

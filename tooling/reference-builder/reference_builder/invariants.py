@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .invariant_checks import (
-    Build, currency_is_issue_country, currency_single_currency_venue, currency_withdrawn, primary_floor_beside_xetra,
+    Build, currency_is_issue_country, primary_missing, questions_open, share_primary_silent, currency_single_currency_venue, currency_withdrawn, primary_floor_beside_xetra,
     primary_inactive, primary_more_than_one, primary_open_market_beside_us_exchange, ticker_currency_suffix,
     ticker_two_securities, us_share_without_us_line, venue_ticker_coverage)
 from .invariant_names import (
@@ -104,19 +104,28 @@ INVARIANTS: tuple[Invariant, ...] = (
               venue_ticker_coverage, 12, "Frankfurt and Berlin open market, Hanover, Borsa Italiana ETFplus and GEM, Dublin"),
     # Primary listing
     Invariant("primary_more_than_one", "error", "A security has more than one primary listing.", primary_more_than_one),
-    Invariant("primary_inactive", "error", "A live security's primary listing is inactive.",
-              primary_inactive, 38, "Frankfurt lines of Canadian shares", headroom=2 * 2 / 38),
+    Invariant("primary_inactive", "error", "A live security's primary listing is inactive.", primary_inactive),
+    Invariant("primary_missing", "error", "A live security has lines but no primary: its evidence did not decide one.",
+              primary_missing, 16053, "home-market questions and SEC or OpenFIGI gaps (claims step 3)", headroom=0.02),
+    Invariant("share_primary_silent", "error",
+              "A live share has no primary, and not both a home-market question and a most-liquid line.",
+              share_primary_silent, 4946, "4,928 decided home lines the package cannot write (OpenFIGI gives no trading "
+              "currency; fixed by #46's home currencies), 3,800 of them priced on the most liquid EU line; the rest "
+              "home-market questions whose most liquid venue has no line", headroom=0.02),
+    Invariant("questions_open", "error", "A question the build left open (the package's claims file).",
+              questions_open, 11965, "evidence that does not decide (claims step 3)", headroom=0.02),
     Invariant("primary_open_market_beside_us_exchange", "error",
               "A security with a live NYSE/Nasdaq line has its primary on an EEA open-market segment.",
-              primary_open_market_beside_us_exchange, 1, "Bending Spoons on Munich"),
+              primary_open_market_beside_us_exchange),
     # Names and issuers
     Invariant("name_casing", "error", "A re-cased name has a capital inside a word (NestlÉ, MØLler).", name_casing),
     Invariant("name_encoding", "error", "A name carries mojibake, an HTML entity, a control character or non-NFC text.",
               name_encoding, 3, "source names: `S&amp;P`, `King\ufffds`"),
     Invariant("issuer_is_market_operator", "error",
               "A security's issuer is a trading venue or its operator (TP ICAP, Bloomberg MTF, Frankfurter Wertpapierbörse).",
-              issuer_is_market_operator, 623, "FIRDS carries the reporting venue's LEI when an issuer has none",
-              headroom=63 / 623),
+              issuer_is_market_operator, 27, "ETFs on Bloomberg indices (a name match, not an error); AG3I under "
+              "Euronext Paris and two US shares under Bloomberg Finance, wrong in FIRDS field 5: fixed by the SEC "
+              "registrant issuer claim (SEC onboarding)", headroom=2 * 2 / 27),
     # Warnings: lifecycle and issuer mistakes to review
     Invariant("us_share_without_us_line", "warning",
               "A live share with a US ISIN has no US exchange or OTC line although the build has SEC lines.",
@@ -128,7 +137,8 @@ INVARIANTS: tuple[Invariant, ...] = (
               "A share or receipt's issuer is named like a financing vehicle (Nestlé Capital Markets).", issuer_financing_vehicle, 38),
     Invariant("primary_floor_beside_xetra", "warning",
               "The primary is a German floor exchange's open market although a live Xetra line exists.",
-              primary_floor_beside_xetra, 4, "Munich lines beside Xetra open-market lines; possibly m:access listings"),
+              primary_floor_beside_xetra, 52, "floor listings the issuer requested (RTS 23 field 8: Düsseldorf, Munich "
+              "m:access), beside Xetra lines it did not"),
 )
 
 

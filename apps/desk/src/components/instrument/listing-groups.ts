@@ -30,11 +30,17 @@ export function listingGroups(
   return groups.filter((group) => group.listings.length > 0);
 }
 
+/** The venue, and for a line priced because no primary is known, why. */
+export function listingVenue(listing: SubjectListing) {
+  const venue = listing.venue ?? listing.mic;
+  return listing.most_liquid ? `${venue} (most liquid EU line)` : venue;
+}
+
 /** "ASML · Euronext Amsterdam · EUR": how a listing names itself. */
 export function listingLabel(listing: SubjectListing) {
   return [
     listing.ticker ?? listing.mic ?? "Listing",
-    listing.venue ?? listing.mic,
+    listingVenue(listing),
     listing.currency,
   ]
     .filter(Boolean)

@@ -1,13 +1,20 @@
 # ESMA FIRDS source record
 
-- **Status:** in onboarding, stage 2 in shadow mode.
+- **Status:** issuer and the primary of shares decided by FIRDS claims
+  (field 8) signed off (PR #74, below); receipt underlying and ETF primaries
+  stay in onboarding. FIRDS feeds
+  the reference builder and has no plugin `contract.json`, so the #62 gate
+  records nothing in code for it: this record is its sign-off.
   - Stage 1: the field table below is complete for the fields the builder
     reads.
   - Stage 2: the adapter emits typed claims, counts unexpected input and
-    fingerprints every build. The claims do not feed the snapshot yet: the
-    builder's decisions are unchanged, and the audit compares them with the
-    claims.
-  - Stage 3 (random sample), stage 4 (judgement) and sign-off are open.
+    fingerprints every build. The build decides FIRDS securities' issuer,
+    primary and receipt underlying from the claims, and asks where they do
+    not decide.
+  - Stage 3: a stratified random sample of 100 rows is labelled against
+    primary sources (below and [the sample](firds-signoff-sample.md)).
+  - Stage 4: the questions ship in the package as curation questions,
+    answered centrally per ADR 0044, never in the investor's Repairs.
   - FIRDS was in use before the
     [onboarding standard](../architecture/source-onboarding.md), so it keeps its
     current role until it signs off.
@@ -16,8 +23,8 @@
   `measure()`). The meanings are core's `SourceMeaning` vocabulary.
   `claims.py` holds the claim shape and the per-build record,
   `source_drift.py` the fingerprint comparison, and `firds_audit.py` the
-  odd-case counts and the comparison with today's decisions. FIRDS records are still
-  used directly by `assemble.py`, `rules.py` and `linking.py`.
+  odd-case counts. `assemble.issuer_lei` and `reconcile.py` decide from the
+  claims; `linking.link_receipts` applies field 26.
 - **Scope:**
   - the weekly `FULINS_E` and `FULINS_C` full files and the optional `DLTINS`
     daily deltas;
@@ -34,8 +41,10 @@
   Counts marked "audit" come from `just reference-audit` on that build: the
   builder's scope, `ES`, `ED` and `CE`, is 321,306 records and 29,002 ISINs.
 - **Changes to other sources' adapters:**
-  - ISO 10383: `mic.py` reads the LEI column, for the operator-LEI case. Only
-    the FIRDS audit uses it; it confirms nothing.
+  - ISO 10383: `mic.py` reads the LEI column, for the operator-LEI case and a
+    venue's operating entity.
+  - GLEIF: an operator LEI names the issuer only when GLEIF registers the
+    entity in the ISIN's country.
   - Planned: GLEIF Level 2 relationships, for financing subsidiaries.
   - Planned: an SEC issuer claim joined by ISIN, for another company's LEI.
 
@@ -110,7 +119,9 @@ Relevant fields not read:
   changed input that trips alarms, a rare field that empties, a count that
   disappears, a dropped field that breaks the build, and a build whose
   snapshot is identical with and without the claims.
-- [ ] Switch the builder's decisions onto the claims (a later change).
+- [x] The builder decides from the claims: issuer (field 5 with the ISO 10383
+  operator check), primary (field 8 for an EEA primary) and receipt underlying
+  (field 26).
 
 The fingerprint is written on every build to `firds-<date>.json` beside the
 snapshot, and compared with the newest older good build's (`source_drift.py`).
@@ -138,44 +149,58 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
 ## 3. Data audit
 
-- **Random sample:** not drawn yet. The plan is about 600 live securities,
-  stratified by kind × venue type (regulated, floor, trading-only) × region,
-  labelled against exchange sites, issuer filings and GLEIF.
+- **Random sample:** 100 rows, seed 20260928, from the local build: 70
+  decided values (issuer 30 and primary 30, each stratified by the venue type
+  of the relevant or primary venue: regulated, MTF, other; receipt underlying
+  10) and 30 questions (issuer 8, home market 14 across its three causes,
+  receipt 8). Each is labelled against a primary source: the GLEIF record, the
+  exchange's page, the issuer's or fund issuer's page, the depositary's
+  programme page. [The sample](firds-signoff-sample.md) lists every row with
+  its evidence. Results are under sign-off.
 - **Truth set:** `tooling/reference-builder/truth/` is a regression suite,
   not a quality measure.
 - **Invariants:** `invariants.py` (PR #45). The ratchet limits there are
   temporary, pending the fixes named above.
-- **Odd-case counts and the comparison with today's decisions:** the FIRDS
-  section of `just reference-audit`, from `firds-<date>.json` and the
-  manifest. For each field FIRDS speaks to, the outcome follows from the FIRDS
-  claims alone: `decided`, `co_primary`, `unknown` plus a question,
-  `conflict` plus a question, or `outside_firds` (FIRDS cannot decide it; other
-  sources must). Today's value is then compared with it. On the local build
-  (live securities or lines, then all):
+- **Decisions and questions:** the FIRDS section of `just reference-audit`, from
+  `firds-<date>.json` and the manifest. On the local build (live securities):
 
-  | Field | FIRDS outcome / today | Live | All | Example |
-  | --- | --- | --: | --: | --- |
-  | Issuer | decided / agrees | 27,927 | 28,164 | ASML |
-  | Issuer | unknown + issuer question (an operator's LEI) / today holds a guess | 786 | 838 | Vastned under TP ICAP |
-  | Primary | outside FIRDS (no EEA request) | 17,620 | 17,866 | Alphabet, Chubb, Bunge, FEMSA |
-  | Primary | decided / agrees | 8,389 | 8,432 | ASML on XAMS (XGLO decides nothing) |
-  | Primary | co-primary / agrees | 2,389 | 2,389 | UniCredit: Euronext Milan and Frankfurt |
-  | Primary | decided / today outside the EEA | 148 | 148 | DSM-Firmenich (XAMS, today SIX); Cisco and Costco (JBUL, today Nasdaq) |
-  | Primary | decided / differs | 131 | 131 | Fresenius (XEMA, today Berlin) |
-  | Primary | unknown + home-market question / today holds a guess | 30 | 30 | NVIDIA, requested only on XGLO |
-  | Primary | co-primary / today outside the EEA, or differs | 6 | 6 | Shell (XAMS and XPRM, today LSE) |
-  | Currency | outside FIRDS / today is the notional currency | 119,447 | 120,048 | 39,750 German lines in USD |
-  | Receipt | decided / agrees | 2,790 | 2,795 | |
-  | Receipt | decided / today has no edge | 490 | 514 | HDFC Bank ADR |
-  | Receipt | decided / differs | 196 | 196 | Sany Heavy ADR |
-  | Receipt | unknown + receipt question | 161 | 161 | Arm ADR (field 26 states itself) |
-  | Receipt | conflict + receipt question (a share stating an underlying) | 10 | 38 | Argentine CEDEARs |
+  | Field | FIRDS decides | Asked instead (question type) |
+  | --- | --: | --- |
+  | Issuer | 28,101 securities carry field 5's LEI as issuer | 614 `issuer_identity`: an operator's LEI on a share outside its country |
+  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid; 137 carry a suggested answer (below) |
+  | Receipt underlying | 2,737 receipts link to the field 26 security of their own issuer | 902 `receipt_underlying` (58 because field 26 names another issuer's security), 10 `receipt_conflict` |
 
-  Open questions FIRDS leaves: issuer 786 live (838 in all), home market 30,
-  receipt 171 (199). A `decided / today outside the EEA` row is not yet a
-  finding: FIRDS sees only EEA requests, and the SEC, OpenFIGI or an exchange
-  list must say whether the issuer sought the non-EEA listing too. Lee
-  Enterprises under Berkshire Hathaway's LEI needs the SEC claim.
+  The SEC stage adds 168 name-only issuer questions (#73). All 11,965 are
+  curation questions in the package's `claims` file, answered centrally per
+  ADR 0044; none reaches the investor's Repairs queue. A security
+  without a primary the package can write is priced on its line at the most
+  liquid EU market (13,782 lines), labelled so and never primary. The
+  `share_primary_silent` invariant counts every live share that has no
+  written primary and not both a question and that label: 4,946, of which
+  4,928 are home lines decided from OpenFIGI that the package cannot write
+  without a trading currency (fixed by #46), and the rest questions whose most
+  liquid venue has no line.
+
+  **ISIN-country suggestion (shares only).** Where field 8 and the other
+  sources leave a share's primary unknown, its one line on an exchange in its
+  ISIN's country is attached to the home-market question as a suggested
+  answer (rule `isin_country`); the share stays unknown. It is Pythia's
+  heuristic, not source evidence, so it is a curation suggestion (R2, ADR
+  0044) that the central curator's back office can approve, in bulk once
+  calibrated. It skips OTC, MTF and trading-only lines and lines the
+  package cannot write (an OpenFIGI home line without a trading currency: RELX
+  on London and BCE on Toronto stay questions). Evidence, on
+  the build of PR #74: where the same test applies to ordinary shares whose
+  primary was already decided, it agrees 7,684 times and disagrees 28 times
+  (99.6%; the 28 are debatable dual listings such as Viohalco on Athens).
+  Funds are excluded: for Irish funds it disagrees with the decided primary
+  581 times against 323, for Luxembourg funds 41 against 91, because a Dublin
+  or Luxembourg line is often a technical listing. It suggests an answer for
+  137 shares, among them TotalEnergies (Euronext Paris beside NYSE) and
+  Magnum.
+
+  Securities without a request and with a line outside the EEA keep the SEC
+  or OpenFIGI line as before (7,581); those sources are onboarded next.
 
 ### Odd cases
 
@@ -190,10 +215,10 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | Delisted securities without a termination date | Only 28 records with a past date | JDE Peet's, Just Eat, VMware, US Steel still active | Field 12 is set only "where available" | Lifecycle from other dated evidence (first-trade dates, admission counts, GLEIF successors) | Open |
 | Relevant venue on a German floor for foreign shares | Common | Chubb on STUB | A liquidity measure, not the home market | `most_liquid_eu_market`, never the primary | Open |
 | Field 8 true on a whole segment | 55 of 55 records on XGLO, WSE's Global Connect MTF segment (27 US and 12 DE ISINs), and 53 of 53 on Vorvel (`HMTF`); 71 segments with at least 20 records answer true on every one (audit) | Apple and ASML on XGLO; Telecom Italia on HMTF | A venue reporting habit on XGLO and HMTF, not issuer requests. Q&A 1687 does not explain it. Other always-true segments are plausible (Euronext Amsterdam and Paris, growth markets), and no ISO 10383 attribute or field 9/10 date separates them | `firds.FIELD8_VENUE_HABIT` names XGLO and HMTF: field 8 there decides nothing, and a primary resting only on them is unknown plus a question (30). The always-true list is counted (`issuer_requested_on_every_record`) so a new candidate shows | Accepted open item |
-| Field 8 true for US large caps on the Bulgarian exchange | 122 true of 377 `JBUL` records (audit) | Cisco, Costco, UnitedHealth, Morgan Stanley | Unexplained; the segment also answers false, so it is not a whole-segment habit | Shows in the comparison as `decided / today outside the EEA` (148 rows in all, these among them). Not added to the venue-habit list without an explanation | Open |
+| Field 8 true for US large caps on the Bulgarian exchange | 122 true of 377 `JBUL` records (audit) | Cisco, Costco, UnitedHealth, Morgan Stanley | Unexplained; the segment also answers false, so it is not a whole-segment habit | Where the SEC shows the US line (Cisco on Nasdaq), the primary is asked (`requested_in_eea_listed_outside`). Not added to the venue-habit list without an explanation | Open |
 | Several issuer-requested countries | 2,413 ISINs (audit) | Erste Group: Vienna, Bucharest, Prague | Dual listings, and the segment convention above | Co-primary, or a question where only always-true segments add a country | Open |
 | The venue's own spelling in field 2 | 19,483 ISINs carry several full names (audit) | SLB: 7 names | Each venue reports its own | Every name is a claim; none is the name | Counted |
-| A share that states an underlying | 302 `ESXXXX` ISINs (audit) | Argentine CEDEARs of US shares | Receipts classified as shares | Counted; the comparison lists the 38 in the build | Open |
+| A share that states an underlying | 302 `ESXXXX` ISINs (audit) | Argentine CEDEARs of US shares | Receipts classified as shares | Counted; asked as `receipt_conflict` (10 live) | Open |
 | A receipt that states itself | 121 receipts (audit) | James Hardie CUFS | Field 26 repeats the receipt's ISIN | No underlying; counted | Counted |
 | Share classes share a sub-fund LEI | 3,542 ETF ISINs in 1,176 sub-funds | VWRL and VWCE | Q&A 1502 | `share_class_of` by the same sub-fund LEI, in code | Open |
 | Underlying superseded or outside the build | 116 receipts (local build) whose underlying is in the build but inactive | — | FIRDS keeps the old ISIN | Keep the edge by global identifier and follow `successor_of` | Open |
@@ -203,9 +228,14 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |
 | --- | --- | --- | --- | --- |
-| The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity` in the comparison: 838 securities) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
+| The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity`: 614 open) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
+| The home market when field 8 does not decide it (`home_market`: 10,271 open) | Which listing is the issuer's home is a knowledge question; the evidence may be outside FIRDS | Not written | Not done | Suggest-only |
+| The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 859 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
 
-Classes assigned to code or to Repairs instead:
+The questions ship in the package's `claims` file as curation questions,
+answered centrally per ADR 0044, not by the investor or the investor's agent.
+
+Classes assigned to code or to curation instead:
 
 - **Code:**
   - ISIN successions, from first-trade dates, admission counts and GLEIF
@@ -213,7 +243,7 @@ Classes assigned to code or to Repairs instead:
   - fund share classes, from the sub-fund LEI;
   - a receipt's underlying, from field 26 and `successor_of`;
   - the trading currency, from venue-specific evidence.
-- **Unknown, with a Repairs question:** the primary venue when no
+- **Unknown, with a curation question (answered centrally per ADR 0044):** the primary venue when no
   issuer-sought listing exists, or when an EEA request conflicts with a
   primary outside the EEA (`home_market`); the trading currency until a
   venue-specific source exists (`trading_currency`); a receipt with no usable
@@ -221,4 +251,43 @@ Classes assigned to code or to Repairs instead:
 
 ## Sign-off
 
-Not started.
+**Signed off in PR #74** for the issuer and for the primary of shares that
+FIRDS claims decide (field 8); no rule-made primary is covered. After the
+maintainer's review of this record and [the
+sample](firds-signoff-sample.md). Measured on the offline build of 2026-09-28
+(FIRDS week of 2026-09-26):
+
+| Field | Decided values labelled | Correct | Wilson 95% lower bound | Wrong or unclear |
+| --- | --: | --: | --- | --- |
+| Issuer (field 5) | 30 | 28 | 78.7% | field 5 names another company: Ubiquiti under Ubiquity Global Services; China Risun under its Hong Kong subsidiary |
+| Primary (field 8), shares | 22 | 21 | 78.2% | Orpea's old ISIN, requested only on a Crédit Agricole internaliser |
+| Primary (field 8), ETFs | 8 | 5 | – | an HSBC UCITS ETF whose home is London, which FIRDS cannot see; two ETFs whose issuer names no primary listing |
+| Receipt underlying (field 26) | 30 (10, then 20 after the issuer-agreement fix) | 30 on the company | 88.6% | on the class: AngloGold's BDR points at its terminated NYSE ADS; Sabesp's CEDEAR at the NYSE ADR, BYMA names the B3 share |
+
+Questions: 25 of 30 were right to ask (83%). Only 9 of the 30 carry the true
+answer among their candidates: most answers lie outside the build (TSX
+Venture, Cboe NL, Tel Aviv, an LEI GLEIF does not hold). The ISIN-country line
+suggests an answer for General Dynamics and PepsiCo (their US line) and
+TotalEnergies (Euronext Paris); they stay questions until a curator approves.
+BCE and RELX get no suggestion: their home lines have no trading currency the
+package can write (#46).
+
+Decisions and limits:
+
+- **Issuer:** signed off. The known error class, field 5 naming another company
+  that is no venue operator (Legence under Avio, Ubiquiti), is fixed by the
+  SEC registrant's issuer claim. Owner: the SEC onboarding.
+- **Primary, shares:** signed off for primaries field 8 decides (21/22 in the
+  sample, all field 8 decisions). The ISIN-country line is only a suggested
+  answer on the question and is not signed off.
+- **Primary, ETFs:** accepted limit until a source that sees non-EEA listings
+  (OpenFIGI home rows for ETFs, an exchange list) is onboarded. Owner: the
+  OpenFIGI onboarding.
+- **Receipt underlying:** proposed for sign-off after the issuer-agreement fix
+  and its re-sample (30/30 on the company). The class of a receipt whose
+  programme changed is an accepted limit, owned by lifecycle (`successor_of`).
+- **Open with an owner:** the `JBUL` field 8 pattern; the Crédit Agricole
+  internaliser answering field 8 true; answers outside a question's
+  candidates (the curator's back office, future work).
+- **Judgement:** every question type stays suggest-only until it has a
+  question set and gold set; answers come from the central curator (ADR 0044).

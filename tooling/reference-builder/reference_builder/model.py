@@ -153,6 +153,7 @@ class Listing:
     security_type: str | None = None
     name: str | None = None
     is_primary: bool = False
+    most_liquid: bool = False  # FIRDS' most liquid EU market, the line priced when no primary is known
     status: str = "active"  # active | suspect | inactive
     status_reasons: list[str] = field(default_factory=list)
     valid_from: str | None = None
@@ -176,6 +177,18 @@ class Flag:
     detail: str | None = None
 
 
+@dataclass(frozen=True)
+class Question:
+    """What the evidence leaves open, in working IDs; the package carries it to core's resolution queue."""
+
+    question: str  # a `schema.QUESTION_SHAPE` key
+    subject_id: str
+    candidates: tuple[str, ...] = ()
+    evidence: tuple[str, ...] = ()  # source record digests
+    values: tuple[str, ...] = ()  # the contested values (an operator's LEI)
+    suggested: tuple[str, str] | None = None  # (candidate, rule): a rule's proposed answer, never a decision
+
+
 @dataclass
 class Snapshot:
     as_of: str
@@ -185,7 +198,12 @@ class Snapshot:
     listings: dict[str, Listing] = field(default_factory=dict)
     relationships: list[Relationship] = field(default_factory=list)
     flags: list[Flag] = field(default_factory=list)
+    questions: list[Question] = field(default_factory=list)
     audit: dict = field(default_factory=dict)
 
     def flag(self, subject_id: str, flag: str, detail: str | None = None) -> None:
         self.flags.append(Flag(subject_id, flag, detail))
+
+    def ask(self, question: str, subject_id: str, candidates=(), evidence=(), values=(), suggested=None) -> None:
+        self.questions.append(Question(question, subject_id, tuple(dict.fromkeys(candidates)), tuple(evidence),
+                                       tuple(values), suggested))

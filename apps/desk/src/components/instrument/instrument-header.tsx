@@ -7,7 +7,7 @@ import { Check, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { instrumentHref } from "./instrument-href";
-import { listingGroups, listingLabel } from "./listing-groups";
+import { listingGroups, listingLabel, listingVenue } from "./listing-groups";
 
 const IDENTIFIERS = [
   ["isin", "ISIN"],
@@ -168,7 +168,7 @@ function ListingSelector({
                           receipt's lines apart, stays. The group names the
                           kind. */}
                       <span className="min-w-0 flex-1 truncate text-foreground-secondary">
-                        {listing.venue ?? listing.mic}
+                        {listingVenue(listing)}
                       </span>
                       <span className="flex-none text-foreground-secondary">
                         {listing.currency}

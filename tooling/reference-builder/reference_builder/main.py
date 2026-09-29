@@ -56,7 +56,7 @@ def run(config: BuildConfig) -> int:
     fingerprint = source_drift.Fingerprint(firds.SOURCE)
     admissions, record_counts = firds.load_admissions(full, deltas, config.scope.cfi_prefixes, fingerprint)
     stamp = config.as_of.strftime("%Y%m%d")
-    firds_claims = firds_audit.load(firds.claims(admissions))  # shadow mode: decisions stay as they are
+    firds_claims = claims.load(firds.claims(admissions))  # the claims the build decides from
     firds.measure(fingerprint, firds_claims.isins)
     log(f"claims: {firds_claims.count} FIRDS claims")
     transparency = None
@@ -85,7 +85,8 @@ def run(config: BuildConfig) -> int:
     log(f"OpenFIGI: {'keyed' if figi.keyed else 'keyless (slower rate limits)'}")
     gleif = GleifClient(config.cache_dir, USER_AGENT, timedelta(days=config.gleif_max_age_days))
 
-    inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes(), funds)
+    inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes(), funds,
+                    firds_claims)
     snap = build_snapshot(inputs, gleif.fetch, figi.map)
     dropped = [f"{f.subject_id} ({f.flag.removeprefix('firds_underlying_')})" for f in snap.flags
                if f.flag in ("firds_underlying_inactive", "firds_underlying_outside_build")]
@@ -124,6 +125,8 @@ def run(config: BuildConfig) -> int:
             "cfi_prefixes": ",".join(config.scope.cfi_prefixes)}
     snapshot_path = config.out_dir / f"{build_id}.sqlite3"
     counts = writer.write(snap, snapshot_path, meta, sources)
+    questions_path = config.out_dir / f"questions-{stamp}.json"  # the package's `claims`: what the build left open
+    claims.write(questions_path, {"build_id": build_id, "questions": schema.questions(snap)})
     truth_audit = truth_report.build_report(snapshot_path, config.scope.cfi_prefixes, log, snap.audit)  # a report, never a gate
     manifest.write_manifest(config.out_dir / "manifest.json", {
         "build_id": build_id,
@@ -142,6 +145,7 @@ def run(config: BuildConfig) -> int:
         "audit": snap.audit,
         "canaries": canaries,
         "truth_audit": truth_audit,
+        "claims": writer.describe(questions_path) | {"questions": len(snap.questions)},
         "firds": {"record": record_path.name, "baseline": baseline[0].name if baseline else None} | firds_report,
         "sec_drift": {source: report for source, (_found, report) in sec_drift.items()},
     })

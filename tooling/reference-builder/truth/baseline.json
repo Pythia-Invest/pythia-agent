@@ -378,7 +378,6 @@
     "apple:symbols:eodhd:AAPL.US",
     "apple:symbols:yahoo:AAPL",
     "arcelormittal-nyrs:coverage:found",
-    "arcelormittal-nyrs:fold:row",
     "arcelormittal-nyrs:issuer:same_as_siblings",
     "arcelormittal-nyrs:listing:MT@XNYS:currency",
     "arcelormittal-nyrs:listing:MT@XNYS:figi",
@@ -781,6 +780,13 @@
     "btc-mini:subject_key:security",
     "btc-mini:symbols:eodhd:BTC.US",
     "btc-mini:symbols:yahoo:BTC",
+    "cardano:coverage:found",
+    "cardano:fold:row",
+    "cardano:listing:cip34:1-764824073",
+    "cardano:security:kind",
+    "cardano:subject_key:security",
+    "cardano:symbols:coingecko:cardano",
+    "cardano:symbols:coinmarketcap:2010",
     "carlsberg-b:coverage:found",
     "carlsberg-b:fold:row",
     "carlsberg-b:issuer:lei",
@@ -1252,7 +1258,6 @@
     "ferrari:listing:RACE@XNYS:figi",
     "ferrari:listing:RACE@XNYS:present",
     "ferrari:listing:RACE@XNYS:ticker",
-    "ferrari:primary:home",
     "ferrari:security:isin",
     "ferrari:security:kind",
     "ferrari:subject_key:RACE@XMIL",
@@ -1409,7 +1414,6 @@
     "ge-vernova:symbols:eodhd:GEV.US",
     "ge-vernova:symbols:yahoo:GEV",
     "gsk-adr:coverage:found",
-    "gsk-adr:fold:row",
     "gsk-adr:issuer:cik",
     "gsk-adr:listing:GSK@XNYS:currency",
     "gsk-adr:listing:GSK@XNYS:figi",
@@ -2028,7 +2032,6 @@
     "magnum:listing:MICC@XAMS:figi",
     "magnum:listing:MICC@XAMS:present",
     "magnum:listing:MICC@XAMS:ticker",
-    "magnum:primary:home",
     "magnum:security:isin",
     "magnum:security:kind",
     "magnum:subject_key:MICC@XAMS",
@@ -2490,7 +2493,6 @@
     "qiagen:listing:QIA@XETR:figi",
     "qiagen:listing:QIA@XETR:present",
     "qiagen:listing:QIA@XETR:ticker",
-    "qiagen:primary:home",
     "qiagen:security:isin",
     "qiagen:security:kind",
     "qiagen:subject_key:QGEN@XNYS",
@@ -2644,7 +2646,6 @@
     "ryanair:symbols:eodhd:RYA.IR",
     "ryanair:symbols:yahoo:RYA.IR",
     "sanofi-adr:coverage:found",
-    "sanofi-adr:fold:row",
     "sanofi-adr:issuer:cik",
     "sanofi-adr:issuer:same_as_siblings",
     "sanofi-adr:listing:SNY@XNAS:currency",
@@ -3020,7 +3021,6 @@
     "stellantis:listing:STLAP@XPAR:figi",
     "stellantis:listing:STLAP@XPAR:present",
     "stellantis:listing:STLAP@XPAR:ticker",
-    "stellantis:primary:home",
     "stellantis:security:isin",
     "stellantis:security:kind",
     "stellantis:subject_key:STLA@XNYS",
@@ -3072,6 +3072,33 @@
     "te-connectivity:subject_key:security",
     "te-connectivity:symbols:eodhd:TEL.US",
     "te-connectivity:symbols:yahoo:TEL",
+    "tenaris-adr:coverage:found",
+    "tenaris-adr:issuer:cik",
+    "tenaris-adr:issuer:same_as_siblings",
+    "tenaris-adr:listing:TS@XNYS:currency",
+    "tenaris-adr:listing:TS@XNYS:present",
+    "tenaris-adr:listing:TS@XNYS:ticker",
+    "tenaris-adr:primary:home",
+    "tenaris-adr:security:kind",
+    "tenaris-adr:subject_key:issuer",
+    "tenaris-adr:subject_key:security",
+    "tenaris-adr:symbols:eodhd:TS.US",
+    "tenaris-adr:symbols:yahoo:TS",
+    "tenaris:coverage:found",
+    "tenaris:fold:row",
+    "tenaris:issuer:cik",
+    "tenaris:issuer:lei",
+    "tenaris:issuer:same_as_siblings",
+    "tenaris:lifecycle:former_isin:LU0156801721",
+    "tenaris:listing:TEN@XMIL:present",
+    "tenaris:listing:TEN@XMIL:ticker",
+    "tenaris:primary:home",
+    "tenaris:security:isin",
+    "tenaris:security:kind",
+    "tenaris:subject_key:issuer",
+    "tenaris:subject_key:security",
+    "tenaris:symbols:eodhd:TEN.MI",
+    "tenaris:symbols:yahoo:TEN.MI",
     "tencent-adr:coverage:found",
     "tencent-adr:fold:row",
     "tencent-adr:relation:tencent",
@@ -3114,7 +3141,6 @@
     "totalenergies:listing:TTE@XPAR:figi",
     "totalenergies:listing:TTE@XPAR:present",
     "totalenergies:listing:TTE@XPAR:ticker",
-    "totalenergies:primary:home",
     "totalenergies:security:isin",
     "totalenergies:security:kind",
     "totalenergies:subject_key:TTE@XPAR",
@@ -3148,7 +3174,6 @@
     "tsll:symbols:eodhd:TSLL.US",
     "tsll:symbols:yahoo:TSLL",
     "tsmc-adr:coverage:found",
-    "tsmc-adr:fold:row",
     "tsmc-adr:issuer:cik",
     "tsmc-adr:listing:TSM@XNYS:currency",
     "tsmc-adr:listing:TSM@XNYS:figi",
@@ -3276,7 +3301,6 @@
     "unicredit:symbols:eodhd:UCG.MI",
     "unicredit:symbols:yahoo:UCG.MI",
     "unilever-adr:coverage:found",
-    "unilever-adr:fold:row",
     "unilever-adr:issuer:cik",
     "unilever-adr:issuer:same_as_siblings",
     "unilever-adr:listing:UL@XNYS:currency",
@@ -3344,6 +3368,14 @@
     "urw:subject_key:security",
     "urw:symbols:eodhd:URW.PA",
     "urw:symbols:yahoo:URW.PA",
+    "usdc:coverage:found",
+    "usdc:fold:row",
+    "usdc:listing:eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "usdc:listing:eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    "usdc:security:kind",
+    "usdc:subject_key:security",
+    "usdc:symbols:coingecko:usd-coin",
+    "usdc:symbols:coinmarketcap:3408",
     "vastned:coverage:found",
     "vastned:fold:row",
     "vastned:issuer:lei",
@@ -3508,6 +3540,14 @@
     "wbd:subject_key:security",
     "wbd:symbols:eodhd:WBD.US",
     "wbd:symbols:yahoo:WBD",
+    "wbtc:coverage:found",
+    "wbtc:fold:row",
+    "wbtc:listing:eip155:1",
+    "wbtc:relation:bitcoin",
+    "wbtc:security:kind",
+    "wbtc:subject_key:security",
+    "wbtc:symbols:coingecko:wrapped-bitcoin",
+    "wbtc:symbols:coinmarketcap:3717",
     "wfc-pl:coverage:found",
     "wfc-pl:fold:row",
     "wfc-pl:issuer:cik",
@@ -3945,6 +3985,13 @@
       "issuer": "issuer:cik:0002015034",
       "listings": {
         "BTC@XNYS": "listing:figi:BBG01NX63610"
+      }
+    },
+    "cardano": {
+      "security": "security:caip19:cip34:1-764824073/slip44:1815",
+      "issuer": null,
+      "listings": {
+        "cip34:1-764824073": "listing:caip19:cip34:1-764824073/slip44:1815"
       }
     },
     "carlsberg-b": {
@@ -4992,6 +5039,20 @@
         "TEL@XNYS": "listing:isin:IE000IVNQZ81:XNYS:USD"
       }
     },
+    "tenaris": {
+      "security": "security:isin:LU2598331598",
+      "issuer": "issuer:lei:549300Y7C05BKC4HZB40",
+      "listings": {
+        "TEN@XMIL": "listing:isin:LU2598331598:XMIL:USD"
+      }
+    },
+    "tenaris-adr": {
+      "security": "security:figi:BBG001SLFCT6",
+      "issuer": "issuer:lei:549300Y7C05BKC4HZB40",
+      "listings": {
+        "TS@XNYS": "listing:figi:BBG000PLD732"
+      }
+    },
     "tencent-adr": {
       "security": "security:figi:BBG001T3RVC8",
       "issuer": "issuer:lei:254900N4SLUMW4XUYY11",
@@ -5118,6 +5179,14 @@
         "URW@XPAR": "listing:isin:FR0013326246:XPAR:EUR"
       }
     },
+    "usdc": {
+      "security": "security:caip19:eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "issuer": null,
+      "listings": {
+        "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "listing:caip19:eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913": "listing:caip19:eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+      }
+    },
     "vastned": {
       "security": "security:isin:BE0003754687",
       "issuer": "issuer:lei:54930068RSC6OT68NE51",
@@ -5200,6 +5269,13 @@
         "WBD@XNAS": "listing:figi:BBG016HRQKM0"
       }
     },
+    "wbtc": {
+      "security": "security:caip19:eip155:1/erc20:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "issuer": null,
+      "listings": {
+        "eip155:1": "listing:caip19:eip155:1/erc20:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+      }
+    },
     "wfc-pl": {
       "security": "security:provisional:sec:id:WFC-PL",
       "issuer": "issuer:lei:PBLD0EJDB5FWOLXP3B76",
@@ -5248,5 +5324,24 @@
     "asr-adr:subject_id: security changed security:figi:BBG00J0BB527 -> security:provisional:esma_firds:isin:US00217N1081",
     "btc-mini:subject_id: issuer changed issuer:lei:529900WHTNX5LZCNWB27 -> issuer:cik:0002015034",
     "ibit:subject_id: issuer changed issuer:lei:529900HVFN08L8P4H851 -> issuer:cik:0001980994"
-  ]
+  ],
+  "expected_failures": {
+    "arcelormittal-nyrs:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "arcelormittal-nyrs:relation:arcelormittal": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "ferrari:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "gsk-adr:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "gsk-adr:relation:gsk": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "magnum:primary:home": "the ISIN-country line is a curation suggestion, not a decision (R2, ADR 0044): approved centrally, or decided by the SEC registrant exchange (SEC onboarding)",
+    "qiagen:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "sanofi-adr:fold:row": "field 26 names a wrong ISIN: receipt question",
+    "sanofi-adr:relation:sanofi": "field 26 names a wrong ISIN: receipt question",
+    "stellantis:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "tenaris-adr:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "tenaris-adr:relation:tenaris": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "totalenergies:primary:home": "the ISIN-country line is a curation suggestion, not a decision (R2, ADR 0044): approved centrally, or decided by the SEC registrant exchange (SEC onboarding)",
+    "tsmc-adr:fold:row": "field 26 names an ISIN outside the build: receipt question",
+    "tsmc-adr:relation:tsmc": "field 26 names an ISIN outside the build: receipt question",
+    "unilever-adr:fold:row": "field 26 names the receipt itself: receipt question",
+    "unilever-adr:relation:unilever": "field 26 names the receipt itself: receipt question"
+  }
 }

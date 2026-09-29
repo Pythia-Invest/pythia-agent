@@ -26,7 +26,7 @@ from .identity import (
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, reference_package, search, store
+from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, queue, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -91,9 +91,8 @@ class Identity:
             return self._store
 
     def reference_path(self, *, again: bool = False) -> Path | None:
-        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A), so every
-        read and write after it sees current IDs; a failure is retried on the next use. `again` carries rows
-        written meanwhile under an older build's IDs."""
+        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A) and
+        retires the previous build's open questions; a failure is retried on the next use. `again` carries rows written meanwhile under an older build's IDs."""
         path = store.reference_path(self.data_dir)
         if path is not None and (again or path != self._rekeyed):
             try:
@@ -103,8 +102,8 @@ class Identity:
                 finally:
                     ref.close()
                 if done:
-                    logger.info("identity store carried to reference %(release)s: %(moved)d subject IDs re-keyed,"
-                                " %(rows)d rows re-pointed, %(vanished)d subjects vanished", done)
+                    logger.info("identity store carried to reference %(release)s: %(moved)d subject IDs re-keyed, %(rows)d rows re-pointed, %(vanished)d subjects vanished", done)  # noqa: E501
+                    queue.retire_build(self.store, store.now())
                 self._rekeyed = path
             except (sqlite3.Error, OSError, ValueError):
                 logger.warning("identity store could not be carried to %s", path.name, exc_info=True)

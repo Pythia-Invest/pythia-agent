@@ -5,8 +5,11 @@ from __future__ import annotations
 import bisect
 from collections import Counter
 
+from . import reconcile
 from .assemble import FigiMap, GleifFetch, Inputs, build_eu
-from .linking import build_sec, link_receipts
+from .claims import Venues
+from .linking import build_sec
+from .receipts import link_receipts
 from .model import Snapshot, Venue
 
 
@@ -15,7 +18,9 @@ def build_snapshot(inputs: Inputs, gleif_fetch: GleifFetch, figi_map: FigiMap) -
     entities = build_eu(snap, inputs, gleif_fetch, figi_map)
     if inputs.scope.sec:
         build_sec(snap, inputs, entities, figi_map)
-    link_receipts(snap)
+    claims = inputs.claims()
+    reconcile.questions(snap, claims, Venues(inputs.venues), inputs.as_of.isoformat())
+    link_receipts(snap, frozenset(claims.isins))
     snap.venues = used_venues(snap, inputs.venues)
     rank(snap, inputs)
     snap.audit = summarise(snap)
@@ -80,6 +85,7 @@ def summarise(snap: Snapshot) -> dict:
         "with_turnover": sum(1 for s in snap.securities.values() if s.turnover_eur is not None),
     }
     audit["flags"] = dict(sorted(Counter(f.flag for f in snap.flags).items()))
+    audit["questions"] = dict(sorted(Counter(q.question for q in snap.questions).items()))
     return audit
 
 

@@ -2,7 +2,7 @@
 decisions, and the build: a FIRDS break stops it, and the claims never change the snapshot."""
 
 import dataclasses
-import sqlite3
+import json
 import tempfile
 import unittest
 import zipfile
@@ -11,13 +11,9 @@ from datetime import date
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import claims, firds, firds_audit, main, mic, source_drift
-from reference_builder.assemble import Inputs
+from reference_builder import assemble, claims, firds, main, mic, source_drift
 from reference_builder.config import BuildConfig, Scope
-from reference_builder.model import Issuer, Listing, Relationship, Security, Snapshot
-from reference_builder.pipeline import build_snapshot
 from reference_builder.schema import identity
-from reference_builder.writer import write
 
 from .fixtures import ASML_ISIN, ASML_LEI, MIC_CSV, FakeOpenFigi, firds_record, fulins, stream
 from .test_pipeline import OPENFIGI, SHELL_ISIN, SHELL_LEI, gleif_fetch
@@ -33,7 +29,7 @@ def admissions(xml: bytes, fingerprint=None) -> dict:
 
 def fingerprint_of(xml: bytes) -> dict:
     found = source_drift.Fingerprint(firds.SOURCE)
-    loaded = firds_audit.load(firds.claims(admissions(xml, found)))
+    loaded = claims.load(firds.claims(admissions(xml, found)))
     firds.measure(found, loaded.isins)
     return found.to_dict()
 
@@ -109,50 +105,20 @@ class DriftTest(unittest.TestCase):
         self.assertEqual(found[0].name, "firds-20260926.json")
 
 
-class ShadowComparisonTest(unittest.TestCase):
-    def comparison(self, today: dict[str, str], issuer_lei: str = OPERATOR_LEI) -> dict:
-        xml = fulins([
-            # The issuer requested Amsterdam; Frankfurt's open market admitted it itself and is the most liquid market.
-            # Warsaw GlobalConnect answers field 8 true for every share it carries: a venue habit, no evidence.
-            firds_record(ASML_ISIN, "XAMS", issuer_lei, relevant="FRAB"),
-            firds_record(ASML_ISIN, "XGLO", issuer_lei, relevant="FRAB"),
-            firds_record(ASML_ISIN, "FRAB", issuer_lei, requested="false", relevant="FRAB"),
-            firds_record("US0000000003", "XGLO", ASML_LEI, relevant="XGLO"),  # requested only through the habit
-            firds_record("US0000000001", "XFRA", ASML_LEI, cfi="EDSXFR", underlying=ASML_ISIN, requested="false", currency="USD"),
-            firds_record("AR0000000001", "XFRA", ASML_LEI, cfi="ESXXXX", underlying=ASML_ISIN, requested="false"),  # a CEDEAR
-        ])
+class IssuerTest(unittest.TestCase):
+    def test_field_5_decides_the_issuer_unless_it_names_a_venue_operator_abroad(self):
+        found = claims.load(firds.claims(admissions(fulins([
+            firds_record(ASML_ISIN, "XAMS", ASML_LEI),
+            firds_record("US0000000003", "FRAB", OPERATOR_LEI),  # the operator's LEI on a foreign share
+            firds_record("DE0000000004", "FRAB", OPERATOR_LEI),  # the operator's own share
+            firds_record("US0000000001", "XFRA", OPERATOR_LEI, cfi="EDSXFR", underlying="DE0000000004"),  # its receipt
+        ]))))
         venues = mic.parse(MIC_CSV.encode())
         venues["FRAB"] = dataclasses.replace(venues["FRAB"], lei=OPERATOR_LEI)
-        venues["XGLO"] = dataclasses.replace(venues["XAMS"], mic="XGLO", operating_mic="XWAR", country="PL")
-        snap = Snapshot(as_of="2026-09-26")
-        snap.issuers = {f"lei:{lei}": Issuer(f"lei:{lei}", "X", "gleif", lei=lei) for lei in (OPERATOR_LEI, ASML_LEI)}
-        for isin, kind in ((ASML_ISIN, "share"), ("US0000000003", "share"), ("US0000000001", "dr"), ("AR0000000001", "share")):
-            snap.securities[f"isin:{isin}"] = Security(f"isin:{isin}", kind, "esma_firds", issuer_id=f"lei:{issuer_lei}",
-                                                       isin=isin, primary_mic=today.get(isin))
-        snap.listings["XFRA:US0000000001"] = Listing("XFRA:US0000000001", "esma_firds", "dr", security_id="isin:US0000000001",
-                                                     mic="XFRA", country="DE", currency="USD")
-        snap.relationships.append(Relationship("isin:X", "depositary_receipt_of", f"isin:{ASML_ISIN}", "esma_firds", "r"))
-        return firds_audit.compare(firds_audit.load(firds.claims(admissions(xml))), snap, firds_audit.Venues(venues), "2026-09-26")
-
-    def categories(self, summary: dict, name: str) -> set[str]:
-        return set(summary[name])
-
-    def test_outcomes_follow_the_claims_whatever_today_holds(self):
-        on_xams = self.comparison({ASML_ISIN: "XAMS", "US0000000003": "XNAS"})
-        on_floor = self.comparison({ASML_ISIN: "XFRA", "US0000000003": "XFRA"})
-        self.assertIn("decided / agrees", self.categories(on_xams, "primary"), "XGLO's habit makes no co-primary")
-        self.assertIn("decided / differs", self.categories(on_floor, "primary"))
-        for summary in (on_xams, on_floor):
-            self.assertIn("unknown + home_market / today_guess", self.categories(summary, "primary"), "only the habit")
-            self.assertEqual(self.categories(summary, "issuer") & {"unknown + issuer_identity / today_guess"},
-                             {"unknown + issuer_identity / today_guess"}, "an operator's LEI is no issuer")
-            self.assertEqual(self.categories(summary, "currency"), {"outside_firds / today_is_the_notional"})
-            self.assertIn("conflict + receipt_underlying / today_none", self.categories(summary, "receipt_underlying"),
-                          "a share stating an underlying")
-            self.assertIn("decided / today_none", self.categories(summary, "receipt_underlying"))
-            self.assertEqual(summary["questions"]["home_market"]["count"], 1)
-        own = self.comparison({ASML_ISIN: "XAMS"}, issuer_lei=ASML_LEI)
-        self.assertIn("decided / agrees", self.categories(own, "issuer"))
+        entities = {OPERATOR_LEI: mock.Mock(country="DE")}
+        decided = {isin: assemble.issuer_lei(found, claims.Venues(venues), entities, isin) for isin in found.isins}
+        self.assertEqual(decided, {ASML_ISIN: ASML_LEI, "US0000000003": None, "DE0000000004": OPERATOR_LEI,
+                                   "US0000000001": OPERATOR_LEI})
 
 
 class BuildTest(unittest.TestCase):
@@ -198,7 +164,7 @@ class BuildTest(unittest.TestCase):
 
     RECORDS = [firds_record(ASML_ISIN, "XAMS", ASML_LEI, name="ASML HOLDING"), firds_record(SHELL_ISIN, "XAMS", SHELL_LEI)]
 
-    def test_the_claims_leave_the_snapshot_unchanged_and_a_firds_break_stops_the_build(self):
+    def test_the_package_carries_the_questions_and_a_firds_break_stops_the_build(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             self.assertEqual(self.run_build(tmp, "2026-09-26", self.RECORDS), 0)
@@ -206,14 +172,13 @@ class BuildTest(unittest.TestCase):
             record = claims.read(out / "firds-20260926.json")
             self.assertTrue(record["good"])
             self.assertLess((out / "firds-20260926.json").stat().st_size, 100_000)
-            self.assertEqual(sorted(p.name for p in out.iterdir()),
-                             ["firds-20260926.json", "manifest.json", "package.json", "reference-20260926.sqlite3"])
-            # The same inputs assembled and written without any claims step.
-            found = {}
-            firds.apply(found, firds.full_records(stream(fulins(self.RECORDS)), Scope().cfi_prefixes), Counter())
-            inputs = Inputs(date(2026, 9, 26), Scope(mics=("XAMS",), sec=False), mic.parse(MIC_CSV.encode()), found, None, [], {"XAMS"})
-            write(build_snapshot(inputs, gleif_fetch, FakeOpenFigi(OPENFIGI)), tmp / "plain.sqlite3", {"created_at": "2026-09-26T00:00:00Z", "build_id": "reference-20260926"}, [])
-            self.assertEqual(tables(out / "reference-20260926.sqlite3"), tables(tmp / "plain.sqlite3"))
+            self.assertEqual(sorted(p.name for p in out.iterdir()), ["firds-20260926.json", "manifest.json", "package.json",
+                                                                      "questions-20260926.json", "reference-20260926.sqlite3"])
+            package = json.loads((out / "package.json").read_text())
+            questions = claims.read(out / package["claims"]["file"])["questions"]
+            self.assertEqual([(q["question"], q["kind"], q["reason"], q["subject_ids"]) for q in questions],
+                             [("home_market", "residual", "ambiguous", [f"security:isin:{SHELL_ISIN}"])],
+                             "Shell sought Amsterdam and OpenFIGI shows London, a line the package cannot write")
 
             gone = [r.replace("<IssrReq>true</IssrReq>", "") for r in self.RECORDS]  # ESMA stops sending field 8
             self.assertEqual(self.run_build(tmp, "2026-10-03", gone), 2)
@@ -224,15 +189,6 @@ class BuildTest(unittest.TestCase):
             self.assertFalse((out / "package.json").exists(), "a broken build is no package")
             self.assertEqual(claims.previous_good(out / "firds-20261010.json")[0].name, "firds-20260926.json")
 
-
-def tables(path: Path) -> dict:
-    """Every table's rows, without the build time a write stamps on them."""
-    with sqlite3.connect(path) as db:
-        found = {}
-        for (table,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'release'"):
-            columns = [row[1] for row in db.execute(f"PRAGMA table_info({table})") if row[1] not in ("retrieved_at", "evidence_id")]
-            found[table] = sorted(db.execute(f"SELECT {','.join(columns)} FROM {table}"), key=repr)
-    return found
 
 
 if __name__ == "__main__":
