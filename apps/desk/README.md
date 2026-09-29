@@ -328,6 +328,19 @@ different or unavailable. A differing native cwd is preserved, not reset;
 browser file access remains rooted at the configured Desk workspace. Canonical
 absolute file references continue to identify those files for native tools.
 
+### Phone layout
+
+Below 900px the shell keeps every desktop component and adapts how it is
+shown ([ADR 0008](../../docs/decisions/0008-desk-client-conventions.md#phone-layout-2026-09)):
+the navigation rail opens alone as a drawer from the top bar's menu button;
+top-bar search expands from an icon across the bar; the chat header stays,
+with Show chats and New chat; the chat list stays collapsible and opens over
+the conversation (a top-bar search opens it with the matches); and the chat
+dock beside a destination opens as a full-screen sheet from a floating button.
+There are no tabs on a phone: the dock header names the current chat beside
+New chat and the chat history button, which opens a bottom sheet for switching,
+and the file viewer is a full-screen sheet that names its file beside Close.
+
 ### Persisted layout
 
 Use `createLocalLayout` from `src/layout/local-layout.ts` for browser-local panel

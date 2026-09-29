@@ -89,3 +89,32 @@ required for this behavior. Artificial delays or persisted browser copies of
 folder contents were rejected: they either mask the wait or introduce stale
 research metadata. Browser qualification delays application scripts and blocks
 APIs to prove the listing exists in initial HTML on desktop and mobile.
+
+## Phone layout (2026-09)
+
+Below 900px each desktop component keeps its identity, controls and place in
+the hierarchy; only its presentation adapts. Components are not merged,
+dropped or folded into one another.
+
+| Desktop | Phone |
+| --- | --- |
+| Navigation rail | The same rail, alone, in a modal drawer from the start edge, opened by a menu button at the start of the top bar; its collapse control becomes Close. |
+| Top bar: title, search, actions | Kept. Search is an icon that expands the same field across the bar, with Cancel. |
+| Chat list, collapsible beside the conversation | Kept collapsible, opened over the conversation below the top bar by the chat header's Show chats and closed by its own Hide chats; a top-bar search opens it to show matches, and cancelling closes it again. While open it is a modal layer: focus moves into it, Escape closes it and returns focus, and the conversation beneath is inert. |
+| Chat header: Show chats, New chat, title | Shown; its list controls are always present because the list is never beside the column. |
+| Chat dock beside a destination, with its edge rail when closed | The dock opens as a full-screen sheet; the edge rail becomes a floating button in the corner so the page keeps its width. |
+| Tab strip of open chats or files (dock, file viewer) | No strip. The header names the current chat or file, as a mobile app bar does. In the dock, New chat and the history bottom sheet sit beside it; switching chats goes through history, and New chat returns to an unsent draft rather than stacking one out of reach. A file is closed and another opened from the file list. The desktop tablist keeps arrow-key selection. |
+| Chat history dropdown | The same list in a bottom sheet with touch-sized rows and visible pin buttons; the keyboard opens only when search is tapped. |
+| File viewer beside a chat | A full-screen sheet with its own close button, since no page shows beside it. |
+| Workspace toolbar | Wraps by the width of its pane (a container query), not the window, so it never truncates beside an open dock. |
+
+Leaving the phone layout closes every phone layer. Phone sheets that replace
+a side panel fill the screen: a strip of the page
+left beside them cannot be used and only narrows the chat. Merging the rail
+and chat list into one drawer, folding the chat header into the top bar,
+squeezing the desktop tab strip onto a phone, a switcher sheet behind the
+header for moving between open chats (a second sheet beside history), a
+scrolling row of chips for them (crowded, and a desktop idea squeezed small),
+and removing top-bar search on phones were tried and rejected:
+they made the phone a different product from the desktop and removed
+functions instead of adapting them.

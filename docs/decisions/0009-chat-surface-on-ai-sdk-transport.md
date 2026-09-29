@@ -303,29 +303,20 @@ in [ADR 0010](0010-local-chat-attachments.md).
 
 
 The shell's desktop dock remains a resizable side panel. Below 900px the
-layout becomes a phone layout rather than a squeezed desktop. The rail moves
-into a modal drawer opened by a menu button before the top-bar title; a custom
-top bar receives that button with its actions, so navigation stays reachable.
-The chat list opens over the conversation from the chat header's Show chats
-(top-bar search opens it to show matches and closes it again when that search
-is cancelled). Top-bar search waits behind a Search button and takes the whole
-bar while open. The closed dock becomes a floating Pythia button that opens the
-same dock as a full-screen sheet; its header names the current chat instead of
-a tab strip, and its history sheet switches chats. The file viewer is likewise
-full screen with its own close button. The chat header also stays on the
-new-chat surface, so a first message does not shift when its route takes over.
+layout becomes a phone layout rather than a squeezed desktop; its component
+mapping and rejected alternatives are recorded in
+[ADR 0008](0008-desk-client-conventions.md#phone-layout-2026-09). The chat
+header also stays on the new-chat surface, so a first message does not shift
+when its route takes over.
 Projects are omitted: the in-memory grouping had no durable native
 Hermes owner and implied a capability it could not preserve. Pins and native
 session history remain the supported chat organization; a parallel project
 store was rejected.
 
 Phone navigation and sheets use the shared modal Drawer for focus
-containment, Escape and restoration to their trigger. The chat list over the
-conversation behaves the same way without being a Drawer: focus moves into it,
-Escape closes it, focus returns to Show chats, and the conversation beneath is
-inert while it is open. Leaving the phone layout closes every phone layer.
-A phone dock shows one chat at a time, so New chat there returns to the unsent
-draft instead of stacking another one out of reach. The dock uses shared Tabs for roving focus,
+containment, Escape and restoration to their trigger; the chat list over the
+conversation keeps the same behavior without being a Drawer (ADR 0008).
+The dock uses shared Tabs for roving focus,
 arrow activation and panel associations; these primitives retain the existing
 rail, chat-list and tab-strip appearance. Open chat IDs remain in the strip
 even when absent from the bounded session list; missing list metadata uses a
