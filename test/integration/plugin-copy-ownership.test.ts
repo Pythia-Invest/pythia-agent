@@ -86,6 +86,7 @@ it("adopts the shipped unreceipted release, ignores its bytecode, and rejects an
 
 it("updates an owned nested payload, removes retired owned files and discards only recognized Python cache", () => {
   const { source, destination } = fixture();
+  put(`${destination}.previous`, "foreign sibling\n");
   expect(refreshManagedPlugin(source, destination, files).status).toBe(
     "installed",
   );
@@ -112,7 +113,13 @@ it("updates an owned nested payload, removes retired owned files and discards on
     existsSync(join(destination, "skills/research/assets/example.html")),
   ).toBe(false);
   expect(existsSync(join(destination, "__pycache__"))).toBe(false);
-  expect(readdirSync(dirname(destination))).toEqual(["example"]);
+  expect(readdirSync(dirname(destination)).sort()).toEqual([
+    "example",
+    "example.previous",
+  ]);
+  expect(readFileSync(`${destination}.previous`, "utf8")).toBe(
+    "foreign sibling\n",
+  );
 });
 
 it.each([
@@ -176,7 +183,7 @@ it("preserves missing or malformed ownership evidence after a local change", () 
   expect(existsSync(join(destination, "__init__.py"))).toBe(false);
 });
 
-it("refuses path traversal and intermediate source links without changing an installed copy", () => {
+it("refuses path traversal and linked source files or parents without changing an installed copy", () => {
   const { root, source, destination } = fixture();
   refreshManagedPlugin(source, destination, files);
   expect(() =>
@@ -188,9 +195,17 @@ it("refuses path traversal and intermediate source links without changing an ins
   expect(() => refreshManagedPlugin(source, destination, files)).toThrow(
     /real parent/,
   );
+  rmSync(join(source, "__init__.py"));
+  symlinkSync(join(source, "plugin.yaml"), join(source, "__init__.py"));
+  expect(() =>
+    refreshManagedPlugin(source, destination, ["__init__.py"]),
+  ).toThrow(/input must be a regular file/);
   expect(
     readFileSync(join(destination, "skills/research/SKILL.md"), "utf8"),
   ).toBe("skills/research/SKILL.md\n");
+  expect(readFileSync(join(destination, "__init__.py"), "utf8")).toBe(
+    "__init__.py\n",
+  );
 });
 
 it("does not replace destination links or write through a linked plugins directory", () => {

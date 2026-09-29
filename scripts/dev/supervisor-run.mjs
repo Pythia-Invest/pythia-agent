@@ -262,7 +262,6 @@ export async function supervise(paths, services, options = {}) {
         armLifecycle();
         refreshInProgress = false;
         writeReceipt();
-        options.onRuntimeRefresh?.(runtimeGeneration);
         continue;
       }
       if (outcome.kind === "exit" && !stopping) {
