@@ -31,6 +31,7 @@ tool gives and from which source.
 | `pythia_instrument` | Identifiers, issuer, listings, the source of each concept, and the provider tools that can serve this investment. | local read |
 | `pythia_prices` | Latest quote, daily or intraday bars with a summary, or a period's return (1D to 5Y, from daily closes; 6M, YTD and 1Y match the Desk chart). | external read; a lookup may record a binding |
 | `pythia_filings` | A company's filings from one source per filing authority (core's combined read), by kind, form and date. | external read; a lookup may record a binding |
+| `pythia_document` | A listed filing's outline, a bounded section or search passages, each with a citation ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md), the document reader amendment). | external read, then local: core caches the extracted text |
 | `pythia_identity_questions` | Open identity questions in Repairs. | local read |
 | `pythia_answer_identity_question` | The agent's provisional answer to one question; the investor confirms it in Repairs. | local write |
 | `pythia_desk_view` | The Desk page the investor is looking at. | local read |

@@ -9,5 +9,6 @@ provides_tools:
   - pythia_sec_filings
   - pythia_sec_fundamentals
   - pythia_sec_facts
+  - pythia_sec_document
   - sec_company_facts
   - sec_fundamentals

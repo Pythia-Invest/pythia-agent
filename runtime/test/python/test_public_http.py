@@ -78,6 +78,20 @@ class PublicHttpTests(unittest.TestCase):
             self.read(self.transport(opener), url='https://other.example/search', json={'size': 2})
         self.assertEqual(len(opener.calls), 2)
 
+    def test_a_body_reader_streams_the_response_past_the_json_cap(self):
+        content = b'<p>report</p>' * 1000
+        opener = Opener(lambda: Response(content, headers={'Content-Type': 'application/xhtml+xml'}))
+        transport, seen = self.transport(opener, max_bytes=100), []
+
+        def body(response, check):
+            check()
+            seen.append(len(response.read()))
+            return {'text': 'report'}
+        result = transport.run_worker([], {'operation': 'document', 'url': 'https://data.example/r.xhtml'}, {},
+                                      budget=governor.Governor(), cancelled=lambda: False, body=body)
+        self.assertEqual((result['data'], seen), ({'text': 'report'}, [len(content)]))
+        self.assertEqual(opener.calls[0][0].get_header('Accept'), '*/*')
+
     def test_tls_uses_native_ca_policy_without_disabling_verification(self):
         context = ssl.create_default_context()
         with patch.dict(os.environ, {}, clear=True), patch.object(http.sys, 'platform', 'darwin'), \

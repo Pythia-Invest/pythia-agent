@@ -90,7 +90,8 @@ class XbrlSemantics(unittest.TestCase):
         register_with_market_data(self, plugin, ctx, FakeTransport([entity(), entity()]),
                                   iter([{'scope': 'a'}] * 3 + [{'scope': 'b'}]))
         self.assertEqual(set(ctx.tools), {'pythia_xbrl_filings_resolve', 'pythia_xbrl_filings_filings',
-                                          'pythia_xbrl_filings_fundamentals', 'pythia_xbrl_filings_facts'})
+                                          'pythia_xbrl_filings_fundamentals', 'pythia_xbrl_filings_facts',
+                                          'pythia_xbrl_filings_document'})
         self.assertEqual(ctx.skills, ['xbrl-filings'])
         for name, entry in ctx.registrations.items():
             declared = json.loads(entry['schema']['parameters']['$comment'])
@@ -311,6 +312,32 @@ class XbrlSemantics(unittest.TestCase):
             connector.SourceFailure({'error': 'missing_observation'})]))
         result = reader.invoke('filings', {'native_ref': REF})
         self.assertEqual((result['outcome'], result['issues'][0]['code']), ('empty', 'not_covered'))
+
+    def test_a_report_document_is_found_by_its_hash_and_streamed_into_core_reader(self):
+        class Streaming(FakeTransport):
+            def run_worker(self, command, request, environment, body=None, **options):
+                if body is None:
+                    return super().run_worker(command, request, environment, **options)
+                self.requests.append(request)
+                return {'data': body(SimpleNamespace(read=lambda size=-1: b''), lambda: None), 'observed_at': STAMP}
+        transport = Streaming([metadata(filing(), filing(report_id='2', digest='b' * 64, period='2024-12-31'))] * 3)
+        seen = []
+
+        def extract(response, check):
+            seen.append(response)
+            return {'text': 'Segments', 'sections': []}
+        instance = plugin.Reader(wire, connector, transport=transport, extract=extract)
+        result = instance.invoke('document', {'native_ref': REF, 'id': 'b' * 64})
+        self.assertEqual(result['data']['url'], f'https://filings.xbrl.org/{LEI}/2024-12-31/ESEF/ZZ/0/report/report.xhtml')
+        self.assertEqual(transport.requests[-1], {'operation': 'document', 'url': result['data']['url']})
+        missing = instance.invoke('document', {'native_ref': REF, 'id': 'c' * 64})
+        self.assertEqual(missing['issues'][0]['code'], 'missing_observation')
+
+        def too_large(response, check):
+            raise RuntimeError('output_limit')
+        instance.extract = too_large
+        self.assertEqual(instance.invoke('document', {'native_ref': REF, 'id': 'a' * 64})['issues'][0]['code'],
+                         'output_limit')
 
     def test_invalid_arguments_never_reach_provider(self):
         transport = FakeTransport([])

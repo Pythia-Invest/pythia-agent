@@ -185,6 +185,18 @@ def _block(block, identifier, drift, read_at):
         yield row
 
 
+# A filing document in the SEC Archives: HTML or inline XBRL, or the plain-text form of an older filing.
+DOCUMENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.(?:htm|html|txt)')
+
+
+def document_url(identifier, accession, url):
+    """The Archives URL of a document of this filer's filing `accession`; any other URL is refused."""
+    name = url.rpartition('/')[2] if isinstance(url, str) else ''
+    if not DOCUMENT.fullmatch(name) or url != filing_url(identifier, accession, name):
+        raise ValueError('invalid_request')
+    return url
+
+
 def wanted(form, forms):
     """Whether a form is one of the requested forms; an amendment (10-K/A) matches its form."""
     form = form.upper()

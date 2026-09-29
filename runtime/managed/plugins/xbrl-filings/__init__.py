@@ -11,6 +11,7 @@ import time
 from . import facts, identity, reports
 from .definition import TOOLS, schemas
 
+DOCUMENT_SECONDS = 60  # a report document streams through core's reader
 MESSAGES = {
     'invalid_request': 'The XBRL repository request is invalid.',
     'ambiguous_report': 'Several reports share the latest reporting period and none was picked. Choose one report_id from the candidates; repository order does not establish amendment order.',
@@ -34,12 +35,26 @@ def envelope(data, issues=None, outcome=None):
 
 
 class Reader:
-    def __init__(self, wire, connector, *, transport=None):
+    def __init__(self, wire, connector, *, transport=None, extract=None):
         self.wire, self.connector = wire, connector
         self.definitions = schemas(wire)
         if transport is None:
             transport = connector.Transport(provider=identity.PROVIDER, origins=(identity.ORIGIN,), max_bytes=16_000_000)
+        self.transport, self.extract = transport, extract  # extract: core's document reader (platform.read_document)
         self.reads = connector.WorkerReads(transport)
+
+    def document(self, url, cancelled, budget):
+        """A report document streamed through core's reader; its failures in the connector's vocabulary."""
+        def body(response, check):
+            try:
+                return self.extract(response, check)
+            except RuntimeError as error:  # core's size cap is `output_limit`
+                raise self.connector.SourceFailure({'error': str(error)}) from None
+            except (ValueError, UnicodeError):
+                raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
+        raw = self.transport.run_worker(None, {'operation': 'document', 'url': url}, {}, cancelled=cancelled or (lambda: False),
+                                        budget=budget, timeout=DOCUMENT_SECONDS, body=body)
+        return {**raw['data'], 'url': url, 'observed_at': raw['observed_at']}
 
     def invoke(self, operation, arguments, cancelled=None, cache_scope=None):
         try:
@@ -79,6 +94,14 @@ class Reader:
                 return envelope(identity.entity(raw['data'], raw['observed_at'], identifier))
             identifier = identity.from_reference(clean['native_ref'])
             limit = clean.get('limit', 20)
+            if operation == 'document':  # a listed report's own document, found by its hash; never a caller's URL
+                raw = fetch(identity.reports_url(identifier), 'reports', validate_reports)
+                row = next((row for row in reports.records(raw['data'], identifier)[0] if row['hash'] == clean['id']),
+                           None)
+                url = row and row['links'].get('report')  # the xhtml itself; the viewer page adds a large fact script
+                if not url:
+                    raise ValueError('missing_observation')
+                return envelope(self.document(url, cancelled, budget))
             if operation == 'filings':
                 # Share one bounded metadata page with simultaneous fundamentals.
                 raw = fetch(identity.reports_url(identifier), 'reports', validate_reports)
@@ -134,7 +157,8 @@ class Reader:
 
 def register(ctx):
     wire, connector, selection = helpers(ctx)
-    reader = Reader(wire, connector)
+    platform = importlib.import_module(wire.__package__ + '._platform').platform
+    reader = Reader(wire, connector, extract=lambda response, check: platform().read_document(response, check))
     ctx.register_skill('xbrl-filings', Path(__file__).parent / 'skills/xbrl-filings/SKILL.md',
         description='Read public ESEF and other XBRL annual report links and reported financial facts by company LEI.',
         frontmatter={'platforms': ['linux', 'macos']})
@@ -149,7 +173,7 @@ def register(ctx):
                     'message': 'Native access changed during the XBRL repository read.'}]))
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler)
-    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+    agent = platform().register_agent_tool
     agent(ctx, 'esef_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings, balance sheet from ESEF '
           'reports. IFRS figures of an EU or UK company\'s latest annual report on filings.xbrl.org, or an explicit '
           'report_id, with exact periods, units and precision; several reports for one period come back as '

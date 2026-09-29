@@ -319,10 +319,11 @@ def guarded(handler: Callable[..., str]) -> Callable[..., str]:
 
 
 def register(ctx: Any) -> None:
-    from .agent_reads import FILINGS, PRICES, filings, prices
+    from .agent_reads import DOCUMENT, FILINGS, PRICES, document, filings, prices
     tools: list[tuple[dict, Callable[..., str]]] = [
         (FIND, guarded(find)), (INSTRUMENT, guarded(instrument)), (PRICES, guarded(partial(prices, ctx))),
-        (FILINGS, guarded(partial(filings, ctx))), (questions_schema(), guarded(questions)),
+        (FILINGS, guarded(partial(filings, ctx))), (DOCUMENT, guarded(partial(document, ctx))),
+        (questions_schema(), guarded(questions)),
         (answer_schema(), guarded(answer))]
     for schema, handler in tools:
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
