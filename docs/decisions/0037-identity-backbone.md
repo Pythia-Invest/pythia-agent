@@ -536,12 +536,21 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
 
 - **Jobs may trigger agent work.** This ADR says "nothing triggers the agent".
 - **Questions reach a device only for subjects it touches** (held, watched,
-  opened or forecast). World-level questions are answered centrally and ship in
-  the reference package. "Unknown plus a question" stays the principle; only
-  its delivery changes.
-- **The backbone is scoped to a permanent address book.** Identifiers never
-  disappear, records that cannot be matched still appear as labelled subjects,
-  and new subject kinds or sources are added when a strategy needs them.
+  opened or forecast), after rules combine the evidence of all enabled plugins.
+  Which listing a view shows is a preference rather than an identity question.
+  "Unknown plus a question" stays the principle; only its delivery changes.
+- **The backbone is a permanent address book that plugins extend.** Identifiers
+  never disappear, and records that cannot be matched still appear as labelled
+  subjects. Core keeps the kinds, identifier rules, relations and matching. As
+  direction, any plugin may add subjects in its own domain under declared
+  identifier schemes, and what its claims establish about subjects other
+  sources describe depends on claim type and trust level, not on its origin.
+
+Not built yet: the build's questions ship in the package's claims file and core
+queues none; subjects come only from the reference build and core's curated
+tables; and the builder's `snapshot` evidence outranks a plugin's claims. These
+change in roadmap stage 0 (ADR 0044's amendment "data any plugin can
+extend").
 
 ## Amendment (2026-09-29): the agent suggests, the user confirms
 

@@ -229,3 +229,13 @@ qualities flat per concept (delay and depth differ between a quote and daily
 history); free-form qualities (selection and labels need values core
 understands); reserving an always-empty `functions` key (adding a field raises
 the version either way).
+
+## Amendment (2026-09-29): reference sources contribute like any plugin
+
+[ADR 0044](0044-product-direction.md) sets the direction that reference
+sources contribute subjects and evidence through the same contract as any
+plugin, replacing "Reference sources do not emit". The concern behind that
+rule, a plugin labelling its own rows as reference data, is met by bounding
+what claims can establish by claim type and trust level, with trust attached
+to a signed or hashed release rather than to a plugin name. Until that lands,
+the reference builder remains the only writer of the reference store.
