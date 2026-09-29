@@ -1,3 +1,4 @@
+import { isPhone } from "./stream-fixture";
 import { expect, test } from "@playwright/test";
 import {
   closeFile,
@@ -10,10 +11,7 @@ import {
 // File tabs are desktop only: a phone shows one file at a time and reopens
 // another from the file list, which workspace-formats covers.
 const noTabs = (page: import("@playwright/test").Page) =>
-  test.skip(
-    (page.viewportSize()?.width ?? 1440) < 900,
-    "No file tabs on a phone.",
-  );
+  test.skip(isPhone(page), "No file tabs on a phone.");
 
 test("file tabs reuse chat switching, keyboard selection and adjacent close behavior", async ({
   page,
@@ -173,7 +171,7 @@ test("explorer breadcrumbs navigate folders without opening menus or changing fi
   await expect(page.getByRole("menu")).toHaveCount(0);
   await nav.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(/\/workspace\/research$/);
-  if ((page.viewportSize()?.width ?? 1440) >= 900) {
+  if (!isPhone(page)) {
     await expect(
       page.getByRole("tab", { name: "notes.md", exact: true }),
     ).toHaveAttribute("title", "research/nested/notes.md");
@@ -208,6 +206,8 @@ test("Up follows the displayed folder on direct file links", async ({
 test("automatically shows new bytes and preserves the reading position", async ({
   page,
 }) => {
+  // The open file's revision is polled; advance the page clock past it.
+  await page.clock.install();
   const f = await workspaceFixture(page);
   await page.goto("/workspace/research/notes.md#evidence");
   const content = page.locator('[data-slot="workspace-markdown"] h1');
@@ -232,9 +232,10 @@ test("automatically shows new bytes and preserves the reading position", async (
     )
     .toBeGreaterThan(0);
   f.nextVersion();
+  await page.clock.runFor(5_000);
   await expect(
     page.locator('[data-slot="workspace-file-updated"]'),
-  ).toBeVisible({ timeout: 12000 });
+  ).toBeVisible();
   await expect(content).toHaveText("Synthetic research version 2");
   await expect(
     page.locator('[data-slot="workspace-file-updated"]'),
@@ -312,7 +313,7 @@ test("workspace references stay with the selected independent draft through its 
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "Cross-panel targeting qualification; narrow reference behavior is covered above.",
   );
   const f = await workspaceFixture(page);

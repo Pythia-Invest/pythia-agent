@@ -142,7 +142,7 @@ test("opens an artifact beside its originating chat and returns keyboard focus",
     "Synthetic research version 1",
   );
   await expect(page).toHaveURL(/\/c\/synthetic-chat$/);
-  await returnToBrowser(page);
+  await closeFile(page, "notes.md");
   await expect(page.locator('[data-slot="workspace-companion"]')).toHaveCount(
     0,
   );

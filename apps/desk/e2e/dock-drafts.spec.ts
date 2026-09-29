@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { fixture } from "./stream-fixture";
+import { fixture, isPhone } from "./stream-fixture";
 
 test("new dock chats have independent drafts and can all be closed", async ({
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "A phone dock names one chat instead of a tab strip; the history sheet switches chats.",
   );
   await fixture(page);
@@ -50,10 +50,7 @@ test("new dock chats have independent drafts and can all be closed", async ({
 test("on a phone, New chat returns to the unsent draft after visiting another chat", async ({
   page,
 }) => {
-  test.skip(
-    (page.viewportSize()?.width ?? 0) >= 900,
-    "Wide screens keep every draft in the tab strip.",
-  );
+  test.skip(!isPhone(page), "Wide screens keep every draft in the tab strip.");
   await fixture(page);
   await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("link", { name: "Watchlist", exact: true }).click();
@@ -84,7 +81,7 @@ test("first send replaces its own draft without stealing another tab's focus", a
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "Desktop race qualification; phone tab lifecycle is covered above.",
   );
   const f = await fixture(page);
@@ -128,7 +125,7 @@ test("attachments and model choices stay with their draft through hiding and fir
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "Desktop editor-state qualification; phone tab lifecycle is covered above.",
   );
   const f = await fixture(page);
@@ -200,7 +197,7 @@ test("pending first send survives hiding and reopening, with retry after failure
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "Desktop remount race; ordinary phone tab lifecycle is covered above.",
   );
   const f = await fixture(page);

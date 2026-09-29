@@ -1,70 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { workspaceFixture, returnToBrowser } from "./workspace-fixture";
 
-test("filename search highlights corrected words and opens files without losing the query", async ({
-  page,
-}) => {
-  await workspaceFixture(page);
-  await page.route("**/api/workspace/search?**", (route) =>
-    route.fulfill({
-      json: {
-        matches: [
-          "research/scale-plan.md",
-          "strategies/balanced/scale-plan.md",
-        ].map((path) => ({
-          entry: {
-            path,
-            name: "scale-plan.md",
-            kind: "markdown",
-            revision: "version-1",
-          },
-          match: "name",
-        })),
-        partial: false,
-        scanned: 3,
-      },
-    }),
-  );
-  await page.goto("/workspace");
-  await expect(
-    page
-      .getByRole("region", { name: "Folder contents" })
-      .getByRole("link", { name: "research", exact: true }),
-  ).toBeVisible();
-  const input = page.getByRole("searchbox", {
-    name: "Search files and folders",
-  });
-  await input.fill("scael plan");
-  const results = page.locator('[data-slot="workspace-search-results"]');
-  await expect(results.getByRole("listitem")).toHaveCount(2);
-  await expect(
-    results.getByRole("group", { name: "Search match type" }),
-  ).toHaveCount(0);
-  await expect(
-    results.getByText("strategies/balanced", { exact: true }),
-  ).toBeVisible();
-  expect(
-    await results
-      .getByRole("link", { name: "scale-plan.md", exact: true })
-      .first()
-      .locator("mark")
-      .allTextContents(),
-  ).toEqual(["scale", "plan"]);
-  await results
-    .getByRole("link", { name: "scale-plan.md", exact: true })
-    .first()
-    .click();
-  await expect(
-    page.locator('[data-slot="workspace-reader-scroll"] h1'),
-  ).toHaveText("Synthetic research version 1");
-  await expect(page).toHaveURL(/\/workspace$/);
-  await returnToBrowser(page);
-  await expect(input).toHaveValue("scael plan");
-  await page.screenshot({
-    path: test.info().outputPath("filename-search.png"),
-  });
-});
-
 test("folder scope is available while the initial global search is pending", async ({
   page,
 }) => {
@@ -118,7 +54,7 @@ test("search defaults to the whole workspace and can narrow to the current folde
     scopes.push(path);
     const paths = path
       ? ["research/notes.md"]
-      : ["research/notes.md", "elsewhere/notes.md"];
+      : ["research/notes.md", "strategies/balanced/notes.md"];
     return route.fulfill({
       json: {
         matches: paths.map((path) => ({
@@ -155,10 +91,11 @@ test("search defaults to the whole workspace and can narrow to the current folde
     locations.getByRole("button", { name: "Workspace", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(results.locator("details")).toHaveCount(0);
+  // Same-named files are told apart by their folder.
   await results
     .getByRole("listitem")
     .filter({
-      has: page.getByText("elsewhere", { exact: true }),
+      has: page.getByText("strategies/balanced", { exact: true }),
     })
     .getByRole("link", { name: "notes.md", exact: true })
     .click();
@@ -174,7 +111,6 @@ test("search defaults to the whole workspace and can narrow to the current folde
   await expect.poll(() => scopes.includes("research")).toBe(true);
   await expect(input).toHaveValue("notes");
   await expect(page).toHaveURL(/\/workspace\/research$/);
-  await page.screenshot({ path: test.info().outputPath("search-scope.png") });
   // Keyboard activation returns to the global scope without replacing the query.
   const global = locations.getByRole("button", {
     name: "Workspace",

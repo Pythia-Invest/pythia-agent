@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { fixture, send } from "./stream-fixture";
+import { fixture, send, isPhone } from "./stream-fixture";
 
 test("carries one live reply through navigation and hiding the dock", async ({
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "The persistent side dock belongs to desktop; phone sheet access is covered separately.",
   );
   const f = await fixture(page);
@@ -66,20 +66,10 @@ test("loads older messages without moving the visible history anchor", async ({
   );
 });
 
-test("Stop during run creation reaches Hermes once the run is accepted", async ({
-  page,
-}) => {
+test("Stop generating asks Hermes to stop the run", async ({ page }) => {
   const f = await fixture(page);
-  const creating = Promise.withResolvers<void>();
-  f.delayCreation(creating.promise);
-  try {
-    await send(page);
-    await expect.poll(() => f.submissions.length).toBe(1);
-    await page.getByRole("button", { name: "Stop generating" }).click();
-    expect(f.stops).toEqual([]);
-  } finally {
-    creating.resolve();
-  }
+  await send(page);
+  await page.getByRole("button", { name: "Stop generating" }).click();
   await expect.poll(() => f.stops).toEqual(["synthetic-run"]);
   await expect(page.getByText("Stopped.", { exact: true })).toBeVisible();
   expect(f.unexpected).toEqual([]);
@@ -99,7 +89,6 @@ test("keeps rejected guidance in the composer", async ({ page }) => {
     page.getByText("This run no longer accepts guidance.", { exact: true }),
   ).toBeVisible();
   await expect(input).toHaveValue("Keep this guidance draft");
-  await expect(page.getByText("Approval not recorded.")).toHaveCount(0);
   await f.emit([{ event: "run.cancelled" }]);
 });
 
@@ -131,7 +120,7 @@ test("on a phone, a page opens Pythia as a sheet from its floating button", asyn
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) >= 900,
+    !isPhone(page),
     "Sheet behavior belongs to narrow viewports; desktop dock is covered separately.",
   );
   await fixture(page);

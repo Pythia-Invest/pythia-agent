@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -30,6 +30,9 @@ let code = 1;
 try {
   for (const name of ["workspace", "state", "hermes"])
     await mkdir(join(state, name));
+  // The server-rendered Workspace reads this root directly; give the
+  // initial-render spec a folder to show. Route fixtures refuse it.
+  await writeFile(join(state, "workspace", "notes.md"), "# Synthetic notes\n");
   server = spawn(
     process.execPath,
     [join(desk, "qualification/server.mjs"), desk],
