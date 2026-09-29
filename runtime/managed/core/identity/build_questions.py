@@ -2,8 +2,9 @@
 
 A question is queued only when its instrument becomes relevant: the investor opens or watches it, or the agent
 uses it (`queue_ops.surface`). Each is asked once, and a new release supersedes the open ones
-(`queue.retire_build`). Which listing is an instrument's home is a choice, not an identity question (A5), so
-`home_market` (an `ambiguous` residual about a security) is never queued, even from an older package.
+(`queue.retire_build`). Not queued, and counted in the log once per package: `home_market`, since which listing
+is an instrument's home is a choice (A5), even from an older package; a question with no candidate, whose only
+answer is "None of these" while the page already says the fact is unknown; and a malformed one.
 
 An answer takes the question's one relation. The agent's answer is a suggestion that leaves the question open.
 The user's answer resolves it with a `user_attested` verdict, unless identifier evidence contradicts it
@@ -13,11 +14,16 @@ reopens the question (`reopen`).
 """
 from __future__ import annotations
 
+import json
+import logging
 import sqlite3
 import uuid
+from collections import Counter
 from dataclasses import replace
+from pathlib import Path
 from typing import Any, Iterable
 
+from . import reference_package
 from .claims import IdentifierValue
 from .resolution import QueueItem
 from .schemes import SCHEME_LEVEL, Level, subject_kind
@@ -25,13 +31,16 @@ from .subject import _assertion
 from .subject import load_subject as load_reference_subject
 from .vocabulary import Authority, VerdictRelation
 
+logger = logging.getLogger(__name__)
 BUILD = "reference"         # the `plugins` tag of the build's questions, which carry no provider record
 LABEL = "Pythia reference"  # the source Repairs shows: it names the origin and grants no authority
+EPOCH = "1970-01-01T00:00:00Z"  # an indexed question's placeholder `opened_at`; queueing sets the real one
 # The build's question types (tooling/reference-builder `QUESTION_SHAPE`) by queue reason, and the one relation an
 # answer takes: `issuer_identity` (who issued a security, or which company an issuer is), the name-only
 # `issuer_identity_name_candidate`, `receipt_underlying` and `receipt_conflict`.
 RELATIONS = {"identifier": VerdictRelation.SAME_ISSUER, "ambiguous": VerdictRelation.SAME_ISSUER,
              "no_key": VerdictRelation.DEPOSITARY_RECEIPT_OF, "relation": VerdictRelation.DEPOSITARY_RECEIPT_OF}
+_INDEX: dict[str, dict[str, list[QueueItem]]] = {}  # installed package -> subject -> its queueable questions
 
 
 def asked(item: dict) -> tuple[str, VerdictRelation] | None:
@@ -53,41 +62,50 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
     return text, relation
 
 
-def import_build(store, items: Iterable[dict], now: str) -> int:
-    """Queue these build questions, each once: one already open, answered or dismissed is not asked again; only a
-    question a release superseded may return. Returns how many were added."""
-    added = 0
+def about(path: Path, subject_ids: Iterable[str]) -> list[QueueItem]:
+    """The installed package's queueable questions about these subjects. Its claims file is read once; a read that
+    fails is not kept, so the next touch reads it again."""
+    index = _INDEX.get(str(path))
+    if index is None:
+        items = reference_package.questions(path)
+        if items is None:
+            return []
+        index = _index(items)
+        _INDEX.clear()
+        _INDEX[str(path)] = index
+    return [item for subject in dict.fromkeys(subject_ids) for item in index.get(subject, ())]
+
+
+def import_build(store, items: Iterable[QueueItem], now: str) -> int:
+    """Queue these build questions, each once: one already open or answered is not asked again, nor one dismissed
+    with the same candidates. Only a question a release superseded, or whose candidates changed since it was
+    dismissed, returns. A touch of a subject already asked about takes no write lock. Returns how many were added."""
+    fresh = _unasked(store, items)
+    if not fresh:
+        return 0
     with store.transaction():
-        for raw in items:
-            try:
-                item = QueueItem(id="", kind=raw["kind"], reason=raw["reason"], subject_ids=raw["subject_ids"],
-                                 candidate_ids=raw.get("candidate_ids") or (), evidence_ids=raw.get("evidence_ids") or (),
-                                 state="open", opened_at=now, plugins=(BUILD,), scheme=raw.get("scheme"),
-                                 values=raw.get("values") or ())
-            except (KeyError, TypeError, ValueError):  # one malformed question never stops the rest
-                continue
-            if asked({**raw, "subject_ids": item.subject_ids}) is None:
-                continue
-            if store.db.execute("SELECT 1 FROM queue WHERE key = ? AND state <> 'superseded'", (item.key,)).fetchone():
-                continue
-            store.put_queue_item(replace(item, id=_row_id()))
-            added += 1
-    return added
+        fresh = _unasked(store, fresh)  # another thread may have queued them meanwhile
+        for item in fresh:
+            store.put_queue_item(replace(item, id=_row_id(), opened_at=now))
+    return len(fresh)
 
 
-def reopen(store, item_id: str, now: str) -> bool:
-    """Undo the user's answer: the answered question is superseded, its verdict kept as history, and asked again,
-    so its override no longer applies. False when it is not an answered build question."""
+def reopen(store, item_id: str, now: str, path: Path | None) -> bool:
+    """Undo the user's answer: the answered question is superseded, its verdict kept as history, and asked again as
+    the installed release asks it (else as it was), so its override no longer applies. False when it is not an
+    answered build question."""
     with store.transaction():
         row = store.queue_item(item_id)
         if row is None or row["state"] not in ("resolved", "dismissed") or row["plugins"] != [BUILD] \
                 or row["provider_ref"] or asked(row) is None:
             return False
+        latest = next((item for item in about(path, row["subject_ids"]) if item.key == row["key"]), None) if path \
+            else None
         store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE id = ?", (now, item_id))
-        store.put_queue_item(QueueItem(id=_row_id(), kind=row["kind"], reason=row["reason"],
-                                       subject_ids=row["subject_ids"], candidate_ids=row["candidate_ids"],
-                                       evidence_ids=row["evidence_ids"], state="open", opened_at=now,
-                                       plugins=(BUILD,), scheme=row["scheme"], values=row["values"]))
+        store.put_queue_item(replace(latest, id=_row_id(), opened_at=now) if latest else QueueItem(
+            id=_row_id(), kind=row["kind"], reason=row["reason"], subject_ids=row["subject_ids"],
+            candidate_ids=row["candidate_ids"], evidence_ids=row["evidence_ids"], state="open", opened_at=now,
+            plugins=(BUILD,), scheme=row["scheme"], values=row["values"]))
     return True
 
 
@@ -107,17 +125,61 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     subject = load_reference_subject(ref, subject_id, listing_id)
     if subject is None:
         return None
-    rows = store.queue_items(subject_ids=[value for value in subject["ids"].values() if value], plugins=(BUILD,),
-                             which="settled")
-    for row in sorted(rows, key=lambda row: subject_kind(row["subject_ids"][0]) == "issuer"):  # the security's first
-        answer = row["settled"]
-        if row["state"] != "resolved" or not answer or answer["by"] != "user":
-            continue
-        if answer["relation"] == VerdictRelation.SAME_ISSUER:
-            _issuer(ref, subject, row["subject_ids"][0], answer["chosen_id"])
-        elif answer["relation"] == VerdictRelation.DEPOSITARY_RECEIPT_OF:
-            _receipt(ref, subject, row["subject_ids"][0], answer["chosen_id"])
+    ids = [value for value in subject["ids"].values() if value]
+    with store._writing:  # the store's one connection, held as its own reads hold it
+        rows = store.db.execute(
+            "SELECT q.subject_ids, v.relation, v.chosen_id FROM queue q JOIN verdicts v ON v.id = q.resolved_by"
+            " WHERE q.plugins = ? AND q.state = 'resolved' AND v.resolver = 'user' AND EXISTS (SELECT 1 FROM"
+            " (SELECT value FROM json_each(q.subject_ids) UNION ALL SELECT value FROM json_each(q.candidate_ids))"
+            " WHERE value IN (SELECT value FROM json_each(?)))", (json.dumps([BUILD]), json.dumps(ids))).fetchall()
+    answers = sorted(((json.loads(row[0])[0], row[1], row[2]) for row in rows),
+                     key=lambda answer: subject_kind(answer[0]) == "issuer")  # a security's answer first
+    for question, relation, chosen in answers:
+        if relation == VerdictRelation.SAME_ISSUER:
+            _issuer(ref, subject, question, chosen)
+        elif relation == VerdictRelation.DEPOSITARY_RECEIPT_OF:
+            _receipt(ref, subject, question, chosen)
     return subject
+
+
+def _index(items: list[dict]) -> dict[str, list[QueueItem]]:
+    """The claims file's queueable questions by subject; the rest are counted in one log line."""
+    index: dict[str, list[QueueItem]] = {}
+    skipped: Counter[str] = Counter()
+    for raw in items:
+        try:
+            item = QueueItem(id="build", kind=raw["kind"], reason=raw["reason"], subject_ids=raw["subject_ids"],
+                             candidate_ids=raw.get("candidate_ids") or (), evidence_ids=raw.get("evidence_ids") or (),
+                             state="open", opened_at=EPOCH, plugins=(BUILD,), scheme=raw.get("scheme"),
+                             values=raw.get("values") or ())
+        except (KeyError, TypeError, ValueError):
+            skipped["malformed"] += 1
+            continue
+        why = "not asked" if asked({**raw, "subject_ids": item.subject_ids}) is None else \
+            "without candidates" if not item.candidate_ids else None
+        if why:
+            skipped[why] += 1
+            continue
+        for subject in item.subject_ids:
+            index.setdefault(subject, []).append(item)
+    if skipped:
+        logger.log(logging.WARNING if skipped["malformed"] else logging.INFO, "reference build questions not queued: %s",
+                   ", ".join(f"{count} {why}" for why, count in sorted(skipped.items())))
+    return index
+
+
+def _unasked(store, items: Iterable[QueueItem]) -> list[QueueItem]:
+    """Those not open, answered, or dismissed with the same candidates, one per question key."""
+    wanted = {item.key: item for item in items}
+    if not wanted:
+        return []
+    with store._writing:
+        rows = store.db.execute("SELECT key, state, candidate_ids FROM queue WHERE state <> 'superseded' AND key IN"
+                                " (SELECT value FROM json_each(?))", (json.dumps(list(wanted)),)).fetchall()
+    for key, state, candidates in rows:
+        if key in wanted and (state != "dismissed" or set(json.loads(candidates)) == set(wanted[key].candidate_ids)):
+            del wanted[key]
+    return list(wanted.values())
 
 
 def _issuer(ref: sqlite3.Connection, subject: dict, question: str, chosen: str) -> None:

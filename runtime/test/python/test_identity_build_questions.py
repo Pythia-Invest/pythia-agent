@@ -20,13 +20,17 @@ RECEIPT, NASDAQ = "security:figi:BBG001SCG0R3", "listing:figi:BBG000K6N6G7"  # A
 REGISTRANT = "issuer:cik:0001234567"  # a CIK-only SEC registrant whose name matches ASML's
 NOTE, INTERNALISED = "security:isin:NL0000000016", "listing:isin:NL0000000016:SIXX:EUR"  # trades only on an SI
 OPERATOR = "529900VENUE0PERATR69"  # a trading-venue operator's LEI, which FIRDS field 5 names as the issuer
+OPERATOR_ISSUER = f"issuer:lei:{OPERATOR}"
 PROVENANCE = {"plugin": "sec", "source": "sec", "adapter_version": "fixture-1", "retrieved_at": "2026-09-25T00:00:00Z"}
-EXTRA = {  # added to the ASML reference: the registrant, and a note that trades only on a systematic internaliser
-    "issuers": [{"id": REGISTRANT, "name": "ASML US Inc.", "country": "US"}],
+EXTRA = {  # added to the ASML reference: the registrant, a venue operator, and a note only an internaliser trades
+    "issuers": [{"id": REGISTRANT, "name": "ASML US Inc.", "country": "US"},
+                {"id": OPERATOR_ISSUER, "name": "Venue Operator N.V.", "country": "NL"}],
     "securities": [{"id": NOTE, "name": "Internalised Note", "asset_class": "equity", "kind": "other"}],
     "listings": [{"id": INTERNALISED, "security_id": NOTE, "mic": "SIXX", "operating_mic": "SIXX", "currency": "EUR"}],
     "assertions": [{"subject_id": REGISTRANT, "scheme": "cik", "value": "1234567", "authority": "snapshot",
-                    "provenance": PROVENANCE}],
+                    "provenance": PROVENANCE},
+                   {"subject_id": OPERATOR_ISSUER, "scheme": "lei", "value": OPERATOR, "authority": "snapshot",
+                    "provenance": {**PROVENANCE, "plugin": "gleif", "source": "gleif"}}],
 }
 
 
@@ -44,6 +48,10 @@ SI_ONLY = {"question": "issuer_identity", "kind": "conflict", "reason": "identif
            "candidate_ids": [ISSUER], "evidence_ids": ["record:00aa"], "scheme": "lei", "values": [OPERATOR]}
 NAME = {"question": "issuer_identity_name_candidate", "kind": "residual", "reason": "ambiguous",
         "subject_ids": [REGISTRANT], "candidate_ids": [ISSUER]}
+# W1-builder's link conflict: two LEIs claim one CIK, so the registrant is asked about with both as candidates.
+CIK_CONFLICT = {"question": "issuer_identity", "kind": "conflict", "reason": "identifier", "subject_ids": [REGISTRANT],
+                "candidate_ids": [ISSUER, OPERATOR_ISSUER], "evidence_ids": ["record:5ec0cafe00000001"], "scheme": "lei",
+                "values": [LEI, OPERATOR]}
 HOME = {"question": "home_market", "kind": "residual", "reason": "ambiguous", "subject_ids": [SECURITY],
         "candidate_ids": [ASML]}  # a listing choice (ADR 0044 A5): never queued, even from an older package
 
@@ -53,7 +61,9 @@ class BuildQuestionFixture(QueueFixture):
         super().setUp()
         self.core_module = load_core()
         from pythia_core_queue_fixture import agent_tools, identity_ops, queue_ops
+        from pythia_core_queue_fixture.identity import build_questions
         self.agent_tools, self.identity_ops, self.queue_ops = agent_tools, identity_ops, queue_ops
+        self.build_questions = build_questions
         self.data = Path(self.tmp.name) / "core"
         self.plugins = []
         self.enterContext(unittest.mock.patch.object(identity_ops, "installed", lambda: self.plugins))
@@ -155,6 +165,67 @@ class SurfaceTest(BuildQuestionFixture):
         self.assertEqual([item["label"] for item in asked["items"]], ["Pythia reference"])
 
 
+    def test_a_cik_conflict_as_the_builder_asks_it_is_queued_and_a_malformed_question_is_logged(self):
+        self.install([CIK_CONFLICT, {**CIK_CONFLICT, "evidence_ids": []}], self.world())  # a conflict cites evidence
+        with self.assertLogs(self.build_questions.logger, "WARNING") as logged:
+            self.queue_ops.read_queue(self.ops, {"subject_id": REGISTRANT})
+        self.assertIn("1 malformed", logged.output[0])
+        [item] = json.loads(self.queue_ops.read_queue(self.ops, {}))["data"]["items"]
+        self.assertTrue(item["question"].startswith("Which company is this?"))
+        self.assertIn(f"LEI {OPERATOR}", item["question"])
+        self.assertEqual([answer["chosen_id"] for answer in item["answers"] if answer["relation"] == "same_issuer"],
+                         [ISSUER, OPERATOR_ISSUER])
+
+    def test_a_question_without_candidates_waits_until_a_release_offers_some(self):
+        self.install([{**RECEIPT_OF, "candidate_ids": []}], self.world())
+        with self.assertLogs(self.build_questions.logger, "INFO") as logged:
+            self.page(NASDAQ)
+        self.assertEqual(self.open(), [], "only \"None of these\" to offer; the page already says it is unknown")
+        self.assertIn("1 without candidates", logged.output[0])
+        self.install([RECEIPT_OF], self.world("second"), "reference-20260927")
+        self.page(NASDAQ)
+        self.assertEqual([item["reason"] for item in self.open()], ["no_key"])
+
+    def test_a_dismissed_question_returns_only_when_a_release_changes_its_candidates(self):
+        self.install([issuer_question()], self.world(issuer=False))
+        self.page(NASDAQ)
+        [item] = self.open()
+        self.answer(item["id"], "none")
+        self.install([issuer_question()], self.world("second", issuer=False), "reference-20260927")
+        self.page(NASDAQ)
+        self.assertEqual(self.open(), [])
+        self.install([{**issuer_question(), "candidate_ids": [ISSUER, OPERATOR_ISSUER]}],
+                     self.world("third", issuer=False), "reference-20260928")
+        self.page(NASDAQ)
+        self.assertEqual([item["candidate_ids"] for item in self.open()], [[ISSUER, OPERATOR_ISSUER]])
+
+    def test_an_unreadable_claims_file_is_read_again_on_the_next_touch(self):
+        self.install([issuer_question()], self.world(issuer=False))
+        claims = next((self.data / "reference").rglob("questions-*.json"))
+        saved = claims.read_bytes()
+        claims.unlink()
+        self.page(NASDAQ)
+        self.assertEqual(self.open(), [])
+        claims.write_bytes(saved)
+        self.page(NASDAQ)
+        self.assertEqual(len(self.open()), 1)
+
+    def test_the_registered_subject_read_and_the_agents_filings_read_queue(self):
+        from test_agent_tools import Context
+        self.install([issuer_question(), SHARE_OR_RECEIPT], self.world())
+        ctx = Context({})
+        with unittest.mock.patch.object(self.identity_ops, "Identity", lambda _ctx: self.ops), \
+                unittest.mock.patch.object(self.identity_ops, "CURRENT", None):
+            self.core_module.register(ctx)
+        from pythia_core_queue_fixture import agent_reads
+        with unittest.mock.patch.object(self.identity_ops, "CURRENT", self.ops), \
+                unittest.mock.patch.object(agent_reads, "run_tool", lambda *_args: {"outcome": "empty"}):
+            ctx.tools["pythia_identity_subject"]["handler"]({"subject_id": NASDAQ})  # the Desk's identity-subject
+            self.assertEqual({item["reason"] for item in self.open()}, {"identifier"})
+            ctx.tools["pythia_filings"]["handler"]({"subject_id": ASML})
+        self.assertEqual({item["reason"] for item in self.open()}, {"identifier", "relation"})
+
+
 class AnswerTest(BuildQuestionFixture):
     def test_the_users_issuer_answer_applies_and_the_agents_stays_a_suggestion(self):
         self.plugins = [plugin("gleif", operations={"profile": "pythia_gleif_profile"})]
@@ -197,6 +268,12 @@ class AnswerTest(BuildQuestionFixture):
                        "name": "ASML Holding N.V.", "authority": "user_attested"}, receipt["related"])
         self.assertIn(RECEIPT, [entry["id"] for entry in share["related"] if entry["direction"] == "from"])
 
+    def test_a_receipt_is_never_chosen_as_the_underlying(self):
+        self.install([SHARE_OR_RECEIPT], self.world())
+        self.page(ASML)
+        [item] = self.open()
+        self.assertEqual(self.answer(item["id"], "depositary_receipt_of", RECEIPT)["outcome"], "blocked")
+
     def test_an_answer_against_identifier_proof_is_refused(self):
         # ASML's issuer has CIK 937966; the registrant's is 1234567, so no answer makes them one company.
         self.install([NAME], self.world())
@@ -227,7 +304,8 @@ class AnswerTest(BuildQuestionFixture):
                                        ("composites", "security_id"), ("assertions", "subject_id"))]
         rekey.append(("INSERT INTO id_aliases (old_id, new_id, release) VALUES (?, ?, 'reference-20260927')",
                       (RECEIPT, moved)))
-        self.install([issuer_question(moved)], self.world("second", issuer=False, sql=rekey), "reference-20260927")
+        self.install([{**issuer_question(moved), "candidate_ids": [ISSUER, OPERATOR_ISSUER]}],
+                     self.world("second", issuer=False, sql=rekey), "reference-20260927")
         view = self.page(NASDAQ)
         self.assertEqual((view["security"]["id"], view["issuer"]["id"]), (moved, ISSUER))
         self.assertEqual(self.open(), [], "the answered question is not asked again")
@@ -236,6 +314,7 @@ class AnswerTest(BuildQuestionFixture):
         self.assertEqual(self.answer(item["id"], "reopen")["outcome"], "reopened")
         self.assertIsNone(self.page(NASDAQ)["issuer"])
         [again] = self.open()
+        self.assertEqual(again["candidate_ids"], [ISSUER, OPERATOR_ISSUER], "asked as the installed release asks it")
         history = json.loads(self.queue_ops.read_queue(self.ops, {"item_id": again["id"]}))["data"]["history"]
         self.assertEqual([(entry["resolver"], entry["outcome"]) for entry in history], [("user", "confirmed")])
 

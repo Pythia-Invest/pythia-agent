@@ -750,26 +750,40 @@ composite). It runs when a subject is touched:
   with `subject_id`).
 
 Search, `pythia_find`, market movers, market-data price routing and settling
-never queue. Each question is asked once per question key: one already open,
-answered or dismissed is not asked again. A new release supersedes the previous
-build's open questions (`queue.retire_build`), and the next touch asks the new
-release's. A fresh install queues nothing. No venue category is filtered: an
-instrument that trades only on an internaliser, request-for-quote or dark venue
-is asked about when it is opened. `home_market` is never queued, even from an
-older package: which listing a view shows is a choice (below), not an identity
-question. Holdings, forecasts and operations become touch points in stage 1.
+never queue. Each question is asked once per question key: one already open or
+answered is not asked again, nor one dismissed with the same candidates. A
+dismissed question returns when a later release offers other candidates. A new
+release supersedes the previous build's open questions (`queue.retire_build`),
+and the next touch asks the new release's. A fresh install queues nothing. No
+venue category is filtered: an instrument that trades only on an internaliser,
+request-for-quote or dark venue is asked about when it is opened.
 
-This is a bounded, idempotent write on those reads. The rule that rules settle
-the queue only inside write operations (`settle_by_rules`) is unchanged.
+Some questions stay in the package, and the log counts them once per package:
+
+- `home_market`, even from an older package: which listing a view shows is a
+  choice (below), not an identity question;
+- a question with no candidate. Its only answer would be "None of these", and
+  the page already says the fact is unknown ("Issuer unknown"). It becomes
+  queueable when a later release offers candidates;
+- a malformed question, logged as a warning.
+
+Holdings, forecasts and operations become touch points in stage 1.
+
+This is a bounded, idempotent write on those reads, and a touch of a subject
+already asked about takes no write lock. The rule that rules settle the queue
+only inside write operations (`settle_by_rules`) is unchanged.
 
 **Answers.** A build question takes one relation: `same_issuer` for an issuer
 question, `depositary_receipt_of` for a receipt question, or `none`. The agent's
 answer is recorded as a suggestion and the question stays open. The user's
 answer resolves it with a `user_attested` verdict; "None of these" dismisses it
 and the fact stays unknown. An answer goes through `decide` with the question's
-own subject standing in for the provider record, so a user verdict never beats
-identifier evidence: an issuer answer whose identifiers contradict the
-question's subject (two different CIKs, two different LEIs) is refused. This
+own subject standing in for the provider record. For a receipt answer the record
+is a receipt, so the depositary-receipt guard refuses a receipt as the
+underlying. A user verdict never beats identifier evidence: an issuer answer
+whose identifiers contradict the question's subject (two different CIKs, two
+different LEIs) is refused. When evidence is weighed by trust level (roadmap
+stage 0), this narrows to unanimous confirm-level identifier proof. This
 replaces "a question without a provider record takes no verdict" for the
 build's questions.
 
@@ -788,7 +802,8 @@ it (`build_questions.load_subject`):
 Lifecycle A re-points the row's subject IDs on a re-key, and the question key
 stops a later release asking again, so an answer survives releases with no new
 code. The user can undo it: Reopen in Repairs supersedes the answered question,
-keeps its verdict in the history, and asks it again; the agent cannot.
+keeps its verdict in the history, and asks it again as the installed release
+asks it; the agent cannot.
 
 **Known gap.** A later release whose evidence contradicts an override does not
 yet raise a conflict question. The override stays applied, so nothing changes
@@ -798,8 +813,10 @@ showing both values.
 
 **Repairs.** A build question is titled by what it asks ("Issuer unclear",
 "Same company?", "Receipt's share unknown", "Share or receipt?"), shows its
-subject and candidates and no provider-record rows, and names its source
-"Pythia reference". That label names the origin; it grants no authority.
+subject with its identifiers and its candidates, and no provider-record rows.
+It names its source "Pythia reference": that label names the origin and grants
+no authority. A settled question shows the chosen answer. The page's issuer
+carries `authority: user_attested` when the user's answer set it.
 
 **The default listing** (A5: a documented default, not an identity question).
 An equity security or company page, and market-data reads of it, use the first

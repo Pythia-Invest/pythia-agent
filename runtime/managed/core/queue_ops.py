@@ -67,9 +67,6 @@ VERDICT_SCHEMA = {
 }
 
 
-_BUILD_INDEX: dict[str, dict[str, list[dict]]] = {}  # installed package -> subject -> its build questions
-
-
 def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> int:
     """Queue the installed build's questions about these subjects, each once: the investor opened or watches them,
     or the agent read them. With `family`, a listing also brings its security's, issuer's and composite's. The
@@ -86,15 +83,7 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> 
                 else list(subject_ids)
         finally:
             ref.close()
-        if str(path) not in _BUILD_INDEX:
-            index: dict[str, list[dict]] = {}
-            for item in reference_package.questions(path):
-                for subject in item.get("subject_ids") or ():
-                    index.setdefault(subject, []).append(item)
-            _BUILD_INDEX.clear()
-            _BUILD_INDEX[str(path)] = index
-        items = [item for subject in dict.fromkeys(wanted) for item in _BUILD_INDEX[str(path)].get(subject, ())]
-        return build_questions.import_build(identity.store, items, store.now()) if items else 0
+        return build_questions.import_build(identity.store, build_questions.about(path, wanted), store.now())
     except (sqlite3.Error, OSError):
         logger.warning("reference build questions could not be queued", exc_info=True)
         return 0
@@ -143,7 +132,8 @@ def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
     desk = usage.get() == "dashboard"  # trusted transport scope: the Desk's own HTTP call, never a model tool call
     now = store.now()
     if arguments.get("relation") == REOPEN:
-        done = desk and build_questions.reopen(identity.store, str(arguments.get("item_id") or ""), now)
+        done = desk and build_questions.reopen(identity.store, str(arguments.get("item_id") or ""), now,
+                                               identity.reference_path())
         return _envelope("ok", {"outcome": "reopened" if done else "refused", "message": "Reopened: your answer no "
                                 "longer applies." if done else "Only your answer to a reference question reopens."})
     settle(identity, [])

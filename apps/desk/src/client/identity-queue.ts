@@ -44,6 +44,10 @@ export const identityQuestionSchema = z.object({
   updated_at: optionalText,
   /** Who settled it: rules, the agent or the user. */
   settled_by: optionalText,
+  /** The answer that settled it, naming the chosen candidate. */
+  settled_answer: z
+    .object({ relation: text, chosen_id: z.string().nullable() })
+    .nullish(),
   plugins: z.array(text).default([]),
   /** What the provider's record says, shown before anyone answers. */
   record: z

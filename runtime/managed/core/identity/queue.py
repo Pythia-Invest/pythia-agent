@@ -68,6 +68,8 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
         "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
         "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
         "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
+        "settled_answer": {key: item["settled"][key] for key in ("relation", "chosen_id")}
+        if item["state"] != "open" and item["settled"] else None,
         "evidence": _evidence(ref, item["evidence_ids"]),
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
@@ -149,9 +151,11 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                              if entry["item_id"] == item_id and entry["resolver"] != resolver
                              and entry["outcome"] == "suggested"]
     try:
-        # A build question's own subject stands in for the record: its identifiers, and no kind to guard.
+        # A build question's own subject stands in for the record: its identifiers, and for a receipt answer its kind,
+        # so a receipt is never chosen as the underlying.
         outcome = decide(verdict, item, claimed=record.identifiers if record else build_questions.claimed(ref, row),
-                         as_of=as_of, record_kind=record.attributes.kind if record else None,
+                         as_of=as_of, record_kind=record.attributes.kind if record else InstrumentKind.DEPOSITARY_RECEIPT
+                         if built[1] is VerdictRelation.DEPOSITARY_RECEIPT_OF else None,
                          evidence=[assertion for found in subjects for assertion in found["evidence"]],
                          subject_kind=_kind(subject), prior=prior, same_venue=record is not None and (
                              _same_venue(record, subjects)

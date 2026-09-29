@@ -21,8 +21,8 @@ import { useDeskApi } from "./providers";
  * These are small local reads; an unneeded answer only fills the cache.
  */
 
-/** One subject's page composition: a fast local core read. The search bar
- * prefetches the same key while the user highlights a row. */
+/** One subject's page composition: a fast local core read. Search never
+ * prefetches it: a subject read queues the build's questions about it. */
 export function useSubjectPage(subjectId: string) {
   const api = useDeskApi();
   return useQuery({

@@ -34,6 +34,15 @@ function isNoMatch(answer: Answer) {
   return !answer.chosen_id || answer.relation === "unrelated";
 }
 
+/** A subject's identifiers in one line, such as "LEI … · CIK …". */
+function identifierText(ids: Record<string, string | null>) {
+  return joined(
+    ...["isin", "figi", "lei", "cik", "caip19"].map((key) =>
+      ids[key] ? `${SCHEMES[key]} ${ids[key]}` : null,
+    ),
+  );
+}
+
 function nameOf(item: IdentityQuestion, id: string | null) {
   const found = item.candidates.find((candidate) => candidate.id === id);
   return found?.name ?? id ?? "—";
@@ -68,18 +77,16 @@ export function identityContext(item: IdentityQuestion) {
     const label = several ? `${noun} ${index + 1}` : noun;
     return [
       { label, value: candidate.name ?? candidate.id },
-      {
-        label: `${label} venue · currency`,
-        value: joined(ids.mic, ids.currency),
-      },
-      {
-        label: `${label} identifiers`,
-        value: joined(
-          ...["isin", "figi", "lei", "cik", "caip19"].map((key) =>
-            ids[key] ? `${SCHEMES[key]} ${ids[key]}` : null,
-          ),
-        ),
-      },
+      // A company has no venue of its own.
+      ...(candidate.level === "issuer"
+        ? []
+        : [
+            {
+              label: `${label} venue · currency`,
+              value: joined(ids.mic, ids.currency),
+            },
+          ]),
+      { label: `${label} identifiers`, value: identifierText(ids) },
     ];
   });
   // A subject the question is about besides its candidates, such as the
@@ -110,10 +117,21 @@ export function identityContext(item: IdentityQuestion) {
         },
       ]
     : [];
-  const otherRows = others.map((subject) => ({
-    label: built ? "Asked about" : "Other instrument",
-    value: subject.name ?? subject.id,
-  }));
+  // A build question's subject with its identifiers, such as a registrant's CIK.
+  const otherRows = others.flatMap((subject) => [
+    {
+      label: built ? "Asked about" : "Other instrument",
+      value: subject.name ?? subject.id,
+    },
+    ...(built
+      ? [
+          {
+            label: "Asked about identifiers",
+            value: identifierText(subject.identifiers),
+          },
+        ]
+      : []),
+  ]);
   return [
     { label: "Issue", value: item.question },
     ...(built ? otherRows : recordRows),
@@ -149,6 +167,9 @@ export function identityContext(item: IdentityQuestion) {
             value: SETTLED_BY[item.settled_by] ?? item.settled_by,
           },
         ]
+      : []),
+    ...(item.settled_answer
+      ? [{ label: "Answer", value: answerText(item, item.settled_answer) }]
       : []),
   ];
 }

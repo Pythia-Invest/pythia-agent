@@ -23,7 +23,12 @@ const built = identityQuestionSchema.parse({
   plugins: ["reference"],
   record: null,
   subjects: [
-    { id: RECEIPT, level: "security", name: "ASML New York Registry Shares" },
+    {
+      id: RECEIPT,
+      level: "security",
+      name: "ASML New York Registry Shares",
+      identifiers: { figi: "BBG000K6N6G7" },
+    },
   ],
   candidates: [
     {
@@ -49,13 +54,27 @@ describe("a reference build question in Repairs", () => {
 
   it("shows its subject and candidates and no provider-record rows", () => {
     const rows = identityContext(built);
-    expect(rows.find((row) => row.label === "Asked about")?.value).toBe(
-      "ASML New York Registry Shares",
-    );
-    expect(rows.find((row) => row.label === "Candidate")?.value).toBe(
-      "ASML Holding N.V.",
-    );
+    const value = (label: string) =>
+      rows.find((row) => row.label === label)?.value;
+    expect(value("Asked about")).toBe("ASML New York Registry Shares");
+    expect(value("Asked about identifiers")).toContain("BBG000K6N6G7");
+    expect(value("Candidate")).toBe("ASML Holding N.V.");
+    // A company candidate has no venue of its own.
+    expect(value("Candidate venue · currency")).toBeUndefined();
     expect(rows.filter((row) => /record/i.test(row.label))).toEqual([]);
+  });
+
+  it("names the chosen candidate once the user settled it", () => {
+    const settled = identityQuestionSchema.parse({
+      ...built,
+      state: "resolved",
+      settled_by: "user",
+      settled_answer: { relation: "same_issuer", chosen_id: ISSUER },
+    });
+    const answer = identityContext(settled).find(
+      (row) => row.label === "Answer",
+    );
+    expect(answer?.value).toContain("ASML Holding N.V.");
   });
 
   it("names the company an issuer answer chooses", () => {
