@@ -30,7 +30,8 @@ every blocking job, runs `if: always()`, and fails unless each one succeeded:
 | --- | --- |
 | Static checks | `just check-static` |
 | Types | `just check-types` |
-| Build and browser tests | `just check-build`, then `just test-e2e-hermetic` |
+| Build | `just check-build` |
+| Browser tests, two shards | `just build-desk`, then `just test-e2e-hermetic --shard=N/2` |
 | Tests | `just test-fast` on the pinned Python |
 | macOS and Ubuntu lifecycle smoke | `just test-system` |
 
@@ -72,8 +73,9 @@ reliable. Retries are never the fix.
 
 A single aggregate check makes "merge only on green" a repository rule instead
 of a convention, and lets jobs be added or split without touching branch
-protection. Parallel jobs bring the critical path from about five minutes to
-the build and browser job. Running the same `just` recipes locally and in CI
+protection. Parallel jobs, with the browser suite split in two shards
+that each build only Desk, keep the critical path near the pre-split five
+minutes while adding the whole browser suite. Running the same `just` recipes locally and in CI
 removes the gap agents fell into. Browser tests that nobody runs rot. Running
 them against the real production build, with fixtures in place of Hermes,
 proves the routing, keyboard and viewport contracts on every change. It does

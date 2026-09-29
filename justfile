@@ -85,8 +85,12 @@ check-hermes-capture:
     pnpm run check:hermes-capture
 
 # Desk browser tests against this checkout's built Desk with no Hermes (run check-build first).
-test-e2e-hermetic:
-    node apps/desk/e2e/hermetic.mjs
+test-e2e-hermetic *args:
+    node apps/desk/e2e/hermetic.mjs {{args}}
+
+# Build Desk and the workspaces it depends on (what the hermetic browser tests need).
+build-desk:
+    env -i HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" TMPDIR="${TMPDIR:-/tmp}" NEXT_TELEMETRY_DISABLED=1 pnpm exec turbo run build --filter=@pythia/desk... --env-mode=loose
 
 # Every Desk browser test, including e2e/live, against a Desk that is already running (see `just dev-paths`).
 test-e2e desk_url:

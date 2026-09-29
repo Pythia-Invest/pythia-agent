@@ -40,21 +40,36 @@ jobs:
       - run: just check-types
 
   build:
-    name: Build and browser tests
+    name: Build
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: just check-build
+
+  browser:
+    name: Browser tests (${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: just build-desk
       - run: pnpm --filter @pythia/desk exec playwright install --with-deps chromium
-      - run: just test-e2e-hermetic
+      - run: just test-e2e-hermetic --shard=${{ matrix.shard }}/2
       - if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.shard }}
           path: .local/playwright/desk
           retention-days: 7
 
@@ -107,7 +122,7 @@ jobs:
   gate:
     name: CI gate
     if: always()
-    needs: [static, types, build, test, smoke]
+    needs: [static, types, build, browser, test, smoke]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
