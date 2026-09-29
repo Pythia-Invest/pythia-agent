@@ -148,6 +148,11 @@ export function WorkspaceReaderProvider({
         files.find((file) => file.path === next.activeId) ?? null;
       return { activeId: next.activeId, files };
     });
+    // Closing the last file removes the focused Close button with the
+    // companion; return focus to what opened the file, as close() does.
+    requestAnimationFrame(() => {
+      if (!currentArtifact.current) opener.current?.focus();
+    });
   }, []);
   const value = useMemo(
     () => ({

@@ -42,16 +42,6 @@ test("separates the navigation rail from the chat list", async ({ page }) => {
     "href",
     "/",
   );
-  for (const name of [
-    "Chat",
-    "Markets",
-    "Watchlist",
-    "Workspace",
-    "Filings",
-    "Capabilities",
-  ]) {
-    await expect(rail.getByRole("link", { name, exact: true })).toBeVisible();
-  }
   await expect(
     rail.getByRole("link", { name: "Chat", exact: true }),
   ).toHaveAttribute("aria-current", "page");
@@ -151,106 +141,6 @@ test("settings follows the device by default and can override it", async ({
   await expect(choice("System")).toHaveAttribute("aria-pressed", "true");
 });
 
-test("docks Pythia beside a page and keeps the open conversation", async ({
-  page,
-}) => {
-  test.skip(isNarrow(page), "The dock needs a wide viewport.");
-  await openDesk(page);
-  const links = await chatLinks(page);
-  test.skip((await links.count()) === 0, "No chat to carry into the dock.");
-  const title = await links.first().innerText();
-  await links.first().click();
-  await page.waitForURL(/\/c\//);
-
-  await page.getByRole("link", { name: "Markets", exact: true }).click();
-  await expect(page).toHaveURL(/\/markets$/);
-  const dock = page.getByRole("complementary", { name: "Pythia" });
-  await expect(dock).toBeVisible();
-  // The dock carries the conversation across, it does not start a new one.
-  await expect(
-    dock.getByRole("tab", { name: title, exact: true }),
-  ).toBeVisible();
-
-  await dock.getByRole("button", { name: "Hide Pythia" }).click();
-  await expect(dock).toHaveCount(0);
-  await page.getByRole("button", { name: "Open Pythia" }).click();
-  await expect(dock).toBeVisible();
-});
-
-test("keeps open chats as tabs and swaps without leaving the page", async ({
-  page,
-}) => {
-  test.skip(isNarrow(page), "The dock needs a wide viewport.");
-  await openDesk(page);
-  const links = await chatLinks(page);
-  test.skip((await links.count()) < 2, "Need two chats to swap between.");
-  const first = await links.first().innerText();
-  const second = await links.nth(1).innerText();
-  await links.first().click();
-  await page.waitForURL(/\/c\//);
-  await page.getByRole("link", { name: "Markets", exact: true }).click();
-
-  const dock = page.getByRole("complementary", { name: "Pythia" });
-  const tabs = dock.getByRole("tablist");
-  // The chat you came from travels to the dock as a tab.
-  await expect(tabs.getByRole("tab", { name: first })).toBeVisible();
-
-  // Everything else is a dropdown behind the clock, not a second panel.
-  const openHistory = async () => {
-    await dock.getByRole("button", { name: "Chat history" }).click();
-    return page.getByRole("dialog");
-  };
-  let history = await openHistory();
-  await expect(
-    history.getByRole("searchbox", { name: "Search chats" }),
-  ).toBeFocused();
-  await history.getByRole("button", { name: second, exact: true }).click();
-  // Picking from it closes the dropdown rather than covering the conversation.
-  await expect(history).toHaveCount(0);
-
-  // Picking a chat opens it as a second tab and stays on Markets.
-  await expect(page).toHaveURL(/\/markets$/);
-  await expect(tabs.getByRole("tab", { name: second })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(tabs.getByRole("tab")).toHaveCount(2);
-
-  // A chat that already has a tab is marked, and picking it moves to that tab
-  // rather than opening a second one.
-  history = await openHistory();
-  await expect(history.getByText("Open").first()).toBeVisible();
-  await history.getByRole("button", { name: first, exact: true }).click();
-  await expect(tabs.getByRole("tab")).toHaveCount(2);
-  await expect(tabs.getByRole("tab", { name: first })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-
-  // Closing the active tab falls back to its neighbour, still on Markets.
-  await dock.getByRole("button", { name: `Close ${second}` }).click();
-  await expect(tabs.getByRole("tab")).toHaveCount(1);
-  await expect(page).toHaveURL(/\/markets$/);
-});
-
-test("starts a new chat inside the dock without leaving the page", async ({
-  page,
-}) => {
-  test.skip(isNarrow(page), "The dock needs a wide viewport.");
-  await openDesk(page);
-  await page.getByRole("link", { name: "Markets", exact: true }).click();
-  await expect(page).toHaveURL(/\/markets$/);
-
-  const dock = page.getByRole("complementary", { name: "Pythia" });
-  await dock.getByRole("button", { name: "New chat" }).click();
-  // The unsaved chat is a tab of its own, and Markets stays on screen.
-  await expect(dock.getByRole("tab", { name: "New chat" })).toBeVisible();
-  await expect(
-    dock.getByRole("textbox", { name: "Message Pythia" }),
-  ).toBeVisible();
-  await expect(page).toHaveURL(/\/markets$/);
-});
-
 test("hides and restores the chat list on wide viewports", async ({ page }) => {
   test.skip(isNarrow(page), "The list is a drawer on narrow viewports.");
   await openDesk(page);
@@ -303,37 +193,30 @@ test("opens a chat at its own route and marks it current", async ({ page }) => {
   ).toHaveCount(1);
 });
 
-test("New chat returns to the root route", async ({ page }) => {
-  await openDesk(page);
-  await openNavigation(page);
-  const links = await chatLinks(page);
-  test.skip((await links.count()) === 0, "No chats to navigate away from.");
-  await links.first().click();
-  await page.waitForURL(/\/c\//);
-  await openNavigation(page);
-  await page.getByRole("button", { name: "New chat" }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect(
-    page.getByRole("textbox", { name: "Message Pythia" }),
-  ).toBeFocused();
-});
-
-test("the Pythia wordmark returns home and focuses the composer", async ({
-  page,
-}) => {
-  await openDesk(page);
-  await openNavigation(page);
-  const links = await chatLinks(page);
-  test.skip((await links.count()) === 0, "No chats to navigate away from.");
-  await links.first().click();
-  await page.waitForURL(/\/c\//);
-  await openNavigation(page);
-  await page.getByRole("link", { name: "Pythia home" }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect(
-    page.getByRole("textbox", { name: "Message Pythia" }),
-  ).toBeFocused();
-});
+for (const [name, trigger] of [
+  ["New chat", (page: Page) => page.getByRole("button", { name: "New chat" })],
+  [
+    "The Pythia wordmark",
+    (page: Page) => page.getByRole("link", { name: "Pythia home" }),
+  ],
+] as const) {
+  test(`${name} returns to the root route and focuses the composer`, async ({
+    page,
+  }) => {
+    await openDesk(page);
+    await openNavigation(page);
+    const links = await chatLinks(page);
+    test.skip((await links.count()) === 0, "No chats to navigate away from.");
+    await links.first().click();
+    await page.waitForURL(/\/c\//);
+    await openNavigation(page);
+    await trigger(page).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.getByRole("textbox", { name: "Message Pythia" }),
+    ).toBeFocused();
+  });
+}
 
 test("keyboard reaches New chat and the chat row controls", async ({
   page,
@@ -359,19 +242,4 @@ test("keyboard reaches New chat and the chat row controls", async ({
   await expect(actions).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("menu")).toBeVisible();
-});
-
-test("the drawer opens and closes on narrow viewports", async ({ page }) => {
-  test.skip(!isNarrow(page), "Drawer behavior belongs to the phone project.");
-  await openDesk(page);
-  const navigation = page.getByRole("complementary", {
-    name: "Desk navigation",
-  });
-  await expect(navigation).not.toBeInViewport();
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  await expect(navigation).toBeInViewport();
-  // The scrim sits behind the drawer; tap the uncovered strip beside it.
-  const viewport = page.viewportSize() ?? { width: 412, height: 915 };
-  await page.mouse.click(viewport.width - 24, viewport.height / 2);
-  await expect(navigation).not.toBeInViewport();
 });

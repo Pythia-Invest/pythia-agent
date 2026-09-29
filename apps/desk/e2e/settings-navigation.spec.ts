@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
-import { checkedToday, isPhone, settingsFixture } from "./settings-fixture";
+import { checkedToday, settingsFixture } from "./settings-fixture";
+import { isPhone } from "./stream-fixture";
 
 function settings(page: Page) {
   return page.getByRole("dialog", { name: "Settings" });
@@ -17,19 +18,22 @@ async function toList(page: Page) {
 test("marks only the sections that need attention", async ({ page }) => {
   await checkedToday(page);
   const state = await settingsFixture(page);
-  // A failed update needs the reader; a connected provider does not.
+  // A failed update needs the reader; a connected provider does not. Only
+  // reads are answered here; a start reaches the fixture, which counts it.
   await page.route("**/api/update-status**", (route) =>
-    route.fulfill({
-      json: {
-        status: "ready",
-        channel: "preview",
-        current_version: "main",
-        current_revision: "a".repeat(40),
-        apply_supported: true,
-        update_available: false,
-        updater: "failed",
-      },
-    }),
+    route.request().method() !== "GET"
+      ? route.fallback()
+      : route.fulfill({
+          json: {
+            status: "ready",
+            channel: "preview",
+            current_version: "main",
+            current_revision: "a".repeat(40),
+            apply_supported: true,
+            update_available: false,
+            updater: "failed",
+          },
+        }),
   );
   await page.goto("/settings");
   await expect(page).toHaveURL(/\/\?settings=$/);

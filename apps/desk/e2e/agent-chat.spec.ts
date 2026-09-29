@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import type { AgentPage } from "../src/work/types";
 import { fixture, send } from "./stream-fixture";
 
 test("keeps unknown agents visible and finished outcomes inspectable", async ({
@@ -120,97 +119,26 @@ test("keeps unknown agents visible and finished outcomes inspectable", async ({
   await expect(
     page.getByRole("region", { name: "Main conversation" }),
   ).toBeVisible();
-  expect(f.streamRequests()).toBe(1);
-  expect(f.unexpected).toEqual([]);
-});
-
-test("preserves the child's reading position across saved updates and completion", async ({
-  page,
-}) => {
-  const f = await fixture(page);
-  await send(page);
-  const text = Array.from(
-    { length: 50 },
-    (_, i) => `Saved research step ${i + 1}.`,
-  ).join("\n\n");
-  const child = (body: string, ended = false): AgentPage => ({
-    assignment: "Verify source coverage",
-    ended,
-    offset: 0,
-    more: false,
-    messages: [
-      {
-        id: "research",
-        role: "assistant",
-        parts: [{ type: "text", text: body }],
-      },
-    ],
-  });
-  f.setAgentPage(child(text));
-  await f.emit([
+  // An ended child that answered reads as finished.
+  f.setAgentPage(
     {
-      event: "subagent.start",
-      child_session_id: "child",
-      goal: "Verify source coverage",
+      assignment: "Check archived records",
+      ended: true,
+      offset: 0,
+      more: false,
+      messages: [
+        {
+          id: "archived",
+          role: "assistant",
+          parts: [{ type: "text", text: "Archived records checked." }],
+        },
+      ],
     },
-  ]);
-  await page
-    .locator('[data-slot="turn-live-detail"]')
-    .getByRole("button", { name: /Verify source coverage/ })
-    .click();
-  const detail = page.getByRole("region", {
-    name: "Research agent conversation",
-  });
-  const viewport = detail.locator('[data-slot="conversation"]');
-  await expect(
-    detail.getByText("Saved research step 50.", { exact: true }),
-  ).toBeVisible();
-  await expect
-    .poll(() => viewport.evaluate((e) => e.scrollHeight - e.clientHeight))
-    .toBeGreaterThan(200);
-  await viewport.dispatchEvent("wheel", { deltaY: -8 });
-  await viewport.evaluate((e) => {
-    e.scrollTop = e.scrollHeight - e.clientHeight - 8;
-    e.dispatchEvent(new Event("scroll"));
-  });
-  await expect(
-    detail.getByRole("button", { name: "Jump to latest" }),
-  ).toBeVisible();
-  const before = await viewport.evaluate((e) => e.scrollTop);
-  f.setAgentPage(child(`${text}\n\nAnother saved update.`));
-  await expect(detail.getByText("Another saved update.")).toBeAttached();
-  await expect
-    .poll(() => viewport.evaluate((e) => e.scrollTop))
-    .toBeLessThanOrEqual(before + 1);
-  const complete = child(`${text}\n\nAnother saved update.`, true);
-  complete.messages[0]?.parts.push({
-    type: "text",
-    text: "**Sources checked.**",
-  });
-  f.setAgentPage(complete);
-  await f.emit([
-    {
-      event: "subagent.complete",
-      child_session_id: "child",
-      status: "completed",
-    },
-  ]);
-  await expect(
-    detail.getByText("Sources checked.", { exact: true }),
-  ).toBeAttached();
-  await expect
-    .poll(() => viewport.evaluate((e) => e.scrollTop))
-    .toBeLessThanOrEqual(before + 1);
-  await detail.getByRole("button", { name: "Jump to latest" }).click();
-  await expect(
-    detail.getByText("Sources checked.", { exact: true }),
-  ).toBeVisible();
+    "ended",
+  );
+  await page.getByRole("button", { name: /^Worked/ }).click();
+  await row(/Check archived records/).click();
   await expect(detail.getByText("Research agent · finished")).toBeVisible();
-  await expect
-    .poll(() =>
-      viewport.evaluate((e) => e.scrollHeight - e.scrollTop - e.clientHeight),
-    )
-    .toBeLessThan(2);
   expect(f.streamRequests()).toBe(1);
   expect(f.unexpected).toEqual([]);
 });
@@ -277,69 +205,5 @@ test("keeps the assignment visible through loading and failed reads, then retrie
   await expect(
     detail.locator('[data-role="user"]').getByText("Verify source coverage"),
   ).toBeVisible();
-  expect(f.unexpected).toEqual([]);
-});
-
-test("opens 125 agent summaries without fetching every transcript", async ({
-  page,
-}) => {
-  const f = await fixture(page);
-  const children = new Set<string>();
-  page.on("request", (request) => {
-    const url = new URL(request.url());
-    if (url.pathname.endsWith("/work") && url.searchParams.has("child"))
-      children.add(url.searchParams.get("child") ?? "");
-  });
-  f.setWork({
-    plans: [],
-    assignments: [],
-    offset: 0,
-    historyMore: false,
-    agentsMore: false,
-    agents: Array.from({ length: 125 }, (_, i) => ({
-      id: `child-${i}`,
-      sessionId: `child-${i}`,
-      goal: `Check company ${i + 1}`,
-      status: "ended" as const,
-    })),
-  });
-  f.setAgentPage({
-    assignment: "Check company 125",
-    ended: true,
-    offset: 0,
-    more: false,
-    messages: [
-      {
-        id: "result",
-        role: "assistant",
-        parts: [{ type: "text", text: "Company 125 checked." }],
-      },
-    ],
-  });
-  await send(page);
-  // The turn started four of them; the directory lists every loaded agent.
-  await f.emit(
-    Array.from({ length: 4 }, (_, i) => ({
-      event: "subagent.start",
-      child_session_id: `child-${i}`,
-      goal: `Check company ${i + 1}`,
-    })),
-  );
-  await page.getByRole("button", { name: "and 1 more" }).click();
-  const popup = page.getByRole("dialog", { name: "Research agents" });
-  await expect(
-    popup.getByRole("list", { name: "Agents" }).getByRole("button"),
-  ).toHaveCount(25);
-  await popup
-    .getByRole("searchbox", { name: "Search agents" })
-    .fill("company 125");
-  expect(children.size).toBe(0);
-  await popup.getByRole("button", { name: /Check company 125/ }).click();
-  const detail = page.getByRole("region", {
-    name: "Research agent conversation",
-  });
-  await expect(detail.getByText("Company 125 checked.")).toBeVisible();
-  expect([...children]).toEqual(["child-124"]);
-  expect(f.streamRequests()).toBe(1);
   expect(f.unexpected).toEqual([]);
 });

@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-/** Read-only qualification against the configured host workspace. API calls are
- * blocked; the initial admitted HTML must suffice even without application JS. */
+/** Read-only qualification against the configured workspace root (the hermetic
+ * launcher seeds one file). API calls are blocked; the initial admitted HTML
+ * must suffice even without application JS. */
 test("initial folder is visible before JavaScript and survives hydration", async ({
   page,
 }, info) => {
@@ -41,6 +42,8 @@ test("initial folder is visible before JavaScript and survives hydration", async
       page.getByText("Opening workspace…", { exact: true }),
     ).toHaveCount(0);
     count = await files.getByRole("listitem").count();
+    // An empty folder would make the hydration comparison below vacuous.
+    expect(count).toBeGreaterThan(0);
   } finally {
     release();
   }

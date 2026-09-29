@@ -132,7 +132,6 @@ export function AgentList({
               <button
                 type="button"
                 aria-current={selected === agent.id ? "true" : undefined}
-                data-agent-id={agent.id}
                 title={agentName(agent)}
                 className="motion-fast group flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-control border-0 bg-transparent px-2 text-start text-body transition-colors hover:bg-interaction-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 aria-current:bg-interaction-active"
                 onClick={() => onSelect(agent)}

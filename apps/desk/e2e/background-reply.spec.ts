@@ -54,6 +54,9 @@ const work = (status: "running" | "ended", endedAt?: number): WorkPage => ({
 test("shows Hermes's own reply to finished background agents without a reload", async ({
   page,
 }) => {
+  // Native work and history are polled; advance the page clock past each
+  // interval instead of waiting it out.
+  await page.clock.install();
   const f = await fixture(page);
   f.setWork(work("running"));
   await send(page);
@@ -82,7 +85,8 @@ test("shows Hermes's own reply to finished background agents without a reload", 
   const waiting = page.locator(
     '[data-slot="turn-activity"][data-state="live"]',
   );
-  await expect(waiting).toBeVisible({ timeout: 10_000 });
+  await page.clock.runFor(5_000);
+  await expect(waiting).toBeVisible();
 
   // Hermes's wake turn is saved: the notice and the answer appear in place.
   f.setHistory([
@@ -98,9 +102,10 @@ test("shows Hermes's own reply to finished background agents without a reload", 
       content: "The sources agree: revenue 100, operating profit 20.",
     },
   ]);
+  await page.clock.runFor(4_000);
   await expect(
     page.getByText("The sources agree: revenue 100, operating profit 20."),
-  ).toBeVisible({ timeout: 10_000 });
+  ).toBeVisible();
   await expect(page.getByText("Research agents finished")).toBeVisible();
   await expect(waiting).toHaveCount(0);
   expect(f.submissions).toEqual(["Check the synthetic example."]);
