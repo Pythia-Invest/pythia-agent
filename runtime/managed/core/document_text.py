@@ -4,8 +4,7 @@ reader amendment).
 `extract` streams an HTML, inline XBRL or ESEF xhtml body through an HTML parser, so the raw body is never held
 whole: visible text with line breaks at blocks, and an outline from the document's own table of contents (internal
 links, labelled by their text, in target order), else from "Part I" / "Item 1A." headings, else fixed-size parts.
-A table laid out as a page of columns (a row with several section headings, their bodies in the rows below, as
-designed annual reports are) is read column by column, so each section holds its own body.
+A table laid out as a page of columns (section headings in one row, bodies below) is read column by column.
 `search` ranks passages of an extracted document by BM25. Pure standard library; no I/O but the stream.
 """
 from __future__ import annotations
@@ -22,6 +21,7 @@ MAX_BYTES = 64_000_000     # decoded bytes streamed through the parser (ASML's 2
 MAX_TEXT = 4_000_000       # extracted characters kept per document (ASML's 20-F has 1.3 million)
 PASSAGE_CHARS = 1_200      # search passages are paragraphs joined up to about this size
 PART_CHARS = 20_000        # fixed-size parts when a document has no usable outline
+TABLE_CELLS = 2_000        # cells and spanned columns a table may have and still be re-laid as a page of columns
 
 
 class TooLarge(RuntimeError):
@@ -78,24 +78,14 @@ class _Text(HTMLParser):
         elif tag in ("td", "th"):
             self.pending = True
         if tag == "table":  # a cell runs to the next; the first holds what comes before the first row (a caption)
-            self.tables.append({"at": len(self.parts), "row": -1, "col": 0, "taken": set(),
+            self.tables.append({"at": len(self.parts), "row": -1, "col": 0, "spans": {}, "weight": 0,
                                 "cells": [{"row": -1, "col": -1, "start": self.size, "anchors": []}]})
-        elif self.tables and tag == "tr":
-            self.tables[-1].update(row=self.tables[-1]["row"] + 1, col=0)
-        elif self.tables and tag in ("td", "th"):
-            table, span = self.tables[-1], dict(attrs)
-            row, col = max(table["row"], 0), table["col"]
-            while (row, col) in table["taken"]:
-                col += 1
-            wide, tall = (min(max(int(value), 1), 100) if str(value).isdigit() else 1
-                          for value in (span.get("colspan"), span.get("rowspan")))
-            table["taken"].update((row + down, col + across) for down in range(tall) for across in range(wide))
-            table["cells"].append({"row": row, "col": col, "start": self.size, "anchors": []})
-            table["col"] = col + wide
+        elif self.tables and tag in ("tr", "td", "th") and self.tables[-1]["cells"] is not None:
+            self._cell(tag, dict(attrs))
         for key, value in attrs:
             if key in ("id", "name") and value and value not in self.anchors:
                 self.anchors[value] = self.size + (1 if self.pending and self.last != "\n" else 0)
-                if self.tables:
+                if self.tables and self.tables[-1]["cells"] is not None:
                     self.tables[-1]["cells"][-1]["anchors"].append(value)
             elif key == "href" and tag == "a" and value and value.startswith("#") and len(value) > 1:
                 target = value[1:]
@@ -142,15 +132,39 @@ class _Text(HTMLParser):
         self._emit(text)
         self.pending = data[-1].isspace()
 
+    def _cell(self, tag: str, span: dict) -> None:
+        """Places a row or cell on the grid (`spans`: per column, the last row a rowspan covers). A table past
+        TABLE_CELLS, and every table around it, is no page of columns and is no longer tracked."""
+        table = self.tables[-1]
+        if tag == "tr":  # an empty cell where the row starts: an id on the row stays with the row
+            table.update(row=table["row"] + 1, col=0)
+        row, col, wide = max(table["row"], 0), table["col"], 1
+        while table["spans"].get(col, -1) >= row:
+            col += 1
+        if tag != "tr":
+            wide, tall = (min(max(int(value), 1), 100) if str(value).isdigit() else 1
+                          for value in (span.get("colspan"), span.get("rowspan")))
+            table["spans"].update((col + across, row + tall - 1) for across in range(wide if tall > 1 else 0))
+            table["col"] = col + wide
+        table["weight"] += wide
+        table["cells"].append({"row": row, "col": col, "start": self.size, "anchors": []})
+        if table["weight"] > TABLE_CELLS:
+            for each in self.tables:
+                each.update(cells=None, spans={})
+
     def _table_end(self, table: dict) -> None:
-        """A table with a row holding two or more link targets is a page of columns (headings above their bodies):
-        its cells are read column by column, their anchors moved with them. Any other table is kept as written."""
-        cells = table["cells"]
+        """A table with a row holding two or more link targets, and none two figures, is a page of columns: its cells
+        are read column by column, their anchors moved with them. Any other table, data tables too, keeps rows."""
+        cells = table["cells"] or []
         rows = Counter(cell["row"] for cell in cells if any(name in self.targets for name in cell["anchors"]))
+        text, base = "", cells[0]["start"] if cells else 0
         if max(rows.values(), default=0) >= 2:
-            text, base = "".join(self.parts[table["at"]:]), cells[0]["start"]
+            text = "".join(self.parts[table["at"]:])
             for cell, end in zip(cells, [cell["start"] for cell in cells[1:]] + [self.size]):
                 cell["text"] = text[cell["start"] - base:end - base]
+            figures = Counter(cell["row"] for cell in cells if FIGURE.fullmatch(cell["text"].strip()))
+            text = "" if max(figures.values(), default=0) >= 2 else text  # two figures in a row: a data table
+        if text:
             out, at = [], base
             for cell in sorted(cells, key=lambda item: (item["col"], item["row"])):
                 body, lead = cell["text"].strip(), len(cell["text"]) - len(cell["text"].lstrip())
@@ -163,7 +177,7 @@ class _Text(HTMLParser):
             self.size, self.last, self.pending, self.linked = at, "\n", False, len(self.parts)
             if self.link is not None:
                 self.link = (self.link[0], min(self.link[1], table["at"]), self.link[2])
-        if self.tables:  # a nested table moves with the cell that holds it
+        if self.tables and self.tables[-1]["cells"] is not None:  # a nested table moves with the cell that holds it
             self.tables[-1]["cells"][-1]["anchors"].extend(name for cell in cells for name in cell["anchors"])
 
 
@@ -251,8 +265,8 @@ def extract(response: Any, check: Callable[[], None] = lambda: None) -> dict:
     parser.feed(strip.feed(decoder.decode(b"", final=True), final=True))
     parser.close()
     text = "".join(parser.parts)
-    links = [(target, " ".join("".join(piece for piece in pieces if not PAGE.fullmatch(piece.strip())).split()))
-             for target, *pieces in parser.links]  # "Item 1A." "Risk Factors" "5": "Item 1A. Risk Factors"
+    links = [(target, " ".join("".join(piece for piece in pieces if not NOT_A_TITLE.search(piece.strip())).split()),
+              " ".join("".join(pieces).split())) for target, *pieces in parser.links]  # "Item 1A." "Risk Factors" "5"
     sections, method = outline(text, parser.anchors, links)
     return {"title": parser.titled or None, "text": text, "bytes": size, "sections": sections,
             "outline_method": method}
@@ -263,7 +277,7 @@ def extract(response: Any, check: Callable[[], None] = lambda: None) -> dict:
 # Page numbers, navigation and "Read more in …" cross-references are no section titles.
 NOT_A_TITLE = re.compile(r"^(?:page\s*)?[\divxlc]+(?:\s*[-–]\s*[\divxlc]+)?$|^(?:back|top|back to top|table of contents|"
                          r"contents|index|return to .*|go to .*)$|\bmore\b", re.I)
-PAGE = re.compile(r"(?:page\s*)?\d+(?:\s*[-–]\s*\d+)?", re.I)
+FIGURE = re.compile(r"[(\-–—+$€£¥\s]*\d[\d\s.,:/%]*[)%*\s]*")  # a data table's cell: an amount, a ratio, a year
 HEADING = re.compile(r"^(?:part\s+[ivx]+\b|item\s+\d{1,2}[a-c]?\b\.?)", re.I)
 
 
@@ -300,21 +314,22 @@ def _heading(text: str, at: int, flats: list[str]) -> tuple[int, str] | None:
     return None
 
 
-def outline(text: str, anchors: dict[str, int], links: list[tuple[str, str]]) -> tuple[list[dict], str]:
+def outline(text: str, anchors: dict[str, int], links: list[tuple[str, str, str]]) -> tuple[list[dict], str]:
     """(sections, method): the table of contents' link targets, else Part and Item headings, else fixed parts.
-    A target is titled by its heading where a link's label ends with it ("Evaluation" for "Read more in Corporate
-    governance – Evaluation", a heading over three lines), else by its first usable label."""
-    names: dict[str, list[str]] = {}  # every label, without spaces or case
+    `links` are (target, label without page numbers or "Read more", whole label). A target is titled by its heading
+    where a whole label ends with it ("Evaluation" for "Read more in Corporate governance – Evaluation", a heading
+    over three lines), else by its first usable label."""
+    names: dict[str, list[str]] = {}  # every whole label, without spaces or case
     first: dict[str, str] = {}
-    for target, label in links:
-        if target in anchors and label:
-            names.setdefault(target, []).append(_flat(label))
+    for target, label, whole in links:
+        if target in anchors and whole:
+            names.setdefault(target, []).append(_flat(whole))
             if target not in first and not NOT_A_TITLE.search(label) and re.search(r"[A-Za-z]{2}", label):
                 first[target] = label
     starts = []
     for target, flats in names.items():
         heading = _heading(text, anchors[target], flats)
-        if heading or target in first:
+        if heading or target in first:  # a target a link names is never left out
             starts.append((*(heading or (anchors[target], first[target])), target))
     if len({offset for offset, _title, _anchor in starts}) >= 3:
         return _sections(text, starts), "contents_links"

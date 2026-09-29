@@ -62,6 +62,8 @@ DESIGNED = ('<table><tr><td><a href="#sr">STRATEGIC REPORT</a></td><td><a href="
             '<div id="fp">Financial performance</div><p>Sales grew.</p><p><a href="#fp">Financial performance</a></p>'
             '<p>Our marketplace</p><div id="mk"></div>'
             '<p>Tariffs weighed.</p><p><a href="#mk">Read more in Strategic report – Our marketplace</a></p>'
+            '<p>R<a href="#ce">ead more in </a><a href="#ce">Sustainability statements – </a></p>'
+            '<p><a href="#ce">Circular economy – Systems</a></p><p>Circular economy: Systems</p><p id="ce">Reuse.</p>'
             '<table><tr><td rowspan="2">Strategic</td><td colspan="2"><span id="r1"></span>Our future success '
             'depends</td><td><span id="r2"></span>We face intense competition</td></tr>'
             '<tr><td>Body one begins.</td><td>Body one continues.</td><td>Body two.</td></tr></table>'
@@ -89,17 +91,31 @@ class Extraction(unittest.TestCase):
     def test_a_page_of_columns_is_read_column_by_column_and_titles_are_the_printed_headings(self):
         # Shaped by ASML's 2025 20-F and ESEF report (Workiva): three risk headings in one table row, their bodies in
         # the row below; a link cut mid-word; a heading printed before its anchor; a link on part of a heading
-        # ("erformance") next to one on all of it.
+        # ("erformance") next to one on all of it; a target named only by a split "Read more in" reference.
         document = document_text.extract(Chunked(DESIGNED.encode()))
         titles = {item.get("anchor"): item["title"] for item in document["sections"]}
         self.assertEqual(titles, {None: "Cover and contents", "sr": "STRATEGIC REPORT", "ceo": "Q&A with the CEO",
                                   "fp": "Financial performance", "mk": "Our marketplace",
+                                  "ce": "Sustainability statements – Circular economy – Systems",
                                   "r1": "Our future success depends", "r2": "We face intense competition"})
         body = {item.get("anchor"): document["text"][item["start"]:item["end"]] for item in document["sections"]}
         self.assertEqual(body["r1"], "Our future success depends\nBody one begins.\nBody one continues.\n")
         self.assertEqual(body["r2"], "We face intense competition\nBody two.\nSales 1\nCosts 2\n")  # rows kept
         self.assertTrue(body["mk"].startswith("Our marketplace\nTariffs"))
         self.assertIn("Strategic\nOur future", document["text"])
+
+    def test_data_tables_keep_their_rows_even_with_linked_cells(self):
+        contents = '<p><a href="#a">A</a></p><p><a href="#b">B</a></p><p><a href="#c">C</a></p>'
+        balance = ('<p>See <a href="#ta">total assets</a> and <a href="#te">total equity</a>.</p><table>'
+                   '<tr><td></td><td>2024</td><td>2025</td></tr><tr><td id="ta">Total assets</td><td>48,000</td>'
+                   '<td id="te">50,000</td></tr><tr><td>Total equity</td><td>18,000</td><td>19,000</td></tr></table>')
+        kpis = ('<p><a href="#k">Key figures</a> <a href="#o">Outlook</a></p><table><tr><td colspan="3">'
+                '<span id="k"></span>Key figures</td><td><span id="o"></span>Outlook</td></tr><tr><td>Net sales</td>'
+                '<td>28,263</td><td>32,667</td><td rowspan="2">We expect growth.</td></tr><tr><td>Gross margin</td>'
+                '<td>51.3%</td><td>52.8%</td></tr></table>')
+        text = read(contents + '<p id="a">a</p><p id="b">b</p><p id="c">c</p>' + balance + kpis)["text"]
+        self.assertIn("Total assets 48,000 50,000\nTotal equity 18,000 19,000", text)
+        self.assertIn("Net sales 28,263 32,667 We expect growth.\nGross margin 51.3% 52.8%", text)
 
     def test_without_contents_links_headings_then_fixed_parts_are_the_outline(self):
         headings = read("<p>Item 1. Business</p><p>Item 1A. Risk Factors</p><p>PART I</p><p>Item 1. Business</p>"
@@ -133,6 +149,14 @@ class Extraction(unittest.TestCase):
             tracemalloc.stop()
         self.assertEqual(document["text"].split(), ["Before", "After"])
         self.assertLess(peak, 4_000_000)  # the parser never holds the 10 MB construct
+        for table in ('<tr>' + '<td colspan="100" rowspan="100"></td>' * 200 + '</tr>', '<tr>' + '<td></td>' * 20_000):
+            tracemalloc.start()  # a table's grid is capped: spans and empty cells cost no memory past TABLE_CELLS
+            try:
+                read(f'<table>{table}</table><p>After</p>')
+                peak = tracemalloc.get_traced_memory()[1]
+            finally:
+                tracemalloc.stop()
+            self.assertLess(peak, 2_000_000)
         closed = read('<p>Before</p><script src="viewer.js"/><style/><p>After</p><script>x</script><p>End</p>')
         self.assertEqual(closed["text"].split(), ["Before", "After", "End"])  # self-closing tags drop nothing
         html = '<p>a</p><img src="data:x,Q"/><style>p{}</style><p title=\'data:y\'>b</p>'
