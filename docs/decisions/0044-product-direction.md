@@ -262,6 +262,7 @@ question on every installation.
      package has no more authority than the same plugin run locally.
    - Prebuilt data is delivered as downloads, so no service receives users'
      queries. Licensed provider data is never redistributed.
+
 **A2.** **Combining evidence** (replaces the first and last bullets of ruling 8).
    - Rules combine the evidence of all enabled plugins. They name kinds of
      evidence and trust levels, never sources, and are published, versioned
@@ -270,10 +271,12 @@ question on every installation.
    - Where the rules do not decide, the link stays unresolved and the
      disagreement is shown. A local override makes the user's choice win on
      their installation.
-   - Identity questions are raised only for instruments the investor holds,
-     watches, opens or forecasts.
+   - An identity question is queued only when the instrument becomes relevant
+     to a holding, a research task or an operation. An instrument's venue
+     category does not make it irrelevant.
    - An agent's answer to any identity question is a suggestion and changes
      nothing until the user confirms it.
+
 **A3.** **Identity scope and contributions** (replaces ruling 9).
    - **Kept:** the four-level backbone and its relations, today's coverage,
      permanent identifiers, and holdings-first subjects for records that
@@ -281,10 +284,12 @@ question on every installation.
    - **Core owns the rules, plugins contribute the contents.** Core defines a
      small set of subject kinds, the identifier rules, relations and matching.
      New kinds are a rare core addition.
-   - **A plugin's own domain** is the set of subjects under its native
-     identifier scheme, or under open identifiers that no other enabled plugin
-     describes. A plugin adds portable, first-class subjects in its own domain
-     and is the authority there.
+   - **Introducing subjects.** A plugin may introduce portable, first-class
+     subjects that no source yet covers, under its native identifier scheme or
+     under open identifiers. Introducing a subject confers no authority over
+     it: facts about any subject are weighed by evidence kind and trust level,
+     and the absence of competing evidence never increases a plugin's
+     authority.
    - **Links are made by identifier agreement at the right scope.** A shared
      issuer never makes two instruments the same; ambiguous links stay
      unresolved.
@@ -292,15 +297,19 @@ question on every installation.
      that supplies the same identifier yields the same subject.
    - **Disabling a default plugin** reduces identity quality or coverage, and
      Pythia shows the effect before it happens.
-   - **Shared artefacts carry identifier bundles** and the rule version, and
-     the receiving installation leaves ambiguous matches unresolved.
+   - **Shared artefacts carry identifier bundles,** pin the meaning of their
+     rules and declare their data requirements. The receiving installation
+     leaves ambiguous matches unresolved. Separate installations need not
+     reach identical new decisions. Reproducing a historical decision uses its
+     selected facts, evidence references and relevant versions.
    - **Paused until a strategy universe reaches a gap or a second user
      arrives:** new reference sources and further source audits.
+
 **A4.** **Plugin trust levels** (replaces ruling 10). There are three levels:
    display, suggest identity and confirm identity.
-   - **Display** covers showing data with its source and, for a plugin that
-     adds subjects, adding them in its own domain. It needs declared coverage
-     and terms, and the identifier scheme of any subjects it adds.
+   - **Display** covers showing data with its source and introducing subjects
+     under open or native identifiers. It needs declared coverage and terms,
+     and the identifier scheme of any subjects it introduces.
    - **Confirm identity**, which establishes facts that other sources also
      describe without review, requires the full onboarding audit and sign-off.
    - **A user's own licensed vendor** is usable at the display level.
@@ -309,28 +318,36 @@ question on every installation.
      not to a plugin's name.
    - **Code isolation.** Trust levels bound data, not code. Isolating untrusted
      plugin code is required before an open marketplace.
+
 **A5.** **Identity, evidence and choices are separate.**
    - Whether records are the same instrument requires evidence at the correct
      scope.
    - Which listing a view shows is a preference or documented default.
    - The instrument, price series, currency and fill policy of a forecast or
-     paper decision are pinned when it is created.
+     paper decision are pinned when it is created. Pinning preserves the
+     choice; it does not validate the facts behind it (A6).
    - What conflicting evidence means for a thesis is the agent's
      interpretation, which it explains.
+
 **A6.** **Uncertainty and consequential operations.**
    - Recording uncertainty is allowed in research, notes and ledger entries.
-   - Consequential operations need settled or pinned inputs. These are
-     simulating a fill, carrying or merging positions across corporate actions,
-     checking an issuer limit, and creating an order ticket. Otherwise that
-     operation is unavailable with a reason, and the rest of the workflow
-     continues.
-   - An unconfirmed agent interpretation never counts as settled input.
+   - Consequential operations need validated facts and pinned choices. These
+     are simulating a fill, carrying or merging positions across corporate
+     actions, checking an issuer limit, and creating an order ticket. Factual
+     inputs, such as an issuer link or a split ratio, must meet the operation's
+     evidence requirements. Choices, such as the listing, price series or fill
+     policy, are pinned. Pinning preserves a choice and never validates a fact.
+     When an input falls short, that operation is unavailable with a reason,
+     and the rest of the workflow continues.
+   - An unconfirmed agent interpretation never counts as a validated fact.
    - A saved interpretation keeps its evidence, scope and dependencies, and
      becomes stale when they change.
+
 **A7.** **Reviewed answers.** Reviewed answers over open data may ship as a
    Pythia-maintained answer list, contributed at its trust level like any
    other plugin's evidence. Raw model exchanges and gold labels on licensed
    data stay on the device.
+
 **A8.** **Open until validated:**
    - direct and prebuilt forms per reference source;
    - the exact evidence-weighing rules;
@@ -369,14 +386,15 @@ first ruling 9 is superseded by the stage 0 work below.
   - [ADR 0039](0039-local-first-reference-data-and-rights.md): a published
     package, as a maintained default without extra authority.
   - [ADR 0042](0042-source-onboarding-standard.md): "The builder's reference
-    sources are not plugins", and no subjects before sign-off for plugins that
-    add subjects in their own domain.
+    sources are not plugins", and no subjects before sign-off, for plugins
+    that introduce subjects.
 - **Roadmap stage 0 gains:**
   - an ordinary plugin adding a subject;
   - contributing evidence about an existing one;
   - appearing in search;
   - keeping saved references through disabling, re-enabling and updates;
-  - raising identity questions only for instruments the investor touches;
+  - queueing identity questions only for instruments relevant to a holding,
+    research task or operation;
   - removing authority by name or origin;
   - tests of consequential failures.
 

@@ -297,12 +297,11 @@ integrations add any number of devices, but within a fixed set of entity types,
 which is why the interface and automations work generically across all of them.
 A genuinely new kind is a rare addition to core. New subjects never are.
 
-- **Any plugin can add subjects in its own domain.** A plugin's own domain is
-  the set of subjects under its native identifier scheme, or under open
-  identifiers that no other enabled plugin describes. A plugin for a national
-  market adds its stocks under their ISINs (share-class FIGIs where ISINs are
-  licensed). A DeFi plugin adds a token or pool under its exact chain-specific
-  identity, makes it searchable, exposes its data and keeps
+- **Any plugin can introduce subjects.** A plugin may introduce a subject that
+  no source yet covers, under its native identifier scheme or under open
+  identifiers. A plugin for a national market adds its stocks under their ISINs
+  (share-class FIGIs where ISINs are licensed). A DeFi plugin adds a token or
+  pool under its exact chain-specific identity, makes it searchable, exposes its data and keeps
   references to it, without waiting for a catalogue release. Separately, it can
   contribute evidence about how its subjects relate to others, for example that
   a token is the stablecoin its issuer documents. Because identifiers are
@@ -310,11 +309,13 @@ A genuinely new kind is a rare addition to core. New subjects never are.
   arrives at the same identifiers, so these subjects are first-class: they get
   pages, can be watched, forecast and held, and appear in the ledger like any
   listed security.
-- **A plugin is the authority for its own domain.** Facts about subjects that
-  other sources also describe are different: for example, which company a
-  ticker belongs to, or which share a depositary receipt represents. A plugin
-  can contribute such evidence; how much it counts depends on the evidence kind
-  and the plugin's trust level.
+- **Introducing a subject confers no authority over it.** Facts about any
+  subject, including one a plugin introduced, are weighed by the kind of
+  evidence and the plugin's trust level: for example, which company a ticker
+  belongs to, which share a depositary receipt represents, or which asset a
+  pool holds. The absence of competing evidence never increases a plugin's
+  authority, so disabling one plugin does not make another the authority over
+  its instruments.
 - **Links are made by identifier agreement at the right scope.** An identifier
   links records only at the level it identifies: an ISIN or share-class FIGI
   links securities, an LEI links issuers. A shared issuer never makes two
@@ -331,17 +332,17 @@ A genuinely new kind is a rare addition to core. New subjects never are.
   removes them: about a fifth without the SEC sources. Pythia shows the effect
   before a plugin is disabled.
 - **Shared artefacts carry identifier bundles.** A strategy package or ledger
-  export lists every known identifier for each subject, and the version of the
-  rules it used. The receiving installation resolves it with its own plugins,
+  export lists every known identifier for each subject. The receiving installation resolves it with its own plugins,
   strongest identifier first, and leaves an ambiguous match unresolved.
 - **Subject identifiers never disappear.** They survive rebuilds, renames and
   corporate actions through aliases and successor links. A forecast made today
   must still resolve years from now.
 - **Holdings come first.** A position or record that no source can identify
   still appears, labelled as unmatched, instead of being dropped.
-- **Questions only where they matter.** Pythia raises identity questions only
-  for instruments the investor holds, watches, opens or forecasts, never for
-  the rest of the world.
+- **Questions only where they matter.** Pythia queues an identity question
+  only when the instrument becomes relevant to a holding, a research task or an
+  operation: held, watched, opened, forecast or used. It does not proactively
+  ask about the rest of the world, whatever venue an instrument trades on.
 
 Today:
 
@@ -354,7 +355,7 @@ Today:
   queued on the device.
 
 Letting any plugin add subjects and evidence through the same contract, and
-raising questions only for instruments the investor touches, is roadmap
+queueing questions only for instruments that become relevant, is roadmap
 stage 0 ([ADR 0044](decisions/0044-product-direction.md), amendment A1 to A8).
 
 ### Identity, evidence and choices
@@ -383,8 +384,9 @@ An analysis of a full reference build over EU and United States securities
   contributed evidence as peers, and about half with an exchange-code table and
   one more rule (measured);
 - about a quarter concerned instruments that trade in Europe only on
-  bank-internal, request-for-quote or dark venues, which no one reaches through
-  a European exchange and which should not be asked about;
+  bank-internal, request-for-quote or dark venues; their questions are not
+  queued unless the instrument becomes relevant to a holding, research task or
+  operation;
 - about a tenth already had the answer in downloaded data and need a simple
   rule, about one in twenty were stale records or lines on venues nobody
   requested, and the rest need lookups not yet run or sources not yet
@@ -401,7 +403,7 @@ build. The approach that follows:
 | Source errors | A register field naming the wrong company | Rules that name kinds of evidence, never sources: for example, a company's own regulatory filing outweighs a trading venue's report of its issuer | Nothing to do; a contradicted link is marked |
 | Corporate actions | A share consolidation that changes an ISIN | Lifecycle data: successors, ratios and effective dates | Old references keep resolving through successor links |
 | Listing choice | Which of two exchanges a dual-listed company counts as primary | A preference or documented default; pinned where a decision depends on it | The listing in use, with the alternatives |
-| A plugin's own domain | DeFi pools and protocols; a vendor's proprietary indices | The plugin is the authority for its own subjects. Links to shared subjects are made by identifier agreement | New subjects appear with the plugin's label |
+| Subjects only one plugin describes | DeFi pools and protocols; a vendor's proprietary indices | The plugin's claims count at its trust level, labelled with their source; the absence of other plugins does not raise them. Links to shared subjects are made by identifier agreement | New subjects appear with the plugin's label |
 | Vendor symbols | Mapping a vendor's ticker to a listing | Automatic matching by open identifiers when the plugin connects | A summary of what matched, and what stays available only from that vendor |
 | The user's own unmatched records | A broker position or wallet token that no source identifies | On the user's machine, only when it matters. An agent proposes a match and the user confirms | The record appears immediately, labelled "not matched", with a suggestion |
 | Values that differ | Two vendors reporting different revenue | Never merged: single values are shown side by side, lists are merged without duplicates, and a price view uses one source ([ADR 0040](decisions/0040-data-concepts-and-agent-tools.md)) | Labelled rows |
@@ -409,9 +411,12 @@ build. The approach that follows:
 | Plan limits | A key that covers end-of-day data but not intraday data | The plugin's connection check records what the credential allows | An inspectable connection result. Selection skips what is not covered |
 
 - **Default rules are open and versioned.** The rules that combine evidence are
-  published, changelogged and overridable locally. Facts that a mandate check
-  reads must match wherever a strategy runs, so a shared strategy records the
-  rule version it used.
+  published, changelogged and overridable locally. Installations with different
+  plugins, data dates or overrides can reach different facts under the same
+  rules. A shared strategy therefore pins the meaning of its rules and declares
+  its data requirements, and separate installations need not reach identical
+  new decisions. Reproducing a historical decision uses the facts it selected,
+  its evidence references and the relevant versions, which the ledger keeps.
 - **Conflicting claims are kept.** A claim that loses is marked, not deleted,
   so the evidence stays inspectable.
 - **Local fixes can be shared** with a plugin's maintainer by explicit opt-in
@@ -426,13 +431,16 @@ build. The approach that follows:
 
 - **Recording uncertainty is allowed.** Research, notes and ledger entries may
   record a contested fact together with the interpretation used.
-- **Consequential operations need settled or pinned inputs.** Simulating a
-  fill, carrying a position across a corporate action, merging positions,
-  checking an issuer limit and creating an order ticket each require their
-  inputs to be settled or pinned. When an input is contested or missing, that
-  operation is unavailable with a clear reason, and the rest of the workflow
-  continues. An unconfirmed agent interpretation never counts as settled
-  input.
+- **Consequential operations need validated facts and pinned choices.**
+  Simulating a fill, carrying a position across a corporate action, merging
+  positions, checking an issuer limit and creating an order ticket each require
+  their factual inputs, such as an issuer link or a split ratio, to meet that
+  operation's evidence requirements. Their choices, such as the listing, price
+  series or fill policy, are pinned. Pinning preserves a choice; it never makes
+  a guessed fact suitable for changing a position. When an input is contested
+  or missing, that operation is unavailable with a clear reason, and the rest
+  of the workflow continues. An unconfirmed agent interpretation never counts
+  as a validated fact.
 - **What the agent sees.** Reads give the agent a default value, a typed flag
   (such as limited coverage, tradability or a corporate action) and the
   provenance, with the full evidence on request. The agent states which
@@ -449,7 +457,7 @@ build. The approach that follows:
 
 | Level | May | Requires |
 | --- | --- | --- |
-| Display | Provide data that is shown with its source, and add subjects in its own domain under open or native identifiers | Declared coverage and terms, and the identifier scheme of any subjects it adds |
+| Display | Provide data that is shown with its source, and introduce subjects under open or native identifiers | Declared coverage and terms, and the identifier scheme of any subjects it introduces |
 | Suggest identity | Propose facts about shared subjects for review | Documented field semantics |
 | Confirm identity | Establish facts about shared subjects without review | The full [source onboarding](architecture/source-onboarding.md) audit and sign-off |
 
@@ -545,10 +553,12 @@ and their providers.
   and confidence never comes from a source's name or origin;
 - default plugins are preinstalled and maintained, never mandatory;
 - identity, evidence and choices are handled separately;
-- consequential operations require settled or pinned inputs, while recording
-  uncertainty is allowed;
+- consequential operations require validated facts and pinned choices, while
+  recording uncertainty is allowed;
 - an agent's identity answer is a suggestion the user confirms, and never
-  counts as settled input until confirmed.
+  counts as a validated fact until confirmed;
+- introducing a subject confers no authority over it, and the absence of other
+  plugins never increases a plugin's authority.
 
 **Open, to be validated before adopting:**
 
@@ -564,7 +574,7 @@ Each stage is useful on its own.
 
 | Stage | Goal | What it proves |
 | --- | --- | --- |
-| 0. Foundations | Keep plugins independent of harness internals. Raise identity questions only for instruments the investor touches. Let an ordinary plugin add a subject, contribute evidence about an existing one, appear in search, and keep saved references working through disabling, re-enabling and updates, shown with an overlapping financial source and a DeFi source. Remove authority that comes from a source's name or origin. Test the consequential failures directly: wrong share class, receipt versus ordinary share, ticker reuse, conflicting identifiers, missing currency, corporate actions and source removal, with ambiguous cases left unresolved. Give Pythia its own data directory and store | Plugins extend Pythia on equal terms, and uncertain data never silently changes what a record refers to |
+| 0. Foundations | Keep plugins independent of harness internals. Queue identity questions only for instruments relevant to a holding, research task or operation. Let an ordinary plugin add a subject, contribute evidence about an existing one, appear in search, and keep saved references working through disabling, re-enabling and updates, shown with an overlapping financial source and a DeFi source. Remove authority that comes from a source's name or origin. Test the consequential failures directly: wrong share class, receipt versus ordinary share, ticker reuse, conflicting identifiers, missing currency, corporate actions and source removal, with ambiguous cases left unresolved. Give Pythia its own data directory and store | Plugins extend Pythia on equal terms, and uncertain data never silently changes what a record refers to |
 | 1. Portfolio and the first paper mandate | Read-only positions from brokers and wallets. Turn a strategy conversation into a paper mandate over a manageable watchlist. Scheduled mandate runs with decisions, explicitly defined forecasts and basic scoring from the start; a paper book wherever its instrument and pricing requirements are met. A read-only yield monitor for stablecoin lending | An investor opens Pythia and sees real positions, last night's decisions with forecasts, paper performance against a benchmark, and a time-stamped ledger |
 | 2. Reactive agents that are scored | Event-driven research on filings and news with deduplication and triage. A review queue. Forecast resolution and scoring against baselines. Fundamentals with filing dates, classification and market capitalisation. Alerts that need no model call | Agents react to events within minutes at a controlled cost, and their calibration can be measured |
 | 3. Approved execution | Order tickets, limits and a kill switch. Broker-drafted orders the owner places. Trade-only credentials on dedicated sub-accounts. A sandboxed agent environment. Reconciliation after fills | Real orders on the owner's accounts, each traceable to a decision and an approval |
