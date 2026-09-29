@@ -44,6 +44,46 @@ export function subjectQuote(page: SubjectPage): SubjectQuote {
   };
 }
 
+/** A card or watchlist row as read. Its path's hover says where the price
+ * comes from and how late it is, in words; the read's provenance stays on the
+ * instrument page. A currency pair shows its pips (two decimals for yen-style
+ * quotes). */
+export function dayItem(
+  row: InstrumentDisplay,
+  subject: string,
+  source: string | undefined,
+): InstrumentDisplay {
+  const { data, delayMinutes } = row.activity ?? {};
+  const state =
+    data === "stale"
+      ? "updates unavailable"
+      : data === "delayed"
+        ? delayMinutes
+          ? `${delayMinutes} min delayed`
+          : "delayed"
+        : undefined;
+  const path = row.path && {
+    ...row.path,
+    label: [source ?? "Price history", state].filter(Boolean).join(" · "),
+    ...(row.path.baseline
+      ? {
+          baseline: {
+            ...row.path.baseline,
+            label: row.path.baseline.label.split(" · ")[0] ?? "",
+          },
+        }
+      : {}),
+  };
+  return {
+    ...row,
+    id: subject,
+    ...(subject.startsWith("fx:")
+      ? { precision: (row.price ?? 0) >= 50 ? 2 : 4 }
+      : {}),
+    ...(path ? { path } : {}),
+  };
+}
+
 /** A row that cannot be priced: its identity and why, with no values. */
 export function unavailableItem(
   id: string,
@@ -131,11 +171,7 @@ export function moverItem(
       basis: "Since the previous close",
     },
     status: "unknown",
-    activity: {
-      session,
-      data: session === "pre" ? "previous" : "snapshot",
-      period: "daily",
-    },
+    activity: { session, data: session === "pre" ? "previous" : "snapshot" },
     statusLabel: "",
     description: [
       source,

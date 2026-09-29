@@ -25,7 +25,8 @@ uses) and reads through that section's binding:
 
 `MarketCard` is the September `InstrumentTile` itself, a link to the
 instrument page. The status mark explains the market state, data delay and
-quote time. When a read fails, retained values are marked stale, and the card
+quote time; the sparkline's hover names the source and its delay
+("Yahoo Finance · 15 min delayed"). A currency pair shows four decimals. When a read fails, retained values are marked stale, and the card
 shows what failed and a Retry, as the September blocks did. A subject that
 cannot be read keeps a name: core's overview read returns the curated names
 from `markets.json` and `canonical_assets.json`, otherwise the card names the
@@ -101,4 +102,5 @@ markets plugin gains a page host; the two settings keep their names.
   funds only. Market state comes from Yahoo's quote; a zero delay Yahoo
   reports counts as current data.
 - European movers need an index member list; they are not built. Catalogue
-  subjects are not in search yet.
+  subjects (indexes, currency pairs) and bonds are not in search yet, so
+  search offers no Indices, Currencies or Bonds filter.

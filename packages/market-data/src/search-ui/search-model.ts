@@ -1,17 +1,11 @@
 import type { InstrumentKind, SearchGroup, SearchRow } from "../search";
 
-export type TypeFilter =
-  | "all"
-  | "stocks"
-  | "etfs"
-  | "crypto"
-  | "funds"
-  | "indices"
-  | "currencies"
-  | "bonds";
+export type TypeFilter = "all" | "stocks" | "etfs" | "crypto" | "funds";
 
 /** Type pills in display order, with the instrument kinds each one asks the
- * directory for. */
+ * directory for. Only kinds search can return have a pill: indexes, currency
+ * pairs and bonds are not in the directory yet
+ * (docs/architecture/markets-overview.md, Limits). */
 export const TYPE_FILTERS: readonly {
   value: TypeFilter;
   label: string;
@@ -26,9 +20,6 @@ export const TYPE_FILTERS: readonly {
   { value: "etfs", label: "ETFs", kinds: ["etf"] },
   { value: "crypto", label: "Crypto", kinds: ["coin", "token"] },
   { value: "funds", label: "Funds", kinds: ["fund"] },
-  { value: "indices", label: "Indices", kinds: ["index"] },
-  { value: "currencies", label: "Currencies", kinds: ["fx"] },
-  { value: "bonds", label: "Bonds", kinds: ["bond"] },
 ];
 
 /** The precise instrument type, for the instrument page. */

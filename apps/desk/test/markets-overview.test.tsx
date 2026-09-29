@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { MarketCard, type SubjectDay } from "@/components/markets/market-card";
 import {
+  dayItem,
   loadingItem,
   subjectName,
   unavailableItem,
@@ -125,5 +126,56 @@ describe("a subject that cannot be read", () => {
     );
     expect(html).toContain("Reference data is not installed");
     expect(html).not.toContain("Some subjects could not be read");
+  });
+});
+
+describe("a card's quote as read", () => {
+  const row = {
+    id: "0",
+    ticker: "EUR/USD",
+    price: 1.1312,
+    status: "delayed" as const,
+    activity: {
+      session: "open" as const,
+      data: "delayed" as const,
+      delayMinutes: 15,
+    },
+    statusLabel: "Market open",
+    description: "yahoo · EURUSD=X · aggregate price · unknown · 1 tick",
+    path: {
+      points: [
+        { time: 0, value: 1.13 },
+        { time: 60_000, value: 1.1312 },
+      ],
+      label:
+        "yahoo · EURUSD=X · ohlc · unknown · 2 minute · Session 2026-09-28",
+      baseline: {
+        value: 1.13,
+        label: "Previous close · Yahoo:quote:regularMarketPreviousClose",
+      },
+    },
+  };
+
+  it("hovers the source and its delay in words, and shows a pair's pips", () => {
+    const item = dayItem(row, "fx:pythia:EURUSD", "Yahoo Finance");
+    expect(item.id).toBe("fx:pythia:EURUSD");
+    expect(item.precision).toBe(4);
+    expect(item.path?.label).toBe("Yahoo Finance · 15 min delayed");
+    expect(item.path?.baseline?.label).toBe("Previous close");
+    const html = renderToStaticMarkup(
+      <MarketCard day={day("fx:pythia:EURUSD", { item, loading: false })} />,
+    );
+    expect(html).toContain("1.1312");
+    expect(html).not.toContain("Yahoo:quote");
+  });
+
+  it("keeps two decimals outside currency pairs and for yen-style quotes", () => {
+    expect(dayItem(row, "index:pythia:sp500", "Yahoo Finance").precision).toBe(
+      undefined,
+    );
+    expect(
+      dayItem({ ...row, price: 147.23 }, "fx:pythia:USDJPY", undefined)
+        .precision,
+    ).toBe(2);
   });
 });
