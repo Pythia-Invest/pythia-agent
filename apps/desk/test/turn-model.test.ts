@@ -152,6 +152,7 @@ describe("live answer placement", () => {
     ]);
     expect(live.steps.map((step) => step.kind)).toEqual(["commentary", "tool"]);
     expect(live.prose).toEqual(done.prose);
+    expect(live.answer).toBeUndefined();
     expect(done.answer?.text).toBe("I found a source.");
   });
 
@@ -179,22 +180,19 @@ describe("live answer placement", () => {
     ).toEqual(["Source preview", "I found a source."]);
   });
 
-  it("retains partial prose when the run fails instead of hiding it in activity", () => {
-    const failed: DeskUIMessage = {
-      ...message,
-      parts: [
-        ...message.parts,
-        {
-          type: "data-run-status",
-          data: { state: "failed", message: "Provider disconnected." },
-        },
-      ],
-    };
-    expect(activityTurn(failed, false).prose).toEqual(
-      activityTurn(message, true).prose,
-    );
-    expect(activityTurn(failed, false).answer).toBeUndefined();
-  });
+  it.each(["failed", "cancelled"] as const)(
+    "retains partial prose when the run is %s instead of hiding it in activity",
+    (state) => {
+      const ended: DeskUIMessage = {
+        ...message,
+        parts: [...message.parts, { type: "data-run-status", data: { state } }],
+      };
+      expect(activityTurn(ended, false).prose).toEqual(
+        activityTurn(message, true).prose,
+      );
+      expect(activityTurn(ended, false).answer).toBeUndefined();
+    },
+  );
 });
 
 describe("steered runs", () => {
