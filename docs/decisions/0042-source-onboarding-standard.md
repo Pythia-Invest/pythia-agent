@@ -100,7 +100,8 @@ precision has been measured.
   their record and its review remain their gate. A plugin cannot vouch for
   itself: core honours `signed_off` or `grandfathered` only from the plugins
   Pythia bundles and treats every other plugin as `unsigned`, whatever its
-  contract says. For an `unsigned` source:
+  contract says (since the 2026-09-30 amendment, only where a grant on the
+  plugin's files confirms it, whatever its name). For an `unsigned` source:
   - a fresh profile never enables it, even if its payload lists it as enabled
     by default;
   - core's order never ranks it ahead of an audited source, so where one
@@ -245,3 +246,96 @@ builder's `snapshot` authority until trust follows a hashed release.
 - A per-source trust table inside the builder: trust by name again.
 - A second rules-version constant beside the builder version: two numbers to
   keep in step.
+
+## Amendment (2026-09-30): trust follows a hashed release
+
+**Context.** [ADR 0044](0044-product-direction.md) A4 attaches trust to a
+signed or hashed release, not to a plugin's name. The code gate above honoured
+`signed_off` or `grandfathered` only from a list of the plugin names Pythia
+bundles (`BUNDLED`). Any plugin installed under one of those names was trusted,
+and a byte-identical copy under another name was not. Nothing is published
+yet, so no signature exists to check.
+
+**Ruling.** Trust is looked up by a digest of the plugin's files.
+
+- **The digest rule, `pythia-plugin-digest@1`.** SHA-256 over the sorted lines
+  `<posix relpath>\t<sha256 of the file>\n`, one per regular file in the plugin
+  directory. `.git/` (a git install's clone), `__pycache__/`, `*.pyc` and the
+  lifecycle's copy receipt (`.pythia-managed-copy.json`) are left out, so the
+  digest does not depend on the machine. A symlink anywhere in the
+  directory gives no digest, which means display. Core computes it from the
+  installed files, never from the receipt, and caches it on each file's size,
+  modification time and inode.
+- **Pythia's release grants.** Core's `identity/trust.py` writes
+  `identity/trust.json` into the checkout when the payload is assembled, before
+  the plugins are copied, so core's copy and its receipt carry it. The
+  lifecycle runs it with Hermes's Python in `bootstrapRuntime` (install, update
+  and development), in the explicit workspace transition and in the qualification
+  assembly. A shipped contract whose `signoff` is `signed_off` or
+  `grandfathered` is granted confirm at the digest of exactly its payload files;
+  an `unsigned` one is left out. The file is generated, never committed.
+- **The user's local grants.** `trust.json` in the Pythia config folder,
+  beside `settings.json`, has the same shape and wins in both directions: the
+  user may grant a community plugin's digest confirm, or demote a Pythia one to
+  display. A user's confirm grant is their own sign-off (ADR 0044 A2, local
+  override): it confirms whatever the contract declares, `unsigned` included.
+  A malformed file is ignored with one warning, and the release grants still
+  apply. `python -P trust.py grant <plugin dir> <display|confirm>` and
+  `status` manage it; there is no Desk page.
+- **The reference package.** Installing a package records the user's grant on
+  `sha256:<its database's sha256>`: confirm, or display with `--display`.
+  Reinstalling the same package keeps the choice already recorded, and the
+  installer refuses to install where it cannot record the choice (no config
+  folder). Core looks
+  the package's level up by that digest like any contributor's, and
+  `reference-status` shows it. A package installed before grants existed is
+  granted confirm once, on core's first use of the store, and the grant is
+  logged.
+- **Levels.** Display and confirm only. A grants file with any other level is
+  malformed.
+- **Core.** `installed()` computes each plugin's level from its digest.
+  `vouched(manifest, level)` treats the contract as `unsigned` below confirm;
+  at confirm the grant is the sign-off. The contract's `signoff` is a
+  declaration and the release generator's input; core never honours it alone.
+- **Mismatch.** A plugin whose files match no grant, while a grant names it,
+  is display, and core logs one warning naming the plugin and its digest. An
+  edited Pythia plugin, or a stale release file, shows up this way.
+
+**Rationale.** A digest binds trust to the content that was reviewed: a
+renamed copy keeps it, and a different plugin under a trusted name does not
+get it. Generating the release grants at assembly keeps them out of every
+parallel change to a plugin, and one stdlib function computes the digest both
+when the grants are written and at runtime, so the two cannot disagree. The
+grants live in the config folder because trust is the user's standing choice,
+like `source_order` in `settings.json`, and they survive a store that is set
+aside or moved.
+
+**Consequences.**
+
+- Any edit to a Pythia plugin changes its digest. The next preparation
+  regenerates the grants; until then the edited plugin is display and core
+  says so.
+- During a staged workspace transition only core is copied, with grants for
+  the current checkout, so a Pythia plugin that changed since the last
+  preparation is display until preparation runs. This fails safe.
+- A plugin whose trust drops keeps the bindings it already made. Nothing is
+  re-keyed or deleted; its sections carry the "not yet audited" label, and a
+  new answer that would bind waits for review.
+- A 2026-09-30 read-only look at 19 development profiles (196 plugin
+  directories) found no file Hermes had written into a plugin directory other
+  than `__pycache__/*.pyc`. Fifteen files in two profiles had been edited by
+  hand after copying; those plugins now show as display.
+- Trust still bounds data, not code: a digest stops name squatting, not
+  malicious in-process code.
+
+**Rejected alternatives.**
+
+- Committing `trust.json`: every plugin edit would conflict across parallel
+  changes, and a stale file would silently demote plugins.
+- A Node digest at assembly beside a Python one at runtime: two
+  implementations that could drift and demote every plugin.
+- Trusting the copy receipt's hashes: the receipt is the lifecycle's ownership
+  record, written beside the files it describes.
+- Grants in `<data>/store`: the store holds data, and a user's choice about
+  sources belongs with their settings.
+- Signatures: nothing is published yet (ADR 0039).

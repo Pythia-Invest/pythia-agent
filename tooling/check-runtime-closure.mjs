@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { extname, join, relative, resolve, sep } from "node:path";
 import { runtimeEnvironment } from "../scripts/dev/environment.mjs";
-import { MANAGED_CORE_FILES } from "../scripts/dev/files.mjs";
+import { MANAGED_CORE_FILES, RELEASE_GRANTS } from "../scripts/dev/files.mjs";
 import { resolveInstallPaths } from "../scripts/install/paths.mjs";
 import {
   renderUnits,
@@ -15,7 +15,6 @@ import {
 } from "../scripts/dev/managed-plugins.mjs";
 import { MANAGED_WIDGET_BUILDS } from "../scripts/dev/managed-widget-builds.mjs";
 import { assertManagedPluginSource } from "../scripts/dev/files.mjs";
-
 import {
   forbiddenPayloadText,
   isBuilderInstructionSource,
@@ -156,12 +155,14 @@ if (nativeEnvironment.PYTHIA_DESK_VIEW_STATE !== paths.deskViewState) {
   );
 }
 const source = sourceManifest(root);
+const generated = `runtime/managed/core/${RELEASE_GRANTS}`; // at assembly, never source
 const pluginFiles = source.entries
   .map((item) => item.path)
   .filter((path) => path.startsWith("runtime/managed/core/"));
 if (
   pluginFiles.join("\0") !==
-  [...MANAGED_CORE_FILES.map((path) => `runtime/managed/core/${path}`)]
+  MANAGED_CORE_FILES.map((path) => `runtime/managed/core/${path}`)
+    .filter((path) => path !== generated)
     .sort((left, right) => left.localeCompare(right, "en"))
     .join("\0")
 ) {
@@ -186,7 +187,6 @@ if (
     "installer: Hermes preparation metadata differs from the exact allowlist",
   );
 }
-
 const skillFiles = source.entries
   .map((item) => item.path)
   .filter((path) => path.startsWith("runtime/managed/skills/"));
@@ -261,7 +261,7 @@ const builds = [
 const installedRuntimeFiles = new Set([
   ...MANAGED_PLUGINS.flatMap((plugin) =>
     plugin.files.map((path) => `runtime/managed/${plugin.source}/${path}`),
-  ),
+  ).filter((path) => path !== generated),
   ...builds.flatMap((build) => [build.entry, build.output].filter(Boolean)),
   ...["NOTICE.md", "hermes-source.json"].map(
     (path) => `runtime/hermes/${path}`,

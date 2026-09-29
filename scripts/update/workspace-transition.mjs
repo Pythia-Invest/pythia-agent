@@ -7,6 +7,7 @@ import {
   ensurePrivateDirectory,
 } from "../install/files.mjs";
 import { MANAGED_CORE_FILES, refreshManagedPlugin } from "../dev/files.mjs";
+import { writeReleaseGrants } from "../dev/release-grants.mjs";
 import {
   VERSION,
   SEEDS,
@@ -200,6 +201,7 @@ export function applyWorkspaceTransition(paths, options = {}) {
   if (!["owned-disabled", "absent"].includes(binding(paths, execute).status))
     throw new Error("Native MCP disable readback failed.");
   options.afterConfig?.();
+  (options.releaseGrants ?? writeReleaseGrants)(paths); // core's copy carries them
   const pluginCopy = refreshManagedPlugin(
     paths.managedCore,
     join(paths.profileRoot, "plugins", "pythia"),
