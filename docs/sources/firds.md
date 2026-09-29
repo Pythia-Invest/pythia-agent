@@ -238,36 +238,40 @@ Classes assigned to code or to Repairs instead:
 
 ## Sign-off
 
-**Proposed, for the maintainer's review.** Measured on the offline build of
-2026-09-28 (FIRDS week of 2026-09-26) and [the sample](firds-signoff-sample.md):
+**Signed off in PR #74** for the issuer and for the primary listing of shares,
+after the maintainer's review of this record and [the
+sample](firds-signoff-sample.md). Measured on the offline build of 2026-09-28
+(FIRDS week of 2026-09-26):
 
-| Field | Decided values labelled | Correct | Wilson 95% | Wrong or unclear |
+| Field | Decided values labelled | Correct | Wilson 95% lower bound | Wrong or unclear |
 | --- | --: | --: | --- | --- |
-| Issuer (field 5) | 30 | 28 | 78.7–98.2% | field 5 names another company: Ubiquiti under Ubiquity Global Services; China Risun under its Hong Kong subsidiary |
-| Primary (field 8) | 30 | 26 | 70.3–94.7% | wrong: an HSBC UCITS ETF whose home is London, which FIRDS cannot see; Orpea's old ISIN, requested only on a Crédit Agricole internaliser. Unclear: two ETFs whose issuer names no primary listing |
-| Receipt underlying (field 26) | 10 | 10 | 72.2–100% | |
-| All decided | 70 | 64 (91.4%) | 82.5–96.0% | |
+| Issuer (field 5) | 30 | 28 | 78.7% | field 5 names another company: Ubiquiti under Ubiquity Global Services; China Risun under its Hong Kong subsidiary |
+| Primary (field 8), shares | 22 | 21 | 78.2% | Orpea's old ISIN, requested only on a Crédit Agricole internaliser |
+| Primary (field 8), ETFs | 8 | 5 | – | an HSBC UCITS ETF whose home is London, which FIRDS cannot see; two ETFs whose issuer names no primary listing |
+| Receipt underlying (field 26) | 30 (10, then 20 after the issuer-agreement fix) | 30 on the company | 88.6% | on the class: AngloGold's BDR points at its terminated NYSE ADS; Sabesp's CEDEAR at the NYSE ADR, BYMA names the B3 share |
 
-Questions: 25 of 30 were right to ask (83%). Five could have been decided: two
-US shares (General Dynamics, PepsiCo) and BCE, whose field 8 names an EEA
-venue beside their SEC or home line, which the rule sends to a question by
-design; RELX (London beside Amsterdam); and IBU-tec, whose requested venues
-span entities. Only 9 of the 30 questions carry the true answer among their
-candidates: most answers lie outside the build (TSX Venture, Cboe NL, Tel
-Aviv, an LEI GLEIF does not hold), so an answer must be able to name a
-subject outside the candidates.
+Questions: 25 of 30 were right to ask (83%). Only 9 of the 30 carry the true
+answer among their candidates: most answers lie outside the build (TSX
+Venture, Cboe NL, Tel Aviv, an LEI GLEIF does not hold). The ISIN-country line
+now decides four of the five that could have been decided: General Dynamics and
+PepsiCo on their US line, and BCE and RELX on their Toronto and London lines,
+which the snapshot cannot write yet because OpenFIGI gives them no trading
+currency (PR #46). It also decides TotalEnergies on Euronext Paris.
 
-Proposal:
+Decisions and limits:
 
-- **Issuer and receipt underlying:** sign off. The known error class, field 5
-  naming another company that is no venue operator (Legence under Avio,
-  Ubiquiti), needs a second source: the SEC registrant's issuer claim, owned by
-  the SEC onboarding.
-- **Primary:** sign off for shares; ETF primaries are an accepted limit until a
-  source that sees non-EEA listings (OpenFIGI home rows for ETFs, an exchange
-  list) is onboarded. Owner: the OpenFIGI onboarding.
+- **Issuer:** signed off. The known error class, field 5 naming another company
+  that is no venue operator (Legence under Avio, Ubiquiti), is fixed by the
+  SEC registrant's issuer claim. Owner: the SEC onboarding.
+- **Primary, shares:** signed off, including the ISIN-country line.
+- **Primary, ETFs:** accepted limit until a source that sees non-EEA listings
+  (OpenFIGI home rows for ETFs, an exchange list) is onboarded. Owner: the
+  OpenFIGI onboarding.
+- **Receipt underlying:** proposed for sign-off after the issuer-agreement fix
+  and its re-sample (30/30 on the company). The class of a receipt whose
+  programme changed is an accepted limit, owned by lifecycle (`successor_of`).
 - **Open with an owner:** the `JBUL` field 8 pattern; the Crédit Agricole
-  internaliser answering field 8 true; questions whose answer is not among
-  their candidates (core queue).
-- **Judgement:** all three question types stay suggest-only until each has a
-  gold set.
+  internaliser answering field 8 true; answers outside a question's
+  candidates (core queue).
+- **Judgement:** every question type stays suggest-only: the agent's answer is
+  recorded as a suggestion until each type has a question set and gold set.
