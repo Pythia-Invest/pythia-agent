@@ -7,12 +7,10 @@ from pathlib import Path
 
 from .cache import ReadCache, ReadCancelled
 from . import diagnostics
-from .selection import fingerprint
+from ..access import fingerprint
 from .worker_reads import consumer
 from .failures import worker_failure
-from pythia_platform import request_context
-
-cancel_signal, cancelled = request_context.cancel_signal, request_context.cancelled
+from ..request_context import cancel_signal, cancelled
 
 
 class NativeBatch:

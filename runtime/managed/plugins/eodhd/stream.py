@@ -1,6 +1,5 @@
 """Explicit native connection mode; one owned child multiplexes Cboe feeds."""
 import hashlib
-import importlib
 import os
 from pathlib import Path
 from threading import RLock, Event, Timer
@@ -12,8 +11,10 @@ from .stream_results import read, moving_request
 
 
 class Streams:
-    def __init__(self, ctx, wire, credentials):
-        self.ctx, self.wire, self.credentials = ctx, wire, credentials
+    def __init__(self, ctx, platform, credentials):
+        """`platform` is `pythia_platform`: its wire contract, connector toolkit and subscriptions."""
+        self.ctx, self.platform, self.credentials = ctx, platform, credentials
+        self.wire = platform.wire
         self.lock, self.listeners, self.latest = RLock(), {}, {}
         self.worker, self.key, self.timer = None, None, None
         self.generation = None
@@ -70,13 +71,12 @@ class Streams:
                 if not Path(node).is_absolute() or not worker.is_file():
                     self.listeners.pop(identifier)
                     raise ValueError('unavailable')
-                helpers = importlib.import_module(self.wire.__package__ + '.process_stream')
-                budget = importlib.import_module(self.wire.__package__ + '.governor').connection('eodhd', token,
-                    per_minute=self.ctx.get_config('requests_per_minute', 60))
+                connector = self.platform.connector
+                budget = connector.connection('eodhd', token, per_minute=self.ctx.get_config('requests_per_minute', 60))
                 env = {key: os.environ[key] for key in ('PATH', 'LANG', 'LC_ALL') if key in os.environ}
                 generation = self.generation = uuid.uuid4().hex
                 try:
-                    self.worker = helpers.StreamingWorker([node, '--max-old-space-size=256', str(worker)], env,
+                    self.worker = connector.StreamingWorker([node, '--max-old-space-size=256', str(worker)], env,
                         {'token': token, 'subscriptions': {}, 'resumed': self.started}, budget, lambda message: self.receive(message, generation))
                     self.started = True
                 except BaseException:
@@ -152,13 +152,11 @@ class Streams:
         if worker: worker.close()
 
     def snapshot(self, arguments, cancelled):
-        from importlib import import_module
-        Subscription = import_module(self.wire.__package__ + '.subscriptions').Subscription
         ready, result = Event(), []
         def receive(event):
             result.append(event)
             ready.set()
-        lifetime = Subscription(receive)
+        lifetime = self.platform.subscription.Subscription(receive)
         try:
             self.subscribe(arguments, lifetime)
             for _ in range(100):

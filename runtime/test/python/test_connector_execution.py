@@ -8,11 +8,11 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from market_data_fixture import PACKAGE
+from market_data_fixture import TOOLKIT
 
-governor = importlib.import_module(PACKAGE + '.governor')
-process = importlib.import_module(PACKAGE + '.process')
-helpers = importlib.import_module(PACKAGE + '.connector')
+governor = importlib.import_module(TOOLKIT + '.governor')
+process = importlib.import_module(TOOLKIT + '.process')
+helpers = importlib.import_module(TOOLKIT)
 
 
 class ConnectorExecution(unittest.TestCase):

@@ -10,9 +10,11 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError
 
-from market_data_fixture import wire
+from market_data_fixture import connector, platform_module, wire
+from native_plugin_fixtures import without_market_data
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/openfigi'
 spec = importlib.util.spec_from_file_location('openfigi_fixture', ROOT / '__init__.py', submodule_search_locations=[str(ROOT)])
@@ -21,7 +23,6 @@ sys.modules[spec.name] = plugin
 spec.loader.exec_module(plugin)
 mapping = importlib.import_module('openfigi_fixture.mapping')
 client = importlib.import_module('openfigi_fixture.client')
-connector = importlib.import_module(wire.__package__ + '.connector')
 governor = importlib.import_module(wire.__package__ + '.governor')
 
 ISIN = 'ZZ1234567895'
@@ -152,6 +153,24 @@ class OpenFigiResolve(unittest.TestCase):
         self.assertEqual((caught.exception.raw['error'], caught.exception.raw['retry_after']), ('rate_limit', 6))
         now[0] = 106.5
         transport._pace(lambda: False, deadline=107.0)
+
+
+class OpenFigiRegistration(unittest.TestCase):
+    def test_registers_through_core_alone_and_answers_a_mapping(self):
+        tools, opener = {}, Opener([found])
+        ctx = SimpleNamespace(register_tool=lambda **tool: tools.update({tool['name']: tool}))
+        without_market_data(self)
+        self.enterContext(patch.object(platform_module.access, 'native_access_scope',
+                                       return_value={'cacheable': False, 'scope': 'fixture'}))
+        self.enterContext(patch.object(platform_module, 'configuration',
+                                       SimpleNamespace(value=lambda _ctx, _key: ('missing', None))))
+        self.enterContext(patch.object(plugin, 'Transport', side_effect=lambda helpers: client.Transport(
+            helpers, opener=opener)))
+        plugin.register(ctx)
+        self.assertIsNone(tools[plugin.TOOL].get('check_fn'))
+        result = json.loads(tools[plugin.TOOL]['handler']({'jobs': [{'idType': 'ID_ISIN', 'idValue': ISIN}]}))
+        self.assertEqual((result['outcome'], result['data']['results'][0]['outcome']), ('ok', 'found'))
+        self.assertEqual(opener.requests, [{'jobs': 1, 'key': None}])
 
 
 if __name__ == '__main__':

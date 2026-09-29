@@ -34,7 +34,7 @@ metadata alone must not truncate a multi-day or rolling chart. Without session
 evidence the requested window remains in use. Tick/unknown sampling has no invented
 millisecond interval.
 
-`runtime/managed/plugins/market-data/wire_schema.py` owns the closed structural
+`runtime/managed/core/platform/connector/wire_schema.py` owns the closed structural
 shapes. Regenerate the package artifact from the repository root with
 `python3 packages/market-data/test/export_schema.py`; use `--check` to verify it.
 TypeScript types are maintained alongside that artifact. They describe values,
@@ -66,8 +66,8 @@ are inert annotations. `parameter_schema(kind)` expands only owned contract
 references and types their enums for that subset; use `read_request` and
 `provider_ref` as nested native tool properties, then validate full wire
 semantics separately. It never loads external references. Open source-detail
-maps are intentionally outside the native argument subset. `wire.py` and `wire_schema.py` are the only runtime files needed; install
-both as exact files beside the feature plugin. Package examples/tests and this
+maps are intentionally outside the native argument subset. `wire.py` and `wire_schema.py` are the only runtime files needed; they ship
+in core's connector toolkit, and plugins reach them as `pythia_platform.wire`. Package examples/tests and this
 README are not runtime/plugin scan inputs. No JSON Schema dependency is needed
 at runtime.
 

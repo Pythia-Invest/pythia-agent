@@ -8,24 +8,21 @@ import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from native_plugin_fixtures import Context
+from market_data_fixture import connector, wire
+from native_plugin_fixtures import Context, hide_market_data
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins'
-for name, directory in (('test_yahoo', 'yahoo-discovery'), ('test_yahoo_feature', 'market-data')):
-    package = types.ModuleType(name)
-    package.__path__ = [str(ROOT / directory)]
-    sys.modules[name] = package
+package = sys.modules['test_yahoo'] = types.ModuleType('test_yahoo')
+package.__path__ = [str(ROOT / 'yahoo-discovery')]
 identity = importlib.import_module('test_yahoo.identity')
 series = importlib.import_module('test_yahoo.series')
 results = importlib.import_module('test_yahoo.results')
 definition = importlib.import_module('test_yahoo.definition')
-wire = importlib.import_module('test_yahoo_feature.wire')
 
 
 class Yahoo(unittest.TestCase):
     def test_registered_content_tools_have_no_provider_search(self):
         provider = importlib.import_module('test_yahoo.__init__')
-        connector = importlib.import_module('test_yahoo_feature.connector')
         metadata = {'symbol': 'SYNTH.AS', 'type': 'EQUITY', 'currency': 'EUR', 'exchange': 'AMS'}
         calls = []
         def worker(_command, request, _environment, **_kwargs):
@@ -44,9 +41,6 @@ class Yahoo(unittest.TestCase):
                 'display': {'quotes': [], 'retrieved_at': '2026-01-01T00:00:00Z'}}, 'issues': []}
         process = types.SimpleNamespace(run_worker=worker, shutdown=lambda: None)
         ctx = Context('pythia-yahoo-discovery')
-        plugins = types.ModuleType('hermes_cli.plugins')
-        plugins.get_plugin_manager = lambda: types.SimpleNamespace(_plugins={
-            'pythia-market-data': types.SimpleNamespace(enabled=True, module=sys.modules['test_yahoo_feature'])})
         native = {'provider': 'yahoo', 'native_id': 'SYNTH.AS', 'native_scope': 'symbol'}
         batch = connector.NativeBatch(size=20, age=60)
         self.addCleanup(batch.pool.shutdown)
@@ -57,7 +51,7 @@ class Yahoo(unittest.TestCase):
             worker_path.touch()
             node = root / 'node'
             node.touch()
-            with patch.dict(sys.modules, {'hermes_cli.plugins': plugins, 'tools.registry': ctx.registry_module}), \
+            with hide_market_data(), patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                     patch.object(connector, 'ResidentTransport', return_value=process), \
                     patch.object(connector, 'NativeBatch', return_value=batch), \
                     patch.dict(os.environ, {'PYTHIA_MANAGED_ROOT': directory, 'PYTHIA_NODE': str(node)}):

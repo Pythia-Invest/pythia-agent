@@ -8,17 +8,34 @@ import json
 import sys
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest import mock
 
-from native_plugin_fixtures import Context, keep_platform_binding
+from native_plugin_fixtures import Context, keep_platform_binding, without_market_data
 from test_core import MODULE as core, RegistryContractContext
 
 PLUGINS = Path(__file__).resolve().parents[2] / 'managed/plugins'
 # Frozen: v1 only gains names. Removing one or changing its meaning is v2.
 V1 = ['API_VERSION', 'require', 'access', 'admission', 'configuration', 'request_context', 'subscription',
       'declare_operation', 'register_read_command', 'register_agent_tool', 'register_widget_presentation',
-      'read_bundled_asset', 'price_sources', 'check_read', 'read_document', 'validate_live_market']
+      'price_sources', 'check_read', 'read_document', 'validate_live_market',
+      'connector', 'wire', 'process', 'FilingKind',
+      'dispatch', 'tool_schemas', 'interrupted', 'session', 'session_platform']
+# Frozen with them: the members each exported module offers. A plugin may use these and nothing else in the module.
+MEMBERS = {
+    'access': ['ContextUnavailable', 'eligible_tools', 'native_access_scope', 'owned_tools'],
+    'admission': ['AdmissionError'],
+    'configuration': ['needs_configuration', 'value'],
+    'request_context': ['cancel_signal', 'cancelled', 'usage'],
+    'subscription': ['Subscription'],
+    'connector': ['NativeBatch', 'ReadCache', 'ReadCancelled', 'ResidentTransport', 'SourceFailure', 'StreamingWorker',
+                  'Transport', 'WorkerReads', 'cacheable', 'connection', 'detail', 'emit', 'failed_item',
+                  'item_failures', 'parallel', 'qualify_failure', 'qualify_items', 'retry_after', 'worker_batch',
+                  'worker_failure', 'worker_item'],
+    'wire': ['CRITERIA', 'WireError', 'parameter_schema', 'require', 'validate', 'validate_parameters',
+             'validate_read_result'],
+    'process': ['WorkerError', 'run_worker'],
+}
 
 
 def plugin(directory):
@@ -65,10 +82,34 @@ class Publication(unittest.TestCase):
         with self.assertRaises(ModuleNotFoundError):
             import pythia_platform  # noqa: F401, F811
 
+    def test_unloading_a_core_leaves_another_cores_binding(self):
+        context = RegistryContractContext()
+        core.register(context)
+        later = sys.modules['pythia_platform'] = ModuleType('later_interface')  # bound after this core's
+        for callback in context.unloads:
+            callback()
+        self.assertIs(sys.modules['pythia_platform'], later)
+
+    def test_a_second_core_refuses_while_another_publishes(self):
+        other = sys.modules['pythia_platform'] = ModuleType('other_interface')
+        other._published = True  # another core in this process, still registered
+        with self.assertRaisesRegex(RuntimeError, 'another Pythia core'):
+            core.register(RegistryContractContext())
+        self.assertIs(sys.modules['pythia_platform'], other)
+
     def test_the_interface_is_flat_versioned_and_frozen(self):
         import pythia_platform
         self.assertEqual(pythia_platform.__all__, V1)
         self.assertTrue(all(hasattr(pythia_platform, name) for name in V1))
+        for name, members in MEMBERS.items():
+            with self.subTest(module=name):
+                exported = getattr(pythia_platform, name)
+                self.assertEqual(dir(exported), members)
+                self.assertTrue(all(hasattr(exported, member) for member in members))
+        # A module's other contents are not the interface: this one returns Hermes's own plugin objects.
+        with self.assertRaisesRegex(AttributeError, 'does not export'):
+            pythia_platform.access.native_tool_owners  # noqa: B018
+        self.assertEqual([kind.value for kind in pythia_platform.FilingKind][0], 'annual')
         pythia_platform.require(1)
         with self.assertRaisesRegex(RuntimeError, 'v1, not v2'):
             pythia_platform.require(2)
@@ -78,28 +119,40 @@ class Publication(unittest.TestCase):
 
 
 class PluginsRegisterThroughTheInterface(unittest.TestCase):
-    """With Hermes's plugin manager unreachable, plugins still register; without the interface, they refuse."""
+    """With Hermes's plugin manager unreachable, plugins still register; without the interface, they refuse.
 
-    def register(self, directory, plugin_id):
+    Connectors also register with no copy of market-data importable: they depend on core alone."""
+
+    def register(self, directory, plugin_id, *, alone=True):
         module, ctx = plugin(directory), Loader(plugin_id, directory)
-        with mock.patch.dict(sys.modules, {'hermes_cli.plugins': None, 'tools.registry': ctx.registry_module}):
+        with mock.patch.dict(sys.modules, {'tools.registry': ctx.registry_module}):
+            if alone:
+                without_market_data(self)
             module.register(ctx)
         with mock.patch.dict(sys.modules, {'pythia_platform': None}), self.assertRaises(ImportError):
             module.register(Loader(plugin_id, directory))
-        return ctx
+        return module, ctx
 
     def test_market_data(self):
-        ctx = self.register('market-data', 'pythia-market-data')
+        _module, ctx = self.register('market-data', 'pythia-market-data', alone=False)
         self.assertEqual(set(ctx.tools), {'pythia_market_data', 'pythia_market_data_widgets'})
         marker = json.loads(ctx.registrations['pythia_market_data']['schema']['parameters']['$comment'])
         self.assertEqual(marker['pythia_http_operation']['operation'], 'query')
 
     def test_hyperliquid(self):
-        ctx = self.register('hyperliquid', 'pythia-hyperliquid')
+        _module, ctx = self.register('hyperliquid', 'pythia-hyperliquid')
         self.assertIn('pythia_hyperliquid_live_market', ctx.tools)
         marker = json.loads(ctx.registrations['pythia_hyperliquid_live_market']['schema']['parameters']['$comment'])
         self.assertEqual(marker['pythia_http_operation']['operation'], 'live_market')
         self.assertEqual(len(ctx.unloads), 1)  # its streams close when it unloads
+
+    def test_connectors(self):
+        for directory in ('sec', 'gleif', 'openfigi', 'xbrl-filings', 'nsm',
+                          'eodhd', 'yahoo-discovery', 'coingecko', 'coinmarketcap'):
+            with self.subTest(plugin=directory):
+                module, ctx = self.register(directory, 'pythia-' + directory)
+                tools = getattr(module, 'TOOLS', None) or {'mapping': module.TOOL}
+                self.assertLessEqual(set(tools.values()), set(ctx.tools))
 
 
 if __name__ == '__main__':

@@ -14,7 +14,7 @@ import unittest
 import unittest.mock
 
 from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, read_module, request, run_read, wire
-from market_data_fixture import native
+from market_data_fixture import PACKAGE, PLATFORM, TOOLKIT, native
 
 
 class SharedReadsTests(unittest.TestCase):
@@ -88,7 +88,7 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(self.price_calls(), [])
 
     def test_close_criteria_preserve_measurement_distinction(self):
-        selection = import_module(f"{wire.__package__}.selection")
+        selection = import_module(f"{PACKAGE}.selection")
         series = self.sources.definition("ibkr", "close")
         series.update(measurement="close", shape="scalar", fields={"value": series["fields"]["close"]})
         wire.validate("series", series)
@@ -340,7 +340,7 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(len(self.price_calls()), 3)
 
     def test_canonical_secret_replacement_invalidates_cache_and_inflight_read(self):
-        selection = import_module(f"{wire.__package__}.selection")
+        selection = import_module(f"{PACKAGE}.selection")
         with tempfile.TemporaryDirectory() as root:
             store = Path(root) / "secrets.json"
             store.write_text('{"synthetic":"first"}')
@@ -382,7 +382,7 @@ class SharedReadsTests(unittest.TestCase):
                         self.assertNotIn(b'"synthetic":"other"', file.read_bytes())
 
     def test_unsafe_or_missing_secret_revision_bypasses_cache_without_blocking_reads(self):
-        selection = import_module(f"{wire.__package__}.selection")
+        selection = import_module(f"{PACKAGE}.selection")
         with tempfile.TemporaryDirectory() as root:
             store = Path(root) / "secrets.json"
             modules = {"gateway.session_context": SimpleNamespace(get_session_env=lambda *_: "api_server"),
@@ -412,7 +412,7 @@ class SharedReadsTests(unittest.TestCase):
                         elif store.exists() or store.is_symlink():
                             store.unlink()
                 with patch.object(Path, "lstat", side_effect=PermissionError):
-                    self.assertIsNone(selection.canonical_access_revision())
+                    self.assertIsNone(import_module(f"{PLATFORM}.access").canonical_access_revision())
 
     def test_access_change_during_read_rejects_stale_cache_publication(self):
         sources = Sources()
@@ -505,9 +505,7 @@ class BackendMutationTests(unittest.TestCase):
             self.assertTrue((root / "identity.sqlite3").is_file())
 
     def test_cache_bounds_expiry_detached_values_and_strict_fresh_bypass(self):
-        from importlib import import_module
-        from market_data_fixture import PACKAGE
-        cache_type = import_module(f"{PACKAGE}.cache").ReadCache
+        cache_type = import_module(f"{TOOLKIT}.cache").ReadCache
         clock = [0]
         cache = cache_type(max_entries=1, max_bytes=1000, ttl_seconds=2, clock=lambda: clock[0])
         cache.put("a", {"value": "1.000"})

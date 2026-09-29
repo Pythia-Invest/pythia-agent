@@ -21,8 +21,8 @@ from datetime import datetime, timezone, timedelta
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
-from native_plugin_fixtures import Context
-from market_data_fixture import PACKAGE
+from native_plugin_fixtures import Context, without_market_data
+from market_data_fixture import TOOLKIT
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed'
 package = types.ModuleType('test_cg')
@@ -34,8 +34,8 @@ results = importlib.import_module('test_cg.results')
 catalogue = importlib.import_module('test_cg.catalogue')
 config = importlib.import_module('test_cg.config')
 dashboard = importlib.import_module('test_cg.dashboard')
-wire = importlib.import_module(PACKAGE + '.wire')
-failures = importlib.import_module(PACKAGE + '.connector')
+wire = importlib.import_module(TOOLKIT + '.wire')
+failures = importlib.import_module(TOOLKIT)
 spec = importlib.util.spec_from_file_location('cg_worker', ROOT / 'runner/coingecko/main.py')
 worker = importlib.util.module_from_spec(spec); spec.loader.exec_module(worker)
 NATIVE = {'provider': 'coingecko', 'native_scope': 'coin', 'native_id': 'synthetic-coin'}
@@ -205,15 +205,12 @@ class Access(unittest.TestCase):
 
     def test_registered_tools_follow_main_contract_and_keyless_readiness(self):
         provider = importlib.import_module('test_cg.__init__')
-        feature = sys.modules[PACKAGE]
         ctx = Context('pythia-coingecko')
         # Core configuration reads the declaring package from the native manifest.
         ctx.manifest = types.SimpleNamespace(path=str(ROOT / 'plugins/coingecko'))
-        plugins = types.ModuleType('hermes_cli.plugins')
-        plugins.get_plugin_manager = lambda: types.SimpleNamespace(_plugins={
-            'pythia-market-data': types.SimpleNamespace(enabled=True, module=feature)})
+        without_market_data(self)
         with tempfile.TemporaryDirectory() as directory, \
-                patch.dict(sys.modules, {'hermes_cli.plugins': plugins, 'tools.registry': ctx.registry_module}), \
+                patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.dict(os.environ, {'PYTHIA_MANAGED_ROOT': str(ROOT), 'PYTHIA_CONFIG_ROOT': directory}):
             provider.register(ctx)
             self.assertEqual(set(ctx.tools), set(provider.TOOLS.values()))
@@ -237,7 +234,7 @@ class Access(unittest.TestCase):
             def run_worker(_command, request, _environment, **options):
                 calls.append((request, options))
                 return {'data': worker.catalogue_snapshot(LIST), 'error': None}
-            with patch.object(importlib.import_module(PACKAGE + '.process'), 'run_worker', run_worker):
+            with patch.object(importlib.import_module(TOOLKIT + '.process'), 'run_worker', run_worker):
                 pages = [json.loads(ctx.tools[provider.TOOLS['catalogue']]({'scope': 'coins', 'limit': 2, **cursor}))
                          for cursor in ({}, {'cursor': '2'})]
             self.assertEqual([len(page['data']['rows']) for page in pages], [2, 1])

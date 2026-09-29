@@ -2,11 +2,10 @@
 from contextvars import copy_context
 import json
 
+import pythia_platform as platform
+
 from .contributions import project
 from .reads import prepare_read
-from pythia_platform import subscription
-
-Subscription = subscription.Subscription
 
 
 def watch(backend, arguments, subscription):
@@ -15,7 +14,6 @@ def watch(backend, arguments, subscription):
     if arguments.get('action') != 'read_many' or len(arguments.get('reads', [])) != 1:
         return {'schema_version': 1, 'mode': 'poll'}
     from .coordinated import validate_input
-    from tools.registry import registry
     validate_input(arguments['reads'][0])
     def plan(window=None):
         import copy
@@ -42,7 +40,7 @@ def watch(backend, arguments, subscription):
     if len(targets) != 1:
         raise ValueError('unavailable')
     name = targets[0]
-    marker = json.loads(registry.get_schema(name)['parameters'].get('$comment', '{}'))
+    marker = json.loads(platform.tool_schemas()[name]['parameters'].get('$comment', '{}'))
     if marker.get('pythia_updates') is not True:
         raise ValueError('unsupported_updates')
     initial.close()
@@ -71,9 +69,9 @@ def watch(backend, arguments, subscription):
             context.copy().run(normalize)
         except Exception:
             subscription.emit({'type': 'reset', 'state': 'unavailable', 'code': 'selection_changed'})
-    child = Subscription(receive, subscription.window)
+    child = platform.subscription.Subscription(receive, subscription.window)
     subscription.on_close(child.close)
-    raw = registry.dispatch(name, native, _subscription=child, cancelled=child.closed.is_set)
+    raw = platform.dispatch(name, native, _subscription=child, cancelled=child.closed.is_set)
     ack = json.loads(raw) if isinstance(raw, str) else {}
     if ack.get('mode') != 'push':
         child.close()

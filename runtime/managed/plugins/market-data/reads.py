@@ -2,10 +2,11 @@
 import copy
 from datetime import datetime, timezone
 
+from pythia_platform import wire
+
 from .selection import (available, caches_observations, compatible_ref, fingerprint, matches, permits_implicit,
                         selector, supports_read)
 from .backend import unverified_issue
-from .wire import require, validate, validate_read_result, WireError
 
 
 def read_failure(request, code, *, reason="unavailable", alternatives=(), provider=None, selected=None, source_issues=()):
@@ -29,13 +30,13 @@ def read_failure(request, code, *, reason="unavailable", alternatives=(), provid
         message += f" Selected source: {provider}."
     if selected is not None:
         message += f" Requested series: {selected['id']}."
-    return validate_read_result({"schema_version": 1, "outcome": "error", "request": request,
+    return wire.validate_read_result({"schema_version": 1, "outcome": "error", "request": request,
         "series": None, "observations": [], "selection": {"view": request["view"], "reason": reason,
         "alternatives": list(alternatives)}, "provenance": None,
         "retrieved_at": datetime.now(timezone.utc).isoformat(), "returned_window": {"start": None, "end": None},
         "coverage": {"status": "unknown", "gaps": [], "truncated": False, "continuation": None},
         "freshness": {"status": "unknown", "as_of": None, "basis": "unknown", "market_data_type": "unknown"},
-        "requirements_satisfied": False, "issues": [{"code": code, "message": message, "severity": "error"}] + [validate("issue", item) for item in source_issues]})
+        "requirements_satisfied": False, "issues": [{"code": code, "message": message, "severity": "error"}] + [wire.validate("issue", item) for item in source_issues]})
 
 
 def semantic_series(series):
@@ -61,13 +62,13 @@ def _choose(backend, request, criteria, descriptor, sources):
     operation = request["operation"]
     view = request["view"]
     if view["kind"] == "source":
-        series = validate("series", descriptor)
-        require(series["id"] == view["series_id"], "read", "descriptor ID differs from pinned view")
-        require(matches(series, criteria), "read", "pinned descriptor differs from criteria")
+        series = wire.validate("series", descriptor)
+        wire.require(series["id"] == view["series_id"], "read", "descriptor ID differs from pinned view")
+        wire.require(matches(series, criteria), "read", "pinned descriptor differs from criteria")
         if not supports_read(series, utc_days(request, series)):
             return None, "incompatible_series", series["provider_ref"]["provider"], []
         return series, None, series["provider_ref"]["provider"], []
-    require(descriptor is None, "read", "Pythia view does not accept a pinned descriptor")
+    wire.require(descriptor is None, "read", "Pythia view does not accept a pinned descriptor")
     binding = view["subject"]
     route = backend.route(binding)
     bindings = route["refs"]  # in core's one source order (ADR 0040)
@@ -106,7 +107,7 @@ def _choose(backend, request, criteria, descriptor, sources):
             if checked["status"] == "unverified":
                 labels[candidate_provider] = checked["label"]
             for value in response.get("data", []):
-                series = validate("series", value)
+                series = wire.validate("series", value)
                 # A reference may omit qualifiers the source adds (Yahoo's venue and
                 # currency); every qualifier it does carry must still match.
                 if not compatible_ref(ref, series["provider_ref"]):
@@ -153,7 +154,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     Both single and coordinated reads resume this same validation/publication
     path. Batching cannot bypass identity, pinned semantics or failure handling.
     """
-    request = validate("read_request", request)
+    request = wire.validate("read_request", request)
     sources, access = backend.context()
     preferred = request["view"]["kind"] == "pythia"
     alternatives = ["provider:" + source["contribution"]["provider"] for source in sources
@@ -188,7 +189,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                             source_issues=[{"code": "cancelled", "message": "The read was cancelled.", "severity": "error"}])
     if "request" not in raw:
         return read_failure(request, "source_error", alternatives=alternatives, provider=provider, selected=selected, source_issues=raw.get("issues", []))
-    result = validate_read_result(raw)
+    result = wire.validate_read_result(raw)
     if result["request"] != native_request:
         return read_failure(request, "invalid_response", alternatives=alternatives, provider=provider, selected=selected)
     if result["series"] is not None:
@@ -208,7 +209,7 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
                            "alternatives": alternatives}
     if preferred and "provider" not in request["view"]["subject"] and result["series"] is not None:
         result["series"]["subject"] = request["view"]["subject"]
-    result = validate_read_result(_completed_only(result))
+    result = wire.validate_read_result(_completed_only(result))
     current_sources, current_access = backend.context()
     if current_access != access or not available(current_sources, provider, request["operation"]):
         return read_failure(request, "selection_changed", alternatives=alternatives, provider=provider, selected=selected)
@@ -229,4 +230,4 @@ def read(backend, request, criteria, descriptor=None):
         prepared.send(backend.source(provider, operation, arguments))
     except StopIteration as done:
         return done.value
-    raise WireError("read: unexpected second execution")
+    raise wire.WireError("read: unexpected second execution")

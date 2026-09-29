@@ -132,11 +132,13 @@ class ShippedContracts(unittest.TestCase):
         self.assertTrue(identity.vouched(sec, 'community-sec').unaudited)
 
     def test_the_filings_kinds_parameters_are_cores_filing_kinds(self):
+        from market_data_fixture import wire
         for plugin in ('sec', 'nsm'):
             spec = importlib.util.spec_from_file_location(plugin + '_definition', PLUGINS / plugin / 'definition.py')
             definition = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(definition)
-            self.assertEqual(definition.FILING_KINDS, tuple(identity.concepts.FilingKind), plugin)
+            kinds = definition.schemas(wire)['filings']['parameters']['properties']['kinds']['items']['enum']
+            self.assertEqual(kinds, [kind.value for kind in identity.concepts.FilingKind], plugin)
 
     def test_filing_sources_declare_their_authorities(self):
         self.assertEqual(manifest('sec').concepts[identity.Concept.FILINGS].authorities, ('sec',))

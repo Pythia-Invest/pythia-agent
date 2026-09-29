@@ -14,11 +14,11 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
-from market_data_fixture import PACKAGE
+from market_data_fixture import TOOLKIT
 
-http = importlib.import_module(PACKAGE + '.public_http')
-governor = importlib.import_module(PACKAGE + '.governor')
-reads_module = importlib.import_module(PACKAGE + '.worker_reads')
+http = importlib.import_module(TOOLKIT + '.public_http')
+governor = importlib.import_module(TOOLKIT + '.governor')
+reads_module = importlib.import_module(TOOLKIT + '.worker_reads')
 
 
 class Response(io.BytesIO):

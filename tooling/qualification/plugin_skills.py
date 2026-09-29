@@ -11,7 +11,7 @@ from native_hermes_source import validate_source_binding
 root = Path(sys.argv[1])
 enabled = sys.argv[2] == 'true'
 available = sys.argv[3] == 'true'
-widgets = sys.argv[4] == 'true'
+published = sys.argv[4] == 'true'  # whether core publishes pythia_platform
 repository = Path(__file__).resolve().parents[2]
 pin = json.loads((repository / 'runtime/versions.json').read_text())['dependencies']['hermes_agent']
 validate_source_binding(Path(sys.prefix).resolve().parent, pin, None)
@@ -32,7 +32,13 @@ with patch.object(socket.socket, 'connect', side_effect=AssertionError('No netwo
     assert not {'sec-edgar-research', 'eodhd-market-data'} & names, listing
     viewed = json.loads(skill_view(qualified, preprocess=False))
     plugin = manager._plugins['pythia-market-data']
-    if enabled:
+    if enabled and not published:
+        # A core from before the interface: market-data refuses to register, visibly, and leaves nothing behind.
+        assert not plugin.enabled and 'pythia_platform' in (plugin.error or ''), plugin.error
+        assert manager.find_plugin_skill(qualified) is None
+        assert registry.get_entry('pythia_market_data') is None
+        assert registry.get_entry('pythia_market_data_widgets') is None
+    elif enabled:
         assert plugin.enabled and plugin.module is not None, plugin.error
         assert 'market-data' not in names, listing
         copied = root / 'plugins/pythia-market-data/skills/market-data/SKILL.md'
@@ -40,15 +46,7 @@ with patch.object(socket.socket, 'connect', side_effect=AssertionError('No netwo
         if available:
             assert copied.read_text() in viewed['content'], viewed
         assert registry.get_entry('pythia_market_data') is not None
-        assert (registry.get_entry('pythia_market_data_widgets') is not None) == widgets
-        if not widgets:
-            from gateway.session_context import set_session_vars, clear_session_vars
-            tokens = set_session_vars(platform='api_server')
-            try:
-                result = json.loads(registry.dispatch('pythia_market_data', {'action': 'describe'}))
-                assert result['schema_version'] == 1 and result['outcome'] == 'ok', result
-            finally:
-                clear_session_vars(tokens)
+        assert registry.get_entry('pythia_market_data_widgets') is not None
     else:
         assert not plugin.enabled
         assert manager.find_plugin_skill(qualified) is None
@@ -58,5 +56,5 @@ with patch.object(socket.socket, 'connect', side_effect=AssertionError('No netwo
     assert viewed['success'] == available, viewed
 
 print(json.dumps({'plugin_enabled': enabled, 'qualified_skill_available': viewed['success'],
-                  'widgets_available': enabled and widgets,
+                  'market_data_loaded': plugin.enabled,
                   'hermes_commit': pin['commit']}))

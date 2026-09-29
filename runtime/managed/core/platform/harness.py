@@ -1,8 +1,9 @@
 """Core's only reads of the pinned Hermes plugin manager's private state (runtime/contracts/hermes.md).
 
-Hermes 29112bef offers no public way to list the loaded plugins or to find which plugin registered a tool, so
-core reads `PluginManager._plugins` and `_registration_order` here and nowhere else. Recheck this file when the
-pin changes. `tooling/check-boundaries.mjs` keeps these names out of the rest of core and out of every plugin.
+At Hermes 29112bef the public `list_plugins()` omits each plugin's path and loaded objects, and nothing public
+finds which plugin registered a tool, so core reads `PluginManager._plugins` and `_registration_order` here and
+nowhere else. Recheck this file when the pin changes. `tooling/check-boundaries.mjs` keeps these names out of the
+rest of core and out of every plugin.
 """
 
 

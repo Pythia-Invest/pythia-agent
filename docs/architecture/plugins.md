@@ -100,17 +100,22 @@ def register(ctx):
 ```
 
 Version 1 holds `declare_operation`, `register_read_command`,
-`register_agent_tool`, `register_widget_presentation`, `read_bundled_asset`,
-`price_sources`, `check_read`, `read_document`, `validate_live_market`, and the
-modules `configuration`, `access`, `admission`, `request_context` and
-`subscription`. A version only gains names; check a later addition with
-`hasattr`. Import names from the module (`from pythia_platform import
-configuration`), not submodules: it is not a package.
+`register_agent_tool`, `register_widget_presentation`, `price_sources`,
+`check_read`, `read_document`, `validate_live_market` and `FilingKind`; the
+[connector toolkit](connector-support.md) as `connector`, `wire` and `process`;
+the modules `configuration`, `access`, `admission`, `request_context` and
+`subscription`; and, for a plugin that coordinates other plugins' reads,
+`tool_schemas`, `dispatch`, `interrupted`, `session` and `session_platform`. An
+exported module offers only the members ADR 0045 lists. A version only gains
+names; check a later addition with `hasattr`. Import names from the module
+(`from pythia_platform import configuration`), not submodules: it is not a
+package.
 
-Plugins do not import Hermes modules, read Hermes's plugin manager or load
-another plugin's modules by a computed name. `just check` enforces this for the
-bundled plugins. Until market-data's connector toolkit moves into core,
-market-data and the connectors that use the toolkit are listed as exceptions.
+Plugins do not import Hermes modules, read Hermes's plugin manager or import
+anything dynamically (`importlib`, `import_module`, `__import__`,
+`sys.modules`), so no plugin loads another plugin's modules. `just check`
+enforces this for the bundled plugins, with no exceptions. A connector therefore
+needs only `requires_plugins: [pythia]`.
 
 ## A small operation export
 
@@ -176,10 +181,11 @@ requested changes to authorized callers, while an automatically refreshed widget
 cannot invoke that mutation. Authors must not
 label an operation read-only if it performs user-directed mutations.
 
-For coordinated financial data, use the feature's existing connector helpers
-instead of copying this demonstration's handler. `pythia_platform` also exports
-`declare_operation` for code that needs declaration helpers and handler-bound
-coordination hooks; neither mechanism creates another inventory.
+For coordinated financial data, use core's connector toolkit
+(`pythia_platform.connector`) instead of copying this demonstration's handler.
+`pythia_platform` also exports `declare_operation` for code that needs
+declaration helpers and handler-bound coordination hooks; neither mechanism
+creates another inventory.
 
 ## Reaching the agent
 

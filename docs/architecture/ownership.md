@@ -41,8 +41,10 @@ Plugins contribute claims and declare what they can address and serve in
 selection and resident request coordination. Provider
 plugins contribute native capabilities and evidence. The existing gateway hosts
 one shared HTTP/tool backend per profile; standalone CLI shares durable state and
-implementation, not memory. Protected transport, authentication and limits belong
-to Pythia, not to individual connectors. Connector packages such as the bundled
+implementation, not memory. Protected transport, authentication, limits and the
+connector toolkit (bounded execution, budgets, caching and the wire contract)
+belong to Pythia core, not to individual connectors or to market-data; each
+connector depends on core alone. Connector packages such as the bundled
 Yahoo Finance plugin live under `runtime/managed/plugins/`. Legacy core SEC/EOD
 tools are retired; later connector packages own their replacements.
 

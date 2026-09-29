@@ -26,9 +26,16 @@ try {
   const bundled = join(root, "empty-bundled");
   mkdirSync(bundled);
   const qualified = "pythia-market-data:market-data";
-  const platformPath = join(root, "plugins/pythia/platform/__init__.py");
-  const platformSource = readFileSync(platformPath, "utf8");
-  for (const { enabled, available, skillConfig, widgets = true } of [
+  // A preserved core from before the platform interface never publishes
+  // `pythia_platform` (ADR 0045): market-data must then refuse to register.
+  const corePath = join(root, "plugins/pythia/__init__.py");
+  const coreSource = readFileSync(corePath, "utf8");
+  const publish = "platform.publish(ctx)";
+  if (!coreSource.includes(publish))
+    throw Error(
+      "Core no longer publishes the interface as this check expects.",
+    );
+  for (const { enabled, available, skillConfig, published = true } of [
     { enabled: true, available: true, skillConfig: "" },
     { enabled: false, available: false, skillConfig: "" },
     {
@@ -41,18 +48,11 @@ try {
       available: false,
       skillConfig: `  platform_disabled:\n    api_server: [${qualified}]\n`,
     },
-    { enabled: true, available: true, skillConfig: "", widgets: false },
+    { enabled: true, available: false, skillConfig: "", published: false },
   ]) {
-    // Simulate a preserved older core that still exports API v1 but predates
-    // widget support. Native financial registration must remain usable.
     writeFileSync(
-      platformPath,
-      widgets
-        ? platformSource
-        : platformSource.replace(
-            "from .widgets import register_widget_presentation\n",
-            "",
-          ),
+      corePath,
+      published ? coreSource : coreSource.replace(publish, "pass"),
     );
     writeFileSync(
       join(root, "config.yaml"),
@@ -66,7 +66,7 @@ try {
         root,
         String(enabled),
         String(available),
-        String(widgets),
+        String(published),
       ],
       {
         env: {
@@ -88,11 +88,6 @@ try {
     );
     if (result.status !== 0)
       throw Error(result.stderr || result.error?.message || result.stdout);
-    if (
-      !widgets &&
-      !result.stderr.includes("widget presentations are unavailable")
-    )
-      throw Error("Missing visible stale-core widget warning.");
     console.log(result.stdout.trim());
   }
 } finally {

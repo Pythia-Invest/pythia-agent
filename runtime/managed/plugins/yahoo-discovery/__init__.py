@@ -1,5 +1,4 @@
 """Public Yahoo Finance content connector; native Hermes owns execution and enablement."""
-import importlib
 import json
 import os
 from pathlib import Path
@@ -21,12 +20,7 @@ def compatible(actual, native):
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = get_plugin_manager()._plugins.get('pythia-market-data')
-    if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
-        raise RuntimeError('unavailable')
-    wire = importlib.import_module(loaded.module.__name__ + '.wire')
-    connector = importlib.import_module(loaded.module.__name__ + '.connector')
+    wire, connector = platform.wire, platform.connector
     process = connector.ResidentTransport()
     if hasattr(ctx, 'on_unload'): ctx.on_unload(process.shutdown)
     budgets = failures = connector
@@ -107,8 +101,7 @@ def register(ctx):
                 replies = {}
                 if symbols:
                     replies = call('price_batch', {'symbols': sorted(symbols)})['data']
-                parallel = importlib.import_module(wire.__package__ + '.coordinated').parallel
-                return envelope(parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies if item['request']['operation'] == 'latest' else None), clean['reads']))
+                return envelope(connector.parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies if item['request']['operation'] == 'latest' else None), clean['reads']))
             if operation == 'movers':
                 raw = call('screener', {'options': {'scrIds': movers.SCREENS[clean['list']], 'count': movers.LIMIT}})
                 if raw['issues'] or not raw.get('data'):

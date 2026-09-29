@@ -96,8 +96,12 @@ unproven bars and report partial/error status.
 Synthetic tests prove selection behavior, not installed connector availability.
 Concrete connectors are separate plugin packages, such as the bundled
 [Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md).
-Existing SEC and legacy EOD tools remain independent and do not implicitly
-become shared sources.
+They depend on Pythia core, not on this feature: the wire contract, the common
+series criteria and the connector toolkit are core's
+([ADR 0045](../../docs/decisions/0045-plugin-platform-interface.md)). A connector
+registers whether or not market-data is loaded; its marked operations become
+sources when market-data projects the native schemas. Existing SEC and legacy
+EOD tools remain independent and do not implicitly become shared sources.
 
 ## Coordination and delivery
 
@@ -162,9 +166,11 @@ instances, so HTTP and native tools share authorized reusable work.
 
 The copied-feature qualification runs against the exact unmodified Hermes pin
 with disposable profiles and synthetic native contributions. It demonstrates one
-HTTP/tool backend, zero CLI/model subprocesses during reads, authentication and
-profile rejection, native disablement, preferred/pinned behavior, metadata and
-price reuse, timeout/cancellation and responsive native health. Run:
+HTTP/tool backend (built by the first read that needs it; `describe` needs none),
+zero CLI/model subprocesses during reads, authentication and profile rejection,
+native disablement, preferred/pinned behavior, metadata and price reuse, the
+refusal of an action the tool schema does not declare, timeout/cancellation and
+responsive native health. Run:
 
 ```sh
 node tooling/qualification/financial_http.mjs <prepared-hermes-source>

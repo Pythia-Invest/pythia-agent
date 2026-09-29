@@ -7,6 +7,7 @@ native profiles or credentials are used; the copied qualification tests that rea
 """
 import contextlib
 import importlib
+import importlib.util
 import io
 import json
 from pathlib import Path
@@ -16,7 +17,10 @@ from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from market_data_fixture import PACKAGE, PLATFORM
+from market_data_fixture import PACKAGE, PLATFORM, TOOLKIT
+from native_plugin_fixtures import Context, hide_market_data
+
+PLUGINS = Path(__file__).resolve().parents[2] / 'managed/plugins'
 
 contributions = importlib.import_module(PACKAGE + '.contributions')
 execution = importlib.import_module(PACKAGE + '.execution')
@@ -25,7 +29,7 @@ operations = importlib.import_module(PLATFORM + '.operations')
 transport = importlib.import_module(PLATFORM + '.http')
 specialist = importlib.import_module(PLATFORM + '.specialist')
 definition = importlib.import_module(PACKAGE + '.definition')
-wire = importlib.import_module(PACKAGE + '.wire')
+wire = importlib.import_module(TOOLKIT + '.wire')
 
 
 class NativeAccessTests(unittest.TestCase):
@@ -233,7 +237,7 @@ class NativeAccessTests(unittest.TestCase):
                     self.assertNotIn('reuse', result)
 
     def test_owner_classifies_nested_partial_failures_for_delivery_and_cli(self):
-        failures = importlib.import_module(PACKAGE + '.failures')
+        failures = importlib.import_module(TOOLKIT + '.failures')
         commands = []
         ctx = SimpleNamespace(plugin_id=self.provider_key,
                               register_cli_command=lambda *_args: commands.append(_args[-1]))
@@ -314,9 +318,30 @@ class NativeAccessTests(unittest.TestCase):
                                         updates=True)
         self.assertEqual(caught.exception.code, 'read_only_required')
 
+    def test_a_price_connector_registered_without_market_data_projects_once_market_data_is_present(self):
+        key = 'finance/pythia-yahoo-discovery'
+        root = PLUGINS / 'yahoo-discovery'
+        spec = importlib.util.spec_from_file_location('native_access_yahoo', root / '__init__.py',
+                                                      submodule_search_locations=[str(root)])
+        yahoo = sys.modules[spec.name] = importlib.util.module_from_spec(spec)
+        self.addCleanup(sys.modules.pop, spec.name)
+        spec.loader.exec_module(yahoo)
+        ctx = Context(key)
+        with hide_market_data():
+            yahoo.register(ctx)
+        for name, entry in ctx.registrations.items():
+            self.schemas[name] = entry['schema']
+            self.add_plugin(key, 'pythia-yahoo-discovery', name)
+        self.config['plugins']['enabled'].append(key)
+        sources, invalid = contributions.project()
+        yahoo_source, = [source for source in sources if source['contribution']['provider'] == 'yahoo']
+        self.assertFalse(invalid)
+        self.assertEqual({operation['operation'] for operation in yahoo_source['operations']},
+                         {'details', 'series', 'latest', 'history', 'read_batch'})
+
     def test_disabling_financial_feature_preserves_specialist_http_and_cli(self):
         self.config['plugins']['disabled'] = [self.feature_key]
-        with self.assertRaises(contributions.ContextUnavailable):
+        with self.assertRaises(access.ContextUnavailable):
             contributions.eligible_tools()
         with self.assertRaises(transport.Rejected) as caught:
             operations.resolve(self.feature_key, 'query', {'action': 'describe'})
