@@ -27,7 +27,7 @@ questions open:
 | Field | Meaning |
 | --- | --- |
 | `format` | Always `pythia-reference-package`. |
-| `format_version` | The number core checks for compatibility. It covers the manifest layout and the database schema, and it equals the database's `release.schema_version`. Core installs only its own version (currently `3`: the curated `canonical_assets` table). |
+| `format_version` | The number core checks for compatibility. It covers the manifest layout and the database schema, and it equals the database's `release.schema_version`. Core installs only its own version (currently `4`: 3 added the curated `canonical_assets` table, 4 the listings' `most_liquid` flag). |
 | `build_id` | The build, for example `reference-20260928`. It must match the database's `release.release`. |
 | `built_at`, `as_of` | When the build finished (UTC), and the date its sources describe. |
 | `builder_version`, `scope` | The builder's own version, and the venues and sources it covered. |

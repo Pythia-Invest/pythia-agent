@@ -153,6 +153,7 @@ class Listing:
     security_type: str | None = None
     name: str | None = None
     is_primary: bool = False
+    most_liquid: bool = False  # FIRDS' most liquid EU market, the line priced when no primary is known
     status: str = "active"  # active | suspect | inactive
     status_reasons: list[str] = field(default_factory=list)
     valid_from: str | None = None

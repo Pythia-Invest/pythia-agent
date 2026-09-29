@@ -58,9 +58,9 @@ DOC = """CREATE TABLE doc (
   id INTEGER PRIMARY KEY, listing TEXT, security TEXT, issuer TEXT, grp TEXT, kind TEXT, crypto INTEGER,
   ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
   venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
-  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER)"""
+  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER, liq INTEGER)"""
 DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind reg").split()
+               "currency prim home otc deriv fund dr fus size inst ikind reg liq").split()
 
 
 class Directory:
@@ -107,12 +107,12 @@ class Directory:
             logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
         rows = ref.execute(
             "SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.currency, l.chain,"
-            " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank FROM listings l"
+            " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank, l.most_liquid FROM listings l"
             " JOIN securities s ON s.id = l.security_id WHERE l.status <> 'inactive' AND s.status <> 'inactive'")
         docs = []
         for index, row in enumerate(rows, 1):
             (listing, security, composite, mic, operating, ticker, currency, chain, primary, issuer, name, kind,
-             asset_class, rank) = row
+             asset_class, rank, liquid) = row
             if not ticker:
                 continue
             values = {item.split(":", 1)[0]: item.split(":", 1)[1] for key in (listing, security, composite, issuer)
@@ -141,7 +141,7 @@ class Directory:
                 venue_name, venue_country if not crypto else None, currency, int(bool(primary)), int(home),
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
                 int(foreign_us), logrank(rank),
-                security, kind, int(mic in regulated or op in regulated & set(US_LISTED))))))
+                security, kind, int(mic in regulated or op in regulated & set(US_LISTED)), int(bool(liquid))))))
         # Relations with `fold` behaviour (vocabulary.RELATIONS) make one unit of the same economic thing: a receipt
         # folds into its share (`inst`, the page's listings). A unit that is an interest in its issuer
         # (vocabulary.ISSUER_INTERESTS) groups under the issuer's company (`grp`, search's company groups); a fund,
@@ -239,14 +239,17 @@ class Directory:
         Empty for a security not in the directory."""
         with self.lock:
             rows = self.db.execute(
-                "SELECT listing, ticker, mic, venue, currency, kind, security <> inst, prim FROM doc"
+                "SELECT listing, ticker, mic, venue, currency, kind, security <> inst, prim, liq FROM doc"
                 " WHERE inst = (SELECT inst FROM doc WHERE security = ? LIMIT 1) AND crypto = 0"
-                " ORDER BY security <> inst, security, prim DESC, fus, otc, home DESC, mic, listing",
+                " ORDER BY security <> inst, security, prim DESC, fus, otc, home DESC, liq DESC, mic, listing",
                 (security,)).fetchall()
         # `folded`: a line of a security that folds into the instrument (a receipt), not of the instrument's own.
         # Only a flagged line of the instrument's own security is its primary; with none, no line claims it.
+        # With no primary, the first line may be FIRDS' most liquid EU market: labelled so, never primary.
         return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind"), row), folded=bool(row[6]),
-                     primary=index == 0 and not row[6] and bool(row[7])) for index, row in enumerate(rows)]
+                     primary=index == 0 and not row[6] and bool(row[7]),
+                     most_liquid=index == 0 and not row[6] and not row[7] and bool(row[8]))
+                for index, row in enumerate(rows)]
 
     def other_instruments(self, security: str) -> list[dict]:
         """The other instruments of a security's search group (a company's other share classes, preferreds and
@@ -256,7 +259,7 @@ class Directory:
             rows = self.db.execute(
                 "SELECT inst, names, ikind, listing, ticker, mic, venue, currency, size FROM doc d JOIN"
                 " (SELECT grp, inst AS own FROM doc WHERE security = ? LIMIT 1) me ON d.grp = me.grp AND d.inst <> me.own"
-                " WHERE d.crypto = 0 ORDER BY d.inst, d.security <> d.inst, -d.prim, d.fus, d.otc, -d.home, d.mic, d.listing",
+                " WHERE d.crypto = 0 ORDER BY d.inst, d.security <> d.inst, -d.prim, d.fus, d.otc, -d.home, -d.liq, d.mic, d.listing",
                 (security,)).fetchall()
         seen: dict[str, tuple] = {}
         for row in rows:
@@ -314,7 +317,7 @@ class Directory:
         with self.lock:
             lines = self._fetch("d.grp = ?", (key,))
         lines.sort(key=lambda line: (-KIND_ORDER.get(line["kind"], 1), -(line["size"] or 0), line["security"],
-                                     -line["prim"], line["fus"], line["otc"], -line["home"], line["mic"] or "",
+                                     -line["prim"], line["fus"], line["otc"], -line["home"], -line["liq"], line["mic"] or "",
                                      line["listing"]))
         seen: set[str] = set()  # a crypto asset's chain deployments are one listing
         return [line for line in lines if _allowed(line, allowed)

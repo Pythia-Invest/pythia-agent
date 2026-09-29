@@ -65,7 +65,7 @@ class PackageTest(unittest.TestCase):
         local.put_binding(identity.Binding(
             provider_ref=identity.ProviderRef("coingecko", "usd-coin", "coin"), subject_id=old, status="confirmed",
             authority="user_attested", evidence_ids=("ev:" + "0" * 64,), plugin="pythia-coingecko"))
-        self.assertEqual(self.build()["format_version"], 3)
+        self.assertEqual(self.build()["format_version"], 4)
         installer.install(self.out, data)
         path = store.reference_path(data)  # what core's first read does (identity_ops.Identity.reference_path)
         with contextlib.closing(store.open_reference(path)) as ref:

@@ -172,7 +172,7 @@ def _ask_name_candidates(snap: Snapshot, tickers: list[SecTicker], links: dict[s
         cik, lei = next(iter(ciks)), next(iter(leis))
         if cik in links or lei in claimed:
             continue
-        snap.flag(f"cik:{cik}", NAME_QUESTION, f"lei:{lei}")
+        snap.ask(NAME_QUESTION, f"cik:{cik}", [f"lei:{lei}"])
         audit["name_candidate_questions"] += 1
 
 
@@ -345,7 +345,7 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
     never guessed. Every drop and narrowing is counted in the build report."""
     audit = snap.audit.setdefault("relations", Counter())
     by_isin = {security.isin: key for key, security in snap.securities.items() if security.isin}
-    kept, asked = [], set()
+    kept, asked, stated_targets = [], set(), {}
     for item in snap.relationships:
         if item.relation == "depositary_receipt_of":
             target = item.to_id if item.to_id in snap.securities else by_isin.get(item.to_id.split(":", 1)[1])
@@ -357,6 +357,15 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
                 audit[reason] += 1
                 snap.flag(item.from_id, reason, item.to_id)
                 asked.add(item.from_id)
+                continue
+            receipt = snap.securities.get(item.from_id)
+            if item.source == "esma_firds" and (not receipt or not receipt.issuer_id
+                                                or receipt.issuer_id != snap.securities[target].issuer_id):
+                # Field 5 on a receipt is the underlying issuer's LEI (ESMA Q&A 1503): field 26 decides only when the
+                # stated security is that issuer's. Otherwise (14 CDRs stating Thermo Fisher) it is a question.
+                audit["firds_underlying_other_issuer"] += 1
+                asked.add(item.from_id)
+                stated_targets[item.from_id] = target
                 continue
             item = Relationship(item.from_id, item.relation, target, item.source, item.rule_id)
         kept.append(item)
@@ -377,7 +386,8 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
             # FIRDS states receipts' underlyings (field 26): where it names none this build holds, the answer is a
             # question, not the issuer rule's guess. The issuer's shares are its candidates.
             if security.activity != "inactive":
-                snap.ask("receipt_underlying", security.security_id, [item.security_id for item in shares])
+                stated = [stated_targets[security.security_id]] if security.security_id in stated_targets else []
+                snap.ask("receipt_underlying", security.security_id, stated + [item.security_id for item in shares])
             audit["receipt_underlying_question"] += 1
             continue
         if not security.issuer_id:

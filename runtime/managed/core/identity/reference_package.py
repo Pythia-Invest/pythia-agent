@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 FORMAT = "pythia-reference-package"
-FORMAT_VERSION = 3       # the one number core checks: package layout and the SQLite's release.schema_version
+FORMAT_VERSION = 4       # the one number core checks: package layout and the SQLite's release.schema_version
 PACKAGE_FILE = "package.json"
 INSTALLED_FILE = "installed.json"  # which package under packages/ is installed; packages/ is the installer's own
 REFUSED_FILE = "refused.json"      # the last package the installer refused, until one installs

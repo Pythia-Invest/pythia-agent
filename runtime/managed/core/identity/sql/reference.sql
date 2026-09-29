@@ -50,6 +50,9 @@ CREATE TABLE listings (
   currency TEXT CHECK (currency IS NULL OR length(currency) = 3),
   chain TEXT,
   is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
+  -- The builder's line on FIRDS' most liquid EU market for a security whose primary it could not decide: the line
+  -- priced then, never shown as primary.
+  most_liquid INTEGER NOT NULL DEFAULT 0 CHECK (most_liquid IN (0, 1)),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'unknown')),
   CHECK ((mic IS NULL) <> (chain IS NULL)),
   CHECK (mic IS NULL OR currency IS NOT NULL),  -- ticker may be unknown (FIRDS lines carry none)

@@ -46,10 +46,17 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
             targets = [f"isin:{target}" for target in sorted(stated) if f"isin:{target}" in snap.securities]
             snap.ask("receipt_conflict", security.security_id, targets, evidence, sorted(stated))
         rule, line = _primary(claims, venues, isin, lines[security.security_id], as_of)
+        if line is None and security.kind == "share" and (home := _isin_country_line(venues, isin, lines[security.security_id])):
+            rule, line = "isin_country_line", home
         audit[f"primary_{rule}"] += 1
         for other in lines[security.security_id]:
             other.is_primary = other is line
         security.primary_mic, security.primary_rule = (line.operating_mic if line else None), rule
+        if line is None:  # priced on FIRDS' most liquid EU market, never marked primary
+            relevant = claims.one(isin, Meaning.MOST_LIQUID_EU_MARKET)
+            liquid = _on(lines[security.security_id], venues.op(relevant), relevant)
+            if liquid:
+                liquid.most_liquid = True
         if line is None and live:
             candidates = [l.listing_id for l in lines[security.security_id] if l.status != "inactive"]
             snap.ask("home_market", security.security_id, candidates[:20], evidence)
@@ -77,6 +84,15 @@ def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as
         line = home[0] if home and not isin.startswith("US") else us_lines(lines)[0] if us_lines(lines) else home[0]
         return ("home_listing_evidence" if line.source == "openfigi" else "us_exchange_listing"), line
     return "most_liquid_only", None
+
+
+def _isin_country_line(venues: Venues, isin: str, lines: list[Listing]) -> Listing | None:
+    """A share's one live line on an exchange in its ISIN's country (the issuer's home: TotalEnergies on Euronext
+    Paris beside NYSE), skipping OTC, MTF and trading-only lines. None when there is none or several."""
+    found = [line for line in lines if line.status != "inactive" and line.country == isin[:2]
+             and line.operating_mic not in rules.TRADING_ONLY_VENUES and line.operating_mic != "OTCM"
+             and (venues.venues.get(line.mic or "") is None or venues.venues[line.mic].category != "MLTF")]
+    return found[0] if len({line.operating_mic for line in found}) == 1 and len(found) == 1 else None
 
 
 def _on(lines: list[Listing], operating_mic: str | None, relevant: str | None) -> Listing | None:
