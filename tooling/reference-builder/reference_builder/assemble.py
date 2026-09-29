@@ -33,6 +33,10 @@ class Inputs:
     figi_mic_codes: set[str]
     sec_funds: list[SecFund] = field(default_factory=list)
     firds_claims: Claims | None = None  # built from `admissions` when not given
+    # Whether the build reads OpenFIGI and GLEIF: a source it leaves out says nothing, so a missing FIGI or LEI record
+    # decides nothing either.
+    openfigi: bool = True
+    gleif: bool = True
 
     def claims(self) -> Claims:
         if self.firds_claims is None:
@@ -110,8 +114,8 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     scoped = scope_isins(inputs)
     audit["scope_isins"] = len(scoped)
     claims, venues = inputs.claims(), Venues(inputs.venues)
-    entities = gleif_fetch({r.issuer_lei for rs in scoped.values() for r in rs if r.issuer_lei})
-    disputed = contested(claims, entities, venues)
+    entities = gleif_fetch({r.issuer_lei for rs in scoped.values() for r in rs if r.issuer_lei}) if inputs.gleif else {}
+    disputed = contested(claims, entities, venues, gleif=inputs.gleif)
     issuers = {isin: issuer_lei(claims, venues, entities, isin, disputed) for isin in scoped}
 
     plan = [(isin, seg, rec) for isin, rs in scoped.items() for seg, rec in sorted(_eu_listings(inputs, isin, rs).items())]
@@ -120,15 +124,17 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     # neither, and a US ISIN's home line comes from the SEC and symbol-directory lines instead.
     wanted = [isin for isin, rs in scoped.items() if not isin.startswith("US") and rules.firds_kind(rs[0].cfi) != "etf"]
     fanout = {isin: (a.get("data") or []) for isin, a in zip(wanted, figi_map([{"idType": "ID_ISIN", "idValue": i} for i in wanted]))}
-    audit["openfigi_fanout_isins_answered"] = sum(1 for rows in fanout.values() if rows)
+    if inputs.openfigi:
+        audit["openfigi_fanout_isins_answered"] = sum(1 for rows in fanout.values() if rows)
 
     as_of = inputs.as_of.isoformat()
     for (isin, segment, record), answer in zip(plan, answers):
         rows = answer.get("data") or []
         row, pick = rules.pick_figi_row(rows, operating(inputs.venues, segment) or segment)
-        audit[f"openfigi_{pick}"] += 1
+        if inputs.openfigi:
+            audit[f"openfigi_{pick}"] += 1
         lei = issuers[isin]
-        issuer = _issuer(snap, entities, lei, record) if lei else None
+        issuer = _issuer(snap, entities, lei, record, inputs.gleif) if lei else None
         op = operating(inputs.venues, segment)
         venue = inputs.venues.get(segment) or inputs.venues.get(op or "")
         listing = Listing(
@@ -146,7 +152,7 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
             registration_status=_entity_attr(entities, lei, "registration_status"),
             venue_count=len(scoped[isin]),
             has_transparency=None if inputs.transparency is None else isin in inputs.transparency,
-            has_figi=row is not None,
+            has_figi=row is not None if inputs.openfigi else None,
         )
         snap.listings[listing.listing_id] = listing
 
@@ -155,21 +161,22 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
         by_security[listing.security_id or ""].append(listing)
     for isin, records in scoped.items():
         _security(snap, inputs, isin, records, by_security[f"isin:{isin}"], fanout.get(isin, []), issuers[isin])
-        known = [lei for lei in disputed.get(isin, ()) if lei in entities]  # candidates need their issuer rows
-        snap.securities[f"isin:{isin}"].issuer_candidates = tuple(_issuer(snap, entities, lei, records[0]).issuer_id
-                                                                   for lei in known)
+        known = [lei for lei in disputed.get(isin, ()) if lei in entities or not inputs.gleif]  # rows for candidates
+        snap.securities[f"isin:{isin}"].issuer_candidates = tuple(
+            _issuer(snap, entities, lei, records[0], inputs.gleif).issuer_id for lei in known)
     return entities
 
 
-def contested(claims: Claims, entities: dict[str, GleifEntity], venues: Venues) -> dict[str, list[str]]:
+def contested(claims: Claims, entities: dict[str, GleifEntity], venues: Venues, gleif: bool = True) -> dict[str, list[str]]:
     """ISIN -> the LEIs FIRDS claims as its issuer where its records disagree: a share its receipts claim for another
-    live issuer (`Claims.receipt_issuers`; a claim under an LEI GLEIF retired, Merck Sharp & Dohme Corp. on Merck & Co.,
-    is stale), the receipts' LEIs first, then its own field 5 unless it is a venue operator's. A receipt of it filed under that same field 5 (Nestlé's
-    ADR under Nestlé Capital Markets) is as contradicted, with the same candidates."""
+    live issuer (`Claims.receipt_issuers`; a claim under an LEI GLEIF retired or does not know, Merck Sharp & Dohme
+    Corp. on Merck & Co., is stale), the receipts' LEIs first, then its own field 5 unless it is a venue operator's. A
+    receipt of it filed under that same field 5 (Nestlé's ADR under Nestlé Capital Markets) is as contradicted, with
+    the same candidates. A build without GLEIF (`gleif=False`) cannot tell a stale claim, so every claim counts."""
     found: dict[str, list[str]] = {}
     for isin, leis in claims.receipt_issuers.items():
-        live = sorted(lei for lei in leis if lei in entities and not rules.retired(entities[lei].entity_status,
-                                                                                    entities[lei].registration_status))
+        live = sorted(lei for lei in leis if not gleif or lei in entities and not rules.retired(
+            entities[lei].entity_status, entities[lei].registration_status))
         if live:
             own = claims.isins[isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
             found[isin] = live + sorted(lei for lei in own if not venues.operated.get(lei))
@@ -206,7 +213,7 @@ def _entity_attr(entities: dict[str, GleifEntity], lei: str | None, name: str) -
     return getattr(entity, name) if entity else None
 
 
-def _issuer(snap: Snapshot, entities: dict[str, GleifEntity], lei: str, record: FirdsRecord) -> Issuer:
+def _issuer(snap: Snapshot, entities: dict[str, GleifEntity], lei: str, record: FirdsRecord, gleif: bool) -> Issuer:
     issuer_id = f"lei:{lei}"
     if issuer_id not in snap.issuers:
         entity = entities.get(lei)
@@ -217,7 +224,8 @@ def _issuer(snap: Snapshot, entities: dict[str, GleifEntity], lei: str, record: 
                 issuer_id=issuer_id, name=record.full_name or record.isin, source="esma_firds",
                 lei=lei, name_rule="firds_full_name",
             )
-            snap.flag(issuer_id, "lei_not_in_gleif")
+            if gleif:  # GLEIF was asked and does not know it
+                snap.flag(issuer_id, "lei_not_in_gleif")
     return snap.issuers[issuer_id]
 
 

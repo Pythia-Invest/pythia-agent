@@ -43,6 +43,11 @@ function identifierText(ids: Record<string, string | null>) {
   );
 }
 
+/** Ends a sentence once, even after a name such as "Nestlé S.A.". */
+function sentence(text: string) {
+  return /[.!?]$/u.test(text) ? text : `${text}.`;
+}
+
 function nameOf(item: IdentityQuestion, id: string | null) {
   const found = item.candidates.find((candidate) => candidate.id === id);
   return found?.name ?? id ?? "—";
@@ -174,6 +179,31 @@ export function identityContext(item: IdentityQuestion) {
   ];
 }
 
+/** The dialog confirming one answer that names a candidate. */
+export function matchDialog(item: IdentityQuestion, entry: Answer) {
+  const receipt = entry.relation === "depositary_receipt_of";
+  if (isBuildQuestion(item))
+    return {
+      title: receipt ? "Depositary receipt" : "Issuer",
+      description: `${sentence(answerText(item, entry))} Your answer applies on this device; identifier evidence against it refuses it.`,
+      noteLabel: "Note",
+      notePlaceholder: "Why this is the answer…",
+      confirmLabel: "Confirm answer",
+      tone: "primary" as const,
+    };
+  const action = receipt
+    ? `Record ${item.label}'s record as a depositary receipt of`
+    : `Bind ${item.label}'s record to`;
+  return {
+    title: receipt ? "Depositary receipt" : "Same instrument",
+    description: `${sentence(`${action} ${nameOf(item, entry.chosen_id)}`)} Identifier evidence against it refuses the answer.`,
+    noteLabel: "Note",
+    notePlaceholder: "Why this record is this instrument…",
+    confirmLabel: receipt ? "Confirm receipt" : "Confirm match",
+    tone: "primary" as const,
+  };
+}
+
 /** Identity questions: the provider's record beside our instruments, the
  * evidence, and the user's answer recorded with an optional note. Each
  * candidate gets its own Match; "Not a match" answers none of them. */
@@ -190,30 +220,6 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
       if (!TAKEN.has(result.outcome)) throw new Error(result.message);
       return result.message;
     };
-  const matchDialog = (item: IdentityQuestion, entry: Answer) => {
-    const receipt = entry.relation === "depositary_receipt_of";
-    if (isBuildQuestion(item))
-      return {
-        title: receipt ? "Depositary receipt" : "Issuer",
-        description: `${answerText(item, entry)}. Your answer applies on this device; identifier evidence against it refuses it.`,
-        noteLabel: "Note",
-        notePlaceholder: "Why this is the answer…",
-        confirmLabel: "Confirm answer",
-        tone: "primary" as const,
-      };
-    return {
-      title: receipt ? "Depositary receipt" : "Same instrument",
-      description: `${
-        receipt
-          ? `Record ${item.label}'s record as a depositary receipt of`
-          : `Bind ${item.label}'s record to`
-      } ${nameOf(item, entry.chosen_id)}. Identifier evidence against it refuses the answer.`,
-      noteLabel: "Note",
-      notePlaceholder: "Why this record is this instrument…",
-      confirmLabel: receipt ? "Confirm receipt" : "Confirm match",
-      tone: "primary" as const,
-    };
-  };
   const noMatchDialog = (item: IdentityQuestion) =>
     isBuildQuestion(item)
       ? {
@@ -248,7 +254,7 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
                 dialog: {
                   title: "Reopen question",
                   description:
-                    "Your answer stops applying on this device and the question opens again; its history keeps the answer.",
+                    "Your answer stops applying on this device and the question opens again.",
                   noteLabel: "Reason",
                   notePlaceholder: "Why reopen it…",
                   confirmLabel: "Reopen",

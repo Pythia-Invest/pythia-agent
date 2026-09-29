@@ -285,32 +285,33 @@ def admission_status(
     registration_status: str | None,
     venue_count: int,
     has_transparency: bool | None,
-    has_figi: bool,
+    has_figi: bool | None,
 ) -> tuple[str, list[str]]:
     """Activity of one FIRDS admission: active, suspect (demote) or inactive (dead).
 
     FIRDS rarely sets termination dates, so the audit's signals are combined:
     corporate-action lines, retired issuers, FITRS absence and OpenFIGI silence.
+    A source the build omits (`None`) says nothing either way.
     """
     dead: list[str] = []
     doubt: list[str] = []
     if termination and termination <= as_of:
         dead.append("terminated")
     if CORPORATE_ACTION.search(full_name or ""):
-        (doubt if has_figi else dead).append("corporate_action_line")
-    elif cfi.startswith("ESXX") and not has_figi:
+        (dead if has_figi is False else doubt).append("corporate_action_line")
+    elif cfi.startswith("ESXX") and has_figi is False:
         dead.append("unclassified_line_without_figi")
     if retired(entity_status, registration_status):
         dead.append("issuer_lei_retired")
     if dead:
         return "inactive", dead
-    if not has_figi:
+    if has_figi is False:
         doubt.append("no_openfigi_line")
     if has_transparency is False:
         doubt.append("no_transparency_result")
     if registration_status == "LAPSED" and venue_count == 1:
         doubt.append("lapsed_lei_single_venue")
-    if "corporate_action_line" in doubt or (not has_figi and (has_transparency is False or "lapsed_lei_single_venue" in doubt)):
+    if "corporate_action_line" in doubt or (has_figi is False and (has_transparency is False or "lapsed_lei_single_venue" in doubt)):
         return "suspect", doubt
     return "active", doubt
 

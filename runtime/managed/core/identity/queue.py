@@ -19,7 +19,7 @@ from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
 from .page import LABELS, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_subject, resolve_input
 from .resolution import RELATION_LEVEL, QueueItem, ResolverKind, Verdict, VerdictOutcome, decide
-from .schemes import subject_kind, subject_level
+from .schemes import Level, subject_kind, subject_level
 from .store import IdentityStore
 from .vocabulary import Authority, InstrumentKind, VerdictRelation, stored_authority
 
@@ -147,23 +147,25 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     subject = device.load_subject(ref, store, chosen_id, plugins) if chosen_id else None
     if chosen_id and subject is None and not (built and build_questions.own_identifier(row)):
         raise Refused("The chosen subject is not known on this device.")  # a contested value need not name one
-    # Against "none", every candidate's evidence counts.
+    # Against "none", every candidate's evidence counts, each candidate's on its own (`pools`).
     subjects = [subject] if subject else [] if chosen_id else [
         found for other in item.candidate_ids if (found := device.load_subject(ref, store, other, plugins))]
+    pools = [found["evidence"] for found in subjects] if not chosen_id and subjects else [
+        [assertion for found in subjects for assertion in found["evidence"]]]
     prior = [] if user else [_verdict(entry, item_id) for entry in store.history(row)
                              if entry["item_id"] == item_id and entry["resolver"] != resolver
                              and entry["outcome"] == "suggested"]
     try:
         # A build question's own subject stands in for the record: its identifiers, and for a receipt answer its kind,
         # so a receipt is never chosen as the underlying.
-        outcome = decide(verdict, item, claimed=record.identifiers if record else build_questions.claimed(ref, row),
-                         as_of=as_of, record_kind=record.attributes.kind if record else InstrumentKind.DEPOSITARY_RECEIPT
-                         if built[1] is VerdictRelation.DEPOSITARY_RECEIPT_OF else None,
-                         evidence=[assertion for found in subjects for assertion in found["evidence"]],
-                         subject_kind=_kind(subject), prior=prior, same_venue=record is not None and (
-                             _same_venue(record, subjects)
-                             # A bound conflict is a resolve answer to this listing's identifiers: its venue is this one.
-                             or (row["reason"] == "binding" and len(row["subject_ids"]) > 1)))
+        outcomes = [decide(verdict, item, claimed=record.identifiers if record else build_questions.claimed(ref, row),
+                           as_of=as_of, record_kind=record.attributes.kind if record else InstrumentKind.DEPOSITARY_RECEIPT
+                           if built[1] is VerdictRelation.DEPOSITARY_RECEIPT_OF else None,
+                           evidence=pool, subject_kind=_kind(subject), prior=prior, same_venue=record is not None and (
+                               _same_venue(record, subjects)
+                               # A bound conflict is a resolve answer to this listing's identifiers: its venue is this one.
+                               or (row["reason"] == "binding" and len(row["subject_ids"]) > 1))) for pool in pools]
+        outcome = VerdictOutcome.BLOCKED if VerdictOutcome.BLOCKED in outcomes else outcomes[0]
     except ValueError as error:
         raise Refused(str(error)) from None
     if not user and outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
@@ -188,7 +190,7 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
             state = "resolved" if outcome is VerdictOutcome.CONFIRMED else "dismissed"
             store.settle(item_id, state, verdict_id)
         if built and outcome is VerdictOutcome.CONFIRMED:
-            build_questions.replace_answer(store, row, verdict.relation)
+            build_questions.replace_answer(store, row, verdict.relation, now)
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
 
@@ -318,8 +320,11 @@ def _describe(store: IdentityStore, ref: sqlite3.Connection, subject_id: str) ->
     if subject is None:
         return {"id": subject_id, "level": subject_kind(subject_id), "known": False}
     view = subject["view"]
+    identifiers = view["identifiers"]
+    if subject["level"] is Level.ISSUER:  # a company's own identifiers, never those of a security it issued
+        identifiers = {scheme: view["issuer"][scheme] for scheme in ("lei", "cik") if view["issuer"][scheme]}
     return {"id": subject_id, "level": str(subject["level"]), "known": True, "name": view["subject"]["name"],
-            "kind": subject["kind"], "identifiers": view["identifiers"]}
+            "kind": subject["kind"], "identifiers": identifiers}
 
 
 def _kind(subject: dict | None) -> InstrumentKind | None:

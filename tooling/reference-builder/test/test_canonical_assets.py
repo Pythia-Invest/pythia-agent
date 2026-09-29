@@ -17,6 +17,9 @@ AUDIT = (Path(__file__).resolve().parents[1] / "truth" / "canonical-assets-audit
 BTC = "bip122:000000000019d6689c085ae165831e93/slip44:0"
 USDC = "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
 USDC_BASE = "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+# Circle's native USDC on Sui (developers.circle.com/stablecoins/usdc-contract-addresses), in the Sui profile.
+SUI_COIN = "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC"
+USDC_SUI = "sui:mainnet/coin:0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7%3A%3Ausdc%3A%3AUSDC"
 WBTC = "eip155:1/erc20:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
 
 
@@ -88,7 +91,9 @@ class ReferenceTest(unittest.TestCase):
     def test_deployments_are_listings_of_one_security_and_a_wrapped_asset_stays_apart(self):
         base = page.load_subject(self.ref, f"listing:caip19:{USDC_BASE}")
         self.assertEqual(base["ids"][identity.Level.SECURITY], f"security:caip19:{USDC}")
-        self.assertEqual(len(base["view"]["listings"]), 7)
+        self.assertEqual(len(base["view"]["listings"]), 8)
+        sui = page.load_subject(self.ref, identity.subject_id("listing", {"caip19": f"sui:mainnet/coin:{SUI_COIN}"}))
+        self.assertEqual((sui["id"], sui["ids"][identity.Level.SECURITY]), (f"listing:caip19:{USDC_SUI}", f"security:caip19:{USDC}"))
         coins = {(provider, caip19): native for (provider, native), caip19 in self.canonical.items()}
         quote = page.compose(base, [self.contracts["coingecko"]], stored=lambda *_: None, queue=[],
                              coins=lambda p, caip19: coins.get((p, caip19)))[0]
@@ -104,8 +109,9 @@ class ReferenceTest(unittest.TestCase):
 
 class DriftTest(unittest.TestCase):
     SEED = {"provider_chains": [{"provider": "coingecko", "chain": "ethereum", "caip2": "eip155:1"},
-                                {"provider": "coingecko", "chain": "base", "caip2": "eip155:8453"}],
-            "assets": [{"caip19": USDC, "symbol": "USDC", "deployments": [USDC_BASE, "eip155:42161/erc20:0xaf88"],
+                                {"provider": "coingecko", "chain": "base", "caip2": "eip155:8453"},
+                                {"provider": "coingecko", "chain": "sui", "caip2": "sui:mainnet"}],
+            "assets": [{"caip19": USDC, "symbol": "USDC", "deployments": [USDC_BASE, "eip155:42161/erc20:0xaf88", USDC_SUI],
                         "coingecko": "usd-coin"},
                        {"caip19": BTC, "symbol": "BTC", "coingecko": "bitcoin"}]}
     ETH_USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"  # checksummed: EVM addresses compare case-insensitively
@@ -114,18 +120,23 @@ class DriftTest(unittest.TestCase):
     def findings(self, listed):
         return drift.check(self.SEED, "coingecko", listed)
 
+    def listed(self, **chains):
+        return {"usd-coin": {"ethereum": {self.ETH_USDC}, "base": {self.BASE_USDC}, "sui": {SUI_COIN}} | chains}
+
     def test_the_curated_contracts_on_mapped_chains_are_no_drift(self):
-        listed = {"usd-coin": {"ethereum": {self.ETH_USDC}, "base": {self.BASE_USDC}, "tron": {"TEkx"}}, "bitcoin": {}}
+        # Providers write a Sui coin type raw: it is the curated, percent-encoded one.
+        listed = self.listed(tron={"TEkx"}) | {"bitcoin": {}}
         self.assertEqual(self.findings(listed), [])  # an extra, unmapped chain is the provider's own claim
 
     def test_a_missing_id_a_changed_or_dropped_contract_and_a_moved_one_are_drift(self):
+        listed = self.listed()
         cases = {
-            "no longer resolves": {"usd-coin": {"ethereum": {self.ETH_USDC}, "base": {self.BASE_USDC}}},
-            "not the curated": {"usd-coin": {"ethereum": {"0xbad"}, "base": {self.BASE_USDC}}, "bitcoin": {}},
-            "no longer lists eip155:8453": {"usd-coin": {"ethereum": {self.ETH_USDC}}, "bitcoin": {}},
-            "also listed under coingecko usd-coin-base": {
-                "usd-coin": {"ethereum": {self.ETH_USDC}, "base": {self.BASE_USDC}}, "bitcoin": {},
-                "usd-coin-base": {"base": {self.BASE_USDC}}},
+            "no longer resolves": listed,
+            "not the curated": self.listed(ethereum={"0xbad"}) | {"bitcoin": {}},
+            "no longer lists eip155:8453": {"usd-coin": {"ethereum": {self.ETH_USDC}, "sui": {SUI_COIN}}, "bitcoin": {}},
+            "no longer lists sui:mainnet": {"usd-coin": {"ethereum": {self.ETH_USDC}, "base": {self.BASE_USDC}},
+                                            "bitcoin": {}},
+            "also listed under coingecko usd-coin-base": listed | {"bitcoin": {}, "usd-coin-base": {"base": {self.BASE_USDC}}},
         }
         for expected, listed in cases.items():
             with self.subTest(expected):

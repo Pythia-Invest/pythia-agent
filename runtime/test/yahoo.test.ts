@@ -177,6 +177,27 @@ test("Yahoo rejects arbitrary execution and unbounded requests before SDK calls"
   }
   expect(chart).not.toHaveBeenCalled();
 });
+test("a screener answer reaches the movers adapter without the SDK's schema check", async () => {
+  // Yahoo added full_day_* to criteriaMeta.includeFields (2026-09-29), which
+  // the SDK's schema rejects; the adapter checks the fields it reads.
+  const screener = vi.fn(async () => ({ quotes: [{ symbol: "SYN" }] }));
+  const result = await execute(
+    {
+      operation: "screener",
+      arguments: { options: { scrIds: "most_actives", count: 25 } },
+    },
+    { screener } as unknown as Client,
+  );
+  expect(screener).toHaveBeenCalledWith(
+    { scrIds: "most_actives", count: 25 },
+    undefined,
+    { validateResult: false },
+  );
+  expect(result).toMatchObject({
+    data: { result: { quotes: [{ symbol: "SYN" }] } },
+    issues: [],
+  });
+});
 test("Yahoo batched quotes retain missing members and reject alien identities", async () => {
   const quote = vi.fn(async () => [
     {

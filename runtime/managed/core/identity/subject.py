@@ -62,7 +62,8 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     ids = {Level.LISTING: listing and listing["id"], Level.SECURITY: security and security["id"],
            Level.ISSUER: issuer and issuer["id"], Level.COMPOSITE: listing and listing["composite_id"]}
     subjects = [value for value in ids.values() if value]
-    rows = ref.execute(f"SELECT * FROM assertions WHERE subject_id IN ({','.join('?' * len(subjects))})", subjects).fetchall()
+    rows = ref.execute(f"SELECT * FROM assertions WHERE subject_id IN ({','.join('?' * len(subjects))}) ORDER BY rowid",
+                       subjects).fetchall()  # stored order: one source's several values keep their first
     trust = weighing.level(ref)
     weighed = weighing.weigh((_assertion(row) for row in rows), trust)
     if listing is not None and listing["status"] == "inactive":  # a delisted line's ticker may name another company

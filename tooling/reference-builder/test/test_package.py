@@ -36,7 +36,8 @@ class PackageTest(unittest.TestCase):
         manifest.write_manifest(self.out / "manifest.json", {
             "build_id": build_id, "schema_version": schema.SCHEMA_VERSION, "builder_version": "1",
             "as_of": "2026-09-25", "started_at": "2026-09-25T06:00:00Z", "finished_at": "2026-09-25T08:00:00Z",
-            "scope": {"mics": ["XAMS"], "sec": True}, "snapshot": writer.describe(path), "tables": counts,
+            "scope": {"mics": ["XAMS"], "sec": True}, "included_sources": ["iso10383_mic", "esma_firds", "gleif"],
+            "snapshot": writer.describe(path), "tables": counts,
             "sources": sources, "audit": self.snap.audit, "canaries": list(canaries), "truth_audit": None})
         path = self.out / "package.json"
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
@@ -53,6 +54,8 @@ class PackageTest(unittest.TestCase):
         installed = installer.install(self.out, data)["installed"]
         self.assertEqual((installed["build_id"], installed["as_of"], len(installed["notices"])),
                          ("reference-20260925", "2026-09-25", 2))
+        self.assertEqual(package["included_sources"], installed["included_sources"])  # reference-status lists them
+        self.assertEqual(installed["included_sources"], ["iso10383_mic", "esma_firds", "gleif"])
         self.assertTrue(installer.current(data).is_file())
 
 

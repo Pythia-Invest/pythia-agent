@@ -87,6 +87,13 @@ class ScreenerAdapterTest(unittest.TestCase):
         self.assertNotIn("newYahooField", issues[0]["message"])
         self.assertEqual(movers.adapt({"result": {}}, "losers", 25)[0], None)
 
+    def test_a_venue_or_market_state_that_is_not_text_leaves_only_its_row_out(self):
+        with self.assertLogs(movers.logger, "WARNING"):
+            data, issues = movers.adapt(screen(quote(), quote("LIST", exchange=["NMS"]),
+                                               quote("OBJ", marketState={"state": "PRE"})), "losers", 25)
+        self.assertEqual([row["symbol"] for row in data["rows"]], ["NVDA"])
+        self.assertIn("2 rows ", issues[0]["message"])
+
 
 class MarketReadsTest(unittest.TestCase):
     def setUp(self):
