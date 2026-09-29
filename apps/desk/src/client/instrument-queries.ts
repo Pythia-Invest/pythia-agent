@@ -1,5 +1,6 @@
 "use client";
 import {
+  parseFilingDocument,
   readSubject,
   resolveSections,
   SUBJECT_PLUGIN,
@@ -119,6 +120,20 @@ export function useSectionRead(request: PluginRequest | null | undefined) {
     // plugin reads; a mount during a running read joins it.
     staleTime: 0,
     refetchOnMount: "always",
+    ...busyRetry,
+  });
+}
+
+/** One read of a filing's document (core's `filings-read`). A filed document
+ * never changes, so an answer stays fresh; core keeps its text on disk. */
+export function useFilingDocument(request: PluginRequest | null) {
+  const api = useDeskApi();
+  return useQuery({
+    queryKey: ["plugin", request?.plugin, "filings-read", request],
+    queryFn: async () =>
+      parseFilingDocument(await api.pluginRead(request as PluginRequest)),
+    enabled: Boolean(request),
+    staleTime: Infinity,
     ...busyRetry,
   });
 }

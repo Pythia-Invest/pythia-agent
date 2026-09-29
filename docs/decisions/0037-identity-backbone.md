@@ -509,3 +509,16 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
 - **Merging along a provider's asset grouping.** Providers fold bridged pegs
   and sentinel addresses into the parent asset, and they disagree with each
   other.
+
+## Amendment (2026-09-29): scope, triggers and where questions go
+
+[ADR 0044](0044-product-direction.md) changes three things:
+
+- **Jobs may trigger agent work.** This ADR says "nothing triggers the agent".
+- **Questions reach a device only for subjects it touches** (held, watched,
+  opened or forecast). World-level questions are answered centrally and ship in
+  the reference package. "Unknown plus a question" stays the principle; only
+  its delivery changes.
+- **The backbone is scoped to a permanent address book.** Identifiers never
+  disappear, records that cannot be matched still appear as labelled subjects,
+  and new subject kinds or sources are added when a strategy needs them.

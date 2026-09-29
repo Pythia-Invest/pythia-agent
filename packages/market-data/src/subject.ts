@@ -249,8 +249,58 @@ export const filingsSchema = z.object({
     .default([]),
   skipped: z.array(sectionSkipSchema).default([]),
   partial: z.boolean().default(false),
+  /** The subject the combined list was read for; its documents are read
+   * through it. */
+  subject_id: optionalText,
 });
 export type Filings = z.infer<typeof filingsSchema>;
+
+const documentPart = z.object({ id: text, title: text, chars: z.number() });
+const citationSchema = z.object({
+  section: text,
+  section_title: optionalText,
+  offsets: z.array(z.number()).default([]),
+  /** The document's URL, at the section's anchor where it has one. */
+  url: z.string().nullish(),
+});
+/** Core's document read (`filings-read`): an outline, one bounded part of a
+ * section, or search passages, each part cited. */
+export const filingDocumentSchema = z.object({
+  document: z.object({
+    id: text,
+    form: optionalText,
+    title: optionalText,
+    url: z.string().nullish(),
+  }),
+  sections: z.array(documentPart).optional(),
+  section: documentPart.optional(),
+  text: z.string().optional(),
+  /** Where the rest of a long section starts; null at its end. */
+  continue_from: z.number().nullish(),
+  citation: citationSchema.optional(),
+  passages: z
+    .array(z.object({ text: z.string(), citation: citationSchema }))
+    .optional(),
+});
+export type FilingDocument = z.infer<typeof filingDocumentSchema>;
+
+/** A read of one filing's document: its outline, a section from `start`, or
+ * a search; the filing is named by its version's id. */
+export function filingDocumentRequest(
+  subjectId: string,
+  id: string,
+  read: {
+    section?: string;
+    start?: number | undefined;
+    query?: string;
+  } = {},
+) {
+  return {
+    plugin: SUBJECT_PLUGIN,
+    operation: "filings-read",
+    arguments: { subject_id: subjectId, id, ...read },
+  };
+}
 
 /** Query key of one subject's page, shared by the search bar's prefetch and
  * the instrument route so a chosen row opens on cached data. */
@@ -317,4 +367,7 @@ export function parseProfile(value: unknown): Profile {
 }
 export function parseFilings(value: unknown): Filings {
   return coreData(value, filingsSchema);
+}
+export function parseFilingDocument(value: unknown): FilingDocument {
+  return coreData(value, filingDocumentSchema);
 }

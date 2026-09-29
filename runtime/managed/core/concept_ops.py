@@ -109,7 +109,10 @@ class ConceptReads:
             subject, plugins, Section.FILINGS, lookups, context, forms, kinds)
         parts = [(answer, authorities, *results[answer["plugin"]]) for answer, authorities in chosen
                  if answer["plugin"] in results]
-        merged = filings.merge_filings(parts, forms, kinds, subject["ids"].get("issuer") or subject["id"])
+        issuer = subject["ids"].get("issuer") or subject["id"]
+        merged = filings.merge_filings(parts, forms, kinds, issuer)
+        from .documents import remember
+        remember(issuer, merged["filings"])  # every listed filing stays readable by the document reader
         return self._finish(merged, subject, chosen, alternatives, skipped, waiting, bool(parts), "filings")
 
     def news(self, arguments: dict, **context: Any) -> str:

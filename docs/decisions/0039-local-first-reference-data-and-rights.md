@@ -166,3 +166,13 @@ goes through the same release change as any other install. *A core operation
 that installs from a model-supplied path* would let a tool call name arbitrary
 files. The import step remains a lifecycle action, and the agent only reads the
 status.
+
+## Amendment (2026-09-29): a curated reference package
+
+[ADR 0044](0044-product-direction.md) sets the direction toward a signed
+reference package over open data, published by Pythia. It includes reviewed
+answers to world-level identity questions, and it is delivered as downloads so
+that Pythia's services never receive users' queries. Publishing waits for the
+checks listed in "If Pythia later publishes a snapshot" above. Raw model
+exchanges stay out of releases. Pythia still never publishes, pools or
+redistributes provider data.

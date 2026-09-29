@@ -15,7 +15,8 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from .identity import DIRECTORY_URL, submissions_page_url, submissions_url
 from .financials import facts_url
 
-MAX_BYTES = 24_000_000
+MAX_BYTES = 24_000_000  # a JSON response, held whole
+DOCUMENT_SECONDS = 60  # a filing document streams through core's reader; ASML's 20-F is 24.9 MB
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -45,45 +46,59 @@ class Transport:
             time.sleep(min(delay, .05))
 
     def run_worker(self, _command, request, _environment, *, cancelled, budget, timeout=12):
-        from importlib import import_module
-        retry_after = import_module(self.connector.__package__ + '.worker_budget').retry_after
         operation = request['operation']
         url = (DIRECTORY_URL if operation == 'directory' else submissions_url(request['cik']) if operation == 'submissions'
                else submissions_page_url(request['cik'], request['page']) if operation == 'submissions_page'
                else facts_url(request['cik']))
-        req = Request(url, headers={'User-Agent': request['contact'], 'Accept': 'application/json', 'Accept-Encoding': 'gzip'})
+        return self._get(operation, url, request['contact'], 'application/json', cancelled, budget, timeout, self._json)
+
+    def document(self, url, contact, *, cancelled, budget, read, timeout=DOCUMENT_SECONDS):
+        """Stream one filing document into ``read(response, check)``; the body is never buffered here."""
+        return self._get('document', url, contact, 'text/html, application/xhtml+xml', cancelled, budget, timeout, read)
+
+    @staticmethod
+    def _json(response, check):
+        # MAX_BYTES bounds the decoded size, so a small compressed body cannot expand past it.
+        compressed = (response.headers.get('Content-Encoding') or '').strip().lower() == 'gzip'
+        decoder = zlib.decompressobj(zlib.MAX_WBITS | 16) if compressed else None
+        content, size = [], 0
+        while True:
+            check()
+            chunk = response.read(65536)
+            if not chunk:
+                break
+            if decoder is not None:
+                chunk = decoder.decompress(chunk, MAX_BYTES + 1 - size)
+            size += len(chunk)
+            if size > MAX_BYTES:
+                raise RuntimeError('output_limit')
+            content.append(chunk)
+        if decoder is not None and not decoder.eof:
+            raise ValueError('invalid_response')
+        value = json.loads(b''.join(content))
+        if not isinstance(value, dict):
+            raise ValueError('invalid_response')
+        return value
+
+    def _get(self, operation, url, contact, accept, cancelled, budget, timeout, body):
+        from importlib import import_module
+        retry_after = import_module(self.connector.__package__ + '.worker_budget').retry_after
+        req = Request(url, headers={'User-Agent': contact, 'Accept': accept, 'Accept-Encoding': 'gzip'})
         started, status = time.monotonic(), None
+
+        def check():
+            if cancelled():
+                raise RuntimeError('cancelled')
+            if time.monotonic() - started > timeout:
+                raise TimeoutError('timeout')
         try:
             with budget.slot(cancelled):
-                if cancelled():
-                    raise RuntimeError('cancelled')
+                check()
                 self._pace(cancelled)
                 with self.opener.open(req, timeout=min(timeout, 8)) as response:
                     status = response.status
-                    # MAX_BYTES bounds the decoded size, so a small compressed body cannot expand past it.
-                    compressed = (response.headers.get('Content-Encoding') or '').strip().lower() == 'gzip'
-                    decoder = zlib.decompressobj(zlib.MAX_WBITS | 16) if compressed else None
-                    content, size = [], 0
-                    while True:
-                        if cancelled():
-                            raise RuntimeError('cancelled')
-                        if time.monotonic() - started > timeout:
-                            raise TimeoutError('timeout')
-                        chunk = response.read(65536)
-                        if not chunk:
-                            break
-                        if decoder is not None:
-                            chunk = decoder.decompress(chunk, MAX_BYTES + 1 - size)
-                        size += len(chunk)
-                        if size > MAX_BYTES:
-                            raise RuntimeError('output_limit')
-                        content.append(chunk)
-                    if decoder is not None and not decoder.eof:
-                        raise ValueError('invalid_response')
-                    value = json.loads(b''.join(content))
-                    if not isinstance(value, dict):
-                        raise ValueError('invalid_response')
-                    return {'data': value, 'issues': [], 'observed_at': datetime.now(timezone.utc).isoformat()}
+                    return {'data': body(response, check), 'issues': [],
+                            'observed_at': datetime.now(timezone.utc).isoformat()}
         except HTTPError as error:
             status = error.code
             code = {401: 'authentication_failed', 403: 'access_denied', 404: 'missing_observation', 429: 'rate_limit'}.get(error.code, 'source_unavailable')

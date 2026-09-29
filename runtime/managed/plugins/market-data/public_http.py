@@ -102,14 +102,17 @@ class Transport:
         # with a diagnostic instead of failing plugin registration.
         self.opener = opener
 
-    def _request(self, request):
+    def _request(self, request, accept='application/json'):
         url = request.get('url')
         if _origin(url) not in self.origins:
             raise ValueError('invalid_request')
-        headers = {'Accept': 'application/json', **self.headers, 'Accept-Encoding': 'identity'}
+        headers = {'Accept': accept, **self.headers, 'Accept-Encoding': 'identity'}
         return Request(url, headers=headers, method='GET')
 
-    def run_worker(self, _command, request, _environment, *, cancelled, budget, timeout=12):
+    def run_worker(self, _command, request, _environment, *, cancelled, budget, timeout=12, body=None):
+        """One GET. With `body`, the caller reads the open response itself, ``body(response, check)``, within the
+        budget slot and the deadline, instead of a JSON body held whole (a filing document streamed into core's
+        reader)."""
         started, status, code = self.clock(), None, None
         reference = diagnostics.identifier()
 
@@ -122,7 +125,7 @@ class Transport:
         try:
             if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 0 < timeout <= 120:
                 raise ValueError('invalid_request')
-            req = self._request(request)
+            req = self._request(request, 'application/json' if body is None else '*/*')
             if self.opener is None:
                 self.opener = build_opener(HTTPSHandler(context=_https_context(self.provider)), NoRedirect())
             check()
@@ -136,6 +139,9 @@ class Transport:
                         raise HTTPError(req.full_url, status, '', response.headers, None)
                     if status == 204:
                         raise SourceFailure({'error': 'missing_observation'})
+                    if body is not None:
+                        return {'data': body(response, check), 'issues': [], 'http_status': status,
+                                'observed_at': datetime.now(timezone.utc).isoformat()}
                     content = self._content(response, self.max_bytes, check)
                 check()
                 try:

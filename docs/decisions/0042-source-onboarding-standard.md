@@ -157,3 +157,14 @@ and sign-off per source keep each source's odd cases visible.
 source's record names the other sources whose open work it depends on (the
 SEC's CIK links depend on FIRDS field 5), and its sign-off does not wait for
 theirs unless it confirms through their evidence.
+
+## Amendment (2026-09-29): trust levels and curated answers
+
+[ADR 0044](0044-product-direction.md) sets three plugin trust levels: display,
+suggest identity and confirm identity. Only confirming identity requires this
+standard's full audit and sign-off. A display-only plugin, including a user's
+own licensed vendor, needs declared coverage and terms only.
+
+Reviewed answers over open data may ship in the reference package. Gold labels
+on licensed data and raw model exchanges stay on the device. Further source
+audits are paused until a strategy's universe or a second user needs them.
