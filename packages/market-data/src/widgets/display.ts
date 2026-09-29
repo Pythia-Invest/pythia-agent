@@ -196,7 +196,9 @@ export function financialInstrument(
       ? delay !== undefined
         ? `${delay / 60} minute delay`
         : "Delayed; duration unreported"
-      : undefined,
+      : delay === 0
+        ? "The source reports no delay"
+        : undefined,
     history?.series ? `Chart: ${semantics(history.series)}` : undefined,
     ...(quote?.issues.map((issue) => issue.message) ?? []),
     ...(history?.issues.map((issue) => issue.message) ?? []),
@@ -208,11 +210,12 @@ export function financialInstrument(
     ticker: row.symbol || context?.symbol || "",
     name: row.name,
     price,
+    // An unknown unit is left out; the description says so.
     unit:
       unit?.kind === "currency"
         ? unit.code
         : unit?.kind === "unknown"
-          ? "?"
+          ? undefined
           : unit?.kind,
     status: !available
       ? "unavailable"
@@ -231,7 +234,7 @@ export function financialInstrument(
           ? "delayed"
           : quote?.freshness.status === "stale"
             ? "stale"
-            : quote?.freshness.status === "fresh"
+            : quote?.freshness.status === "fresh" || delay === 0
               ? "current"
               : "unknown",
       ...(delay !== undefined && delay > 0 ? { delayMinutes: delay / 60 } : {}),

@@ -83,4 +83,89 @@ describe("the markets overview's quotes and paths", () => {
     expect(data.rows[0]?.price).not.toBeNull();
     expect(data.pending).toEqual([false, false]);
   });
+
+  const render = (primary: unknown[], deferred: unknown[] = []) =>
+    dayBinding.render(
+      { rows },
+      primary as Parameters<typeof dayBinding.render>[1],
+      deferred as Parameters<typeof dayBinding.render>[2],
+      { formatTimestamp: String },
+    ).data;
+  const noSeries = [done({ series: [] }), done({ series: [] })];
+
+  it("marks retained quotes stale, says so and flags the rows when updates fail", () => {
+    const data = render([
+      {
+        data: { results: [quote(), quote()] },
+        error: Error("Updates are temporarily unavailable."),
+        isPending: false,
+      },
+      ...noSeries,
+    ]);
+    expect(data.rows.map((row) => row.price)).toEqual([124.1, 124.1]);
+    expect(data.rows.map((row) => row.activity?.data)).toEqual([
+      "stale",
+      "stale",
+    ]);
+    expect(data.rows[0]?.statusLabel).toBe(
+      "Updates unavailable · last received value",
+    );
+    expect(data.failed).toEqual([true, true]);
+    expect(data.message).toBe(
+      "Some prices could not be loaded. Any retained values are marked as stale.",
+    );
+  });
+
+  it("leaves rows unavailable, not stale, when the first read fails", () => {
+    const data = render([
+      { data: undefined, error: Error("offline"), isPending: false },
+      ...noSeries,
+    ]);
+    expect(data.rows.map((row) => row.activity?.data)).toEqual([
+      "unavailable",
+      "unavailable",
+    ]);
+    expect(data.failed).toEqual([true, true]);
+    expect(data.message).toMatch(/^Some prices could not be loaded/);
+  });
+
+  it("gives a failed chart read to its own row when another row plans none", () => {
+    const data = render(
+      [
+        done({ results: [quote(), quote()] }),
+        done({ series: [] }),
+        done({ series: [bars()] }),
+      ],
+      [{ data: undefined, error: Error("timeout"), isPending: false }],
+    );
+    expect(data.failed).toEqual([false, true]);
+    expect(data.rows.map((row) => row.pathState)).toEqual([
+      "unavailable",
+      "unavailable",
+    ]);
+    expect(data.message).toBe(
+      "Some charts could not be loaded. Any retained values are marked as stale.",
+    );
+  });
+
+  it("counts a quote the source reports without delay as current, so a closed market reads closed", () => {
+    const zero = (state: string) => {
+      const value = quote();
+      value.price_context = {
+        delay_seconds: 0,
+        session: { state, basis: "source" },
+      } as ReadResult["price_context"];
+      return value;
+    };
+    const data = render([
+      done({ results: [zero("closed"), zero("regular")] }),
+      ...noSeries,
+    ]);
+    expect(data.rows.map((row) => row.activity)).toMatchObject([
+      { session: "closed", data: "current" },
+      { session: "open", data: "current" },
+    ]);
+    expect(data.failed).toEqual([false, false]);
+    expect(data.message).toBeUndefined();
+  });
 });

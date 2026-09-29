@@ -59,12 +59,17 @@ export function downsample(list: readonly Point[], target = DRAW_POINTS) {
   return kept;
 }
 
-/** Downsampled paths cannot tell a missing bar from a dropped one. */
+/** The kept points with the bar length the line breaks at. A downsampled
+ * point stands for up to two buckets of bars, so only a longer pause breaks
+ * a downsampled line. */
 function bars(list: readonly Point[], bar: number) {
   const kept = downsample(list);
-  return kept.length === list.length && bar > 0
-    ? { points: kept, intervalMs: bar }
-    : { points: kept };
+  if (!(bar > 0)) return { points: kept };
+  const span =
+    kept.length === list.length
+      ? 1
+      : Math.ceil((2 * list.length) / kept.length) + 1;
+  return { points: kept, intervalMs: bar * span };
 }
 
 /** Consecutive sessions joined into one line: the closed time between them
@@ -139,13 +144,19 @@ function sessionBaseline(
     : undefined;
 }
 
-/** 1D: the supplied session with pre/post-market; before the open, the prior
- * session, its closed night omitted, then today's pre-market. */
+/** 1D on the instrument page (ADR 0041): the supplied session from
+ * pre-market through after-hours; before the open, the prior session with
+ * its extended hours, its closed night omitted, then today's pre-market.
+ * A tile (ADR 0027) keeps the day simple: the regular session, followed by
+ * after-hours once the close has passed; before the open, the prior regular
+ * session, the closed time omitted, then today's pre-market. */
 function oneDay(
   result: ReadResult,
   quote: ReadResult | undefined,
   all: Point[],
   detail: string,
+  now: number,
+  tile: boolean,
 ): Drawn {
   const series = result.series;
   const session = result.price_context?.session_window;
@@ -162,7 +173,6 @@ function oneDay(
       ? (prior.at(-1) as Point).time - (prior[0] as Point).time + bar
       : 0;
     const date = localDate(first.time, undefined);
-    const baseline = sessionBaseline(result, quote, undefined, date);
     return {
       path: {
         ...bars(last, bar),
@@ -171,7 +181,10 @@ function oneDay(
           start: first.time,
           end: Math.max((last.at(-1) as Point).time + bar, first.time + length),
         },
-        ...(baseline ? { baseline } : {}),
+        baseline: sessionBaseline(result, quote, undefined, date) ?? {
+          value: first.value,
+          label: "First observation in this series window",
+        },
       },
     };
   }
@@ -183,19 +196,30 @@ function oneDay(
   const extended =
     series.session === "regular" ? today : span(session.extended);
   const previous = session.previous;
-  const prior = previous
-    ? series.session === "regular"
+  // The source names the prior session only before today's open.
+  const pre = previous
+    ? tile || series.session === "regular"
       ? span(previous.regular)
       : span(previous.extended)
     : undefined;
-  const pre = prior && prior.end < extended.start ? prior : undefined;
-  const bounds = pre ? { start: pre.start, end: today.start } : extended;
-  const gap = pre ? { start: pre.end, end: extended.start } : undefined;
+  // Today's pre-market follows the omitted night when the series has it.
+  const gap =
+    pre && extended.start < today.start
+      ? { start: pre.end, end: extended.start }
+      : undefined;
+  const bounds = pre
+    ? { start: pre.start, end: gap ? today.start : pre.end }
+    : tile
+      ? {
+          start: now < today.start ? extended.start : today.start,
+          end: now < today.end ? today.end : extended.end,
+        }
+      : extended;
   const drawn = all.filter(
     (p) =>
       p.time >= bounds.start &&
       p.time <= bounds.end &&
-      !(gap && p.time > gap.start && p.time < gap.end),
+      !(gap && p.time >= gap.start && p.time < gap.end),
   );
   const date =
     pre && previous
@@ -204,14 +228,19 @@ function oneDay(
   if (!drawn.length)
     return { message: `No trades yet in the ${session.date} session.` };
   const baseline = sessionBaseline(result, quote, session.timezone, date);
+  const regular = pre && previous ? span(previous.regular) : today;
+  const hours =
+    bounds.start < regular.start || bounds.end > regular.end
+      ? "regular and extended"
+      : "regular";
   return {
     path: {
       ...bars(drawn, bar),
-      label: pre
+      label: gap
         ? `${detail} · Session ${date}, then pre-market ${session.date} (${session.timezone}); the time between them is omitted`
-        : `${detail} · Session ${session.date} (${session.timezone}), ${series.session === "regular" ? "regular" : "regular and extended"} hours`,
+        : `${detail} · Session ${date} (${session.timezone}), ${hours} hours`,
       session: bounds,
-      regularSession: pre && previous ? span(previous.regular) : today,
+      regularSession: regular,
       ...(gap ? { sessionGap: gap } : {}),
       ...(baseline ? { baseline } : {}),
     },
@@ -221,7 +250,8 @@ function oneDay(
 /**
  * The selected period's path. Multi-day views join regular sessions and omit
  * the closed time between them; a gap inside a session stays visible. The
- * baseline is the close before the period when the read reaches it.
+ * baseline is the close before the period when the read reaches it. `tile`
+ * draws 1D as a tile does. A path from fresh pushed bars is live.
  */
 export function periodPath(
   period: ChartPeriod,
@@ -229,6 +259,25 @@ export function periodPath(
   quote: ReadResult | undefined,
   continuous: boolean,
   now = Date.now(),
+  tile = false,
+): Drawn {
+  const drawn = draw(period, result, quote, continuous, now, tile);
+  if (
+    drawn.path &&
+    result.series?.read_support?.updates === "push" &&
+    result.freshness.status === "fresh"
+  )
+    drawn.path.live = true;
+  return drawn;
+}
+
+function draw(
+  period: ChartPeriod,
+  result: ReadResult,
+  quote: ReadResult | undefined,
+  continuous: boolean,
+  now: number,
+  tile: boolean,
 ): Drawn {
   const series = result.series;
   if (!series || result.outcome === "error") return {};
@@ -244,7 +293,8 @@ export function periodPath(
     (!daily &&
       !result.price_context?.session_window &&
       roundTheClock(all, bar));
-  if (period === "1D" && !clock) return oneDay(result, quote, all, detail);
+  if (period === "1D" && !clock)
+    return oneDay(result, quote, all, detail, now, tile);
   const before = (list: Point[], start: number) =>
     list.filter((p) => p.time < start).at(-1);
   const baseline = (prior: Point | undefined, first: Point) =>
