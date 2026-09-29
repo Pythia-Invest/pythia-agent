@@ -49,10 +49,14 @@ export function pageBlocks(sections: readonly SubjectSection[]): PageBlock[] {
         : section.section in TITLES
           ? (section.section as PageBlock["type"])
           : "other";
+    // A listing no price source covers still has its price card, saying so.
+    const uncovered = type === "quote" && section.status === "not_covering";
     blocks.push({
       key: `${section.section}:${section.plugin}`,
       type,
-      title: TITLES[type] ?? section.section.replaceAll("_", " "),
+      title: uncovered
+        ? "Price"
+        : (TITLES[type] ?? section.section.replaceAll("_", " ")),
       sections: merged && section === quote ? [quote, chart] : [section],
     });
   }
@@ -78,7 +82,8 @@ export function pickedSource(
 }
 
 /** A block's sections read from one alternative source instead, for this
- * view only: core's choice is not changed. */
+ * view only: core's choice is not changed. A combined list keeps its other
+ * sources for the authorities the picked one does not serve. */
 export function usingSource(
   block: PageBlock,
   plugin: string | null,
@@ -98,7 +103,24 @@ export function usingSource(
       binding: alternative.binding ?? null,
       request: alternative.request ?? null,
       reason: null,
-      sources: null,
+      sources: section.sources?.length
+        ? [
+            {
+              source: alternative.label,
+              plugin: alternative.plugin,
+              // Connector marks are keyed by provider, plugin ids by package.
+              provider: alternative.plugin.replace(/^pythia-/u, ""),
+              unaudited: alternative.unaudited,
+              authorities: alternative.authorities,
+            },
+            ...section.sources.flatMap((item) => {
+              const rest = item.authorities.filter(
+                (authority) => !alternative.authorities.includes(authority),
+              );
+              return rest.length ? [{ ...item, authorities: rest }] : [];
+            }),
+          ]
+        : null,
       notice: null,
     };
   });
@@ -144,4 +166,58 @@ export function newestPerAuthority<T extends { authority?: string | null }>(
   const rest = items.filter((item) => !pinned.has(item)).slice(0, room);
   const kept = new Set<T>([...pinned, ...rest]);
   return items.filter((item) => kept.has(item));
+}
+
+/** One filings row: a report's versions, the authorities it was filed
+ * with, and the parallel reports of its period. */
+export type PeriodRow<T> = {
+  variants: T[];
+  authorities: string[];
+  parallels: PeriodRow<T>[];
+};
+
+/** Reports sharing a `report_period` (issuer, kind, period end) under
+ * several authorities, made explicit (C3). The same source's same form filed
+ * with several authorities is one report filed in each (an ESEF report in
+ * the UK and the Netherlands): its rows join. Any other report of the period
+ * is a parallel report (a SEC 20-F beside the ESEF report): rows stay apart
+ * and each names the others. Display only; every filing stays. */
+export function periodRows<
+  T extends {
+    report_period?: string | null;
+    authority?: string | null;
+    source?: string | null;
+    form?: string | null;
+  },
+>(reports: readonly T[][]): PeriodRow<T>[] {
+  const rows: PeriodRow<T>[] = [];
+  const joined = new Map<string, PeriodRow<T>>();
+  for (const variants of reports) {
+    const first = variants[0];
+    const key =
+      first?.report_period &&
+      [first.report_period, first.source, first.form].join("|");
+    const row = key ? joined.get(key) : undefined;
+    if (row) {
+      row.variants.push(...variants);
+      if (first?.authority && !row.authorities.includes(first.authority))
+        row.authorities.push(first.authority);
+      continue;
+    }
+    const created: PeriodRow<T> = {
+      variants: [...variants],
+      authorities: first?.authority ? [first.authority] : [],
+      parallels: [],
+    };
+    rows.push(created);
+    if (key) joined.set(key, created);
+  }
+  for (const row of rows) {
+    const period = row.variants[0]?.report_period;
+    if (!period) continue;
+    row.parallels = rows.filter(
+      (other) => other !== row && other.variants[0]?.report_period === period,
+    );
+  }
+  return rows;
 }

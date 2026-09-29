@@ -23,7 +23,7 @@ from enum import StrEnum
 from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
-from .concepts import NOTICE, REGISTRY, Combine, Concept, ranked, select
+from .concepts import NOTICE, REGISTRY, UNCOVERED, Combine, Concept, ranked, select
 from .manifest import ConceptEntry, Manifest
 from .markets import MARKETS_RULE
 from .model import Binding, ProviderRef
@@ -31,7 +31,6 @@ from .resolution import QueueItem, Verdict, VerdictOutcome, decide
 from .schemes import CANONICAL_ASSETS_RULE, INSTRUMENT_KINDS, Kind, Level, provisional_id
 from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
 from .vocabulary import KIND_OF_RECORD, AssetClass, InstrumentKind, VerdictRelation
-
 
 
 class Section(StrEnum):
@@ -54,7 +53,7 @@ SERVES = {Section.QUOTE: (Concept.MARKET_DATA, ("quote",)), Section.CHART: (Conc
 SECTIONS = (Section.QUOTE, Section.CHART, Section.LIVE, Section.PROFILE, Section.FILINGS)
 LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMarketCap", "coingecko": "CoinGecko",
           "gleif": "GLEIF", "xbrl-filings": "filings.xbrl.org", "sec": "SEC EDGAR", "openfigi": "OpenFIGI",
-          "hyperliquid": "Hyperliquid"}
+          "hyperliquid": "Hyperliquid", "nsm": "UK FCA NSM"}
 SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
         Level.SECURITY: VerdictRelation.SAME_SECURITY, Level.ISSUER: VerdictRelation.SAME_ISSUER}
 RESOLVE_RULE = "resolve_answer@1"  # a resolve answer to open identifiers binds unless identifier evidence contradicts it
@@ -309,7 +308,8 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
     sections = []
     for section in SECTIONS:
         found = answers(subject, plugins, section, **lookups)
-        if not any(answer["status"] not in ABSENT for answer in found):
+        uncovered = section is Section.QUOTE and subject["listing"] and found  # a listing's price says why it has none
+        if not uncovered and not any(answer["status"] not in ABSENT for answer in found):
             continue
         combine = REGISTRY[SERVES[section][0]].combine
         chosen, alternatives, skipped = select(found, combine=combine)
@@ -319,14 +319,14 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
         combined = combine is Combine.PER_AUTHORITY and bool(ready)
         waiting = [answer for answer, _ in chosen if answer["status"] != "ready"] if combined else []
         chosen = ready if combined else chosen
-        lead = dict(chosen[0][0]) if chosen else next(a for a in found if a["status"] not in ABSENT)
+        lead = dict(chosen[0][0]) if chosen else next((a for a in found if a["status"] not in ABSENT), {**found[0], **UNCOVERED})
         rest = [answer for answer in skipped if answer["plugin"] != lead["plugin"]]
         lead["source"] = source(lead)
         lead["skipped"] = [{**source(answer), "label": answer["label"], "code": answer["status"],
                             "reason": answer["reason"] or answer["status"].replace("_", " ")} for answer in waiting + rest]
         lead["alternatives"] = [{**source(answer), "label": answer["label"], "status": answer["status"],
-                                 "binding": answer["binding"], "request": filings_request(subject, answer["plugin"])
-                                 if combined and answer["status"] == "ready" else answer["request"]}
+                                 "authorities": answer["authorities"], "binding": answer["binding"],
+                                 "request": filings_request(subject, answer["plugin"]) if combined and answer["status"] == "ready" else answer["request"]}
                                 for answer in alternatives]
         if combined:
             lead["sources"] = [{**source(answer), "authorities": list(served), "status": answer["status"]}
@@ -336,7 +336,7 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
         # Amber only when a source ranked ahead of the one serving could have served and did not: the investor
         # named it, or something went wrong (contradicted, not found). Setup states are not warnings.
         served = {entry["plugin"] for entry, _ in chosen} or {lead["plugin"]}
-        position = min(index for index, answer in enumerate(found) if answer["plugin"] in served)
+        position = min((index for index, answer in enumerate(found) if answer["plugin"] in served), default=0)
         notice = next((answer for answer in found[:position] if answer["status"] not in ABSENT
                        and (answer["status"] in NOTICE or answer["plugin"] in order or answer["provider"] in order)), None)
         lead["notice"] = {**source(notice), "code": notice["status"], "reason": notice["reason"]} if notice else None

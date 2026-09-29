@@ -149,6 +149,7 @@ class ConceptReads:
         eligible, cancelled = self.eligible(), context.get("cancelled") or (lambda: False)
         deadline = time.monotonic() + READ_BUDGET
         results, waiting, uncovered, tried = {}, [], {}, set()
+        noun = "fund" if subject.get("kind") in ("etf", "fund") else "company"
         while True:
             entries = [{**answer, "status": "not_covering", "reason": f"{answer['label']}: {uncovered[answer['plugin']]}"}
                        if answer["plugin"] in uncovered else answer for answer in found]
@@ -162,7 +163,7 @@ class ConceptReads:
                 tool = info.operations.get(page.serving(info.manifest, section)[1])
                 if answer["status"] != "ready":  # still to be looked up: listed, not awaited, not a failure
                     waiting.append({**page.source(answer), "code": answer["status"],
-                                    "reason": f"{answer['label']} has not been looked up for this company yet"})
+                                    "reason": f"{answer['label']} has not been looked up for this {noun} yet"})
                 elif tool is None or (eligible is not None and tool not in eligible):
                     waiting.append({**page.source(answer), "code": "unavailable",
                                     "reason": f"{answer['label']} is not available in this profile"})

@@ -66,6 +66,8 @@ export const destinations: readonly Destination[] = [
 /** Title shown in the top bar for the current route. */
 export function destinationTitle(pathname: string) {
   if (pathname.startsWith("/settings")) return "Settings";
+  // Lit under Markets in the rail, but the page is an instrument.
+  if (pathname.startsWith("/instrument/")) return "Instrument";
   return (
     destinations.find((destination) => destination.matches(pathname))?.label ??
     "Pythia"

@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 RELEASE = "reference_release"  # identity.sqlite3 metadata: the reference build the rules last settled against
 NO_REFERENCE = "No reference data on this device yet."
+UNKNOWN_SUBJECT = "Unknown subject."
+ISSUE_CODES = {UNKNOWN_SUBJECT: "unknown_subject"}  # an issue asking again cannot help carries its own code
 # Any well-formed subject ID, of any kind: a residual may name an `index:` or `fx:` subject.
 SUBJECT_ID = {"type": "string", "minLength": 5, "maxLength": 370, "pattern": schemes.SUBJECT_ID.pattern.replace(r"\Z", "$")}
 

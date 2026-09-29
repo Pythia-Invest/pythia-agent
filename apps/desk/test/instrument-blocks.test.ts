@@ -4,6 +4,7 @@ import {
   groupReports,
   newestPerAuthority,
   pageBlocks,
+  periodRows,
   pickedSource,
   usingSource,
 } from "../src/components/instrument/blocks";
@@ -73,6 +74,7 @@ describe("using an alternative source once", () => {
       plugin: "pythia-eodhd",
       label: "EODHD",
       status: "ready",
+      authorities: [],
       binding: eodhd,
       request: null,
       unaudited: true,
@@ -102,6 +104,7 @@ describe("using an alternative source once", () => {
       plugin: "pythia-eodhd",
       label: "EODHD",
       status: "ready",
+      authorities: [],
       request: null,
     };
     const [offered] = pageBlocks([section("quote", { alternatives: [also] })]);
@@ -113,6 +116,38 @@ describe("using an alternative source once", () => {
     expect(pickedSource(offered, pick, "listing:b")).toBeNull();
     expect(pickedSource(gone, pick, "listing:a")).toBeNull();
     expect(pickedSource(offered, null, "listing:a")).toBeNull();
+  });
+
+  it("names every source a combined list still shows after a pick", () => {
+    const source = (name: string, authorities: string[]) => ({
+      source: name,
+      provider: name,
+      plugin: `pythia-${name}`,
+      authorities,
+    });
+    const [filings] = pageBlocks([
+      section("filings", {
+        sources: [
+          source("xbrl-filings", ["fca", "oam-nl"]),
+          source("sec", ["sec"]),
+        ],
+        alternatives: [
+          {
+            plugin: "pythia-nsm",
+            label: "UK FCA NSM",
+            status: "ready",
+            authorities: ["fca"],
+          },
+        ],
+      }),
+    ]);
+    if (!filings) throw Error("expected a filings card");
+    const shown = usingSource(filings, "pythia-nsm").sections[0]?.sources;
+    expect(shown?.map((item) => [item.source, item.authorities])).toEqual([
+      ["UK FCA NSM", ["fca"]],
+      ["xbrl-filings", ["oam-nl"]],
+      ["sec", ["sec"]],
+    ]);
   });
 });
 
@@ -149,5 +184,36 @@ describe("filings reports", () => {
     expect(
       groupReports(rows).map((group) => group.map((row) => row.id)),
     ).toEqual([["8-K"], ["10-K/A", "10-K"], ["ESEF"], ["6-K"]]);
+  });
+
+  it("join one report filed in two places and name parallel reports", () => {
+    const period = "issuer|annual|2025-12-31";
+    const esef = (authority: string) => ({
+      id: `ESEF ${authority}`,
+      report_period: period,
+      authority,
+      source: "filings.xbrl.org",
+      form: "ESEF",
+    });
+    const sec = {
+      id: "20-F",
+      report_period: period as string | null,
+      authority: "sec",
+      source: "SEC EDGAR",
+      form: "20-F",
+    };
+    const event = { ...sec, id: "6-K", report_period: null, form: "6-K" };
+    const rows = periodRows([[esef("fca")], [sec], [esef("oam-nl")], [event]]);
+    expect(
+      rows.map((row) => [
+        row.variants.map((item) => item.id),
+        row.authorities,
+        row.parallels.map((other) => other.variants[0]?.id),
+      ]),
+    ).toEqual([
+      [["ESEF fca", "ESEF oam-nl"], ["fca", "oam-nl"], ["20-F"]],
+      [["20-F"], ["sec"], ["ESEF fca"]],
+      [["6-K"], ["sec"], []],
+    ]);
   });
 });

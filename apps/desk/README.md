@@ -219,7 +219,9 @@ place (`history.replaceState`); only the price and chart follow it, while the
 header and the issuer's profile and filings stay and keep their reads
 (sections core marks `via: issuer` resolve once per instrument). A `?listing=`
 that is not one of the instrument's lines is ignored, and one that cannot be
-read fails in the price card only. The shell routes `pythia:open-subject`
+read fails in the price card only. A line no price source covers still has
+its price card: core's `not_covering` quote section says "No price source
+covers this listing" and lists each source's reason. The shell routes `pythia:open-subject`
 window events there. The page renders core's
 local `pythia`/`identity-subject` composition at once, then loads each section
 on its own: `resolving` sections through `identity-resolve` (an explicit invoke,
