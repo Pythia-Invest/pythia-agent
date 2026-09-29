@@ -108,7 +108,7 @@ function ListingSelector({
     currentListing(page);
   const ids = page.identifiers;
   const label = current
-    ? listingLabel(current)
+    ? listingLabel(current, page.listings)
     : [ids.ticker, ids.mic, ids.currency].filter(Boolean).join(" · ");
   if (!label) return null;
   if (page.listings.length < 2)
@@ -168,7 +168,7 @@ function ListingSelector({
                           receipt's lines apart, stays. The group names the
                           kind. */}
                       <span className="min-w-0 flex-1 truncate text-foreground-secondary">
-                        {listingVenue(listing)}
+                        {listingVenue(listing, page.listings)}
                       </span>
                       <span className="flex-none text-foreground-secondary">
                         {listing.currency}

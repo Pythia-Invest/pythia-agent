@@ -281,7 +281,10 @@ installed plugins' `mic_table`, an identifier, or an exact ticker unless the
 query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
-exchange). Among the lead's candidates, a regulated listing comes next (an ISO
+exchange). Among the lead's candidates, any line but OTC comes next, then the
+company's own shares over a receipt folded into them (a receipt's own home and
+primary line, such as a Toronto CDR or a Singapore SDR, never represents the
+shares; an ADR still beats the shares' OTC line), then a regulated listing (an ISO
 10383 regulated-market segment, carried as `venues.category`, a US exchange, or
 an exchange outside the EEA whose ISO category is unspecified, such as Toronto or
 Hong Kong; in the EEA that category marks operator MICs, never a listing)
