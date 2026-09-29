@@ -208,6 +208,8 @@ test("Up follows the displayed folder on direct file links", async ({
 test("automatically shows new bytes and preserves the reading position", async ({
   page,
 }) => {
+  // The open file's revision is polled; advance the page clock past it.
+  await page.clock.install();
   const f = await workspaceFixture(page);
   await page.goto("/workspace/research/notes.md#evidence");
   const content = page.locator('[data-slot="workspace-markdown"] h1');
@@ -232,9 +234,10 @@ test("automatically shows new bytes and preserves the reading position", async (
     )
     .toBeGreaterThan(0);
   f.nextVersion();
+  await page.clock.runFor(5_000);
   await expect(
     page.locator('[data-slot="workspace-file-updated"]'),
-  ).toBeVisible({ timeout: 12000 });
+  ).toBeVisible();
   await expect(content).toHaveText("Synthetic research version 2");
   await expect(
     page.locator('[data-slot="workspace-file-updated"]'),
