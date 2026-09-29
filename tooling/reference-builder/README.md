@@ -112,12 +112,12 @@ table under `writer_ignored`.
     its SEC line. With none, the relevant venue is only a liquidity measure:
     the primary is unknown and asked (`most_liquid_only`).
   - Where the above leaves a share's primary unknown, its one line on an
-    exchange in its ISIN's country (not OTC, an MTF or a trading-only venue)
-    is its home (`isin_country_line`: TotalEnergies on Euronext Paris beside
-    NYSE, Shell on London). Funds are left out: an Irish or Luxembourg fund's
+    exchange in its ISIN's country (not OTC, an MTF or a trading-only venue,
+    and one the package can write, with a trading currency) is its home
+    (`isin_country_line`: TotalEnergies on Euronext Paris beside NYSE). Funds are left out: an Irish or Luxembourg fund's
     Dublin or Luxembourg line is often a technical listing.
-  - A security still without a primary is priced on its line at FIRDS' most
-    liquid EU market, marked `most_liquid` (the Desk labels it "most liquid EU
+  - A security still without a primary the package can write is priced on
+    its line at FIRDS' most liquid EU market, marked `most_liquid` (the Desk labels it "most liquid EU
     line") and never primary; core ranks it after home-country lines.
   - A SEC security's primary is its first US exchange line.
 - **OpenFIGI multi-row answers.** Prefer the venue's main exchange code, reject
