@@ -127,7 +127,8 @@ function EditableTitle({
  * the chat list would otherwise carry.
  *
  * Those controls appear only while the list is hidden — with the list beside
- * the column they would be a second copy of buttons already on screen. The
+ * the column they would be a second copy of buttons already on screen. On a
+ * phone the list is never beside the column, so they always show. The
  * title is set quietly: the thread beneath it is what you came to read.
  */
 export function ChatHeader({
@@ -141,7 +142,7 @@ export function ChatHeader({
       className="flex min-h-11 flex-none items-center gap-0.5 px-2 py-1"
       data-slot="chat-header"
     >
-      <div className="flex items-center gap-0.5 [[data-desk-list-open=true]_&]:hidden">
+      <div className="flex items-center gap-0.5 min-[900px]:[[data-desk-list-open=true]_&]:hidden">
         {/* Alone in the column with no panel beside it, so this names what
               it brings back rather than a direction. */}
         <IconButton label="Show chats" onClick={onShowList} size="sm">

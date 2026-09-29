@@ -4,7 +4,13 @@ import {
   type PluginTransport,
   type TopBarContext,
 } from "@pythia/widget-sdk";
-import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useDeskApi } from "@/client/providers";
 import { useTopBarSelection } from "@/client/top-bar-queries";
 import { WidgetHost } from "@/components/widgets/widget-host";
@@ -12,11 +18,19 @@ import type { TopBarSelection } from "@/top-bar/config";
 import { TopBar } from "./top-bar";
 
 type Context = Omit<TopBarContext, "transport">;
+/**
+ * The phone menu button is core navigation, not part of the plugin contract:
+ * the core bar shows it before the title, and a custom bar receives it with
+ * its actions so navigation stays reachable.
+ */
+type ShellContext = Context & { leading?: ReactNode };
 function SelectedTopBar({
   context,
+  leading,
   selection,
 }: {
   context: Context;
+  leading?: ReactNode;
   selection: TopBarSelection & { moduleUrl: string };
 }) {
   const api = useDeskApi();
@@ -40,7 +54,7 @@ function SelectedTopBar({
   }, [api]);
   const fallback = (retry?: () => void) => (
     <>
-      <TopBar {...context} />
+      <TopBar {...context} leading={leading} />
       <p role="status" className="px-4 text-error text-xs">
         Custom top bar could not be displayed. Using the default header.
       </p>
@@ -66,8 +80,17 @@ function SelectedTopBar({
       embedded
       fallback={fallback}
       onError={withdraw}
-      loadingFallback={<TopBar {...context} />}
-      data={{ ...context, transport }}
+      loadingFallback={<TopBar {...context} leading={leading} />}
+      data={{
+        ...context,
+        actions: (
+          <>
+            {leading}
+            {context.actions}
+          </>
+        ),
+        transport,
+      }}
       options={{}}
       settings={selection.settings}
       presentation={selection.renderer?.presentation}
@@ -79,7 +102,7 @@ function SelectedTopBar({
 
 /** The whole bar is the one replaceable native contribution. Core navigation
  * remains usable while configuration, native access or author code is unavailable. */
-export function ModuleTopBar(context: Context) {
+export function ModuleTopBar({ leading, ...context }: ShellContext) {
   const query = useTopBarSelection();
   const selection = query.isError ? undefined : query.data;
   if (selection?.renderer && selection.moduleUrl)
@@ -91,12 +114,13 @@ export function ModuleTopBar(context: Context) {
           selection.settings,
         ])}
         context={context}
+        leading={leading}
         selection={{ ...selection, moduleUrl: selection.moduleUrl }}
       />
     );
   return (
     <>
-      <TopBar {...context} />
+      <TopBar {...context} leading={leading} />
       {selection?.issue || query.isError ? (
         <p role="status" className="px-4 text-error text-xs">
           {selection?.issue ??

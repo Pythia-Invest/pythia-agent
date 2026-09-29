@@ -1,9 +1,11 @@
 "use client";
 
-import { IconButton, Popover } from "@pythia/ui";
-import { History, Pin, PinOff, Search } from "lucide-react";
+import { Drawer, IconButton, Popover } from "@pythia/ui";
+import { History, Pin, PinOff, Search, X } from "lucide-react";
 import { type RefObject, useMemo, useRef, useState } from "react";
 import type { HermesSession } from "@/server/types";
+import { ChatIndicator } from "./chat-indicator";
+import { useWideShell } from "./use-wide-shell";
 import {
   activityTitle,
   chatTitle,
@@ -20,6 +22,8 @@ export interface ChatHistoryProps {
   onTogglePin: (sessionId: string) => void;
   pinnedIds: ReadonlySet<string>;
   sessions: readonly HermesSession[];
+  workingIds?: ReadonlySet<string> | undefined;
+  unreadIds?: ReadonlySet<string> | undefined;
 }
 
 function HistoryRow({
@@ -29,6 +33,8 @@ function HistoryRow({
   open,
   pinned,
   session,
+  working,
+  unread,
 }: {
   now: number;
   onSelect: () => void;
@@ -36,13 +42,16 @@ function HistoryRow({
   open: boolean;
   pinned: boolean;
   session: HermesSession;
+  working: boolean;
+  unread: boolean;
 }) {
   const title = chatTitle(session);
   const age = relativeActivity(session, now);
   return (
     // Everything sits in the flow, so nothing has to be centred with a
     // transform and no control can move out from under the pointer.
-    <div className="group flex min-h-7 min-w-0 items-center gap-1 rounded-md pr-1 pl-2 hover:bg-interaction-hover">
+    <div className="group flex min-h-7 min-w-0 items-center gap-1 rounded-md pr-1 pl-2 hover:bg-interaction-hover max-[899px]:min-h-11">
+      <ChatIndicator working={working} unread={unread} />
       {/*
        * No selected state, even for the chat on screen. Every row does the
        * same thing — bring that chat up in the dock, opening a tab for it if
@@ -69,7 +78,7 @@ function HistoryRow({
         </span>
       ) : null}
       <IconButton
-        className="motion-fast size-5 flex-none rounded-sm text-foreground-secondary opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+        className="motion-fast size-5 flex-none rounded-sm text-foreground-secondary opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 max-[899px]:size-9 max-[899px]:opacity-100"
         label={pinned ? `Unpin ${title}` : `Pin ${title}`}
         onClick={onTogglePin}
         size="sm"
@@ -91,6 +100,8 @@ function HistoryList({
   pinnedIds,
   searchRef,
   sessions,
+  workingIds,
+  unreadIds,
 }: ChatHistoryProps & { searchRef: RefObject<HTMLInputElement | null> }) {
   const [query, setQuery] = useState("");
   // Taken once, when the dropdown opens: it lives for a few seconds at a time.
@@ -119,12 +130,14 @@ function HistoryList({
       open={openIds.has(session.id)}
       pinned={pinnedIds.has(session.id)}
       session={session}
+      working={workingIds?.has(session.id) ?? false}
+      unread={unreadIds?.has(session.id) ?? false}
     />
   );
 
   return (
     <>
-      <label className="flex h-9 flex-none cursor-text items-center gap-2 border-border border-b px-3 text-foreground-secondary">
+      <label className="flex h-9 flex-none cursor-text items-center gap-2 border-border border-b px-3 text-foreground-secondary max-[899px]:h-11">
         <Search
           aria-hidden="true"
           className="size-3.5 flex-none stroke-[1.6]"
@@ -179,19 +192,69 @@ function HistoryList({
 export function ChatHistory({ onSelect, ...props }: ChatHistoryProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  const wide = useWideShell();
+  const trigger = (
+    <IconButton
+      className="data-[popup-open]:bg-interaction-active data-[popup-open]:text-foreground max-[899px]:size-11"
+      label="Chat history"
+      size="sm"
+    >
+      <History aria-hidden="true" className="stroke-[1.6]" />
+    </IconButton>
+  );
+  const list = (
+    <HistoryList
+      {...props}
+      onSelect={(sessionId) => {
+        // Picking a chat is the whole point of the dropdown, so it closes;
+        // pinning is an aside and leaves it open.
+        setOpen(false);
+        onSelect(sessionId);
+      }}
+      searchRef={searchRef}
+    />
+  );
+  // On a phone the same list rises as a sheet from the bottom, like the open
+  // chats beside it, with rows a finger can hit. Focus stays off the field so
+  // the keyboard does not cover the list before you ask for it.
+  if (!wide)
+    return (
+      <Drawer.Root open={open} onOpenChange={setOpen} swipeDirection="down">
+        <Drawer.Trigger render={trigger} />
+        <Drawer.Portal>
+          <Drawer.Backdrop forceRender />
+          <Drawer.Viewport>
+            <Drawer.Popup
+              aria-label="Chat history"
+              className="h-[85dvh] border-0 pb-[env(safe-area-inset-bottom)]"
+            >
+              <Drawer.Content className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+                <div className="flex flex-none items-center justify-between border-border border-b py-2 ps-4 pe-2">
+                  <Drawer.Title className="m-0 font-semibold text-body">
+                    Chat history
+                  </Drawer.Title>
+                  <Drawer.Close
+                    render={
+                      <IconButton
+                        className="size-9"
+                        label="Close chat history"
+                        size="sm"
+                      >
+                        <X className="stroke-[1.6]" />
+                      </IconButton>
+                    }
+                  />
+                </div>
+                {list}
+              </Drawer.Content>
+            </Drawer.Popup>
+          </Drawer.Viewport>
+        </Drawer.Portal>
+      </Drawer.Root>
+    );
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
-      <Popover.Trigger
-        render={
-          <IconButton
-            className="data-[popup-open]:bg-interaction-active data-[popup-open]:text-foreground"
-            label="Chat history"
-            size="sm"
-          >
-            <History aria-hidden="true" className="stroke-[1.6]" />
-          </IconButton>
-        }
-      />
+      <Popover.Trigger render={trigger} />
       <Popover.Portal>
         <Popover.Positioner align="end" side="bottom" sideOffset={4}>
           {/* Opening it is an intent to find a chat, so focus lands in the
@@ -200,16 +263,7 @@ export function ChatHistory({ onSelect, ...props }: ChatHistoryProps) {
             className="flex max-h-[min(28rem,70vh)] w-76 flex-col overflow-hidden p-0"
             initialFocus={searchRef}
           >
-            <HistoryList
-              {...props}
-              onSelect={(sessionId) => {
-                // Picking a chat is the whole point of the dropdown, so it
-                // closes; pinning is an aside and leaves it open.
-                setOpen(false);
-                onSelect(sessionId);
-              }}
-              searchRef={searchRef}
-            />
+            {list}
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>

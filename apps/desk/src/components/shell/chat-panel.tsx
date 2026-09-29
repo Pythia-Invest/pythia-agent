@@ -2,7 +2,7 @@
 
 import { Button, cn, IconButton, SidebarNav, SidebarSection } from "@pythia/ui";
 import { ChevronsLeft, Pin, Search, SquarePen } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type Ref, useEffect, useMemo, useRef, useState } from "react";
 import type { HermesSession } from "@/server/types";
 import { ChatGroup, GroupLabel } from "./chat-group";
 import {
@@ -17,6 +17,8 @@ export type ChatListState = "loading" | "ready" | "unavailable";
 export interface ChatPanelProps {
   activeId: string | null;
   className?: string;
+  /** The list's root, for the phone layer that opens over the conversation. */
+  panelRef?: Ref<HTMLElement>;
   /** Shell-level query from the top bar, applied on top of the local filter. */
   globalQuery?: string;
   id?: string;
@@ -29,6 +31,8 @@ export interface ChatPanelProps {
   onTogglePin: (sessionId: string) => void;
   pinnedIds: ReadonlySet<string>;
   sessions: readonly HermesSession[];
+  workingIds?: ReadonlySet<string> | undefined;
+  unreadIds?: ReadonlySet<string> | undefined;
   state: ChatListState;
 }
 
@@ -44,6 +48,7 @@ export interface ChatPanelProps {
 export function ChatPanel({
   activeId,
   className,
+  panelRef,
   globalQuery = "",
   id,
   onHide,
@@ -54,6 +59,8 @@ export function ChatPanel({
   onTogglePin,
   pinnedIds,
   sessions,
+  workingIds,
+  unreadIds,
   state,
 }: ChatPanelProps) {
   const [query, setQuery] = useState("");
@@ -100,6 +107,7 @@ export function ChatPanel({
 
   return (
     <nav
+      ref={panelRef}
       aria-busy={loading || undefined}
       aria-label="Chats"
       className={cn(
@@ -184,6 +192,8 @@ export function ChatPanel({
               onRename={onRename}
               pinnedIds={pinnedIds}
               sessions={pinned}
+              workingIds={workingIds}
+              unreadIds={unreadIds}
               skeletonRows={loading ? 1 : 0}
             />
           ) : null}
@@ -219,6 +229,8 @@ export function ChatPanel({
                     onRename={onRename}
                     pinnedIds={pinnedIds}
                     sessions={group.sessions}
+                    workingIds={workingIds}
+                    unreadIds={unreadIds}
                     // One bucket adds nothing over "Recents"; several date it.
                     showHeading={timeGroups.length > 1}
                     tone="bucket"

@@ -86,6 +86,9 @@ test("user bubbles align right while replies and persistent actions share the le
   ]);
   const first = page.locator('[data-role="assistant"]').first();
   const actions = first.locator('[data-slot="answer-actions"]');
+  const isTouch = await page.evaluate(
+    () => matchMedia("(pointer: coarse)").matches,
+  );
   // Only the latest answer keeps its actions on screen; earlier ones show
   // them on hover or keyboard focus.
   await expect(
@@ -94,9 +97,14 @@ test("user bubbles align right while replies and persistent actions share the le
       .last()
       .locator('[data-slot="answer-actions"]'),
   ).toHaveCSS("opacity", "1");
-  await expect(actions).toHaveCSS("opacity", "0");
-  await actions.getByRole("button", { name: "Copy answer" }).focus();
-  await expect(actions).toHaveCSS("opacity", "1");
+  if (isTouch) {
+    // A touch screen has no hover to reveal them, so they stay.
+    await expect(actions).toHaveCSS("opacity", "1");
+  } else {
+    await expect(actions).toHaveCSS("opacity", "0");
+    await actions.getByRole("button", { name: "Copy answer" }).focus();
+    await expect(actions).toHaveCSS("opacity", "1");
+  }
   const bubble = await page.locator('[data-role="user"]').first().boundingBox();
   const reply = await first.boundingBox();
   const bar = await actions.boundingBox();

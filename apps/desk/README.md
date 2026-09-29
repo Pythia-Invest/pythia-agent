@@ -213,8 +213,8 @@ ordinary web links remain underlined. Tables in the file reader expand to their
 full height, with horizontal scrolling when wider than the available space.
 The companion uses file tabs for names and closing files, above one compact
 path toolbar with reference and download actions. Closing the last tab closes
-the panel; there is no separate toolbar X. Phone drawers still dismiss with
-Escape, backdrop or swipe. File-viewer folder paths open their contents menu only on click; hovering
+the panel; there is no separate toolbar X. On a phone the viewer fills the
+screen and carries its own close button. File-viewer folder paths open their contents menu only on click; hovering
 never opens a menu. Nested folders open adjacent panes on click or keyboard
 ArrowRight. File selection opens that file; browsing or dismissing menus preserves
 the current document.
@@ -232,8 +232,8 @@ Full paths identify tabs in tooltips and overflow entries, and shared file-type
 icons identify artifacts throughout the browser, menus and viewer.
 Open files use the chat tab strip and its capped sizing, overflow, keyboard
 navigation and adjacent-tab close behavior. A path opens once; selecting it
-again activates its existing tab. Closing a file selects its neighbor, while
-dismissing the phone drawer retains its open tabs for the next file opening.
+again activates its existing tab. Closing a file selects its neighbor. A phone has no file tab strip: its viewer
+header names the current file, and other files reopen from the list.
 The Name/Type/Size listing shares file icons with search results. Sidebar pins
 and width preferences from the earlier layout are retained but unused by this
 variant.

@@ -133,14 +133,16 @@ export function WorkspacePage() {
     <WorkspaceCompanion>
       <div
         data-slot="workspace-page"
-        className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+        className="@container relative flex min-h-0 min-w-0 flex-1 flex-col"
       >
+        {/* The pane, not the window, decides: beside an open chat dock the
+            toolbar wraps before the path and search fields get cut off. */}
         <div
           data-slot="workspace-browser-toolbar"
-          className="flex shrink-0 items-center gap-3 border-border border-b p-2 max-[599px]:flex-wrap"
+          className="flex shrink-0 @max-xl:flex-wrap items-center gap-3 border-border border-b p-2"
         >
           <WorkspaceNavigation />
-          <div className="relative w-52 max-w-[35%] shrink-0 max-[599px]:w-full max-[599px]:max-w-none">
+          <div className="relative @max-xl:w-full w-52 @max-xl:max-w-none max-w-[35%] shrink-0">
             <Search
               aria-hidden="true"
               className="absolute top-2.5 left-2.5 size-3.5 text-foreground-secondary"

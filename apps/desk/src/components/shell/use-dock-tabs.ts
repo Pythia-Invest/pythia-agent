@@ -63,12 +63,21 @@ export function useDockTabs(
     },
     [drafts],
   );
-  const draft = useCallback(() => {
+  /**
+   * A new unsent chat. A phone shows one chat at a time and has no strip to
+   * reach a background draft, so there `reuse` returns to the unsent draft
+   * rather than stacking another one out of sight.
+   */
+  const draft = useCallback((options: { reuse?: boolean } = {}) => {
     const id = `draft:${crypto.randomUUID()}`;
-    setDock((current) => ({
-      activeId: id,
-      tabs: [...current.tabs, { id, draft: {} }],
-    }));
+    setDock((current) => {
+      const unsent = options.reuse
+        ? current.tabs.find((t) => !t.sessionId)
+        : undefined;
+      return unsent
+        ? { ...current, activeId: unsent.id }
+        : { activeId: id, tabs: [...current.tabs, { id, draft: {} }] };
+    });
     return id;
   }, []);
   const edit = useCallback((id: string, draft: NewChatDraft) => {

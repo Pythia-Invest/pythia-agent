@@ -88,6 +88,18 @@ describe("ChatTabs", () => {
     expect(markup).toContain('aria-label="Close Northwind dividend cover"');
   });
 
+  it("names the current chat for the phone header", () => {
+    expect(render({ activeId: "b" })).toMatch(
+      /<h2[^>]*>EU allowance resets<\/h2>/,
+    );
+    expect(
+      render({
+        activeId: "draft:1",
+        tabs: [{ id: "draft:1", title: "New chat" }],
+      }),
+    ).toMatch(/<h2[^>]*>New chat<\/h2>/);
+  });
+
   it("offers closing for every draft, including the last one", () => {
     const drafts = [
       { id: "draft:1", title: "New chat" },

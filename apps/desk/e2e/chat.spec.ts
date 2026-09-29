@@ -8,9 +8,11 @@ import { openDesk } from "./open-desk";
 
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 768;
 
-async function openNavigation(page: Page) {
+/** The chat list: beside the conversation on desktop, opened over it on a
+ * phone from the chat header, as on desktop when it is hidden. */
+async function showChats(page: Page) {
   if (!isPhone(page)) return;
-  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("button", { name: "Show chats" }).click();
 }
 
 test("the new-chat surface offers a composer that only enables with text", async ({
@@ -27,7 +29,6 @@ test("the new-chat surface offers a composer that only enables with text", async
   await expect(send).toBeEnabled();
   await input.fill("");
   await expect(send).toBeDisabled();
-  await openNavigation(page);
   await page.getByRole("button", { name: "New chat" }).click();
   await expect(input).toBeFocused();
 });
@@ -36,7 +37,7 @@ test("an existing chat renders its transcript and a composer", async ({
   page,
 }) => {
   await openDesk(page);
-  await openNavigation(page);
+  await showChats(page);
   await expect(page.getByText("Loading chats…")).toHaveCount(0);
   const links = page
     .getByRole("navigation", { name: "Chats" })

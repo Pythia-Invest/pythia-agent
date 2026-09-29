@@ -31,6 +31,9 @@ const nextConfig = {
       },
     ];
   },
+  // The route badge sat over Desk's own corner controls; build and runtime
+  // errors still surface without it.
+  devIndicators: false,
   poweredByHeader: false,
   transpilePackages: [
     "@pythia/ui",

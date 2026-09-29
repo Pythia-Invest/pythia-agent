@@ -2,6 +2,7 @@
 
 import {
   cn,
+  Drawer,
   IconButton,
   PythiaLockup,
   Sidebar,
@@ -13,7 +14,7 @@ import {
   SidebarList,
   SidebarNav,
 } from "@pythia/ui";
-import { PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { type Destination, destinations } from "./destinations";
@@ -134,11 +135,15 @@ export function NavRail({
               "ms-auto",
               persistent && "[[data-desk-rail-collapsed=true]_&]:hidden",
             )}
-            label="Collapse navigation"
+            label={persistent ? "Collapse navigation" : "Close menu"}
             onClick={toggle}
             size="sm"
           >
-            <PanelLeftClose className="stroke-[1.6]" />
+            {persistent ? (
+              <PanelLeftClose className="stroke-[1.6]" />
+            ) : (
+              <X className="stroke-[1.6]" />
+            )}
           </IconButton>
           {persistent ? (
             <IconButton
@@ -165,12 +170,7 @@ export function NavRail({
             </SidebarList>
           </SidebarNav>
         </SidebarContent>
-        <SidebarFooter
-          className={cn(
-            "flex flex-none items-center gap-1 border-t-0 p-2",
-            persistent && "[[data-desk-rail-collapsed=true]_&]:flex-col",
-          )}
-        >
+        <SidebarFooter className="flex flex-none flex-col items-stretch gap-0.5 border-t-0 p-2">
           <SidebarLink
             active={settingsActive}
             className={cn(
@@ -180,6 +180,9 @@ export function NavRail({
                 "[[data-desk-rail-collapsed=true]_&]:justify-center [[data-desk-rail-collapsed=true]_&]:px-0",
             )}
             render={<Link href="/settings" />}
+            onClick={() => {
+              if (!persistent) onToggleCollapsed();
+            }}
             title="Settings"
             aria-label="Settings"
           >
@@ -199,5 +202,41 @@ export function NavRail({
         </SidebarFooter>
       </Sidebar>
     </div>
+  );
+}
+
+/**
+ * The rail on a phone: the same component, alone, in a modal drawer from the
+ * start edge. Its collapse control closes the drawer.
+ */
+export function NavDrawer({
+  onNavigateHome,
+  onClose,
+  pathname,
+}: {
+  onNavigateHome: () => void;
+  onClose: () => void;
+  pathname: string;
+}) {
+  return (
+    <Drawer.Portal>
+      <Drawer.Backdrop />
+      <Drawer.Viewport>
+        <Drawer.Popup
+          aria-label="Navigation"
+          data-theme="dark"
+          className="border-0 bg-canvas data-[swipe-direction=right]:w-[min(18rem,calc(100vw-3rem))]"
+        >
+          <Drawer.Content className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+            <NavRail
+              className="h-full w-full flex-1"
+              onNavigateHome={onNavigateHome}
+              onToggleCollapsed={onClose}
+              pathname={pathname}
+            />
+          </Drawer.Content>
+        </Drawer.Popup>
+      </Drawer.Viewport>
+    </Drawer.Portal>
   );
 }

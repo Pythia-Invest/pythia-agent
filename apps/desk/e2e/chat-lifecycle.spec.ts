@@ -127,7 +127,7 @@ test("an older failure cannot retry a different successful prompt", async ({
   ]);
 });
 
-test("phone settings stays usable while chat opens and closes as a sheet", async ({
+test("on a phone, a page opens Pythia as a sheet from its floating button", async ({
   page,
 }) => {
   test.skip(
@@ -136,17 +136,23 @@ test("phone settings stays usable while chat opens and closes as a sheet", async
   );
   await fixture(page);
   await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  const theme = page.getByRole("combobox", { name: "Theme" });
-  await theme.click();
-  await page.getByRole("option", { name: "Dark", exact: true }).click();
-  await page.getByRole("button", { name: "Open Pythia", exact: true }).click();
+  await page.getByRole("link", { name: "Markets", exact: true }).click();
+  await expect(page).toHaveURL(/\/markets$/);
+  const open = page.getByRole("button", { name: "Open Pythia", exact: true });
+  await open.click();
   const sheet = page.getByRole("dialog", { name: "Pythia chat" });
   await expect(
     sheet.getByRole("textbox", { name: "Message Pythia" }),
   ).toBeVisible();
+  await expect(open).toBeHidden();
+  // A phone header names the chat and switches through history, not tabs.
+  await expect(sheet.getByRole("heading", { level: 2 }).first()).toBeVisible();
+  await expect(sheet.getByRole("tablist")).toBeHidden();
+  for (const name of ["New chat", "Chat history"])
+    await expect(
+      sheet.getByRole("button", { name, exact: true }),
+    ).toBeVisible();
   await sheet.getByRole("button", { name: "Hide Pythia" }).click();
   await expect(sheet).toBeHidden();
-  await theme.click();
-  await page.getByRole("option", { name: "System", exact: true }).click();
+  await expect(open).toBeVisible();
 });

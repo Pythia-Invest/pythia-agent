@@ -1,10 +1,36 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import type { WorkspaceEntry } from "../src/workspace/types";
 import { fixture } from "./stream-fixture";
 
 export async function returnToBrowser(page: Page) {
   if ((page.viewportSize()?.width ?? 1440) < 900)
     await page.keyboard.press("Escape");
+}
+
+const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 900;
+
+/** Open files are a tab strip on desktop; a phone shows only the current one. */
+function openFiles(page: Page) {
+  return page.getByRole("tablist", { name: "Open files", exact: true });
+}
+
+export async function switchFile(page: Page, name: string) {
+  await openFiles(page).getByRole("tab", { name, exact: true }).click();
+}
+
+/** A phone closes the viewer itself, which leaves the file list behind it. */
+export async function closeFile(page: Page, name: string) {
+  await (isPhone(page)
+    ? page.getByRole("button", { name: "Close file viewer", exact: true })
+    : openFiles(page).getByRole("button", {
+        name: `Close ${name}`,
+        exact: true,
+      })
+  ).click();
+}
+
+export async function expectOpenFiles(page: Page, count: number) {
+  await expect(openFiles(page).getByRole("tab")).toHaveCount(count);
 }
 
 /** Synthetic browser fixtures only; the running Desk is supplied externally.

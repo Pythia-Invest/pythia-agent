@@ -4,9 +4,9 @@
 import { useReferenceActions } from "@/components/workspace/workspace-interactions";
 import { useWorkspaceReader } from "@/components/workspace/reader-context";
 
-import { Drawer, IconButton } from "@pythia/ui";
+import { cn, Drawer, IconButton } from "@pythia/ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { PanelLeft } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   type ReactNode,
@@ -18,6 +18,7 @@ import {
 } from "react";
 import { useDeskApi, useDeskView, useDeskDrafts } from "@/client/providers";
 import { deskKeys, useSessions } from "@/client/queries";
+import { useChatAttention } from "@/client/use-chat-attention";
 import { WorkspaceCompanion } from "@/components/workspace/workspace-companion";
 import { ShellDock, useWideShell } from "./shell-dock";
 import { AgentDock } from "./agent-dock";
@@ -31,7 +32,8 @@ import { destinationTitle } from "./destinations";
 import { shellLayout } from "./shell-layout";
 import { useLocalLayout } from "@/layout/use-local-layout";
 import { useDockTabs } from "./use-dock-tabs";
-import { NavRail } from "./nav-rail";
+import { NavDrawer, NavRail } from "./nav-rail";
+import { usePhoneChatList } from "./use-phone-chat-list";
 import { ModuleTopBar } from "./module-top-bar";
 import {
   chatTitle,
@@ -61,14 +63,15 @@ function writePins(pinnedIds: ReadonlySet<string>) {
  * Application frame: navigation rail, the chat list, and the routed surface.
  *
  * The rail and the list are separate columns so the list can be hidden for a
- * wider conversation without losing navigation. Below 900px both collapse into
- * one off-canvas drawer, which is the only place they share state.
+ * wider conversation without losing navigation. Below 900px the rail becomes
+ * an off-canvas drawer and the list opens over the conversation.
  */
 export function DeskShell({ children }: { children: ReactNode }) {
   const params = useParams<{ sessionId?: string }>();
   const pathname = usePathname();
   const router = useRouter();
   const sessions = useSessions();
+  const { workingIds, unreadIds } = useChatAttention();
   const api = useDeskApi();
   const viewPublisher = useDeskView();
   const drafts = useDeskDrafts();
@@ -85,7 +88,15 @@ export function DeskShell({ children }: { children: ReactNode }) {
     update: updateLayout,
   } = useLocalLayout(shellLayout);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // On phones the Pythia chat beside a destination opens as a sheet.
+  const [dockSheetOpen, setDockSheetOpen] = useState(false);
   const wide = useWideShell();
+  // Phone layers do not survive a trip into the desktop layout.
+  useEffect(() => {
+    if (!wide) return;
+    setDrawerOpen(false);
+    setDockSheetOpen(false);
+  }, [wide]);
   const [searchQuery, setSearchQuery] = useState("");
   const focusComposerOnHome = useRef(false);
 
@@ -106,6 +117,8 @@ export function DeskShell({ children }: { children: ReactNode }) {
   // Navigating closes the drawer on narrow screens.
   useEffect(() => {
     setDrawerOpen(false);
+    setDockSheetOpen(false);
+    setPhoneListOpen(false);
     if (pathname === "/" && focusComposerOnHome.current) {
       focusComposerOnHome.current = false;
       focusNewChatComposer();
@@ -114,6 +127,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
 
   const handleNewChat = useCallback(() => {
     setDrawerOpen(false);
+    setPhoneListOpen(false);
     if (pathname === "/") {
       focusNewChatComposer();
       return;
@@ -151,6 +165,13 @@ export function DeskShell({ children }: { children: ReactNode }) {
 
   // The chat list belongs to the Chat destination, not to every surface.
   const chatSurface = pathname === "/" || pathname.startsWith("/c/");
+  const phoneList = useRef<HTMLElement>(null);
+  const [phoneListOpen, setPhoneListOpen] = usePhoneChatList({
+    wide,
+    chatSurface,
+    searchQuery,
+    panel: phoneList,
+  });
 
   /*
    * The dock keeps the chats you are working on as tabs, so moving to Markets
@@ -223,8 +244,8 @@ export function DeskShell({ children }: { children: ReactNode }) {
   }, [viewPublisher, reader?.view, pathname]);
 
   /*
-   * The chat list appears in three places — the wide column, the narrow
-   * drawer, and inside the docked panel — and they are the same list. Its
+   * The chat list appears in three places — the wide column, the phone
+   * overlay, and inside the docked panel — and they are the same list. Its
    * wiring is built once here so a change reaches all three, and so no
    * placement can drift onto its own copy of the Hermes data.
    */
@@ -238,6 +259,8 @@ export function DeskShell({ children }: { children: ReactNode }) {
       onTogglePin: handleTogglePin,
       pinnedIds,
       sessions: sessions.data ?? [],
+      workingIds,
+      unreadIds,
       state,
     }),
     [
@@ -250,14 +273,14 @@ export function DeskShell({ children }: { children: ReactNode }) {
       searchQuery,
       sessions.data,
       state,
+      workingIds,
+      unreadIds,
     ],
   );
 
   /*
-   * The header belongs to the conversation, so it is absent on the new-chat
-   * surface: there is no chat to name yet, and the opening carries its own
-   * invitation. It is also absent below 900px, where the drawer's own controls
-   * and the top bar already fill that line.
+   * The header belongs to the conversation. It stays on the new-chat surface
+   * too, so a first message does not shift when its chat route takes over.
    */
   const routeSession = (sessions.data ?? []).find(
     (session) => session.id === routeSessionId,
@@ -265,13 +288,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
   const surface = (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col">
       {chatSurface ? (
-        <div
-          className={
-            routeSessionId
-              ? "hidden min-[900px]:block"
-              : "hidden min-[900px]:block [[data-desk-list-open=true]_&]:hidden"
-          }
-        >
+        <div>
           <ChatHeader
             key={routeSessionId}
             chatTitle={routeSession ? chatTitle(routeSession) : null}
@@ -281,7 +298,9 @@ export function DeskShell({ children }: { children: ReactNode }) {
                 : undefined
             }
             onNewChat={handleNewChat}
-            onShowList={() => updateLayout({ listOpen: true })}
+            onShowList={() =>
+              wide ? updateLayout({ listOpen: true }) : setPhoneListOpen(true)
+            }
           />
         </div>
       ) : null}
@@ -313,29 +332,11 @@ export function DeskShell({ children }: { children: ReactNode }) {
       <div className="flex h-dvh overflow-hidden bg-canvas text-foreground">
         {navigation}
         {!wide ? (
-          <Drawer.Portal>
-            <Drawer.Backdrop />
-            <Drawer.Viewport>
-              <Drawer.Popup
-                aria-label="Navigation"
-                data-theme="dark"
-                className="border-0 bg-raised data-[swipe-direction=right]:w-[min(24rem,calc(100vw-3rem))]"
-              >
-                <Drawer.Content className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
-                  <NavRail
-                    className="h-auto max-h-[55dvh] w-full flex-none"
-                    onNavigateHome={handleNewChat}
-                    onToggleCollapsed={() => setDrawerOpen(false)}
-                    pathname={pathname}
-                  />
-                  <ChatPanel
-                    {...chatList}
-                    className="h-auto min-h-0 w-full flex-1"
-                  />
-                </Drawer.Content>
-              </Drawer.Popup>
-            </Drawer.Viewport>
-          </Drawer.Portal>
+          <NavDrawer
+            onNavigateHome={handleNewChat}
+            onClose={() => setDrawerOpen(false)}
+            pathname={pathname}
+          />
         ) : null}
         <div className="flex min-w-0 flex-1 flex-col">
           <ModuleTopBar
@@ -354,7 +355,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
               });
               handleNewChat();
             }}
-            actions={
+            leading={
               <Drawer.Trigger
                 render={
                   <IconButton
@@ -362,7 +363,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
                     label="Open navigation"
                     size="sm"
                   >
-                    <PanelLeft className="stroke-[1.6]" />
+                    <Menu className="stroke-[1.6]" />
                   </IconButton>
                 }
               />
@@ -371,27 +372,43 @@ export function DeskShell({ children }: { children: ReactNode }) {
             query={searchQuery}
             title={destinationTitle(pathname)}
           />
-          <div className="flex min-h-0 flex-1">
+          <div className="relative flex min-h-0 flex-1">
             {chatSurface ? (
               <ChatPanel
                 {...chatList}
-                className="hidden min-[900px]:flex [[data-desk-list-open=false]_&]:hidden"
-                onHide={() => updateLayout({ listOpen: false })}
+                panelRef={phoneList}
+                className={cn(
+                  "hidden min-[900px]:flex min-[900px]:[[data-desk-list-open=false]_&]:hidden",
+                  // On a phone the same collapsible list opens over the
+                  // conversation rather than beside it.
+                  phoneListOpen &&
+                    "max-[899px]:absolute max-[899px]:inset-0 max-[899px]:z-20 max-[899px]:flex max-[899px]:w-full max-[899px]:border-r-0 max-[899px]:bg-canvas",
+                )}
+                onHide={() =>
+                  wide
+                    ? updateLayout({ listOpen: false })
+                    : setPhoneListOpen(false)
+                }
               />
             ) : null}
             {chatSurface ? (
-              <WorkspaceCompanion>{surface}</WorkspaceCompanion>
+              // Under the phone list the conversation is out of reach.
+              <div className="contents" inert={phoneListOpen && !wide}>
+                <WorkspaceCompanion>{surface}</WorkspaceCompanion>
+              </div>
             ) : (
               <ShellDock
                 open={layout.dockOpen}
                 onOpenChange={(open) => updateLayout({ dockOpen: open })}
                 width={layout.dockWidth}
                 ready={layoutReady}
+                sheetOpen={dockSheetOpen}
+                onSheetOpenChange={setDockSheetOpen}
                 dock={(onHide) => (
                   <AgentDock
                     onCloseChat={dock.close}
                     onHide={onHide}
-                    onNewChat={dock.draft}
+                    onNewChat={() => dock.draft({ reuse: !wide })}
                     onSelectChat={dock.open}
                     onTogglePin={handleTogglePin}
                     pinnedIds={pinnedIds}
@@ -401,6 +418,8 @@ export function DeskShell({ children }: { children: ReactNode }) {
                     onStarted={dock.started}
                     sessions={sessions.data ?? []}
                     tabs={dock.tabs}
+                    workingIds={workingIds}
+                    unreadIds={unreadIds}
                   />
                 )}
               >
