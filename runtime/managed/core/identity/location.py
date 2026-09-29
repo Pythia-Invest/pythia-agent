@@ -85,8 +85,8 @@ def _open(legacy: Path, root: str) -> Path:
 
 
 def grant_installed(store: Path) -> bool:
-    """Grant confirm to the installed reference package when no trust grant names its digest: installed before grants
-    existed, it was the user's own install (ADR 0042, amendment of 2026-09-30). True when it was granted now."""
+    """Grant confirm to the installed reference package when it has no trust grant: one installed before grants
+    existed was the user's own install (ADR 0042, amendment of 2026-09-30). True when it was granted now."""
     try:  # without a config folder there is nowhere to record it
         path = trust.local_file() and reference_package.current(store)
         manifest = path and reference_package.read_manifest(path.parent)
@@ -94,8 +94,8 @@ def grant_installed(store: Path) -> bool:
         return False
     if not manifest or not trust.grant_package(manifest, trust.CONFIRM, changed=False):
         return False
-    logger.info("Pythia store: granted confirm to the installed reference package %s, installed before trust grants "
-                "existed; set its level to display in %s to withdraw it", manifest["build_id"], trust.local_file())
+    logger.info("Pythia store: granted confirm to the installed reference package %s, which had no trust grant; set "
+                "its level to display in %s to withdraw it", manifest["build_id"], trust.local_file())
     return True
 
 

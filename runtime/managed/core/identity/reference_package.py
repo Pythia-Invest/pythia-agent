@@ -399,6 +399,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "move" or args.package is None:
         parser.error("install needs the package directory; move needs --from")
+    if trust.local_file() is None:  # the user's trust in the package would go unrecorded
+        print("Reference package refused: set PYTHIA_CONFIG_ROOT to the Pythia config folder, where installing records "
+              "your trust in the package. Nothing was installed.", file=sys.stderr)
+        return 2
     try:
         result = install(args.package, args.data_dir, trust.DISPLAY if args.display else trust.CONFIRM)
     except PackageError as error:

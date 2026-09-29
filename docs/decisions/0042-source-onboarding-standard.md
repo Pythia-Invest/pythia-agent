@@ -260,8 +260,9 @@ yet, so no signature exists to check.
 
 - **The digest rule, `pythia-plugin-digest@1`.** SHA-256 over the sorted lines
   `<posix relpath>\t<sha256 of the file>\n`, one per regular file in the plugin
-  directory. `__pycache__/`, `*.pyc` and the lifecycle's copy receipt
-  (`.pythia-managed-copy.json`) are left out. A symlink anywhere in the
+  directory. `.git/` (a git install's clone), `__pycache__/`, `*.pyc` and the
+  lifecycle's copy receipt (`.pythia-managed-copy.json`) are left out, so the
+  digest does not depend on the machine. A symlink anywhere in the
   directory gives no digest, which means display. Core computes it from the
   installed files, never from the receipt, and caches it on each file's size,
   modification time and inode.
@@ -276,12 +277,16 @@ yet, so no signature exists to check.
 - **The user's local grants.** `trust.json` in the Pythia config folder,
   beside `settings.json`, has the same shape and wins in both directions: the
   user may grant a community plugin's digest confirm, or demote a Pythia one to
-  display. A malformed file is ignored with one warning, and the release grants
-  still apply. `python -P trust.py grant <plugin dir> <display|confirm>` and
+  display. A user's confirm grant is their own sign-off (ADR 0044 A2, local
+  override): it confirms whatever the contract declares, `unsigned` included.
+  A malformed file is ignored with one warning, and the release grants still
+  apply. `python -P trust.py grant <plugin dir> <display|confirm>` and
   `status` manage it; there is no Desk page.
 - **The reference package.** Installing a package records the user's grant on
   `sha256:<its database's sha256>`: confirm, or display with `--display`.
-  Reinstalling the same package keeps the choice already recorded. Core looks
+  Reinstalling the same package keeps the choice already recorded, and the
+  installer refuses to install where it cannot record the choice (no config
+  folder). Core looks
   the package's level up by that digest like any contributor's, and
   `reference-status` shows it. A package installed before grants existed is
   granted confirm once, on core's first use of the store, and the grant is
@@ -289,10 +294,9 @@ yet, so no signature exists to check.
 - **Levels.** Display and confirm only. A grants file with any other level is
   malformed.
 - **Core.** `installed()` computes each plugin's level from its digest.
-  `vouched(manifest, level)` keeps the contract as declared only at confirm and
-  treats it as `unsigned` otherwise. The contract's `signoff` is a declaration
-  and the generator's input; core never honours it alone, and a grant never
-  raises a contract that declares itself `unsigned`.
+  `vouched(manifest, level)` treats the contract as `unsigned` below confirm;
+  at confirm the grant is the sign-off. The contract's `signoff` is a
+  declaration and the release generator's input; core never honours it alone.
 - **Mismatch.** A plugin whose files match no grant, while a grant names it,
   is display, and core logs one warning naming the plugin and its digest. An
   edited Pythia plugin, or a stale release file, shows up this way.
@@ -311,6 +315,9 @@ aside or moved.
 - Any edit to a Pythia plugin changes its digest. The next preparation
   regenerates the grants; until then the edited plugin is display and core
   says so.
+- During a staged workspace transition only core is copied, with grants for
+  the current checkout, so a Pythia plugin that changed since the last
+  preparation is display until preparation runs. This fails safe.
 - A plugin whose trust drops keeps the bindings it already made. Nothing is
   re-keyed or deleted; its sections carry the "not yet audited" label, and a
   new answer that would bind waits for review.

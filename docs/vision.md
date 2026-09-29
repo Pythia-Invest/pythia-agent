@@ -481,11 +481,13 @@ establishing facts that other sources also describe.
   untrusted community code safely also requires isolating plugins, which is
   planned before an open marketplace.
 
-Today two levels exist, set by the plugin's sign-off status: an unsigned plugin
+Today two levels exist, set by a grant on the digest of the plugin's files:
+Pythia generates grants for its own plugins from their sign-off, and a user's
+own grant may confirm or demote any plugin. A plugin without a confirm grant
 is display (off until the user enables it, then merged into lists and shown
 side by side, labelled "not yet audited"; for a single-source view it comes
 after every audited source, serving only if the user names it or nothing
-audited can), and a signed-off or grandfathered one confirms. Suggest
+audited can), and one with a confirm grant confirms. Suggest
 arrives with the first plugin that needs it
 ([ADR 0042](decisions/0042-source-onboarding-standard.md)).
 

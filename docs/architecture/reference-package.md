@@ -81,7 +81,8 @@ name, so nothing is re-keyed. The installer:
    ([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment of
    2026-09-30): confirm, or display when `reference_package.py install` is run
    with `--display`. Reinstalling the same package keeps the grant already
-   recorded. Core grants a package installed before grants existed confirm
+   recorded. Without a config folder (`PYTHIA_CONFIG_ROOT`) the command line
+   refuses to install, since the choice could not be recorded. Core grants a package installed before grants existed confirm
    once, on first use, and logs it.
 
 One package is installed at a time; there is no separate rollback. Going back

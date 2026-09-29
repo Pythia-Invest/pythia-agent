@@ -7,6 +7,8 @@ import logging
 import os
 import shutil
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import types
 import unittest
@@ -75,6 +77,8 @@ class DigestTest(TrustCase):
         (renamed / "__pycache__" / "identity.cpython-312.pyc").write_bytes(b"bytecode")
         (renamed / "stale.pyc").write_bytes(b"bytecode")
         (renamed / trust.RECEIPT).write_text("{}", encoding="utf-8")
+        (renamed / ".git" / "objects").mkdir(parents=True)  # a git install's clone
+        (renamed / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
         self.assertEqual(trust.digest(renamed), trust.digest(shipped))
         edited = renamed / "README.md"
         edited.write_bytes(edited.read_bytes()[:-1] + b"!")
@@ -122,6 +126,8 @@ class GrantTest(TrustCase):
         for document in ("{not json", json.dumps({"schema_version": 1, "digest_rule": trust.RULE, "grants": [grant]})):
             with self.subTest(document=document[:12]), self.assertLogs(trust.logger, logging.WARNING) as logged:
                 local.write_text(document, encoding="utf-8")
+                package = {"build_id": "reference-20260926", "database": {"sha256": "0" * 64}}
+                self.assertFalse(trust.grant_package(package, trust.CONFIRM))  # left as it is, no second warning
                 for _ in range(2):
                     self.assertEqual((trust.level(trust.digest(shipped)), trust.level(trust.digest(community))),
                                      (trust.CONFIRM, trust.DISPLAY))
@@ -209,6 +215,23 @@ class InstalledTest(TrustCase):
         self.assertEqual([info.key for info in page.ordered([mirror, shipped], section)],
                          [info.key for info in page.ordered([shipped, mirror], section)])  # only the names differ
 
+    def test_the_users_grant_decides_in_both_directions_whatever_the_contract_declares(self):
+        community = self.root / "source" / "community"
+        community.mkdir()
+        (community / "contract.json").write_text(json.dumps({**CONTRACTS["eodhd"], "signoff": {"status": "unsigned"}}))
+        shipped = self.copy("pythia-eodhd", self.eodhd)
+        found = self.installed(pythia_eodhd=shipped, community_eodhd=community)
+        self.assertEqual((found["pythia-eodhd"].manifest.unaudited, found["community-eodhd"].manifest.unaudited),
+                         (False, True))
+        trust.grant(trust.digest(community), trust.CONFIRM)  # the user's own sign-off
+        trust.grant(trust.digest(shipped), trust.DISPLAY)    # and a demotion of Pythia's
+        found = self.installed(pythia_eodhd=shipped, community_eodhd=community)
+        self.assertEqual((found["pythia-eodhd"].manifest.unaudited, found["community-eodhd"].manifest.unaudited),
+                         (True, False))
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            trust.main(["status", str(community), str(shipped)])
+        self.assertEqual([item["level"] for item in json.loads(out.getvalue())["directories"]], ["confirm", "display"])
+
     def test_a_bundled_name_on_foreign_bytes_is_display_and_says_why(self):
         foreign = self.copy("pythia-eodhd", self.eodhd, **{"definition.py": "OPERATIONS = ('resolve', 'latest')\n#"})
         with self.assertLogs(trust.logger, logging.WARNING) as logged:
@@ -252,6 +275,22 @@ class PackageGrantTest(TrustCase):
         self.assertEqual(reference_package.install(second, self.data, trust.CONFIRM)["installed"]["trust"], trust.CONFIRM)
         self.assertEqual(self.grants(), [("reference-20260926", "display"), ("reference-20260927", "confirm")])
 
+    def test_the_command_line_installs_only_where_it_can_record_trust_and_display_stays_display(self):
+        script, package = Path(reference_package.__file__), make_package(self.root / "package")
+
+        def install(environment):
+            return subprocess.run([sys.executable, "-P", str(script), "install", str(package), "--data-dir",
+                                   str(self.data), "--display"], capture_output=True, text=True, env=environment)
+        refused = install({name: value for name, value in os.environ.items() if name != "PYTHIA_CONFIG_ROOT"})
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("PYTHIA_CONFIG_ROOT", refused.stderr)
+        self.assertIsNone(reference_package.status(self.data)["installed"])  # nothing installed
+        self.assertEqual(install(dict(os.environ)).returncode, 0)
+        self.enterContext(mock.patch.dict(os.environ, {location.ROOT: str(self.data.parent)}))
+        self.enterContext(mock.patch.object(location, "_opened", {}))
+        self.assertEqual(location.store_dir(self.root / "legacy"), self.data)  # a later first use
+        self.assertEqual(reference_package.status(self.data)["installed"]["trust"], trust.DISPLAY)
+
     def test_a_package_installed_before_grants_is_granted_once_on_first_use(self):
         self.assertEqual(reference_package.install(make_package(self.root / "old"), self.data)["installed"]["trust"],
                          trust.DISPLAY)  # as an installer without grants left it
@@ -259,7 +298,8 @@ class PackageGrantTest(TrustCase):
         self.enterContext(mock.patch.object(location, "_opened", {}))
         with self.assertLogs(location.logger, logging.INFO) as logged:
             self.assertEqual(location.store_dir(self.root / "legacy"), self.data)
-        self.assertIn("granted confirm to the installed reference package reference-20260926", "\n".join(logged.output))
+        self.assertIn("granted confirm to the installed reference package reference-20260926, which had no trust grant",
+                      "\n".join(logged.output))
         self.assertEqual(reference_package.status(self.data)["installed"]["trust"], trust.CONFIRM)
         trust.grant(trust.package_digest(reference_package.read_manifest(self.root / "old")), trust.DISPLAY)
         location._opened.clear()  # a later run: the user's choice stands

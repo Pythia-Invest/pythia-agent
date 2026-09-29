@@ -39,8 +39,8 @@ class CatalogueMode(StrEnum):
 
 
 class SignOff(StrEnum):
-    """A source's declared standing under the onboarding standard (ADR 0042). Core honours it only where a grant on the
-    plugin's files confirms it (`trust.py`); Pythia's release grants confirm its own signed-off or grandfathered ones."""
+    """A source's declared standing under the onboarding standard (ADR 0042). Core honours a grant on the plugin's
+    files instead (`trust.py`); Pythia's release grants confirm its own signed-off or grandfathered ones."""
 
     SIGNED_OFF = "signed_off"        # passed the four stages; its record says so
     GRANDFATHERED = "grandfathered"  # in use before the standard: keeps its role until its turn
@@ -318,9 +318,12 @@ def _limits(value: Any) -> Limits:
 
 
 def vouched(manifest: Manifest, level: str) -> Manifest:
-    """The contract as core trusts it at the trust level granted to its plugin's files (`trust.level`): as declared
-    at confirm, else unsigned. A plugin cannot vouch for itself: its `signoff` alone never raises its trust."""
-    return manifest if level == CONFIRM else replace(manifest, signoff=SignOff.UNSIGNED)
+    """The contract as core trusts it at the trust level granted to its plugin's files (`trust.level`): unsigned below
+    confirm; at confirm the grant is the sign-off, so a contract that declares itself unsigned (a user's confirm grant,
+    ADR 0044 A2) is signed off too. A plugin cannot vouch for itself: its `signoff` alone never raises its trust."""
+    if level != CONFIRM:
+        return replace(manifest, signoff=SignOff.UNSIGNED)
+    return replace(manifest, signoff=SignOff.SIGNED_OFF) if manifest.unaudited else manifest
 
 
 def validate_manifest(document: Any) -> Manifest:

@@ -373,7 +373,7 @@ A plugin's trust level is looked up by a digest of its files
 2026-09-30), never by its name or by being bundled. The digest,
 `pythia-plugin-digest@1`, is the SHA-256 of the sorted lines
 `<relpath>\t<sha256>\n` for every regular file in the plugin directory,
-without `__pycache__/`, `*.pyc` and the copy receipt. A symlink in the
+without `.git/`, `__pycache__/`, `*.pyc` and the copy receipt. A symlink in the
 directory means no digest, so display.
 
 - Pythia's own grants are generated into core's payload
@@ -394,8 +394,8 @@ directory means no digest, so display.
   A grant covers exactly those files: after an update the plugin is display
   until its new digest is granted. A malformed file is ignored with one
   warning.
-- The levels are display and confirm. A grant never raises a contract that
-  declares itself `unsigned`.
+- The levels are display and confirm. The user's confirm grant is their own
+  sign-off: it confirms the plugin whatever its contract declares.
 
 ## Skills and contracts
 

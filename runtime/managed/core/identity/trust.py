@@ -1,15 +1,17 @@
 """Trust follows a hashed release, never a plugin's name (ADR 0044 A4; ADR 0042, amendment of 2026-09-30).
 
 A plugin's trust level is looked up by the digest of its files, `pythia-plugin-digest@1`: the SHA-256 of the sorted
-lines `<posix relpath>\\t<sha256 of the file>\\n`, one per regular file in its directory, leaving out `__pycache__/`,
-`*.pyc` and the lifecycle's copy receipt. A symlink anywhere gives no digest, so display. Two files grant levels:
+lines `<posix relpath>\\t<sha256 of the file>\\n`, one per regular file in its directory, leaving out `.git/`,
+`__pycache__/`, `*.pyc` and the lifecycle's copy receipt. A symlink anywhere gives no digest, so display. Two files
+grant levels:
 
 - Pythia's release grants, `trust.json` beside this module. `release` writes it into the checkout when the payload is
   assembled, before the plugins are copied, so core's copy carries it. A shipped contract whose `signoff` is
   `signed_off` or `grandfathered` is confirm at the digest of exactly its payload files; an `unsigned` one is left
   out. It is generated, never committed.
 - The user's local grants, `trust.json` in the Pythia config folder (`PYTHIA_CONFIG_ROOT`), beside settings.json.
-  Its entries win in both directions. A malformed file is ignored with one warning; the release grants still apply.
+  Its entries win in both directions, whatever a contract declares: the user's confirm is their own sign-off. A
+  malformed file is ignored with one warning; the release grants still apply.
 
 Anything not granted is display. The levels are display and confirm only. A reference package is granted on
 `sha256:<its database's sha256>` (`package_digest`) when the user installs it.
@@ -41,6 +43,7 @@ CONFIRMING = ("signed_off", "grandfathered")  # the contract sign-offs Pythia's 
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 LABELS = ("plugin", "package")  # for people reading the file; lookup is by digest only
 MAX_BYTES = 1 << 20
+SKIPPED = ("__pycache__", ".git")  # folders Python or a git install keep beside the files: not the release
 _digests: dict[str, tuple[tuple, str]] = {}           # directory -> (stat signature, digest)
 _files: dict[str, tuple[tuple, dict | None]] = {}      # grants file -> (stat signature, grants, None when malformed)
 _warned: set[tuple[str | None, str]] = set()           # (digest, plugin) mismatches already logged
@@ -80,7 +83,7 @@ def _walk(directory: Path, prefix: str = "") -> list[tuple[str, os.stat_result]]
         for entry in entries:
             info, name = entry.stat(follow_symlinks=False), prefix + entry.name
             if stat.S_ISDIR(info.st_mode):
-                found += [] if entry.name == "__pycache__" else _walk(Path(entry.path), name + "/")
+                found += [] if entry.name in SKIPPED else _walk(Path(entry.path), name + "/")
             elif not stat.S_ISREG(info.st_mode):
                 raise ValueError(f"{name} is a symlink or a special file")
             elif name != RECEIPT and not entry.name.endswith(".pyc"):
@@ -109,6 +112,10 @@ def package_digest(manifest: dict) -> str:
 
 
 # ---- the grants -------------------------------------------------------------------------------------------------
+
+class Malformed(ValueError):
+    """The local grants file is malformed: it is left as it is, and was warned about when it was read."""
+
 
 def local_file(config_root: Path | str | None = None) -> Path | None:
     """The user's grants file in the Pythia config folder, or None without one (an unset or relative root)."""
@@ -184,13 +191,13 @@ def grant(value: str, granted: str, *, config_root: Path | str | None = None, ke
     config folder, for a level other than display or confirm, or when the file is malformed (it is left as it is)."""
     path = local_file(config_root)
     if path is None:
-        raise ValueError("no Pythia config folder: set PYTHIA_CONFIG_ROOT or pass --config-root")
+        raise ValueError("no Pythia config folder: PYTHIA_CONFIG_ROOT is not set to an absolute path")
     parse({"schema_version": 1, "digest_rule": RULE, "grants": [{"digest": value, "level": granted, **labels}]})
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with _locked(path.with_name(".trust.lock")):
         found = grants(path)
         if found is None:
-            raise ValueError(f"{path} is malformed; fix or remove it first")
+            raise Malformed(f"{path} is malformed; fix or remove it first")
         entry = {**found.get(value, {}), "digest": value, "level": granted, **labels}  # labels already there stay
         if found.get(value) == entry or keep and value in found:
             return False
@@ -204,6 +211,8 @@ def grant_package(manifest: dict, granted: str, *, changed: bool = True) -> bool
     try:
         return grant(package_digest(manifest), granted, keep=granted == CONFIRM and not changed,
                      package=manifest["build_id"])
+    except Malformed:  # already warned about, once
+        return False
     except (OSError, ValueError) as error:
         logger.warning("reference package %s: no trust grant recorded, so it is display: %s", manifest["build_id"], error)
         return False
