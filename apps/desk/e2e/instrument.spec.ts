@@ -159,7 +159,7 @@ test("a chosen subject opens its page; cards load and fail independently", async
   // The listing is a selector on the instrument's page: switching changes the
   // price source and the URL, while the issuer's profile keeps its read.
   const selector = page.getByRole("button", {
-    name: /^Listing: SYN · Euronext Amsterdam · EUR/,
+    name: /^Listing: SYN · Euronext Amsterdam \(home\) · EUR/,
   });
   await selector.click();
   const other = page.getByRole("menuitemradio", { name: /SYN1/ });

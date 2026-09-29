@@ -75,6 +75,9 @@ VENUE_NAMES = {
     "XLON": "London Stock Exchange", "XSWX": "SIX Swiss Exchange",
     "XNAS": "Nasdaq", "XNGS": "Nasdaq", "XNMS": "Nasdaq", "XNCM": "Nasdaq", "XNYS": "NYSE", "XASE": "NYSE American",
     "ARCX": "NYSE Arca", "BATS": "Cboe BZX", "XCBO": "Cboe", "OTCM": "OTC Markets",
+    # Other home markets whose ISO names are in capitals
+    "XTSE": "Toronto Stock Exchange", "XTKS": "Tokyo Stock Exchange", "XHKG": "Hong Kong Stock Exchange",
+    "XSES": "Singapore Exchange", "XASX": "ASX", "XJSE": "Johannesburg Stock Exchange", "XTAE": "Tel Aviv Stock Exchange",
 }
 KIND = {"share": "ordinary", "dr": "depositary_receipt", "etf": "etf", "preferred": "preferred", "fund": "fund"}
 STATUS = {"active": "active", "suspect": "unknown", "inactive": "inactive"}
