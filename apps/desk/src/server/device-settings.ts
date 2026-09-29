@@ -22,11 +22,23 @@ import {
 import { resolveConfigRoot } from "./device-settings-store";
 import { hermesClient } from "./hermes";
 import type { HermesToolset } from "./types";
-import { initializeProfileModel } from "./model-initialization";
+import {
+  initializeProfileModel,
+  releaseProfileModel,
+} from "./model-initialization";
 
 // Pythia's own toolsets are not agent choices: core shows `pythia-desk` and keeps every plugin operation in
 // hidden `pythia-core`. A data source is turned off by disabling its plugin (docs/architecture/agent-tools.md).
 const PYTHIA_TOOLSETS = new Set(["pythia-core", "pythia-desk"]);
+const TERMINAL_RUN = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "interrupted",
+]);
+// Pinned Hermes's /v1/runs error when the run cannot resolve provider credentials
+// (_ProviderAuthResolutionError in gateway/platforms/api_server_runs.py).
+const PROVIDER_AUTH_FAILED = /^⚠️ Provider authentication failed: /u;
 
 export {
   DeviceSettingsError,
@@ -184,18 +196,47 @@ export function createDeviceSettingsService(
     );
   }
 
+  // Hermes resolves the provider inside the run, so watch the first run's native status.
+  async function finishedRun(runId: string) {
+    const poll = options.firstRunPollMs ?? 500;
+    for (let waited = 0; waited < 120_000; waited += Math.max(poll, 1)) {
+      await sleep(poll);
+      const run = await client.getRun(runId).catch(() => null);
+      if (run && TERMINAL_RUN.has(run.status)) return run;
+    }
+    return null;
+  }
+
   return {
     async initializeModel(selection) {
-      await withFileLock(paths().lock, async () => {
-        const profile = profileFrom(environment, options.profile);
-        await initializeProfileModel(
+      return withFileLock(paths().lock, async () =>
+        initializeProfileModel(
           selection,
-          profile,
+          profileFrom(environment, options.profile),
           command,
           client,
           restartHermes,
-        );
-      });
+        ),
+      );
+    },
+    async settleInitialModel(selection, runId) {
+      if (runId !== null) {
+        // Only a credential failure clears the pair; outages and crashes keep it.
+        const run = await finishedRun(runId);
+        if (
+          run?.status !== "failed" ||
+          !PROVIDER_AUTH_FAILED.test(run.error ?? "")
+        )
+          return;
+      }
+      await withFileLock(paths().lock, async () =>
+        releaseProfileModel(
+          selection,
+          profileFrom(environment, options.profile),
+          command,
+          restartHermes,
+        ),
+      );
     },
     async snapshot() {
       let profile: string | null = null;

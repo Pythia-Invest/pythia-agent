@@ -34,7 +34,9 @@ ordinary startup.
 Desk may initialize an empty profile's native `model.provider` and
 `model.default` from the user's first explicit authenticated model selection.
 The settings service holds its mutation lock, invokes native dotted setters,
-checks config readback, and restarts Hermes before submitting the run. It never
+checks config readback, and restarts Hermes before submitting the run. If that
+first run fails because Hermes cannot resolve the provider's credentials, it unsets exactly the pair it saved and restarts Hermes, so an
+unusable provider is never kept as the profile default. It never
 writes YAML directly or changes existing/partial selections, shared defaults,
 or credentials. If interrupted between setters, complete the partial selection
 through native Hermes configuration; no automatic repair guesses user intent.
