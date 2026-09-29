@@ -11,11 +11,11 @@ from pathlib import Path
 from unittest import mock
 
 from test_identity_contracts import PROVENANCE, YAHOO, identity, load, load_reference
-from test_identity_trust import PLUGINS, TrustCase
 from test_reference_package import make_package
-from pythia_core_queue_fixture import identity_ops  # noqa: E402  (loaded by test_identity_trust)
-from pythia_core_queue_fixture.identity import markets, page, reference_package, trust  # noqa: E402
-from pythia_core_queue_fixture.platform import access, harness  # noqa: E402
+# The loaded core's modules, the same objects TrustCase patches.
+from test_identity_trust import PLUGINS, TrustCase, access, harness, identity_ops, page, reference_package, trust
+
+markets = identity_ops.markets
 
 BTC = "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
 SAVED_BTC = "security:provisional:coingecko:coin:bitcoin"  # as a resolve residual minted it before BTC was curated
@@ -199,6 +199,16 @@ class DeclaredAddressTest(TrustCase):
             self.assertEqual(self.ops.price_sources(SAVED_BTC)["refs"],
                              [{"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}])
 
+    def test_a_saved_provisional_market_id_resolves_through_a_confirm_level_contract(self):
+        yahoo = self.copy("pythia-yahoo-discovery", PLUGINS / "yahoo-discovery")
+        saved = identity.provisional_id("index", "yahoo", "symbol", "^GSPC")  # `^` is hashed into the ID
+        self.assertTrue(saved.startswith("index:provisional:yahoo:symbol:sha256-"))
+        [display] = installed(pythia_yahoo_discovery=yahoo)
+        self.assertIsNone(self.read([display], saved))  # no grant yet: an address, never an alias
+        self.ship(pythia_yahoo_discovery=yahoo)
+        [confirmed] = installed(pythia_yahoo_discovery=yahoo)
+        self.assertEqual(self.read([confirmed], saved)["subject"]["id"], "index:pythia:sp500")
+
     def test_the_default_price_source_for_btc_is_unchanged(self):
         """CoinGecko first, then CoinMarketCap once its key is set: from their contracts, not the package."""
         plugins = {name.replace("-", "_"): self.copy(f"pythia-{name}", PLUGINS / name)
@@ -213,6 +223,20 @@ class DeclaredAddressTest(TrustCase):
             self.assertEqual(self.ops.price_sources(BTC)["refs"], [
                 {"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"},
                 {"provider": "coinmarketcap", "native_id": "1", "native_scope": "coin"}])
+
+
+class DelistedLineTest(unittest.TestCase):
+    def test_a_declared_reference_never_addresses_a_delisted_line(self):
+        """A delisted line's reference may name another company now (ADR 0037, ticker reuse), declared or not."""
+        line = "listing:isin:NL0010273215:XAMS:EUR"
+        contract = copy.deepcopy(INDEXES)
+        contract["addressing"]["subjects"] = {line: {"native_scope": "symbol", "native_id": "ASML.AS"}}
+        info = page.PluginInfo(key="pythia-yahoo", manifest=identity_ops.validate_manifest(contract))
+        subject = {"ids": {identity_ops.Level.LISTING: line}, "values": {}, "asset_class": "equity",
+                   "listing": {"ticker": "ASML", "mic": "XAMS", "operating_mic": "XAMS", "status": "active"}}
+        self.assertEqual(page.derive(info, identity_ops.Level.LISTING, subject)[1], "declared_ref@1")
+        subject["listing"]["status"] = "inactive"
+        self.assertIsNone(page.derive(info, identity_ops.Level.LISTING, subject))
 
 
 class MaintainedSubjectsTest(unittest.TestCase):

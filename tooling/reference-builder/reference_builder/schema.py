@@ -22,6 +22,7 @@ from .config import BUILDER_VERSION
 from .model import Snapshot
 
 CORE = Path(__file__).resolve().parents[3] / "runtime" / "managed" / "core" / "identity"
+PLUGINS = CORE.parents[1] / "plugins"  # the plugins' contracts, for their coin ids and chain ids
 
 
 def _core():
@@ -323,10 +324,12 @@ def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[s
     each keyed by its canonical deployment whatever providers are installed. The asset's other deployments are its
     listings; a wrapped asset is its own security linked by `wraps`. The coin id each plugin's contract declares for
     the asset (`addressing.subjects`) has its provisional ID aliased, so an ID minted before the asset was curated
-    still resolves; its chain ids and coin ids stay in the package's tables until its format drops them."""
+    still resolves; its chain ids and coin ids stay in the package's tables until its format drops them. An unsigned
+    contract is left out: a display plugin's declaration is an address, never an alias (ADR 0038)."""
     seed = json.loads((CORE / "canonical_assets.json").read_text(encoding="utf-8"))
     declared = [(item["provider"], item["addressing"]) for item in (json.loads(path.read_text(encoding="utf-8"))
-                for path in sorted((CORE.parents[1] / "plugins").glob("*/contract.json")))]
+                for path in sorted(PLUGINS.glob("*/contract.json")))
+                if item["signoff"]["status"] != "unsigned"]
     rule = seed["rule_id"]
     tables["chains"] += seed["chains"]
     tables["provider_chains"] += [{"provider": provider, "chain": chain, "caip2": caip2}

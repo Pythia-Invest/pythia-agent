@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from reference_builder import drift, schema, truth, writer
 from reference_builder.model import Snapshot
@@ -102,6 +103,28 @@ class ReferenceTest(unittest.TestCase):
         usdc = [(group["id"], [row["id"] for row in group["rows"]]) for group in groups
                 if any(row["ticker"] == "USDC" for row in group["rows"])]
         self.assertEqual(usdc, [(f"security:caip19:{USDC}", [f"security:caip19:{USDC}"])])  # one asset, one row
+
+
+class UnsignedContractTest(unittest.TestCase):
+    def test_an_unsigned_plugins_coin_ids_give_the_package_no_rows_and_no_aliases(self):
+        """A display plugin's declaration is an address, never an alias (ADR 0038, contract version 2)."""
+        contract = json.loads((schema.PLUGINS / "coingecko" / "contract.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            for name, provider, status in (("coingecko", "coingecko", "grandfathered"), ("coins", "coins", "unsigned")):
+                (Path(directory) / name).mkdir()
+                (Path(directory) / name / "contract.json").write_text(json.dumps(
+                    {**contract, "provider": provider, "signoff": {"status": status}}), encoding="utf-8")
+            path = Path(directory) / "reference-test.sqlite3"
+            with mock.patch.object(schema, "PLUGINS", Path(directory)):
+                writer.write(Snapshot(as_of="2026-09-28"), path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                providers = {row[0] for row in db.execute("SELECT provider FROM canonical_assets UNION"
+                                                          " SELECT provider FROM provider_chains")}
+                aliased = {row[0] for row in db.execute("SELECT old_id FROM id_aliases WHERE old_id LIKE ?",
+                                                        ("security:provisional:%",))}
+        self.assertEqual(providers, {"coingecko"})
+        self.assertIn(identity.provisional_id("security", "coingecko", "coin", "bitcoin"), aliased)
+        self.assertNotIn(identity.provisional_id("security", "coins", "coin", "bitcoin"), aliased)
 
 
 class DriftTest(unittest.TestCase):

@@ -129,7 +129,8 @@ def derive(info: PluginInfo, level: Level | Kind, subject: dict) -> tuple[Provid
     """A native reference core builds without a call, with the rule that built it, or None; none from a delisted ticker."""
     manifest, values, listing = info.manifest, subject["values"], subject["listing"]
     declared = manifest.subjects.get(subject["ids"].get(level) or "")
-    if declared is not None:  # the plugin's own reference for this subject (a maintained index, a crypto asset)
+    delisted = level is Level.LISTING and listing is not None and listing["status"] == "inactive"
+    if declared is not None and not delisted:  # the plugin's own reference for this subject (an index, a crypto asset)
         return ProviderRef(manifest.provider, declared.native_id, declared.native_scope), DECLARED_RULE
     if level not in INSTRUMENT_KINDS:  # a market, an index: only a declared reference addresses it
         return None

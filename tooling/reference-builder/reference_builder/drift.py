@@ -21,10 +21,9 @@ import urllib.parse
 
 from .config import USER_AGENT, load_coinmarketcap_key
 from .fetch import HttpError, request
-from .schema import CORE
+from .schema import CORE, PLUGINS
 
 PROVIDERS = ("coingecko", "coinmarketcap")
-PLUGINS = CORE.parents[1] / "plugins"
 
 
 def _contract(value: str) -> str:
@@ -125,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             addressing = declared(provider)
             found = check(seed, addressing, provider, fetch(provider, list(coins(seed, addressing).values())))
-        except (LookupError, HttpError, ValueError, KeyError) as error:
+        except (LookupError, HttpError, OSError, ValueError, KeyError) as error:  # OSError: no such contract
             print(f"{provider}: not checked ({error})")
             status = max(status, 2)
             continue

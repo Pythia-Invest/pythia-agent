@@ -347,7 +347,9 @@ version 1):
 - `introduces` names the kinds of subject the plugin may add and the key
   schemes their IDs use: an open scheme registered for the kind, or `native`,
   its own reference in a native scope at that kind
-  (`"introduces": {"market": ["native"], "listing": ["caip19"]}`). A record of a
+  (`"introduces": {"market": ["native"], "listing": ["caip19"]}`). A `native`
+  scope must name a permanent reference the provider never reuses, because
+  the reference becomes the subject's ID. A record of a
   kind outside the hierarchy is keyed by its native reference alone, and a
   relation claim may name the plugin's own declared references
   ([ADR 0038](../decisions/0038-plugin-addressing-contract.md), amendment

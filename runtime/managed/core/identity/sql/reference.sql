@@ -150,8 +150,8 @@ CREATE TABLE chains (
   name TEXT NOT NULL
 );
 
--- Curated crypto tables (Pythia-authored data, versioned like a rule).
--- Provider chain ids -> CAIP-2, so token deployments join on CAIP-2 + contract.
+-- Each coin plugin's own chain ids -> CAIP-2, from its contract (`addressing.chain_codes`). Core reads none of it;
+-- the table stays until the reference format drops it.
 CREATE TABLE provider_chains (
   provider TEXT NOT NULL,
   chain TEXT NOT NULL,              -- the provider's own chain or platform id
@@ -159,9 +159,9 @@ CREATE TABLE provider_chains (
   PRIMARY KEY (provider, chain)
 );
 
--- Each provider's coin id for a curated canonical asset (rule canonical_assets@1),
--- keyed by the asset's canonical deployment. A provider coin id is a binding: this
--- table is the only way one names a portable subject.
+-- Each coin plugin's own coin id for a curated canonical asset (rule canonical_assets@1), from its contract
+-- (`addressing.subjects`), keyed by the asset's canonical deployment. Core no longer reads it: the plugin's contract
+-- addresses the asset (`declared_ref@1`). The table stays until the reference format drops it.
 CREATE TABLE canonical_assets (
   caip19 TEXT NOT NULL,             -- the canonical issuance deployment: the security is security:caip19:<caip19>
   provider TEXT NOT NULL,

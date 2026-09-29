@@ -289,7 +289,9 @@ beside native scopes at `market` and `protocol`.
     that reference (`security:provisional:coingecko:coin:bitcoin`) to the
     subject. `subject.current_id` follows these aliases with the reference's
     own, so an ID saved before the subject was keyed keeps resolving once the
-    package stops carrying the alias. A display-level declaration never
+    package stops carrying the alias. This applies on reads (pages, price
+    routing, agent reads); Lifecycle A still follows only the package's
+    aliases when it re-points stored rows. A display-level declaration never
     aliases, because a lone display claim could otherwise re-point saved IDs
     (A3: the absence of competing evidence never increases authority), and a
     provisional ID two declarations give different subjects stays unaliased.
@@ -300,7 +302,9 @@ beside native scopes at `market` and `protocol`.
   plugin's subjects of that kind may use: an open scheme registered for the
   kind (`KEY_SCHEMES`), or `native`, the plugin's own reference in a native
   scope it declares at that kind (`<kind>:provisional:<provider>:<scope>:<id>`,
-  unchanged). `provisional` and `pythia` are not a plugin's to name.
+  unchanged). `provisional` and `pythia` are not a plugin's to name. A
+  `native` key scope must name a permanent reference the provider never reuses
+  for another subject, because the reference is the subject's ID.
   `validate_manifest` checks each kind, each scheme and that `native` has a
   scope. Core's ingest will apply it per record: a record the plugin may not
   introduce stays an unmatched claim rather than rejecting its batch.

@@ -1055,10 +1055,11 @@ binding. That made the address depend on a provider's name in a core table.
 - **Provisional coin IDs alias through confirm-level declarations.** A saved
   `security:provisional:coingecko:coin:bitcoin` resolves to Bitcoin's key
   because a confirm-level contract declares `bitcoin` for it; `current_id`
-  follows that alias with the package's own. Only a confirm-level
-  declaration, a confirm-level canonical-issuance claim or the user may alias
-  a provisional coin; a display plugin's declaration gives an address, never
-  an alias.
+  follows that alias with the package's own, on reads. Lifecycle A still
+  follows only the package's aliases when it re-points stored rows. Only a
+  confirm-level declaration, a confirm-level canonical-issuance claim or the
+  user may alias a provisional coin; a display plugin's declaration gives an
+  address, never an alias.
 
 Superseded in the crypto-keys amendment: "each provider's coin id, as a
 binding" in the table's row, and "the build writes each of its provider IDs to

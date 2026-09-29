@@ -241,15 +241,15 @@ class Identity:
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject from it, with the store lookups page composition reads."""
+        aliases = declared.aliases(info.manifest for info in installed()) if ":provisional:" in subject_id else {}
         if subject_kind(subject_id) in markets.CURATED_KINDS:  # a curated market subject needs no reference file
-            subject = markets.load_market(markets.curated(), subject_id)
+            subject = markets.load_market(markets.curated(), aliases.get(subject_id, subject_id))
             return (None, None, {}, UNKNOWN_SUBJECT) if subject is None else (None, subject, self._lookups(subject), None)
         path, ref = self.reference()
         if ref is None:
             return None, None, {}, NO_REFERENCE
-        try:
-            if ":provisional:" in subject_id:  # a confirm-level contract may address it under its subject's key now
-                subject_id = subjects.current_id(ref, subject_id, declared.aliases(info.manifest for info in installed()))
+        try:  # a provisional ID a confirm-level contract now addresses under its subject's key is that subject
+            subject_id = subjects.current_id(ref, subject_id, aliases) if aliases else subject_id
             subject = build_questions.load_subject(ref, subject_id, None, self.store)
             if subject is None:
                 return path, None, {}, UNKNOWN_SUBJECT
