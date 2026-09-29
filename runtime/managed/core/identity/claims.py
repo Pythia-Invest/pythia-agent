@@ -17,7 +17,7 @@ from typing import Any, Mapping, Protocol
 from .manifest import Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
 from .schemes import (
-    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Level, Scheme, normalize_identifier, subject_id,
+    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Level, Scheme, normalize_identifier,
 )
 from .vocabulary import (
     AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
@@ -97,8 +97,9 @@ class RecordClaim:
     """One source record at its native level, with the identifiers it co-asserts.
 
     A crypto asset record (level security) may carry CAIP-19 deployments: at most
-    one `self`, its canonical issuance (see `record_subject_id`), and any number
-    `unqualified`, such as a provider's platform list. It may add its token
+    one `self`, its canonical issuance and the only one that may key the asset,
+    and any number `unqualified`, such as a provider's platform list. On the wire
+    each of these states its role explicitly. The record may add its token
     deployments as the provider names them, and `native_of` (the provider chain id
     it is the native asset of) only where the provider states that as identity; a
     chain's fee or gas coin is not identity.
@@ -134,22 +135,6 @@ class RecordClaim:
         own = [item.scheme for item in self.identifiers
                if item.role is IdentifierRole.SELF and item.scheme in SINGLE_VALUED]
         _require(len(own) == len(set(own)), "record: one self value per single-valued scheme")
-
-
-def record_subject_id(record: RecordClaim) -> str | None:
-    """The subject ID a record's own identifiers derive (`subject_id`), or None when they name no key.
-
-    Only `self` values key, so a crypto asset's `security:caip19:` key comes from one claim type, whichever plugin
-    makes it: the canonical-issuance claim, a security record with exactly one `self` CAIP-19. A plugin marks it
-    `self` only where its source states issuance (an issuer's contract list, a chain's native coin, a coin type the
-    issuer's own package defines). A provider's platform list (`unqualified` CAIP-19s, or `deployments`) never
-    keys an asset.
-    """
-    own = {item.scheme: item.value for item in record.identifiers
-           if item.role is IdentifierRole.SELF and item.scheme in SINGLE_VALUED}
-    attributes = record.attributes
-    return subject_id(record.level, own, operating_mic=attributes.operating_mic, currency=attributes.currency,
-                      country=attributes.country)
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,6 +247,11 @@ def batch_from_json(document: Mapping[str, Any] | str) -> ClaimBatch:
             try:
                 if not isinstance(item, Mapping):
                     raise ValueError("object required")
+                if item.get("level") == "security" and any(
+                        isinstance(value, Mapping) and value.get("scheme") == "caip19" and "role" not in value
+                        for value in item.get("identifiers") or ()):
+                    # `self` is the default role, and on an asset record it claims canonical issuance: never implied.
+                    raise ValueError("record: a crypto asset record states each CAIP-19's role")
                 claims.append(RelationClaim(**item) if "from_key" in item else RecordClaim(**item))
             except (TypeError, ValueError) as error:
                 raise _fail(index, str(error)) from None

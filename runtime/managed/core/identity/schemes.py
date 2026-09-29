@@ -151,24 +151,25 @@ def _checksum(scheme: Scheme, value: str) -> bool:
     return True
 
 
-# The Pythia-local Sui profile (ADR 0037): `sui:<chain>/coin:<coin type>`, and native SUI as `slip44:784`.
-_SUI_ADDRESS = re.compile(r"(?<![A-Za-z0-9_])0x([0-9a-fA-F]{1,64})(?![A-Za-z0-9_])")
-_SUI_COIN = re.compile(r"^0x[0-9a-f]{64}::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*(<[A-Za-z0-9_:<>,]+>)?\Z")
+# The Pythia-local Sui profile (ADR 0037): `sui:<chain>/coin:<coin type>`, and native SUI as `slip44:784`. A generic
+# coin type is refused: with a struct argument it always exceeds CAIP-19's 128 characters, so it stays provisional.
+_SUI_COIN = re.compile(r"^0x([0-9a-fA-F]{1,64})(::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*)\Z")
 _SUI_NATIVE = f"0x{'2':0>64}::sui::SUI"
 _CAIP19_REFERENCE = frozenset("-." + string.ascii_letters + string.digits)  # plus `%`, the escape itself
 
 
 def _sui(value: str) -> str:
-    """A `sui:` CAIP-19 in the Pythia-local profile. Every address in a coin type takes lowercase 64-hex long form,
-    whitespace is dropped, and every character outside CAIP-19's reference set is percent-encoded in uppercase hex
-    (a Move `_` as well as `::`). Encoded input is decoded first, so the form is stable."""
+    """A `sui:` CAIP-19 in the Pythia-local profile. A coin type's address takes lowercase 64-hex long form, and every
+    character outside CAIP-19's reference set is percent-encoded in uppercase hex (a Move `_` as well as `::`).
+    Encoded input is decoded first, so the form is stable."""
     chain, _, asset = value.partition("/")
     namespace, _, reference = asset.partition(":")
     if (namespace, reference) == ("slip44", "784"):
         return value
-    coin = _SUI_ADDRESS.sub(lambda match: "0x" + match[1].lower().zfill(64), "".join(unquote(reference).split()))
-    if namespace != "coin" or not _SUI_COIN.match(coin):
-        raise IdentifierError("caip19: a sui asset is slip44:784 or a coin type")
+    match = _SUI_COIN.match(unquote(reference)) if namespace == "coin" else None
+    if match is None:
+        raise IdentifierError("caip19: a sui asset is slip44:784 or a non-generic coin type")
+    coin = f"0x{match[1].lower():0>64}{match[2]}"
     if coin == _SUI_NATIVE:
         return f"{chain}/slip44:784"
     encoded = "".join(char if char in _CAIP19_REFERENCE else f"%{ord(char):02X}" for char in coin)
@@ -184,8 +185,9 @@ def normalize_identifier(scheme: Scheme | str, value: str) -> str:
     are hex addresses and are lower-cased, so a checksummed and a plain address
     name one token. Sui references follow the Pythia-local profile (`_sui`): a raw
     coin type such as `sui:mainnet/coin:0x2::sui::SUI` is accepted and canonicalised,
-    and one whose reference exceeds CAIP-19's 128 characters is refused, so it keeps
-    a provisional ID. Other chains' references are case-sensitive and kept exact.
+    and a generic one or one whose reference exceeds CAIP-19's 128 characters is
+    refused, so it keeps a provisional ID. Other chains' references are
+    case-sensitive and kept exact.
     """
     scheme = Scheme(scheme)
     if not isinstance(value, str) or not value or len(value) > 256:
@@ -311,6 +313,6 @@ def provisional_id(kind: Kind | str, provider: str, native_scope: str, native_id
 
 
 # Core's curated canonical-asset table (canonical_assets.json, ADR 0037 Crypto): Pythia's maintained default supplier
-# of canonical-issuance claims, the one claim type that keys a crypto asset (`claims.record_subject_id`).
+# of canonical-issuance claims, the one claim type that keys a crypto asset.
 CANONICAL_ASSETS_RULE = "canonical_assets@1"
 

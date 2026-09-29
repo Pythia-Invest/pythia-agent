@@ -166,8 +166,11 @@ class StoreSchemaTest(unittest.TestCase):
                 self.assertEqual(normalize(native), "sui:mainnet/slip44:784")
         self.assertEqual(identity.subject_id("listing", {"caip19": f"sui:mainnet/coin:{address}::usdc::USDC"}),
                          f"listing:caip19:{usdc}")
-        lp = f"sui:mainnet/coin:{address}::lp::LP<0x2::sui::SUI, {address}::usdc::USDC>"  # over 128: stays provisional
-        for refused in (lp, "sui:mainnet/coin:usdc", "sui:mainnet/slip44:60", f"sui:mainnet/erc20:{address}"):
+        long = f"sui:mainnet/coin:{address}::m::{'A' * 60}"  # 139 encoded characters: stays provisional
+        generic = f"sui:mainnet/coin:{address}::lp::LP<0x2::sui::SUI,{address}::usdc::USDC>"
+        for refused in (long, generic, f"sui:mainnet/coin:{address}::m::S<<>>", f"sui:mainnet/coin:{address}::m::S<,>",
+                        f"sui:mainnet/coin:{address}::usdc:: USDC", "sui:mainnet/coin:usdc", "sui:mainnet/slip44:60",
+                        f"sui:mainnet/erc20:{address}"):
             with self.subTest(refused=refused), self.assertRaises(identity.IdentifierError):
                 normalize(refused)
 
@@ -335,22 +338,21 @@ class ClaimTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.record(native_of="ethereum")
 
-    def test_only_a_canonical_issuance_claim_keys_a_crypto_asset(self):
-        usdc, base = "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "eip155:8453/erc20:0x833589fcd6"
-        listed = [{"scheme": "caip19", "value": usdc, "role": "unqualified"},
-                  {"scheme": "caip19", "value": base, "role": "unqualified"}]
-        platforms = self.record(level="security", identifiers=listed, deployments=[{"chain": "base", "contract": "0x8335"}],
-                                native_ref={"provider": "coingecko", "native_id": "usd-coin", "native_scope": "coin"})
-        self.assertIsNone(identity.record_subject_id(platforms))  # a provider's platform list never keys an asset
-        # Any plugin may make the claim, and the same claim keys the same asset.
-        for plugin in ("coingecko", "issuer-list"):
-            canonical = self.record(level="security", identifiers=[{"scheme": "caip19", "value": usdc}, listed[1]],
-                                    provenance={**PROVENANCE, "plugin": plugin, "source": plugin}, native_ref=None)
-            with self.subTest(plugin=plugin):
-                self.assertEqual(identity.record_subject_id(canonical), f"security:caip19:{usdc}")
+    def test_a_crypto_asset_record_names_at_most_one_canonical_issuance(self):
+        usdc = "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        base = "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+        coin = {"provider": "coingecko", "native_id": "usd-coin", "native_scope": "coin"}
+        canonical = [{"scheme": "caip19", "value": usdc, "role": "self"},
+                     {"scheme": "caip19", "value": base, "role": "unqualified"}]
+        record = self.record(level="security", native_ref=coin, identifiers=canonical)
         with self.assertRaises(ValueError):
-            self.record(level="security", native_ref=None, identifiers=[{"scheme": "caip19", "value": usdc},
-                                                                       {"scheme": "caip19", "value": base}])
+            self.record(level="security", native_ref=coin, identifiers=[canonical[0], {**canonical[1], "role": "self"}])
+        # On the wire the role is never implied: a platform list left unmarked would default to canonical issuance.
+        wire = identity.batch_to_json(self.batch(record))
+        self.assertEqual(identity.batch_from_json(wire), self.batch(record))
+        del wire["claims"][0]["identifiers"][1]["role"]
+        with self.assertRaisesRegex(identity.ClaimError, r"^claims\[0\]: .*role"):
+            identity.batch_from_json(wire)
 
     def test_batches_round_trip_through_the_wire_form(self):
         relation = identity.RelationClaim(
