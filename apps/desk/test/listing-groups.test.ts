@@ -16,6 +16,7 @@ function line(
     venue: null,
     currency: "EUR",
     primary: false,
+    most_liquid: false,
     kind: "ordinary",
     folded: false,
     ...fields,
@@ -54,5 +55,13 @@ describe("instrument listing groups", () => {
     expect(
       listingLabel(line("asml", { venue: "Euronext Amsterdam", mic: "XAMS" })),
     ).toBe("ASML · Euronext Amsterdam · EUR");
+  });
+});
+
+describe("the most liquid EU line", () => {
+  it("names why it is priced, never as primary", () => {
+    expect(
+      listingLabel(line("race", { venue: "Tradegate", most_liquid: true })),
+    ).toBe("RACE · Tradegate (most liquid EU line) · EUR");
   });
 });
