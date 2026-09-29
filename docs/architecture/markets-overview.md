@@ -16,11 +16,22 @@ uses) and reads through that section's binding:
   state), every card's in one read;
 - the source's declared series, then the instrument page chart's 1D bars for
   the sparkline (`dayBinding` in `@pythia/market-data/widgets`, reusing
-  `chartPlan` and `periodPath`, so the curve is the page chart's 1D curve).
+  `chartPlan` and `periodPath`). The tile draws them in the September tile's
+  window, which the founder settled on the `market-data` branch: the regular
+  session while the market trades,
+  then after-hours once it has closed; before the open, the prior regular
+  session, the closed night omitted, then today's pre-market. The instrument
+  page keeps its fuller day ([ADR 0041](../decisions/0041-instrument-page-price-chart.md)).
 
-`MarketCard` is the September `InstrumentTile` itself; clicking it or pressing
-Enter opens the instrument page. The status mark explains the market state,
-data delay and quote time. Each group's heading names the sources core chose
+`MarketCard` is the September `InstrumentTile` itself, a link to the
+instrument page. The status mark explains the market state, data delay and
+quote time. When a read fails, retained values are marked stale, and the card
+shows what failed and a Retry, as the September blocks did. A subject that
+cannot be read keeps a name: core's overview read returns the curated names
+from `markets.json` and `canonical_assets.json`, otherwise the card names the
+subject's kind ("Crypto asset", "Listing"); it never shows a subject ID.
+Without installed reference data the card says so and how to install it. The watchlist shows
+its rows as placeholders until their quotes answer. Each group's heading names the sources core chose
 for its cards. A subject no source can serve keeps its card, with core's
 reason. The cards and the watchlist are one list, so their reads join the
 update channel together
@@ -63,8 +74,10 @@ page. There is no settings UI and no watchlist store yet.
 The three tables read core's `market-movers` operation, the `market_movers`
 concept ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md),
 amendment "market-wide concepts"). Yahoo's predefined screeners are the free
-default; they are US-only. Core's read route caches each list for a minute, so
-all open pages share one source call per list per minute. A row opens its
+default; they are US-only. Core shares concurrent identical reads and declares
+a one-minute age for each answer; Yahoo's plugin keeps each list for a minute,
+so open pages cost at most one Yahoo call per list per minute. A source
+without its own cache would be called on each page's refresh. A row opens its
 instrument when core names its listing; otherwise it shows a mark and the
 reason, and does not open. Drift in Yahoo's answer is logged for the
 maintainer; unreadable rows also come back as a `source_drift` issue on the
@@ -84,7 +97,8 @@ markets plugin gains a page host; the two settings keep their names.
 - A cold page shows prices after about 8 s and sparklines after about 20 s on
   Yahoo: each 1D bar series is its own update-channel resource, and the
   channel serves history reads a few at a time.
-- Index and FX cards show an unknown-freshness mark and no unit: the Yahoo
-  adapter adds session context and units for stocks and funds only.
+- Index and FX cards show no unit: the Yahoo adapter adds units for stocks and
+  funds only. Market state comes from Yahoo's quote; a zero delay Yahoo
+  reports counts as current data.
 - European movers need an index member list; they are not built. Catalogue
   subjects are not in search yet.

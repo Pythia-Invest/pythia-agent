@@ -3,8 +3,17 @@ import type { MarketOverview } from "@pythia/market-data/markets";
 import { Button, cn } from "@pythia/ui";
 import type { ReactNode } from "react";
 import { useMarketOverview } from "@/client/market-queries";
+import {
+  type ReferenceStatus,
+  useReferenceStatus,
+} from "@/client/reference-status";
 import { MarketCard, type SubjectDay, useSubjectDays } from "./market-card";
-import { MoversCaption, MoversTable, WatchlistTable } from "./market-tables";
+import {
+  Block,
+  MoversCaption,
+  MoversTable,
+  WatchlistTable,
+} from "./market-tables";
 
 /** One titled card of the overview (the Markets page design of September:
  * a headed card, its blocks titled in small secondary type). */
@@ -31,27 +40,46 @@ function Card({
   );
 }
 
-export function Block({
-  title,
-  meta,
-  children,
+/** Why subjects cannot be read when the device has no usable reference
+ * data (none installed, an incompatible one, or a refused package), and what
+ * to do; undefined while unknown or when compatible data is installed. */
+export function referenceNote(status: ReferenceStatus | null | undefined) {
+  if (status === undefined || status?.installed?.compatible) return undefined;
+  const install =
+    "Install a reference package this Pythia reads (just reference-install <package>; Settings › Reference data shows what is installed), then Retry.";
+  const cause = status?.installed
+    ? `The installed reference package ${status.installed.build_id} is not compatible with this Pythia`
+    : status?.refused
+      ? `A reference package was refused (${status.refused.message})`
+      : "Reference data is not installed on this device yet";
+  return `${cause}, so some subjects cannot be shown. ${install}`;
+}
+
+/** A card's read failure, as the September blocks showed it: what failed,
+ * that retained values are marked stale, and Retry. A subject that could not
+ * be read without reference data says what to do instead. */
+export function ReadFailure({
+  days,
+  message,
+  reference,
+  retry,
 }: {
-  title: string;
-  meta?: ReactNode;
-  children: ReactNode;
+  days: SubjectDay[];
+  message: string | undefined;
+  reference: string | undefined;
+  retry: () => void;
 }) {
+  if (!days.some((day) => day.failed)) return null;
+  const unread = days.some((day) => day.failed && !day.known);
   return (
-    <section aria-label={title} className="min-w-0">
-      <h3 className="mb-2.5 flex items-baseline justify-between gap-2 font-medium text-[11px] text-foreground-secondary">
-        {title}
-        {meta ? (
-          <span className="min-w-0 truncate font-normal text-[10px]">
-            {meta}
-          </span>
-        ) : null}
-      </h3>
-      {children}
-    </section>
+    <>
+      <p role="alert" className="mt-2 max-w-prose text-error text-xs">
+        {(unread && reference) || message || "Some subjects could not be read."}
+      </p>
+      <Button className="mt-2" size="sm" variant="ghost" onClick={retry}>
+        Retry
+      </Button>
+    </>
   );
 }
 
@@ -103,10 +131,20 @@ export function MarketsOverview() {
   const cards = data?.cards ?? [];
   // Cards and watchlist share one read, so their quotes and paths reach the
   // update channel together.
-  const days = useSubjectDays([
-    ...cards.map((card) => card.subject),
-    ...(data?.watchlist ?? []),
-  ]);
+  const { days, message, retry } = useSubjectDays(
+    [...cards.map((card) => card.subject), ...(data?.watchlist ?? [])],
+    data?.names ?? {},
+  );
+  const referenceStatus = useReferenceStatus();
+  const reference = referenceNote(
+    referenceStatus.data ? (referenceStatus.data.data ?? null) : undefined,
+  );
+  const retryAll = () => {
+    retry();
+    void referenceStatus.refetch();
+  };
+  const cardDays = days.slice(0, cards.length);
+  const watchDays = days.slice(cards.length);
   return (
     <div
       data-slot="markets-overview"
@@ -139,14 +177,27 @@ export function MarketsOverview() {
         </p>
       ))}
       <div className="grid @min-[680px]:grid-cols-2 grid-cols-1 items-start gap-x-3 gap-y-6">
-        <Card title="Markets" wide>
+        <Card title="Global markets" wide>
           {overview.isPending ? (
             <p role="status" className="py-3 text-foreground-secondary text-xs">
               Opening your markets…
             </p>
-          ) : (
-            <MarketGroups cards={cards} days={days} />
-          )}
+          ) : cards.length ? (
+            <>
+              <MarketGroups cards={cards} days={cardDays} />
+              <ReadFailure
+                days={cardDays}
+                message={message}
+                reference={reference}
+                retry={retryAll}
+              />
+            </>
+          ) : data ? (
+            <p className="py-3 text-foreground-secondary text-xs">
+              No markets to show. Add subject IDs to markets_cards in
+              settings.json.
+            </p>
+          ) : null}
         </Card>
         <Card title="Market movers" wide>
           <MoversCaption />
@@ -158,7 +209,13 @@ export function MarketsOverview() {
         </Card>
         {data ? (
           <Card title="Watchlist">
-            <WatchlistTable days={days.slice(cards.length)} />
+            <WatchlistTable days={watchDays} />
+            <ReadFailure
+              days={watchDays}
+              message={message}
+              reference={reference}
+              retry={retryAll}
+            />
           </Card>
         ) : null}
       </div>
