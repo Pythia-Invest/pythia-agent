@@ -28,7 +28,11 @@ describe("market-data v1 wire", () => {
     );
   });
 
-  it("type-checks actual shared fixtures against portable TypeScript contracts", () => {
+  // A whole TypeScript program: about 1 s alone, over 5 s on a busy CI runner
+  // while the other packages' tests run in parallel.
+  it("type-checks actual shared fixtures against portable TypeScript contracts", {
+    timeout: 30_000,
+  }, () => {
     const directory = mkdtempSync(resolve(tmpdir(), "pythia-wire-types-"));
     try {
       const source = resolve(directory, "examples.mts");
