@@ -86,15 +86,18 @@ def load_reference(db, fixture):
     for row in fixture["securities"]:
         security = model.Security(**row)
         insert(db, "securities", {"id": security.id, "issuer_id": security.issuer_id, "name": security.name,
-                                  "asset_class": security.asset_class.value, "kind": security.kind.value})
+                                  "asset_class": security.asset_class.value, "kind": security.kind.value,
+                                  "status": security.status.value})
     for row in fixture.get("composites", []):
         composite = model.Composite(**row)
         insert(db, "composites", {"id": composite.id, "security_id": composite.security_id, "country": composite.country})
     for row in fixture["listings"]:
-        listing = model.Listing(**row)
+        # The currency the line trades in where its venue decides it: a reference column, not a typed field.
+        listing = model.Listing(**{key: value for key, value in row.items() if key != "trading_currency"})
         insert(db, "listings", {"id": listing.id, "security_id": listing.security_id, "composite_id": listing.composite_id,
                                 "mic": listing.mic, "operating_mic": listing.operating_mic, "ticker": listing.ticker,
-                                "currency": listing.currency, "chain": listing.chain, "is_primary": int(listing.primary)})
+                                "currency": listing.currency, "trading_currency": row.get("trading_currency"),
+                                "chain": listing.chain, "is_primary": int(listing.primary), "status": listing.status.value})
     evidence = {}
     for row in fixture["assertions"]:
         item = model.IdentifierAssertion(**row)

@@ -8,17 +8,16 @@ import unittest.mock
 from dataclasses import replace
 from pathlib import Path
 
+import identity_world
 from test_identity_contracts import identity
 from test_identity_page import ASML, plugin
 from test_identity_queue import AS_OF, NOW, QueueFixture, answer, load_core
 from test_reference_package import make_package
-from pythia_identity_fixture import lifecycle, page, reference_package, store, subject as subjects  # noqa: E402
+from pythia_identity_fixture import lifecycle, page, reference_package, store  # noqa: E402
 
 SECURITY = "security:isin:NL0010273215"
 NEW_SECURITY, NEW_LISTING = "security:figi:BBG001S7Q066", "listing:figi:BBG000C1HT47"
 MIDDLE = "listing:figi:BBG000C1HT99"
-COLUMNS = {"issuers": ["id"], "securities": ["id", "issuer_id"], "composites": ["id", "security_id"],
-           "listings": ["id", "security_id", "composite_id"], "relations": ["from_id", "to_id"], "names": ["subject_id"]}
 
 
 class LifecycleTest(QueueFixture):
@@ -28,28 +27,7 @@ class LifecycleTest(QueueFixture):
         self.builds.mkdir()
 
     def release(self, name, renames=(), aliases=(), drop=()):
-        """A later build of the fixture reference: `renames` re-key subjects (their assertions get the evidence IDs
-        the new subject gives them), `aliases` are its id_aliases rows, `drop` subjects it no longer holds."""
-        path = self.builds / f"{name}.sqlite3"
-        path.write_bytes(self.path.read_bytes())
-        with sqlite3.connect(path) as db:
-            db.row_factory = sqlite3.Row
-            db.executemany("INSERT INTO release (key, value) VALUES (?, ?)",
-                           [("schema_version", store.REFERENCE_SCHEMA_VERSION), ("release", name)])
-            for old, new in renames:
-                for table, columns in COLUMNS.items():
-                    for column in columns:
-                        db.execute(f"UPDATE {table} SET {column} = ? WHERE {column} = ?", (new, old))
-                for row in db.execute("SELECT * FROM assertions WHERE subject_id = ?", (old,)).fetchall():
-                    moved = replace(subjects._assertion(row), subject_id=new)
-                    db.execute("UPDATE assertions SET subject_id = ?, evidence_id = ? WHERE evidence_id = ?",
-                               (new, moved.evidence_id, row["evidence_id"]))
-            for subject in drop:
-                for table in ("listings", "assertions"):
-                    db.execute(f"DELETE FROM {table} WHERE {'id' if table == 'listings' else 'subject_id'} = ?", (subject,))
-            db.executemany("INSERT INTO id_aliases (old_id, new_id, release) VALUES (?, ?, ?)",
-                           [(old, new, name) for old, new in aliases])
-        return path
+        return identity_world.release(self.path, self.builds, name, renames=renames, aliases=aliases, drop=drop)
 
     def bind(self):
         """What identity-resolve stores when EODHD answers ASML's ISIN: a binding citing the ISIN assertion."""

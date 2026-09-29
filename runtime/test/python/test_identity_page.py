@@ -107,7 +107,8 @@ class PageTest(Fixture):
     def test_a_nordic_class_ticker_becomes_a_dashed_provider_symbol(self):
         contract = {**CONTRACTS["yahoo"], "addressing": {**CONTRACTS["yahoo"]["addressing"], "mic_table": {"XSTO": ".ST"}}}
         yahoo = page.PluginInfo(key="pythia-yahoo", manifest=identity.validate_manifest(contract))
-        subject = {"values": {}, "asset_class": "equity", "listing": {"ticker": "VOLV B", "mic": "XSTO", "operating_mic": "XSTO"}}
+        subject = {"values": {}, "asset_class": "equity",
+                   "listing": {"ticker": "VOLV B", "mic": "XSTO", "operating_mic": "XSTO", "status": "active"}}
         ref, _rule = page.derive(yahoo, identity.Level.LISTING, subject, lambda provider, caip19: None)
         self.assertEqual(ref.native_id, "VOLV-B.ST")
         self.assertEqual(identity.normalize_identifier("ticker_mic", "VOLV B@XSTO"), "VOLV B@XSTO")

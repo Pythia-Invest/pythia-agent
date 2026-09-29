@@ -135,8 +135,9 @@ class IdentifierRole(StrEnum):
     A depositary line that carries its underlying's ISIN (e.g. a CEDEAR) says
     `underlying`; a source that cannot tell (EODHD's ISIN field) says
     `unqualified`. Only `self` values join by ISIN; the others become an
-    `underlying_identifier` residual. The plugin marks the role; core cannot
-    verify it mechanically.
+    `underlying_identifier` residual (for a resolve answer only `underlying` does
+    so far: ADR 0037, "Consequential failures"). The plugin marks the role; core
+    cannot verify it mechanically.
     """
 
     SELF = "self"
