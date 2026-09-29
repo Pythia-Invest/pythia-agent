@@ -360,10 +360,14 @@ question on every installation.
 
 Where it is built, the code implements the first version of rulings 7 to 10,
 until roadmap stage 0 lands. No package is published and no central curator
-exists, so the build's open questions simply stay open:
+exists:
 
-- The build's open questions ship in the package's claims file, and core
-  queues none of them.
+- The build's open questions are queued only when an instrument is opened,
+  watched or used by the agent, and the user's answer is a local override
+  ([ADR 0037](0037-identity-backbone.md), amendment "questions on touch").
+  Holdings, forecasts and operations join as triggers in stage 1. A later
+  release that contradicts a user's answer does not yet raise a conflict
+  question: the answer stays applied.
 - Subjects come only from the reference build and core's curated tables.
 - Reference sources are builder adapters that cannot be disabled, and the
   builder's `snapshot` evidence outranks a plugin's `source_asserted` claim.

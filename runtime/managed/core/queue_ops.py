@@ -4,7 +4,9 @@
 `identity-verdict` records one answer to a question: from the Desk it is the
 user's attestation, from a model tool call the agent's verdict; the transport
 decides which, never an argument. `settle` lets the rules resolver re-ask the
-join inside write operations, never on search or page reads.
+join inside write operations, never on search or page reads. `surface` queues
+the reference build's questions about an instrument the investor or the agent
+touches: a bounded, idempotent write on those reads (ADR 0044 A2).
 """
 from __future__ import annotations
 
@@ -14,12 +16,13 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from .identity import queue as questions
-from .identity import reference_package, schemes, store
+from .identity import build_questions, reference_package, schemes, store
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
 
 logger = logging.getLogger(__name__)
+REOPEN = "reopen"  # the Desk's undo of the user's answer to a build question; never the agent's
 RELEASE = "reference_release"  # identity.sqlite3 metadata: the reference build the rules last settled against
 NO_REFERENCE = "No reference data on this device yet."
 UNKNOWN_SUBJECT = "Unknown subject."
@@ -56,17 +59,61 @@ VERDICT_SCHEMA = {
     "parameters": {"type": "object", "properties": {
         "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
         "relation": {"type": "string", "enum": ["same_listing", "same_composite", "same_security", "same_issuer",
-                                                "depositary_receipt_of", "unrelated", "none", "ambiguous"]},
+                                                "depositary_receipt_of", "unrelated", "none", "ambiguous",
+                                                REOPEN]},
         "chosen_id": SUBJECT_ID,
         "rationale": {"type": "string", "maxLength": 400}},
         "required": ["item_id", "relation"], "additionalProperties": False},
 }
 
 
+_BUILD_INDEX: dict[str, dict[str, list[dict]]] = {}  # installed package -> subject -> its build questions
+
+
+def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> int:
+    """Queue the installed build's questions about these subjects, each once: the investor opened or watches them,
+    or the agent read them. With `family`, a listing also brings its security's, issuer's and composite's. The
+    build's other questions stay in its package. Search, market movers, price routing and settling never call
+    this. Returns how many were added."""
+    if not subject_ids:
+        return 0
+    try:
+        path, ref = identity.reference()
+        if ref is None:
+            return 0
+        try:
+            wanted = [value for subject in subject_ids for value in questions.family(ref, subject)] if family \
+                else list(subject_ids)
+        finally:
+            ref.close()
+        if str(path) not in _BUILD_INDEX:
+            index: dict[str, list[dict]] = {}
+            for item in reference_package.questions(path):
+                for subject in item.get("subject_ids") or ():
+                    index.setdefault(subject, []).append(item)
+            _BUILD_INDEX.clear()
+            _BUILD_INDEX[str(path)] = index
+        items = [item for subject in dict.fromkeys(wanted) for item in _BUILD_INDEX[str(path)].get(subject, ())]
+        return build_questions.import_build(identity.store, items, store.now()) if items else 0
+    except (sqlite3.Error, OSError):
+        logger.warning("reference build questions could not be queued", exc_info=True)
+        return 0
+
+
+def read_subject(identity: Identity, arguments: dict, **context: Any) -> str:
+    """identity-subject as the Desk and the agent read it: the investor opens or watches the subject, or the agent
+    uses it, so the build's questions about it are queued first."""
+    surface(identity, [str(arguments.get("subject_id") or "")])
+    return identity.subject(arguments, **context)
+
+
 def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
-    """identity-queue: open questions (and on request settled ones), or one in full."""
+    """identity-queue: open questions (and on request settled ones), or one in full. Asked about one subject (the
+    agent), the build's questions about it are queued first."""
     from .identity_ops import _envelope, installed
     limit = arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20
+    if arguments.get("subject_id"):
+        surface(identity, [str(arguments["subject_id"])])
     try:
         _path, ref = identity.reference()
         if ref is None:
@@ -95,6 +142,10 @@ def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
     from .platform.request_context import usage
     desk = usage.get() == "dashboard"  # trusted transport scope: the Desk's own HTTP call, never a model tool call
     now = store.now()
+    if arguments.get("relation") == REOPEN:
+        done = desk and build_questions.reopen(identity.store, str(arguments.get("item_id") or ""), now)
+        return _envelope("ok", {"outcome": "reopened" if done else "refused", "message": "Reopened: your answer no "
+                                "longer applies." if done else "Only your answer to a reference question reopens."})
     settle(identity, [])
     path, ref = identity.reference()
     if ref is None:

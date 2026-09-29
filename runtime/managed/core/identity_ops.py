@@ -26,7 +26,7 @@ from .identity import (
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
-from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, queue, reference_package, search, store
+from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, markets, page, queue, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -234,7 +234,7 @@ class Identity:
             # The company's other instruments; a share class listed there is not repeated under `related`.
             view["other_securities"] = directory.other_instruments(security)
             others = {item["id"] for item in view["other_securities"]}
-            view["related"] = [item for item in view["related"] if item["id"] not in others]
+            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item]
         sections = page.compose(subject, installed(), **lookups)
         return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
 
@@ -247,12 +247,12 @@ class Identity:
         if ref is None:
             return None, None, {}, NO_REFERENCE
         try:
-            subject = page.load_subject(ref, subject_id)
+            subject = build_questions.load_subject(ref, subject_id, None, self.store)
             if subject is None:
                 return path, None, {}, UNKNOWN_SUBJECT
             default = self._default_listing(path, subject)
             if default and default != (subject["listing"] or {"id": None})["id"]:
-                subject = page.load_subject(ref, subject_id, default)
+                subject = build_questions.load_subject(ref, subject_id, default, self.store)
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         finally:
             ref.close()
@@ -385,7 +385,7 @@ def register(ctx: Any) -> None:
     from .platform import declare_operation
     identity = CURRENT = Identity(ctx)
     for schema, handler, operation, read_only in ((SEARCH_SCHEMA, identity.search, "identity-search", True),
-                                                  (SUBJECT_SCHEMA, identity.subject, "identity-subject", True),
+                                                  (SUBJECT_SCHEMA, partial(queue_ops.read_subject, identity), "identity-subject", True),
                                                   (RESOLVE_SCHEMA, identity.resolve, "identity-resolve", False),
                                                   (queue_ops.QUEUE_SCHEMA, partial(queue_ops.read_queue, identity),
                                                    "identity-queue", True),

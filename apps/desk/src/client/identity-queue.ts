@@ -23,6 +23,8 @@ const optionalText = z
 
 const subject = z.object({
   id: text,
+  /** Its kind: listing, security, issuer or another. */
+  level: optionalText,
   /** False for a subject the reference does not know, such as the record's
    * own provisional one. */
   known: z.boolean().default(true),

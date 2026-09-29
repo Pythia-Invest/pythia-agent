@@ -231,11 +231,11 @@ Where the evidence does not decide, the value stays empty and the build asks a
 question, never storing a guess as fact. `questions-<date>.json` holds them in
 core subject IDs (each with its question type, the resolution queue's `kind` and
 `reason`, candidates and evidence), and `package.json` names it under `claims`.
-These are curation questions about the world, answered centrally by a curator
-([ADR 0044](../../docs/decisions/0044-product-direction.md), "Where conflicts
-are resolved"), never by the investor: core installs and verifies the file with
-the package but queues none of it, so Repairs keeps only questions about the
-investor's own records (ADR 0037). The investor sees at most an unknown value.
+Core installs and verifies the file with the package, and queues a question
+in Repairs only when its instrument is opened, watched or used by the agent;
+`home_market` is never queued. The user's answer is a local override
+([ADR 0037](../../docs/decisions/0037-identity-backbone.md), amendment
+"questions on touch").
 #73's name-only CIK→LEI matches are carried the same way
 (`issuer_identity_name_candidate`).
 

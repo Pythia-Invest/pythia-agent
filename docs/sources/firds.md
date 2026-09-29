@@ -13,8 +13,9 @@
     not decide.
   - Stage 3: a stratified random sample of 100 rows is labelled against
     primary sources (below and [the sample](firds-signoff-sample.md)).
-  - Stage 4: the questions ship in the package as curation questions,
-    answered centrally per ADR 0044, never in the investor's Repairs.
+  - Stage 4: the questions ship in the package, and core queues one in
+    Repairs only when its instrument is opened, watched or used by the agent
+    (ADR 0037, amendment "questions on touch").
   - FIRDS was in use before the
     [onboarding standard](../architecture/source-onboarding.md), so it keeps its
     current role until it signs off.
@@ -171,8 +172,8 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   | Receipt underlying | 2,754 receipts link to the field 26 security of their own issuer, or of an issuer claimed for it while it is asked | 885 `receipt_underlying` (42 because field 26 names another issuer's security), 10 `receipt_conflict` |
 
   The SEC stage adds 169 name-only issuer questions (#73). All 11,964 are
-  curation questions in the package's `claims` file, answered centrally per
-  ADR 0044; none reaches the investor's Repairs queue. A security
+  in the package's `claims` file; core queues one only when its instrument is
+  opened, watched or used by the agent, and never `home_market`. A security
   without a primary the package can write is priced on its line at the most
   liquid EU market (9,770 lines), labelled so and never primary. The
   `share_primary_silent` invariant counts every live share that has no
@@ -233,10 +234,11 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | The home market when field 8 does not decide it (`home_market`: 10,271 open) | Which listing is the issuer's home is a knowledge question; the evidence may be outside FIRDS | Not written | Not done | Suggest-only |
 | The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 859 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
 
-The questions ship in the package's `claims` file as curation questions,
-answered centrally per ADR 0044, not by the investor or the investor's agent.
+The questions ship in the package's `claims` file. Core queues one when its
+instrument becomes relevant; the agent may suggest an answer and the user's
+answer is a local override (ADR 0037, amendment "questions on touch").
 
-Classes assigned to code or to curation instead:
+Classes assigned to code or to a question instead:
 
 - **Code:**
   - ISIN successions, from first-trade dates, admission counts and GLEIF
@@ -244,7 +246,7 @@ Classes assigned to code or to curation instead:
   - fund share classes, from the sub-fund LEI;
   - a receipt's underlying, from field 26 and `successor_of`;
   - the trading currency, from venue-specific evidence.
-- **Unknown, with a curation question (answered centrally per ADR 0044):** the primary venue when no
+- **Unknown, with a question in the package:** the primary venue when no
   issuer-sought listing exists, or when an EEA request conflicts with a
   primary outside the EEA (`home_market`); the trading currency until a
   venue-specific source exists (`trading_currency`); a receipt with no usable
