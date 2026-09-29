@@ -1,7 +1,9 @@
 # ESMA FIRDS source record
 
-- **Status:** in onboarding, sign-off proposed (below). The sign-off gate
-  (PR #62) is not merged, so no `signoff` is recorded in code yet.
+- **Status:** signed off for issuer and for the primary of shares (PR #74,
+  below); receipt underlying and ETF primaries stay in onboarding. FIRDS feeds
+  the reference builder and has no plugin `contract.json`, so the #62 gate
+  records nothing in code for it: this record is its sign-off.
   - Stage 1: the field table below is complete for the fields the builder
     reads.
   - Stage 2: the adapter emits typed claims, counts unexpected input and
@@ -163,8 +165,25 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   | Field | FIRDS decides | Asked instead (question type) |
   | --- | --: | --- |
   | Issuer | 28,101 securities carry field 5's LEI as issuer | 614 `issuer_identity`: an operator's LEI on a share outside its country |
-  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid |
-  | Receipt underlying | 2,790 receipts link to the field 26 security | 849 `receipt_underlying`, 10 `receipt_conflict` |
+  | Primary | 10,863 from issuer-requested admissions (field 8); 189 more from the ISIN-country line (below) | 10,082 `home_market`: 10,032 with no request and no line outside the EEA, 19 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid |
+  | Receipt underlying | 2,737 receipts link to the field 26 security of their own issuer | 902 `receipt_underlying` (58 because field 26 names another issuer's security), 10 `receipt_conflict` |
+
+  The SEC stage adds 168 name-only issuer questions (#73). None of the 11,776
+  goes to the Repairs queue in bulk: a question joins it only when the
+  investor opens or watches its instrument or the agent asks. A security
+  without a primary is priced on its line at the most liquid EU market (9,587
+  lines), labelled so and never primary.
+
+  **ISIN-country line (shares only).** Where field 8 and the other sources
+  leave a share's primary unknown, its one line on an exchange in its ISIN's
+  country is its home, skipping OTC, MTF and trading-only lines. Evidence, on
+  the build of PR #74: where the same test applies to ordinary shares whose
+  primary was already decided, it agrees 7,684 times and disagrees 28 times
+  (99.6%; the 28 are debatable dual listings such as Viohalco on Athens).
+  Funds are excluded: for Irish funds it disagrees with the decided primary
+  581 times against 323, for Luxembourg funds 41 against 91, because a Dublin
+  or Luxembourg line is often a technical listing. It decides 189 shares,
+  among them TotalEnergies (Euronext Paris beside NYSE), Magnum and Shell.
 
   Securities without a request and with a line outside the EEA keep the SEC
   or OpenFIGI line as before (7,581); those sources are onboarded next.

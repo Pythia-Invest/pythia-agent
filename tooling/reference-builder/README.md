@@ -111,6 +111,14 @@ table under `writer_ignored`.
     first SEC exchange line, another ISIN's OpenFIGI home-exchange line, else
     its SEC line. With none, the relevant venue is only a liquidity measure:
     the primary is unknown and asked (`most_liquid_only`).
+  - Where the above leaves a share's primary unknown, its one line on an
+    exchange in its ISIN's country (not OTC, an MTF or a trading-only venue)
+    is its home (`isin_country_line`: TotalEnergies on Euronext Paris beside
+    NYSE, Shell on London). Funds are left out: an Irish or Luxembourg fund's
+    Dublin or Luxembourg line is often a technical listing.
+  - A security still without a primary is priced on its line at FIRDS' most
+    liquid EU market, marked `most_liquid` (the Desk labels it "most liquid EU
+    line") and never primary; core ranks it after home-country lines.
   - A SEC security's primary is its first US exchange line.
 - **OpenFIGI multi-row answers.** Prefer the venue's main exchange code, reject
   currency-suffixed MTF tickers, then prefer the shortest ticker.
@@ -148,7 +156,10 @@ table under `writer_ignored`.
   LEI issuer (`issuer_split_lei_cik`: probably one company split in two).
 - **Receipts.** Every `depositary_receipt_of` names a security of the build. A
   FIRDS receipt's stated underlying ISIN (field 26) is kept when an active
-  security of the build carries it. FIRDS often names a superseded ISIN or one
+  security of the build carries it and that security's issuer is the
+  receipt's (field 5 on a receipt is the underlying issuer's LEI, ESMA Q&A
+  1503). A stated security of another issuer (14 Canadian receipts stating
+  Thermo Fisher) is asked, with it as the first candidate. FIRDS often names a superseded ISIN or one
   outside the scope; then, and when field 26 states none, the underlying is
   unknown and asked (`receipt_underlying`, the issuer's shares as candidates).
   A share whose CFI says share while field 26 states an underlying is asked
@@ -186,13 +197,16 @@ primary and receipt underlying from these claims (rules above).
 Where the evidence does not decide, the value stays empty and the build asks a
 question, never storing a guess as fact. `questions-<date>.json` holds them in
 core subject IDs, and `package.json` names it under `claims`. Core copies it
-with the package and imports its questions into the resolution queue once per
-release: an issuer question as an `identifier` conflict, a home-market
-question as an `ambiguous` residual, a receipt question as a `no_key`
-residual, and a share stating an underlying as a `relation` conflict. The agent
-or the user may answer them; an answer is recorded and settles the question,
-and changes no reference data. Answers a judge gives stay suggestions until
-each question type is calibrated on a gold set.
+with the package but never puts the whole file on the resolution queue: a
+question joins the queue, once, only when the investor opens or watches its
+instrument or the agent asks about it (`queue_ops.surface`). There it is an
+issuer question as an `identifier` conflict, a home-market or name-only
+issuer question (#73's CIK→LEI name matches) as an `ambiguous` residual, a
+receipt question as a `no_key` residual, and a share stating an underlying as a
+`relation` conflict. The user's answer settles it; the agent's is recorded as a
+suggestion and leaves it open until each question type is calibrated. No
+answer changes reference data yet. A new release supersedes the previous
+build's open questions.
 
 `firds-<date>.json` beside the snapshot, written last, holds the drift
 fingerprint (below), the audit report and whether the build was good; the
