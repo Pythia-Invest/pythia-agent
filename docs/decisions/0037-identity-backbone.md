@@ -81,8 +81,17 @@ no reverse mapping. A resolve answer that arrives after a new build was applied
 is carried to it again. Unlike the rules resolver it runs on the first operation of any
 kind, reads included, because a read by the current ID must find the row.
 Following aliases on every read was rejected: every lookup by subject would
-need the chain. The listing
-currency is the quote currency as the venue states it; minor units (GBX) are a
+need the chain. A listing
+carries two currencies (reference format 5). The key currency is part of its ID:
+FIRDS' notional currency (field 13) on a FIRDS line, stated by the source even
+where the line trades in another. The trading currency (`trading_currency`) is
+the quote currency, set only where the venue decides it (a venue that quotes
+everything in one currency, a home-exchange line); labels, search rows, agent
+listing output and read checks use it alone and claim no currency when it is
+unknown, so the page shows the quote's own. Rejected: an unknown key currency
+(core's key and constraints need one: about 5,000 lines dropped or a new key
+rule) and the venue country's currency on every exchange (wrong for lines
+quoted in another, such as USD ETF lines in Amsterdam). Minor units (GBX) are a
 read-pipeline concern, not identity.
 
 **Provider symbols are bindings, never subjects.** A binding is the existing
@@ -227,7 +236,7 @@ extra provider call and no job. The venue a source states is compared, mapped to
 an operating MIC through the contract's `venue_codes`, never inferred from a
 symbol's suffix: it differs when the security has no line on that venue (the
 venues its listing rows are keyed on). The currency differs when it is not the
-listing's (minor units such as GBX count as their major currency). Names,
+listing's trading currency (minor units such as GBX count as their major currency). Names,
 instrument types, unmapped venue codes and anything unstated are never compared;
 no price source states an ISIN today, so ISINs are not compared. A read that
 agrees, from a source not marked unaudited (ADR 0042), stamps `verified_at` (on
@@ -238,9 +247,11 @@ opens a Repairs item. A difference refuses the source only for an attribute in
 `ENFORCED` (`identity/page.py`), one switch per attribute: an attribute is
 added once the reference field it compares against comes from a signed-off
 source (the FIRDS sign-off is under way in the reference claims work). Until
-then both stay off: the reference's venue for SEC-fed lines can be stale, and
-an ETF's or receipt's currency on a multi-currency exchange is FIRDS' notional
-currency. A refused source is
+then both stay off: the reference's venue for SEC-fed lines can be stale. The
+currency is compared only on a line whose venue decides it
+(`listings.trading_currency`: Xetra, the US exchanges, home lines); the key
+currency, FIRDS' notional one on a FIRDS line, is never compared or shown, so a
+line such as IWDA on Amsterdam claims no currency. A refused source is
 checked again on its next read, and a read that agrees lifts the refusal. The
 recorded differences are evidence for that rework:
 `tooling/reference-builder/read_check_audit.py` counts them per venue from a

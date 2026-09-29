@@ -58,15 +58,10 @@ class FigiPickTest(unittest.TestCase):
 
 
 class CurrencyAndHomeTickerTest(unittest.TestCase):
-    def test_a_line_trades_in_its_venues_currency_where_the_venue_decides_it(self):
-        as_of = "2026-09-28"
-        self.assertEqual(rules.trading_currency("XETR", "DE", "MLTF", "etf", "USD", as_of), "EUR")  # one currency
-        self.assertEqual(rules.trading_currency("XSTO", "SE", "RMKT", "share", "USD", as_of), "SEK")
-        self.assertEqual(rules.trading_currency("XBUL", "BG", "RMKT", "share", "BGN", "2025-12-31"), "BGN")  # euro from 2026
-        self.assertEqual(rules.trading_currency("XLUX", "LU", "MLTF", "dr", "USD", as_of), "USD")  # USD GDRs
-        self.assertEqual(rules.trading_currency("XAMS", "NL", "RMKT", "etf", "USD", as_of), "USD")
-        self.assertEqual(rules.trading_currency("CCXE", "NL", "MLTF", "share", "USD", as_of), "USD")  # trading-only
-        self.assertEqual(rules.trading_currency("UBSE", "DE", "SINT", "share", "USD", as_of), "USD")  # internaliser
+    def test_a_countrys_currency_follows_its_changes(self):
+        self.assertEqual(rules.country_currency("BG", "2025-12-31"), "BGN")
+        self.assertEqual(rules.country_currency("BG", "2026-09-28"), "EUR")  # euro from 2026
+        self.assertIsNone(rules.country_currency("KY", "2026-09-28"))
 
     def test_home_tickers_drop_bloombergs_slashes_and_hong_kong_keeps_four_digits(self):
         self.assertEqual([rules.home_ticker(t) for t in ("BP/", "BT/A", "RCI/B", "SHEL")], ["BP", "BT-A", "RCI-B", "SHEL"])

@@ -146,8 +146,10 @@ class Listing:
     ticker_root: str | None = None
     ticker_class: str | None = None
     ticker_source: str | None = None
-    currency: str | None = None  # the trading currency (`rules.trading_currency`)
-    notional_currency: str | None = None  # FIRDS field 13: the ID a line had before it took its trading currency
+    currency: str | None = None  # the key currency: FIRDS field 13 (notional), else the source's or venue's
+    # The currency the line trades in where its venue decides it: a home line's venue, else when written a
+    # `rules.SINGLE_CURRENCY_VENUES` venue's; otherwise unknown (None), never FIRDS' notional currency.
+    trading_currency: str | None = None
     figi: str | None = None
     composite_figi: str | None = None
     share_class_figi: str | None = None

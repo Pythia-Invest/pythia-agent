@@ -82,7 +82,7 @@ ESMA12-2121844265-384, dated 23 June 2025.
 | 10 `ReqForAdmssnDt` | Date of the request for admission | `admission_request_date` | Set on 28,525 records | As a claim only |
 | 11 `FrstTradDt` | Date of admission, or of first trade, quote or order | `first_trade_date` | — | Yes: the listing's `valid_from` |
 | 12 `TermntnDt` | "Where available, the date and time when the financial instrument ceases to be traded or to be admitted to trading" | `termination_date` (where available) | Set on 19,493 records. 19,130 of them are `9999` placeholders, mostly Stuttgart. 28 lie in the past | Yes. **A missing date is read as "alive"** |
-| 13 `NtnlCcy` | "Currency in which the notional is denominated"; the rest of the definition covers derivatives. RTS 23 has no trading-currency field for equities | `notional_currency` (instrument level) | 0 ISINs carry two values; Apple is USD on all 40 records | Yes, **as the listing currency: wrong meaning** |
+| 13 `NtnlCcy` | "Currency in which the notional is denominated"; the rest of the definition covers derivatives. RTS 23 has no trading-currency field for equities | `notional_currency` (instrument level) | 0 ISINs carry two values; Apple is USD on all 40 records | As the listing's key currency only; never shown or compared as its trading currency |
 | 26 `DerivInstrmAttrbts/UndrlygInstrm/Sngl/ISIN` | "For ADRs, GDRs and similar instruments, the ISIN code of the financial instrument on which those instruments are based" | `underlying_isin` | 3,626 of 3,666 receipt ISINs state one. It is often superseded or outside the build | Yes. The edge is dropped when its target is not in the build |
 | `TechAttrbts/RlvntTradgVn` (ESMA technical field) | The most relevant market in terms of liquidity (RTS 22 Art. 16; RTS 1 Art. 4 for shares) | `most_liquid_eu_market` | A foreign share's is a German floor or Tradegate: Linde on XGAT, Accenture on MUNB, Chubb and Berkshire on STUB. It is an issuer-requested venue for 10,893 ISINs; for 362 it is not, although another venue is | Yes, **as the primary venue: wrong meaning** |
 
@@ -180,7 +180,7 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   1,052 are SEC OTC-only shares, which no rule places, and 20 questions whose
   most liquid venue has no line. The OpenFIGI home lines decided before
   (London, SIX, Toronto, ASX, Tokyo and others) are written since they take
-  their country's currency: 4,946 before.
+  their venue country's currency: 4,946 before.
 
   **ISIN-country suggestion (shares only).** Where field 8 and the other
   sources leave a share's primary unknown, its one line on an exchange in its
@@ -209,7 +209,7 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | Venue operator's LEI in field 5 | 838 ISINs; 623 securities (local build) | Vastned Retail Belgium under TP ICAP MTF | Field 5 allows the venue operator's LEI | The issuer is unknown when the LEI is in ISO 10383's LEI column, and a judgement question opens | Open |
 | Financing subsidiary in field 5 | 38 securities (local build) | Nestlé Capital Markets on Nestlé shares; Brambles Finance; Orica Finance | Not explained by RTS 23 or the Q&A | A `parent_of` claim from GLEIF Level 2 consolidation; the rest go to a judgement question | Open |
 | Another company's LEI in field 5 | 14 of 852 CIK to LEI identifier links in the local build of 2026-09-28 (XAMS, XETR and US) share no name word with the LEI; they include venue and data-vendor LEIs, subsidiaries and renames ([SEC record](sec.md)) | Lee Enterprises under Berkshire Hathaway's LEI; Legence Corp. under Avio S.p.A.'s | Unknown | An identifier conflict with the SEC registrant joined by ISIN; the SEC record's question Q1 | Open |
-| Notional currency copied to every venue | Every ISIN | Apple USD on Xetra | Field 13 is the notional currency | A `notional_currency` claim; the listing's currency is the one its venue decides (`rules.trading_currency`): lines not in their venue country's currency 84,364 → 7,639, 0 on German venues and Vienna. ETFs and receipts on other exchanges (2,810 lines) and the trading-only venues keep the notional currency | Fixed for shares and single-currency venues; open for ETFs and receipts on multi-currency exchanges |
+| Notional currency copied to every venue | Every ISIN | Apple USD on Xetra | Field 13 is the notional currency | A `notional_currency` claim, kept as the listing's key currency. The trading currency is a separate field (`listings.trading_currency`), set only where the venue decides it: 75,099 lines on German venues and Vienna show EUR instead of field 13. Other FIRDS lines show no currency (IWDA on Amsterdam) | Fixed for single-currency venues; open elsewhere until a venue-specific source exists |
 | Withdrawn currency codes | 153 records (audit): 63 `XXX` (UBS internaliser), 68 `BGN` after Bulgaria adopted the euro on 2026-01-01, 16 NLG, 4 SKK, 1 DEM, 1 HRK | — | Stale records | Counted (`withdrawn_notional_currency`); never coerced | Counted |
 | Placeholder termination dates | 19,130 records; 19,103 in the audit scope | Mostly Stuttgart | A placeholder for "none" | No claim, counted (`termination_placeholder`) | Counted |
 | Delisted securities without a termination date | Only 28 records with a past date | JDE Peet's, Just Eat, VMware, US Steel still active | Field 12 is set only "where available" | Lifecycle from other dated evidence (first-trade dates, admission counts, GLEIF successors) | Open |
@@ -270,7 +270,7 @@ Venture, Cboe NL, Tel Aviv, an LEI GLEIF does not hold). The ISIN-country line
 suggests an answer for General Dynamics and PepsiCo (their US line) and
 TotalEnergies (Euronext Paris); they stay questions until a curator approves.
 BCE and RELX now get their home line as the suggestion (Toronto, London), since
-home lines take their country's currency.
+home lines take their venue country's currency.
 
 Decisions and limits:
 

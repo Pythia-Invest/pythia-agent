@@ -109,7 +109,7 @@ class Directory:
         if odd:  # the builder's report and the reference audit list them
             logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
         rows = ref.execute(
-            "SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.currency, l.chain,"
+            "SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.trading_currency, l.chain,"
             " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank, l.most_liquid FROM listings l"
             " JOIN securities s ON s.id = l.security_id WHERE l.status <> 'inactive' AND s.status <> 'inactive'")
         docs = []

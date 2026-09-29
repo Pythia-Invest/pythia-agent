@@ -56,7 +56,7 @@ class PackageTest(unittest.TestCase):
         self.assertTrue(installer.current(data).is_file())
 
 
-    def test_first_read_of_a_format_3_package_carries_provisional_coins_to_their_curated_ids(self):
+    def test_first_read_of_a_new_format_package_carries_provisional_coins_to_their_curated_ids(self):
         identity, store = schema.identity, importlib.import_module("pythia_core_identity.store")
         lifecycle = importlib.import_module("pythia_core_identity.lifecycle")
         data = Path(self.tmp.name) / "core"
@@ -65,7 +65,7 @@ class PackageTest(unittest.TestCase):
         local.put_binding(identity.Binding(
             provider_ref=identity.ProviderRef("coingecko", "usd-coin", "coin"), subject_id=old, status="confirmed",
             authority="user_attested", evidence_ids=("ev:" + "0" * 64,), plugin="pythia-coingecko"))
-        self.assertEqual(self.build()["format_version"], 4)
+        self.assertEqual(self.build()["format_version"], 5)
         installer.install(self.out, data)
         path = store.reference_path(data)  # what core's first read does (identity_ops.Identity.reference_path)
         with contextlib.closing(store.open_reference(path)) as ref:

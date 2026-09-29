@@ -81,11 +81,15 @@ def currency_withdrawn(build: Build) -> list[tuple]:
             if build.live(line) and WITHDRAWN.get(line["currency"] or "", "9999") <= build.as_of]
 
 
+# The currency rules below check the trading currency a line shows (`trading_currency`); `currency` is the key
+# currency, FIRDS' notional one on a FIRDS line, and never shown.
+
+
 def currency_single_currency_venue(build: Build) -> list[tuple]:
     found = []
     for line in build.listings:
         wanted = SINGLE_CURRENCY_VENUES.get(line["operating_mic"] or "")
-        if wanted and build.live(line) and line["currency"] != wanted and line["currency"] not in WITHDRAWN:
+        if wanted and build.live(line) and line.get("trading_currency") != wanted:
             found.append((build.label(line), line["id"]))
     return found
 
@@ -102,7 +106,7 @@ def currency_is_issue_country(build: Build) -> list[tuple]:
         home = build.currency_of(build.country(line))
         isin = build.isin.get(line["security_id"]) or ""
         issued = build.currency_of(isin[:2])
-        if home and issued and line["currency"] != home and line["currency"] == issued:
+        if home and issued and line.get("trading_currency") not in (None, home) and line["trading_currency"] == issued:
             found.append((build.label(line), line["id"]))
     return found
 
@@ -112,7 +116,8 @@ def ticker_currency_suffix(build: Build) -> list[tuple]:
     found = []
     for line in build.listings:
         match = CURRENCY_SUFFIX.match(line["ticker"] or "")
-        if match and build.live(line) and len(match["root"]) >= 3 and match["ccy"] != line["currency"]:
+        if (match and build.live(line) and len(match["root"]) >= 3
+                and line.get("trading_currency") not in (None, match["ccy"])):
             found.append((build.label(line), match["ccy"], line["id"]))
     return found
 

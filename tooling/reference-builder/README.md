@@ -49,10 +49,7 @@ CoinMarketCap; the evidence per row is in `truth/canonical-assets-audit.md`. Sec
 `rank` (FITRS turnover order, SEC file order, curated coin order) for search; a
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit
-(`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue). A
-ticker two active lines of a segment claim in one currency (Stuttgart gives some
-foreign shares another company's home ticker) names neither: both lines are
-written without it and counted (`ticker_collisions`). A CGS-area security OpenFIGI
+(`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue). A CGS-area security OpenFIGI
 does not know yet (no share-class FIGI) keeps a local, non-portable ID
 (`security:provisional:esma_firds:isin:<ISIN>`, lines without FIGI or ticker
 `listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`), counted as
@@ -78,20 +75,19 @@ table under `writer_ignored`.
   midpoint, auction, a second retail book) are one listing, as core keys a
   listing by operating MIC and currency: the operator's own MIC wins, then a
   regulated-market segment, then a lit segment.
-- **Trading currency (`rules.trading_currency`).** FIRDS field 13 is the
-  instrument's notional currency (Apple is USD on every record). A line takes
-  the currency its venue decides: a venue that quotes everything in one
-  currency (`rules.SINGLE_CURRENCY_VENUES`: the German exchanges, Tradegate and
-  Vienna in euros), and for a share, any other exchange's country currency
-  (`rules.COUNTRY_CURRENCY`: Unilever EUR on Amsterdam, AstraZeneca SEK on
-  Stockholm). ETFs and receipts on other exchanges (USD GDRs on Luxembourg's
-  Euro MTF, a hedged ETF class in Dublin), the trading-only venues,
-  internalisers and OTFs keep the notional currency: no open source states
-  their trading currency. An OpenFIGI home-exchange line takes its country's
-  currency (London GBP, SIX CHF, Tokyo JPY) and Bloomberg's slashes leave its
-  ticker (`BP/` is `BP`, `RCI/B` is `RCI-B`; Hong Kong codes keep four
-  digits). Listing IDs carry the currency, so a line whose currency moved keeps
-  its notional-currency ID as an alias.
+- **Currency.** A listing carries two. `currency` is the key currency (core
+  keys a listing by ISIN, operating MIC and currency): FIRDS field 13, the
+  instrument's notional currency, on a FIRDS line (Apple is USD on every
+  record). `trading_currency` is the currency the line trades in, set only
+  where its venue decides it: a venue that quotes everything in one currency
+  (`rules.SINGLE_CURRENCY_VENUES`: the German exchanges, Tradegate and Vienna
+  in euros, the US exchanges and OTC Markets in dollars), and an OpenFIGI home
+  line, which takes its venue country's (`rules.COUNTRY_CURRENCY`: London GBP,
+  SIX CHF, Tokyo JPY) as both. Elsewhere it is unknown (IWDA on Amsterdam):
+  labels, search rows and read checks then claim no currency, and the Desk
+  shows the quote's own. On the default-scope build 117,615 of 135,547 venue
+  lines have one. Bloomberg's slashes leave a home line's ticker (`BP/` is
+  `BP`, `RCI/B` is `RCI-B`; Hong Kong codes keep four digits).
 - **ETFs.** FIRDS `CE` instruments become `etf` securities. ETCs and ETNs are
   debt instruments in FIRDS and are not covered yet.
 - **US ETFs.** The SEC company file leaves most exchange-traded funds out. The
@@ -355,8 +351,8 @@ vehicle as issuer, and a Munich primary beside a Xetra line.
 An error above its limit fails the command; a warning never does. Limits are the
 exact counts on the default-scope build of the FIRDS week of 2026-09-26. Rules with
 a pending fix also carry headroom: twice the drift measured against the previous
-week (a few rows where the count did not move; 61 rows on 98 tickers whose
-currency suffix disagrees with their line), stored as a share of the count so it shrinks with every lowered
+week (a few rows where the count did not move; 57 rows on 92 tickers whose
+currency suffix disagrees with their line's trading currency), stored as a share of the count so it shrinks with every lowered
 limit and is 0 once a rule is cleared. Ordinary weekly data passes and a jump fails.
 A count below its limit is reported as `under (lower to N)`: a fix lowers the limit
 in the same change. Raising a limit needs a stated reason in the pull request. When

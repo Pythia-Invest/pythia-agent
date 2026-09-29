@@ -142,7 +142,7 @@ class InvariantTest(unittest.TestCase):
         self.assertEqual(counts(self.path, "currency_withdrawn"), {"currency_withdrawn": 0})
 
     def test_tickers_that_collide_or_name_another_currency(self):
-        self.plant("UPDATE listings SET ticker = 'ASMLUSD' WHERE ticker = 'ASML' AND operating_mic = 'XAMS'")
+        self.plant("UPDATE listings SET ticker = 'ASMLUSD', trading_currency = 'EUR' WHERE ticker = 'ASML' AND operating_mic = 'XAMS'")
         self.assertEqual(counts(self.path, "ticker_currency_suffix"), {"ticker_currency_suffix": 1})
         with sqlite3.connect(self.path) as db:
             two = db.execute("SELECT id FROM listings WHERE operating_mic = 'XAMS' AND ticker IS NOT NULL "
