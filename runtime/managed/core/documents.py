@@ -284,7 +284,7 @@ class Reader:
 
 def register(ctx: Any, identity: Any) -> None:
     from .identity_ops import PLUGIN, TOOLSET
-    from .platform import declare_operation
+    from .platform.operations import declare_operation
     reader = Reader(identity)
     declare_operation(SCHEMA, plugin=PLUGIN, operation="filings-read", handler=reader.read, read_only=True)
     ctx.register_tool(name=SCHEMA["name"], toolset=TOOLSET, schema=SCHEMA, handler=reader.read,

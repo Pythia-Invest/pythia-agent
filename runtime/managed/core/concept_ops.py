@@ -240,7 +240,7 @@ class ConceptReads:
 
 def register(ctx: Any, identity: Any) -> None:
     from .identity_ops import PLUGIN, TOOLSET
-    from .platform import declare_operation
+    from .platform.operations import declare_operation
     reads = ConceptReads(identity)
     # Registered like core's other Desk operations; see the ADR 0040 note on model visibility.
     declare_operation(FILINGS_SCHEMA, plugin=PLUGIN, operation="filings", handler=reads.filings, read_only=True)

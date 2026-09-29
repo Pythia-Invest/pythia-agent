@@ -16,6 +16,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest import mock
 
+from native_plugin_fixtures import keep_platform_binding
 from test_agent_tools import MANAGED, RUNTIME, Context, agent_tools, core, identity_ops, operations
 
 SNAPSHOT = Path(__file__).parent / "fixtures" / "agent-tools.json"
@@ -32,9 +33,6 @@ class Loader(Context):
         pass
 
     def register_cli_command(self, *_args, **_kwargs):
-        pass
-
-    def on_unload(self, *_args, **_kwargs):
         pass
 
 
@@ -94,6 +92,7 @@ class DeliveredViewTest(unittest.TestCase):
                          "change, then rerun with PYTHIA_UPDATE_SNAPSHOTS=1 and format the file with Biome to accept it.")
 
     def test_registration_order_leaves_one_verdict_operation_and_no_marker_on_the_answer(self):
+        keep_platform_binding(self)
         with mock.patch.object(identity_ops, "CURRENT", None):
             for _ in range(2):  # core registered before (as the loaded plugin is) stamps the shared Desk schema
                 ctx = Context({})

@@ -20,9 +20,10 @@ def helpers(ctx):
     loaded = get_plugin_manager()._plugins.get('pythia-market-data')
     if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
         raise RuntimeError('unavailable')
+    import pythia_platform  # published by Pythia core (ADR 0045)
     namespace = loaded.module.__name__
-    wire, process, dependency = (importlib.import_module(namespace + '.' + name) for name in ('wire', 'process', '_platform'))
-    return wire, process, dependency.platform().configuration
+    wire, process = (importlib.import_module(namespace + '.' + name) for name in ('wire', 'process'))
+    return wire, process, pythia_platform.configuration
 
 
 def paths():
@@ -35,6 +36,8 @@ def paths():
 
 
 def register(ctx):
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
     wire, process, core = helpers(ctx)
     configuration = Configuration(ctx, core)
     definitions = schemas(wire)
@@ -222,13 +225,13 @@ def register(ctx):
         # explicit needs-configuration result; no provider call is made.
         ctx.register_tool(name=TOOLS[operation], toolset=TOOLSET, schema=schema, handler=handler, check_fn=installed)
 
-    specialist = importlib.import_module(wire.__package__ + '.specialist')
-    specialist.register_read_command(ctx, 'eodhd-dashboard', TOOLS['dashboard'], 'Read EODHD dashboard quotes or recent minute bars', cache_seconds=60, schema=definitions['dashboard'], plugin='pythia-eodhd')
+    item_issues = lambda result: failures.item_failures(result.get('data'))
+    platform.register_read_command(ctx, 'eodhd-dashboard', TOOLS['dashboard'], 'Read EODHD dashboard quotes or recent minute bars', cache_seconds=60, schema=definitions['dashboard'], plugin='pythia-eodhd', result_issues=item_issues)
     for operation in ('news', 'fundamentals', 'catalogue'):
-        specialist.register_read_command(ctx, 'eodhd-' + operation, TOOLS[operation],
+        platform.register_read_command(ctx, 'eodhd-' + operation, TOOLS[operation],
             definitions[operation]['description'], cache_seconds=300,
-            schema=definitions[operation], plugin='pythia-eodhd')
-    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+            schema=definitions[operation], plugin='pythia-eodhd', result_issues=item_issues)
+    agent = platform.register_agent_tool
     agent(ctx, 'eodhd_news', TOOLS['news'], 'Company news headlines from EODHD. Recent articles EODHD tags with the '
           'listing, with dates and links; limit, from and to narrow them. Source content, not advice.', check_fn=installed)
     agent(ctx, 'eodhd_fundamentals', TOOLS['fundamentals'], 'Company fundamentals and financial statements from EODHD. '

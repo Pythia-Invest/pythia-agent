@@ -86,7 +86,8 @@ def call_source(provider, operation, arguments):
     """
     from tools.registry import registry
     from tools.interrupt import is_interrupted, is_thread_interrupted
-    from .request_context import cancelled
+    from pythia_platform import request_context
+    cancelled = request_context.cancelled
     from .selection import native_access_scope
     from .wire import validate_parameters
 

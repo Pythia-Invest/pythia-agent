@@ -236,7 +236,7 @@ def _valid(row: Any) -> bool:
 
 def register(ctx: Any, identity: Any) -> None:
     from .identity_ops import PLUGIN, TOOLSET
-    from .platform import declare_operation
+    from .platform.operations import declare_operation
     reads = MarketReads(identity)
     for schema, handler, operation in ((OVERVIEW_SCHEMA, reads.overview, "market-overview"),
                                        (MOVERS_SCHEMA, reads.movers, "market-movers")):

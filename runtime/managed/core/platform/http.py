@@ -62,8 +62,8 @@ def register(ctx, *, workers=4, timeout=30):
 
         def host_enabled():
             from hermes_cli.config import load_config_readonly
-            from hermes_cli.plugins import get_plugin_manager
-            plugin = get_plugin_manager()._plugins.get(ctx.plugin_id)
+            from .harness import plugins
+            plugin = plugins().get(ctx.plugin_id)
             return plugin is not None and native_plugin_enabled(ctx.plugin_id, plugin, load_config_readonly())
 
         def error(code, status):

@@ -33,12 +33,11 @@ SYNTHETIC_PATH = '/v1/pythia/plugins/synthetic/query'
 
 
 def synthetic_plugin(root):
-    """An ordinary unrelated native plugin uses only the copied core helper."""
+    """An ordinary unrelated native plugin uses only the platform interface the copied core publishes."""
     target = root / 'plugins/research/synthetic'
     target.mkdir(parents=True, mode=0o700)
     (target / 'plugin.yaml').write_text('name: synthetic\nversion: 1.0.0\nrequires_plugins: [pythia]\n')
     (target / '__init__.py').write_text(textwrap.dedent('''\
-        import importlib
         import json
         import threading
 
@@ -46,10 +45,8 @@ def synthetic_plugin(root):
         counts = {'query': 0, 'slow': 0, 'undeclared': 0, 'unclassified': 0, 'snapshot_only': 0}
 
         def register(ctx):
-            from hermes_cli.plugins import get_plugin_manager
-            core = next(plugin.module for plugin in get_plugin_manager()._plugins.values()
-                        if plugin.enabled and plugin.manifest.name == 'pythia' and plugin.module is not None)
-            platform = importlib.import_module(core.__name__ + '.platform')
+            import pythia_platform as platform
+            platform.require(1)
             schema = {'name': 'synthetic_query', 'parameters': {
                 'type': 'object', 'properties': {'wait': {'type': 'boolean'}}, 'additionalProperties': False}}
             def query(arguments, **context):
@@ -91,10 +88,10 @@ def synthetic_plugin(root):
         '''))
 
 
-async def qualify_agent_cancellation(backend, tool_name, pin_args, package):
+async def qualify_agent_cancellation(backend, tool_name, pin_args):
     """A native caller's interrupt must reach its coordinated source threads."""
     from tools.interrupt import set_interrupt
-    request_context = importlib.import_module(package + '.request_context')
+    from pythia_platform import request_context
     entered = threading.Event()
     caller = []
     original = backend._call
@@ -331,7 +328,7 @@ async def main():
                     for receipt in (None, readonly_receipt):
                         denied = await post(unclassified, read_only=True, reuse_scope=receipt)
                         assert denied.status == 403 and (await denied.json())['error']['code'] == 'read_only_required'
-                    await qualify_agent_cancellation(backend, schemas.TOOL_NAME, pin_args, package)
+                    await qualify_agent_cancellation(backend, schemas.TOOL_NAME, pin_args)
                     # Concurrent health remains responsive while provider work waits.
                     slow_request = asyncio.create_task(post({'wait': True}, SYNTHETIC_PATH))
                     assert await asyncio.to_thread(started.wait, 2)

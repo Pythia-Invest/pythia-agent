@@ -1,8 +1,9 @@
 """Synthetic revocation cases shaped by pinned Hermes plugins.py ownership.
 
 The pinned manager uses path-derived keys, bare-name compatibility and explicit
-deny precedence, with tool handles in _registration_order. No providers, native
-profiles or credentials are used; the copied qualification tests that real seam.
+deny precedence, with tool handles in _registration_order; the fake manager stands
+in for the state core's harness adapter (core/platform/harness.py) reads. No providers,
+native profiles or credentials are used; the copied qualification tests that real seam.
 """
 import contextlib
 import importlib
@@ -232,12 +233,13 @@ class NativeAccessTests(unittest.TestCase):
                     self.assertNotIn('reuse', result)
 
     def test_owner_classifies_nested_partial_failures_for_delivery_and_cli(self):
-        financial_cli = importlib.import_module(PACKAGE + '.specialist')
+        failures = importlib.import_module(PACKAGE + '.failures')
         commands = []
         ctx = SimpleNamespace(plugin_id=self.provider_key,
                               register_cli_command=lambda *_args: commands.append(_args[-1]))
-        financial_cli.register_read_command(ctx, 'synthetic-read', 'synthetic_search', 'Synthetic read',
-                                           cache_seconds=5, schema=self.schemas['synthetic_search'])
+        specialist.register_read_command(ctx, 'synthetic-read', 'synthetic_search', 'Synthetic read',
+                                         cache_seconds=5, schema=self.schemas['synthetic_search'],
+                                         result_issues=lambda result: failures.item_failures(result.get('data')))
         batch = {'quotes': [{'symbol': 'ONE', 'price': 7}, {'symbol': 'TWO', 'error': 'Limited',
                  'failure': {'code': 'rate_limit', 'retry_after_seconds': 180, 'origin': 'provider'}}]}
         self.handler = lambda: {'schema_version': 1, 'outcome': 'partial', 'data': batch, 'issues': []}

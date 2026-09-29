@@ -156,9 +156,10 @@ class Reader:
 
 
 def register(ctx):
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
     wire, connector, selection = helpers(ctx)
-    platform = importlib.import_module(wire.__package__ + '._platform').platform
-    reader = Reader(wire, connector, extract=lambda response, check: platform().read_document(response, check))
+    reader = Reader(wire, connector, extract=platform.read_document)
     ctx.register_skill('xbrl-filings', Path(__file__).parent / 'skills/xbrl-filings/SKILL.md',
         description='Read public ESEF and other XBRL annual report links and reported financial facts by company LEI.',
         frontmatter={'platforms': ['linux', 'macos']})
@@ -173,7 +174,7 @@ def register(ctx):
                     'message': 'Native access changed during the XBRL repository read.'}]))
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler)
-    agent = platform().register_agent_tool
+    agent = platform.register_agent_tool
     agent(ctx, 'esef_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings, balance sheet from ESEF '
           'reports. IFRS figures of an EU or UK company\'s latest annual report on filings.xbrl.org, or an explicit '
           'report_id, with exact periods, units and precision; several reports for one period come back as '

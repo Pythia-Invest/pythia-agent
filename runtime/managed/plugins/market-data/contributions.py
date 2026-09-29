@@ -1,13 +1,13 @@
 """Read marked contributions from the active Hermes registry, without inventory state."""
 import json
 from .wire import WireError, validate
-from ._platform import platform
+from pythia_platform import access
 
 MARKER = "pythia_market_data"
-ContextUnavailable = platform().access.ContextUnavailable
-native_tool_owners = platform().access.native_tool_owners
-native_plugin_enabled = platform().access.native_plugin_enabled
-owns_tool = platform().access.owns_tool
+ContextUnavailable = access.ContextUnavailable
+native_tool_owners = access.native_tool_owners
+native_plugin_enabled = access.native_plugin_enabled
+owns_tool = access.owns_tool
 
 
 def annotation(schema):
@@ -27,7 +27,7 @@ def annotation(schema):
 
 def eligible_tools():
     """Financial actions additionally require their own native feature tool."""
-    result = platform().access.eligible_tools()
+    result = access.eligible_tools()
     owners = native_tool_owners()
     from .definition import TOOL_NAME
     if TOOL_NAME not in result or TOOL_NAME not in owners:

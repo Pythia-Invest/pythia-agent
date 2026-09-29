@@ -52,9 +52,10 @@ through Hermes's supported local plugin mechanism.
 
 At the pinned release, `requires_plugins` orders loading and reports missing
 dependencies; it does not install them or enforce compatibility. A feature that
-uses a helper API must check that API before registering dependent functionality.
-Likewise, declaring Python dependencies does not silently install packages. Keep
-supported dependencies in the existing explicit preparation path.
+uses Pythia's helpers checks the interface version before registering, as
+[the platform interface](#the-platform-interface) shows. Likewise, declaring
+Python dependencies does not silently install packages. Keep supported
+dependencies in the existing explicit preparation path.
 
 Pythia updates a copied package only while its content is still managed. An edited
 or replaced package is user-owned and is preserved. An unrecognized pre-existing
@@ -83,6 +84,33 @@ profile may retain a backend instance and coordinated requests; standalone CLI
 commands have their own in-memory lifetime. Native access is checked again before
 cached data or completed work is published. Feature disablement must deny its
 exports without disabling unrelated features.
+
+## The platform interface
+
+A plugin reaches Pythia core only through `pythia_platform`, a small versioned
+module that core publishes when it registers
+([ADR 0045](../decisions/0045-plugin-platform-interface.md)). Declare
+`requires_plugins: [pythia]` and import it inside `register(ctx)`, where Hermes has
+already registered core:
+
+```python
+def register(ctx):
+    import pythia_platform as platform  # ModuleNotFoundError: Pythia core is not enabled
+    platform.require(1)
+```
+
+Version 1 holds `declare_operation`, `register_read_command`,
+`register_agent_tool`, `register_widget_presentation`, `read_bundled_asset`,
+`price_sources`, `check_read`, `read_document`, `validate_live_market`, and the
+modules `configuration`, `access`, `admission`, `request_context` and
+`subscription`. A version only gains names; check a later addition with
+`hasattr`. Import names from the module (`from pythia_platform import
+configuration`), not submodules: it is not a package.
+
+Plugins do not import Hermes modules, read Hermes's plugin manager or load
+another plugin's modules by a computed name. `just check` enforces this for the
+bundled plugins. Until market-data's connector toolkit moves into core,
+market-data and the connectors that use the toolkit are listed as exceptions.
 
 ## A small operation export
 
@@ -149,9 +177,9 @@ cannot invoke that mutation. Authors must not
 label an operation read-only if it performs user-directed mutations.
 
 For coordinated financial data, use the feature's existing connector helpers
-instead of copying this demonstration's handler. The loaded core also exports
-`platform.declare_operation` for code that needs declaration helpers and
-handler-bound coordination hooks; neither mechanism creates another inventory.
+instead of copying this demonstration's handler. `pythia_platform` also exports
+`declare_operation` for code that needs declaration helpers and handler-bound
+coordination hooks; neither mechanism creates another inventory.
 
 ## Reaching the agent
 

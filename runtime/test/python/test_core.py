@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import unittest
 
+from native_plugin_fixtures import keep_platform_binding
+
 CORE = Path(__file__).parents[2] / "managed/core/__init__.py"
 SPEC = importlib.util.spec_from_file_location("pythia_core_fixture", CORE)
 assert SPEC and SPEC.loader
@@ -18,6 +20,10 @@ class RegistryContractContext:
         self.sections = []
         self.tools = {}
         self.platform_handlers = []
+        self.unloads = []
+
+    def on_unload(self, callback):
+        self.unloads.append(callback)
 
     def register_platform_handler(self, *args):
         self.platform_handlers.append(args)
@@ -30,6 +36,9 @@ class RegistryContractContext:
 
 
 class CoreTest(unittest.TestCase):
+    def setUp(self):
+        keep_platform_binding(self)
+
     def test_core_registers_desk_dispatch_and_platform_transport(self):
         context = RegistryContractContext()
         MODULE.register(context)
