@@ -1,4 +1,4 @@
-import type { SubjectSection } from "@pythia/market-data/subject";
+import type { Filings, SubjectSection } from "@pythia/market-data/subject";
 
 /** One card of the instrument page: usually one section; a quote and chart
  * served by the same source through the same address share one market card. */
@@ -125,6 +125,33 @@ export function usingSource(
     };
   });
   return { ...block, key: `${block.key}:${plugin}`, sections };
+}
+
+/** A combined filings card credits the sources whose rows its read listed:
+ * a source chosen for an authority that does not cover the company hands
+ * over to the next (ADR 0040), so composition's choice can differ from who
+ * supplied the rows. Until the read answers, or when no source answered,
+ * composition's choice stands. */
+export function creditedSources(
+  section: SubjectSection,
+  read: Pick<Filings, "sources"> | null,
+): SubjectSection {
+  if (!section.sources?.length || !read?.sources.length) return section;
+  const plugins = new Set(read.sources.map((item) => item.plugin));
+  return {
+    ...section,
+    sources: read.sources.map((item) => ({
+      source: item.source,
+      plugin: item.plugin,
+      // Connector marks are keyed by provider, plugin ids by package.
+      provider: item.provider ?? item.plugin.replace(/^pythia-/u, ""),
+      unaudited: item.unaudited,
+      authorities: item.authorities,
+    })),
+    alternatives: section.alternatives.filter(
+      (item) => !plugins.has(item.plugin),
+    ),
+  };
 }
 
 /** One row per report: filings sharing a `report_key` (a report's format and

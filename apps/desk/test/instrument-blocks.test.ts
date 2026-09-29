@@ -1,6 +1,7 @@
 import type { SubjectSection } from "@pythia/market-data/subject";
 import { describe, expect, it } from "vitest";
 import {
+  creditedSources,
   groupReports,
   newestPerAuthority,
   pageBlocks,
@@ -116,6 +117,47 @@ describe("using an alternative source once", () => {
     expect(pickedSource(offered, pick, "listing:b")).toBeNull();
     expect(pickedSource(gone, pick, "listing:a")).toBeNull();
     expect(pickedSource(offered, null, "listing:a")).toBeNull();
+  });
+
+  it("credits the sources whose rows the combined read listed", () => {
+    const composed = section("filings", {
+      sources: [
+        {
+          source: "filings.xbrl.org",
+          provider: "xbrl-filings",
+          plugin: "pythia-xbrl-filings",
+          authorities: ["fca"],
+        },
+      ],
+      alternatives: [
+        {
+          plugin: "pythia-nsm",
+          label: "UK FCA NSM",
+          status: "ready",
+          unaudited: true,
+          authorities: ["fca"],
+        },
+      ],
+    });
+    // filings.xbrl.org did not cover the company, so the NSM listed its rows.
+    const credited = creditedSources(composed, {
+      sources: [
+        {
+          source: "UK FCA NSM",
+          provider: "nsm",
+          plugin: "pythia-nsm",
+          unaudited: true,
+          authorities: ["fca"],
+        },
+      ],
+    });
+    expect(
+      credited.sources?.map((item) => [item.source, item.unaudited]),
+    ).toEqual([["UK FCA NSM", true]]);
+    expect(credited.alternatives).toEqual([]);
+    // Until the read answers, or when nothing answered, composition stands.
+    expect(creditedSources(composed, null)).toBe(composed);
+    expect(creditedSources(composed, { sources: [] })).toBe(composed);
   });
 
   it("names every source a combined list still shows after a pick", () => {

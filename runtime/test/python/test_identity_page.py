@@ -125,6 +125,23 @@ class PageTest(Fixture):
         subject = page.load_subject(ref, old)
         self.assertEqual((subject["id"], subject["listing"]["ticker"]), (current, "ASML"))
 
+    def test_an_undecided_issuer_says_its_company_sections_need_it(self):
+        gleif = plugin("gleif", operations={"profile": "pythia_gleif_profile"})
+        with sqlite3.connect(self.path) as db:  # the builder leaves an undecided issuer empty (R2)
+            db.execute("UPDATE securities SET issuer_id = NULL")
+        ref = store.open_reference(self.path)
+        self.addCleanup(ref.close)
+        subject = page.load_subject(ref, ASML)
+        [profile] = [section for section in page.compose(subject, [gleif], **self.lookups(ASML))
+                     if section["section"] == "profile"]
+        self.assertEqual((profile["plugin"], profile["status"], profile["via"], profile["request"]),
+                         ("pythia", "not_addressable", "issuer", None))
+        self.assertTrue(profile["reason"].startswith("Needs the issuer"))
+        self.assertIsNone(profile["notice"])
+        # A crypto asset has no issuer to wait for: its company sections stay absent.
+        btc = page.load_subject(self.ref, BTC)
+        self.assertEqual([section["section"] for section in page.compose(btc, [gleif], **self.lookups(BTC))], [])
+
     def test_an_unusable_plugin_yields_to_the_next_and_says_why(self):
         missing = ({"key": "coinmarketcap_api_key", "label": "API key", "file": "secrets.json", "status": "missing"},)
         _subject, sections = self.compose(BTC, [plugin("coinmarketcap", missing=missing), plugin("coingecko"),

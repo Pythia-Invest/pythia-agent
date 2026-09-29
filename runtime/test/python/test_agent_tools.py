@@ -395,13 +395,16 @@ class ConceptToolTest(AgentToolFixture):
         self.assertEqual(result["data"]["identifiers"]["lei"], "724500Y6DUVHQD6OXN27")
 
     def test_instrument_states_home_unknown_unless_a_primary_is_decided(self):
-        self.assertEqual(self.call_instrument()["data"]["home"], ASML)
+        data = self.call_instrument()["data"]
+        self.assertEqual((data["home"], "home_note" in data), (ASML, False))
         installed = identity_ops.reference_package.current(Path(self.tmp.name))
         with sqlite3.connect(installed) as db:
             db.execute("UPDATE listings SET is_primary = 0")
         data = self.call_instrument()["data"]
         # The first line is still listed first; it is not the home.
         self.assertEqual((data["listings"][0]["id"], data["home"]), (ASML, "unknown"))
+        # The result itself says what "unknown" means for an answer, beside no tool description.
+        self.assertEqual(data["home_note"], agent_tools.HOME_UNKNOWN)
 
     def test_prices_reads_the_first_source_and_names_it_without_fallback(self):
         seen = []

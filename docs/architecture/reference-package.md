@@ -136,8 +136,9 @@ exceeds them by more than 2%):
   (Nestlé's Toronto CDRs name Nestlé S.A., its share names Nestlé Capital
   Markets), and 3 receipts of them filed under the same field 5 (Nestlé's
   ADR), have an unknown issuer and an `issuer_identity` question with both
-  LEIs as candidates. Two were right as filed: Welltower, whose page loses its
-  filings and profile until a curator answers, and an old Barrick ISIN. The
+  LEIs as candidates. Two were right as filed: Welltower, whose page says
+  "Issuer unknown" and whose profile and filings need the issuer until a
+  curator answers, and an old Barrick ISIN. The
   builder reads no GLEIF parent relationships, so a wrong field 5 that no
   receipt contradicts stays as filed (JTEKT under Toyota Industries;
   `issuer_financing_vehicle` warns on 36 issuers named like financing

@@ -16,6 +16,7 @@ const IDENTIFIERS = [
   ["figi", "FIGI"],
   ["caip19", "CAIP-19"],
 ] as const;
+const CRYPTO_KINDS = new Set(["coin", "token"]);
 
 /** The listing whose price the composition shows: its own subject when it
  * is a listing, else the one core priced it through. */
@@ -50,6 +51,12 @@ export function InstrumentHeader({
     page.issuer && page.issuer.name !== page.subject.name
       ? page.issuer.name
       : null;
+  // A share (not a crypto asset) the reference names no issuer for: its
+  // issuer is undecided (R2), and its profile and filings wait for it.
+  const issuerUnknown =
+    !page.issuer &&
+    Boolean(page.security) &&
+    !CRYPTO_KINDS.has(page.subject.kind ?? "coin");
   return (
     <header data-slot="instrument-header" className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2 text-foreground-secondary text-xs">
@@ -65,6 +72,11 @@ export function InstrumentHeader({
       </h1>
       {issuer ? (
         <p className="text-foreground-secondary text-xs">Issued by {issuer}</p>
+      ) : issuerUnknown ? (
+        <p className="text-foreground-secondary text-xs">
+          Issuer unknown: the reference data doesn't settle which company issued
+          this
+        </p>
       ) : null}
       <DerivativeLinks page={page} />
       {identifiers.length ? (

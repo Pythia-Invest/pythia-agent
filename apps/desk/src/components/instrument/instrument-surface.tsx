@@ -1,5 +1,6 @@
 "use client";
 import {
+  parseFilings,
   parseProfile,
   type SubjectPage,
   type SubjectSection,
@@ -16,11 +17,13 @@ import { useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import {
   useResolvedSections,
+  useSectionRead,
   useSubjectPage,
   useWidgetPresentation,
 } from "@/client/instrument-queries";
 import { BoundWidget } from "@/components/widgets/bound-widget";
 import {
+  creditedSources,
   type PageBlock,
   pageBlocks,
   pickedSource,
@@ -188,7 +191,15 @@ function PageCard({
     block.sections.every(
       (section) => section.status === "ready" || section.status === "resolving",
     );
-  const lead = block.sections[0] as SubjectSection;
+  // The filings list's own read (shared with its content) names the sources
+  // that supplied its rows.
+  const read = useSectionRead(
+    block.type === "filings" && servable ? block.sections[0]?.request : null,
+  );
+  const lead = creditedSources(
+    block.sections[0] as SubjectSection,
+    read.data ? filingsOrNull(read.data) : null,
+  );
   return (
     <section
       aria-label={block.title}
@@ -219,8 +230,11 @@ function PageCard({
       </div>
       {/* Another listing's price loading or failing: this line's sources
           would describe the wrong line. A price no source covers lists each
-          source's reason in its card instead. */}
-      {price || lead.status === "not_covering" ? null : (
+          source's reason in its card instead; a card that needs the issuer
+          has no source to name. */}
+      {price ||
+      lead.status === "not_covering" ||
+      lead.status === "not_addressable" ? null : (
         <SourcesLine
           section={lead}
           chosen={chosen}
@@ -231,6 +245,15 @@ function PageCard({
       )}
     </section>
   );
+}
+
+/** A read that is not a filings list (its card shows why) credits nothing. */
+function filingsOrNull(value: unknown) {
+  try {
+    return parseFilings(value);
+  } catch {
+    return null;
+  }
 }
 
 function BlockContent({
