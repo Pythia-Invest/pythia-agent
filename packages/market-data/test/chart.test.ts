@@ -311,6 +311,106 @@ describe("the default 1D view", () => {
   });
 });
 
+describe("the tile's 1D view (ADR 0027)", () => {
+  const extended = declared("m2x", { kind: "minute", count: 2 }, 7, "extended");
+  const today = {
+    date: "2026-09-25",
+    timezone: "America/New_York",
+    regular: { start: "2026-09-25T13:30:00Z", end: "2026-09-25T20:00:00Z" },
+    extended: { start: "2026-09-25T08:00:00Z", end: "2026-09-26T00:00:00Z" },
+  };
+  const previous = {
+    regular: { start: "2026-09-24T13:30:00Z", end: "2026-09-24T20:00:00Z" },
+    extended: { start: "2026-09-24T08:00:00Z", end: "2026-09-25T00:00:00Z" },
+  };
+  const at = (time: string) => Date.parse(time);
+  const tile = (bars: ReadResult, now: string) =>
+    periodPath("1D", bars, undefined, false, at(now), true).path;
+
+  it("starts at the regular open while the market trades", () => {
+    const bars = read(
+      extended,
+      ["2026-09-25T09:00:00Z", "2026-09-25T14:00:00Z", "2026-09-25T14:30:00Z"],
+      { session_window: today },
+    );
+    const path = tile(bars, "2026-09-25T15:00:00Z");
+    expect(path?.points.map((p) => p.value)).toEqual([101, 102]);
+    expect(path?.session).toEqual({
+      start: at(today.regular.start),
+      end: at(today.regular.end),
+    });
+    // The page keeps the whole day, pre-market included (ADR 0041).
+    const page = periodPath(
+      "1D",
+      bars,
+      undefined,
+      false,
+      at("2026-09-25T15:00:00Z"),
+    );
+    expect(page.path?.points).toHaveLength(3);
+  });
+
+  it("continues into after-hours once the close has passed", () => {
+    const bars = read(
+      extended,
+      ["2026-09-25T09:00:00Z", "2026-09-25T14:00:00Z", "2026-09-25T21:00:00Z"],
+      { session_window: today },
+    );
+    const path = tile(bars, "2026-09-25T22:00:00Z");
+    expect(path?.points.map((p) => p.value)).toEqual([101, 102]);
+    expect(path?.session).toEqual({
+      start: at(today.regular.start),
+      end: at(today.extended.end),
+    });
+  });
+
+  it("shows the prior regular session, then today's pre-market, before the open", () => {
+    const bars = read(
+      extended,
+      ["2026-09-24T14:00:00Z", "2026-09-24T22:00:00Z", "2026-09-25T09:00:00Z"],
+      { session_window: { ...today, previous } },
+    );
+    const path = tile(bars, "2026-09-25T09:30:00Z");
+    // The prior session's after-hours trade is not the tile's.
+    expect(path?.points.map((p) => p.value)).toEqual([100, 102]);
+    expect(path?.sessionGap).toEqual({
+      start: at(previous.regular.end),
+      end: at(today.extended.start),
+    });
+    expect(path?.session).toEqual({
+      start: at(previous.regular.start),
+      end: at(today.regular.start),
+    });
+  });
+
+  it("draws a regular-hours series' prior session alone before the open", () => {
+    const regular = declared("m2", { kind: "minute", count: 2 }, 7);
+    const bars = read(
+      regular,
+      ["2026-09-24T14:00:00Z", "2026-09-24T19:00:00Z"],
+      {
+        session_window: { ...today, previous },
+      },
+    );
+    for (const view of [false, true]) {
+      const path = periodPath(
+        "1D",
+        bars,
+        undefined,
+        false,
+        at("2026-09-25T09:30:00Z"),
+        view,
+      ).path;
+      expect(path?.points).toHaveLength(2);
+      expect(path?.sessionGap).toBeUndefined();
+      expect(path?.session).toEqual({
+        start: at(previous.regular.start),
+        end: at(previous.regular.end),
+      });
+    }
+  });
+});
+
 describe("drawing budget and missing schedules", () => {
   it("downsamples to real observations, keeping both ends", () => {
     const list = Array.from({ length: 3000 }, (_, i) => ({

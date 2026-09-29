@@ -26,6 +26,8 @@ export type DayData = {
   rows: InstrumentDisplay[];
   /** Rows whose quote read has not answered yet. */
   pending: boolean[];
+  /** Rows whose quote or chart read failed; their retained values are stale. */
+  failed: boolean[];
   state: "loading" | "ready" | "empty" | "error";
   message?: string | undefined;
 };
@@ -124,21 +126,20 @@ export const dayBinding: WidgetBinding<DayInput, DayResult, DayData> = {
     const quoteQuery = primary[0];
     const quotes = results(quoteQuery);
     const planned = histories(input, primary);
-    const bars = new Map<number, ReadResult | undefined>();
-    const failed = new Set<number>();
+    const charts = new Map<number, WidgetQueryResult<DayResult> | undefined>();
     let next = 0;
     planned?.rows.forEach((row, index) => {
-      if (!row.query) return;
-      const query = deferred[next++];
-      const data = query?.data as FinancialRead | undefined;
-      bars.set(index, data?.result);
-      if (query?.error) failed.add(index);
+      if (row.query) charts.set(index, deferred[next++]);
     });
     const pending: boolean[] = [];
+    const failed: boolean[] = [];
+    let failedPrices = false;
+    let failedCharts = false;
     const rows = input.rows.map((row, index): InstrumentDisplay => {
       const quote = quotes?.[index];
       pending.push(Boolean(quoteQuery?.isPending));
-      if (quoteQuery?.isPending)
+      if (quoteQuery?.isPending) {
+        failed.push(false);
         // Known identity, no values yet: never a failure while the read runs.
         return {
           id: String(index),
@@ -150,6 +151,7 @@ export const dayBinding: WidgetBinding<DayInput, DayResult, DayData> = {
           description: "Loading quote",
           pathState: "loading",
         };
+      }
       const item = financialInstrument(
         { ...row, price: { mode: "preferred", criteria: {} } },
         quote,
@@ -159,29 +161,65 @@ export const dayBinding: WidgetBinding<DayInput, DayResult, DayData> = {
       );
       delete item.pathState;
       const plan = planned?.rows[index];
-      const chart = bars.get(index);
+      const query = charts.get(index);
+      const chart = (query?.data as FinancialRead | undefined)?.result;
       const drawn = chart
-        ? periodPath("1D", chart, quote, plan?.continuous ?? false)
+        ? periodPath(
+            "1D",
+            chart,
+            quote,
+            plan?.continuous ?? false,
+            Date.now(),
+            true,
+          )
         : {};
-      if (drawn.path) return { ...item, path: drawn.path };
-      const settled =
-        plan?.unavailable ||
-        failed.has(index) ||
-        chart?.outcome === "error" ||
-        Boolean(drawn.message) ||
-        Boolean(quoteQuery?.error);
-      return { ...item, pathState: settled ? "unavailable" : "loading" };
+      const priceFailed =
+        Boolean(quoteQuery?.error) || quote?.outcome === "error";
+      const chartFailed = Boolean(query?.error) || chart?.outcome === "error";
+      failedPrices ||= priceFailed;
+      failedCharts ||= chartFailed;
+      failed.push(priceFailed || chartFailed);
+      const shown: InstrumentDisplay = drawn.path
+        ? { ...item, path: drawn.path }
+        : {
+            ...item,
+            pathState:
+              plan?.unavailable ||
+              chartFailed ||
+              drawn.message ||
+              quoteQuery?.error
+                ? "unavailable"
+                : "loading",
+          };
+      // A retained value whose updates failed stays, marked stale.
+      if (
+        shown.activity?.data !== "unavailable" &&
+        ((quoteQuery?.error && quote) || (query?.error && chart))
+      ) {
+        shown.activity = {
+          ...shown.activity,
+          session: shown.activity?.session ?? "unknown",
+          data: "stale",
+        };
+        shown.statusLabel = "Updates unavailable · last received value";
+        if (query?.error && shown.path)
+          shown.path = {
+            ...shown.path,
+            label: `${shown.path.label} · Chart updates unavailable`,
+          };
+      }
+      return shown;
     });
     const loading = rows.length > 0 && Boolean(quoteQuery?.isPending);
-    const error =
-      Boolean(quoteQuery?.error) ||
-      Boolean(quotes?.some((quote) => quote.outcome === "error"));
     const state = !rows.length ? "empty" : loading ? "loading" : "ready";
-    const message = error ? "Some prices could not be loaded." : undefined;
+    const message =
+      failedPrices || failedCharts
+        ? `${failedPrices ? "Some prices could not be loaded. " : ""}${failedCharts ? "Some charts could not be loaded. " : ""}Any retained values are marked as stale.`
+        : undefined;
     return {
       state,
       ...(message ? { message } : {}),
-      data: { rows, pending, state, ...(message ? { message } : {}) },
+      data: { rows, pending, failed, state, ...(message ? { message } : {}) },
     };
   },
 };
