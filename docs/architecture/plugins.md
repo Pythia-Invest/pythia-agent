@@ -301,6 +301,12 @@ addressing (the full shape is in the ADR 0038 amendment):
   is addressed as itself: `level` and `via` are both `market`, with a native
   scope at level `market`. Core's curated table (`identity/markets.json`)
   supplies each plugin's reference ([ADR 0043](../decisions/0043-live-market-view.md)).
+- A `resolve` answer's records mark each identifier's `role`: `self` names the
+  record itself, `underlying` its underlying and `unqualified` a value the
+  source cannot place. On a crypto asset record, `self` on a CAIP-19 claims
+  canonical issuance and a provider's platform list is `unqualified`; core
+  refuses a batch whose asset record leaves a CAIP-19's role out
+  ([ADR 0037](../decisions/0037-identity-backbone.md)).
 - A filings source may accept `forms` in its filings operation's schema; core
   then passes the requested forms so the source can search beyond its most
   recent filings.
