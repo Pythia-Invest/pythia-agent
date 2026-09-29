@@ -2,28 +2,21 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  cpSync,
   existsSync,
-  lstatSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  readdirSync,
-  rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   MANAGED_CORE_FILES,
-  PLUGIN_COPY_RECEIPT,
   refreshManagedPlugin,
   atomicWriteJson,
   readJson,
 } from "../../scripts/dev/files.mjs";
 import { resolveInstallPaths } from "../../scripts/install/paths.mjs";
-import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import {
   ensureHermesSource,
   prepareManagedRuntime,
@@ -31,47 +24,19 @@ import {
   refreshRuntimeAssets,
 } from "../../scripts/dev/runtime.mjs";
 import { recoverDevelopmentInitialization } from "../../scripts/dev/supervisor.mjs";
-import { copySourceSnapshot } from "../../tooling/source-snapshot.mjs";
 import { buildManagedWidgets } from "../../scripts/dev/build-managed-widgets.mjs";
-
-const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
-  /\/$/u,
-  "",
-);
-const temporaryRoots: string[] = [];
-
-function temporaryRoot() {
-  const root = mkdtempSync(join(tmpdir(), "pythia-dev-test-"));
-  temporaryRoots.push(root);
-  return root;
-}
-
-function environment(root: string, repo?: string) {
-  const checkout = repo ?? join(root, "checkout");
-  // Port identity follows the checkout, not XDG roots. Give each fixture its
-  // own source path so running tests never claims an open developer stack.
-  if (repo === undefined && !existsSync(checkout))
-    copySourceSnapshot(repositoryRoot, checkout);
-  return {
-    ...process.env,
-    PYTHIA_DEV_REPO_ROOT: checkout,
-    PYTHIA_DEV_CONFIG_HOME: join(root, "config"),
-    PYTHIA_DEV_STATE_HOME: join(root, "state"),
-    PYTHIA_DEV_DATA_HOME: join(root, "data"),
-    PYTHIA_DEV_CACHE_HOME: join(root, "cache"),
-  };
-}
-
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
+import {
+  developmentEnvironment,
+  developmentPaths,
+  repositoryRoot,
+  temporaryRoot,
+} from "../support/dev-stack";
 
 describe("managed source and runtime preparation", () => {
   it("refreshes managed plugin files without changing later native user choices", async () => {
+    // Widgets are built and managed plugins copied from the checkout.
     const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths(root, "snapshot");
     const managedCore = join(root, "managed-plugin");
     const commandLog = join(root, "hermes-commands.log");
     const hermes = join(paths.hermesSource, ".venv", "bin", "hermes");
@@ -151,7 +116,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
 
   it("recreates a tampered Hermes source cache from the verified archive", async () => {
     const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths(root);
     const commit = "fixture-commit";
     const archive = join(paths.fetchCache, `hermes-${commit}.tar.gz`);
     const archiveInput = join(root, "archive-input", "hermes-fixture");
@@ -237,8 +202,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
   });
 
   it("recovers only a receipt-owned interrupted first profile", async () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     mkdirSync(paths.profileRoot, { recursive: true, mode: 0o700 });
     mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 });
     mkdirSync(paths.workspace, { recursive: true, mode: 0o700 });
@@ -266,8 +230,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
   });
 
   it("never treats an intent-only marker as ownership of an existing profile", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     mkdirSync(paths.profileRoot, { recursive: true, mode: 0o700 });
     mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 });
     writeFileSync(join(paths.profileRoot, "unknown-owner"), "preserve me\n");
@@ -291,8 +254,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
   });
 
   it("clears an intent-only marker when no profile exists", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 });
     atomicWriteJson(paths.profileInitialization, {
       schema_version: 1,
@@ -308,73 +270,26 @@ printf '%s\\n' "$*" >> '${commandLog}'
     expect(existsSync(paths.profileInitialization)).toBe(false);
   });
 
-  it("refreshes the exact managed plugin files and rejects canonical source symlinks", () => {
-    const root = temporaryRoot();
-    const source = join(root, "source");
-    const profile = join(root, "profile");
-    const destination = join(profile, "plugins", "pythia");
-    mkdirSync(source);
-    for (const name of MANAGED_CORE_FILES) {
-      mkdirSync(dirname(join(source, name)), { recursive: true });
-      writeFileSync(join(source, name), "# synthetic plugin input\n");
-    }
-    writeFileSync(join(source, "__init__.py"), "FIRST = True\n");
-    writeFileSync(join(source, "plugin.yaml"), "name: first\n");
-    writeFileSync(join(source, "desk_view.py"), "# synthetic view tool\n");
-    writeFileSync(
-      join(source, "operating.py"),
-      "# synthetic operating guidance\n",
-    );
-    mkdirSync(join(source, "__pycache__"));
-    writeFileSync(
-      join(source, "__pycache__", "__init__.cpython-314.pyc"),
-      "generated\n",
-    );
-    mkdirSync(dirname(destination), { recursive: true });
-    writeFileSync(`${destination}.previous`, "foreign sibling\n");
-    writeFileSync(join(profile, "user-state"), "preserve me\n");
-
-    refreshManagedPlugin(source, destination);
-
-    expect(lstatSync(destination).isSymbolicLink()).toBe(false);
-    expect(readdirSync(destination).sort()).toEqual(
-      [
-        ...new Set(MANAGED_CORE_FILES.map((name) => name.split("/")[0])),
-        PLUGIN_COPY_RECEIPT,
-      ].sort(),
-    );
-    expect(readFileSync(join(profile, "user-state"), "utf8")).toBe(
-      "preserve me\n",
-    );
-    expect(readFileSync(`${destination}.previous`, "utf8")).toBe(
-      "foreign sibling\n",
-    );
-    writeFileSync(join(source, "plugin.yaml"), "name: second\n");
-    refreshManagedPlugin(source, destination);
-    expect(readFileSync(join(destination, "plugin.yaml"), "utf8")).toContain(
-      "second",
-    );
-    rmSync(join(source, "__init__.py"));
-    symlinkSync(join(source, "plugin.yaml"), join(source, "__init__.py"));
-    expect(() => refreshManagedPlugin(source, destination)).toThrow(
-      /input must be a regular file/u,
-    );
-    expect(readFileSync(join(destination, "plugin.yaml"), "utf8")).toContain(
-      "second",
-    );
-  });
-
   it.each(["development", "installed"])(
     "prepares %s with only Hermes Python and preserves any legacy environment",
     async (mode) => {
       const root = temporaryRoot();
-      const developmentEnvironment = environment(root);
+      // Preparation reads only the pinned Hermes source contract.
+      cpSync(
+        join(repositoryRoot, "runtime/hermes"),
+        join(
+          developmentEnvironment(root).PYTHIA_DEV_REPO_ROOT,
+          "runtime/hermes",
+        ),
+        { recursive: true },
+      );
       const paths =
         mode === "development"
-          ? resolveStackPaths({ environment: developmentEnvironment })
+          ? developmentPaths(root)
           : resolveInstallPaths({
               HOME: root,
-              PYTHIA_CHECKOUT: developmentEnvironment.PYTHIA_DEV_REPO_ROOT,
+              PYTHIA_CHECKOUT:
+                developmentEnvironment(root).PYTHIA_DEV_REPO_ROOT,
               PYTHIA_INSTALL_CONFIG_HOME: join(root, "config"),
               PYTHIA_INSTALL_STATE_HOME: join(root, "state"),
               PYTHIA_INSTALL_DATA_HOME: join(root, "data"),

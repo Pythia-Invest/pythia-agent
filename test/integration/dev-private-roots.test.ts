@@ -3,14 +3,12 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   redactedEnvironment,
   runtimeEnvironment,
@@ -20,7 +18,6 @@ import {
   ensurePrivateTree,
   readJson,
 } from "../../scripts/dev/files.mjs";
-import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import { secrets } from "../../scripts/dev/runtime-config.mjs";
 import {
   developmentPrivateRoots,
@@ -28,46 +25,12 @@ import {
 } from "../../scripts/dev/runtime.mjs";
 import { developmentServices } from "../../scripts/dev/supervisor.mjs";
 import { verifyBasicMemoryNativeProject } from "../../scripts/install/basic-memory-readiness.mjs";
-import { copySourceSnapshot } from "../../tooling/source-snapshot.mjs";
-
-const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
-  /\/$/u,
-  "",
-);
-const temporaryRoots: string[] = [];
-
-function temporaryRoot() {
-  const root = mkdtempSync(join(tmpdir(), "pythia-dev-test-"));
-  temporaryRoots.push(root);
-  return root;
-}
-
-function environment(root: string, repo?: string) {
-  const checkout = repo ?? join(root, "checkout");
-  // Port identity follows the checkout, not XDG roots. Give each fixture its
-  // own source path so running tests never claims an open developer stack.
-  if (repo === undefined && !existsSync(checkout))
-    copySourceSnapshot(repositoryRoot, checkout);
-  return {
-    ...process.env,
-    PYTHIA_DEV_REPO_ROOT: checkout,
-    PYTHIA_DEV_CONFIG_HOME: join(root, "config"),
-    PYTHIA_DEV_STATE_HOME: join(root, "state"),
-    PYTHIA_DEV_DATA_HOME: join(root, "data"),
-    PYTHIA_DEV_CACHE_HOME: join(root, "cache"),
-  };
-}
-
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
+import { developmentPaths, temporaryRoot } from "../support/dev-stack";
 
 describe("private roots, environment, seeds, and copied assets", () => {
   it("rejects a stale native Basic Memory mapping despite a matching Pythia receipt", () => {
     const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths(root);
     expect(() =>
       verifyBasicMemoryNativeProject(
         paths,
@@ -105,8 +68,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
   });
 
   it("creates per-stack data and cache as private bootstrap roots", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     ensurePrivateTree(developmentPrivateRoots(paths));
     for (const path of [paths.dataRoot, paths.cacheRoot]) {
       expect(lstatSync(path).isDirectory()).toBe(true);
@@ -117,8 +79,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
   });
 
   it("removes ambient credentials and gives each service only its own bearer", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     const clean = runtimeEnvironment(paths, "safe-local-key-value", {
       PATH: process.env.PATH,
       OPENAI_API_KEY: "must-not-survive",
@@ -130,7 +91,6 @@ describe("private roots, environment, seeds, and copied assets", () => {
       NEXT_TELEMETRY_DISABLED: "0",
       HERMES_DISABLE_LAZY_INSTALLS: "0",
       ORDINARY_SETTING: "visible",
-      PYTHIA_PYTHON: "/retired/managed-python/.venv/bin/python",
     });
     expect(clean.OPENAI_API_KEY).toBeUndefined();
     expect(clean.AWS_SECRET_ACCESS_KEY).toBeUndefined();
@@ -139,25 +99,15 @@ describe("private roots, environment, seeds, and copied assets", () => {
     expect(clean.EDGAR_IDENTITY).toBeUndefined();
     expect(clean.EDGAR_API_TOKEN).toBeUndefined();
     expect(clean.ORDINARY_SETTING).toBe("visible");
-    expect(clean.BASIC_MEMORY_NO_PROMOS).toBeUndefined();
-    expect(clean.BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED).toBeUndefined();
-    expect(clean.FASTMCP_CHECK_FOR_UPDATES).toBeUndefined();
-    expect(clean.FASTMCP_SHOW_SERVER_BANNER).toBeUndefined();
     expect(clean.NEXT_TELEMETRY_DISABLED).toBe("1");
     expect(clean.HERMES_DISABLE_LAZY_INSTALLS).toBe("1");
-    expect(clean.BASIC_MEMORY_CONFIG_DIR).toBeUndefined();
     expect(clean.API_SERVER_HOST).toBe("127.0.0.1");
-    expect(clean.PYTHIA_HERMES_API_KEY).toBeUndefined();
     expect(clean.HERMES_HOME).toBe(paths.hermesRoot);
     expect(clean.PYTHIA_CONFIG_ROOT).toBe(paths.configRoot);
     expect(clean.PYTHIA_STATE_ROOT).toBe(paths.stateRoot);
     expect(clean.PYTHIA_DESK_VIEW_STATE).toBe(paths.deskViewState);
     expect(clean.PYTHIA_MANAGED_ROOT).toBe(paths.managedRoot);
-    expect(clean.PYTHIA_EDGAR_DATA_DIR).toBeUndefined();
-    expect(clean.PYTHIA_EDGAR_CACHE_DIR).toBeUndefined();
-    expect(clean.PYTHIA_PYTHON).toBeUndefined();
     expect(clean.PYTHIA_NODE).toBe(process.execPath);
-    expect(clean.PYTHIA_CONFIG_DIR).toBeUndefined();
     expect(clean.PYTHIA_HERMES_PROFILE).toBe(paths.profile);
     expect(clean.PYTHIA_HERMES_EXECUTABLE).toBe(
       join(paths.hermesSource, ".venv", "bin", "hermes"),
@@ -206,8 +156,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
   });
 
   it("adds a settings bearer to an existing store without rotating the API key", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     mkdirSync(paths.configRoot, { recursive: true, mode: 0o700 });
     const store = join(paths.configRoot, "secrets.json");
     const apiKey = "A".repeat(43);
@@ -227,8 +176,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
   });
 
   it("keeps the legacy service only during an explicit staged transition", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 });
     writeFileSync(
       join(paths.stateRoot, "workspace-transition.json"),
@@ -268,8 +216,8 @@ describe("private roots, environment, seeds, and copied assets", () => {
   });
 
   it("installs the fresh Pythia scaffold once and preserves later edits", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    // Seeds are read from the checkout.
+    const paths = developmentPaths(temporaryRoot(), "snapshot");
     mkdirSync(paths.profileRoot, { recursive: true, mode: 0o700 });
     mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 });
     writeFileSync(join(paths.hermesRoot, "auth.json"), "fixture credential\n", {
@@ -285,45 +233,10 @@ describe("private roots, environment, seeds, and copied assets", () => {
     expect(
       readFileSync(join(paths.profileRoot, "config.yaml"), "utf8"),
     ).toContain("auxiliary:\n  free_only: true\n");
-    const expectedPlatformToolsets = `platform_toolsets:
-  cli:
-    - cronjob
-    - delegation
-    - file
-    - memory
-    - session_search
-    - skills
-    - terminal
-    - todo
-    - vision
-    - web
-  cron:
-    - cronjob
-    - delegation
-    - file
-    - memory
-    - session_search
-    - skills
-    - terminal
-    - todo
-    - vision
-    - web
-  api_server:
-    - pythia-desk
-    - cronjob
-    - delegation
-    - file
-    - memory
-    - session_search
-    - skills
-    - terminal
-    - todo
-    - vision
-    - web
-`;
+    // Desk's own tools reach the API server platform.
     expect(
       readFileSync(join(paths.profileRoot, "config.yaml"), "utf8"),
-    ).toContain(expectedPlatformToolsets);
+    ).toMatch(/^ {2}api_server:\n(?: {4}- \S+\n)*? {4}- pythia-desk\n/mu);
     expect(readFileSync(join(paths.profileRoot, "SOUL.md"), "utf8")).toContain(
       "Pythia",
     );

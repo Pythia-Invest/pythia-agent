@@ -65,14 +65,6 @@ function fixtureArguments(name, port) {
         process.env.PYTHIA_TEST_HERMES_DIE_AFTER_HEALTH_MS,
       ];
     }
-    if (process.env.PYTHIA_TEST_DELAYED_HERMES_DESCENDANT_MS) {
-      return [
-        fixture,
-        String(port),
-        "spawn-delayed-descendant",
-        process.env.PYTHIA_TEST_DELAYED_HERMES_DESCENDANT_MS,
-      ];
-    }
   }
   return [fixture, String(port), "serve"];
 }
@@ -127,10 +119,6 @@ supervise(paths, services, {
     if (process.env.PYTHIA_TEST_REFRESH_FAILURE) {
       throw new Error("synthetic runtime refresh failure");
     }
-    const delay = Number(process.env.PYTHIA_TEST_REFRESH_DELAY_MS ?? "0");
-    if (delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
     if (
       process.env.PYTHIA_TEST_REFRESH_SOURCE &&
       process.env.PYTHIA_TEST_REFRESH_OUTPUT
@@ -147,12 +135,6 @@ supervise(paths, services, {
   onHermesRestart(generation) {
     writeFileSync(
       join(paths.stateRoot, "fixture-hermes-generation"),
-      `${generation}\n`,
-    );
-  },
-  onRuntimeRefresh(generation) {
-    writeFileSync(
-      join(paths.stateRoot, "fixture-runtime-generation"),
       `${generation}\n`,
     );
   },

@@ -12,7 +12,7 @@ import tempfile
 import threading
 import unittest
 
-from market_data_read_fixtures import Backend, CRITERIA, Sources, SUBJECT, request, run_read, wire
+from market_data_read_fixtures import Backend, CRITERIA, SOURCE_ISSUE, Sources, SUBJECT, request, run_read, wire
 from test_market_data_identity import native
 
 
@@ -160,20 +160,6 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(run_read(self.backend)["series"]["provider_ref"], native)
         self.assertEqual(self.backend.series(SUBJECT, CRITERIA)["data"][0]["provider_ref"], native)
 
-    def test_metadata_and_generic_read_failures_preserve_safe_source_issues(self):
-        issue = {"code": "broker_unreachable", "message": "Check the configured broker endpoint.", "severity": "error", "source_code": "502"}
-        for operation in ("series", "history"):
-            original = self.sources.call
-            def call(provider, op, arguments):
-                if op == operation:
-                    return {"schema_version": 1, "outcome": "error", "data": None, "issues": [issue]}
-                return original(provider, op, arguments)
-            self.backend._call = call
-            result = run_read(self.backend)
-            self.assertEqual(result["outcome"], "error")
-            self.assertIn(issue, result["issues"])
-            self.assertTrue(all(item[0] == "ibkr" for item in self.sources.calls))
-
     def test_source_cache_policy_bypasses_existing_hits_and_publication(self):
         run_read(self.backend)
         self.assertEqual(len(self.price_calls()), 1)
@@ -236,6 +222,7 @@ class SharedReadsTests(unittest.TestCase):
             self.assertTrue(all(call[0] == "ibkr" for call in self.sources.calls))
             self.assertEqual(result["selection"]["alternatives"], ["provider:synthetic_other"])
             self.assertIn("ibkr", result["issues"][0]["message"])
+            self.assertIn(SOURCE_ISSUE, result["issues"])
             self.assertEqual(result["observations"], [])
 
     def test_series_ambiguity_and_qualifiers_do_not_choose_arbitrary_listing(self):

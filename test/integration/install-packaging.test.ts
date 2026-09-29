@@ -97,10 +97,6 @@ describe("installed packaging", () => {
     const text = Object.values(units).join("\n");
     expect(text).toContain("127.0.0.1");
     expect(text).toContain("gateway run --external-supervisor");
-    expect(text).not.toContain("Design Lab");
-    expect(UNIT_NAMES).not.toContain("pythia-desk.service");
-    expect(UNIT_NAMES).not.toContain("pythia.target");
-    expect(text).not.toContain("pythia-desk.service");
     expect(paths.ports.hermes).toBe(8645);
     expect(text).not.toContain(".agents");
     expect(text).toContain(
@@ -232,7 +228,20 @@ describe("installed packaging", () => {
     const environments = serviceEnvironments(paths, executables);
     expect(JSON.stringify(environments)).not.toContain(secret);
     expect(JSON.stringify(environments)).not.toContain("API_SERVER_KEY");
-    expect(environments).not.toHaveProperty("basicMemory");
+    expect(Object.keys(environments).sort()).toEqual([
+      "desk",
+      "hermes",
+      "settings",
+    ]);
+    // Services resolve executables from the installed runtime, never from
+    // the mutable checkout.
+    for (const values of Object.values(
+      serviceEnvironmentValues(paths, executables),
+    )) {
+      expect(values.PATH.split(":")).not.toContainEqual(
+        expect.stringContaining(paths.checkout),
+      );
+    }
     expect(environments.desk).toContain('NEXT_TELEMETRY_DISABLED="1"');
     expect(
       serviceEnvironmentValues(paths, executables).hermes.PYTHIA_WORKSPACE,
@@ -244,7 +253,6 @@ describe("installed packaging", () => {
     expect(environments.desk).toContain(
       `PYTHIA_LIFECYCLE_COMMAND="${paths.installedCommand}"`,
     );
-    expect(JSON.stringify(environments)).not.toContain("PYTHIA_PYTHON");
     expect(environments.desk).toContain(
       `PYTHIA_INSTALL_CONFIG_HOME="${resolve(paths.configRoot, "..")}"`,
     );

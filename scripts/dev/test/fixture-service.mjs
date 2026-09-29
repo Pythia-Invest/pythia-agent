@@ -15,11 +15,7 @@ if (behavior === "fail") {
   process.exit(23);
 }
 
-if (
-  behavior === "spawn-delayed-descendant" ||
-  behavior === "spawn-transient-descendant"
-) {
-  const transient = behavior === "spawn-transient-descendant";
+if (behavior === "spawn-transient-descendant") {
   const [reclaimDelay, reclaimHold] = String(process.argv[4] ?? "100:300")
     .split(":")
     .map(Number);
@@ -28,10 +24,10 @@ if (
     [
       process.argv[1],
       String(port),
-      transient ? "transient-descendant" : "delayed-descendant",
+      "transient-descendant",
       String(process.pid),
-      transient ? String(reclaimDelay) : (process.argv[4] ?? "300"),
-      transient ? String(reclaimHold) : "0",
+      String(reclaimDelay),
+      String(reclaimHold),
     ],
     { detached: true, stdio: "ignore" },
   );
@@ -51,10 +47,7 @@ if (
   writeFileSync(process.env.PYTHIA_TEST_GRANDCHILD_FILE, `${grandchild.pid}\n`);
 }
 
-if (
-  behavior !== "spawn-delayed-descendant" &&
-  behavior !== "spawn-transient-descendant"
-) {
+if (behavior !== "spawn-transient-descendant") {
   const server = createServer((request, response) => {
     if (request.method === "POST") {
       request.resume();
@@ -77,19 +70,6 @@ if (
     if (launches >= 2) {
       setTimeout(() => process.exit(24), Number(process.argv[5] ?? "250"));
     }
-  }
-
-  if (behavior === "delayed-descendant") {
-    const parentPid = Number(process.argv[4]);
-    const delay = Number(process.argv[5] ?? "300");
-    const parentWatch = setInterval(() => {
-      try {
-        process.kill(parentPid, 0);
-      } catch {
-        clearInterval(parentWatch);
-        setTimeout(stop, delay);
-      }
-    }, 20);
   }
 
   if (behavior === "transient-descendant") {

@@ -1,47 +1,17 @@
 import { spawn } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { atomicWriteJson } from "../../scripts/dev/files.mjs";
-import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import { processIdentity } from "../../scripts/dev/processes.mjs";
 import {
   initializeDevelopmentRuntime,
   stopStack,
 } from "../../scripts/dev/supervisor.mjs";
-
-const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
-  /\/$/u,
-  "",
-);
-const roots: string[] = [];
-
-afterEach(() => {
-  for (const root of roots.splice(0))
-    rmSync(root, { recursive: true, force: true });
-});
+import { developmentPaths } from "../support/dev-stack";
 
 function stack() {
-  const root = mkdtempSync(join(tmpdir(), "pythia-stale-receipt-"));
-  roots.push(root);
-  const paths = resolveStackPaths({
-    environment: {
-      ...process.env,
-      PYTHIA_DEV_REPO_ROOT: repositoryRoot,
-      PYTHIA_DEV_CONFIG_HOME: join(root, "config"),
-      PYTHIA_DEV_STATE_HOME: join(root, "state"),
-      PYTHIA_DEV_DATA_HOME: join(root, "data"),
-      PYTHIA_DEV_CACHE_HOME: join(root, "cache"),
-    },
-  });
+  const paths = developmentPaths();
   mkdirSync(paths.processRoot, { recursive: true, mode: 0o700 });
   return paths;
 }

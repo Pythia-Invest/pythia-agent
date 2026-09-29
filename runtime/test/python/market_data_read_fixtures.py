@@ -15,6 +15,8 @@ read_module = import_module(f"{PACKAGE}.reads")
 wire = import_module(f"{PACKAGE}.wire")
 EXAMPLE = next(f["value"] for f in json.loads((Path(__file__).resolve().parents[3] / "packages/market-data/examples/valid.json").read_text()) if f["name"] == "equity_daily")
 SUBJECT = {"kind": "instrument", "id": "instrument:synthetic-shared"}
+# A safe source issue that reads must pass through unchanged.
+SOURCE_ISSUE = {"code": "broker_unreachable", "message": "Check the configured broker endpoint.", "severity": "error", "source_code": "502"}
 CRITERIA = {"measurement": "ohlc", "interval": {"kind": "day", "count": 1}, "session": "regular", "price_adjustment": "split", "market_data_type": "unknown", "currency": "USD"}
 
 
@@ -47,8 +49,7 @@ class Sources:
     def call(self, provider, operation, arguments):
         self.calls.append((provider, operation, copy.deepcopy(arguments)))
         if (provider, operation) in self.fail:
-            return {"schema_version": 1, "outcome": "error", "data": None,
-                    "issues": [{"code": "synthetic_failure", "message": "Synthetic source failure.", "severity": "error"}]}
+            return {"schema_version": 1, "outcome": "error", "data": None, "issues": [copy.deepcopy(SOURCE_ISSUE)]}
         if operation in ("search", "details"):
             ref = self.refs[provider]
             records = evidence(ref, standard=isin(31), listing=True, version="1")

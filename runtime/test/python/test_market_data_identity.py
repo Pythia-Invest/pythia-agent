@@ -320,18 +320,25 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(corrected["intent_subject"], pending["mapping"]["target"])
 
     def test_adapter_revision_requires_refresh_offline_and_preserves_history(self):
-        ref = native(160)
-        saved = self.save(ref, evidence(ref, standard=isin(7)))
-        updated = identity.IdentityStore(self.directory.name, evidence_versions={"ibkr": "adapter-2"})
-        pending = updated.inspect(saved["mapping"]["id"])
-        self.assertEqual(pending["repair"], "pending_evidence_refresh")
-        self.assertEqual(updated.bindings(saved["mapping"]["target"])["mappings"], [])
-        self.assertEqual(updated.inspect(saved["mapping"]["id"])["mapping"]["revision"], pending["mapping"]["revision"])
-        fresh_ids = updated.ingest(ref, evidence(ref, standard=isin(8), version="adapter-2", suffix="new"))
-        refreshed = updated.refresh(saved["mapping"]["id"], fresh_ids)
-        # Retained intent needs a supported repair, not silent reassignment.
-        self.assertNotEqual(refreshed["mapping"]["status"], "confirmed")
-        self.assertEqual(updated.history(saved["mapping"]["id"])[0], saved["mapping"])
+        # Fresh evidence with the same ISIN recovers the pending mapping; a
+        # different ISIN keeps the retained intent until a supported repair.
+        for number, before, after in ((160, 7, 8), (167, 11, 11)):
+            with self.subTest(same_isin=before == after):
+                ref = native(number)
+                saved = self.save(ref, evidence(ref, standard=isin(before)))
+                updated = identity.IdentityStore(self.directory.name, evidence_versions={"ibkr": "adapter-2"})
+                pending = updated.inspect(saved["mapping"]["id"])
+                self.assertEqual(pending["repair"], "pending_evidence_refresh")
+                self.assertEqual(updated.bindings(saved["mapping"]["target"])["mappings"], [])
+                self.assertEqual(updated.inspect(saved["mapping"]["id"])["mapping"]["revision"], pending["mapping"]["revision"])
+                fresh_ids = updated.ingest(ref, evidence(ref, standard=isin(after), version="adapter-2", suffix="fresh"))
+                refreshed = updated.refresh(saved["mapping"]["id"], fresh_ids)
+                self.assertEqual(refreshed["mapping"]["status"] == "confirmed", before == after)
+                self.assertEqual(refreshed["mapping"]["target"], saved["mapping"]["target"])
+                wire.validate("mapping", refreshed["mapping"])
+                for mapping in updated.bindings(saved["mapping"]["target"])["mappings"]:
+                    wire.validate("mapping", mapping)
+                self.assertEqual(updated.history(saved["mapping"]["id"])[0], saved["mapping"])
 
     def test_optional_identifier_enrichment_and_same_listing_routes(self):
         a = native(165)
@@ -350,19 +357,6 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(routed["mapping"]["target"], smart["mapping"]["target"])
         self.assertNotEqual(routed["native_ref"], smart["native_ref"])
         self.assertEqual(self.store.subject(original)["original_evidence_ids"], selected["mapping"]["evidence_ids"])
-
-    def test_fresh_evidence_recovers_pending_without_rewriting_original_intent(self):
-        a = native(167)
-        selected = self.save(a, evidence(a, standard=isin(11)))
-        updated = identity.IdentityStore(self.directory.name, evidence_versions={"ibkr": "adapter-2"})
-        self.assertEqual(updated.inspect(selected["mapping"]["id"])["repair"], "pending_evidence_refresh")
-        ids = updated.ingest(a, evidence(a, standard=isin(11), version="adapter-2", suffix="fresh"))
-        refreshed = updated.refresh(selected["mapping"]["id"], ids)
-        self.assertEqual(refreshed["mapping"]["status"], "confirmed")
-        wire.validate("mapping", refreshed["mapping"])
-        for mapping in updated.bindings(selected["mapping"]["target"])["mappings"]:
-            wire.validate("mapping", mapping)
-        self.assertEqual(refreshed["mapping"]["target"], selected["mapping"]["target"])
 
     def test_ambiguous_subjects_do_not_self_confirm_after_version_update(self):
         # Two independently retained identities acquire the same identifier;
