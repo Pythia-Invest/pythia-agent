@@ -1,4 +1,4 @@
-# 0044: Product direction: mandate-driven agents, a decision ledger, and local workspaces with central truth
+# 0044: Product direction: mandate-driven agents, a decision ledger, and extensible data
 
 ## Context
 
@@ -209,3 +209,210 @@ It amends the following rulings:
   current strategies do not need, while the record that cannot be created later
   does not exist.
 - **Live query data services.** They would reveal what users research.
+
+## Amendment (2026-09-29): data any plugin can extend
+
+### Context
+
+The first version of this ADR, merged the same day, made Pythia's central
+curation the path for world-level identity answers (rulings 7 to 9). Three
+investigations on the 28 September 2026 reference build (EU and United States,
+11,965 open identity questions) and a review of the code changed that
+direction.
+
+- **Plugins cannot extend the universe.** Subjects come only from the
+  reference build and core's curated tables. Trust follows the list of bundled
+  plugin names, and the builder's evidence outranks the same claim from a
+  plugin. Reference sources stopped emitting claims after a security fix; ADRs
+  0038 and 0042 recorded that afterwards without weighing alternatives.
+- **Most identity questions are not judgment.**
+  - About a fifth settled once the downloaded open sources contributed
+    evidence as peers, and about half with an exchange-code table and one more
+    rule (measured).
+  - About a quarter concerned instruments that trade in Europe only on
+    bank-internal, request-for-quote or dark venues.
+  - About fifty (0.4%) needed judgment, nearly all about which of two listings
+    is primary.
+- **Runtime judgment helps research but does not settle records.** In a small,
+  single-run test on real cases, strong models answered research questions
+  well, often from memory of well-covered companies. They still chose
+  differently on convention questions, and a smaller model did no better than
+  the default.
+- **Central maintenance is acceptable where licences allow.** The requirement
+  is extensibility: any plugin can extend the universe through the same
+  contract as the maintained defaults.
+
+### Ruling
+
+This amendment's rulings are numbered A1 to A8. They supersede rulings 7, 9
+and 10, and the first and last bullets of ruling 8; the other rulings stand. It
+also narrows the rationale "Resolve shared facts once" and the rejected
+alternative "Fully local data resolution" to raising every world-level
+question on every installation.
+
+**A1.** **Extensible data with maintained defaults** (replaces ruling 7).
+   - Research, strategies, credentials, portfolios and ledgers stay on the
+     investor's machine.
+   - Every plugin can introduce subjects and contribute evidence through the
+     same supported contract.
+   - Pythia provides maintained defaults, including open reference data, which
+     users can replace or supplement. Default plugins are preinstalled, never
+     mandatory.
+   - Where a licence allows, a plugin's output may ship prebuilt. A prebuilt
+     package has no more authority than the same plugin run locally.
+   - Prebuilt data is delivered as downloads, so no service receives users'
+     queries. Licensed provider data is never redistributed.
+
+**A2.** **Combining evidence** (replaces the first and last bullets of ruling 8).
+   - Rules combine the evidence of all enabled plugins. They name kinds of
+     evidence and trust levels, never sources, and are published, versioned
+     and overridable locally.
+   - Conflicting claims are kept and marked, not deleted.
+   - Where the rules do not decide, the link stays unresolved and the
+     disagreement is shown. A local override makes the user's choice win on
+     their installation.
+   - An identity question is queued only when the instrument becomes relevant
+     to a holding, a research task or an operation. An instrument's venue
+     category does not make it irrelevant.
+   - An agent's answer to any identity question is a suggestion and changes
+     nothing until the user confirms it.
+
+**A3.** **Identity scope and contributions** (replaces ruling 9).
+   - **Kept:** the four-level backbone and its relations, today's coverage,
+     permanent identifiers, and holdings-first subjects for records that
+     cannot be matched.
+   - **Core owns the rules, plugins contribute the contents.** Core defines a
+     small set of subject kinds, the identifier rules, relations and matching.
+     New kinds are a rare core addition.
+   - **Introducing subjects.** A plugin may introduce portable, first-class
+     subjects that no source yet covers, under its native identifier scheme or
+     under open identifiers. Introducing a subject confers no authority over
+     it: facts about any subject are weighed by evidence kind and trust level,
+     and the absence of competing evidence never increases a plugin's
+     authority.
+   - **Links are made by identifier agreement at the right scope.** A shared
+     issuer never makes two instruments the same; ambiguous links stay
+     unresolved.
+   - **Identifiers come from identifiers, not sources.** Any enabled plugin
+     that supplies the same identifier yields the same subject.
+   - **Disabling a default plugin** reduces identity quality or coverage, and
+     Pythia shows the effect before it happens.
+   - **Shared artefacts carry identifier bundles,** pin the meaning of their
+     rules and declare their data requirements. The receiving installation
+     leaves ambiguous matches unresolved. Separate installations need not
+     reach identical new decisions. Reproducing a historical decision uses its
+     selected facts, evidence references and relevant versions.
+   - **Paused until a strategy universe reaches a gap or a second user
+     arrives:** new reference sources and further source audits.
+
+**A4.** **Plugin trust levels** (replaces ruling 10). There are three levels:
+   display, suggest identity and confirm identity.
+   - **Display** covers showing data with its source and introducing subjects
+     under open or native identifiers. It needs declared coverage and terms,
+     and the identifier scheme of any subjects it introduces.
+   - **Confirm identity**, which establishes facts that other sources also
+     describe without review, requires the full onboarding audit and sign-off.
+   - **A user's own licensed vendor** is usable at the display level.
+   - **Bounds and trust.** What a plugin's claims can establish is bounded by
+     claim type and trust level. Trust attaches to a signed or hashed release,
+     not to a plugin's name.
+   - **Code isolation.** Trust levels bound data, not code. Isolating untrusted
+     plugin code is required before an open marketplace.
+
+**A5.** **Identity, evidence and choices are separate.**
+   - Whether records are the same instrument requires evidence at the correct
+     scope.
+   - Which listing a view shows is a preference or documented default.
+   - The instrument, price series, currency and fill policy of a forecast or
+     paper decision are pinned when it is created. Pinning preserves the
+     choice; it does not validate the facts behind it (A6).
+   - What conflicting evidence means for a thesis is the agent's
+     interpretation, which it explains.
+
+**A6.** **Uncertainty and consequential operations.**
+   - Recording uncertainty is allowed in research, notes and ledger entries.
+   - Consequential operations need validated facts and pinned choices. These
+     are simulating a fill, carrying or merging positions across corporate
+     actions, checking an issuer limit, and creating an order ticket. Factual
+     inputs, such as an issuer link or a split ratio, must meet the operation's
+     evidence requirements. Choices, such as the listing, price series or fill
+     policy, are pinned. Pinning preserves a choice and never validates a fact.
+     When an input falls short, that operation is unavailable with a reason,
+     and the rest of the workflow continues.
+   - An unconfirmed agent interpretation never counts as a validated fact.
+   - A saved interpretation keeps its evidence, scope and dependencies, and
+     becomes stale when they change.
+
+**A7.** **Reviewed answers.** Reviewed answers over open data may ship as a
+   Pythia-maintained answer list, contributed at its trust level like any
+   other plugin's evidence. Raw model exchanges and gold labels on licensed
+   data stay on the device.
+
+**A8.** **Open until validated:**
+   - direct and prebuilt forms per reference source;
+   - the exact evidence-weighing rules;
+   - bitemporal claims;
+   - learned source reliability;
+   - subscribable answer lists beyond Pythia's own;
+   - the content and pricing of paid services.
+
+### Today
+
+Where it is built, the code implements the first version of rulings 7 to 10,
+until roadmap stage 0 lands. No package is published and no central curator
+exists, so the build's open questions simply stay open:
+
+- The build's open questions ship in the package's claims file, and core
+  queues none of them.
+- Subjects come only from the reference build and core's curated tables.
+- Reference sources are builder adapters that cannot be disabled, and the
+  builder's `snapshot` evidence outranks a plugin's `source_asserted` claim.
+- Trust follows the list of bundled plugin names. Only a bundled plugin binds,
+  and only onto reference subjects.
+- Portable crypto keys come only from core's curated table.
+
+Documents that cite the first version of these rulings describe this current
+behaviour or its original plan. The central curator's back office they mention
+becomes the Pythia-maintained answer list of A7, and the "finish line" of the
+first ruling 9 is superseded by the stage 0 work below.
+
+### Consequences
+
+- **Rulings in other ADRs change as stage 0 lands:**
+  - [ADR 0037](0037-identity-backbone.md): crypto keys only from the curated
+    table; `snapshot` outranking `source_asserted`; `curated` at the top tier.
+  - [ADR 0038](0038-plugin-addressing-contract.md): "Reference sources do not
+    emit".
+  - [ADR 0039](0039-local-first-reference-data-and-rights.md): a published
+    package, as a maintained default without extra authority.
+  - [ADR 0042](0042-source-onboarding-standard.md): "The builder's reference
+    sources are not plugins", and no subjects before sign-off, for plugins
+    that introduce subjects.
+- **Roadmap stage 0 gains:**
+  - an ordinary plugin adding a subject;
+  - contributing evidence about an existing one;
+  - appearing in search;
+  - keeping saved references through disabling, re-enabling and updates;
+  - queueing identity questions only for instruments relevant to a holding,
+    research task or operation;
+  - removing authority by name or origin;
+  - tests of consequential failures.
+
+### Rejected alternatives
+
+- **Central curation as the authority over identity.** This was the first
+  version of this ADR. Central maintenance remains as a default, but as the only
+  path that creates subjects or settles conflicts it would put every plugin
+  below it.
+- **Only the reference may create subjects.** Every new domain, such as a DeFi
+  ecosystem or a niche market, would wait for a catalogue release.
+- **Mandatory reference plugins.** They would guarantee identical identifiers,
+  but make Pythia unusable for anyone who does not want part of the market.
+  Identifier bundles and aliases give portability without the mandate.
+- **Letting the agent settle records at runtime.** Capable models chose
+  differently on convention questions.
+- **The model tier as the safety boundary.** Saving an answer makes it
+  repeatable, not correct. Evidence and the operation's requirements decide
+  its use.
+- **Raising every world-level question on every installation.** It would make
+  every user a data curator.

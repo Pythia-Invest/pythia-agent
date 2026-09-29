@@ -160,12 +160,16 @@ source's record names the other sources whose open work it depends on (the
 SEC's CIK links depend on FIRDS field 5), and its sign-off does not wait for
 theirs unless it confirms through their evidence.
 
-## Amendment (2026-09-29): trust levels and curated answers
+## Amendment (2026-09-29): trust levels
 
 [ADR 0044](0044-product-direction.md) sets three plugin trust levels: display,
 suggest identity and confirm identity. Only confirming identity requires this
 standard's full audit and sign-off. A display-only plugin, including a user's
-own licensed vendor, needs declared coverage and terms only.
+own licensed vendor, needs declared coverage and terms only. As direction,
+display will also include introducing subjects, which confers no authority
+over them. Today no plugin creates subjects; the rule that a source creates no
+subjects before sign-off changes for introduced subjects when roadmap stage 0
+lands, while establishing facts about them still depends on trust level.
 
 The code gate maps onto them without a new field: `unsigned` is display, and
 `signed_off` or `grandfathered` is confirm.
@@ -184,6 +188,10 @@ The code gate maps onto them without a new field: `unsigned` is display, and
   not represented yet. It arrives with the first plugin that needs it, such as
   a user's own vendor addressed by `resolve`.
 
-Reviewed answers over open data may ship in the reference package. Gold labels
-on licensed data and raw model exchanges stay on the device. Further source
-audits are paused until a strategy's universe or a second user needs them.
+As direction, the statement above that the builder's reference sources are
+not plugins is reversed: reference sources contribute through the same
+contract as any plugin, and trust attaches to a signed or hashed release
+rather than to a plugin's name. Reviewed answers over open data may ship as a
+Pythia-maintained answer list (ADR 0044, amendment A7). Gold labels on licensed
+data and raw model exchanges stay on the device. Further source audits are paused until a
+strategy's universe or a second user needs them.

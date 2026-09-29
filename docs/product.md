@@ -12,8 +12,9 @@ adviser or a substitute for independent judgment. It acts on an owner's own
 accounts only with that owner's explicit approval.
 
 This document describes what exists today. [Vision](vision.md) describes where
-Pythia is going: mandate-driven agents, a verifiable decision ledger, and local
-workspaces with centrally curated shared data ([ADR 0044](decisions/0044-product-direction.md)).
+Pythia is going: mandate-driven agents, a verifiable decision ledger, and data
+that any plugin can extend on equal terms, with maintained defaults
+([ADR 0044](decisions/0044-product-direction.md)).
 
 This repository is Pythia's public monorepo and implementation authority. It
 contains product source, the managed local runtime, tests, and development
