@@ -20,7 +20,7 @@ def helpers(ctx):
     if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
         raise RuntimeError('unavailable')
     namespace = loaded.module.__name__
-    return tuple(importlib.import_module(namespace + '.' + name) for name in ('wire', 'connector', 'selection', '_platform'))
+    return tuple(importlib.import_module(namespace + '.' + name) for name in ('wire', 'connector', 'selection'))
 
 
 def failure(code, message):
@@ -78,8 +78,10 @@ class Resolver:
 
 
 def register(ctx):
-    wire, connector, _selection, platform = helpers(ctx)
-    resolver = Resolver(wire, connector, lambda: platform.platform().configuration, ctx)
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
+    wire, connector, _selection = helpers(ctx)
+    resolver = Resolver(wire, connector, lambda: platform.configuration, ctx)
 
     def available():
         try:
@@ -101,6 +103,6 @@ def register(ctx):
 
     ctx.register_tool(name=TOOL, toolset='pythia-core', schema=resolver.definition,
                       handler=handler, check_fn=available)
-    platform.platform().register_agent_tool(ctx, 'openfigi_identifiers', TOOL, 'FIGI identifiers for an ISIN or ticker '
+    platform.register_agent_tool(ctx, 'openfigi_identifiers', TOOL, 'FIGI identifiers for an ISIN or ticker '
         'from OpenFIGI. Every venue\'s FIGI and share-class FIGI; pythia_find already knows the investor\'s own '
         'reference, so use this only for identifiers it lacks.', check_fn=available)

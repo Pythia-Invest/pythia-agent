@@ -6,7 +6,6 @@ values, not real securities or provider responses.
 import importlib.util
 from pathlib import Path
 import sys
-from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[2] / "managed/plugins/market-data"
 PACKAGE = "market_identity_fixture"
@@ -19,14 +18,12 @@ PLATFORM = 'pythia_platform_fixture'
 platform_root = ROOT.parents[1] / 'core' / 'platform'
 platform_spec = importlib.util.spec_from_file_location(PLATFORM, platform_root / '__init__.py',
                                                      submodule_search_locations=[str(platform_root)])
-platform_module = importlib.util.module_from_spec(platform_spec)
-sys.modules[PLATFORM] = platform_module
-platform_spec.loader.exec_module(platform_module)
-dependency = ModuleType(PACKAGE + '._platform')
-dependency.platform = lambda: platform_module
-sys.modules[dependency.__name__] = dependency
+sys.modules[PLATFORM] = importlib.util.module_from_spec(platform_spec)
+platform_spec.loader.exec_module(sys.modules[PLATFORM])
 # Feature modules are provider-free: don't execute the native plugin initializer.
 from importlib import import_module  # noqa: E402
+# What plugins import, bound as core's register() publishes it (core/platform/__init__.py).
+platform_module = sys.modules["pythia_platform"] = import_module(PLATFORM + ".v1")
 wire = import_module(f"{PACKAGE}.wire")
 
 

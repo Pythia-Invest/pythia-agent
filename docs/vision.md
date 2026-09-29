@@ -246,8 +246,13 @@ installation keeps working offline.
 - **An agent harness runs agent turns.** Today this is Hermes. The goal is a
   single adapter, which keeps the harness replaceable, and plugins that use a
   small, versioned Pythia platform interface and never import harness
-  internals. That is planned, not built: core and every plugin still import
-  Hermes modules directly. Only core's identity package is free of them.
+  internals. The interface exists: plugins import `pythia_platform`
+  ([ADR 0045](decisions/0045-plugin-platform-interface.md)), and core's reads
+  of Hermes's private state sit in one file. Today market-data still imports
+  Hermes modules, and the other bundled connectors still reach market-data's
+  connector toolkit through Hermes's plugin table, until that toolkit moves
+  into core. Core itself still imports Hermes's public modules directly; the
+  single adapter is planned, not built.
 - **The engine starts in the existing backend process** and moves into its own
   process when there is a concrete reason: live automated execution with
   isolated credentials, a native client, a harness replacement, or a hosted team

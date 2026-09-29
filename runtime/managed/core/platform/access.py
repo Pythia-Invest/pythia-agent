@@ -55,15 +55,8 @@ def native_access_scope():
 
 def native_tool_owners():
     """Project the actual native ledger, never a separately maintained inventory."""
-    from hermes_cli.plugins import get_plugin_manager
-    manager = get_plugin_manager()
-    owners = {}
-    for registration in tuple(manager._registration_order):
-        if registration.active and registration.kind == 'tool':
-            plugin = manager._plugins.get(registration.plugin_key)
-            if plugin is not None:
-                owners[registration.key] = (registration.plugin_key, plugin)
-    return owners
+    from .harness import tool_owners
+    return tool_owners()
 
 
 def native_plugin_enabled(key, plugin, config):

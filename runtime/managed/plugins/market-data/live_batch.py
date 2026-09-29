@@ -4,9 +4,9 @@ import copy
 from datetime import datetime, timedelta, timezone
 import json
 
-from ._platform import platform
+from pythia_platform import admission
 
-AdmissionError = platform().admission.AdmissionError
+AdmissionError = admission.AdmissionError
 
 
 def materialize(resource):

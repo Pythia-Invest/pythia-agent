@@ -138,6 +138,8 @@ class Reader:
 
 
 def register(ctx):
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
     wire, connector, selection = helpers(ctx)
     reader = Reader(wire, connector)
     ctx.register_skill('gleif', Path(__file__).parent / 'skills/gleif/SKILL.md',
@@ -154,7 +156,7 @@ def register(ctx):
                     'message': 'Native access changed during the GLEIF read.'}]))
             return json.dumps(result, allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler)
-    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+    agent = platform.register_agent_tool
     agent(ctx, 'gleif_legal_entity', TOOLS['profile'], 'Legal entity, jurisdiction and parent companies from GLEIF. '
           'A company\'s legal and other names, legal form, addresses, registration and entity status, successors, '
           'and direct and ultimate accounting parents, by its LEI. Parents are consolidation links, not complete '

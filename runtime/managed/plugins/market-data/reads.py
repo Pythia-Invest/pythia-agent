@@ -182,8 +182,8 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
     if cached is not None:
         return cached
     raw = yield provider, request["operation"], native_arguments
-    from .request_context import cancelled
-    if cancelled():
+    from pythia_platform import request_context
+    if request_context.cancelled():
         return read_failure(request, "source_error", alternatives=alternatives, provider=provider, selected=selected,
                             source_issues=[{"code": "cancelled", "message": "The read was cancelled.", "severity": "error"}])
     if "request" not in raw:

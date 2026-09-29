@@ -7,6 +7,8 @@ from .definition import SCHEMA, TOOL_NAME, TOOLSET
 
 
 def register(ctx):
+    import pythia_platform  # published by Pythia core (ADR 0045); absent while core is missing or disabled
+    pythia_platform.require(1)
     ctx.register_skill(
         'market-data', Path(__file__).parent / 'skills/market-data/SKILL.md',
         description='Choose price series and read bounded latest and historical market data for a subject or source.',
@@ -28,7 +30,8 @@ def register(ctx):
 
     def handle(arguments, **_context):
         from .execution import dispatch
-        from .request_context import cancel_signal
+        from pythia_platform import request_context
+        cancel_signal = request_context.cancel_signal
         from tools.interrupt import is_thread_interrupted
         from threading import get_ident
         caller = get_ident()

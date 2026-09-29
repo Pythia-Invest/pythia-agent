@@ -19,7 +19,7 @@ def helpers(ctx):
     loaded = get_plugin_manager()._plugins.get('pythia-market-data')
     if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
         raise RuntimeError('unavailable')
-    return tuple(importlib.import_module(loaded.module.__name__ + '.' + name) for name in ('wire', 'process', '_platform'))
+    return tuple(importlib.import_module(loaded.module.__name__ + '.' + name) for name in ('wire', 'process'))
 
 
 def paths():
@@ -31,8 +31,10 @@ def paths():
 
 
 def register(ctx):
-    wire, process, feature_platform = helpers(ctx)
-    read_key = config.key_reader(ctx, feature_platform.platform)
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
+    wire, process = helpers(ctx)
+    read_key = config.key_reader(ctx, lambda: platform)
     definitions = schemas(wire)
     budgets = failures = batching = importlib.import_module(wire.__package__ + '.connector')
     reads = failures.WorkerReads(process)
@@ -42,7 +44,7 @@ def register(ctx):
     # cache, which deep-copies every value on each read.
     snapshots = {}
     config.register_cli(ctx, read_key)
-    demand = importlib.import_module(wire.__package__ + '.request_context')
+    demand = platform.request_context
     def requires_key(operation):
         # Automatic dashboard refresh is scheduled polling: keyless access is
         # documented as unsuitable for it. Explicit reads and syncs work keyless.
@@ -174,9 +176,7 @@ def register(ctx):
             return json.dumps(invoke(_operation, arguments, context.get('cancelled')), allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset=TOOLSET, schema=schema, handler=handler,
                           check_fn=lambda _op=operation: ready(require_key=requires_key(_op)))
-    from hermes_cli.plugins import get_plugin_manager
-    feature = get_plugin_manager()._plugins['pythia-market-data']
-    specialist = importlib.import_module(feature.module.__name__ + '.specialist')
-    specialist.register_read_command(ctx, 'coingecko-dashboard', TOOLS['dashboard'], 'Read CoinGecko aggregate quotes or rolling charts',
+    platform.register_read_command(ctx, 'coingecko-dashboard', TOOLS['dashboard'], 'Read CoinGecko aggregate quotes or rolling charts',
         schema=definitions['dashboard'], plugin='pythia-coingecko',
+        result_issues=lambda result: failures.item_failures(result.get('data')),
         cache_seconds=300, cache_overrides=[{'when': {'kind': 'charts', 'range': period}, 'seconds': 900} for period in ('7d', '30d')])

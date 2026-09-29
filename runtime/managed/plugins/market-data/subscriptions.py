@@ -4,9 +4,9 @@ import json
 
 from .contributions import project
 from .reads import prepare_read
-from ._platform import platform
+from pythia_platform import subscription
 
-Subscription = platform().subscription.Subscription
+Subscription = subscription.Subscription
 
 
 def watch(backend, arguments, subscription):

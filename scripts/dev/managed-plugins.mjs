@@ -29,7 +29,6 @@ export const MANAGED_PLUGINS = Object.freeze([
     source: "plugins/market-data",
     files: Object.freeze([
       "__init__.py",
-      "_platform.py",
       "presentation.py",
       "transport.py",
       "plugin.yaml",
@@ -48,7 +47,6 @@ export const MANAGED_PLUGINS = Object.freeze([
       "native_batch.py",
       "subscriptions.py",
       "process_stream.py",
-      "request_context.py",
       "contributions.py",
       "credentials.py",
       "public_http.py",
@@ -57,7 +55,6 @@ export const MANAGED_PLUGINS = Object.freeze([
       "process.py",
       "reads.py",
       "selection.py",
-      "specialist.py",
       "wire.py",
       "wire_schema.py",
       "skills/market-data/SKILL.md",

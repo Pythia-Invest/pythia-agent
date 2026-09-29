@@ -342,11 +342,10 @@ def installed() -> list[page.PluginInfo]:
 
     A contract newer than this core is skipped with a distinct `needs_update` log line, never reported invalid."""
     from hermes_cli.config import load_config_readonly
-    from hermes_cli.plugins import get_plugin_manager
-    from .platform import configuration
+    from .platform import configuration, harness
     from .platform.access import native_plugin_enabled
     config, loaded = load_config_readonly(), []
-    for key, plugin in tuple(get_plugin_manager()._plugins.items()):
+    for key, plugin in harness.plugins().items():
         directory = Path(plugin.manifest.path) if plugin.manifest.path else None
         if directory is None or not directory.is_absolute() or not (directory / MANIFEST_FILE).is_file():
             continue
@@ -373,7 +372,7 @@ def unrouted(reason: str) -> dict:
 
 
 def price_sources(subject_id: str) -> dict:
-    """Market-data routing for one subject through the registered core (exported as `platform.price_sources`)."""
+    """Market-data routing for one subject through the registered core (exported as `pythia_platform.price_sources`)."""
     return CURRENT.price_sources(subject_id) if CURRENT is not None else unrouted("core_unavailable")
 
 
@@ -382,7 +381,7 @@ CURRENT: Identity | None = None  # the one registered core identity of this proc
 
 def register(ctx: Any) -> None:
     global CURRENT
-    from .platform import declare_operation
+    from .platform.operations import declare_operation
     identity = CURRENT = Identity(ctx)
     for schema, handler, operation, read_only in ((SEARCH_SCHEMA, identity.search, "identity-search", True),
                                                   (SUBJECT_SCHEMA, partial(queue_ops.read_subject, identity), "identity-subject", True),

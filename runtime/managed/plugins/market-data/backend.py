@@ -64,18 +64,16 @@ def retire_source_choices(data_dir):
 
 
 def core_price_sources(subject_id):
-    from ._platform import platform
     try:
-        support = platform()
-    except RuntimeError:  # no enabled core with platform support v1
+        import pythia_platform as platform
+    except ImportError:  # no enabled core publishes the platform interface
         return {"asset_class": None, "refs": [], "reason": "core_unavailable"}
-    return support.price_sources(subject_id)
+    return platform.price_sources(subject_id)
 
 
 def core_check_read(subject_id, native_ref, stated):
-    from ._platform import platform
-    support = platform()
-    check = getattr(support, "check_read", None)  # an older core has no read check
+    import pythia_platform as platform
+    check = getattr(platform, "check_read", None)  # an older core has no read check
     return check(subject_id, native_ref, stated) if check else None
 
 
