@@ -92,6 +92,13 @@ export function SectionPlaceholder({
       title: section.reason ?? "No source covers this",
       fallback: "",
     },
+    // Core's own answer when the reference leaves the issuer undecided: the
+    // header says why, so the card only says what it needs.
+    not_addressable: {
+      icon: <SearchX />,
+      title: section.reason?.split(": ")[0] ?? "No source can address this",
+      fallback: "",
+    },
   };
   const status = known[section.status];
   const unsupported = ![
@@ -114,7 +121,9 @@ export function SectionPlaceholder({
       });
   const uncovered = !unsupported && section.status === "not_covering";
   const detail =
-    unsupported || uncovered ? null : reasonDetail(section) || shown.fallback;
+    unsupported || uncovered || section.status === "not_addressable"
+      ? null
+      : reasonDetail(section) || shown.fallback;
   return (
     <div
       role="note"

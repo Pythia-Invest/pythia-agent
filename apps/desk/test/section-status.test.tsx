@@ -1,16 +1,22 @@
 import {
   filingsSchema,
   profileSchema,
+  subjectPageSchema,
   subjectSectionSchema,
 } from "@pythia/market-data/subject";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { InstrumentHeader } from "@/components/instrument/instrument-header";
 import {
   SectionPlaceholder,
   SourcesLine,
 } from "@/components/instrument/section-status";
 import { FilingsView } from "@/components/instrument/filings-view";
 import { ProfileView } from "@/components/instrument/section-views";
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const section = (fields: Record<string, unknown>) =>
   subjectSectionSchema.parse({
@@ -140,6 +146,65 @@ describe("a listing no price source covers", () => {
     expect(markup).toContain(
       "<li>Yahoo Finance has no address for this listing.</li>",
     );
+  });
+});
+
+describe("a share whose issuer the reference leaves undecided", () => {
+  const page = (fields: Record<string, unknown>) =>
+    subjectPageSchema.parse({
+      subject: {
+        id: "security:isin:CH0038863350",
+        level: "security",
+        name: "Nestle SA",
+        kind: "ordinary",
+      },
+      security: { id: "security:isin:CH0038863350", name: "Nestle SA" },
+      ...fields,
+    });
+
+  it("says the issuer is unknown in the header, and only then", () => {
+    const header = (fields: Record<string, unknown>) =>
+      renderToStaticMarkup(
+        <InstrumentHeader page={page(fields)} subjectId="security:x" />,
+      );
+    expect(header({})).toContain(
+      "Issuer unknown: the reference data doesn&#x27;t settle which company",
+    );
+    const issued = header({
+      issuer: { id: "issuer:lei:X", name: "Nestlé S.A." },
+    });
+    expect(issued).toContain("Issued by Nestlé S.A.");
+    expect(issued).not.toContain("Issuer unknown");
+    const coin = header({ subject: { ...page({}).subject, kind: "coin" } });
+    expect(coin).not.toContain("Issuer unknown");
+  });
+
+  it("has company cards that say they need the issuer", () => {
+    const markup = renderToStaticMarkup(
+      <SectionPlaceholder
+        section={section({
+          section: "profile",
+          plugin: "pythia",
+          label: "Pythia",
+          status: "not_addressable",
+          reason:
+            "Needs the issuer: the reference data doesn't settle which company issued this",
+          skipped: [
+            {
+              source: "GLEIF",
+              provider: "gleif",
+              plugin: "pythia-gleif",
+              code: "not_addressable",
+              reason: "GLEIF has no address for this listing",
+            },
+          ],
+        })}
+        level="security"
+      />,
+    );
+    expect(markup).toContain("Needs the issuer");
+    expect(markup).not.toContain("reference data");
+    expect(markup).not.toContain("GLEIF");
   });
 });
 

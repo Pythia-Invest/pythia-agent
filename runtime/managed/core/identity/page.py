@@ -23,7 +23,7 @@ from enum import StrEnum
 from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
-from .concepts import NOTICE, REGISTRY, UNCOVERED, Combine, Concept, ranked, select
+from .concepts import NOTICE, REGISTRY, Combine, Concept, core_section, ranked, select
 from .manifest import ConceptEntry, Manifest
 from .markets import MARKETS_RULE
 from .model import Binding, ProviderRef
@@ -308,8 +308,8 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
     sections = []
     for section in SECTIONS:
         found = answers(subject, plugins, section, **lookups)
-        uncovered = section is Section.QUOTE and subject["listing"] and found  # a listing's price says why it has none
-        if not uncovered and not any(answer["status"] not in ABSENT for answer in found):
+        own = core_section(subject, section is Section.QUOTE, found)  # says why no source can serve it
+        if not own and not any(answer["status"] not in ABSENT for answer in found):
             continue
         combine = REGISTRY[SERVES[section][0]].combine
         chosen, alternatives, skipped = select(found, combine=combine)
@@ -319,7 +319,7 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
         combined = combine is Combine.PER_AUTHORITY and bool(ready)
         waiting = [answer for answer, _ in chosen if answer["status"] != "ready"] if combined else []
         chosen = ready if combined else chosen
-        lead = dict(chosen[0][0]) if chosen else next((a for a in found if a["status"] not in ABSENT), {**found[0], **UNCOVERED})
+        lead = dict(chosen[0][0]) if chosen else next((a for a in found if a["status"] not in ABSENT), {**found[0], **(own or {})})
         rest = [answer for answer in skipped if answer["plugin"] != lead["plugin"]]
         lead["source"] = source(lead)
         lead["skipped"] = [{**source(answer), "label": answer["label"], "code": answer["status"],

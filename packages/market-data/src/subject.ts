@@ -249,12 +249,11 @@ export const filingsSchema = z.object({
     )
     .default([]),
   source: z.object({ label: text, url: z.string().nullish() }).nullish(),
-  /** Combined reads: the sources read and those that failed. */
+  /** Combined reads: the sources that supplied the rows, and those that failed. */
   sources: z
     .array(
-      z.object({
-        source: text,
-        plugin: text,
+      sourceSchema.extend({
+        provider: optionalText,
         authorities: z.array(text).default([]),
         url: z.string().nullish(),
       }),

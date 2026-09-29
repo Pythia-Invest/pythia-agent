@@ -190,6 +190,22 @@ NOTICE = frozenset({"conflict", "unresolved"})
 # Core's own quote section for a listing no price source covers: it says so, each source's reason listed as skipped.
 UNCOVERED = {"plugin": "pythia", "provider": "pythia", "label": "Pythia", "status": "not_covering",
              "reason": "No price source covers this listing", "unaudited": False}
+# Core's own issuer section (profile, filings) for a share whose issuer the reference leaves undecided (R2: unknown,
+# never a guess): it says so instead of vanishing.
+NO_ISSUER = {**UNCOVERED, "status": "not_addressable", "via": "issuer",
+             "reason": "Needs the issuer: the reference data doesn't settle which company issued this"}
+
+
+def core_section(subject: dict, quote: bool, found: list[dict]) -> dict | None:
+    """Core's own section where no source can serve one: a listing's price says why it has none, and a share's
+    company section (profile, filings) says it needs the issuer the reference leaves undecided. None otherwise."""
+    if quote and subject["listing"] and found:
+        return UNCOVERED
+    ids = subject["ids"]  # a share: a security of the reference, never a curated index or market
+    issuerless = subject["asset_class"] == "equity" and ids.get(Level.SECURITY) and not ids.get(Level.ISSUER)
+    return NO_ISSUER if issuerless and any(answer["via"] == Level.ISSUER for answer in found) else None
+
+
 # Filing authority of an item by the country of the mechanism a source collected it from, for a source serving
 # several: not the filer's country (filings.xbrl.org lists TotalEnergies' report under both FR and GB).
 AUTHORITY_BY_COUNTRY = {"US": FilingAuthority.SEC, "GB": FilingAuthority.FCA, "CA": FilingAuthority.SEDAR,
