@@ -347,6 +347,16 @@ its ESEF report 47 MB, so neither fits a tool result or a body held in memory.
   last of each, since the contents repeats them), else fixed parts of about
   20,000 characters. HTML, inline XBRL and ESEF xhtml are read; PDF comes with
   the first PDF-only regulator (AMF).
+- A section is titled by its heading as the document prints it (from the
+  anchor, else just before it, where designed reports put anchors) as far as
+  a link's label ends with it, else by the first usable label. Adjacent links
+  to one target with only punctuation between them are one label, taken from
+  the extracted text, so a word cut across spans or stream chunks stays
+  whole ("our C" "EO"). A table with two or more link targets in one row is a
+  page of columns (ASML's risk factors: headings in one row, bodies below) and
+  is read column by column, so each section holds its body; every other table
+  keeps its rows. Found in the 2026-09-29 end-to-end check: ASML's first risk
+  factor held 147 characters, its heading alone; it now holds 2,140.
 - Core keeps the extracted text and outline in `documents/` under its
   profile data directory, one file per filing id, within 256 MB, the least
   recently read going first. It is a disposable cache: losing it means reading

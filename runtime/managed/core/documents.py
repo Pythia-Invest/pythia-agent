@@ -25,7 +25,7 @@ from .identity.page import Section
 from .queue_ops import SUBJECT_ID
 
 logger = logging.getLogger(__name__)
-EXTRACTOR = 1              # the extraction's version: a cached document of another version is read again
+EXTRACTOR = 2              # the extraction's version: a cached document of another version is read again
 CACHE_BYTES = 256_000_000  # the disk cache; the least recently read documents go first
 SECTION_CHARS, MAX_SECTION_CHARS = 12_000, 30_000  # text returned per section read
 TOO_LARGE = (f"The document is larger than Pythia reads ({MAX_BYTES // 1_000_000} MB, {MAX_TEXT:,} characters of "

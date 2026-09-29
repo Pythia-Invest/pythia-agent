@@ -4,6 +4,8 @@ reader amendment).
 `extract` streams an HTML, inline XBRL or ESEF xhtml body through an HTML parser, so the raw body is never held
 whole: visible text with line breaks at blocks, and an outline from the document's own table of contents (internal
 links, labelled by their text, in target order), else from "Part I" / "Item 1A." headings, else fixed-size parts.
+A table laid out as a page of columns (a row with several section headings, their bodies in the rows below, as
+designed annual reports are) is read column by column, so each section holds its own body.
 `search` ranks passages of an extracted document by BM25. Pure standard library; no I/O but the stream.
 """
 from __future__ import annotations
@@ -44,8 +46,11 @@ class _Text(HTMLParser):
         self.parts: list[str] = []
         self.size, self.last, self.pending, self.skip = 0, "\n", False, 0
         self.anchors: dict[str, int] = {}
-        self.links: list[tuple[str, str]] = []
-        self.link: tuple[str, list[str]] | None = None
+        self.links: list[list[str]] = []  # [target, piece, …]: adjacent links to one target make one label
+        self.targets: set[str] = set()
+        self.link: tuple[str, int, bool] | None = None  # (target, index in parts where its text starts, joined)
+        self.linked = 0  # the index in parts where the last link ended
+        self.tables: list[dict] = []
         self.title: list[str] | None = None
         self.titled = ""
 
@@ -68,15 +73,36 @@ class _Text(HTMLParser):
             self.skip += 1
         if self.skip:
             return
-        for key, value in attrs:
-            if key in ("id", "name") and value and value not in self.anchors:
-                self.anchors[value] = self.size + (1 if self.pending and self.last != "\n" else 0)
-            elif key == "href" and tag == "a" and value and value.startswith("#") and len(value) > 1:
-                self.link = (value[1:], [])
         if tag in self.BLOCK:
             self._break()
         elif tag in ("td", "th"):
             self.pending = True
+        if tag == "table":  # a cell runs to the next; the first holds what comes before the first row (a caption)
+            self.tables.append({"at": len(self.parts), "row": -1, "col": 0, "taken": set(),
+                                "cells": [{"row": -1, "col": -1, "start": self.size, "anchors": []}]})
+        elif self.tables and tag == "tr":
+            self.tables[-1].update(row=self.tables[-1]["row"] + 1, col=0)
+        elif self.tables and tag in ("td", "th"):
+            table, span = self.tables[-1], dict(attrs)
+            row, col = max(table["row"], 0), table["col"]
+            while (row, col) in table["taken"]:
+                col += 1
+            wide, tall = (min(max(int(value), 1), 100) if str(value).isdigit() else 1
+                          for value in (span.get("colspan"), span.get("rowspan")))
+            table["taken"].update((row + down, col + across) for down in range(tall) for across in range(wide))
+            table["cells"].append({"row": row, "col": col, "start": self.size, "anchors": []})
+            table["col"] = col + wide
+        for key, value in attrs:
+            if key in ("id", "name") and value and value not in self.anchors:
+                self.anchors[value] = self.size + (1 if self.pending and self.last != "\n" else 0)
+                if self.tables:
+                    self.tables[-1]["cells"][-1]["anchors"].append(value)
+            elif key == "href" and tag == "a" and value and value.startswith("#") and len(value) > 1:
+                target = value[1:]
+                self.targets.add(target)
+                joined = bool(self.links) and self.links[-1][0] == target and not re.search(
+                    r"\w", "".join(self.parts[self.linked:]))  # at most punctuation between: "Item 12" "." "…"
+                self.link = (target, self.linked if joined else len(self.parts), joined)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "title" and self.title is not None:
@@ -87,8 +113,17 @@ class _Text(HTMLParser):
         if self.skip:
             return
         if tag == "a" and self.link is not None:
-            self.links.append((self.link[0], " ".join(" ".join(self.link[1]).split())))
-            self.link = None
+            target, start, joined = self.link
+            text = "".join(self.parts[start:])
+            if joined and text[:1].strip() and self.links[-1][-1][-1:].strip():  # a word cut in two: "our C" "EO"
+                self.links[-1][-1] += text
+            elif joined:  # a contents row's "Item 1A." "Risk Factors" "5", a reference over two lines
+                self.links[-1].append(text)
+            else:
+                self.links.append([target, text])
+            self.link, self.linked = None, len(self.parts)
+        if self.tables and tag == "table":
+            self._table_end(self.tables.pop())
         if tag in self.BLOCK:
             self._break()
 
@@ -97,8 +132,6 @@ class _Text(HTMLParser):
             self.title.append(data)
         if self.skip:
             return
-        if self.link is not None:
-            self.link[1].append(data)
         words = data.split()
         if not words:
             self.pending = self.pending or bool(data)
@@ -108,6 +141,30 @@ class _Text(HTMLParser):
             text = " " + text
         self._emit(text)
         self.pending = data[-1].isspace()
+
+    def _table_end(self, table: dict) -> None:
+        """A table with a row holding two or more link targets is a page of columns (headings above their bodies):
+        its cells are read column by column, their anchors moved with them. Any other table is kept as written."""
+        cells = table["cells"]
+        rows = Counter(cell["row"] for cell in cells if any(name in self.targets for name in cell["anchors"]))
+        if max(rows.values(), default=0) >= 2:
+            text, base = "".join(self.parts[table["at"]:]), cells[0]["start"]
+            for cell, end in zip(cells, [cell["start"] for cell in cells[1:]] + [self.size]):
+                cell["text"] = text[cell["start"] - base:end - base]
+            out, at = [], base
+            for cell in sorted(cells, key=lambda item: (item["col"], item["row"])):
+                body, lead = cell["text"].strip(), len(cell["text"]) - len(cell["text"].lstrip())
+                for name in cell["anchors"]:
+                    self.anchors[name] = at + min(max(self.anchors[name] - cell["start"] - lead, 0), len(body))
+                if body:
+                    out.append(body + "\n")
+                    at += len(body) + 1
+            self.parts[table["at"]:] = ["".join(out)]
+            self.size, self.last, self.pending, self.linked = at, "\n", False, len(self.parts)
+            if self.link is not None:
+                self.link = (self.link[0], min(self.link[1], table["at"]), self.link[2])
+        if self.tables:  # a nested table moves with the cell that holds it
+            self.tables[-1]["cells"][-1]["anchors"].extend(name for cell in cells for name in cell["anchors"])
 
 
 class _Strip:
@@ -194,7 +251,9 @@ def extract(response: Any, check: Callable[[], None] = lambda: None) -> dict:
     parser.feed(strip.feed(decoder.decode(b"", final=True), final=True))
     parser.close()
     text = "".join(parser.parts)
-    sections, method = outline(text, parser.anchors, parser.links)
+    links = [(target, " ".join("".join(piece for piece in pieces if not PAGE.fullmatch(piece.strip())).split()))
+             for target, *pieces in parser.links]  # "Item 1A." "Risk Factors" "5": "Item 1A. Risk Factors"
+    sections, method = outline(text, parser.anchors, links)
     return {"title": parser.titled or None, "text": text, "bytes": size, "sections": sections,
             "outline_method": method}
 
@@ -204,6 +263,7 @@ def extract(response: Any, check: Callable[[], None] = lambda: None) -> dict:
 # Page numbers, navigation and "Read more in …" cross-references are no section titles.
 NOT_A_TITLE = re.compile(r"^(?:page\s*)?[\divxlc]+(?:\s*[-–]\s*[\divxlc]+)?$|^(?:back|top|back to top|table of contents|"
                          r"contents|index|return to .*|go to .*)$|\bmore\b", re.I)
+PAGE = re.compile(r"(?:page\s*)?\d+(?:\s*[-–]\s*\d+)?", re.I)
 HEADING = re.compile(r"^(?:part\s+[ivx]+\b|item\s+\d{1,2}[a-c]?\b\.?)", re.I)
 
 
@@ -218,17 +278,44 @@ def _sections(text: str, starts: list[tuple[int, str, str | None]]) -> list[dict
             for index, ((offset, title, anchor), end) in enumerate(zip(starts, ends)) if end > offset]
 
 
+def _flat(value: str) -> str:
+    return "".join(value.split()).lower()
+
+
+def _heading(text: str, at: int, flats: list[str]) -> tuple[int, str] | None:
+    """(offset, title) of the heading at an anchor, the lines from it or else just before it (where a designed report
+    puts its anchors), as far as a link's label ends with it."""
+    low = max(0, at - 400)
+    before = text[low:at].rstrip("\n")
+    for forward, lines in ((True, text[at:at + 400].split("\n")), (False, before.split("\n")[::-1])):
+        heading, found, length = "", None, -1
+        for line in lines[:6]:
+            heading, length = " ".join([heading, line] if forward else [line, heading]).strip(), length + len(line) + 1
+            if not any(_flat(heading) in name for name in flats):
+                break
+            if re.search(r"[A-Za-z]{2}", heading) and any(name.endswith(_flat(heading)) for name in flats):
+                found = (at if forward else low + len(before) - length, " ".join(heading.split()))
+        if found:
+            return found
+    return None
+
+
 def outline(text: str, anchors: dict[str, int], links: list[tuple[str, str]]) -> tuple[list[dict], str]:
-    """(sections, method): the table of contents' link targets, else Part and Item headings, else fixed parts."""
-    labels: dict[str, list[str]] = {}
+    """(sections, method): the table of contents' link targets, else Part and Item headings, else fixed parts.
+    A target is titled by its heading where a link's label ends with it ("Evaluation" for "Read more in Corporate
+    governance – Evaluation", a heading over three lines), else by its first usable label."""
+    names: dict[str, list[str]] = {}  # every label, without spaces or case
+    first: dict[str, str] = {}
     for target, label in links:
-        if target in anchors and label and not NOT_A_TITLE.search(label) and re.search(r"[A-Za-z]{2}", label):
-            if label not in labels.setdefault(target, []):
-                labels[target].append(label)
-    starts = [(anchors[target], " ".join(name for name in names  # "Item 1A." and "Risk Factors"; not a repeat
-                                         if not any(name != other and name.lower() in other.lower()
-                                                    for other in names)), target)
-              for target, names in labels.items()]
+        if target in anchors and label:
+            names.setdefault(target, []).append(_flat(label))
+            if target not in first and not NOT_A_TITLE.search(label) and re.search(r"[A-Za-z]{2}", label):
+                first[target] = label
+    starts = []
+    for target, flats in names.items():
+        heading = _heading(text, anchors[target], flats)
+        if heading or target in first:
+            starts.append((*(heading or (anchors[target], first[target])), target))
     if len({offset for offset, _title, _anchor in starts}) >= 3:
         return _sections(text, starts), "contents_links"
     found: dict[str, tuple[int, str, None]] = {}  # the last "Item 1A." heading wins: earlier ones are the contents

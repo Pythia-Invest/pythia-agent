@@ -46,6 +46,28 @@ TEN_K = ('<html><head><title>exa-20250927</title><style>p {}</style></head><body
          '<p><a href="#i1a">Read more in Risk Factors</a> <a href="#top">Back to top</a></p></body></html>')
 
 
+class Chunked(Response):
+    """A body read a few bytes at a time, so text and links are cut across chunks."""
+
+    def read1(self, size=-1):
+        return self.read(3)
+
+
+DESIGNED = ('<table><tr><td><a href="#sr">STRATEGIC REPORT</a></td><td><a href="#ceo">Q&amp;A with the CEO</a></td>'
+            '<td><span>Financial p</span><a href="#fp">erformance</a></td></tr></table>'
+            '<p><a href="#r1">Our future success depends</a></p><p><a href="#r2">We face intense competition</a></p>'
+            '<div id="sr">STRATEGIC REPORT</div><div id="ceo">Q&amp;A with the CEO</div><p>Welcome.</p>'
+            '<p><a href="#ceo">Read more in Strategic report – In conversation with </a></p>'
+            '<p><a href="#ceo">our C</a><a href="#ceo">EO</a></p>'
+            '<div id="fp">Financial performance</div><p>Sales grew.</p><p><a href="#fp">Financial performance</a></p>'
+            '<p>Our marketplace</p><div id="mk"></div>'
+            '<p>Tariffs weighed.</p><p><a href="#mk">Read more in Strategic report – Our marketplace</a></p>'
+            '<table><tr><td rowspan="2">Strategic</td><td colspan="2"><span id="r1"></span>Our future success '
+            'depends</td><td><span id="r2"></span>We face intense competition</td></tr>'
+            '<tr><td>Body one begins.</td><td>Body one continues.</td><td>Body two.</td></tr></table>'
+            '<table><tr><td>Sales</td><td>1</td></tr><tr><td>Costs</td><td>2</td></tr></table>')
+
+
 class Extraction(unittest.TestCase):
     def test_text_leaves_out_hidden_facts_scripts_and_styles_and_breaks_at_blocks(self):
         document = read(TEN_K)
@@ -59,10 +81,25 @@ class Extraction(unittest.TestCase):
         document = read(TEN_K)
         self.assertEqual(document["outline_method"], "contents_links")
         self.assertEqual([(item["title"], item.get("anchor")) for item in document["sections"]],
-                         [("Cover and contents", None), ("Part I", "p1"), ("Item 1. Business", "i1"),
+                         [("Cover and contents", None), ("PART I", "p1"), ("Item 1. Business", "i1"),
                           ("Item 1A. Risk Factors", "i1a")])
         risk = document["sections"][-1]
         self.assertTrue(document["text"][risk["start"]:risk["end"]].startswith("Item 1A. Risk Factors\nSales"))
+
+    def test_a_page_of_columns_is_read_column_by_column_and_titles_are_the_printed_headings(self):
+        # Shaped by ASML's 2025 20-F and ESEF report (Workiva): three risk headings in one table row, their bodies in
+        # the row below; a link cut mid-word; a heading printed before its anchor; a link on part of a heading
+        # ("erformance") next to one on all of it.
+        document = document_text.extract(Chunked(DESIGNED.encode()))
+        titles = {item.get("anchor"): item["title"] for item in document["sections"]}
+        self.assertEqual(titles, {None: "Cover and contents", "sr": "STRATEGIC REPORT", "ceo": "Q&A with the CEO",
+                                  "fp": "Financial performance", "mk": "Our marketplace",
+                                  "r1": "Our future success depends", "r2": "We face intense competition"})
+        body = {item.get("anchor"): document["text"][item["start"]:item["end"]] for item in document["sections"]}
+        self.assertEqual(body["r1"], "Our future success depends\nBody one begins.\nBody one continues.\n")
+        self.assertEqual(body["r2"], "We face intense competition\nBody two.\nSales 1\nCosts 2\n")  # rows kept
+        self.assertTrue(body["mk"].startswith("Our marketplace\nTariffs"))
+        self.assertIn("Strategic\nOur future", document["text"])
 
     def test_without_contents_links_headings_then_fixed_parts_are_the_outline(self):
         headings = read("<p>Item 1. Business</p><p>Item 1A. Risk Factors</p><p>PART I</p><p>Item 1. Business</p>"
