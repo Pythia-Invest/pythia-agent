@@ -4,6 +4,8 @@ import { fixture, send } from "./stream-fixture";
 test("keeps unknown agents visible and finished outcomes inspectable", async ({
   page,
 }) => {
+  // The selected child is polled; advance the page clock past its interval.
+  await page.clock.install();
   const f = await fixture(page);
   f.setWork({
     plans: [],
@@ -109,6 +111,7 @@ test("keeps unknown agents visible and finished outcomes inspectable", async ({
       },
     ],
   });
+  await page.clock.runFor(2_000);
   await expect(detail.getByText("Checking publication dates.")).toBeVisible();
   await expect(detail.getByRole("button", { name: "Copy answer" })).toHaveCount(
     0,
