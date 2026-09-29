@@ -58,7 +58,7 @@ class ReferenceTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         path = Path(cls.tmp.name) / "reference-test.sqlite3"
         writer.write(Snapshot(as_of="2026-09-28"), path, {"build_id": "test"}, [])  # no provider involved
-        cls.path, cls.ref = path, store.open_reference(path)
+        cls.path, cls.ref = path, store.open_reference(path, "confirm")  # installed by a user who trusts it
         cls.canonical = {(row[0], row[1]): row[2] for row in cls.ref.execute(
             "SELECT provider, native_id, caip19 FROM canonical_assets")}
         cls.contracts = truth.load_contracts()

@@ -321,6 +321,10 @@ aside or moved.
 - A plugin whose trust drops keeps the bindings it already made. Nothing is
   re-keyed or deleted; its sections carry the "not yet audited" label, and a
   new answer that would bind waits for review.
+- Evidence counts at its contributor's level: a package's rows at the level of
+  its grant, a plugin's claims at its plugin's. Only confirm-level evidence
+  proves or blocks, and the builder's `snapshot` authority no longer outranks
+  anything ([ADR 0037](0037-identity-backbone.md), amendment of 2026-09-30).
 - A 2026-09-30 read-only look at 19 development profiles (196 plugin
   directories) found no file Hermes had written into a plugin directory other
   than `__pycache__/*.pyc`. Fifteen files in two profiles had been edited by

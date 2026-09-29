@@ -1,16 +1,15 @@
 """Instrument page composition (ADR 0038, ADR 0040): the subject, its listings and one plugin per section.
 
-`subject_view` is local only: it reads the reference file, the identity store and
-the installed plugins' contracts, and never calls a plugin. A plugin whose
-contract lets core build its native reference from open identifiers (a MIC
-suffix table, an identifier-named native scope, the curated canonical-asset table)
-is addressed at once; that derived reference is an address, never identifier
-evidence. Only when core cannot derive the address is the section `resolving`:
-the Desk then asks for that plugin's resolve (`identity-resolve`), which
-`apply_resolve` decides with the one authority rule.
+`subject_view` is local only: it reads the reference file, the identity store and the installed plugins' contracts,
+and never calls a plugin. A plugin whose contract lets core build its native reference from open identifiers (a MIC
+suffix table, an identifier-named native scope, the package's canonical-asset table) is addressed at once; that
+derived reference is an address, never identifier evidence. It is `confirmed` only where confirm-level evidence
+states it: a package's provider coin ids, at the package's trust level. Only when core cannot derive the address is
+the section `resolving`: the Desk then asks for that plugin's resolve (`identity-resolve`), which `apply_resolve`
+decides with the one authority rule.
 
-A `market` subject (a perp) comes from core's curated table (`markets.py`); its
-page needs no reference file.
+A `market` subject (a perp) comes from core's curated table (`markets.py`); its page needs no reference file, and
+the addresses that table names are derived: no contributor's evidence states them.
 """
 from __future__ import annotations
 
@@ -29,6 +28,7 @@ from .markets import MARKETS_RULE
 from .model import Binding, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide, quotes_underlying, resolve_evidence
 from .schemes import CANONICAL_ASSETS_RULE, INSTRUMENT_KINDS, Kind, Level, provisional_id
+from .trust import CONFIRM
 from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
 from .vocabulary import KIND_OF_RECORD, AssetClass, InstrumentKind, VerdictRelation
 
@@ -248,7 +248,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         ref, state = ProviderRef(row["provider"], row["native_id"], row["native_scope"]), row["status"]
     else:
         ref, rule = derived
-        state = "confirmed" if rule in (CANONICAL_ASSETS_RULE, MARKETS_RULE) else "derived"
+        state = "confirmed" if rule == CANONICAL_ASSETS_RULE and subject.get("trust") == CONFIRM else "derived"
     request = None
     if section in (Section.PROFILE, Section.FILINGS, Section.LIVE):
         if operation not in info.operations:  # the contract names it, but no native tool declares it

@@ -74,8 +74,14 @@ def assertion_row(item):
             "adapter_version": provenance.adapter_version, "retrieved_at": provenance.retrieved_at}
 
 
+def stored(row):
+    """A fixture row typed as core reads it: a format-5 package's `snapshot` or `curated` as the kind it is."""
+    return {**row, "authority": identity.stored_authority(row["authority"], row["provenance"].get("source_record"))}
+
+
 def load_reference(db, fixture):
-    """Construct every fixture record through the types, then store it under the DDL's checks."""
+    """Construct every fixture record through the types, then store it under the DDL's checks, with the authority
+    the fixture gives (a format-5 package's `snapshot` and `curated` included)."""
     for table in ("chains", "provider_chains", "canonical_assets"):
         for row in fixture.get(table, []):
             insert(db, table, row)
@@ -100,15 +106,15 @@ def load_reference(db, fixture):
                                 "chain": listing.chain, "is_primary": int(listing.primary), "status": listing.status.value})
     evidence = {}
     for row in fixture["assertions"]:
-        item = model.IdentifierAssertion(**row)
-        insert(db, "assertions", assertion_row(item))
+        item = model.IdentifierAssertion(**stored(row))
+        insert(db, "assertions", {**assertion_row(item), "authority": row["authority"]})
         evidence[(item.subject_id, item.scheme.value)] = item.evidence_id
     for row in fixture.get("relations", []):
-        relation = model.Relation(**row)
+        relation = model.Relation(**stored(row))
         insert(db, "relations", {
             "evidence_id": relation.evidence_id,
             "type": relation.type.value, "from_id": relation.from_id, "to_id": relation.to_id, "ratio": relation.ratio,
-            "authority": relation.authority.value, "source": relation.provenance.source,
+            "authority": row["authority"], "source": relation.provenance.source,
             "plugin": relation.provenance.plugin, "adapter_version": relation.provenance.adapter_version,
             "retrieved_at": relation.provenance.retrieved_at})
     return evidence
@@ -134,11 +140,11 @@ class StoreSchemaTest(unittest.TestCase):
         fixture = load("asml.json")
         wrong = copy.deepcopy(fixture["assertions"][2])  # the ordinary share's ISIN
         wrong["subject_id"] = "listing:isin:NL0010273215:XAMS:EUR"
-        with self.assertRaises(ValueError):
-            model.IdentifierAssertion(**wrong)
+        with self.assertRaisesRegex(ValueError, "cannot identify a listing"):
+            model.IdentifierAssertion(**stored(wrong))
         db = database("reference")
         load_reference(db, fixture)
-        row = assertion_row(model.IdentifierAssertion(**fixture["assertions"][2]))
+        row = assertion_row(model.IdentifierAssertion(**stored(fixture["assertions"][2])))
         with self.assertRaises(sqlite3.IntegrityError):
             insert(db, "assertions", {**row, "evidence_id": "ev:wrong-level", "subject_id": "listing:isin:NL0010273215:XAMS:EUR", "level": "listing"})
 
@@ -396,9 +402,9 @@ class ResolutionTest(unittest.TestCase):
                  "input_digest": "sha256:" + "0" * 64, "provenance": {**PROVENANCE, "plugin": "jev", "source": "jev"}}
         return identity.Verdict(**{**value, **overrides})
 
-    def figi(self, value, authority="snapshot"):
+    def figi(self, value, authority="source_asserted", source="openfigi"):
         return identity.IdentifierAssertion(subject_id=self.LISTING, scheme="figi", value=value, authority=authority,
-                                            provenance={**PROVENANCE, "plugin": "openfigi", "source": "openfigi"})
+                                            provenance={**PROVENANCE, "plugin": source, "source": source})
 
     def decide(self, verdict, claimed_figi="BBG000C1HT47", evidence=None, **facts):
         item = self.item("listing:provisional:eodhd:catalogue:ASML.AS", self.LISTING)
@@ -421,26 +427,46 @@ class ResolutionTest(unittest.TestCase):
         self.assertIs(self.decide(self.verdict(), prior=[other]), outcome.AMBIGUOUS)
         self.assertIs(self.decide(self.verdict(relation="ambiguous", chosen_id=None)), outcome.AMBIGUOUS)
 
-    def test_open_evidence_outranks_a_providers_identifier(self):
+    def test_two_confirm_level_values_block_every_answer_but_the_users(self):
+        # No source outranks another: where confirm-level sources disagree, no rule or model answer confirms.
         outcome = identity.VerdictOutcome
-        stale = self.figi("BBG000K6N6G7", authority="source_asserted")
-        self.assertIs(self.decide(self.verdict(), evidence=[self.figi("BBG000C1HT47"), stale]), outcome.CONFIRMED)
-        self.assertIs(self.decide(self.verdict(), evidence=[stale]), outcome.BLOCKED)
+        other = self.figi("BBG000K6N6G7", source="vendor")
+        user = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None,
+                            prompt_version=None, input_digest=None, user_turn="desk:turn-1",
+                            provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
+        for claimed in ("BBG000C1HT47", "BBG000K6N6G7"):
+            with self.subTest(claimed=claimed):
+                evidence = [self.figi("BBG000C1HT47"), other]
+                self.assertIs(self.decide(self.verdict(), claimed, evidence), outcome.BLOCKED)
+                self.assertIs(self.decide(user, claimed, evidence, threshold=None), outcome.CONFIRMED)
+                self.assertIs(self.decide(user, claimed, [self.figi(claimed)], threshold=None), outcome.CONFIRMED)
+        # Unanimous confirm-level proof refuses the user too, both a match against it and "none" against it.
+        self.assertIs(self.decide(user, "BBG000K6N6G7", [self.figi("BBG000C1HT47")], threshold=None), outcome.BLOCKED)
+        none = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None,
+                            prompt_version=None, input_digest=None, user_turn="desk:turn-1", relation="none",
+                            chosen_id=None, provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
+        self.assertIs(self.decide(none, "BBG000C1HT47", [self.figi("BBG000C1HT47")]), outcome.BLOCKED)
+        self.assertIs(self.decide(none, "BBG000C1HT47", [self.figi("BBG000C1HT47"), other]), outcome.NO_MATCH)
 
-    def test_an_open_isin_outranks_a_stale_provider_isin(self):
+    def test_one_sources_several_values_contest_nothing(self):
+        # OpenFIGI gives a German composite two composite FIGIs: either names it, and neither contradicts the other.
         outcome = identity.VerdictOutcome
-        security = "security:isin:NL0010273215"
-        reference = identity.IdentifierAssertion(subject_id=security, scheme="isin", value="NL0010273215",
-                                                 authority="snapshot",
-                                                 provenance={**PROVENANCE, "plugin": "esma_firds", "source": "firds"})
-        stale = identity.IdentifierAssertion(subject_id=security, scheme="isin", value="NL0006034001",
-                                             authority="source_asserted", provenance=PROVENANCE)
-        claimed = [identity.IdentifierValue("isin", "NL0010273215")]
-        facts = {"claimed": claimed, "as_of": "2026-09-25", "record_kind": None, "subject_kind": None,
-                 "threshold": 0.95}
-        item = self.item("listing:provisional:eodhd:catalogue:ASML.AS", self.LISTING)
-        self.assertIs(identity.decide(self.verdict(), item, evidence=[reference, stale], **facts), outcome.CONFIRMED)
-        self.assertIs(identity.decide(self.verdict(), item, evidence=[stale], **facts), outcome.BLOCKED)
+        both = [self.figi("BBG000C1HT47"), self.figi("BBG000K6N6G7")]
+        user = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None,
+                            prompt_version=None, input_digest=None, user_turn="desk:turn-1",
+                            provenance={**PROVENANCE, "plugin": "pythia", "source": "user"})
+        for claimed in ("BBG000C1HT47", "BBG000K6N6G7"):
+            with self.subTest(claimed=claimed):
+                self.assertIs(self.decide(self.verdict(), claimed, both), outcome.CONFIRMED)
+        self.assertIs(self.decide(user, "BBG000BDTBL9", both, threshold=None), outcome.BLOCKED)  # one source, unanimous
+
+    def test_a_format_5_packages_authorities_are_read_as_kinds_of_evidence(self):
+        read = identity.stored_authority
+        self.assertEqual([read("snapshot", "share_class_figi"), read("snapshot", "firds_underlying_isin"),
+                          read("snapshot", "receipt_issuer_share@1"), read("curated", "canonical_assets@1"),
+                          read("source_asserted"), read("user_attested")],
+                         ["source_asserted", "source_asserted", "rule_confirmed", "source_asserted", "source_asserted",
+                          "user_attested"])
 
     def test_a_receipt_is_never_the_same_security_as_its_underlying(self):
         outcome = identity.VerdictOutcome

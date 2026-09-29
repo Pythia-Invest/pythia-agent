@@ -1,6 +1,7 @@
 """Closed vocabularies of the backbone: tiers, authorities, kinds, statuses, relations."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -11,33 +12,46 @@ class EvidenceTier(StrEnum):
     T0 = "T0"  # equal source-asserted identifiers within their validity windows
     T1 = "T1"  # versioned deterministic rule measured at >=99.5% precision
     T3 = "T3"  # model verdict: typed relation + calibrated confidence
-    T4 = "T4"  # attestation: a user statement (manual, or recorded by the agent), or curation
+    T4 = "T4"  # attestation: a user statement (manual, or recorded by the agent)
 
 
 class Authority(StrEnum):
-    SOURCE_ASSERTED = "source_asserted"  # the source's own record says so
-    SNAPSHOT = "snapshot"                # carried from a verified reference build or release
+    """The kind of evidence, never its origin: how much it counts also depends on its contributor's trust level
+    (ADR 0044 A2, A4)."""
+
+    SOURCE_ASSERTED = "source_asserted"  # a source's own record says so, a reference package's or a plugin's alike
     RULE_CONFIRMED = "rule_confirmed"    # a versioned T1 rule, named by rule_id
     MODEL_CONFIRMED = "model_confirmed"  # a model verdict at or above its calibrated threshold
     MODEL_SUGGESTED = "model_suggested"  # a model verdict below it: a candidate, never routable
     AGENT_CONFIRMED = "agent_confirmed"  # the Hermes agent's answer: a suggestion the user confirms (ADR 0044)
     USER_ATTESTED = "user_attested"      # the user stated it, directly or through the agent
-    CURATED = "curated"                  # a reviewed, Pythia-authored reference table
 
 
 # An echo of the caller's own query or unestablished provenance is not evidence and has no authority.
 AUTHORITY_TIER: dict[Authority, EvidenceTier] = {
     Authority.SOURCE_ASSERTED: EvidenceTier.T0,
-    Authority.SNAPSHOT: EvidenceTier.T0,
     Authority.RULE_CONFIRMED: EvidenceTier.T1,
     Authority.MODEL_CONFIRMED: EvidenceTier.T3,
     Authority.MODEL_SUGGESTED: EvidenceTier.T3,
     Authority.AGENT_CONFIRMED: EvidenceTier.T3,
     Authority.USER_ATTESTED: EvidenceTier.T4,
-    Authority.CURATED: EvidenceTier.T4,
 }
 # Authorities that may carry a binding to `confirmed`.
 CONFIRMING = frozenset(Authority) - {Authority.MODEL_SUGGESTED}
+# Values a reference package of format 5 writes for where evidence came from, not what kind it is. Core reads each as
+# its kind (`stored_authority`); the next package format writes only kinds.
+LEGACY = frozenset({"snapshot", "curated"})
+RULE_ID = re.compile(r"[a-z][a-z0-9_]*@[0-9]+")  # a versioned rule, e.g. `receipt_issuer_share@1`
+
+
+def stored_authority(value: str, source_record: str | None = None) -> Authority:
+    """The kind of evidence a stored row states. An older package's `snapshot` and `curated` rows are what a source,
+    or Pythia's own list, states (`source_asserted`), except a value a builder rule derived, whose `source_record`
+    names the rule (`rule_confirmed`)."""
+    if value not in LEGACY:
+        return Authority(value)
+    derived = value == "snapshot" and RULE_ID.fullmatch(source_record or "")
+    return Authority.RULE_CONFIRMED if derived else Authority.SOURCE_ASSERTED
 
 
 # Closed sets grow when a connector emits a new class or kind, with its store CHECKs.
