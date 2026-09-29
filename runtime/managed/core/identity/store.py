@@ -275,6 +275,11 @@ class IdentityStore:
                 and (subjects is None or subjects & set(item["subject_ids"] + item["candidate_ids"]))]
 
     @_locked
+    def select(self, sql: str, args: Iterable = ()) -> list[sqlite3.Row]:
+        """One read of the shared connection under the store lock, for a query its caller owns (`build_questions`)."""
+        return self.db.execute(sql, tuple(args)).fetchall()
+
+    @_locked
     def queue_item(self, item_id: str) -> dict | None:
         row = self.db.execute(f"{_ITEMS} WHERE q.id = ?", (item_id,)).fetchone()
         return _item(row) if row else None

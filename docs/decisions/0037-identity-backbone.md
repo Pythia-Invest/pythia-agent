@@ -762,7 +762,9 @@ change what this device shows.
 
 **When a question is queued.** One gate, `queue_ops.surface`, queues the
 build's questions about a subject and its family (listing, security, issuer and
-composite). It runs when a subject is touched:
+composite). An issuer question is also about its candidates: a CIK-only
+registrant is on no page, so its question is queued when a candidate issuer's
+page is touched. The gate runs when a subject is touched:
 
 - the Desk reads a subject page (`identity-subject`): the instrument page, a
   markets card or a watchlist row, including Pythia's default watchlist;
@@ -786,7 +788,8 @@ Some questions stay in the package, and the log counts them once per package:
 - a question with no candidate. Its only answer would be "None of these", and
   the page already says the fact is unknown ("Issuer unknown"). It becomes
   queueable when a later release offers candidates;
-- a malformed question, logged as a warning.
+- a malformed question, logged as a warning. An unreadable claims file is
+  warned about once and read again on the next touch.
 
 Holdings, forecasts and operations become touch points in stage 1.
 
@@ -836,7 +839,8 @@ showing both values.
 "Same company?", "Receipt's share unknown", "Share or receipt?"), shows its
 subject with its identifiers and its candidates, and no provider-record rows.
 It names its source "Pythia reference": that label names the origin and grants
-no authority. A settled question shows the chosen answer. The page's issuer
+no authority. A build question is a row with that tag and no provider record,
+and `reference` is a reserved plugin name, so no plugin can pose as the build. A settled question shows the chosen answer. The page's issuer
 carries `authority: user_attested` when the user's answer set it.
 
 **The default listing** (A5: a documented default, not an identity question).

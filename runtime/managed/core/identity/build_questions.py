@@ -41,6 +41,13 @@ EPOCH = "1970-01-01T00:00:00Z"  # an indexed question's placeholder `opened_at`;
 RELATIONS = {"identifier": VerdictRelation.SAME_ISSUER, "ambiguous": VerdictRelation.SAME_ISSUER,
              "no_key": VerdictRelation.DEPOSITARY_RECEIPT_OF, "relation": VerdictRelation.DEPOSITARY_RECEIPT_OF}
 _INDEX: dict[str, dict[str, list[QueueItem]]] = {}  # installed package -> subject -> its queueable questions
+_UNREADABLE: set[str] = set()  # packages whose claims file could not be read, warned about once
+
+
+def is_build(row: dict) -> bool:
+    """A reference build question: the tag, and no provider record (SQL: `plugins = '["reference"]' AND
+    provider_ref IS NULL`). No plugin can take the tag: `reference` is a reserved plugin name (`manifest`)."""
+    return row["plugins"] == [BUILD] and not row["provider_ref"]
 
 
 def asked(item: dict) -> tuple[str, VerdictRelation] | None:
@@ -64,11 +71,14 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
 
 def about(path: Path, subject_ids: Iterable[str]) -> list[QueueItem]:
     """The installed package's queueable questions about these subjects. Its claims file is read once; a read that
-    fails is not kept, so the next touch reads it again."""
+    fails is not kept, so the next touch reads it again, and is warned about once."""
     index = _INDEX.get(str(path))
     if index is None:
         items = reference_package.questions(path)
         if items is None:
+            if str(path) not in _UNREADABLE:
+                _UNREADABLE.add(str(path))
+                logger.warning("the reference build's questions in %s could not be read", Path(path).parent.name)
             return []
         index = _index(items)
         _INDEX.clear()
@@ -94,14 +104,14 @@ def reopen(store, item_id: str, now: str, path: Path | None) -> bool:
     """Undo the user's answer: the answered question is superseded, its verdict kept as history, and asked again as
     the installed release asks it (else as it was), so its override no longer applies. False when it is not an
     answered build question."""
+    row = store.queue_item(item_id)
+    if row is None or row["state"] not in ("resolved", "dismissed") or not is_build(row) or asked(row) is None:
+        return False
+    latest = next((item for item in about(path, row["subject_ids"]) if item.key == row["key"]), None) if path else None
     with store.transaction():
-        row = store.queue_item(item_id)
-        if row is None or row["state"] not in ("resolved", "dismissed") or row["plugins"] != [BUILD] \
-                or row["provider_ref"] or asked(row) is None:
-            return False
-        latest = next((item for item in about(path, row["subject_ids"]) if item.key == row["key"]), None) if path \
-            else None
-        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE id = ?", (now, item_id))
+        if store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE id = ? AND state = ?",
+                            (now, item_id, row["state"])).rowcount != 1:
+            return False  # answered or reopened again meanwhile
         store.put_queue_item(replace(latest, id=_row_id(), opened_at=now) if latest else QueueItem(
             id=_row_id(), kind=row["kind"], reason=row["reason"], subject_ids=row["subject_ids"],
             candidate_ids=row["candidate_ids"], evidence_ids=row["evidence_ids"], state="open", opened_at=now,
@@ -126,12 +136,12 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     if subject is None:
         return None
     ids = [value for value in subject["ids"].values() if value]
-    with store._writing:  # the store's one connection, held as its own reads hold it
-        rows = store.db.execute(
-            "SELECT q.subject_ids, v.relation, v.chosen_id FROM queue q JOIN verdicts v ON v.id = q.resolved_by"
-            " WHERE q.plugins = ? AND q.state = 'resolved' AND v.resolver = 'user' AND EXISTS (SELECT 1 FROM"
-            " (SELECT value FROM json_each(q.subject_ids) UNION ALL SELECT value FROM json_each(q.candidate_ids))"
-            " WHERE value IN (SELECT value FROM json_each(?)))", (json.dumps([BUILD]), json.dumps(ids))).fetchall()
+    rows = store.select(
+        "SELECT q.subject_ids, v.relation, v.chosen_id FROM queue q JOIN verdicts v ON v.id = q.resolved_by"
+        " WHERE q.plugins = ? AND q.provider_ref IS NULL AND q.state = 'resolved' AND v.resolver = 'user' AND EXISTS"
+        " (SELECT 1 FROM (SELECT value FROM json_each(q.subject_ids) UNION ALL SELECT value FROM"
+        " json_each(q.candidate_ids)) WHERE value IN (SELECT value FROM json_each(?)))",
+        (json.dumps([BUILD]), json.dumps(ids)))
     answers = sorted(((json.loads(row[0])[0], row[1], row[2]) for row in rows),
                      key=lambda answer: subject_kind(answer[0]) == "issuer")  # a security's answer first
     for question, relation, chosen in answers:
@@ -160,10 +170,13 @@ def _index(items: list[dict]) -> dict[str, list[QueueItem]]:
         if why:
             skipped[why] += 1
             continue
-        for subject in item.subject_ids:
+        # An issuer question is relevant to its candidates' pages too: a CIK-only registrant is on no page.
+        filed = item.subject_ids + (item.candidate_ids if subject_kind(item.subject_ids[0]) == "issuer" else ())
+        for subject in dict.fromkeys(filed):
             index.setdefault(subject, []).append(item)
     if skipped:
-        logger.log(logging.WARNING if skipped["malformed"] else logging.INFO, "reference build questions not queued: %s",
+        logger.log(logging.WARNING if skipped["malformed"] else logging.INFO,
+                   "reference build questions not queued: %s",
                    ", ".join(f"{count} {why}" for why, count in sorted(skipped.items())))
     return index
 
@@ -173,9 +186,8 @@ def _unasked(store, items: Iterable[QueueItem]) -> list[QueueItem]:
     wanted = {item.key: item for item in items}
     if not wanted:
         return []
-    with store._writing:
-        rows = store.db.execute("SELECT key, state, candidate_ids FROM queue WHERE state <> 'superseded' AND key IN"
-                                " (SELECT value FROM json_each(?))", (json.dumps(list(wanted)),)).fetchall()
+    rows = store.select("SELECT key, state, candidate_ids FROM queue WHERE state <> 'superseded' AND key IN"
+                        " (SELECT value FROM json_each(?))", (json.dumps(list(wanted)),))
     for key, state, candidates in rows:
         if key in wanted and (state != "dismissed" or set(json.loads(candidates)) == set(wanted[key].candidate_ids)):
             del wanted[key]

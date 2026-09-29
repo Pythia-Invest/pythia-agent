@@ -9,8 +9,8 @@ import types
 import unittest.mock
 from pathlib import Path
 
-from test_identity_contracts import load_reference
-from test_identity_page import ASML, LEI, plugin
+from test_identity_contracts import identity, load_reference
+from test_identity_page import ASML, CONTRACTS, LEI, plugin
 from test_identity_queue import QueueFixture, load_core
 from test_reference_package import make_package
 from pythia_identity_fixture import reference_package  # noqa: E402
@@ -46,6 +46,7 @@ SHARE_OR_RECEIPT = {"question": "receipt_conflict", "kind": "conflict", "reason"
                     "candidate_ids": [RECEIPT], "evidence_ids": ["record:fedcba9876543210"], "values": ["USN070592100"]}
 SI_ONLY = {"question": "issuer_identity", "kind": "conflict", "reason": "identifier", "subject_ids": [NOTE],
            "candidate_ids": [ISSUER], "evidence_ids": ["record:00aa"], "scheme": "lei", "values": [OPERATOR]}
+UNRELATED = {**SI_ONLY, "candidate_ids": [OPERATOR_ISSUER]}  # neither its subject nor its candidate is touched below
 NAME = {"question": "issuer_identity_name_candidate", "kind": "residual", "reason": "ambiguous",
         "subject_ids": [REGISTRANT], "candidate_ids": [ISSUER]}
 # W1-builder's link conflict: two LEIs claim one CIK, so the registrant is asked about with both as candidates.
@@ -127,7 +128,7 @@ class SurfaceTest(BuildQuestionFixture):
         self.assertEqual((before["outcome"], self.open()), ("empty", []))
 
     def test_touched_instruments_queue_their_familys_questions_once_and_untouched_ones_none(self):
-        self.install([issuer_question(), RECEIPT_OF, SHARE_OR_RECEIPT, NAME, HOME], self.world())
+        self.install([issuer_question(), RECEIPT_OF, SHARE_OR_RECEIPT, UNRELATED, HOME], self.world())
         self.page(NASDAQ)  # A: the registry shares' page; its questions are about their security
         self.assertEqual({(item["reason"], *item["subject_ids"]) for item in self.open()},
                          {("identifier", RECEIPT), ("no_key", RECEIPT)})
@@ -136,7 +137,7 @@ class SurfaceTest(BuildQuestionFixture):
         self.page(ASML)  # B: a watchlist row the Desk reads; its home_market question is a listing choice
         self.assertEqual({item["reason"] for item in self.open()}, {"identifier", "no_key", "relation"})
         listed = json.loads(self.queue_ops.read_queue(self.ops, {}))["data"]
-        self.assertNotIn(REGISTRANT, {subject for item in listed["items"] for subject in item["subject_ids"]}, "C")
+        self.assertNotIn(NOTE, {subject for item in listed["items"] for subject in item["subject_ids"]}, "C")
         self.assertNotIn("ambiguous", {item["reason"] for item in listed["items"]})
 
         # A new release supersedes the open questions; touching A again asks that release's questions about it.
@@ -165,10 +166,10 @@ class SurfaceTest(BuildQuestionFixture):
         self.assertEqual([item["label"] for item in asked["items"]], ["Pythia reference"])
 
 
-    def test_a_cik_conflict_as_the_builder_asks_it_is_queued_and_a_malformed_question_is_logged(self):
+    def test_a_cik_conflict_is_queued_when_a_candidates_page_opens_and_a_malformed_question_is_logged(self):
         self.install([CIK_CONFLICT, {**CIK_CONFLICT, "evidence_ids": []}], self.world())  # a conflict cites evidence
         with self.assertLogs(self.build_questions.logger, "WARNING") as logged:
-            self.queue_ops.read_queue(self.ops, {"subject_id": REGISTRANT})
+            self.page(ASML)  # no page reaches the CIK-only registrant; ASML's issuer is one of its candidates
         self.assertIn("1 malformed", logged.output[0])
         [item] = json.loads(self.queue_ops.read_queue(self.ops, {}))["data"]["items"]
         self.assertTrue(item["question"].startswith("Which company is this?"))
@@ -199,12 +200,22 @@ class SurfaceTest(BuildQuestionFixture):
         self.page(NASDAQ)
         self.assertEqual([item["candidate_ids"] for item in self.open()], [[ISSUER, OPERATOR_ISSUER]])
 
+    def test_a_repeat_touch_takes_no_write_lock(self):
+        self.install([issuer_question()], self.world(issuer=False))
+        self.page(NASDAQ)
+        with unittest.mock.patch.object(self.ops.store, "transaction", wraps=self.ops.store.transaction) as lock:
+            self.page(NASDAQ)
+        self.assertEqual((lock.call_count, len(self.open())), (0, 1))
+
     def test_an_unreadable_claims_file_is_read_again_on_the_next_touch(self):
         self.install([issuer_question()], self.world(issuer=False))
         claims = next((self.data / "reference").rglob("questions-*.json"))
         saved = claims.read_bytes()
         claims.unlink()
-        self.page(NASDAQ)
+        with self.assertLogs(self.build_questions.logger, "WARNING"):
+            self.page(NASDAQ)
+        with self.assertNoLogs(self.build_questions.logger, "WARNING"):  # warned once
+            self.page(NASDAQ)
         self.assertEqual(self.open(), [])
         claims.write_bytes(saved)
         self.page(NASDAQ)
@@ -269,6 +280,10 @@ class AnswerTest(BuildQuestionFixture):
         self.assertIn({"id": SECURITY, "type": "depositary_receipt_of", "direction": "to", "kind": "security",
                        "name": "ASML Holding N.V.", "authority": "user_attested"}, receipt["related"])
         self.assertIn(RECEIPT, [entry["id"] for entry in share["related"] if entry["direction"] == "from"])
+
+    def test_no_plugin_can_take_the_build_questions_tag(self):
+        with self.assertRaisesRegex(identity.ManifestError, "reserved"):
+            identity.validate_manifest({**CONTRACTS["gleif"], "plugin": self.build_questions.BUILD})
 
     def test_a_receipt_is_never_chosen_as_the_underlying(self):
         self.install([SHARE_OR_RECEIPT], self.world())

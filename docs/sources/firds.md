@@ -238,9 +238,10 @@ Classes assigned to code or to a question instead:
   - fund share classes, from the sub-fund LEI;
   - a receipt's underlying, from field 26 and `successor_of`;
   - the trading currency, from venue-specific evidence.
-- **Unknown, with a question in the package:** the trading currency until a
-  venue-specific source exists (`trading_currency`); a receipt with no usable
+- **Unknown, with a question in the package:** a receipt with no usable
   field 26 (`receipt_underlying`).
+- **Unknown, without a question:** the trading currency until a venue-specific
+  source exists.
 - **Unknown and counted, never asked:** the primary venue when no
   issuer-sought listing exists, or when an EEA request conflicts with a
   primary outside the EEA. Which listing a view shows is a preference or a

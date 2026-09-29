@@ -56,7 +56,7 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
                                   if level == subject_kind(candidate)), "unrelated")]
-    built = build_questions.asked(item) if item["plugins"] == [BUILD] and not native else None
+    built = build_questions.asked(item) if build_questions.is_build(item) else None
     if built:  # a reference build question: its own text, and one relation per candidate
         label, question = build_questions.LABEL, built[0]
         answers = [{"relation": str(built[1]), "chosen_id": candidate} for candidate in item["candidate_ids"]]
@@ -127,7 +127,7 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     if view is None or row["state"] != "open":
         raise Refused("This question is not open.")
     raw = _raw(store, row)
-    built = build_questions.asked(row) if raw is None and row["plugins"] == [BUILD] else None
+    built = build_questions.asked(row) if build_questions.is_build(row) else None
     if raw is None and built is None:  # a plugin's conflict without a provider record: no answer has an effect yet
         raise Refused("This question has no provider record to bind, so no answer can take effect.")
     if built and relation not in (built[1], "none", "ambiguous"):
@@ -192,8 +192,8 @@ def retire_build(store: IdentityStore, now: str) -> int:
     """A new release asks its own questions: the previous build's open ones are superseded, and answered ones are
     kept. The next touch of an instrument queues the new release's questions about it (`build_questions`)."""
     with store.transaction():
-        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ? AND state = 'open'",
-                         (now, json.dumps([BUILD])))
+        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ?"
+                         " AND provider_ref IS NULL AND state = 'open'", (now, json.dumps([BUILD])))
         return store.db.execute("SELECT changes()").fetchone()[0]
 
 
