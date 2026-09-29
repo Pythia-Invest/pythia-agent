@@ -1,25 +1,13 @@
-"""Common series criteria and one-source selection, with no provider translation."""
+"""One-source selection over the common series criteria (core's `wire.CRITERIA`), with no provider translation."""
 import hashlib
 import json
 from datetime import datetime
 
-from .wire import validate, validate_parameters, parameter_schema, require
-
-CRITERIA = {"type": "object", "additionalProperties": False, "properties": {
-    "measurement": {"type": "string", "enum": ["last_trade", "close", "bid", "ask", "midpoint", "aggregate_price", "ohlc", "count", "ratio", "percent"]},
-    "interval": {"type": "object", "additionalProperties": False,
-                 "properties": {"kind": {"type": "string", "enum": ["tick", "day", "minute", "hour", "unknown"]},
-                                "count": {"type": "integer", "minimum": 1}}, "required": ["kind", "count"]},
-    "session": {"type": "string", "enum": ["regular", "extended", "all", "unknown"]},
-    "price_adjustment": {"type": "string", "enum": ["none", "split", "split_dividend", "unknown"]},
-    "market_data_type": parameter_schema("market_data_type"),
-    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
-    "venue": {"type": "string", "minLength": 1, "maxLength": 512},
-    "route": {"type": "string", "minLength": 1, "maxLength": 512}}, "required": []}
+from pythia_platform import access, wire
 
 
 def matches(series, criteria):
-    validate_parameters(CRITERIA, criteria)
+    wire.validate_parameters(wire.CRITERIA, criteria)
     for key in ("measurement", "interval", "session", "market_data_type", "venue", "route"):
         if key in criteria and series[key] != criteria[key]:
             return False
@@ -51,8 +39,8 @@ def supports_read(series, request):
 
 def compatible_ref(requested, actual):
     """Exact native ID/scope, plus every supplied qualifier; never ticker matching."""
-    validate("provider_ref", requested)
-    validate("provider_ref", actual)
+    wire.validate("provider_ref", requested)
+    wire.validate("provider_ref", actual)
     return (all(requested[key] == actual[key] for key in ("provider", "native_id", "native_scope"))
             and all(actual.get("qualifiers", {}).get(key) == value for key, value in requested.get("qualifiers", {}).items()))
 
@@ -81,19 +69,13 @@ def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
-def canonical_access_revision():
-    from pythia_platform import access
-    return access.canonical_access_revision()
-
-
 def native_access_scope():
-    from pythia_platform import access
     return access.native_access_scope()
 
 
 def selector(series):
-    validate("series", series)
+    wire.validate("series", series)
     detail = series["source_detail"]
     value = detail["values"].get("read_selector") if detail else None
-    require(type(value) is str and 0 < len(value) <= 512, "selection", "source has no bounded common read selector")
+    wire.require(type(value) is str and 0 < len(value) <= 512, "selection", "source has no bounded common read selector")
     return value

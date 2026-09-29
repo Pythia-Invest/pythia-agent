@@ -134,3 +134,25 @@ store is. Operationally:
   meant for settings.
 - *Falling back to the profile or HOME without a data root.* That would
   recreate state outside Pythia's directory.
+
+## Amendment (2026-09-30): the connector toolkit is core's
+
+The shared connector execution helpers this ADR retained lived in the
+market-data feature, so every connector required market-data, and disabling it
+also unloaded the identity and filings sources.
+[ADR 0044](0044-product-direction.md) ruling 6 asks for plugins that use a small
+Pythia platform interface.
+
+- **Ruling.** The helpers and the market-data wire contract move into core, in
+  `core/platform/connector/`, and plugins reach them through `pythia_platform`
+  ([ADR 0045](0045-plugin-platform-interface.md)). Every connector declares
+  `requires_plugins: [pythia]` and needs no other plugin.
+- **Why core.** [ADR 0033](0033-native-feature-packages.md) already gives
+  platform support bounded execution and cleanup, and connectors that contribute
+  no prices (SEC, OpenFIGI, GLEIF, filings.xbrl.org, NSM) need the toolkit too.
+- **What stays a feature.** Financial foundations remain a feature package, as
+  ruled above: market-data keeps the financial backend, its tool, reads,
+  selection, delivery and widgets.
+- **Rejected.** Market-data publishing its own toolkit API: a second platform,
+  and connectors would still fail whenever market-data is disabled. Folding
+  market-data into core.

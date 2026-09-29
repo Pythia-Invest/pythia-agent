@@ -3,7 +3,6 @@ import hashlib
 import importlib
 import json
 import os
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import tempfile
@@ -145,12 +144,7 @@ class WidgetPresentations(unittest.TestCase):
         self.file.write_bytes(b'a' * (widgets.MAX_ASSET_BYTES + 1))
         self.assertIn('error', json.loads(handle({})))
 
-    def test_missing_widget_helper_warns_without_removing_financial_registration(self):
-        with patch.dict(sys.modules, {'pythia_platform': SimpleNamespace(API_VERSION=1)}):
-            with self.assertLogs(presentation.__name__, level='WARNING') as messages:
-                presentation.register(self.ctx)
-        self.assertEqual(self.registered, [])
-        self.assertIn('financial backend remains available', messages.output[0])
+    def test_market_data_registers_its_widget_presentations(self):
         presentation.register(self.ctx)
         self.assertEqual(self.registered[0]['name'], 'pythia_market_data_widgets')
         self.assertEqual(self.registered[0]['schema']['parameters']['properties']['asset']['enum'],

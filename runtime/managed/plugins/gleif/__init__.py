@@ -1,9 +1,8 @@
 """Native GLEIF plugin: issuer resolve and legal-entity content addressed by LEI.
 
-Shared host support owns transport and authorization; market-data's connector
-library supplies bounded reads. There is deliberately no search operation.
+Shared host support owns transport and authorization; core's connector toolkit
+supplies bounded reads. There is deliberately no search operation.
 """
-import importlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -12,15 +11,6 @@ import time
 from . import records
 from .definition import TOOLS, schemas
 from .profile import add_parent, parent_requests, profile
-
-
-def helpers(ctx):
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = get_plugin_manager()._plugins.get('pythia-market-data')
-    if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
-        raise RuntimeError('unavailable')
-    return tuple(importlib.import_module(loaded.module.__name__ + '.' + part)
-                 for part in ('wire', 'connector', 'selection'))
 
 
 def envelope(data, issues=None, outcome=None):
@@ -140,18 +130,15 @@ class Reader:
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
-    wire, connector, selection = helpers(ctx)
-    reader = Reader(wire, connector)
+    reader = Reader(platform.wire, platform.connector)
     ctx.register_skill('gleif', Path(__file__).parent / 'skills/gleif/SKILL.md',
         description='Resolve LEI and ISIN issuer evidence and interpret GLEIF legal-entity profiles and accounting parents.',
         frontmatter={'platforms': ['linux', 'macos']})
     for operation, schema in reader.definitions.items():
         def handler(arguments, _operation=operation, **context):
-            helpers(ctx)
-            access = selection.native_access_scope()
+            access = platform.access.native_access_scope()
             result = reader.invoke(_operation, arguments, cancelled=context.get('cancelled'), cache_scope=access)
-            helpers(ctx)
-            if selection.native_access_scope() != access:
+            if platform.access.native_access_scope() != access:
                 return json.dumps(envelope(None, [{'code': 'unavailable', 'severity': 'error',
                     'message': 'Native access changed during the GLEIF read.'}]))
             return json.dumps(result, allow_nan=False)

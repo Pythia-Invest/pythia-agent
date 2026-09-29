@@ -8,18 +8,16 @@ import tempfile
 import types
 import unittest
 from unittest.mock import patch
+from market_data_fixture import platform_module, wire
 from native_plugin_fixtures import Context
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins'
-for name, directory in (('test_eodhd', 'eodhd'), ('test_eodhd_feature', 'market-data')):
-    package = types.ModuleType(name)
-    package.__path__ = [str(ROOT / directory)]
-    sys.modules[name] = package
+package = sys.modules['test_eodhd'] = types.ModuleType('test_eodhd')
+package.__path__ = [str(ROOT / 'eodhd')]
 identity = importlib.import_module('test_eodhd.identity')
 series = importlib.import_module('test_eodhd.series')
 results = importlib.import_module('test_eodhd.results')
-wire = importlib.import_module('test_eodhd_feature.wire')
-credentials = importlib.import_module('test_eodhd_feature.credentials')
+Configuration = importlib.import_module('test_eodhd.configuration').Configuration
 
 
 def request(definition, mode='history'):
@@ -51,7 +49,7 @@ class Provider(unittest.TestCase):
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=worker)
         local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
+        with patch.multiple(platform_module, process=process, configuration=local_core), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -79,7 +77,7 @@ class Provider(unittest.TestCase):
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=worker)
         local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
+        with patch.multiple(platform_module, process=process, configuration=local_core), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -103,7 +101,7 @@ class Provider(unittest.TestCase):
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=worker)
         local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
+        with patch.multiple(platform_module, process=process, configuration=local_core), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -122,7 +120,7 @@ class Provider(unittest.TestCase):
             run_worker=lambda *args, **kwargs: {'data': [record], 'issues': [], 'complete': True})
         local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
+        with patch.multiple(platform_module, process=process, configuration=local_core), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -140,7 +138,7 @@ class Provider(unittest.TestCase):
         process = types.SimpleNamespace(WorkerError=type('WorkerError', (Exception,), {}), run_worker=None)
         local_core = core()
         ctx = Context('pythia-eodhd')
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
+        with patch.multiple(platform_module, process=process, configuration=local_core), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -164,7 +162,7 @@ class Provider(unittest.TestCase):
             with self.subTest(state=state):
                 local_core = core(state)
                 ctx = Context('pythia-eodhd')
-                with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
+                with patch.multiple(platform_module, process=process, configuration=local_core), \
                         patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                         patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
                     provider.register(ctx)
@@ -189,7 +187,7 @@ class Provider(unittest.TestCase):
                         'retry_after': 7, 'failure': {'code': code, 'origin': origin}})
                 local_core = core()
                 ctx = Context('pythia-eodhd')
-                with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
+                with patch.multiple(platform_module, process=process, configuration=local_core), \
                         patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                         patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
                     provider.register(ctx)
@@ -296,7 +294,7 @@ class Provider(unittest.TestCase):
         local_core = core()
         ctx = Context('pythia-eodhd')
         handlers = ctx.tools
-        with patch.object(provider, 'helpers', return_value=(wire, process, local_core)), \
+        with patch.multiple(platform_module, process=process, configuration=local_core), \
                 patch.dict(sys.modules, {'tools.registry': ctx.registry_module}), \
                 patch.object(provider, 'paths', return_value=('/synthetic/node', '/synthetic/worker')):
             provider.register(ctx)
@@ -324,6 +322,9 @@ class Provider(unittest.TestCase):
         self.assertEqual(definition['fields']['close']['adjustment']['kind'], 'unknown')
 
     def test_canonical_credentials_private_bounded_no_ambient_fallback(self):
+        # The token as the connector reads it: its declared field, through core's custody reader.
+        credentials = Configuration(types.SimpleNamespace(manifest=types.SimpleNamespace(path=str(ROOT / 'eodhd'))),
+                                    platform_module.configuration)
         with tempfile.TemporaryDirectory() as root, patch.dict(os.environ, {'PYTHIA_CONFIG_ROOT':root,'EODHD_API_TOKEN':'ambient'}):
             path = Path(root) / 'secrets.json'
             self.assertEqual(credentials.eodhd_token(), ('missing',None))

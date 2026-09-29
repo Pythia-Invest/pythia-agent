@@ -9,12 +9,11 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
-from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from native_plugin_fixtures import Context
-from market_data_fixture import PACKAGE, wire, isin
+from native_plugin_fixtures import Context, without_market_data
+from market_data_fixture import connector, isin, platform_module, wire
 from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/gleif'
@@ -24,7 +23,6 @@ sys.modules[spec.name] = plugin
 spec.loader.exec_module(plugin)
 records = importlib.import_module('gleif_fixture.records')
 profiles = importlib.import_module('gleif_fixture.profile')
-connector = importlib.import_module(wire.__package__ + '.connector')
 STAMP = '2026-09-24T10:00:00+00:00'
 
 
@@ -91,18 +89,11 @@ class SkillContext(Context):
         self.skills.append(name)
 
 
-def register_with_market_data(test, module, ctx, transport, scopes):
-    """Register through the resolved market-data helpers with a synthetic transport."""
-    manager = ModuleType('hermes_cli.plugins')
-    manager.get_plugin_manager = lambda: SimpleNamespace(_plugins={
-        'pythia-market-data': SimpleNamespace(enabled=True, module=sys.modules[PACKAGE])})
-    selection = importlib.import_module(PACKAGE + '.selection')
-    connector_module = importlib.import_module(PACKAGE + '.connector')
-    for patcher in (patch.dict(sys.modules, {'hermes_cli.plugins': manager}),
-                    patch.object(connector_module, 'Transport', return_value=transport),
-                    patch.object(selection, 'native_access_scope', side_effect=lambda: next(scopes))):
-        patcher.start()
-        test.addCleanup(patcher.stop)
+def register_through_platform(test, module, ctx, transport, scopes):
+    """Register through `pythia_platform` alone, with a synthetic transport: no copy of market-data is importable."""
+    without_market_data(test)
+    test.enterContext(patch.object(platform_module.connector, 'Transport', return_value=transport))
+    test.enterContext(patch.object(platform_module.access, 'native_access_scope', side_effect=lambda: next(scopes)))
     module.register(ctx)
 
 
@@ -110,7 +101,7 @@ class GleifSemantics(unittest.TestCase):
     def test_registers_only_owned_read_operations_and_rechecks_access(self):
         ctx = SkillContext('pythia-gleif')
         transport = Transport({records.endpoint(FIRST): {'data': record()}})
-        register_with_market_data(self, plugin, ctx, transport, iter([{'scope': 'a'}] * 3 + [{'scope': 'b'}]))
+        register_through_platform(self, plugin, ctx, transport, iter([{'scope': 'a'}] * 3 + [{'scope': 'b'}]))
         self.assertEqual(set(ctx.tools), {'pythia_gleif_resolve', 'pythia_gleif_profile'})
         self.assertEqual(ctx.skills, ['gleif'])
         for name, entry in ctx.registrations.items():

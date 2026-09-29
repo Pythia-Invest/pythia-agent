@@ -14,7 +14,7 @@ import unittest
 
 from market_data_fixture import wire
 from native_plugin_fixtures import Context
-from test_gleif_connector import register_with_market_data
+from test_gleif_connector import register_through_platform
 from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/nsm'
@@ -23,7 +23,7 @@ plugin = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = plugin
 spec.loader.exec_module(plugin)
 records = importlib.import_module('nsm_fixture.records')
-connector = importlib.import_module(wire.__package__ + '.connector')
+connector = importlib.import_module(wire.__package__)
 STAMP = '2026-09-28T12:00:00+00:00'
 
 
@@ -74,7 +74,7 @@ def reader(*payloads):
 class NsmSemantics(unittest.TestCase):
     def test_registers_only_read_operations_in_cores_hidden_toolset(self):
         ctx = Context('pythia-nsm')
-        register_with_market_data(self, plugin, ctx, Transport(answer(disclosure())), iter([{'scope': 'a'}] * 2))
+        register_through_platform(self, plugin, ctx, Transport(answer(disclosure())), iter([{'scope': 'a'}] * 2))
         self.assertEqual(set(ctx.tools), {'pythia_nsm_resolve', 'pythia_nsm_filings', 'pythia_nsm_news'})
         for name, entry in ctx.registrations.items():
             declared = json.loads(entry['schema']['parameters']['$comment'])['pythia_http_operation']

@@ -15,13 +15,13 @@ import os
 from pathlib import Path
 import sys
 import tempfile
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from native_plugin_fixtures import Context
-from market_data_fixture import PACKAGE, PLATFORM, platform_module
+from native_plugin_fixtures import Context, hide_market_data
+from market_data_fixture import PLATFORM, TOOLKIT
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/coinmarketcap'
 NAME = 'coinmarketcap_fixture'
@@ -31,8 +31,8 @@ sys.modules[NAME] = plugin
 spec.loader.exec_module(plugin)
 worker = importlib.import_module(NAME + '.worker')
 series = importlib.import_module(NAME + '.series')
-wire = importlib.import_module(PACKAGE + '.wire')
-process = importlib.import_module(PACKAGE + '.process')
+wire = importlib.import_module(TOOLKIT + '.wire')
+process = importlib.import_module(TOOLKIT + '.process')
 
 TOKEN_PLATFORM = {'id': 1, 'name': 'Example Chain', 'symbol': 'EXC', 'slug': 'example-chain', 'token_address': '0xabc'}
 MAP = [{'id': 1, 'rank': 1, 'name': 'Synthetic Coin', 'symbol': 'SYN', 'slug': 'synthetic-coin', 'is_active': 1, 'status': 'active', 'platform': None},
@@ -69,16 +69,13 @@ def comment(ctx, operation):
 
 @contextmanager
 def registered(answer=responses, key='SYNTHETIC-KEY'):
-    """Register against core configuration; `key` is the secrets.json value (None leaves it out)."""
-    feature = SimpleNamespace(enabled=True, module=sys.modules[PACKAGE], manifest=SimpleNamespace(name='pythia-market-data'))
-    manager = SimpleNamespace(_plugins={'features/pythia-market-data': feature})
+    """Register against core configuration, with no market-data; `key` is the secrets.json value (None leaves it out)."""
     calls = []
     def run_worker(_command, message, _environment, **_options):
         worker.request_spec(message)  # Every outbound message is an admitted worker request.
         calls.append((message['operation'], copy.deepcopy(message['arguments'])))
         return answer(message['operation'], message['arguments'])
-    modules = {'hermes_cli': ModuleType('hermes_cli'), 'hermes_cli.plugins': SimpleNamespace(get_plugin_manager=lambda: manager)}
-    with tempfile.TemporaryDirectory() as root, patch.dict(sys.modules, modules), \
+    with tempfile.TemporaryDirectory() as root, hide_market_data(), \
             patch.dict(os.environ, {'PYTHIA_CONFIG_ROOT': root}), patch.object(process, 'run_worker', side_effect=run_worker):
         if key is not None:
             secrets = Path(root) / 'secrets.json'

@@ -40,13 +40,15 @@
     {"provider": "coingecko", "chain": "arbitrum-one", "caip2": "eip155:42161"},
     {"provider": "coingecko", "chain": "avalanche", "caip2": "eip155:43114"},
     {"provider": "coingecko", "chain": "solana", "caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"},
+    {"provider": "coingecko", "chain": "sui", "caip2": "sui:mainnet"},
     {"provider": "coinmarketcap", "chain": "coin:1027:ethereum", "caip2": "eip155:1"},
     {"provider": "coinmarketcap", "chain": "coin:11840:optimism", "caip2": "eip155:10"},
     {"provider": "coinmarketcap", "chain": "coin:28321:polygon", "caip2": "eip155:137"},
     {"provider": "coinmarketcap", "chain": "coin:27716:base", "caip2": "eip155:8453"},
     {"provider": "coinmarketcap", "chain": "coin:11841:arbitrum", "caip2": "eip155:42161"},
     {"provider": "coinmarketcap", "chain": "coin:5805:avalanche-c-chain", "caip2": "eip155:43114"},
-    {"provider": "coinmarketcap", "chain": "coin:5426:solana", "caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"}
+    {"provider": "coinmarketcap", "chain": "coin:5426:solana", "caip2": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"},
+    {"provider": "coinmarketcap", "chain": "coin:20947:sui-network", "caip2": "sui:mainnet"}
   ],
   "assets": [
     {"caip19": "bip122:000000000019d6689c085ae165831e93/slip44:0", "name": "Bitcoin", "symbol": "BTC", "kind": "coin", "rank": 1,
@@ -70,7 +72,8 @@
                      "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
                      "eip155:42161/erc20:0xaf88d065e77c8cc2239327c5edb3a432268e5831",
                      "eip155:43114/erc20:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
-                     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"],
+                     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                     "sui:mainnet/coin:0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7%3A%3Ausdc%3A%3AUSDC"],
      "coingecko": "usd-coin", "coinmarketcap": "3408"},
     {"caip19": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501", "name": "Solana", "symbol": "SOL", "kind": "coin", "rank": 7,
      "coingecko": "solana", "coinmarketcap": "5426"},

@@ -246,13 +246,14 @@ installation keeps working offline.
 - **An agent harness runs agent turns.** Today this is Hermes. The goal is a
   single adapter, which keeps the harness replaceable, and plugins that use a
   small, versioned Pythia platform interface and never import harness
-  internals. The interface exists: plugins import `pythia_platform`
-  ([ADR 0045](decisions/0045-plugin-platform-interface.md)), and core's reads
-  of Hermes's private state sit in one file. Today market-data still imports
-  Hermes modules, and the other bundled connectors still reach market-data's
-  connector toolkit through Hermes's plugin table, until that toolkit moves
-  into core. Core itself still imports Hermes's public modules directly; the
-  single adapter is planned, not built.
+  internals. The interface exists: every bundled plugin reaches core only
+  through `pythia_platform`
+  ([ADR 0045](decisions/0045-plugin-platform-interface.md)) and imports no
+  Hermes module, and the connector toolkit is core's, so each connector
+  depends on core alone. Core's reads of Hermes's plugin-manager state sit in
+  one file; two other private Hermes seams remain, named in ADR 0045. Core
+  itself still imports Hermes's public modules directly; the single adapter is
+  planned, not built.
 - **The engine starts in the existing backend process** and moves into its own
   process when there is a concrete reason: live automated execution with
   isolated credentials, a native client, a harness replacement, or a hosted team
@@ -353,8 +354,10 @@ Today:
 
 - subjects come only from the reference build and core's curated tables, and
   plugins contribute data but not subjects;
-- reference sources are builder adapters that cannot be disabled, and the
-  builder's evidence outranks a plugin's;
+- reference sources are builder adapters: a build can leave out any of them
+  except the ISO 10383 venue codes and core's curated crypto table, and lists
+  the ones it includes, but a device cannot yet remove an installed package,
+  and the builder's evidence outranks a plugin's;
 - only confirm-level plugins bind, and only onto reference subjects;
 - the build's open questions are queued only when an instrument is opened,
   watched or used by the agent, not yet when it is held or forecast, and a

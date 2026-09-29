@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from test_gleif_connector import SkillContext, register_with_market_data
+from test_gleif_connector import SkillContext, register_through_platform
 from market_data_fixture import wire
 from test_plugin_contracts import checked_batch
 
@@ -25,7 +25,7 @@ spec.loader.exec_module(plugin)
 identity = importlib.import_module('xbrl_fixture.identity')
 reports = importlib.import_module('xbrl_fixture.reports')
 facts = importlib.import_module('xbrl_fixture.facts')
-connector = importlib.import_module(wire.__package__ + '.connector')
+connector = importlib.import_module(wire.__package__)
 STAMP = '2026-09-24T10:00:00Z'
 
 
@@ -87,7 +87,7 @@ class FakeTransport:
 class XbrlSemantics(unittest.TestCase):
     def test_registers_only_owned_read_operations_and_rechecks_access(self):
         ctx = SkillContext('pythia-xbrl-filings')
-        register_with_market_data(self, plugin, ctx, FakeTransport([entity(), entity()]),
+        register_through_platform(self, plugin, ctx, FakeTransport([entity(), entity()]),
                                   iter([{'scope': 'a'}] * 3 + [{'scope': 'b'}]))
         self.assertEqual(set(ctx.tools), {'pythia_xbrl_filings_resolve', 'pythia_xbrl_filings_filings',
                                           'pythia_xbrl_filings_fundamentals', 'pythia_xbrl_filings_facts',

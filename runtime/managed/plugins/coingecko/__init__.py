@@ -1,5 +1,4 @@
 """CoinGecko native provider: configured access, one owned process per HTTPS read."""
-import importlib
 import json
 import os
 import sys
@@ -14,14 +13,6 @@ from .dashboard import read as dashboard
 from .catalogue import page as catalogue_page
 
 
-def helpers(ctx):
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = get_plugin_manager()._plugins.get('pythia-market-data')
-    if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
-        raise RuntimeError('unavailable')
-    return tuple(importlib.import_module(loaded.module.__name__ + '.' + name) for name in ('wire', 'process'))
-
-
 def paths():
     root, python = os.environ.get('PYTHIA_MANAGED_ROOT', ''), sys.executable
     worker = Path(root) / 'runner/coingecko/main.py'
@@ -33,10 +24,10 @@ def paths():
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
-    wire, process = helpers(ctx)
+    wire, process = platform.wire, platform.process
     read_key = config.key_reader(ctx, lambda: platform)
     definitions = schemas(wire)
-    budgets = failures = batching = importlib.import_module(wire.__package__ + '.connector')
+    budgets = failures = batching = platform.connector
     reads = failures.WorkerReads(process)
     simple_batch, market_batch = batching.NativeBatch(size=32, age=300), batching.NativeBatch(size=3, age=300)
     # access -> (expires, snapshot). Pages are read-only slices of one packed
@@ -66,7 +57,6 @@ def register(ctx):
 
     def ready(require_key=False):
         try:
-            helpers(ctx)
             paths()
             access, _token, _currency = resolve()
             return not (require_key and access == 'keyless')
@@ -127,9 +117,7 @@ def register(ctx):
                     if mode == 'latest':
                         groups.setdefault(unit.lower(), set()).add(reference(native))
                 replies = {unit: call('latest_batch', {'ids': sorted(ids), 'currency': unit}) for unit, ids in groups.items()}
-                from importlib import import_module
-                parallel = import_module(wire.__package__ + '.coordinated').parallel
-                return envelope(parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies), clean['reads']))
+                return envelope(batching.parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies), clean['reads']))
             if operation == 'dashboard':
                 def dashboard_call(endpoint, arguments):
                     raw = call(endpoint, arguments)

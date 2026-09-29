@@ -138,8 +138,9 @@ asset IDs to bundled `.mjs` paths. Register the tool in the native manifest.
 Descriptors include the content digest and UTF-8 byte length so hosts can enforce
 their aggregate asset budget without downloading each module a second time.
 The [market-data declaration](../../runtime/managed/plugins/market-data/presentation.py)
-is the supplied example. Check the helper exists on the declared core dependency;
-an edited older core can remain preserved across updates.
+is the supplied example. Every core that publishes `pythia_platform` v1 has the
+helper; an edited core from before v1 publishes no interface, so the plugin does
+not register at all ([ADR 0045](../../docs/decisions/0045-plugin-platform-interface.md)).
 
 For example, a plugin can register a compiled specialist view as follows, using
 its actual native toolset and a matching `provides_tools` manifest declaration:

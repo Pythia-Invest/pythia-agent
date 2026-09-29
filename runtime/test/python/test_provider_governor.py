@@ -6,17 +6,17 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from market_data_fixture import PACKAGE, PLATFORM
+from market_data_fixture import PLATFORM, TOOLKIT
 
-governor = importlib.import_module(PACKAGE + '.governor')
-process = importlib.import_module(PACKAGE + '.process')
-cache = importlib.import_module(PACKAGE + '.cache')
+governor = importlib.import_module(TOOLKIT + '.governor')
+process = importlib.import_module(TOOLKIT + '.process')
+cache = importlib.import_module(TOOLKIT + '.cache')
 context = importlib.import_module(PLATFORM + '.request_context')
 
 
 class Budgets(unittest.TestCase):
     def test_native_cancellation_callback_keeps_its_callers_context(self):
-        consumer = importlib.import_module(PACKAGE + '.worker_reads').consumer
+        consumer = importlib.import_module(TOOLKIT + '.worker_reads').consumer
         signal = threading.Event()
         token = context.cancel_signal.set(signal.is_set)
         try:
@@ -26,7 +26,7 @@ class Budgets(unittest.TestCase):
                 self.assertTrue(context.cancelled())
         finally: context.cancel_signal.reset(token)
     def test_overlapping_native_batches_share_ids_and_fresh_bypasses_cache(self):
-        NativeBatch = importlib.import_module(PACKAGE + '.native_batch').NativeBatch
+        NativeBatch = importlib.import_module(TOOLKIT + '.native_batch').NativeBatch
         owner = NativeBatch(size=10, age=60)
         calls = []
         gate = threading.Barrier(2)

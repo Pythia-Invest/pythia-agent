@@ -8,11 +8,11 @@ from importlib import import_module
 import json
 from pathlib import Path
 
-from market_data_fixture import PACKAGE, isin, native
+from market_data_fixture import PACKAGE, TOOLKIT, isin, native
 
 Backend = import_module(f"{PACKAGE}.backend").Backend
 read_module = import_module(f"{PACKAGE}.reads")
-wire = import_module(f"{PACKAGE}.wire")
+wire = import_module(f"{TOOLKIT}.wire")
 EXAMPLE = next(f["value"] for f in json.loads((Path(__file__).resolve().parents[3] / "packages/market-data/examples/valid.json").read_text()) if f["name"] == "equity_daily")
 SUBJECT = {"kind": "security", "id": "security:isin:" + isin(31)}
 CRITERIA = {"measurement": "ohlc", "interval": {"kind": "day", "count": 1}, "session": "regular", "price_adjustment": "split", "market_data_type": "unknown", "currency": "USD"}

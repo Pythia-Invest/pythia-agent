@@ -3,7 +3,7 @@
 Native `pythia-xbrl-filings` is an issuer-level content connector for public
 XBRL reports, chiefly European ESEF annual financial reports. Content is
 addressed by the issuer's LEI. It needs no API key, uses the shared protected
-operation adapter and market-data's connector library, and creates no routes,
+operation adapter and core's connector toolkit, and creates no routes,
 registry or subprocess. The package includes the `pythia-xbrl-filings:xbrl-filings`
 skill.
 

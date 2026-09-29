@@ -141,7 +141,10 @@ function path(result: ReadResult, subject = row) {
 describe("financial history presentation", () => {
   it("uses native-valid fixtures for unbucketed and timed history", () => {
     const source = fileURLToPath(
-      new URL("../../../runtime/managed/plugins/market-data", import.meta.url),
+      new URL(
+        "../../../runtime/managed/core/platform/connector",
+        import.meta.url,
+      ),
     );
     execFileSync(
       "python3",
