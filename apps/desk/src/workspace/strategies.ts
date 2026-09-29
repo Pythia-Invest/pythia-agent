@@ -12,11 +12,6 @@ export function strategyName(briefPath: string): string | null {
     : null;
 }
 
-export function strategyBriefPath(folder: string): string | null {
-  const path = `${folder}/README.md`;
-  return strategyName(path) ? path : null;
-}
-
 /** Use an opening H1 only when the reader already has the brief's text. */
 export function strategyTitle(briefPath: string, text?: string): string {
   const firstLine = text?.trimStart().split(/\r?\n/u)[0] ?? "";
