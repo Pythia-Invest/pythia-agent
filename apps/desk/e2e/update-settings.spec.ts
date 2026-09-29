@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { checkedToday, hermesSettings } from "./settings-fixture";
-import { fixture } from "./stream-fixture";
+import { fixture, isPhone } from "./stream-fixture";
 
 /** Settings › About › Version & updates, in the Settings dialog. */
 async function openUpdates(page: Page) {
@@ -321,7 +321,7 @@ test("checks once a day on its own and marks a ready update in the sidebar", asy
   await page.goto("/");
   await next;
   expect(checks).toBe(1);
-  if ((page.viewportSize()?.width ?? 1280) < 900)
+  if (isPhone(page))
     await page.getByRole("button", { name: "Open navigation" }).click();
   const indicator = page.getByRole("button", { name: "Update available" });
   await indicator.click();

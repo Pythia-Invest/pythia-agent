@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { fixture, send } from "./stream-fixture";
+import { fixture, send, isPhone } from "./stream-fixture";
 
 test("search selects exact native variants and keeps the current variant visible", async ({
   page,
@@ -30,10 +30,7 @@ test("search selects exact native variants and keeps the current variant visible
 test("mobile navigation contains keyboard focus and returns it on Escape", async ({
   page,
 }) => {
-  test.skip(
-    (page.viewportSize()?.width ?? 0) >= 900,
-    "Mobile navigation drawer",
-  );
+  test.skip(!isPhone(page), "Mobile navigation drawer");
   await fixture(page);
   const trigger = page.getByRole("button", { name: "Open navigation" });
   await expect(
@@ -64,7 +61,7 @@ test("mobile navigation contains keyboard focus and returns it on Escape", async
 test("dock tabs activate with arrows and label the displayed panel", async ({
   page,
 }) => {
-  test.skip((page.viewportSize()?.width ?? 0) < 900, "Desktop dock tab strip");
+  test.skip(isPhone(page), "Desktop dock tab strip");
   await fixture(page);
   await page.route(/\/api\/sessions(?:\?|$)/, (route) =>
     route.fulfill({
@@ -127,7 +124,7 @@ test("dock tabs activate with arrows and label the displayed panel", async ({
 test("an open chat missing from the bounded session list still renders in the dock", async ({
   page,
 }) => {
-  test.skip((page.viewportSize()?.width ?? 0) < 900, "Desktop dock");
+  test.skip(isPhone(page), "Desktop dock");
   await fixture(page, [
     { id: "u", role: "user", content: "Earlier question" },
     { id: "a", role: "assistant", content: "Earlier saved answer" },

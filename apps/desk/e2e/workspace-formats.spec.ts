@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { japanesePdfBytes } from "../test/workspace-pdf-fixtures";
-import { fixture } from "./stream-fixture";
+import { fixture, isPhone } from "./stream-fixture";
 import {
   documentBytes,
   pdfBytes,
@@ -157,8 +157,7 @@ async function setup(page: import("@playwright/test").Page, name: string) {
 }
 
 async function openFile(page: import("@playwright/test").Page, name: string) {
-  if ((page.viewportSize()?.width ?? 1440) < 900)
-    await page.keyboard.press("Escape");
+  if (isPhone(page)) await page.keyboard.press("Escape");
   await page
     .locator('[data-slot="workspace-directory"]')
     .getByRole("link", { name, exact: true })
@@ -166,7 +165,7 @@ async function openFile(page: import("@playwright/test").Page, name: string) {
 }
 async function switchFile(page: import("@playwright/test").Page, name: string) {
   // A phone has no file tabs: it reopens the file from the list.
-  if ((page.viewportSize()?.width ?? 1440) < 900) return openFile(page, name);
+  if (isPhone(page)) return openFile(page, name);
   const tab = page.getByRole("tab", { name, exact: true });
   if (await tab.isVisible()) await tab.click();
   else {

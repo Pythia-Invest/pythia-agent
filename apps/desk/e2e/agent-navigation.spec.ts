@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { AgentPage, WorkAgent, WorkPage } from "../src/work/types";
-import { fixture, send } from "./stream-fixture";
+import { fixture, send, isPhone } from "./stream-fixture";
 
 const work = (agents: WorkAgent[], more = false, offset = 0): WorkPage => ({
   plans: [],
@@ -30,7 +30,7 @@ async function directory(page: Page) {
 }
 /** The chat list's unread mark; a phone opens the list over the chat to read it. */
 async function expectUnread(page: Page, unread: boolean) {
-  const phone = (page.viewportSize()?.width ?? 0) < 900;
+  const phone = isPhone(page);
   const chats = page.getByRole("navigation", { name: "Chats", exact: true });
   if (phone) await page.getByRole("button", { name: "Show chats" }).click();
   await expect(chats.getByRole("img", { name: "Unread reply" })).toHaveCount(

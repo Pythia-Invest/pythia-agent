@@ -1,13 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 import type { WorkspaceEntry } from "../src/workspace/types";
-import { fixture } from "./stream-fixture";
+import { fixture, isPhone } from "./stream-fixture";
 
 export async function returnToBrowser(page: Page) {
-  if ((page.viewportSize()?.width ?? 1440) < 900)
-    await page.keyboard.press("Escape");
+  if (isPhone(page)) await page.keyboard.press("Escape");
 }
-
-const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 900;
 
 /** Open files are a tab strip on desktop; a phone shows only the current one. */
 function openFiles(page: Page) {

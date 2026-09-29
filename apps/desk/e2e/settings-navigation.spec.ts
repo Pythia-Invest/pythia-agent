@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
-import { checkedToday, isPhone, settingsFixture } from "./settings-fixture";
+import { checkedToday, settingsFixture } from "./settings-fixture";
+import { isPhone } from "./stream-fixture";
 
 function settings(page: Page) {
   return page.getByRole("dialog", { name: "Settings" });

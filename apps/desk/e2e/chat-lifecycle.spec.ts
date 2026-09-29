@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { fixture, send } from "./stream-fixture";
+import { fixture, send, isPhone } from "./stream-fixture";
 
 test("carries one live reply through navigation and hiding the dock", async ({
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "The persistent side dock belongs to desktop; phone sheet access is covered separately.",
   );
   const f = await fixture(page);
@@ -120,7 +120,7 @@ test("on a phone, a page opens Pythia as a sheet from its floating button", asyn
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) >= 900,
+    !isPhone(page),
     "Sheet behavior belongs to narrow viewports; desktop dock is covered separately.",
   );
   await fixture(page);

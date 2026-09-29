@@ -371,6 +371,9 @@ export async function fixture(
   };
 }
 
+/** Below 900px Desk uses its phone layout: drawers and sheets, no tab strips. */
+export const isPhone = (page: Page) => (page.viewportSize()?.width ?? 0) < 900;
+
 export async function send(page: Page) {
   await expect(
     page.getByRole("combobox", { name: "Model", exact: true }),
