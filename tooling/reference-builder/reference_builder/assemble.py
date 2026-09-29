@@ -132,9 +132,12 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
         listing = Listing(
             listing_id=f"{segment}:{isin}", source="esma_firds", row_class=rules.firds_kind(record.cfi),
             security_id=f"isin:{isin}", issuer_id=issuer.issuer_id if issuer else None, mic=segment, operating_mic=op,
-            country=venue.country if venue else None, currency=record.currency, name=record.full_name,
-            valid_from=record.first_trade, valid_to=record.termination,
+            country=venue.country if venue else None, name=record.full_name,
+            currency=rules.trading_currency(op, venue.country if venue else None, venue.category if venue else None,
+                                            rules.firds_kind(record.cfi), record.currency, as_of),
+            notional_currency=record.currency, valid_from=record.first_trade, valid_to=record.termination,
         )
+        audit["currency_from_venue"] += listing.currency != record.currency
         if row:
             _apply_figi(listing, row, record.short_name)
         listing.status, listing.status_reasons = rules.admission_status(
@@ -225,12 +228,13 @@ def _security(snap, inputs, isin, records, listings, fanout, lei) -> None:
     home = rules.home_row(isin, fanout)
     if home:  # a line outside FIRDS, in the ISIN's country: evidence for the primary, decided in `reconcile`
         mic, row = home
+        ticker = rules.home_ticker(row["ticker"], mic)
         listing = Listing(
-            listing_id=f"{mic}:{row['ticker'].replace('/', '-')}", source="openfigi", row_class=security.kind,
-            security_id=security.security_id, issuer_id=security.issuer_id, mic=mic, operating_mic=mic,
-            country=isin[:2], name=row.get("name"),
+            listing_id=f"{mic}:{ticker}", source="openfigi", row_class=security.kind, security_id=security.security_id,
+            issuer_id=security.issuer_id, mic=mic, operating_mic=operating(inputs.venues, mic), country=isin[:2],
+            currency=rules.country_currency(isin[:2], inputs.as_of.isoformat()), name=row.get("name"),
         )
-        _apply_figi(listing, row, security.fisn)
+        _apply_figi(listing, row | {"ticker": ticker}, security.fisn)
         listing.status_reasons = ["home_line_from_openfigi"]
         snap.listings.setdefault(listing.listing_id, listing)
     states = {l.status for l in listings}

@@ -50,8 +50,8 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
         for other in lines[security.security_id]:
             other.is_primary = other is line
         security.primary_mic, security.primary_rule = (line.operating_mic if line else None), rule
-        if line is None or not line.currency:  # no primary the package can write (an OpenFIGI home line has no
-            # trading currency): priced on FIRDS' most liquid EU market, never marked primary
+        if line is None or not line.currency:  # no primary the package can write: priced on FIRDS' most liquid
+            # EU market, never marked primary
             relevant = claims.one(isin, Meaning.MOST_LIQUID_EU_MARKET)
             liquid = _on(lines[security.security_id], venues.op(relevant), relevant)
             if liquid:
@@ -95,8 +95,8 @@ ISIN_COUNTRY = "isin_country"  # the suggestion rule: measured 99.6% agreement w
 
 def _isin_country_line(venues: Venues, isin: str, lines: list[Listing]) -> Listing | None:
     """A share's one live line on an exchange in its ISIN's country (the issuer's home: TotalEnergies on Euronext
-    Paris beside NYSE), skipping OTC, MTF and trading-only lines and lines the package cannot write (an OpenFIGI
-    home line has no trading currency). None when there is none or several."""
+    Paris beside NYSE), skipping OTC, MTF and trading-only lines and lines the package cannot write (no trading
+    currency). None when there is none or several."""
     found = [line for line in lines if line.status != "inactive" and line.country == isin[:2] and line.currency
              and line.operating_mic not in rules.TRADING_ONLY_VENUES and line.operating_mic != "OTCM"
              and (venues.venues.get(line.mic or "") is None or venues.venues[line.mic].category != "MLTF")]

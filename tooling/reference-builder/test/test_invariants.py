@@ -76,10 +76,10 @@ class InvariantTest(unittest.TestCase):
         self.assertIn("1 rows new since", "\n".join(invariants.format_results(after, before)))
 
     def test_headroom_shrinks_with_a_lowered_limit(self):
-        rule = next(i for i in invariants.INVARIANTS if i.name == "currency_single_currency_venue")
-        self.assertEqual(invariants.run(self.path, (rule,))[0].headroom, 460)
+        rule = next(i for i in invariants.INVARIANTS if i.name == "primary_missing")
+        self.assertEqual(invariants.run(self.path, (rule,))[0].headroom, 240)  # 2% of 11,997
         partly_fixed = dataclasses.replace(rule, limit=rule.limit // 4)
-        self.assertEqual(invariants.run(self.path, (partly_fixed,))[0].headroom, 115)
+        self.assertEqual(invariants.run(self.path, (partly_fixed,))[0].headroom, 60)
         self.assertEqual(invariants.run(self.path, (dataclasses.replace(rule, limit=0),))[0].headroom, 0)
 
     def test_new_rows_are_keyed_on_the_subject_not_the_label(self):

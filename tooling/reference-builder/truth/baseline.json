@@ -553,12 +553,14 @@
     "astrazeneca:fold:row",
     "astrazeneca:fold:row_line:AstraZeneca",
     "astrazeneca:issuer:lei",
+    "astrazeneca:listing:AZN@XSTO:currency",
     "astrazeneca:listing:AZN@XSTO:figi",
     "astrazeneca:listing:AZN@XSTO:present",
     "astrazeneca:listing:AZN@XSTO:ticker",
     "astrazeneca:primary:home_out_of_scope",
     "astrazeneca:security:isin",
     "astrazeneca:security:kind",
+    "astrazeneca:subject_key:AZN@XSTO",
     "astrazeneca:subject_key:issuer",
     "astrazeneca:subject_key:security",
     "astrazeneca:symbols:eodhd:AZN.ST",
@@ -2237,17 +2239,21 @@
     "nordea:coverage:found",
     "nordea:fold:row",
     "nordea:issuer:lei",
+    "nordea:listing:NDA DK@XCSE:currency",
     "nordea:listing:NDA DK@XCSE:figi",
     "nordea:listing:NDA DK@XCSE:present",
     "nordea:listing:NDA FI@XHEL:currency",
     "nordea:listing:NDA FI@XHEL:figi",
     "nordea:listing:NDA FI@XHEL:present",
+    "nordea:listing:NDA SE@XSTO:currency",
     "nordea:listing:NDA SE@XSTO:figi",
     "nordea:listing:NDA SE@XSTO:present",
     "nordea:primary:home",
     "nordea:security:isin",
     "nordea:security:kind",
+    "nordea:subject_key:NDA DK@XCSE",
     "nordea:subject_key:NDA FI@XHEL",
+    "nordea:subject_key:NDA SE@XSTO",
     "nordea:subject_key:issuer",
     "nordea:subject_key:security",
     "novo-adr:coverage:found",
@@ -2565,12 +2571,14 @@
     "relx:issuer:cik",
     "relx:issuer:lei",
     "relx:issuer:same_as_siblings",
+    "relx:listing:REN@XAMS:currency",
     "relx:listing:REN@XAMS:figi",
     "relx:listing:REN@XAMS:present",
     "relx:listing:REN@XAMS:ticker",
     "relx:primary:home_out_of_scope",
     "relx:security:isin",
     "relx:security:kind",
+    "relx:subject_key:REN@XAMS",
     "relx:subject_key:issuer",
     "relx:subject_key:security",
     "relx:symbols:eodhd:REN.AS",
@@ -3090,11 +3098,13 @@
     "tenaris:issuer:lei",
     "tenaris:issuer:same_as_siblings",
     "tenaris:lifecycle:former_isin:LU0156801721",
+    "tenaris:listing:TEN@XMIL:currency",
     "tenaris:listing:TEN@XMIL:present",
     "tenaris:listing:TEN@XMIL:ticker",
     "tenaris:primary:home",
     "tenaris:security:isin",
     "tenaris:security:kind",
+    "tenaris:subject_key:TEN@XMIL",
     "tenaris:subject_key:issuer",
     "tenaris:subject_key:security",
     "tenaris:symbols:eodhd:TEN.MI",
@@ -3321,6 +3331,7 @@
     "unilever:issuer:lei",
     "unilever:issuer:same_as_siblings",
     "unilever:lifecycle:former_isin:NL0000388619",
+    "unilever:listing:UNA@XAMS:currency",
     "unilever:listing:UNA@XAMS:figi",
     "unilever:listing:UNA@XAMS:present",
     "unilever:listing:UNA@XAMS:ticker",
@@ -3331,6 +3342,7 @@
     "unilever:primary:home_out_of_scope",
     "unilever:security:isin",
     "unilever:security:kind",
+    "unilever:subject_key:UNA@XAMS",
     "unilever:subject_key:UNLYF@OTCM",
     "unilever:subject_key:issuer",
     "unilever:subject_key:security",
@@ -3878,7 +3890,7 @@
       "security": "security:isin:GB0009895292",
       "issuer": "issuer:lei:PY6ZZQWO2IZFZC3IOL08",
       "listings": {
-        "AZN@XSTO": "listing:isin:GB0009895292:XSTO:USD"
+        "AZN@XSTO": "listing:isin:GB0009895292:XSTO:SEK"
       }
     },
     "bac-pk": {
@@ -4675,8 +4687,8 @@
       "issuer": "issuer:lei:529900ODI3047E2LIV03",
       "listings": {
         "NDA FI@XHEL": "listing:isin:FI4000297767:XHEL:EUR",
-        "NDA SE@XSTO": "listing:isin:FI4000297767:XSTO:EUR",
-        "NDA DK@XCSE": "listing:isin:FI4000297767:XCSE:EUR"
+        "NDA SE@XSTO": "listing:isin:FI4000297767:XSTO:SEK",
+        "NDA DK@XCSE": "listing:isin:FI4000297767:XCSE:DKK"
       }
     },
     "novo": {
@@ -4817,7 +4829,7 @@
       "security": "security:isin:GB00B2B0DG97",
       "issuer": "issuer:lei:549300WSX3VBUFFJOO66",
       "listings": {
-        "REN@XAMS": "listing:isin:GB00B2B0DG97:XAMS:GBP"
+        "REN@XAMS": "listing:isin:GB00B2B0DG97:XAMS:EUR"
       }
     },
     "relx-adr": {
@@ -5043,7 +5055,7 @@
       "security": "security:isin:LU2598331598",
       "issuer": "issuer:lei:549300Y7C05BKC4HZB40",
       "listings": {
-        "TEN@XMIL": "listing:isin:LU2598331598:XMIL:USD"
+        "TEN@XMIL": "listing:isin:LU2598331598:XMIL:EUR"
       }
     },
     "tenaris-adr": {
@@ -5154,7 +5166,7 @@
       "security": "security:isin:GB00BVZK7T90",
       "issuer": "issuer:lei:549300MKFYEKVRWML317",
       "listings": {
-        "UNA@XAMS": "listing:isin:GB00BVZK7T90:XAMS:GBP",
+        "UNA@XAMS": "listing:isin:GB00BVZK7T90:XAMS:EUR",
         "UNLYF@OTCM": "listing:isin:GB00BVZK7T90:OTCM:USD"
       }
     },

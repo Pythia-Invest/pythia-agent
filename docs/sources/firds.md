@@ -167,19 +167,20 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   | Field | FIRDS decides | Asked instead (question type) |
   | --- | --: | --- |
   | Issuer | 28,101 securities carry field 5's LEI as issuer | 614 `issuer_identity`: an operator's LEI on a share outside its country |
-  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid; 137 carry a suggested answer (below) |
+  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid; 189 carry a suggested answer (below) |
   | Receipt underlying | 2,737 receipts link to the field 26 security of their own issuer | 902 `receipt_underlying` (58 because field 26 names another issuer's security), 10 `receipt_conflict` |
 
   The SEC stage adds 168 name-only issuer questions (#73). All 11,965 are
   curation questions in the package's `claims` file, answered centrally per
   ADR 0044; none reaches the investor's Repairs queue. A security
   without a primary the package can write is priced on its line at the most
-  liquid EU market (13,782 lines), labelled so and never primary. The
+  liquid EU market (9,770 lines), labelled so and never primary. The
   `share_primary_silent` invariant counts every live share that has no
-  written primary and not both a question and that label: 4,946, of which
-  4,928 are home lines decided from OpenFIGI that the package cannot write
-  without a trading currency (fixed by #46), and the rest questions whose most
-  liquid venue has no line.
+  written primary and not both a question and that label: 1,072, of which
+  1,052 are SEC OTC-only shares, which no rule places, and 20 questions whose
+  most liquid venue has no line. The OpenFIGI home lines decided before
+  (London, SIX, Toronto, ASX, Tokyo and others) are written since they take
+  their country's currency: 4,946 before.
 
   **ISIN-country suggestion (shares only).** Where field 8 and the other
   sources leave a share's primary unknown, its one line on an exchange in its
@@ -188,16 +189,15 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   heuristic, not source evidence, so it is a curation suggestion (R2, ADR
   0044) that the central curator's back office can approve, in bulk once
   calibrated. It skips OTC, MTF and trading-only lines and lines the
-  package cannot write (an OpenFIGI home line without a trading currency: RELX
-  on London and BCE on Toronto stay questions). Evidence, on
+  package cannot write (no trading currency). Evidence, on
   the build of PR #74: where the same test applies to ordinary shares whose
   primary was already decided, it agrees 7,684 times and disagrees 28 times
   (99.6%; the 28 are debatable dual listings such as Viohalco on Athens).
   Funds are excluded: for Irish funds it disagrees with the decided primary
   581 times against 323, for Luxembourg funds 41 against 91, because a Dublin
   or Luxembourg line is often a technical listing. It suggests an answer for
-  137 shares, among them TotalEnergies (Euronext Paris beside NYSE) and
-  Magnum.
+  189 shares, among them TotalEnergies (Euronext Paris beside NYSE), Magnum,
+  and RELX and Shell on London.
 
   Securities without a request and with a line outside the EEA keep the SEC
   or OpenFIGI line as before (7,581); those sources are onboarded next.
@@ -209,7 +209,7 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | Venue operator's LEI in field 5 | 838 ISINs; 623 securities (local build) | Vastned Retail Belgium under TP ICAP MTF | Field 5 allows the venue operator's LEI | The issuer is unknown when the LEI is in ISO 10383's LEI column, and a judgement question opens | Open |
 | Financing subsidiary in field 5 | 38 securities (local build) | Nestlé Capital Markets on Nestlé shares; Brambles Finance; Orica Finance | Not explained by RTS 23 or the Q&A | A `parent_of` claim from GLEIF Level 2 consolidation; the rest go to a judgement question | Open |
 | Another company's LEI in field 5 | 14 of 852 CIK to LEI identifier links in the local build of 2026-09-28 (XAMS, XETR and US) share no name word with the LEI; they include venue and data-vendor LEIs, subsidiaries and renames ([SEC record](sec.md)) | Lee Enterprises under Berkshire Hathaway's LEI; Legence Corp. under Avio S.p.A.'s | Unknown | An identifier conflict with the SEC registrant joined by ISIN; the SEC record's question Q1 | Open |
-| Notional currency copied to every venue | Every ISIN | Apple USD on Xetra | Field 13 is the notional currency | A `notional_currency` claim; the trading currency comes from a venue-specific source | Fix in review (PR #47) |
+| Notional currency copied to every venue | Every ISIN | Apple USD on Xetra | Field 13 is the notional currency | A `notional_currency` claim; the listing's currency is the one its venue decides (`rules.trading_currency`): lines not in their venue country's currency 84,364 → 7,639, 0 on German venues and Vienna. ETFs and receipts on other exchanges (2,810 lines) and the trading-only venues keep the notional currency | Fixed for shares and single-currency venues; open for ETFs and receipts on multi-currency exchanges |
 | Withdrawn currency codes | 153 records (audit): 63 `XXX` (UBS internaliser), 68 `BGN` after Bulgaria adopted the euro on 2026-01-01, 16 NLG, 4 SKK, 1 DEM, 1 HRK | — | Stale records | Counted (`withdrawn_notional_currency`); never coerced | Counted |
 | Placeholder termination dates | 19,130 records; 19,103 in the audit scope | Mostly Stuttgart | A placeholder for "none" | No claim, counted (`termination_placeholder`) | Counted |
 | Delisted securities without a termination date | Only 28 records with a past date | JDE Peet's, Just Eat, VMware, US Steel still active | Field 12 is set only "where available" | Lifecycle from other dated evidence (first-trade dates, admission counts, GLEIF successors) | Open |
@@ -269,8 +269,8 @@ answer among their candidates: most answers lie outside the build (TSX
 Venture, Cboe NL, Tel Aviv, an LEI GLEIF does not hold). The ISIN-country line
 suggests an answer for General Dynamics and PepsiCo (their US line) and
 TotalEnergies (Euronext Paris); they stay questions until a curator approves.
-BCE and RELX get no suggestion: their home lines have no trading currency the
-package can write (#46).
+BCE and RELX now get their home line as the suggestion (Toronto, London), since
+home lines take their country's currency.
 
 Decisions and limits:
 

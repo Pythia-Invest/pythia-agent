@@ -268,6 +268,25 @@ class SearchTest(Fixture):
             row = leads(directory, query, limit=1, priced=lambda: priced)[0]
             self.assertEqual(row, "listing:shelf:xetb" if query == "SHF0" else "listing:shelf:xams", query)
 
+    def test_an_unspecified_iso_category_is_a_listing_only_outside_the_eea(self):
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
+                           [("XETB", "XETR", "Xetra", "DE", "MLTF"), ("XTSE", "XTSE", "Toronto", "CA", "NSPD"),
+                            ("XFRA", "XFRA", "Frankfurt", "DE", "NSPD")])
+            db.executemany("INSERT INTO issuers (id, name, country) VALUES (?, ?, 'GB')",
+                           [("issuer:lei:MAPL", "Maple plc"), ("issuer:lei:OPCO", "Opco plc")])
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'x', 'equity', 'ordinary')",
+                           [("security:mapl", "issuer:lei:MAPL"), ("security:opco", "issuer:lei:OPCO")])
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?, ?, ?, ?, ?, ?, 0)",
+                           [("listing:mapl:xetb", "security:mapl", "XETB", "XETR", "MPL", "EUR"),
+                            ("listing:mapl:xtse", "security:mapl", "XTSE", "XTSE", "MPL", "CAD"),
+                            ("listing:opco:xfra", "security:opco", "XFRA", "XFRA", "OPC", "EUR"),
+                            ("listing:opco:xetb", "security:opco", "XETB", "XETR", "OPC", "EUR")])
+        directory = search.Directory(self.ref)
+        self.assertEqual(leads(directory, "maple", limit=1), ["listing:mapl:xtse"])  # Toronto is an exchange
+        self.assertEqual(leads(directory, "opco", limit=1), ["listing:opco:xetb"])  # Frankfurt's operator MIC is not
+
     def test_a_build_without_venue_categories_ranks_no_line_as_regulated(self):
         with contextlib.closing(sqlite3.connect(self.path)) as db, db:
             db.execute("ALTER TABLE venues DROP COLUMN category")

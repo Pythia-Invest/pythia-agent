@@ -239,7 +239,8 @@ opens a Repairs item. A difference refuses the source only for an attribute in
 added once the reference field it compares against comes from a signed-off
 source (the FIRDS sign-off is under way in the reference claims work). Until
 then both stay off: the reference's venue for SEC-fed lines can be stale, and
-its currency is FIRDS' notional currency on German venues. A refused source is
+an ETF's or receipt's currency on a multi-currency exchange is FIRDS' notional
+currency. A refused source is
 checked again on its next read, and a read that agrees lifts the refusal. The
 recorded differences are evidence for that rework:
 `tooling/reference-builder/read_check_audit.py` counts them per venue from a
@@ -270,7 +271,9 @@ query also reads as the name, so `relx` still shows the home line), else the
 investor's `search_listing_preference` in `settings.json`: `primary` (default,
 the primary market), `EU` (an EU/EEA venue when there is one) or `US` (a US
 exchange). Among the lead's candidates, a regulated listing comes next (an ISO
-10383 regulated-market segment, carried as `venues.category`, or a US exchange)
+10383 regulated-market segment, carried as `venues.category`, a US exchange, or
+an exchange outside the EEA whose ISO category is unspecified, such as Toronto or
+Hong Kong; in the EEA that category marks operator MICs, never a listing)
 over open-market trading such as a German Freiverkehr line; then the home and
 primary market; a foreign company's receipt or OTC line ranks below its other
 lines. Among the remaining lines, one an installed, usable plugin can price

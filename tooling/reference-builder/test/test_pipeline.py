@@ -159,11 +159,13 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual((line.mic, line.operating_mic, line.is_primary), ("XCBO", "XCBO", True))
 
     def test_an_eea_request_beside_a_line_outside_the_eea_is_asked_and_priced_on_the_most_liquid_line(self):
-        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. That line has
-        # no trading currency, so the package cannot write it and the ISIN-country rule does not take it.
+        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. That line
+        # trades in London's currency, so it is the question's ISIN-country suggestion, never the primary.
         shell = self.snap.securities[f"isin:{SHELL_ISIN}"]
         self.assertEqual((shell.primary_mic, shell.primary_rule), (None, "requested_in_eea_listed_outside"))
-        self.assertIn(shell.security_id, {q.subject_id for q in self.snap.questions if q.question == "home_market"})
+        asked = {q.subject_id: q for q in self.snap.questions if q.question == "home_market"}
+        self.assertEqual(asked[shell.security_id].suggested, ("XLON:SHEL", "isin_country"))
+        self.assertEqual(self.snap.listings["XLON:SHEL"].currency, "GBP")
         self.assertTrue(self.snap.listings[f"XAMS:{SHELL_ISIN}"].most_liquid)
         self.assertFalse(self.snap.listings[f"XAMS:{SHELL_ISIN}"].is_primary)
 
@@ -201,7 +203,7 @@ class PipelineTest(unittest.TestCase):
             curated = sum(1 + len(asset.get("deployments", ())) for asset in seed["assets"])
             self.assertEqual(written + dropped, len(self.snap.listings) + curated)  # every line is accounted for
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
-            # Shell's London home line has no trading currency, so no line of it is written as primary.
+            # Shell's home market is asked, so no line of it is written as primary.
             self.assertEqual(self.snap.audit["schema"]["securities_without_primary"], 1)
 
     def test_eu_only_scope_makes_no_sec_lookups(self):
@@ -222,9 +224,11 @@ WIDE_FIRDS = fulins([
     firds_record(ASML_ISIN, "XETA", ASML_LEI, name="ASML HOLDING"),
     firds_record(ASML_ISIN, "CEUX", ASML_LEI, name="ASML HOLDING"),  # Cboe Europe trades it; it lists on XAMS
     firds_record(APPLE_ISIN, "FRAB", APPLE_LEI, name="APPLE INC", relevant="XFRA", requested="false"),
-    firds_record(ETF_ISIN, "XETA", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
-    firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM", requested="false"),
-    firds_record(DARK_ISIN, "CEUX", NN_LEI, name="DARK ONLY", relevant="CEUX"),
+    # FIRDS field 13 is the notional currency: the ETF trades in euros on Xetra.
+    firds_record(ETF_ISIN, "XETA", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM", currency="USD"),
+    firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM", requested="false",
+                 currency="USD"),
+    firds_record(DARK_ISIN, "CEUX", NN_LEI, name="DARK ONLY", relevant="CEUX", currency="USD"),
     firds_record(UNKNOWN_US_ISIN, "FRAB", APPLE_LEI, name="NO FIGI YET", relevant="XFRA"),  # OpenFIGI has no line
 ])
 WIDE_SEC = sec_json([
@@ -276,6 +280,17 @@ class AllVenuesTest(unittest.TestCase):
         self.assertEqual((self.lines(ETF_ISIN), etf.primary_mic, etf.primary_rule, etf.kind),
                          (["XETA"], "XETR", "issuer_requested", "etf"))
         self.assertTrue(self.snap.listings[f"XETA:{ETF_ISIN}"].is_primary)
+
+    def test_a_line_trades_in_its_exchanges_currency_and_keeps_its_notional_id_as_an_alias(self):
+        xetra, dark = self.snap.listings[f"XETA:{ETF_ISIN}"], self.snap.listings[f"CEUX:{DARK_ISIN}"]
+        self.assertEqual((xetra.currency, xetra.notional_currency), ("EUR", "USD"))
+        self.assertEqual(dark.currency, "USD", "a multi-currency trading-only venue keeps the notional currency")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(self.snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                aliases = dict(db.execute("select old_id, new_id from id_aliases"))
+        self.assertEqual(aliases[f"listing:isin:{ETF_ISIN}:XETR:USD"], f"listing:isin:{ETF_ISIN}:XETR:EUR")
 
     def test_us_share_traded_in_europe_keeps_its_us_home_line_and_rank(self):
         apple = self.snap.securities[f"isin:{APPLE_ISIN}"]
@@ -475,6 +490,26 @@ class NordicTickerTest(unittest.TestCase):
                 found = db.execute("select value from assertions where scheme = 'ticker_mic'").fetchall()
         self.assertEqual(found, [("VOLV B@XSTO",)])
         self.assertNotIn("skipped_ticker_mic", snap.audit["schema"])
+
+
+class TickerCollisionTest(unittest.TestCase):
+    def test_a_ticker_two_active_lines_claim_on_a_segment_in_one_currency_names_neither_and_both_are_written(self):
+        other, lei = "FR0000066722", "969500CZDSMT28GI2B41"  # Guillemot beside Diageo, both GUI in euros on Stuttgart
+        admissions = {}
+        records = [firds_record(SHELL_ISIN, "XETB", SHELL_LEI, name="DIAGEO", relevant="XETB", currency="GBP"),
+                   firds_record(other, "XETB", lei, name="GUILLEMOT", relevant="XETB")]
+        firds.apply(admissions, firds.full_records(stream(fulins(records)), Scope().cfi_prefixes), Counter())
+        answers = {("ID_ISIN", SHELL_ISIN, "XETB"): [figi_row("GUI", "GY", "BBGDIAGEOGY1", "BBGDIAGEOSC1")],
+                   ("ID_ISIN", other, "XETB"): [figi_row("GUI", "GY", "BBGGUILLGY01", "BBGGUILLSC01")]}
+        snap = build_snapshot(Inputs(date(2026, 9, 25), Scope(sec=False), mic.parse(MIC_CSV.encode()), admissions, None, [],
+                                     {"XETB"}), gleif_fetch, FakeOpenFigi(answers))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                lines = db.execute("select currency, ticker from listings where mic = 'XETB'").fetchall()
+        self.assertEqual(lines, [("EUR", None), ("EUR", None)])
+        self.assertEqual(snap.audit["schema"]["ticker_collisions"], 2)
 
 
 if __name__ == "__main__":

@@ -92,11 +92,14 @@ class Directory:
                 out.setdefault(key, []).append(value)
             return out
 
-        # Regulated listings: an ISO 10383 RMKT segment or a US exchange (whose operating MICs ISO leaves
-        # unspecified). A build from before the category column ranks no line as regulated.
+        # Listings, not open-market trading: an ISO 10383 RMKT segment, a US exchange, or an exchange outside the
+        # EEA whose ISO record leaves the category unspecified (NSPD: Toronto, the ASX, Hong Kong, Tel Aviv). In the
+        # EEA, NSPD marks operator MICs (Frankfurt, Borsa Italiana, BME), never a listing. A build from before the
+        # category column ranks no line as regulated.
         categorised = "category" in {row[1] for row in ref.execute("PRAGMA table_info(venues)")}
         venues = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT mic, name, country FROM venues")}
-        regulated = ({row[0] for row in ref.execute("SELECT mic FROM venues WHERE category = 'RMKT'")}
+        regulated = ({mic for mic, category, country in ref.execute("SELECT mic, category, country FROM venues")
+                      if category == "RMKT" or (category == "NSPD" and country not in ranking.EEA)}
                      | set(US_LISTED)) if categorised else set()
         issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"

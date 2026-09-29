@@ -146,7 +146,8 @@ class Listing:
     ticker_root: str | None = None
     ticker_class: str | None = None
     ticker_source: str | None = None
-    currency: str | None = None
+    currency: str | None = None  # the trading currency (`rules.trading_currency`)
+    notional_currency: str | None = None  # FIRDS field 13: the ID a line had before it took its trading currency
     figi: str | None = None
     composite_figi: str | None = None
     share_class_figi: str | None = None
