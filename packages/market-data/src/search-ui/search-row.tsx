@@ -41,8 +41,9 @@ function countryFlag(country: string): string {
   );
 }
 
-/** What a listing is beyond its company: a share class or registry shares
- * named after the company ("Class C"), else nothing. */
+/** What a listing is beyond its company: another share class or preferred
+ * named after the company ("Class C"), else nothing. Core names the lead
+ * instrument's lines, receipts included, after the company. */
 function ownDetail({ group, row }: SearchOption) {
   // A row named like the group or a shorter form of it ("ASML Holding" under
   // "ASML Holding N.V.") adds nothing.
