@@ -267,9 +267,7 @@ test("shows a rejected prerequisite without claiming an update started", async (
   expect(writes).toBe(1);
 });
 
-test("offers another attempt after an earlier failure", async ({
-  page,
-}) => {
+test("offers another attempt after an earlier failure", async ({ page }) => {
   await updateFixture(page);
   let writes = 0;
   await page.route("**/api/update-status**", async (route) => {
