@@ -125,8 +125,9 @@ describe("ChatPanel", () => {
   it("marks the open chat as current", () => {
     expect(render()).not.toContain("aria-current");
     const markup = render({ activeId: "mid" });
-    expect(markup).toContain('aria-current="page"');
-    expect(markup).toContain('href="/c/mid"');
+    const current = markup.match(/<a\b[^>]*aria-current="page"[^>]*>/g) ?? [];
+    expect(current).toHaveLength(1);
+    expect(current[0]).toContain('href="/c/mid"');
   });
 
   it("explains loading and unavailable states instead of showing an empty list", () => {

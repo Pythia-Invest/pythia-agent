@@ -117,6 +117,16 @@ describe("plain-language tool copy", () => {
   it("says what a delegation call does to research agents", () => {
     const status = (input: Record<string, unknown>) =>
       toolCopy(toolView(tool("delegate_task", input))).status;
+    // Agent cards show delegation, so none of its calls is an activity row.
+    for (const input of [
+      { preview: "list" },
+      { preview: "stop sa-1-example" },
+      { action: "steer", subagent_id: "sa-1" },
+      { tasks: [{ goal: "Research" }] },
+    ])
+      expect(toolCopy(toolView(tool("delegate_task", input))).hidden).toBe(
+        true,
+      );
     expect(status({ preview: "list" })).toBe("Checking research agents");
     expect(status({ preview: "stop sa-1-example" })).toBe(
       "Stopping a research agent",

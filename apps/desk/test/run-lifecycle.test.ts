@@ -139,6 +139,29 @@ describe("SDK chat and native run lifetime", () => {
     expect(f.session.chat.status).toBe("ready");
   });
 
+  it("remembers the active run for a reload and forgets it when the run ends", async () => {
+    const storage = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    vi.stubGlobal("sessionStorage", storage);
+    const f = fixture();
+    f.session.send("Question");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(storage.setItem).toHaveBeenCalledWith(
+      "pythia-desk:active-run:chat",
+      expect.any(String),
+    );
+    expect(storage.removeItem).not.toHaveBeenCalled();
+    await f.session.stop();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(f.session.chat.status).toBe("ready");
+    expect(storage.removeItem).toHaveBeenCalledWith(
+      "pythia-desk:active-run:chat",
+    );
+  });
+
   it("recovers a completed run from status without opening its expired event queue", async () => {
     const f = fixture();
     vi.stubGlobal("sessionStorage", {
