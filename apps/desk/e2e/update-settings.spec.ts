@@ -51,6 +51,9 @@ async function updateFixture(page: Page) {
 test("checks explicitly, pins the selected build, and reconnects after an ambiguous restart", async ({
   page,
 }) => {
+  // The updater is polled while an update runs; advance the page clock
+  // past each poll instead of waiting it out.
+  await page.clock.install();
   const state = await updateFixture(page);
   let checks = 0;
   let installed: Record<string, unknown> = { ...inventory };
@@ -85,7 +88,8 @@ test("checks explicitly, pins the selected build, and reconnects after an ambigu
   await expect(panel).toContainText("Updating Pythia");
   installed = { ...inventory, current_revision: target };
   // Activation can precede health verification and transaction completion.
-  await expect.poll(() => sawActivation, { timeout: 12_000 }).toBe(true);
+  await page.clock.runFor(3_000);
+  await expect.poll(() => sawActivation).toBe(true);
   await expect(panel.getByRole("button", { name: "Reload Desk" })).toHaveCount(
     0,
   );
@@ -93,9 +97,8 @@ test("checks explicitly, pins the selected build, and reconnects after an ambigu
     ...installed,
     last_update: { phase: "complete", target_revision: target },
   };
-  await expect(panel).toContainText("The update is installed.", {
-    timeout: 12_000,
-  });
+  await page.clock.runFor(3_000);
+  await expect(panel).toContainText("The update is installed.");
   await expect(
     panel.getByRole("button", { name: "Reload Desk" }),
   ).toBeVisible();
@@ -180,149 +183,131 @@ test("development shows its build without offering an installed update", async (
   await expect(panel.getByRole("button", { name: "Check now" })).toHaveCount(0);
 });
 
-test("does not mistake a failed update on the target build for completion", async ({
-  page,
-}) => {
-  await updateFixture(page);
-  let installed: Record<string, unknown> = { ...inventory };
-  await page.route("**/api/update-status**", async (route) => {
-    if (route.request().method() === "POST") {
-      installed = {
-        ...inventory,
-        current_revision: target,
-        updater: "failed",
-        last_update: { phase: "failed-stopped", target_revision: target },
-      };
-      return route.fulfill({
-        json: { started: true, target_revision: target },
-      });
-    }
-    return route.fulfill({
-      json: new URL(route.request().url()).searchParams.has("check")
-        ? update
-        : installed,
-    });
-  });
-  await openUpdates(page);
-  const panel = page.locator('[data-slot="update-status"]');
-  await panel.getByRole("button", { name: "Check now", exact: true }).click();
-  await panel.getByRole("button", { name: "Update now" }).click();
-  await expect(panel).toContainText("The update didn't finish.");
-  await expect(panel).toContainText("pythia recover");
-  await expect(panel.getByRole("button", { name: "Reload Desk" })).toHaveCount(
-    0,
-  );
-});
-
-test("shows a rejected prerequisite without claiming an update started", async ({
-  page,
-}) => {
-  await updateFixture(page);
-  let writes = 0;
-  await page.route("**/api/update-status**", async (route) => {
-    if (route.request().method() === "POST") {
-      writes++;
-      return route.fulfill({
-        status: 409,
-        json: {
-          error: {
-            code: "target_prerequisites_pending",
-            message:
-              "Workspace transition pending. Preview with pythia workspace-transition.",
-          },
+const failedTarget = {
+  ...inventory,
+  current_revision: target,
+  updater: "failed",
+  last_update: { phase: "failed-stopped", target_revision: target },
+};
+const started = { json: { started: true, target_revision: target } };
+const startFailures: {
+  name: string;
+  installed?: Record<string, unknown>;
+  /** Shown before checking. */
+  before?: string;
+  button?: string;
+  start: { status?: number; json: unknown };
+  /** What the updater reports once the start reply is in. */
+  after?: Record<string, unknown>;
+  /** Poll time to let pass before the verdict. */
+  wait?: number;
+  alert?: string;
+  shows?: string[];
+  /** Nothing began, so nothing may claim it did. */
+  idle?: boolean;
+}[] = [
+  {
+    name: "shows a rejected prerequisite without claiming an update started",
+    start: {
+      status: 409,
+      json: {
+        error: {
+          code: "target_prerequisites_pending",
+          message:
+            "Workspace transition pending. Preview with pythia workspace-transition.",
         },
-      });
-    }
-    return route.fulfill({
-      json: new URL(route.request().url()).searchParams.has("check")
-        ? update
-        : inventory,
-    });
-  });
-  await openUpdates(page);
-  const panel = page.locator('[data-slot="update-status"]');
-  await panel.getByRole("button", { name: "Check now", exact: true }).click();
-  await panel.getByRole("button", { name: "Update now" }).click();
-  await expect(panel.getByRole("alert")).toContainText(
-    "pythia workspace-transition",
-  );
-  await expect(panel).not.toContainText("Updating Pythia");
-  await expect(panel.getByRole("button", { name: "Reload Desk" })).toHaveCount(
-    0,
-  );
-  expect(writes).toBe(1);
-});
-
-test("offers another attempt after an earlier failure", async ({ page }) => {
-  await updateFixture(page);
-  let writes = 0;
-  await page.route("**/api/update-status**", async (route) => {
-    if (route.request().method() === "POST") {
-      writes++;
-      return route.fulfill({
-        json: { started: true, target_revision: target },
-      });
-    }
-    return route.fulfill({
-      json: new URL(route.request().url()).searchParams.has("check")
-        ? { ...update, updater: "failed" }
-        : { ...inventory, updater: "failed" },
-    });
-  });
-  await openUpdates(page);
-  const panel = page.locator('[data-slot="update-status"]');
-  await expect(panel).toContainText("An earlier update attempt failed.");
-  await panel.getByRole("button", { name: "Check now", exact: true }).click();
-  const retry = panel.getByRole("button", { name: "Try again" });
-  await expect(retry).toBeEnabled();
-  await retry.click();
-  await expect.poll(() => writes).toBe(1);
-});
-
-test("says an update did not start when its start reply was lost and nothing changed", async ({
-  page,
-}) => {
-  await updateFixture(page);
-  let writes = 0;
-  await page.route("**/api/update-status**", async (route) => {
-    if (route.request().method() === "POST") {
-      writes++;
-      return route.fulfill({
-        status: 503,
-        json: {
-          error: {
-            code: "update_start_unconfirmed",
-            message: "Desk could not confirm that the update started.",
-          },
+      },
+    },
+    alert: "pythia workspace-transition",
+    idle: true,
+  },
+  {
+    name: "does not mistake a failed update on the target build for completion",
+    start: started,
+    after: failedTarget,
+    shows: ["The update didn't finish.", "pythia recover"],
+  },
+  {
+    name: "offers another attempt after an earlier failure",
+    installed: { ...inventory, updater: "failed" },
+    before: "An earlier update attempt failed.",
+    button: "Try again",
+    start: started,
+  },
+  {
+    name: "says an update did not start when its start reply was lost and nothing changed",
+    start: {
+      status: 503,
+      json: {
+        error: {
+          code: "update_start_unconfirmed",
+          message: "Desk could not confirm that the update started.",
         },
+      },
+    },
+    // The idle updater on the same build a few seconds later proves nothing began.
+    wait: 6_000,
+    alert: "could not confirm that the update started",
+    idle: true,
+  },
+];
+
+for (const row of startFailures)
+  test(row.name, async ({ page }) => {
+    await page.clock.install();
+    await updateFixture(page);
+    let installed = row.installed ?? inventory;
+    let writes = 0;
+    await page.route("**/api/update-status**", (route) => {
+      if (route.request().method() === "POST") {
+        writes++;
+        if (row.after) installed = row.after;
+        return route.fulfill(row.start);
+      }
+      return route.fulfill({
+        json: new URL(route.request().url()).searchParams.has("check")
+          ? { ...update, updater: installed.updater }
+          : installed,
       });
-    }
-    return route.fulfill({
-      json: new URL(route.request().url()).searchParams.has("check")
-        ? update
-        : inventory,
     });
+    await openUpdates(page);
+    const panel = page.locator('[data-slot="update-status"]');
+    if (row.before) await expect(panel).toContainText(row.before);
+    await panel.getByRole("button", { name: "Check now", exact: true }).click();
+    const start = panel.getByRole("button", {
+      name: row.button ?? "Update now",
+    });
+    await expect(start).toBeEnabled();
+    await start.click();
+    await expect.poll(() => writes).toBe(1);
+    if (row.wait) await page.clock.runFor(row.wait);
+    if (row.alert)
+      await expect(panel.getByRole("alert")).toContainText(row.alert);
+    for (const text of row.shows ?? []) await expect(panel).toContainText(text);
+    if (row.idle) {
+      await expect(panel).not.toContainText("Updating Pythia");
+      await expect(
+        panel.getByRole("button", { name: "Update now" }),
+      ).toBeEnabled();
+    }
+    await expect(
+      panel.getByRole("button", { name: "Reload Desk" }),
+    ).toHaveCount(0);
+    expect(writes).toBe(1);
   });
-  await openUpdates(page);
-  const panel = page.locator('[data-slot="update-status"]');
-  await panel.getByRole("button", { name: "Check now", exact: true }).click();
-  await panel.getByRole("button", { name: "Update now" }).click();
-  // The idle updater on the same build proves nothing began.
-  await expect(panel.getByRole("alert")).toContainText(
-    "could not confirm that the update started",
-    { timeout: 15_000 },
-  );
-  await expect(panel).not.toContainText("Updating Pythia");
-  await expect(panel.getByRole("button", { name: "Update now" })).toBeEnabled();
-  expect(writes).toBe(1);
-});
 
 test("checks once a day on its own and marks a ready update in the sidebar", async ({
   page,
 }) => {
+  const day = 86_400_000;
+  await page.clock.install();
   await fixture(page);
   await hermesSettings(page);
   let checks = 0;
+  const checked = () =>
+    page.waitForResponse((response) =>
+      new URL(response.url()).searchParams.has("check"),
+    );
   await page.route("**/api/update-status**", (route) => {
     if (new URL(route.request().url()).searchParams.has("check")) {
       checks++;
@@ -330,12 +315,12 @@ test("checks once a day on its own and marks a ready update in the sidebar", asy
     }
     return route.fulfill({ json: inventory });
   });
-  // The fixture's own first page already counted as today's check.
-  await page.evaluate(() =>
-    window.localStorage.removeItem("pythia.updates.checked-at"),
-  );
+  // The fixture's first page was today's check; a day later a load checks.
+  await page.clock.fastForward(day + 60_000);
+  let next = checked();
   await page.goto("/");
-  await expect.poll(() => checks).toBe(1);
+  await next;
+  expect(checks).toBe(1);
   if ((page.viewportSize()?.width ?? 1280) < 900)
     await page.getByRole("button", { name: "Open navigation" }).click();
   const indicator = page.getByRole("button", { name: "Update available" });
@@ -344,8 +329,17 @@ test("checks once a day on its own and marks a ready update in the sidebar", asy
   await expect(
     dialog.getByRole("button", { name: "Update now" }),
   ).toBeEnabled();
-  // Checked today: a reload does not check again.
+  // Within the day neither a reload nor a return to the window checks; past
+  // it, returning does. A check wrongly made earlier would be counted first.
   await page.reload();
-  await page.waitForLoadState("networkidle");
-  expect(checks).toBe(1);
+  await expect(
+    page.getByRole("textbox", { name: "Message Pythia" }),
+  ).toBeVisible();
+  await page.clock.fastForward(day - 60_000);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.clock.fastForward(120_000);
+  next = checked();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await next;
+  expect(checks).toBe(2);
 });
