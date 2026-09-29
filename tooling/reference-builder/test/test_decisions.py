@@ -20,7 +20,8 @@ from .test_pipeline import OPENFIGI, SHELL_ISIN, WIDE_OPENFIGI, gleif_fetch, inp
 
 
 def decisions(snap: Snapshot, given: Inputs) -> tuple:
-    """Re-run every decision on assembled rows: primaries, most-liquid lines, questions and receipt edges."""
+    """Re-run every decision on assembled rows: primaries, most-liquid lines, questions, receipt edges and the names
+    written (SEC titles are re-cased apart)."""
     for listing in snap.listings.values():
         listing.is_primary = listing.most_liquid = False
     for security in snap.securities.values():
@@ -29,11 +30,13 @@ def decisions(snap: Snapshot, given: Inputs) -> tuple:
     claims = given.claims()
     reconcile.questions(snap, claims, Venues(given.venues), given.as_of.isoformat())
     link_receipts(snap, frozenset(claims.isins))
+    tables = schema.rows(snap, {"build_id": "test"}, [])  # a provisional ID keeps its source's namespace
     return ({key: (s.primary_mic, s.primary_rule) for key, s in snap.securities.items()},
             sorted(key for key, line in snap.listings.items() if line.is_primary),
             sorted(key for key, line in snap.listings.items() if line.most_liquid),
             [(q.question, q.subject_id, q.candidates, q.values) for q in snap.questions],
-            sorted((r.from_id, r.relation, r.to_id, r.rule_id) for r in snap.relationships))
+            sorted((r.from_id, r.relation, r.to_id, r.rule_id) for r in snap.relationships),
+            sorted(row["name"] for name in ("issuers", "securities") for row in tables[name]))
 
 
 class RenamedSourceTest(unittest.TestCase):
@@ -52,8 +55,9 @@ class RenamedSourceTest(unittest.TestCase):
                     receipt = snap.listings["XNAS:ASML"].security_id
                     snap.relationships.append(Relationship(receipt, "depositary_receipt_of", f"isin:{SHELL_ISIN}",
                                                            "esma_firds", "firds_underlying_isin", Evidence.STATED_UNDERLYING))
+                    snap.issuers["cik:918541"].name = "NN INC /DE/"  # a SEC title's state marker, dropped for display
                 renamed = copy.deepcopy(snap)
-                for row in (*renamed.securities.values(), *renamed.listings.values()):
+                for row in (*renamed.issuers.values(), *renamed.securities.values(), *renamed.listings.values()):
                     row.source = f"another_{row.source}"
                 renamed.relationships[:] = [dataclasses.replace(r, source="another") for r in renamed.relationships]
                 expected = decisions(snap, given)
@@ -81,22 +85,26 @@ class TickerReuseTest(unittest.TestCase):
 
 
 class ReceiptClassTest(unittest.TestCase):
-    def test_a_receipt_beside_a_share_of_another_class_gets_no_edge(self):
-        # Ericsson: a FIRDS class A beside a SEC-only class B. The issuer names no class, so the ADR gets no edge.
-        snap = build_snapshot(inputs(), gleif_fetch, FakeOpenFigi(OPENFIGI))
-        receipt = snap.listings["XNAS:ASML"].security_id
-        self.assertIn(receipt, {item.from_id for item in snap.relationships}, "the issuer's one share: linked")
-        without = snap.audit["relations"]["receipt_without_underlying"]
-        other = "sec:937966.ASMLB"
-        snap.securities[other] = Security(other, "share", "sec", Evidence.REGISTRANT_FILING,
-                                          issuer_id=snap.securities[receipt].issuer_id)
-        snap.listings["XNYS:ASMLB"] = Listing("XNYS:ASMLB", "sec", Evidence.REGISTRANT_FILING, "share", security_id=other,
-                                              ticker="ASMLB")
-        snap.relationships.clear()
-        snap.audit.clear()
-        link_receipts(snap)
-        self.assertNotIn(receipt, {item.from_id for item in snap.relationships})
-        self.assertEqual(snap.audit["relations"]["receipt_without_underlying"], without + 1)
+    def test_a_receipt_beside_another_share_of_its_issuer_gets_no_edge(self):
+        # Ericsson: a FIRDS class A beside a SEC-only class B. The issuer names no class, so the ADR gets no edge,
+        # whether or not the other share has an active ticker line.
+        for lined, activity in ((True, "active"), (False, "active"), (True, "suspect")):
+            with self.subTest(lined=lined, activity=activity):
+                snap = build_snapshot(inputs(), gleif_fetch, FakeOpenFigi(OPENFIGI))
+                receipt = snap.listings["XNAS:ASML"].security_id
+                self.assertIn(receipt, {item.from_id for item in snap.relationships}, "the issuer's one share: linked")
+                without = snap.audit["relations"]["receipt_without_underlying"]
+                other = "sec:937966.ASMLB"
+                snap.securities[other] = Security(other, "share", "sec", Evidence.REGISTRANT_FILING,
+                                                  issuer_id=snap.securities[receipt].issuer_id, activity=activity)
+                if lined:
+                    snap.listings["XNYS:ASMLB"] = Listing("XNYS:ASMLB", "sec", Evidence.REGISTRANT_FILING, "share",
+                                                          security_id=other, ticker="ASMLB")
+                snap.relationships.clear()
+                snap.audit.clear()
+                link_receipts(snap)
+                self.assertNotIn(receipt, {item.from_id for item in snap.relationships})
+                self.assertEqual(snap.audit["relations"]["receipt_without_underlying"], without + 1)
 
 
 if __name__ == "__main__":

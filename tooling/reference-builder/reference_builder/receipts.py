@@ -15,9 +15,10 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
     A stated underlying ISIN (FIRDS field 26) is kept when an active security of the build carries it; FIRDS often
     names a superseded ISIN (GSK, ArcelorMittal, Tenaris) or one outside the scope, so such an edge is dropped,
     flagged and counted. A receipt no source links (SEC ADRs and New York registry shares; OpenFIGI names no
-    underlying) is linked to its issuer's one active ordinary share. An issuer with a preferred share or several
-    candidate shares gets no edge: a shared issuer never picks a class (ADR 0044, A3), so a receipt of a preferred
-    or of another class is never guessed. Every drop is counted in the build report."""
+    underlying) is linked to its issuer's one ordinary share that is not inactive, when that share has an active
+    ticker line. An issuer with a preferred share or several such shares, searchable or not, gets no edge: a shared
+    issuer never picks a class (ADR 0044, A3), so a receipt of a preferred or of another class is never guessed.
+    Every drop is counted in the build report."""
     audit = snap.audit.setdefault("relations", Counter())
     by_isin = {security.isin: key for key, security in snap.securities.items() if security.isin}
     kept, asked, stated_targets = [], set(), {}
@@ -57,7 +58,10 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
         if security.kind != "dr" or security.security_id in stated:
             continue
         siblings = by_issuer.get(security.issuer_id or "", [])
-        shares = [item for item in siblings if item.kind == "share" and item.activity == "active" and item.security_id in lined]
+        # Every share of the issuer that is not inactive could be the receipt's class; only a searchable one is a
+        # candidate to show.
+        live = [item for item in siblings if item.kind == "share" and item.activity != "inactive"]
+        shares = [item for item in live if item.activity == "active" and item.security_id in lined]
         if security.security_id in asked or security.isin in firds_isins:
             # FIRDS states receipts' underlyings (field 26): where it names none this build holds, the answer is a
             # question, not the issuer rule's guess. The issuer's shares are its candidates.
@@ -68,7 +72,7 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
             continue
         if not security.issuer_id:
             continue
-        if len(shares) != 1 or any(item.kind == "preferred" for item in siblings):
+        if len(live) != 1 or shares != live or any(item.kind == "preferred" for item in siblings):
             audit["receipt_without_underlying"] += 1
             continue
         snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", shares[0].security_id,

@@ -72,9 +72,11 @@ SEC ticker and fund files) and, on a receipt edge, `stated_underlying` (FIRDS
 field 26). A rule tests that kind; `source` is provenance only, so another
 source of the same kind decides alike (`test_decisions.py` renames every
 source and gets the same decisions). `check_names.py`, run by `just check`,
-fails when a module that decides, or core's `identity/*.py`, compares a
-source, plugin or provider name with a literal. The rules are versioned
-(below).
+fails when a builder module other than the named adapters and audits, or
+core's `identity/*.py`, compares a field named source, plugin or provider with
+a literal. Core's list of bundled plugins (`BUNDLED`) is still trust by name;
+it stays until trust follows a hashed release, later in roadmap stage 0. The
+rules are versioned (below).
 
 - **Activity.** FIRDS rarely sets termination dates. A line is `inactive` when
   it is terminated, is a corporate-action line without an OpenFIGI line, or its
@@ -218,17 +220,18 @@ source, plugin or provider name with a literal. The rules are versioned
   A share whose CFI says share while field 26 states an underlying is asked
   too (`receipt_conflict`). SEC ADRs and New York registry shares outside
   FIRDS name no underlying (neither does OpenFIGI), so rule
-  `receipt_issuer_share@1` links a receipt to its issuer's
-  one active ordinary share with an active ticker line (a share search cannot
-  show folds nothing in). An issuer with a preferred share or several
-  candidate shares gets no edge (`receipt_without_underlying`): a shared issuer
-  never picks a share class (ADR 0044, A3), so a FIRDS class A beside a SEC-only
-  class B no longer takes the receipt. The single-share case stays: on the
-  2026-09-28 build it links 201 receipts; for 198 of them the issuer has no
-  other share in the build, and for 3 (Inficon, Erste Bank Polska, Anadolu
-  Efes) its other share has no active ticker line, so it is no candidate. The
-  edge names its rule in `source_record`, so it is a display default and never
-  a validated fact (ADR 0044, A6). No source
+  `receipt_issuer_share@1` links a receipt to its issuer's one ordinary
+  share that is not inactive, when that share is active with an active ticker
+  line (a share search cannot show folds nothing in). An issuer with a
+  preferred share or several such shares, with a ticker line or not, gets no
+  edge (`receipt_without_underlying`): a shared issuer never picks a share
+  class (ADR 0044, A3), so a FIRDS class A beside a SEC-only class B no longer
+  takes the receipt. On the 2026-09-28 build the rule links 198 receipts;
+  Inficon, Erste Bank Polska and Anadolu Efes, whose issuer has a second share
+  without an active line, get none. Like every builder row, the edge is still
+  written with authority `snapshot` until the builder's evidence authority
+  changes later in roadmap stage 0; it names its rule in `source_record`, so
+  it is a display default and never a validated fact (ADR 0044, A6). No source
   states share classes, so the builder writes no `share_class_of`. Core's
   search folds a receipt into its share only through this relation, and the
   audit lists any second fold target or fold cycle.
@@ -250,10 +253,10 @@ rule change bumps it with a line here:
 
 - **2** (2026-09-29, roadmap stage 0): rules test evidence kinds instead of
   source names; identifier link conflicts become `issuer_identity` questions
-  instead of a winner by CIK order; the receipt rule no longer narrows several
-  candidate shares to the FIRDS-listed one; the primary listing is no longer
-  asked (`home_market` and its `isin_country` suggestion are gone); SEC-only
-  subjects are keyed by CIK and ticker.
+  instead of a winner by CIK order; the receipt rule counts every share that
+  is not inactive and no longer narrows several to the FIRDS-listed one; the
+  primary listing is no longer asked (`home_market` and its `isin_country`
+  suggestion are gone); SEC-only subjects are keyed by CIK and ticker.
 - **1**: the rules before roadmap stage 0.
 
 ## Claims, questions and the FIRDS adapter

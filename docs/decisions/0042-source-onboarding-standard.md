@@ -217,9 +217,12 @@ had stayed at 1 through many rule changes.
   decides alike.
 - An onboarded source's adapter sets the kind on each row it creates. A new
   kind is a rule change, reviewed like one.
-- `just check` fails when the builder's deciding modules or core's identity
-  modules compare a source, plugin or provider name with a literal, and a
-  test renames every source and expects the same decisions.
+- `just check` fails when a builder module other than its adapters and
+  audits, or a core identity module, compares a field named source, plugin or
+  provider with a literal. A test renames every source and expects the same
+  decisions. Core's list of bundled plugins (`BUNDLED`) is still trust by
+  name; it stays until trust follows a hashed release, later in roadmap
+  stage 0.
 - The builder version is the rules version. It is recorded on every
   assertion, in `package.json` and in the release table. Every rule change
   bumps it with a line in the builder README's "Rules versions".
