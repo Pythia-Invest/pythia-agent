@@ -208,7 +208,13 @@ export async function execute(input: unknown, sdk: Client = client()) {
         data = await sdk.quote(symbols(args.symbols), options);
         break;
       case "screener":
-        data = await sdk.screener(screen(options));
+        // The SDK's schema pins the screens' display metadata (the fields
+        // Yahoo lists in criteriaMeta.includeFields), so a field Yahoo adds
+        // there fails the whole answer. The movers adapter checks every field
+        // it reads (docs/sources/yahoo-screener.md), so the SDK's check is off.
+        data = await sdk.screener(screen(options), undefined, {
+          validateResult: false,
+        });
         break;
       case "trendingSymbols": {
         if (typeof args.region !== "string" || !/^[A-Z]{2}$/u.test(args.region))

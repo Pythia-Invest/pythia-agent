@@ -95,6 +95,7 @@ live samples:
 | Cboe-listed share | 1/300 rows | CBOE on `BTS` | Cboe BZX | mapped to XCBO, the reference builder's operating MIC | handled |
 | NYSE American line | 4/300 rows | DNN on `ASE` | a segment of XNYS; the reference keys it at XNYS | mapped to XNYS | handled |
 | Share classes of one company | 0/300 rows | – | would be two securities | each row resolves on its own | handled |
+| Answer metadata beyond the SDK schema | every answer since 2026-09-29 | `criteriaMeta.includeFields` lists `full_day_price`, `full_day_change` and `full_day_change_percent` | the SDK schema pins that list, so its check failed every answer and all three lists showed "Data unavailable" | the worker skips the SDK's check for the screener (`validateResult: false`); the adapter's checks above cover every field it reads | handled |
 
 ## 4. Judgement cases
 
