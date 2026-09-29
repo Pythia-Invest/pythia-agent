@@ -371,8 +371,11 @@ exists:
 - Subjects come only from the reference build and core's curated tables.
 - Reference sources are builder adapters that cannot be disabled, and the
   builder's `snapshot` evidence outranks a plugin's `source_asserted` claim.
-- Trust follows the list of bundled plugin names. Only a bundled plugin binds,
-  and only onto reference subjects.
+- Trust follows a digest of each plugin's files, never its name: Pythia's
+  release grants confirm its signed-off and grandfathered plugins, and the
+  user's own grants may confirm another or demote one (ADR 0042, amendment of
+  2026-09-30). Only a confirm-level plugin binds, and only onto reference
+  subjects.
 - Portable crypto keys come only from core's curated table.
 
 Documents that cite the first version of these rulings describe this current

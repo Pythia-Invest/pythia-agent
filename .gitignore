@@ -119,3 +119,6 @@ ds-bundle/
 
 # Generated PDF.js character maps from the pinned dependency
 /apps/desk/public/_pdfjs/
+
+# Pythia's release trust grants, generated when the payload is assembled (scripts/dev/release-grants.mjs)
+/runtime/managed/core/identity/trust.json

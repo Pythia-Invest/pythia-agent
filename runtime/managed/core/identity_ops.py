@@ -27,6 +27,7 @@ from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
 from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
+from .identity import trust
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -338,7 +339,7 @@ def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
 
 
 def installed() -> list[page.PluginInfo]:
-    """Every installed plugin that ships a valid contract.json, with its native enablement and configuration.
+    """Every installed plugin with a valid contract.json: its native enablement, configuration and trust (by digest).
 
     A contract newer than this core is skipped with a distinct `needs_update` log line, never reported invalid."""
     from hermes_cli.config import load_config_readonly
@@ -351,7 +352,7 @@ def installed() -> list[page.PluginInfo]:
             continue
         try:
             manifest = vouched(validate_manifest(json.loads((directory / MANIFEST_FILE).read_text(encoding="utf-8"))),
-                               key)
+                               trust.level(trust.digest(directory), key))  # trust follows the files, not the name
         except ManifestNeedsUpdate as error:
             logger.warning("%s of %s needs a newer Pythia (needs_update): %s", MANIFEST_FILE, key, error)
             continue
