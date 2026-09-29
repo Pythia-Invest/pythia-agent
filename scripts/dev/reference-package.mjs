@@ -2,14 +2,16 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { redactedEnvironment } from "./environment.mjs";
+import { ensurePrivateDirectory } from "./files.mjs";
 
 /*
  * The development side of reference packages (docs/architecture/reference-package.md):
- * core's own installer, run with the stack's Hermes Python, into the core
- * plugin's native data directory. Core never reads the builder's output folder.
+ * core's own installer, run with the stack's Hermes Python, into Pythia's
+ * store directory (<data>/store). Core never reads the builder's output folder.
  */
 
-const DATA_DIRECTORY =
+// Where an earlier Pythia kept its store: the core plugin's native data directory.
+const LEGACY_DIRECTORY =
   "from hermes_cli.plugins import PluginState; print(PluginState('pythia').data_dir)";
 
 function python(paths, args) {
@@ -34,21 +36,29 @@ function python(paths, args) {
   return result.stdout.trim();
 }
 
-/** The core plugin's data directory for this stack's profile, as native PluginState derives it. */
-export function coreDataDirectory(paths) {
-  return python(paths, ["-c", DATA_DIRECTORY]);
-}
-
-/** Run core's installer: `install <package>` or `status`. */
+/**
+ * Run core's installer: `install <package>` or `status`. An install first moves
+ * a reference an earlier Pythia installed in the core plugin's data directory,
+ * as core does on first use, so installing never leaves that copy behind.
+ */
 export function referencePackage(paths, command, packagePath) {
+  const installer = join(paths.managedCore, "identity", "reference_package.py");
+  const store = ["--data-dir", paths.store];
+  let moved = null;
+  if (command === "install") {
+    const legacy = python(paths, ["-c", LEGACY_DIRECTORY]);
+    ensurePrivateDirectory(paths.store);
+    ({ moved } = JSON.parse(
+      python(paths, [installer, "move", "--from", legacy, ...store]),
+    ));
+  }
   const args = [
-    join(paths.managedCore, "identity", "reference_package.py"),
+    installer,
     command,
     ...(packagePath ? [resolve(packagePath)] : []),
-    "--data-dir",
-    coreDataDirectory(paths),
+    ...store,
   ];
-  return JSON.parse(python(paths, args));
+  return { ...JSON.parse(python(paths, args)), ...(moved ? { moved } : {}) };
 }
 
 export function localReferencePackage(paths, environment = process.env) {
@@ -70,6 +80,7 @@ export function installLocalReference(paths, options = {}) {
   }
   try {
     const result = referencePackage(paths, "install", source);
+    if (result.moved) log(`Reference data: ${result.moved}.`);
     const build = `${result.installed.build_id} (as of ${result.installed.as_of})`;
     log(
       result.changed

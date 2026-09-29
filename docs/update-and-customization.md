@@ -189,8 +189,9 @@ The default removes the installed command, managed runtime, and user services
 but retains the checkout, configuration, state, workspace, and Markdown
 knowledge for reinstallation. `pythia uninstall --purge` also removes Pythia
 configuration, state, and cache, but still does not delete the checkout,
-workspace, or Markdown knowledge. Back up and remove retained data separately
-only when that destructive result is intended.
+workspace, Markdown knowledge, or Pythia's store (`<data>/store`, which holds
+the investor's identity answers and the reference data). Back up and remove
+retained data separately only when that destructive result is intended.
 
 Uninstall and purge refuse a pending Workspace transition or a retained Basic
 Memory unit before stopping or removing anything. Complete the transition first;

@@ -26,7 +26,7 @@ from .identity import (
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
-from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, queue, reference_package, search, store
+from .identity import batch_from_json, batch_to_json, lifecycle, location, markets, page, queue, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -69,10 +69,10 @@ RESOLVE_SCHEMA = {
 
 
 class Identity:
-    """Per-process state: the core data directory and the identity store, opened on first use."""
+    """Per-process state: Pythia's store directory and the identity store, opened on first use."""
 
-    def __init__(self, ctx: Any):
-        self.ctx = ctx
+    def __init__(self, ctx: Any, data_dir: Path | None = None):  # data_dir: a test's own store directory
+        self.ctx, self._data_dir = ctx, data_dir and Path(data_dir)
         self._store: store.IdentityStore | None = None
         self._rekeyed: Path | None = None  # the reference build local rows were carried to, this process
         self.reset_told = False  # whether a set-aside store was reported (once per process)
@@ -80,8 +80,8 @@ class Identity:
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="pythia-resolve")
 
     @property
-    def data_dir(self) -> Path:
-        return Path(self.ctx.state.data_dir)  # native, profile-scoped plugin data directory
+    def data_dir(self) -> Path:  # <data>/store: its first use in a process moves an earlier store there (location)
+        return self._data_dir or location.store_dir(Path(self.ctx.state.data_dir))
 
     @property
     def store(self) -> store.IdentityStore:
@@ -129,13 +129,13 @@ class Identity:
             data = (directory.group(group, kinds=kinds) if group
                     else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
                                           suffixes=search_venues.suffixes, priced=search_venues.priced) if query else empty)
-        except (sqlite3.Error, OSError):  # search degrades, never errors out
+        except (sqlite3.Error, OSError) as error:  # search degrades, never errors out; a closed store says why
             logger.warning("identity search unavailable", exc_info=True)
-            return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
+            return _envelope("empty", empty, issue=f"Search is unavailable. {location.reason(error)}")
         return _envelope("ok" if data["groups"] else "empty", data)
 
     def reference_status(self, _arguments: dict, **_context: Any) -> str:
-        data = reference_package.status(self.data_dir)  # an unreadable package reads as none installed
+        data = {**reference_package.status(self.data_dir), "both_present": location.both_present(self.data_dir)}
         return _envelope("ok", data) if data["installed"] else _envelope("empty", data, issue=NO_REFERENCE)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
@@ -143,9 +143,9 @@ class Identity:
             view, issue = self._compose(str(arguments.get("subject_id") or ""))
         except ValueError:  # a malformed subject id
             view, issue = None, UNKNOWN_SUBJECT
-        except (sqlite3.Error, OSError):
+        except (sqlite3.Error, OSError) as error:
             logger.warning("identity subject unavailable", exc_info=True)
-            view, issue = None, "The reference data could not be read."
+            view, issue = None, location.reason(error)
         return _envelope("ok", view) if view else _envelope("empty", None, issue=issue)
 
     def resolve(self, arguments: dict, **_context: Any) -> str:

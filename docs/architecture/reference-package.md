@@ -54,8 +54,13 @@ just reference-status              # what is installed, and the last refusal, as
 ```
 
 These recipes run core's installer with the stack's Hermes Python and install
-into the core plugin's native data directory,
-`<profile>/plugin-data/<core namespace>/reference/`. The installer:
+into Pythia's store directory, `<data>/store/reference/`, where `<data>` is the
+stack's data root ([ADR 0034](../decisions/0034-core-and-optional-features.md),
+2026-09-29 amendment). A reference an earlier Pythia installed in the core
+plugin's Hermes data directory moves there first: core moves it on first use,
+and an install moves it before installing. It moves by rename or, across file
+systems, as a verified install that keeps the source, and it keeps its package
+name, so nothing is re-keyed. The installer:
 
 1. Reads `package.json` and refuses a package whose `format_version` is not the
    one this core reads. The message says whether to update Pythia or rebuild
@@ -77,7 +82,7 @@ to an older build is an ordinary install of that package, a release change
 like any other. `packages/` belongs to the
 installer: it removes anything else there, including leftovers of an
 interrupted install, so never point it at a package inside that directory. One
-installer runs at a time per data directory. Search and pages never wait for
+installer runs at a time per store directory. Search and pages never wait for
 it.
 
 In development, `just dev-init`, `just dev` and `just dev-refresh` install this

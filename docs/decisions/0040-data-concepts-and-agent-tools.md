@@ -365,8 +365,9 @@ its ESEF report 47 MB, so neither fits a tool result or a body held in memory.
   past 2,000 cells and spanned columns, which is not tracked, so memory stays
   bounded whatever its spans. Found in the 2026-09-29 end-to-end check: ASML's
   first risk factor held 147 characters, its heading alone; it now holds 2,140.
-- Core keeps the extracted text and outline in `documents/` under its
-  profile data directory, one file per filing id, within 256 MB, the least
+- Core keeps the extracted text and outline in `<cache>/documents/`, the
+  stack's cache directory ([ADR 0034](0034-core-and-optional-features.md),
+  2026-09-29 amendment), one file per filing id, within 256 MB, the least
   recently read going first. It is a disposable cache: losing it means reading
   the document again. A read by `report_key` or `id` answers from it, also
   after the source is disabled: a filed document does not change. Both

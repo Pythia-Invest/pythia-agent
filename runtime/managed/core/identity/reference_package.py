@@ -3,10 +3,10 @@ installed reference catalogue.
 
 A package is a directory holding `package.json` and the one SQLite file it names. Generation (the reference
 builder) and consumption (core) meet only here: core reads the package installed under
-`<core data dir>/reference/`, never a builder's output folder.
+`<store>/reference/`, never a builder's output folder. `<store>` is Pythia's store directory, `<data>/store`.
 
 Standard library only, with no package-relative imports, so the lifecycle can run it with Hermes's Python:
-`python -P reference_package.py install <package> --data-dir <core data dir>` (also `status`).
+`python -P reference_package.py install <package> --data-dir <store>` (also `status`, and `move --from <old dir>`).
 """
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ _DATABASE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.sqlite3")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _CLAIMS = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json")
 _STAGING = ".staging-"
+MOVE_LOCK = ".move.lock"  # in the store directory: one mover at a time (`adopt`, and identity's `location`)
 STATUS_SCHEMA = {  # core's read-only `reference-status` operation (identity_ops)
     "name": "pythia_reference_status",
     "description": "Describe the reference data installed on this device: its build, as-of date, and each source "
@@ -255,7 +256,7 @@ def install(package: Path, data_dir: Path) -> dict:
     return {**result, **status(data_dir)}
 
 
-def _install(package: Path, root: Path) -> dict:
+def _install(package: Path, root: Path, *, replace: bool = True) -> dict:
     manifest = read_manifest(package)
     _compatible(manifest)
     source_dir = package if package.is_dir() else package.parent
@@ -267,7 +268,7 @@ def _install(package: Path, root: Path) -> dict:
     name = f"{manifest['build_id']}-{manifest['database']['sha256'][:12]}"
     with _lock(root):
         installed = (_pointer(root) or {}).get("current")
-        if installed == name and _whole(root, name):
+        if installed == name and _whole(root, name) or not replace and _pointer(root) is not None:
             return {"changed": False}
         _sweep(root, keep=installed)  # leftovers of an interrupted install
         staging = root / "packages" / f"{_STAGING}{uuid.uuid4().hex}"
@@ -330,30 +331,62 @@ def _write(path: Path, value: dict, make: bool = False) -> None:
 @contextlib.contextmanager
 def _lock(root: Path):
     """One installer at a time per data directory; readers never wait."""
-    import fcntl
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     (root / "packages").mkdir(exist_ok=True, mode=0o700)
-    with (root / ".install.lock").open("a") as handle:
+    with locked(root / ".install.lock"):
+        yield
+
+
+@contextlib.contextmanager
+def locked(path: Path):
+    """Hold the exclusive lock on `path` until the block ends; closing the file releases it."""
+    import fcntl
+    with Path(path).open("a") as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        yield
+
+
+def adopt(legacy: Path, data_dir: Path) -> str | None:
+    """Move the reference an earlier Pythia installed under `legacy` into `data_dir`, keeping its package name (so its
+    release key: nothing is re-keyed): by rename, or across file systems by a verified install that keeps the source.
+    Never replaces an installed reference. Returns what happened, for the log; None when there is nothing to move."""
+    source, target = reference_dir(legacy), reference_dir(data_dir)
+    with locked(Path(data_dir) / MOVE_LOCK):
+        if _pointer(source) is None:
+            return None
+        kept = f"kept {source} ({sum(item.stat().st_size for item in source.rglob('*') if item.is_file())} bytes)"
+        if _pointer(target) is not None:
+            return f"{kept}: {target} already has an installed reference"
         try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            os.rename(source, target)  # one file system: one step, nothing copied
+            return f"moved {source} to {target}"
+        except OSError as error:  # another file system (EXDEV), or a target that is not empty
+            reason, found = error.strerror or error, _installed(source)
+        try:
+            changed = found is not None and _install(found[0], target, replace=False)["changed"]
+        except (OSError, PackageError) as refused:
+            return f"{kept}: {refused}"
+        return f"installed a verified copy of {found[0].name} in {target} ({reason}); {kept}" if changed else \
+            f"{kept}: {'its package could not be read' if found is None else f'{target} already has one'}"
 
 
 # ---- command line -----------------------------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="reference_package", description="Install or inspect the reference package.")
-    parser.add_argument("command", choices=("install", "status"))
+    parser.add_argument("command", choices=("install", "status", "move"))
     parser.add_argument("package", nargs="?", type=Path, help="install: the package directory or its package.json")
-    parser.add_argument("--data-dir", type=Path, required=True, help="the core plugin's data directory")
+    parser.add_argument("--data-dir", type=Path, required=True, help="Pythia's store directory, <data>/store")
+    parser.add_argument("--from", dest="legacy", type=Path, help="move: the directory an earlier Pythia used")
     args = parser.parse_args(argv)
     if args.command == "status":
         print(json.dumps(status(args.data_dir), indent=2))
         return 0
-    if args.package is None:
-        parser.error("install needs the package directory")
+    if args.command == "move" and args.legacy is not None:
+        print(json.dumps({"moved": adopt(args.legacy, args.data_dir)}))
+        return 0
+    if args.command == "move" or args.package is None:
+        parser.error("install needs the package directory; move needs --from")
     try:
         result = install(args.package, args.data_dir)
     except PackageError as error:

@@ -149,6 +149,8 @@ def main() -> int:
             "HERMES_HOME": str(hermes_home),
             "HERMES_PLATFORM": "api_server",
             "PYTHIA_CONFIG_ROOT": str(root / "config"),
+            "PYTHIA_DATA_ROOT": str(root),
+            "PYTHIA_CACHE_ROOT": str(root),
             "PYTHIA_MANAGED_ROOT": str(repository / "runtime/managed"),
             "PYTHIA_MANAGED_SKILLS_DIR": str(managed_skills),
             "NO_PROXY": "*",

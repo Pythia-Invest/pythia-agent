@@ -48,6 +48,8 @@ try {
         HOME: root,
         HERMES_HOME: root,
         PYTHIA_CONFIG_ROOT: root,
+        PYTHIA_DATA_ROOT: root,
+        PYTHIA_CACHE_ROOT: root,
         PYTHONPATH: source,
         PATH: process.env.PATH,
         HERMES_DISABLE_LAZY_INSTALLS: "1",

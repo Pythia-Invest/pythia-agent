@@ -9,6 +9,7 @@ import copy
 import importlib
 import importlib.util
 import json
+import os
 import sqlite3
 import sys
 import tempfile
@@ -170,7 +171,7 @@ class AgentToolFixture(unittest.TestCase):
         self.entries = {}
         self.handlers = {}
         self.ctx = Context(self.handlers)
-        self.ctx.state = SimpleNamespace(data_dir=self.tmp.name)
+        self.enterContext(mock.patch.dict(os.environ, {"PYTHIA_CACHE_ROOT": self.tmp.name}))  # the document cache
         registry = ModuleType("tools.registry")
         registry.registry = SimpleNamespace(get_all_tool_names=lambda: list(self.schemas),
                                             get_schema=lambda name: self.schemas.get(name),
@@ -181,7 +182,7 @@ class AgentToolFixture(unittest.TestCase):
         self.enterContext(mock.patch.object(identity_ops, "installed", lambda: list(self.plugins.values())))
         self.enterContext(mock.patch.object(access, "eligible_tools", lambda: set(self.eligible)))
         self.enterContext(mock.patch.object(access, "native_tool_owners", lambda: dict(self.owners)))
-        self.enterContext(mock.patch.object(identity_ops, "CURRENT", identity_ops.Identity(self.ctx)))
+        self.enterContext(mock.patch.object(identity_ops, "CURRENT", identity_ops.Identity(self.ctx, data_dir=self.tmp.name)))
         self.handlers[agent_reads.COMBINED_FILINGS] = concept_ops.ConceptReads(identity_ops.CURRENT).filings
 
     def contract(self, name, **state):
