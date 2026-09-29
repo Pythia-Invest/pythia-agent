@@ -490,7 +490,7 @@ class ReviewFixesTest(Fixture):
         self.assertEqual(self.identity.misses(ASML), {"pythia-eodhd": "EODHD found no match"})
         subject = page.load_subject(self.ref, ASML)
         [quote] = page.compose(subject, [plugin("eodhd")], queue=[], stored=lambda *_: None, coins=lambda *_: None,
-                               misses=self.identity.misses(ASML))
+                               misses={(ASML, plugin): reason for plugin, reason in self.identity.misses(ASML).items()})
         self.assertEqual((quote["status"], quote["reason"]), ("unresolved", "EODHD found no match"))
 
     def test_unreadable_stores_degrade(self):

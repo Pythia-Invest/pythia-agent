@@ -35,8 +35,8 @@ FILINGS_SCHEMA = {
     "name": "pythia_filings_combined",
     "description": "A company's regulatory filings from every connected filings source, one source per filing "
                    "authority (sec; the national mechanism for European reports: oam-fr, oam-nl, fca…), merged newest "
-                   "first. Each item names its kind, source and authority; a source that failed is listed under "
-                   "skipped and the list is marked partial. `date` orders the list; `date_basis` says what it is: "
+                   "first. Each item names its kind, source and authority; a chosen source that failed or was not "
+                   "read (not yet looked up) is listed under skipped and the list is marked partial. `date` orders the list; `date_basis` says what it is: "
                    "filed, indexed (the day the source indexed a report that has no published filing date, not a "
                    "filing date) or period_end; `filed_time` is the exact UTC filing time where known. Items with one "
                    "`report_key` are versions of one report (format, language, amendment); items sharing `report_period` "
@@ -61,8 +61,8 @@ NEWS_SCHEMA = {
     "name": "pythia_news_combined",
     "description": "A subject's news from every connected source in one feed, newest first. An item another source "
                    "already listed (same link, or same headline less than a day apart) is left out; each item names "
-                   "its source. A source that failed is listed under skipped and the feed is marked partial; one "
-                   "that does not cover the subject is skipped as not_covering.",
+                   "its source. A source that failed or was not read is listed under skipped and the feed is marked "
+                   "partial; one that does not cover the subject is skipped as not_covering.",
     "parameters": {"type": "object", "properties": {"subject_id": SUBJECT_ID},
                    "required": ["subject_id"], "additionalProperties": False},
 }

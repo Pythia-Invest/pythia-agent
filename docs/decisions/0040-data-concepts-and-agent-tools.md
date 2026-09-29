@@ -193,9 +193,13 @@ country of the mechanism it was collected from, not the filer's. Each
 source runs only if Pythia may run its native tool for this caller
 (`eligible_tools`), with the caller's cancellation; one Pythia may not run is
 skipped as unavailable. A source still to be looked up is listed as skipped,
-not awaited; like an unavailable one it makes the list partial (review fix,
-2026-09-29: otherwise a missing SEC 20-F beside an ESEF report went unsaid), and
-the Desk looks it up on page open, then reads the list again. A source that
+not awaited. Since 2026-09-29 (review fix) such a source, like one Pythia may
+not run here, makes the list (and a combined news feed) partial: otherwise a
+missing SEC 20-F beside an ESEF report went unsaid. Only the Desk looks a
+source up, on page open, and then reads the list again, so an agent's read of
+a company nobody has opened stays partial until then. A lookup's miss is kept
+at the level the source addresses (the issuer, for filings), so every page and
+read of the company sees it. A source that
 does not know the entity lists nothing. The read's outcome says what happened:
 `ok` or `empty` when sources answered, `partial` when one did not, `error` when
 every source read failed (never an empty list, D1), and `empty` with a

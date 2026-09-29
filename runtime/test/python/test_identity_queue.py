@@ -309,6 +309,42 @@ class SubjectOperationTest(QueueFixture):
         self.assertEqual([(item["plugin"], item["reason"]) for item in quote["skipped"]],
                          [("pythia-eodhd", "EODHD found no match")])
 
+    def test_a_miss_reaches_the_issuers_filings_and_every_view_of_the_company(self):
+        """An EU issuer without a CIK: SEC's lookup, run at the instrument (the page route), finds nothing. The
+        issuer's filings read and a listing's view see that miss: nothing waits on a lookup that ran."""
+        from test_selection import FilingsMergeTest, shipped
+        with sqlite3.connect(self.path) as db:
+            db.execute("DELETE FROM assertions WHERE scheme = 'cik'")
+        core = load_core()
+        from pythia_core_queue_fixture import concept_ops, identity_ops
+        reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        reads = concept_ops.ConceptReads(ops)
+        reads.eligible = lambda: None
+        registry = types.SimpleNamespace(dispatch=lambda *_a, **_k: json.dumps(FilingsMergeTest().xbrl()),
+                                         get_schema=lambda _tool: None)
+        security, nasdaq = "security:isin:NL0010273215", "listing:figi:BBG000K6N6G7"
+
+        def filings(subject_id):
+            view = json.loads(ops.subject({"subject_id": subject_id}))["data"]
+            section = next(item for item in view["sections"] if item["section"] == "filings")
+            return {item["plugin"]: item["code"] for item in section["skipped"]}, section["request"]
+        with unittest.mock.patch.object(identity_ops, "installed", shipped), \
+                unittest.mock.patch.object(ops, "_resolve", lambda *_: ("SEC EDGAR found no match", False)), \
+                unittest.mock.patch.dict("sys.modules", {"tools": types.ModuleType("tools"),
+                                                         "tools.registry": types.SimpleNamespace(registry=registry)}):
+            self.assertEqual(filings(security)[0]["pythia-sec"], "resolving")
+            ops.resolve({"subject_id": security, "plugin": "pythia-sec"})
+            views = {subject: filings(subject) for subject in (security, ASML, nasdaq)}
+            body = json.loads(reads.filings(views[nasdaq][1]["arguments"]))
+        ops.store.db.close()
+        del core
+        self.assertEqual({subject: skipped["pythia-sec"] for subject, (skipped, _) in views.items()},
+                         dict.fromkeys(views, "unresolved"))
+        self.assertEqual((body["outcome"], body["data"]["partial"]), ("ok", False))
+        self.assertEqual(next(item["reason"] for item in body["data"]["skipped"] if item["plugin"] == "pythia-sec"),
+                         "SEC EDGAR found no match")
+
     def test_a_share_class_is_listed_once_under_other_securities_not_related(self):
         core = load_core()
         from pythia_core_queue_fixture import identity_ops

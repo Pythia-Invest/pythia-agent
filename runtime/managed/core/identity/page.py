@@ -89,10 +89,6 @@ QUEUED = {"unaudited": "the source is not yet audited, so its match waits for si
           "ambiguous": "several of its records match", "no_key": "its record carries no identifier to check"}
 
 
-def queued_reason(label: str, reason: str) -> str:
-    return f"{label}'s answer is queued for review: {QUEUED.get(reason, reason.replace('_', ' '))}"
-
-
 def named(name: str | None, plugins: list[PluginInfo]) -> str | None:
     """The plugin key a caller's source name means: plugin id, provider, label or a common alias; case-insensitive."""
     wanted = (name or "").strip().lower()
@@ -193,7 +189,7 @@ def _addressable(info: PluginInfo, level: Level | Kind, subject: dict) -> bool:
 
 def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Callable[[str, str], sqlite3.Row | None],
              coins: Callable[[str, str], str | None], queue: list[dict],
-             misses: Mapping[str, str] = {}, checked: Callable[[str, ProviderRef], Mapping | None] = lambda *_: None,
+             misses: Mapping[tuple[str, str], str] = {}, checked: Callable[[str, ProviderRef], Mapping | None] = lambda *_: None,
              serves: Callable[[ProviderRef, str], None] = lambda *_: None) -> dict | None:
     """One plugin's answer for one section, or None when its contract does not declare the section's concept.
 
@@ -240,8 +236,10 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
                 "reason": f"{info.label} needs configuration: add {missing['key']} to {missing['file']}"}
     if (conflict and not (row and row["status"] == "confirmed")) or (row and row["status"] == "conflicting"):
         return {**answer, "status": "conflict", "reason": f"{info.label}'s record contradicts the reference; queued for review"}
-    if wants_resolve and (queued or info.key in misses):
-        reason = misses.get(info.key) or queued_reason(info.label, queued["reason"])
+    missed = misses.get((target, info.key))  # a miss is recorded at the level the plugin addresses
+    if wants_resolve and (queued or missed):
+        reason = missed or (f"{info.label}'s answer is queued for review: "
+                            f"{QUEUED.get(queued['reason'], queued['reason'].replace('_', ' '))}")
         # `queued`: a match held for review (ADR 0042 sign-off, several matches), not "no match"
         return {**answer, "status": "unresolved", "reason": reason, **({"queued": queued["reason"]} if queued else {})}
     if wants_resolve:
@@ -296,10 +294,11 @@ def source(answer: dict) -> dict:
             **({"unaudited": True} if answer.get("unaudited") else {})}
 
 
-def filings_request(subject_id: str, use: str | None = None) -> dict:
-    """Core's combined filings read for a subject; `use` reads one named source for its authorities, once."""
-    return {"plugin": CORE_PLUGIN, "operation": "filings",
-            "arguments": {"subject_id": subject_id, **({"use": use} if use else {})}}
+def filings_request(subject: dict, use: str | None = None) -> dict:
+    """Core's combined filings read of a subject's issuer, one list for all its listings; `use` reads one named
+    source for its authorities, once."""
+    return {"plugin": CORE_PLUGIN, "operation": "filings", "arguments": {
+        "subject_id": subject["ids"].get(Level.ISSUER) or subject["id"], **({"use": use} if use else {})}}
 
 
 def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[dict]:
@@ -319,25 +318,21 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
         ready = [(answer, served) for answer, served in chosen if answer["status"] == "ready"]
         combined = combine is Combine.PER_AUTHORITY and bool(ready)
         waiting = [answer for answer, _ in chosen if answer["status"] != "ready"] if combined else []
-        if combined:
-            chosen = ready
+        chosen = ready if combined else chosen
         lead = dict(chosen[0][0]) if chosen else next(a for a in found if a["status"] not in ABSENT)
         rest = [answer for answer in skipped if answer["plugin"] != lead["plugin"]]
         lead["source"] = source(lead)
         lead["skipped"] = [{**source(answer), "label": answer["label"], "code": answer["status"],
                             "reason": answer["reason"] or answer["status"].replace("_", " ")} for answer in waiting + rest]
-        # Filings are the issuer's: every listing of it reads the same list.
-        issuer = subject["ids"].get(Level.ISSUER) or subject["id"]
         lead["alternatives"] = [{**source(answer), "label": answer["label"], "status": answer["status"],
-                                 "binding": answer["binding"],
-                                 "request": filings_request(issuer, answer["plugin"]) if combined
-                                 and answer["status"] == "ready" else answer["request"]}
+                                 "binding": answer["binding"], "request": filings_request(subject, answer["plugin"])
+                                 if combined and answer["status"] == "ready" else answer["request"]}
                                 for answer in alternatives]
         if combined:
             lead["sources"] = [{**source(answer), "authorities": list(served), "status": answer["status"]}
                                for answer, served in chosen]
             lead["label"] = " + ".join(answer["label"] for answer, _ in chosen)
-            lead.update(status="ready", reason=None, request=filings_request(issuer))
+            lead.update(status="ready", reason=None, request=filings_request(subject))
         # Amber only when a source ranked ahead of the one serving could have served and did not: the investor
         # named it, or something went wrong (contradicted, not found). Setup states are not warnings.
         served = {entry["plugin"] for entry, _ in chosen} or {lead["plugin"]}

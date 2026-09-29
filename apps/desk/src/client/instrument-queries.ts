@@ -49,9 +49,9 @@ export function useSubjectPage(subjectId: string) {
  * exception to "automatic requests stay read-only" (ADR 0036 amendment), so
  * it runs once per page open and never again on focus, reconnect or remount.
  * A resolution changes what core composes (a miss hands a section to the next
- * source, a new binding joins the combined filings), so the compositions and
- * core's section reads are read again. A failed resolution leaves its
- * sections "resolving" and is reported per section with its retry.
+ * source, a new binding joins the combined filings), so it is read again. A
+ * failed resolution leaves its sections "resolving" and is reported per
+ * section with its retry.
  */
 export function useResolvedSections(
   subjectId: string,
@@ -94,10 +94,20 @@ export function useResolvedSections(
             subject,
             plugin,
           );
-          for (const read of ["identity-subject", "section"])
-            void client.invalidateQueries({
-              queryKey: ["plugin", SUBJECT_PLUGIN, read],
-            });
+          // This page's compositions, and core's reads of the sections the
+          // plugin serves (the combined filings), are read again.
+          for (const id of new Set([subjectId, instrumentId]))
+            void client.invalidateQueries({ queryKey: subjectQueryKey(id) });
+          for (const section of answer)
+            if (section.request?.plugin === SUBJECT_PLUGIN)
+              void client.invalidateQueries({
+                queryKey: [
+                  "plugin",
+                  SUBJECT_PLUGIN,
+                  "section",
+                  section.request,
+                ],
+              });
           return answer;
         },
         staleTime: Infinity,
