@@ -95,8 +95,32 @@ describe("installed packaging", () => {
     const units = renderUnits(paths, executables);
     expect(Object.keys(units).sort()).toEqual([...UNIT_NAMES].sort());
     const text = Object.values(units).join("\n");
-    expect(text).toContain("127.0.0.1");
-    expect(text).toContain("gateway run --external-supervisor");
+    // Every service starts through the launcher (which supplies its bearer)
+    // and listens on loopback only.
+    const launch = (role: string, ...command: string[]) =>
+      `ExecStart="${executables.python}" "${paths.serviceLauncher}" ${role} ${command.join(" ")}`;
+    expect(units["pythia-agent-hermes.service"]).toContain(
+      launch(
+        "hermes",
+        `"${executables.hermes}"`,
+        "-p pythia gateway run --external-supervisor",
+      ),
+    );
+    expect(units["pythia-agent-desk.service"]).toContain(
+      launch(
+        "desk",
+        `"${executables.node}"`,
+        `"${executables.next}"`,
+        "start --hostname 127.0.0.1 --port 8644",
+      ),
+    );
+    expect(units["pythia-agent-hermes-settings.service"]).toContain(
+      launch(
+        "hermes-settings",
+        `"${executables.hermes}"`,
+        "-p pythia serve --isolated --host 127.0.0.1 --port 8646",
+      ),
+    );
     expect(paths.ports.hermes).toBe(8645);
     expect(text).not.toContain(".agents");
     expect(text).toContain(

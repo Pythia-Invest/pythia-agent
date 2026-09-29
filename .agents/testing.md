@@ -72,8 +72,9 @@ Tests must not use ambient credentials, ambient runtime environment, or
 arbitrary sleeps. Desk tests clear `PYTHIA_*`, `HERMES_*` and `API_SERVER_*`
 before they run (`apps/desk/test/setup-environment.ts`). Allocate unique
 temporary paths and ports, synchronize on observable state with explicit
-deadlines, and delete only resources the test created. Never write into the
-checkout.
+deadlines, and delete only resources the test created. Never change tracked
+files; scratch belongs in the system temp directory, or in the ignored
+`.local/` when a fixture must resolve the repository's `node_modules`.
 
 `tooling/check-tests.mjs` (part of `just check-static`) refuses:
 - `.only`, and unconditional skips or todos;

@@ -6,7 +6,6 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   copySourceSnapshot,
@@ -30,8 +29,15 @@ export function cleanupReleaseFixtures() {
   }
 }
 
+/**
+ * Under the checkout's ignored .local, not the system temp directory:
+ * fixtures that compile TypeScript resolve @types/node from the repository's
+ * node_modules by walking up.
+ */
 export function temporaryQualificationRoot(label: string) {
-  const root = mkdtempSync(join(tmpdir(), `pythia-qualification-${label}-`));
+  const parent = join(repositoryRoot, ".local", "qualification");
+  mkdirSync(parent, { recursive: true, mode: 0o700 });
+  const root = mkdtempSync(join(parent, `${label}-`));
   roots.push(root);
   return root;
 }

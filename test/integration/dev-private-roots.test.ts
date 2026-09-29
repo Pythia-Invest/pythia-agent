@@ -88,6 +88,8 @@ describe("private roots, environment, seeds, and copied assets", () => {
       EODHD_API_TOKEN: "must-not-survive",
       EDGAR_IDENTITY: "must-not-survive",
       EDGAR_API_TOKEN: "must-not-survive",
+      // The shipped 562dfc9 plugin still reads this retired interpreter.
+      PYTHIA_PYTHON: "/retired/python",
       NEXT_TELEMETRY_DISABLED: "0",
       HERMES_DISABLE_LAZY_INSTALLS: "0",
       ORDINARY_SETTING: "visible",
@@ -98,6 +100,7 @@ describe("private roots, environment, seeds, and copied assets", () => {
     expect(clean.EODHD_API_TOKEN).toBeUndefined();
     expect(clean.EDGAR_IDENTITY).toBeUndefined();
     expect(clean.EDGAR_API_TOKEN).toBeUndefined();
+    expect(clean.PYTHIA_PYTHON).toBeUndefined();
     expect(clean.ORDINARY_SETTING).toBe("visible");
     expect(clean.NEXT_TELEMETRY_DISABLED).toBe("1");
     expect(clean.HERMES_DISABLE_LAZY_INSTALLS).toBe("1");
