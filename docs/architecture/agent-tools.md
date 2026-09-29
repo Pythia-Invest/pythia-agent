@@ -28,7 +28,7 @@ tool gives and from which source.
 | Tool | Gives | Effect |
 | --- | --- | --- |
 | `pythia_find` | Which investment a name, ticker, ISIN, LEI, CIK or FIGI means; rows carry the subject id. | local read |
-| `pythia_instrument` | Identifiers, issuer, listings, the home listing (`unknown` unless core decided a primary; never inferred from listing order, R2), the source of each concept, and the provider tools that can serve this investment. | local read |
+| `pythia_instrument` | Identifiers, issuer, listings, the home listing (`unknown` unless core decided a primary; never inferred from listing order, R2; an `unknown` home carries a short `home_note` telling the agent to say so and label any web answer unverified), the source of each concept, and the provider tools that can serve this investment. | local read |
 | `pythia_prices` | Latest quote, daily or intraday bars with a summary, or a period's return (1D to 5Y, from daily closes; 6M, YTD and 1Y match the Desk chart). | external read; a lookup may record a binding |
 | `pythia_filings` | A company's filings from one source per filing authority (core's combined read), by kind, form and date. | external read; a lookup may record a binding |
 | `pythia_document` | A listed filing's outline, a bounded section or search passages, each with a citation ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md), the document reader amendment). | external read, then local: core caches the extracted text |

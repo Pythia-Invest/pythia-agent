@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 TOOLSET = "pythia-desk"  # the only Pythia toolset the model sees; plugin and core operation toolsets stay hidden
 MAX_CHARS = 16_000       # far below Hermes's 100k spill: a result is replayed on every later turn
 CONTEXT = ("task_id", "session_id")      # what a nested dispatch forwards from the native call
+HOME_UNKNOWN = ("Pythia's reference data does not decide this instrument's home listing; say so, and label any web "
+                "answer as unverified.")
 
 SUBJECT = {"type": "string", "minLength": 5, "maxLength": 370,
            "description": "A subject id from pythia_find, such as listing:… or security:…"}
@@ -268,6 +270,8 @@ def instrument(arguments: dict, **_context: Any) -> str:
     own = [line for line in view.get("listings", []) if not line.get("folded")]
     if own:  # the home is core's decided primary line, never the first line's guess (R2)
         view["home"] = next((line["id"] for line in own if line.get("primary")), "unknown")
+        if view["home"] == "unknown":
+            view["home_note"] = HOME_UNKNOWN
     queue = view.pop("queue", [])
     view["provider_tools"] = provider_tools_for(str(arguments.get("subject_id") or ""))
     if queue:
