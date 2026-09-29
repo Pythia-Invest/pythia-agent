@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from collections import defaultdict
@@ -49,7 +50,7 @@ class Build:
     def __init__(self, path: Path):
         db = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
         db.row_factory = sqlite3.Row
-        self.db = db
+        self.db, self.path = db, path
         release = {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM release")}
         self.as_of = release.get("as_of") or (release.get("built_at") or "")[:10] or "9999-12-31"
         self.us = bool({t.strip().upper() for t in (release.get("scope") or "").split(",")} & {"US", "SEC"})
@@ -166,6 +167,22 @@ def primary_more_than_one(build: Build) -> list[tuple]:
 def primary_inactive(build: Build) -> list[tuple]:
     return [(build.label(line), line["id"]) for s in build.by_security if build.live_security(s)
             for line in _primaries(build, s) if line["status"] == "inactive"]
+
+
+def primary_missing(build: Build) -> list[tuple]:
+    """A live security with lines and no primary: the evidence did not decide it (a question), or a gap."""
+    return [(build.securities[s]["name"], s) for s in build.by_security if build.live_security(s)
+            and build.by_security[s] and not _primaries(build, s)]
+
+
+def questions_open(build: Build) -> list[tuple]:
+    """The questions the build left open (its package's `claims` file beside the snapshot)."""
+    path = build.path.with_name(build.path.name.replace("reference-", "questions-", 1)).with_suffix(".json")
+    try:
+        found = json.loads(path.read_text(encoding="utf-8")).get("questions") or []
+    except (OSError, ValueError):
+        return []
+    return [(item.get("question"), (item.get("subject_ids") or [""])[0]) for item in found]
 
 
 def primary_open_market_beside_us_exchange(build: Build) -> list[tuple]:

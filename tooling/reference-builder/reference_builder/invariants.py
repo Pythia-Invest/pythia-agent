@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .invariant_checks import (
-    Build, currency_is_issue_country, currency_single_currency_venue, currency_withdrawn, primary_floor_beside_xetra,
+    Build, currency_is_issue_country, primary_missing, questions_open, currency_single_currency_venue, currency_withdrawn, primary_floor_beside_xetra,
     primary_inactive, primary_more_than_one, primary_open_market_beside_us_exchange, ticker_currency_suffix,
     ticker_two_securities, us_share_without_us_line, venue_ticker_coverage)
 from .invariant_names import (
@@ -105,6 +105,10 @@ INVARIANTS: tuple[Invariant, ...] = (
     # Primary listing
     Invariant("primary_more_than_one", "error", "A security has more than one primary listing.", primary_more_than_one),
     Invariant("primary_inactive", "error", "A live security's primary listing is inactive.", primary_inactive),
+    Invariant("primary_missing", "error", "A live security has lines but no primary: its evidence did not decide one.",
+              primary_missing, 0, "home-market questions and SEC or OpenFIGI gaps (claims step 3)", headroom=0.02),
+    Invariant("questions_open", "error", "A question the build left open (the package's claims file).",
+              questions_open, 0, "evidence that does not decide (claims step 3)", headroom=0.02),
     Invariant("primary_open_market_beside_us_exchange", "error",
               "A security with a live NYSE/Nasdaq line has its primary on an EEA open-market segment.",
               primary_open_market_beside_us_exchange),
@@ -115,7 +119,8 @@ INVARIANTS: tuple[Invariant, ...] = (
     Invariant("issuer_is_market_operator", "error",
               "A security's issuer is a trading venue or its operator (TP ICAP, Bloomberg MTF, Frankfurter Wertpapierbörse).",
               issuer_is_market_operator, 27, "ETFs on Bloomberg indices (a name match, not an error); AG3I under "
-              "Euronext Paris and two US shares under Bloomberg Finance, wrong in FIRDS field 5", headroom=2 * 2 / 27),
+              "Euronext Paris and two US shares under Bloomberg Finance, wrong in FIRDS field 5: fixed by the SEC "
+              "registrant issuer claim (SEC onboarding)", headroom=2 * 2 / 27),
     # Warnings: lifecycle and issuer mistakes to review
     Invariant("us_share_without_us_line", "warning",
               "A live share with a US ISIN has no US exchange or OTC line although the build has SEC lines.",

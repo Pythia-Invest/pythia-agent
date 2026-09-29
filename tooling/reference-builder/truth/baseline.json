@@ -5324,5 +5324,24 @@
     "asr-adr:subject_id: security changed security:figi:BBG00J0BB527 -> security:provisional:esma_firds:isin:US00217N1081",
     "btc-mini:subject_id: issuer changed issuer:lei:529900WHTNX5LZCNWB27 -> issuer:cik:0002015034",
     "ibit:subject_id: issuer changed issuer:lei:529900HVFN08L8P4H851 -> issuer:cik:0001980994"
-  ]
+  ],
+  "expected_failures": {
+    "arcelormittal-nyrs:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "arcelormittal-nyrs:relation:arcelormittal": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "ferrari:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "gsk-adr:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "gsk-adr:relation:gsk": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "magnum:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "qiagen:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "sanofi-adr:fold:row": "field 26 names a wrong ISIN: receipt question",
+    "sanofi-adr:relation:sanofi": "field 26 names a wrong ISIN: receipt question",
+    "stellantis:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "tenaris-adr:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "tenaris-adr:relation:tenaris": "field 26 names a superseded ISIN: lifecycle successor_of",
+    "totalenergies:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "tsmc-adr:fold:row": "field 26 names an ISIN outside the build: receipt question",
+    "tsmc-adr:relation:tsmc": "field 26 names an ISIN outside the build: receipt question",
+    "unilever-adr:fold:row": "field 26 names the receipt itself: receipt question",
+    "unilever-adr:relation:unilever": "field 26 names the receipt itself: receipt question"
+  }
 }

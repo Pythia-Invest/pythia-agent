@@ -101,6 +101,11 @@ def format_report(report: Audit, regressed: list[str], *, top: int = 12, baselin
     if baseline is not None:
         lines += ["", f"Regressions against the baseline ({baseline.get('reference', '?')}): {len(regressed) or 'none'}"]
         lines += [f"  {item}" for item in regressed]
+        # Checks the baseline accepts as failing until a named follow-up lands: one that passes now is an improvement.
+        expected = baseline.get("expected_failures") or {}
+        fixed = [key for key in expected if key in {r.key for r in report.results if r.status == "pass"}]
+        lines += [f"Expected failures: {len(expected)}, now passing: {len(fixed) or 'none'}"]
+        lines += [f"  {key} (was: {expected[key]})" for key in fixed]
     return "\n".join(lines)
 
 
@@ -278,7 +283,8 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 1
         accepted = list(dict.fromkeys([*previous.get("accepted_id_changes", []), *unaliased]))  # kept across re-takes
-        data = baseline_of(report) | {"accepted_id_changes": accepted}
+        data = baseline_of(report) | {"accepted_id_changes": accepted,
+                                      "expected_failures": previous.get("expected_failures") or {}}
         baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
     return 1 if regressed or firds_broken or sec_broken or any(r.failed for r in checked) else 0
