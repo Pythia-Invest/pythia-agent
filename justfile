@@ -25,20 +25,29 @@ bootstrap:
     pnpm install --frozen-lockfile
 
 # Deterministic local checks only: never tests or contacts a package registry.
-check:
+check: check-static check-types check-build
+
+# Seconds-fast policy checks: format, lint, structure, boundaries, public source, workflows.
+check-static:
     node tooling/run-biome.mjs
     PYTHONPYCACHEPREFIX=.local/pycache python3 -m compileall -q runtime/managed tooling
     bash -n install.sh scripts/install/platform.sh scripts/install/preflight.sh
     node tooling/check-structure.mjs
     node tooling/check-boundaries.mjs
-    pnpm run check:types
-    pnpm run check
-    pnpm run build:runtime
-    env -i HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" TMPDIR="${TMPDIR:-/tmp}" NEXT_TELEMETRY_DISABLED=1 node tooling/run-turbo.mjs build --env-mode=loose
     node tooling/check-public-source.mjs
-    node tooling/check-runtime-closure.mjs
     just check-ai-workspace
     node tooling/check-workflows.mjs
+
+# Production and test type surfaces of every workspace.
+check-types:
+    pnpm run check:types
+    pnpm run check
+
+# Production builds and the installed-runtime closure that reads them.
+check-build:
+    pnpm run build:runtime
+    env -i HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" TMPDIR="${TMPDIR:-/tmp}" NEXT_TELEMETRY_DISABLED=1 node tooling/run-turbo.mjs build --env-mode=loose
+    node tooling/check-runtime-closure.mjs
 
 # Ordinary pull-request tests: focused behavior plus the platform lifecycle smoke.
 test:
@@ -53,8 +62,18 @@ test-system:
     pnpm run test:system
 
 # Broad assembled, installation and update evidence outside the ordinary PR loop.
+# Both halves always run, so a red test file cannot hide the assembled run.
 qualify:
+    pnpm run build
+    status=0; just qualify-tests || status=1; just qualify-assembled || status=1; exit "$status"
+
+# Qualification test files (after a build).
+qualify-tests:
     pnpm run test:qualification
+
+# Assembled cross-workspace qualification (after a build).
+qualify-assembled:
+    pnpm run test:qualification:assembled
 
 # Regenerate Desk's Hermes goldens from the pinned Hermes, provider-free (ADR 0020).
 capture-hermes:
@@ -64,13 +83,21 @@ capture-hermes:
 check-hermes-capture:
     pnpm run check:hermes-capture
 
-# Desk browser smoke tests against a Desk that is already running (see `just dev-paths`).
+# Desk browser tests against this checkout's built Desk with no Hermes (run check-build first).
+test-e2e-hermetic:
+    node apps/desk/e2e/hermetic.mjs
+
+# Every Desk browser test, including e2e/live, against a Desk that is already running (see `just dev-paths`).
 test-e2e desk_url:
     PYTHIA_DESK_URL="{{desk_url}}" pnpm --filter @pythia/desk test:e2e
 
-# The only registry/network dependency check.
+# Production dependency advisories (needs the registry).
 audit:
     pnpm audit --prod --audit-level high
+
+# Every dependency's advisories, including development tools (needs the registry).
+audit-all:
+    pnpm audit --audit-level high
 
 # Run the repository's focused Biome check.
 lint:

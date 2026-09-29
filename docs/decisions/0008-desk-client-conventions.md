@@ -48,9 +48,9 @@ and shared editor settings remove formatting churn from review.
 
 `apps/desk` depends on `@tanstack/react-query` and, for development, on
 `@playwright/test`; the Chromium browser is installed explicitly because the
-workspace disables install scripts. The smoke suite is not part of `just test`
-because it needs a running Desk; run it with `just test-e2e <desk url>` or the
-package script. `useSortedClasses` is a Biome nursery rule and may change
+workspace disables install scripts. CI runs the suite against a hermetic
+production Desk build ([ADR 0037](0037-one-required-ci-gate.md)); specs that
+need a real profile live in `e2e/live` and run with `just test-e2e <desk url>`. `useSortedClasses` is a Biome nursery rule and may change
 ordering between Biome releases; the safe fix handles that mechanically.
 
 ## Rejected alternatives

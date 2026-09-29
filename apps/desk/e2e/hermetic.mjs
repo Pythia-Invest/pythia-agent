@@ -59,11 +59,7 @@ try {
   ]);
   const playwright = spawn(
     process.execPath,
-    [
-      require.resolve("@playwright/test/cli"),
-      "test",
-      ...process.argv.slice(2),
-    ],
+    [require.resolve("@playwright/test/cli"), "test", ...process.argv.slice(2)],
     {
       cwd: desk,
       env: {

@@ -61,30 +61,44 @@ that host; the Lab has no API identity check, so keep it on a trusted tailnet.
 Run these commands from the repository root:
 
 ```sh
-just bootstrap # hydrate the exact pnpm lockfile
-just check     # deterministic syntax, structure, dependency, lint, type, build
-just test      # ordinary pull-request tests, including the platform smoke
-just qualify   # broad install, update, and assembled-runtime qualification
-just audit     # registry/network dependency audit
+just bootstrap    # hydrate the exact pnpm lockfile
+just check-static # seconds: format, lint, structure, boundaries, workflows
+just check        # check-static plus every type surface and the production builds
+just test         # ordinary pull-request tests, including the platform smoke
+just qualify      # broad install, update, and assembled-runtime qualification
+just audit        # registry/network audit of production dependencies
 ```
 
-`just check` does not run tests or contact a package registry. `just audit` is
-the only registry audit and checks the production dependency surface. Tests
-and CI are credential-free and use synthetic provider fixtures. Use
-`just test-fast` for the deterministic behavior suite and `just test-system`
-for the small real-process lifecycle smoke. Qualification runs after changes
-land on `main` and on explicit release-oriented runs; it is intentionally not
-part of every pull request.
+Run `just check-static` before every push and `just check` before asking for a
+merge; most CI failures are static checks that take seconds locally.
+`just check` does not run tests or contact a package registry. Tests and CI are
+credential-free and use synthetic provider fixtures. Use `just test-fast` for
+the deterministic behavior suite and `just test-system` for the small
+real-process lifecycle smoke.
 
-### Browser smoke tests
+CI ([ADR 0037](decisions/0037-one-required-ci-gate.md)) runs the same recipes
+as parallel jobs behind one required `CI gate` check. Merge only when it is
+green. The nightly workflow runs broad qualification and a full dependency
+audit on every push to `main`, daily, and by dispatch. It is intentionally not
+part of every pull request, but a red nightly run is fixed first.
 
-Desk has a Playwright smoke suite in `apps/desk/e2e/` that drives a Desk you
-already started with `just dev`. It is not part of `just test`. Install the
-pinned Chromium once (the workspace sets `ignore-scripts`, so Playwright does
-not download it on install), then pass the Desk origin from `just dev-paths`:
+### Browser tests
+
+Desk's Playwright suite lives in `apps/desk/e2e/`. Install the pinned Chromium
+once (the workspace sets `ignore-scripts`, so Playwright does not download it
+on install). After `just check-build`, run the hermetic suite against this
+checkout's production Desk with disposable state and no Hermes. CI requires
+this suite:
 
 ```sh
 pnpm --filter @pythia/desk exec playwright install chromium
+just test-e2e-hermetic
+```
+
+Specs in `apps/desk/e2e/live/` need a real profile. Run every spec against a
+Desk you started with `just dev`, passing its origin from `just dev-paths`:
+
+```sh
 just test-e2e http://127.0.0.1:<desk-port>
 ```
 
