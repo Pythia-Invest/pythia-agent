@@ -344,8 +344,8 @@ export async function withFileLock<T>(
   }
 }
 
-export function profileFrom(environment: NodeJS.ProcessEnv, explicit?: string) {
-  const profile = explicit ?? environment.PYTHIA_HERMES_PROFILE ?? "";
+export function profileFrom(environment: NodeJS.ProcessEnv) {
+  const profile = environment.PYTHIA_HERMES_PROFILE ?? "";
   if (!PROFILE_NAME.test(profile)) {
     throw new DeviceSettingsError(
       "The active Pythia Hermes profile is unavailable.",

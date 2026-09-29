@@ -41,10 +41,7 @@ export type CommandRunner = (args: string[]) => Promise<{ stdout: string }>;
 export type DeviceSettingsOptions = {
   client?: HermesClient;
   command?: CommandRunner;
-  configRoot?: string;
   environment?: NodeJS.ProcessEnv;
-  lockPath?: string;
-  profile?: string;
   restartHermes?: () => Promise<void>;
   readbackAttempts?: number;
   readbackDelayMs?: number;

@@ -10,13 +10,14 @@ afterEach(() => {
   for (const root of roots.splice(0))
     rmSync(root, { recursive: true, force: true });
 });
-function fixture(initial: unknown = {}, authenticated = true) {
+function fixture(initial: unknown = {}, authenticated = true, persists = true) {
   const root = mkdtempSync(join(tmpdir(), "pythia-first-model-"));
   roots.push(root);
   let stored = initial;
   const command = vi.fn(async (args: string[]) => {
     expect(args.slice(0, 2)).toEqual(["-p", "fixture"]);
     if (args[3] === "get") return { stdout: JSON.stringify(stored) };
+    if (!persists) return { stdout: "saved" };
     stored = {
       ...(stored as object),
       [args[4]?.split(".")[1] ?? "invalid"]: args[5],
@@ -25,9 +26,11 @@ function fixture(initial: unknown = {}, authenticated = true) {
   });
   const restartHermes = vi.fn(async () => {});
   const service = createDeviceSettingsService({
-    configRoot: root,
-    environment: { NODE_ENV: "test" },
-    profile: "fixture",
+    environment: {
+      NODE_ENV: "test",
+      PYTHIA_HERMES_PROFILE: "fixture",
+      PYTHIA_STATE_ROOT: root,
+    },
     command,
     restartHermes,
     client: {
@@ -81,6 +84,11 @@ it("does not persist an unauthenticated selection", async () => {
   expect(f.restartHermes).not.toHaveBeenCalled();
 });
 it("does not start successfully if native readback or restart fails", async () => {
+  const lost = fixture({}, true, false);
+  await expect(lost.service.initializeModel(selection)).rejects.toMatchObject({
+    code: "model_setup_failed",
+  });
+  expect(lost.restartHermes).not.toHaveBeenCalled();
   const f = fixture();
   f.restartHermes.mockRejectedValueOnce(new Error("restart failed"));
   await expect(f.service.initializeModel(selection)).rejects.toThrow(

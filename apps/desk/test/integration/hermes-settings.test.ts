@@ -1,10 +1,13 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { createHermesSettings } from "@/server/hermes-settings";
 import { configPatch } from "@/server/hermes-settings-shape";
-import { isEditableHermesKey } from "@/settings/hermes-pages";
+
+// Plugin and MCP switches take the device's capability lock in this state root.
+const stateRoot = mkdtempSync(join(tmpdir(), "pythia-hermes-settings-"));
+afterAll(() => rmSync(stateRoot, { recursive: true, force: true }));
 
 /*
  * Synthetic settings-server replies, shaped after the pinned Hermes
@@ -119,12 +122,10 @@ function hermes() {
     {
       PYTHIA_HERMES_SETTINGS_URL: "http://127.0.0.1:43000",
       PYTHIA_HERMES_SETTINGS_TOKEN: "settings-bearer",
+      PYTHIA_STATE_ROOT: stateRoot,
     } as unknown as NodeJS.ProcessEnv,
     fetcher,
-    {
-      restartHermes,
-      lockPath: join(mkdtempSync(join(tmpdir(), "settings-lock-")), "lock"),
-    },
+    { restartHermes },
   );
   return { service, calls, restartHermes };
 }
@@ -170,7 +171,6 @@ describe("Hermes settings through Desk", () => {
       "updates.non_interactive_local_changes",
       "logging.level",
     ]) {
-      expect(isEditableHermesKey(key)).toBe(false);
       expect(() => configPatch({ values: { [key]: "x" } })).toThrow();
     }
     expect(() =>
@@ -299,10 +299,17 @@ describe("Hermes settings through Desk", () => {
     ).rejects.toThrow(/isn't valid/);
   });
 
-  it("switches only a listed, unlocked plugin by its exact name, then restarts Hermes", async () => {
+  it("switches only a listed plugin or a path-safe MCP name, then restarts Hermes", async () => {
     const { service, restartHermes } = hermes();
-    for (const name of ["pythia/", "pythia%2F", "..", "a/b", "a\\b"])
-      await expect(service.setPluginEnabled(name, false)).rejects.toThrow();
+    for (const name of ["pythia/", "pythia%2F", "..", ".", "a/b", "a\\b"]) {
+      // Only listed plugins, by exact name; the name never becomes a path.
+      await expect(service.setPluginEnabled(name, false)).rejects.toMatchObject(
+        { status: 404 },
+      );
+      await expect(service.setMcpEnabled(name, false)).rejects.toMatchObject({
+        status: 400,
+      });
+    }
     await expect(
       service.setPluginEnabled("not-installed", true),
     ).rejects.toMatchObject({ status: 404 });

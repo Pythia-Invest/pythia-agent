@@ -21,15 +21,16 @@ const local = {
 describe("Desk release status", () => {
   it("reads local inventory only and preserves activation identity across explicit remote checks", async () => {
     const secret = "PRIVATE_BEARER";
+    let checkout = { revision: current, version: "main" };
     const command = vi.fn(async (_executable: string, args: string[]) => ({
       stdout: JSON.stringify(
         args[0] === "update-status"
           ? { ...local, private_extra: secret }
           : {
               status: "ready",
-              current_revision: current,
+              current_revision: checkout.revision,
               target_revision: target,
-              current_version: "main",
+              current_version: checkout.version,
               target_version: "main",
               checkout_clean: true,
               update_available: true,
@@ -50,6 +51,15 @@ describe("Desk release status", () => {
       update_available: true,
     });
     expect(command.mock.calls[2]?.[1]).toEqual(["check-update", "--json"]);
+    // A checkout that moved since activation: the running build's identity
+    // wins, and applying is refused.
+    checkout = { revision: "c".repeat(40), version: "next" };
+    await expect(service.snapshot(true)).resolves.toMatchObject({
+      current_revision: current,
+      current_version: "main",
+      target_revision: target,
+      apply_supported: false,
+    });
     expect(JSON.stringify(command.mock.calls)).not.toContain(secret);
   });
 
