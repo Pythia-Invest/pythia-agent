@@ -40,6 +40,17 @@ class CoreTest(unittest.TestCase):
         self.assertTrue(any(name == 'api_server' for name, _ in context.platform_handlers))
         self.assertTrue(context.sections)
 
+    def test_operating_section_fits_its_budget_on_every_platform(self):
+        # Hermes skips, not truncates, a section longer than max_chars (hermes_cli/plugins.py
+        # render_system_prompt_sections); every Desk chat then reads as carrying earlier instructions.
+        context = RegistryContractContext()
+        MODULE.register(context)
+        (_, render), options = next(item for item in context.sections if item[0][0] == 'pythia.operating')
+        for platform in ('api_server', 'cli', 'cron'):
+            with self.subTest(platform=platform):
+                self.assertLessEqual(len(render({'platform': platform}).strip()), options['max_chars'])
+        self.assertLessEqual(options['max_chars'], 4000)
+
 
 if __name__ == '__main__':
     unittest.main()

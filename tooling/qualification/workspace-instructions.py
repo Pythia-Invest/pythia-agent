@@ -6,6 +6,7 @@ native MemoryStore/skill catalog. No model inference or service is started.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -90,6 +91,12 @@ def main() -> None:
             assert 'This workspace belongs to the investor.' in prompt
             assert 'DO_NOT_PRELOAD_STRATEGY_DETAIL' not in prompt
             assert '## Plugin Context: pythia.operating' in prompt
+            # The Desk's classifier must read a fresh Desk chat's prompt as current guidance.
+            classifier = repository / 'runtime/managed/runner/native_session_context.py'
+            spec = importlib.util.spec_from_file_location('native_session_context', classifier)
+            session_context = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(session_context)
+            assert session_context.guidance_status(prompt) == 'current'
             assert prompt.index('Synthetic concise investor preference.') < prompt.index(marker)
             assert 'mcp-basic-memory' not in prompt
             from model_tools import get_tool_definitions
@@ -122,7 +129,7 @@ def main() -> None:
                               'checks': ['native-plugin-discovery', 'assembled-memory-and-workspace',
                                          'operating-after-memory', 'no-strategy-preload',
                                          'native-skill-and-reference-read', 'disabled-file-skill-hidden',
-                                         'fresh-view-tool', 'legacy-resume-preserved',
+                                         'fresh-view-tool', 'fresh-session-classified-current', 'legacy-resume-preserved',
                                          'fresh-continuation-current', 'compaction-refresh'],
                               'claim': 'structural delivery only; model behavior untested'}))
         finally:
