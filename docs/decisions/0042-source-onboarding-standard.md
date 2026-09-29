@@ -103,9 +103,11 @@ precision has been measured.
   contract says. For an `unsigned` source:
   - a fresh profile never enables it, even if its payload lists it as enabled
     by default;
-  - core's order never ranks it ahead of an audited source, so it serves a
-    section only when the investor names it in `source_order` or nothing
-    audited can serve;
+  - core's order never ranks it ahead of an audited source, so where one
+    source serves (a price, a profile, a filing authority) it serves only when
+    the investor names it in `source_order` or nothing audited can serve;
+    once enabled, it joins a merged list or side-by-side values like any
+    other source (amendment below);
   - a resolve answer that would bind becomes an `unaudited` residual, with the
     matching evidence, for the investor to review; the agent's answer to it
     only suggests;
@@ -164,6 +166,22 @@ theirs unless it confirms through their evidence.
 suggest identity and confirm identity. Only confirming identity requires this
 standard's full audit and sign-off. A display-only plugin, including a user's
 own licensed vendor, needs declared coverage and terms only.
+
+The code gate maps onto them without a new field: `unsigned` is display, and
+`signed_off` or `grandfathered` is confirm.
+
+- **Display.** An enabled `unsigned` plugin serves and merges its data as
+  normal: under a combining concept (news, side-by-side values) it is one of
+  the sources read, without being named in `source_order`. Its data is
+  labelled with its source and "not yet audited". It stays off in fresh
+  profiles and is never core's default pick where one source serves, so its
+  opt-in is enabling it, and naming it is what puts it first.
+- **Confirm.** Unchanged: only a signed-off or grandfathered plugin creates or
+  changes a binding. A display plugin's resolve answer that would bind stays
+  an `unaudited` residual for the investor.
+- **Suggest** (a plugin whose matches the investor confirms in one click) is
+  not represented yet. It arrives with the first plugin that needs it, such as
+  a user's own vendor addressed by `resolve`.
 
 Reviewed answers over open data may ship in the reference package. Gold labels
 on licensed data and raw model exchanges stay on the device. Further source

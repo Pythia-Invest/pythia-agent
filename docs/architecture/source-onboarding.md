@@ -51,8 +51,13 @@ subject or relation without review. A source that has not signed off:
 
 Core enforces this from the `signoff` each plugin declares in `contract.json`
 (`signed_off` with its record, `grandfathered` or `unsigned`); ADR 0042 lists
-what the gate does. An `unsigned` source can still be enabled by the investor,
-and is then labelled "not yet audited". An opt-in, display-only source such as
+what the gate does. Its trust level ([ADR 0044](../decisions/0044-product-direction.md)
+ruling 10) follows: `unsigned` is display, the other two are confirm, and
+suggest is not represented yet. An `unsigned` source can still be enabled by
+the investor. It then serves like any other source, labelled "not yet
+audited": it joins merged lists and side-by-side values, and where one source
+serves it serves only if the investor names it or nothing audited can. An
+opt-in, display-only source such as
 Hyperliquid's live view ([ADR 0043](../decisions/0043-live-market-view.md))
 ships `unsigned`. The sources in use before this standard are listed in ADR
 0042 and declared `grandfathered`. They keep their current role while they are

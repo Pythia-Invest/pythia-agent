@@ -144,7 +144,7 @@ class ConceptReads:
         eligible source (for its authorities, under `per_authority`), until none does. A failure never switches
         source. Returns (chosen, alternatives, skipped, {plugin: (result, failure)}, waiting)."""
         found = page.answers(subject, plugins, section, **lookups)
-        combine, order = page.REGISTRY[page.SERVES[section][0]].combine, tuple(lookups.get("order", ()))
+        combine = page.REGISTRY[page.SERVES[section][0]].combine
         infos = {info.key: info for info in plugins}
         eligible, cancelled = self.eligible(), context.get("cancelled") or (lambda: False)
         deadline = time.monotonic() + READ_BUDGET
@@ -152,7 +152,7 @@ class ConceptReads:
         while True:
             entries = [{**answer, "status": "not_covering", "reason": f"{answer['label']}: {uncovered[answer['plugin']]}"}
                        if answer["plugin"] in uncovered else answer for answer in found]
-            chosen, alternatives, skipped = page.select(entries, combine=combine, order=order)
+            chosen, alternatives, skipped = page.select(entries, combine=combine)
             futures = {}
             for answer, _ in chosen:
                 if answer["plugin"] in tried:
