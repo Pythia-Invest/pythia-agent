@@ -70,6 +70,15 @@ it("round-trips explicit scope notes and rejects escaping or malformed reference
   expect(
     parseNativeSessionContext({ ...projection, firstInputEligible: true }),
   ).toBeNull();
+  // Only an unscoped session without guidance can accept a first scoped input.
+  expect(
+    parseNativeSessionContext({
+      status: "ok",
+      guidance: "legacy",
+      firstInputEligible: true,
+      scope: { status: "none" },
+    }),
+  ).toBeNull();
 });
 
 it("admits the request before touching its session parameters or native reader", async () => {
