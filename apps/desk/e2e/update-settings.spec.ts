@@ -198,8 +198,8 @@ const startFailures: {
   start: { status?: number; json: unknown };
   /** What the updater reports once the start reply is in. */
   after?: Record<string, unknown>;
-  /** Poll time to let pass before the verdict. */
-  wait?: number;
+  /** Let poll time pass until the verdict. */
+  wait?: boolean;
   alert?: string;
   shows?: string[];
   /** Nothing began, so nothing may claim it did. */
@@ -245,7 +245,7 @@ const startFailures: {
       },
     },
     // The idle updater on the same build a few seconds later proves nothing began.
-    wait: 6_000,
+    wait: true,
     alert: "could not confirm that the update started",
     idle: true,
   },
@@ -279,7 +279,15 @@ for (const row of startFailures)
     await expect(start).toBeEnabled();
     await start.click();
     await expect.poll(() => writes).toBe(1);
-    if (row.wait) await page.clock.runFor(row.wait);
+    // Advance poll time in steps until the verdict: the page records a lost
+    // reply only once the response arrives, which can follow the write.
+    if (row.wait)
+      await expect
+        .poll(async () => {
+          await page.clock.runFor(1_000);
+          return panel.getByRole("alert").count();
+        })
+        .toBeGreaterThan(0);
     if (row.alert)
       await expect(panel.getByRole("alert")).toContainText(row.alert);
     for (const text of row.shows ?? []) await expect(panel).toContainText(text);
