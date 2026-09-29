@@ -321,7 +321,10 @@ const answer = z.object({
 
 /** Pythia envelopes answer "empty" with null data and an issue; an "error"
  * may carry what was tried as data, and is still a failure (D1). */
-function coreData<T extends z.ZodType>(value: unknown, data: T): z.infer<T> {
+export function coreData<T extends z.ZodType>(
+  value: unknown,
+  data: T,
+): z.infer<T> {
   const parsed = answer.parse(value);
   if (
     parsed.outcome === "error" ||

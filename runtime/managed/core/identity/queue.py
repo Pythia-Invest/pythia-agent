@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from typing import Any, Collection, Iterable
+from typing import Any, Iterable
 
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
@@ -57,10 +57,10 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
                                   if level == subject_kind(candidate)), "unrelated")]
     return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
                                        "candidate_ids", "opened_at", "updated_at")} | {
-        # A question only the agent answered: its answer routes provisionally and the user may still override it.
-        "agent_answer": item["settled"] if item["state"] != "open" and item["settled"]
-        and item["settled"]["by"] == "agent" else None,
+        # On an open question: the agent's suggestion, which waits for the user.
+        "agent_answer": _suggestion(store, item) if item["state"] == "open" else None,
         "label": label, "question": question, "record": _record(record) if record else None,
+        "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
         "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
         "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
         "evidence": _evidence(ref, item["evidence_ids"]),
@@ -68,16 +68,14 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
 
 
 def listing(store: IdentityStore, ref: sqlite3.Connection, *, subject_id: str | None, kind: str | None,
-            plugins: set[str] | None, limit: int, answered: bool, notice: bool, settled: bool = False) -> dict:
-    """Open items, newest first; apart and uncounted, with `answered` the ones only the agent answered and with
-    `settled` the ones rules or the user settled. With
+            plugins: set[str] | None, limit: int, notice: bool, settled: bool = False) -> dict:
+    """Open items, newest first; apart and uncounted, with `settled` the ones rules or the user settled. With
     `notice`, says so when this process started a fresh store and kept an incompatible one aside."""
     filters = {"subject_ids": family(ref, subject_id) if subject_id else None, "kind": kind, "plugins": plugins}
     items, size = store.queue_items(**filters), max(1, min(50, limit))
     data: dict[str, Any] = {"items": [summary(store, ref, item) for item in items[:size]], "total": len(items)}
-    for which, wanted in (("answered", answered), ("settled", settled)):
-        if wanted:
-            data[which] = [summary(store, ref, item) for item in store.queue_items(**filters, which=which)[:size]]
+    if settled:
+        data["settled"] = [summary(store, ref, item) for item in store.queue_items(**filters, which="settled")[:size]]
     if notice and store.set_aside:
         data["notice"] = (f"The identity store was reset for a new format; the previous one is kept as "
                           f"{store.set_aside}. Confirmed matches and answers start over.")
@@ -101,7 +99,6 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
     if item is None:
         return None
     view = {**summary(store, ref, item), "scheme": item["scheme"], "values": item["values"],
-            "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
             "history": [{key: entry[key] for key in ("resolver", "authority", "relation", "chosen_id", "confidence",
                                                      "rationale", "outcome", "created_at", "item_state")}
                         for entry in store.history(item)]}
@@ -110,22 +107,21 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
 
 def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resolver: ResolverKind, relation: str,
            chosen_id: str | None, now: str, as_of: str, rationale: str | None = None,
-           user_turn: str | None = None, unaudited: Collection[str] = ()) -> dict:
+           user_turn: str | None = None) -> dict:
     """Decide and record one agent or user verdict.
 
-    A confirmed answer binds the record, a "not a match" dismisses the question. The agent's answer is
-    provisional (`agent_confirmed`): the user may still answer a question only the agent settled, and that
-    answer supersedes it, re-pointing or withdrawing the agent's binding. On a record from an `unaudited`
-    plugin (not yet signed off, ADR 0042) the agent only suggests: only the user confirms it."""
+    The user's confirmed answer binds the record, a "not a match" dismisses the question. The agent only
+    suggests (ADR 0044 ruling 8): its answer is recorded, the question stays open, and nothing changes until
+    the user confirms it."""
     resolver = ResolverKind(resolver)
     user = resolver is ResolverKind.USER
     view, row = inspect(store, ref, item_id), store.queue_item(item_id)
-    if view is None or not _answerable(row, user):
+    if view is None or row["state"] != "open":
         raise Refused("This question is not open.")
     raw = _raw(store, row)
     if raw is None:  # identifier or relation conflicts without a provider record: no answer has an effect yet
         raise Refused("This question has no provider record to bind, so no answer can take effect.")
-    item = _queue_item({**row, "state": "open"})
+    item = _queue_item(row)
     authority = Authority.USER_ATTESTED if user else Authority.AGENT_CONFIRMED
     try:
         verdict = Verdict(item_id=item_id, resolver=resolver, authority=authority, relation=relation, chosen_id=chosen_id,
@@ -151,14 +147,14 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                          or (row["reason"] == "binding" and len(row["subject_ids"]) > 1))
     except ValueError as error:
         raise Refused(str(error)) from None
-    if not user and outcome is VerdictOutcome.CONFIRMED and set(item.plugins) & set(unaudited):
-        outcome = VerdictOutcome.SUGGESTED
+    if not user and outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
+        outcome = VerdictOutcome.SUGGESTED  # the agent proposes, the user confirms
     state, message = row["state"], _MESSAGES[outcome]
     if outcome is VerdictOutcome.BLOCKED and verdict.relation in ("unrelated", "none"):
         message = _NAMED
     with store.transaction():
         current = store.queue_item(item_id)
-        if not _answerable(current, user) or current["state"] != row["state"]:  # another resolver answered meanwhile
+        if current is None or current["state"] != "open":  # another resolver answered meanwhile
             raise Refused("This question is not open.")
         firm = store.bound_subject(item.provider_ref)
         if outcome is VerdictOutcome.CONFIRMED and firm not in (None, chosen_id):
@@ -171,13 +167,9 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                               verdict_id=verdict_id)
             state = "resolved"
         elif outcome is VerdictOutcome.NO_MATCH:
-            if current["settled"] and current["settled"]["chosen_id"] and current["state"] == "resolved":
-                store.reject_binding(item.provider_ref, current["settled"]["chosen_id"], verdict_id)
             state = "dismissed"
         if outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
-            store.settle(item_id, state, verdict_id, current=current["state"])
-    if not user and outcome is VerdictOutcome.CONFIRMED:
-        message = _PROVISIONAL
+            store.settle(item_id, state, verdict_id)
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
 
@@ -191,17 +183,19 @@ def retire_build(store: IdentityStore, now: str) -> int:
         return store.db.execute("SELECT changes()").fetchone()[0]
 
 
+def _suggestion(store: IdentityStore, item: dict) -> dict | None:
+    """The agent's latest answer to this open question when it was kept as a suggestion."""
+    latest = next((entry for entry in reversed(store.history(item))
+                   if entry["item_id"] == item["id"] and entry["resolver"] == "agent"), None)
+    return {"by": "agent", "relation": latest["relation"], "chosen_id": latest["chosen_id"]} \
+        if latest and latest["outcome"] == "suggested" else None
+
+
 def _same_venue(record: RecordClaim, subjects: list[dict]) -> bool:
     """The record states the candidate listing's venue, so its security's ISIN names that listing."""
     venue = record.attributes.operating_mic or record.attributes.mic
     return bool(venue) and any(found["listing"] is not None and venue in (found["listing"]["operating_mic"],
                                                                           found["listing"]["mic"]) for found in subjects)
-
-
-def _answerable(row: dict | None, user: bool) -> bool:
-    """Open questions take any answer; one only the agent settled still takes the user's."""
-    return row is not None and (row["state"] == "open" or (
-        user and row["state"] in ("resolved", "dismissed") and (row["settled"] or {}).get("by") == "agent"))
 
 
 def settle_by_rules(store: IdentityStore, ref: sqlite3.Connection, plugins: Iterable[PluginInfo], items: Iterable[dict],
@@ -262,12 +256,10 @@ def _settle_one(store: IdentityStore, ref: sqlite3.Connection, info: PluginInfo 
     return False
 
 
-_PROVISIONAL = ("Confirmed provisionally: the record routes to the chosen instrument until the user or identifier "
-                "evidence overrides it.")
 _NAMED = "Refused: the record's own identifier names this instrument, so it cannot be dismissed."
 _MESSAGES = {
     VerdictOutcome.CONFIRMED: "Confirmed: the record is bound to the chosen instrument.",
-    VerdictOutcome.SUGGESTED: "Kept as a suggestion: it does not route reads until a confirming verdict.",
+    VerdictOutcome.SUGGESTED: "Kept as a suggestion: nothing changes until the user confirms it in Repairs.",
     VerdictOutcome.BLOCKED: "Refused: identifier evidence or the depositary-receipt guard contradicts this answer.",
     VerdictOutcome.AMBIGUOUS: "Left open: the answers disagree or several candidates fit.",
     VerdictOutcome.NO_MATCH: "Recorded: the record is not this instrument.",

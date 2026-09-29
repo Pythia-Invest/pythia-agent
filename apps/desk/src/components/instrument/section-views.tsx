@@ -1,7 +1,7 @@
 "use client";
 
 import type { Filings, Profile } from "@pythia/market-data/subject";
-import { IconButton, Toggle, ToggleGroup } from "@pythia/ui";
+import { Button, IconButton, Toggle, ToggleGroup } from "@pythia/ui";
 import { BookOpen, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { groupReports, newestPerAuthority } from "./blocks";
@@ -161,7 +161,11 @@ function PartialNote({ filings }: { filings: Filings }) {
  * filing authority, and a list of several kinds can show one kind. */
 export function FilingsView({ filings }: { filings: Filings }) {
   const [kind, setKind] = useState<string | null>(null);
-  const [reading, setReading] = useState<readonly Filing[] | null>(null);
+  const [reading, setReading] = useState<{
+    variants: readonly Filing[];
+    open: boolean;
+  } | null>(null);
+  const [all, setAll] = useState(false);
   const names = filings.sources.map((item) => item.source);
   // A combined read where no source answered says why (not covered, not yet
   // looked up); only a source that answered can list nothing.
@@ -174,7 +178,7 @@ export function FilingsView({ filings }: { filings: Filings }) {
           {unserved
             ? `No filings source serves this entity: ${filings.skipped.map((item) => item.reason).join("; ")}.`
             : names.length
-              ? `${names.join(" and ")} list no filings for this entity.`
+              ? `${names.join(" and ")} ${names.length > 1 ? "list" : "lists"} no filings for this entity.`
               : `${filings.source?.label ?? "The source"} lists no filings for this entity.`}
         </p>
       </div>
@@ -187,13 +191,16 @@ export function FilingsView({ filings }: { filings: Filings }) {
   const listed = active
     ? filings.filings.filter((filing) => filing.kind === active)
     : filings.filings;
-  const shown = newestPerAuthority(
-    groupReports(listed).map((variants) => ({
-      authority: variants[0]?.authority ?? null,
-      variants,
-    })),
-    MAX_FILINGS,
-  ).map((report) => report.variants);
+  const reports = groupReports(listed);
+  const shown = all
+    ? reports
+    : newestPerAuthority(
+        reports.map((variants) => ({
+          authority: variants[0]?.authority ?? null,
+          variants,
+        })),
+        MAX_FILINGS,
+      ).map((report) => report.variants);
   // Some sources report no filing date; a report's indexed date stands in,
   // labelled, never shown as a filing date.
   const filed = listed.some(
@@ -315,7 +322,7 @@ export function FilingsView({ filings }: { filings: Filings }) {
                         size="sm"
                         variant="ghost"
                         className="mr-1 size-6"
-                        onClick={() => setReading(variants)}
+                        onClick={() => setReading({ variants, open: true })}
                       >
                         <BookOpen aria-hidden="true" className="size-3.5" />
                       </IconButton>
@@ -338,13 +345,26 @@ export function FilingsView({ filings }: { filings: Filings }) {
           </tbody>
         </table>
       </div>
+      {shown.length < reports.length ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="self-start"
+          onClick={() => setAll(true)}
+        >
+          Show all {reports.length} reports
+        </Button>
+      ) : null}
       <PartialNote filings={filings} />
       {filings.subject_id ? (
         <FilingReader
           subjectId={filings.subject_id}
-          variants={reading}
-          labels={reading ? variantLabels(reading) : []}
-          onClose={() => setReading(null)}
+          open={reading?.open ?? false}
+          variants={reading?.variants ?? null}
+          labels={variantLabels(reading?.variants ?? [])}
+          onClose={() =>
+            setReading((current) => current && { ...current, open: false })
+          }
         />
       ) : null}
       {filings.sources.length ? (

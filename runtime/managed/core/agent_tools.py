@@ -297,7 +297,7 @@ def provider_tools_for(subject_id: str) -> list[dict]:
     return found
 
 
-# ---- the identity answer (a narrow, provisional write) --------------------------------------------------------------
+# ---- the identity answer (a narrow write: a suggestion) -------------------------------------------------------------
 
 def answer(arguments: dict, **context: Any) -> str:
     return encode(json.loads(queue_ops.submit_verdict(identity(), arguments, **context)))

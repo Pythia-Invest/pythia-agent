@@ -1,6 +1,6 @@
 """Resolution-queue operations on the native tool registry (ADR 0037).
 
-`identity-queue` is a local read of open, agent-answered and settled questions.
+`identity-queue` is a local read of open and settled questions.
 `identity-verdict` records one answer to a question: from the Desk it is the
 user's attestation, from a model tool call the agent's verdict; the transport
 decides which, never an argument. `settle` lets the rules resolver re-ask the
@@ -29,18 +29,15 @@ QUEUE_SCHEMA = {
     "name": "pythia_identity_queue",
     "description": "List open identity questions: provider records the device could not place on a subject "
                    "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
-                   "subject, plugin or kind. With answered, also lists the questions the agent already answered "
-                   "(agent_answer): they route provisionally until the user confirms or overrides them and are no "
-                   "longer open. With settled, also lists questions rules or the user settled (history). With "
-                   "item_id, returns one question in full: "
-                   "the provider record, the candidate subjects, the cited reference evidence and earlier verdicts. "
+                   "subject, plugin or kind. On an open question, agent_answer is the agent's suggestion awaiting "
+                   "the user's confirmation. With settled, also lists questions rules or the user settled. With "
+                   "item_id, returns one question in full: its record, candidates, evidence and earlier verdicts. "
                    "Local only.",
     "parameters": {"type": "object", "properties": {
         "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
         "subject_id": SUBJECT_ID,
         "plugin": {"type": "string", "minLength": 1, "maxLength": 128},
         "kind": {"type": "string", "enum": ["residual", "conflict"]},
-        "answered": {"type": "boolean"},
         "settled": {"type": "boolean"},
         "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
         "additionalProperties": False},
@@ -51,9 +48,9 @@ VERDICT_SCHEMA = {
                    "the question's candidates; 'unrelated' says the record is a different instrument than that "
                    "candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the "
                    "identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the "
-                   "record's own identifiers disprove, is refused. An accepted answer takes effect provisionally: a "
-                   "match routes the record to the subject until the user or identifier evidence overrides it. "
-                   "Accepted and refused answers are recorded.",
+                   "record's own identifiers disprove, is refused. An accepted answer is a suggestion: the question "
+                   "stays open and nothing changes until the user confirms it in Repairs. Accepted and refused "
+                   "answers are recorded.",
     "parameters": {"type": "object", "properties": {
         "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
         "relation": {"type": "string", "enum": ["same_listing", "same_composite", "same_security", "same_issuer",
@@ -65,7 +62,7 @@ VERDICT_SCHEMA = {
 
 
 def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
-    """identity-queue: open questions (and on request answered and settled ones), or one in full."""
+    """identity-queue: open questions (and on request settled ones), or one in full."""
     from .identity_ops import _envelope, installed
     limit = arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20
     try:
@@ -80,19 +77,19 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
             data = questions.listing(identity.store, ref, subject_id=arguments.get("subject_id"), kind=arguments.get("kind"),
                                  plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
                                  if plugin else None, limit=limit, notice=not identity.reset_told,
-                                 **{name: arguments.get(name) is True for name in ("answered", "settled")})
+                                 settled=arguments.get("settled") is True)
             identity.reset_told = identity.reset_told or "notice" in data
         finally:
             ref.close()
     except (sqlite3.Error, OSError):
         logger.warning("identity queue unavailable", exc_info=True)
         return _envelope("empty", None, issue="The identity store could not be read.")
-    found = any(data.get(name) for name in ("items", "answered", "settled", "notice"))
+    found = any(data.get(name) for name in ("items", "settled", "notice"))
     return _envelope("ok" if found else "empty", data)
 
 def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
     """identity-verdict: one answer, attributed to the user or the agent by the transport."""
-    from .identity_ops import _envelope, installed
+    from .identity_ops import _envelope
     from .platform.request_context import usage
     desk = usage.get() == "dashboard"  # trusted transport scope: the Desk's own HTTP call, never a model tool call
     now = store.now()
@@ -106,8 +103,7 @@ def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
             chosen_id=arguments.get("chosen_id"), now=now, as_of=date.today().isoformat(),
             resolver=questions.ResolverKind.USER if desk else questions.ResolverKind.AGENT,
             rationale=arguments.get("rationale"),
-            user_turn=f"desk:identity-verdict:{now}" if desk else None,
-            unaudited={info.manifest.plugin for info in installed() if info.manifest.unaudited})
+            user_turn=f"desk:identity-verdict:{now}" if desk else None)
     except questions.Refused as refused:
         result = {"outcome": "refused", "message": str(refused)}
     except (sqlite3.Error, OSError):

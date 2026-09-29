@@ -109,6 +109,6 @@ describe("an empty filings list", () => {
         })}
       />,
     );
-    expect(markup).toContain("SEC EDGAR list no filings for this entity.");
+    expect(markup).toContain("SEC EDGAR lists no filings for this entity.");
   });
 });

@@ -255,7 +255,7 @@
       "required": ["item_id", "relation"],
       "additionalProperties": false
     },
-    "description": "Answer an open identity question in Repairs. Read it in full first with pythia_identity_questions. A match names the relation and one of the question's candidates; 'unrelated' says the record is a different instrument than that candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the record's own identifiers disprove, is refused. An accepted answer takes effect provisionally: a match routes the record to the subject until the user or identifier evidence overrides it. Accepted and refused answers are recorded."
+    "description": "Answer an open identity question in Repairs. Read it in full first with pythia_identity_questions. A match names the relation and one of the question's candidates; 'unrelated' says the record is a different instrument than that candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the record's own identifiers disprove, is refused. An accepted answer is a suggestion: the question stays open and nothing changes until the user confirms it in Repairs. Accepted and refused answers are recorded."
   },
   {
     "name": "pythia_desk_view",
@@ -437,9 +437,6 @@
           "type": "string",
           "enum": ["residual", "conflict"]
         },
-        "answered": {
-          "type": "boolean"
-        },
         "settled": {
           "type": "boolean"
         },
@@ -451,7 +448,7 @@
       },
       "additionalProperties": false
     },
-    "description": "Open identity questions in Repairs, for review. Provider records the device could not place on a subject (residuals) and records that contradict the reference identifiers (conflicts). Filter by subject, plugin or kind. With answered, also lists the questions the agent already answered (agent_answer): they route provisionally until the user confirms or overrides them and are no longer open. With settled, also lists questions rules or the user settled (history). With item_id, returns one question in full: the provider record, the candidate subjects, the cited reference evidence and earlier verdicts. Local only."
+    "description": "Open identity questions in Repairs, for review. Provider records the device could not place on a subject (residuals) and records that contradict the reference identifiers (conflicts). Filter by subject, plugin or kind. On an open question, agent_answer is the agent's suggestion awaiting the user's confirmation. With settled, also lists questions rules or the user settled. With item_id, returns one question in full: its record, candidates, evidence and earlier verdicts. Local only."
   },
   {
     "name": "pythia_instrument",

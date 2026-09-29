@@ -51,7 +51,7 @@ class QueueState(StrEnum):
 
 class ResolverKind(StrEnum):
     RULES = "rules"    # built-in deterministic rules shipped with core or plugin updates
-    AGENT = "agent"    # the Hermes agent, the only hard prerequisite; its answers are provisional
+    AGENT = "agent"    # the Hermes agent, the only hard prerequisite; its answers are suggestions the user confirms
     PLUGIN = "plugin"  # a resolver plugin declared in its manifest, e.g. Jev (optional, off by default)
     USER = "user"      # the user resolving by hand, if they choose to
 
@@ -136,8 +136,8 @@ class Verdict:
 
     def __post_init__(self) -> None:
         _coerce(self, resolver=ResolverKind, authority=Authority, relation=VerdictRelation, provenance=Provenance)
-        # Only the user attests and only rules rule-confirm; the agent confirms provisionally (its own authority, no
-        # self-stated confidence); resolver plugins give calibrated model verdicts.
+        # Only the user attests and only rules rule-confirm; the agent has its own authority (no self-stated
+        # confidence) and only suggests (queue.submit); resolver plugins give calibrated model verdicts.
         own = {ResolverKind.RULES: Authority.RULE_CONFIRMED, ResolverKind.USER: Authority.USER_ATTESTED,
                ResolverKind.AGENT: Authority.AGENT_CONFIRMED}
         _require(self.authority is own[self.resolver] if self.resolver in own else self.authority in MODEL_AUTHORITIES,
@@ -218,7 +218,7 @@ def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierVal
     resolver found several candidates, or a standing `prior` verdict on the item
     gives a different answer, nothing is confirmed. A model verdict confirms only
     at or above the relation's gold-calibrated `threshold`; without one it suggests.
-    The agent's answer (`agent_confirmed`) confirms provisionally.
+    The queue keeps an agent answer that would take effect as a suggestion.
     """
     if verdict.item_id != item.id or any(other.item_id != item.id for other in prior):
         raise ValueError("verdict: answers a different queue item")
