@@ -211,8 +211,10 @@ class SurfaceTest(BuildQuestionFixture):
         self.assertEqual(len(self.open()), 1)
 
     def test_the_registered_subject_read_and_the_agents_filings_read_queue(self):
+        from native_plugin_fixtures import keep_platform_binding
         from test_agent_tools import Context
         self.install([issuer_question(), SHARE_OR_RECEIPT], self.world())
+        keep_platform_binding(self)  # registering this core copy publishes its own `pythia_platform`
         ctx = Context({})
         with unittest.mock.patch.object(self.identity_ops, "Identity", lambda _ctx: self.ops), \
                 unittest.mock.patch.object(self.identity_ops, "CURRENT", None):
