@@ -161,9 +161,11 @@ theirs unless it confirms through their evidence.
 ## Amendment (2026-09-29): trust levels and curated answers
 
 [ADR 0044](0044-product-direction.md) sets three plugin trust levels: display,
-suggest identity and confirm identity. Only confirming identity requires this
-standard's full audit and sign-off. A display-only plugin, including a user's
-own licensed vendor, needs declared coverage and terms only.
+suggest identity and confirm identity. Displaying data and adding subjects in
+the plugin's own domain need declared coverage, terms and identifier scheme.
+Establishing facts about subjects that other sources also describe requires
+this standard's full audit and sign-off. A user's own licensed vendor is usable
+at the display level.
 
 Reviewed answers over open data may ship in the reference package. Gold labels
 on licensed data and raw model exchanges stay on the device. Further source

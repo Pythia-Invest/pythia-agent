@@ -519,6 +519,11 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
   opened or forecast). World-level questions are answered centrally and ship in
   the reference package. "Unknown plus a question" stays the principle; only
   its delivery changes.
-- **The backbone is scoped to a permanent address book.** Identifiers never
-  disappear, records that cannot be matched still appear as labelled subjects,
-  and new subject kinds or sources are added when a strategy needs them.
+- **The backbone is scoped to a permanent address book, and plugins
+  contribute to it.** Identifiers never disappear, and records that cannot be
+  matched still appear as labelled subjects. Core keeps the kinds, identifier
+  rules, relations and matching. Plugins may add portable, first-class subjects
+  under declared identifier schemes built on open or native identifiers; the
+  provisional, non-portable identifier stays only for records without one. A
+  plugin is the authority for its own domain. Facts about subjects that other
+  sources also describe are suggested unless the plugin is audited.

@@ -58,8 +58,10 @@ decide how much autonomy they earn.
 5. **Your workspace, your data.** Research, strategies, credentials, portfolios
    and ledgers stay on the investor's own machine. Pythia's services never see
    what an investor researches.
-6. **Curate shared truth once.** Facts that are the same for every user are
-   resolved centrally and distributed, not re-resolved on every installation.
+6. **Curate shared truth once; let plugins extend it.** Facts that are the same
+   for every user are resolved centrally and distributed, not re-resolved on
+   every installation. Plugins add the subjects and data of their own domains
+   freely.
 7. **Extend without forking.** Everything a builder customises is a file or a
    plugin. The core stays upstream and keeps updating.
 8. **Provider-neutral and free-first.** Pythia works with free and open sources
@@ -266,18 +268,43 @@ its own sources.
 The identity backbone ([ADR 0037](decisions/0037-identity-backbone.md)) is the
 foundation that lets many plugins connect without every pair of sources needing
 its own mapping. Its job from here is to be a permanent address book for
-everything an investor holds, watches or forecasts:
+everything an investor holds, watches or forecasts, whichever plugin it comes
+from.
 
+**Core owns the rules; plugins contribute the contents.** Core defines a small
+set of subject kinds (such as issuer, security, listing, index, data series,
+protocol and pool), the rules for forming identifiers, the relations between
+subjects, and the matching engine. Plugins add subjects within those kinds.
+This follows the model of home-automation platforms such as Home Assistant:
+integrations add any number of devices, but within a fixed set of entity types,
+which is why the interface and automations work generically across all of them.
+A genuinely new kind is a rare addition to core. New subjects never are.
+
+- **Any plugin can add subjects.** A plugin for over-the-counter stocks adds
+  those stocks under their ISINs. A plugin for a DeFi ecosystem adds its
+  protocols, pools and tokens under their on-chain identifiers. Because
+  identifiers are derived from open or native identifiers, every installation
+  with that plugin arrives at the same identifiers, so these subjects are
+  first-class: they get pages, can be watched, forecast and held, and appear in
+  the ledger like any listed security. The centrally curated reference is a
+  shared baseline, not a gatekeeper of what exists.
+- **A plugin is the authority for its own domain.** Facts about subjects that
+  other sources also describe are different: for example, which company a
+  ticker belongs to, which listing is a company's home market, or which share
+  a depositary receipt represents. A plugin can suggest such facts. Confirming
+  them requires the audited trust level below.
+- **Links into the shared backbone happen by identifier agreement.** When a
+  DeFi pool's underlying token is the same on-chain asset as a stablecoin
+  already in the reference, the link is made automatically. Anything
+  ambiguous becomes a suggestion, raised only when it matters.
 - **Subject identifiers never disappear.** They survive rebuilds, renames and
   corporate actions through aliases and successor links. A forecast made today
   must still resolve years from now.
-- **Holdings come first.** A position or record that Pythia cannot match to an
-  open identifier still appears, labelled as unmatched, instead of being
-  dropped.
-- **New kinds of subject are added when a strategy needs them,** for example
-  DeFi protocols and pools, or sector classification and market capitalisation.
-- **Coverage breadth grows with demand.** New reference sources are added when
-  a strategy's universe reaches a gap, not in advance.
+- **Holdings come first.** A position or record that no source can identify
+  still appears, labelled as unmatched, instead of being dropped.
+- **The central reference grows with demand.** New reference sources are
+  added when a strategy's universe reaches a gap, not in advance. Exotic
+  domains do not need central curation at all; their plugins cover them.
 
 ### Where conflicts are resolved
 
@@ -287,6 +314,7 @@ where it is private, and never "solve" what is legitimately different.
 | Conflict | Example | Where and when | What the user sees |
 | --- | --- | --- | --- |
 | World identity | Which listing is a company's home market; a register pointing a receipt at the wrong share | Centrally, at build time. Rules and typed claims come first, then AI-assisted review, then maintainer approval. Answers ship in the signed reference package | Nothing to do. At most an "unknown" label, with a local override |
+| A plugin's own domain | DeFi pools and protocols; a vendor's proprietary indices | Nowhere: the plugin is the authority for its own subjects. Links to shared subjects, such as a pool's underlying stablecoin, are made by identifier agreement or suggested | New subjects appear with the plugin's label |
 | Vendor symbols | Mapping a vendor's ticker to a listing | Centrally for widely used vendors. For others, automatic matching by open identifiers when the plugin connects | A summary of what matched, and what stays available only from that vendor |
 | The user's own unmatched records | A broker position or wallet token that the reference does not know | On the user's machine, only when it matters (held, watched, opened or forecast). An agent proposes a match and the user confirms | The record appears immediately, labelled "not matched", with a one-click suggestion |
 | Values that differ | Two vendors reporting different revenue | Never resolved: single values are shown side by side and lists are merged without duplicates; a price view uses one source ([ADR 0040](decisions/0040-data-concepts-and-agent-tools.md)) | Labelled rows. A forecast fixes its resolution source in advance |
@@ -307,29 +335,30 @@ records and see differences as labels.
 
 | Level | May | Requires |
 | --- | --- | --- |
-| Display | Provide data that is shown with its source | Declared coverage and terms |
-| Suggest identity | Propose identity links for review | Documented field semantics |
-| Confirm identity | Create or confirm identity links | The full [source onboarding](architecture/source-onboarding.md) audit and sign-off |
+| Display | Provide data that is shown with its source, and add subjects in its own domain under open or native identifiers | Declared coverage, terms and identifier scheme |
+| Suggest identity | Propose facts about shared subjects for review | Documented field semantics |
+| Confirm identity | Establish facts about shared subjects without review | The full [source onboarding](architecture/source-onboarding.md) audit and sign-off |
 
-A plugin that only displays data, including a user's own licensed vendor, needs
-no audit. That keeps community plugins cheap to write and a user's paid data
-fully usable.
+Adding subjects and data needs no audit, so community plugins are cheap to
+write and a user's own paid data is fully usable. The audit is reserved for
+overruling or establishing facts that other sources also describe.
 
 ### Connecting a plugin
 
 1. **Install or enable the plugin.** Its card shows its trust level and its
    provider's terms.
-2. **Add a credential.** The connection check shows what the plan allows and
-   how much of the vendor's universe matched existing subjects.
+2. **Add a credential.** The connection check shows what the plan allows, how
+   much of the vendor's universe matched existing subjects, and which new
+   subjects the plugin adds.
 3. **Choose placement.** Choose whether the source comes first for the kinds of
    data it serves, or complements the free defaults.
 4. **Use it.** Its data appears labelled by source, for people and agents
    alike.
 5. **Answer only questions about your own records.**
 
-A plugin author declares coverage and terms, returns the vendor's own
-identifiers, and implements the connection check. Plugins never reconcile;
-Pythia does the matching.
+A plugin author declares coverage, terms and the identifier scheme of any
+subjects the plugin adds, returns the vendor's own identifiers, and implements
+the connection check. Plugins never reconcile; Pythia does the matching.
 
 ## Hosting
 

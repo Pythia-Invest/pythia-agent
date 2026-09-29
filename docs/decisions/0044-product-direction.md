@@ -102,18 +102,35 @@ following:
      identifiers and reasoning only.
    - When a user's own vendor disagrees with the reference, the reference is
      the default and the user may override it locally.
-9. **Identity scope.**
+9. **Identity scope and contributions.**
    - **Kept:** the four-level backbone and its relations, today's coverage,
      permanent identifiers (aliases, successors, and no identifier ever
      disappearing), and holdings-first subjects for records that cannot be
      matched.
-   - **Added only when a strategy needs them:** new kinds of subject.
+   - **Core owns the rules, plugins contribute the contents.** Core defines a
+     small set of subject kinds, the identifier rules, relations and matching.
+   - **Plugins may add subjects** within those kinds, under open or native
+     identifiers through an identifier scheme they declare (for example
+     on-chain identifiers for a DeFi ecosystem's protocols, pools and tokens,
+     or ISINs for over-the-counter stocks).
+     - Such subjects are portable and first-class: they have the same
+       identifier on every installation with that plugin.
+     - A plugin is the authority for its own domain.
+     - Links to shared subjects are made by identifier agreement or suggested
+       for review.
+   - **New kinds** are a rare core addition.
    - **Paused until a strategy universe reaches a gap or a second user
-     arrives:** new reference sources and further source audits.
+     arrives:** new central reference sources and further source audits.
 10. **Plugin trust levels.** Display, suggest identity, and confirm identity.
-    Only confirming identity requires the full onboarding audit and sign-off.
-    A display-only plugin, including a user's own licensed vendor, needs
-    declared coverage and terms only.
+    - **Display** covers showing data with its source and adding subjects in
+      the plugin's own domain. It needs declared coverage, terms and
+      identifier scheme.
+    - **Suggest identity** covers proposing facts about subjects other sources
+      also describe.
+    - **Confirm identity** covers establishing those facts without review, and
+      requires the full onboarding audit and sign-off.
+
+    A user's own licensed vendor is usable at the display level.
 11. **Extension model.** Builders customise through files and plugins, and the
     core stays upstream and updatable.
     - **Files:** strategies, mandates, skills, prompts and agent roles.
@@ -167,9 +184,16 @@ It amends the following rulings:
 - **[ADR 0030](0030-coordinated-reads-and-live-updates.md) "no new durable
   scheduler".** Pythia-owned jobs run mandate and event-driven research. Live
   subscriptions are unchanged.
-- **[ADR 0037](0037-identity-backbone.md) "nothing triggers the agent".** Jobs
-  may trigger agent work. Identity questions reach a device only for subjects
-  it touches; world-level questions are answered centrally.
+- **[ADR 0037](0037-identity-backbone.md).**
+  - **"Nothing triggers the agent."** Jobs may trigger agent work.
+  - **Question delivery.** Identity questions reach a device only for subjects
+    it touches; world-level questions are answered centrally.
+  - **Plugin-contributed subjects.** Plugins may add portable, first-class
+    subjects under declared identifier schemes. Today, subjects that only a
+    provider knows receive provisional, non-portable identifiers, and only the
+    reference build mints chain-asset keys. The shared canonical-asset table
+    remains the source of keys for widely held crypto assets, so that different
+    providers agree on them.
 - **[ADR 0039](0039-local-first-reference-data-and-rights.md) "Pythia publishes
   no snapshot and operates no service" and "Model verdicts stay out of any
   release".**
@@ -199,6 +223,10 @@ It amends the following rulings:
 - **Fully local data resolution.** It would give each installation its own
   reference build and its own world-level questions, and it would make every
   user a data curator.
+- **Only the central reference may create subjects.** It would make every new
+  domain wait for core and central curation, contradicting the plugin model:
+  exotic domains such as a single DeFi ecosystem or a niche market would never
+  be first-class.
 - **Backtest-first evaluation of agent judgment.** It is contaminated by
   training data and misleading.
 - **Autonomous execution without per-trade approval.** Deferred until a
