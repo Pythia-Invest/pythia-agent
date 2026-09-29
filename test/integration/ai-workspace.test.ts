@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
 import {
-  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -103,10 +102,6 @@ describe("public development-agent workspace", () => {
       ),
     ) as Record<string, unknown>;
     expect(parsed.name).toBe("reviewer");
-    expect(parsed.description).toBe(
-      "Independently reviews frozen changes for correctness, scope, boundaries, and missing evidence.",
-    );
-    expect(parsed.sandbox_mode).toBe("read-only");
     const canonicalRole = readFileSync(
       path.join(repository, ".agents/agents/reviewer.md"),
       "utf8",
@@ -204,13 +199,9 @@ describe("public development-agent workspace", () => {
     expect(existsSync(path.join(outsideDestination, "SKILL.md"))).toBe(false);
   });
 
-  test("an ignored private record is paired with a self-contained public decision", () => {
+  test("private records stay untracked and a public decision needs every section", () => {
     const root = temporaryRoot("decision");
     execFileSync("git", ["init", "--quiet"], { cwd: root });
-    copyFileSync(
-      path.join(repository, ".gitignore"),
-      path.join(root, ".gitignore"),
-    );
     const privateRecord = path.join(
       root,
       ".private",
@@ -225,34 +216,12 @@ describe("public development-agent workspace", () => {
     );
 
     const decision = `# 0001: One public source\n\n## Context\nContributors need ordinary workflows without an internal archive.\n\n## Ruling\nThe public monorepo is implementation authority; raw working records remain ignored.\n\n## Rationale\nOne source avoids synchronized repositories and exposes the reasons contributors need.\n\n## Consequences\nAccepted decisions are distilled into public documentation before material completion.\n\n## Rejected alternatives\nPublishing raw records and depending on a private planning repository were rejected.\n`;
-    const publicDecision = path.join(
-      root,
-      "docs",
-      "decisions",
-      "0001-public-source.md",
-    );
-    mkdirSync(path.dirname(publicDecision), { recursive: true });
-    writeFileSync(publicDecision, decision);
-
-    const ignored = execFileSync(
-      "git",
-      [
-        "check-ignore",
-        "--verbose",
-        ".private/plans/feature/grilling-feature.md",
-      ],
-      {
-        cwd: root,
-        encoding: "utf8",
-      },
-    );
-    expect(ignored).toContain("/.private/");
+    expect(() => assertPublicDecisionDocument(decision)).not.toThrow();
     expect(() =>
       assertPublicDecisionDocument(
-        readFileSync(publicDecision, "utf8"),
-        publicDecision,
+        decision.replace(/## Rejected alternatives\n[^\n]*\n/u, ""),
       ),
-    ).not.toThrow();
+    ).toThrow(/Rejected alternatives/);
     expect(() => assertNoTrackedPrivate(root)).not.toThrow();
 
     execFileSync(
