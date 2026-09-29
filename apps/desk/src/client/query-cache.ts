@@ -13,6 +13,8 @@ export const deskKeys = {
   topBar: ["desk-top-bar"] as const,
   plugins: ["plugin"] as const,
   release: ["release-status"] as const,
+  /** The last remote check's answer, which local status reads don't carry. */
+  releaseCheck: ["release-check"] as const,
   sessions: ["sessions"] as const,
   messages: (sessionId: string) => ["sessions", sessionId, "messages"] as const,
   models: ["models"] as const,

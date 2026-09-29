@@ -18,6 +18,7 @@ import { PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { type Destination, destinations } from "./destinations";
+import { UpdateIndicator } from "./update-indicator";
 
 export interface NavRailProps {
   className?: string;
@@ -199,6 +200,7 @@ export function NavRail({
               Settings
             </span>
           </SidebarLink>
+          <UpdateIndicator compactible={Boolean(persistent)} />
         </SidebarFooter>
       </Sidebar>
     </div>

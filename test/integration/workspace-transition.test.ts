@@ -1,19 +1,12 @@
+import { fixture, roots } from "../helpers/workspace-transition-fixture";
+import { workspaceTransitionChat } from "../../scripts/update/workspace-transition-chat.mjs";
 import { applyUpdate } from "../../scripts/update/apply-operation.mjs";
 import {
   installDevice,
   rebuildDevice,
 } from "../../scripts/install/runtime-device.mjs";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { join, dirname } from "node:path";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   applyWorkspaceTransition,
@@ -27,130 +20,7 @@ import {
   bootstrapRuntime,
   prepareManagedRuntime,
 } from "../../scripts/dev/runtime-prepare.mjs";
-import { MANAGED_CORE_FILES } from "../../scripts/dev/files.mjs";
 
-// MCP fixture is configureFreshProfile's exact pre-workspace native setter
-// payload at 562dfc9. Native dotted setter/readback is independently qualified.
-const roots: string[] = [];
-function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "pythia-workspace-transition-"));
-  roots.push(root);
-  const paths = {
-    id: "synthetic",
-    profile: "pythia-synthetic",
-    profileRoot: join(root, "profile"),
-    repositoryRoot: join(root, "checkout"),
-    configRoot: join(root, "config"),
-    hermesRoot: join(root, "hermes"),
-    hermesSource: join(root, "hermes-source"),
-    workspace: join(root, "workspace"),
-    knowledge: join(root, "knowledge"),
-    stateRoot: join(root, "state"),
-    runtimeReceipt: join(root, "state/runtime.json"),
-    profileInitialization: join(root, "state/profile-initialization.json"),
-    receipt: join(root, "state/foreground.json"),
-    managedRoot: join(root, "managed"),
-    managedCore: join(root, "managed/core"),
-    legacyPython: join(root, "managed/python"),
-    ports: { memory: 22001, hermes: 22000, desk: 22002 },
-    cacheRoot: join(root, "cache"),
-    managedSkills: join(root, "managed/skills"),
-    deskViewState: join(root, "state/desk-view"),
-  };
-  const write = (path: string, text: string) => {
-    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-    writeFileSync(path, text, { mode: 0o600 });
-  };
-  write(join(paths.profileRoot, "config.yaml"), "synthetic: original config\n");
-  write(
-    join(paths.configRoot, "secrets.json"),
-    JSON.stringify({ hermes_api_key: "synthetic-not-a-credential" }),
-  );
-  write(paths.runtimeReceipt, JSON.stringify({ basic_memory: "0.23.2" }));
-  write(
-    paths.profileInitialization,
-    JSON.stringify({
-      schema_version: 1,
-      stack: paths.id,
-      repository: paths.repositoryRoot,
-      profile: paths.profile,
-      hermes_root: paths.hermesRoot,
-      state_root: paths.stateRoot,
-      profile_initially_absent: true,
-      status: "complete",
-    }),
-  );
-  write(
-    join(paths.knowledge, "company/source.md"),
-    "# Evidence\n[Details](details.md)\n[[Legacy link]]\n",
-  );
-  write(
-    join(paths.knowledge, "company/details.md"),
-    "Synthetic research, 2026-09-14.\n",
-  );
-  write(
-    join(paths.workspace, "existing.md"),
-    "Investor-owned existing research.",
-  );
-  write(
-    join(paths.legacyPython, ".venv/bin/basic-memory"),
-    "synthetic preserved executable",
-  );
-  for (const name of MANAGED_CORE_FILES)
-    write(join(paths.managedCore, name), `synthetic managed ${name}`);
-  for (const [source, target] of [
-    ["workspace/AGENTS.md", join(paths.workspace, "AGENTS.md")],
-    ["workspace/README.md", join(paths.workspace, "README.md")],
-    ["profile/SOUL.md", join(paths.profileRoot, "SOUL.md")],
-  ]) {
-    write(
-      join(paths.repositoryRoot, "runtime/seeds", source),
-      `New guidance: ${source}\n`,
-    );
-    write(target, `Customized old guidance: ${source}\n`);
-  }
-  let mcp: Record<string, unknown> | null = {
-    url: "http://127.0.0.1:22001/mcp",
-    enabled: true,
-    timeout: 30,
-    connect_timeout: 10,
-    supports_parallel_tool_calls: false,
-    tools: { resources: true, prompts: true },
-  };
-  const calls: string[][] = [];
-  const nativeConfig = (_paths: unknown, args: string[]) => {
-    calls.push(args);
-    if (args[0] === "get") return mcp;
-    expect(args).toEqual(["set", "mcp_servers.basic-memory.enabled", "false"]);
-    mcp = { ...mcp, enabled: false };
-    write(
-      join(paths.profileRoot, "config.yaml"),
-      "synthetic: native disabled owned binding\n",
-    );
-    return null;
-  };
-  const options = () => ({
-    nativeConfig,
-    pluginDoctor: () => undefined,
-    expected: previewWorkspaceTransition(paths, { nativeConfig }).expected,
-    adoptSeeds: [
-      "workspace/AGENTS.md",
-      "workspace/README.md",
-      "profile/SOUL.md",
-    ],
-  });
-  return {
-    root,
-    paths,
-    write,
-    calls,
-    nativeConfig,
-    options,
-    setMcp(value: Record<string, unknown>) {
-      mcp = value;
-    },
-  };
-}
 afterEach(() => {
   for (const root of roots.splice(0))
     rmSync(root, { recursive: true, force: true });
@@ -161,8 +31,9 @@ describe("explicit workspace storage transition", () => {
     const f = fixture();
     const local = join(f.paths.profileRoot, "plugins/pythia/plugin.yaml");
     f.write(local, "name: investor-owned\n");
+    // Ownership is checked before the receipt, the import or any native change.
     expect(() => applyWorkspaceTransition(f.paths, f.options())).toThrow(
-      /preserved a locally owned/,
+      /ownership is unrecognized.*Preserved without changes/,
     );
     expect(readFileSync(local, "utf8")).toBe("name: investor-owned\n");
     expect(() => assertStagedWorkspaceTransition(f.paths)).toThrow(/No staged/);
@@ -299,6 +170,146 @@ describe("explicit workspace storage transition", () => {
         pluginDoctor: () => undefined,
       }),
     ).toThrow("symlink");
+  });
+
+  it("stages the actual two-file shipped plugin and opens only an interactive native recovery chat", () => {
+    const f = fixture();
+    for (const name of ["__init__.py", "plugin.yaml"])
+      f.write(
+        join(f.paths.profileRoot, "plugins", "pythia", name),
+        readFileSync(
+          join(process.cwd(), "test/fixtures/plugin-562dfc9", name),
+          "utf8",
+        ),
+      );
+    f.write(
+      join(
+        f.paths.profileRoot,
+        "plugins/pythia/__pycache__/__init__.cpython-312.pyc",
+      ),
+      "generated bytecode",
+    );
+    const installed = {
+      ...f.paths,
+      id: "production",
+      unitRoot: join(f.root, "units"),
+      runtimeRoot: join(f.root, "runtime"),
+      dataRoot: join(f.root, "data"),
+      binRoot: join(f.root, "bin"),
+    };
+    const ownership = JSON.parse(
+      readFileSync(installed.profileInitialization, "utf8"),
+    );
+    f.write(
+      installed.profileInitialization,
+      JSON.stringify({ ...ownership, stack: installed.id }),
+    );
+    const options = {
+      nativeConfig: f.nativeConfig,
+      inspectLegacyService: () => ({ owned: true }),
+    };
+    const preview = previewWorkspaceTransition(installed, options);
+    expect(preview.plugin.safe).toBe(true);
+    let launched = false;
+    expect(() =>
+      workspaceTransitionChat(installed, {
+        spawnSync() {
+          launched = true;
+        },
+      }),
+    ).toThrow("staged");
+    expect(launched).toBe(false);
+    const secrets = readFileSync(join(f.paths.configRoot, "secrets.json"));
+    const staged = applyWorkspaceTransition(installed, {
+      ...options,
+      expected: preview.expected,
+      adoptSeeds: [
+        "workspace/AGENTS.md",
+        "workspace/README.md",
+        "profile/SOUL.md",
+      ],
+      pluginDoctor: () => undefined,
+    });
+    expect(staged.phase).toBe("staged");
+    expect(readFileSync(join(f.paths.configRoot, "secrets.json"))).toEqual(
+      secrets,
+    );
+    const result = workspaceTransitionChat(installed, {
+      spawnSync(
+        executable: string,
+        args: string[],
+        launch: { cwd: string; env: Record<string, string>; stdio: string },
+      ) {
+        launched = true;
+        expect(executable).toBe(
+          join(installed.hermesSource, ".venv/bin/hermes"),
+        );
+        expect(args).toEqual(["-p", installed.profile, "chat"]);
+        expect(launch.cwd).toBe(installed.workspace);
+        expect(launch.env.HERMES_HOME).toBe(installed.hermesRoot);
+        expect(launch.env.PYTHIA_WORKSPACE).toBe(installed.workspace);
+        expect(launch.env.API_SERVER_KEY).toBeUndefined();
+        expect(launch.stdio).toBe("inherit");
+        return { status: 0 };
+      },
+    });
+    expect(launched).toBe(true);
+    expect(result.status).toBe("checkpoint-pending");
+    expect(workspaceTransitionStatus(installed)).toBe("staged");
+  });
+
+  it("reports unrecognized plugin ownership before imports, seed changes or MCP disable", () => {
+    const f = fixture();
+    const plugin = join(f.paths.profileRoot, "plugins", "pythia");
+    f.write(join(plugin, "__init__.py"), "Investor plugin customization");
+    const seed = readFileSync(join(f.paths.workspace, "AGENTS.md"));
+    const config = readFileSync(join(f.paths.profileRoot, "config.yaml"));
+    const preview = previewWorkspaceTransition(f.paths, {
+      nativeConfig: f.nativeConfig,
+    });
+    expect(preview.plugin.safe).toBe(false);
+    expect(() => applyWorkspaceTransition(f.paths, f.options())).toThrow(
+      plugin,
+    );
+    expect(readFileSync(join(f.paths.workspace, "AGENTS.md"))).toEqual(seed);
+    expect(readFileSync(join(f.paths.profileRoot, "config.yaml"))).toEqual(
+      config,
+    );
+    expect(f.calls.some((args) => args[0] === "set")).toBe(false);
+    expect(existsSync(join(f.paths.workspace, "imported-research-1"))).toBe(
+      false,
+    );
+    expect(workspaceTransitionStatus(f.paths)).toBe(null);
+  });
+
+  it("preserves a plugin edited after interrupted research copying on retry", () => {
+    const f = fixture();
+    expect(() =>
+      applyWorkspaceTransition(f.paths, {
+        ...f.options(),
+        afterCopy() {
+          throw new Error("interrupted");
+        },
+      }),
+    ).toThrow("interrupted");
+    const statePath = join(f.paths.stateRoot, "workspace-transition.json");
+    const state = JSON.parse(readFileSync(statePath, "utf8"));
+    f.write(
+      join(f.paths.profileRoot, "plugins/pythia/__init__.py"),
+      "Custom plugin",
+    );
+    const seed = readFileSync(join(f.paths.workspace, "AGENTS.md"));
+    expect(() =>
+      applyWorkspaceTransition(f.paths, { nativeConfig: f.nativeConfig }),
+    ).toThrow("ownership");
+    expect(readFileSync(join(f.paths.workspace, "AGENTS.md"))).toEqual(seed);
+    expect(f.calls.some((args) => args[0] === "set")).toBe(false);
+    expect(JSON.parse(readFileSync(statePath, "utf8")).importRoot).toBe(
+      state.importRoot,
+    );
+    expect(existsSync(join(f.paths.workspace, "imported-research-2"))).toBe(
+      false,
+    );
   });
 
   it("resumes interrupted copy/config without replacing research or original config backup", () => {

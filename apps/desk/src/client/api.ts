@@ -207,8 +207,17 @@ export class DeskApi extends BrowserRequest {
     return this.json<DeviceSettingsSnapshot>("/api/settings");
   }
 
-  updateStatus() {
-    return this.json<DeskReleaseStatus>("/api/update-status");
+  updateStatus(check = false) {
+    return this.json<DeskReleaseStatus>(
+      `/api/update-status${check ? "?check=1" : ""}`,
+    );
+  }
+
+  startUpdate(expected: { current: string; target: string }) {
+    return this.json<{ started: true; target_revision: string }>(
+      "/api/update-status",
+      { method: "POST", body: JSON.stringify(expected) },
+    );
   }
 
   async setSkillEnabled(name: string, enabled: boolean) {

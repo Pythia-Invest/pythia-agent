@@ -176,6 +176,15 @@ mutation lock, asks the lifecycle owner to restart Hermes, and reports success
 only after the authenticated native API shows the requested state. It does not
 infer mismatches or modify another platform.
 
+Settings › Updates shows the version and update status: Check now, Update
+now for an available installed-device build, progress through the restart,
+and **Reload Desk** once the selected build is active. Desk checks once a day
+while open; an entry in the navigation footer appears only when an update is
+ready, installing or needs a reload, and opens the same controls. Dirty source
+is preserved and refused; development cannot apply installed updates. See
+[ADR 0017](../../docs/decisions/0017-updates-from-desk.md) for the update,
+reconnection and host recovery boundaries.
+
 Provider setup belongs to the respective connector. Core no longer exposes
 the original SEC identity and EODHD token controls or their write routes.
 Previously saved values remain untouched. Stored secrets, the Hermes bearer
