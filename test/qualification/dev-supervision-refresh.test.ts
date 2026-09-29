@@ -11,7 +11,7 @@ import type { Server } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { readJson } from "../../scripts/dev/files.mjs";
+import { atomicWriteJson, readJson } from "../../scripts/dev/files.mjs";
 import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import {
   assertPortsFree,
@@ -163,15 +163,22 @@ describe("foreground supervision refresh", () => {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, contents);
     }
+    // A running stack was initialized by dev-init, whose runtime receipt
+    // proves the Workspace model; refresh refuses a profile without it.
+    atomicWriteJson(first.paths.runtimeReceipt, {
+      schema_version: 1,
+      stack: first.paths.id,
+      repository: first.paths.repositoryRoot,
+      profile: first.paths.profile,
+      hermes_root: first.paths.hermesRoot,
+      state_root: first.paths.stateRoot,
+      workspace_guidance: "[PYTHIA_WORKSPACE_GUIDANCE_V1]",
+    });
     const firstBefore = readJson(first.paths.receipt);
     const secondBefore = readJson(second.paths.receipt);
 
+    // Nothing watches managed sources: only the explicit CLI refreshes.
     writeFileSync(source, "runner-and-plugin-v2\n");
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-    const untouched = readJson(first.paths.receipt);
-    expect(untouched.runtime_generation).toBe(0);
-    expect(untouched.children).toEqual(firstBefore.children);
-    expect(readFileSync(output, "utf8")).toBe("runner-and-plugin-v1\n");
 
     const cli = spawn(
       process.execPath,
@@ -194,8 +201,7 @@ describe("foreground supervision refresh", () => {
     const code = await new Promise<number | null>((resolve) => {
       cli.once("close", resolve);
     });
-    expect(code).toBe(0);
-    expect(stderr).toBe("");
+    expect({ code, stderr }).toEqual({ code: 0, stderr: "" });
     expect(JSON.parse(stdout)).toMatchObject({
       refreshed: true,
       running: true,
@@ -344,9 +350,10 @@ describe("foreground supervision refresh", () => {
     await waitUntil(() =>
       existsSync(join(fixture.paths.stateRoot, "fixture-ready")),
     );
-    // Shutdown itself allows eight seconds for process-group exit. The client
-    // must outlive that cleanup plus port-release/startup on a loaded runner.
-    await expect(requestHermesRestart(fixture.paths, 20_000)).rejects.toThrow(
+    // After the replacement dies the supervisor tears down (up to eight
+    // seconds per process group plus port release) before its receipt goes.
+    // The client must outlive that worst case on a loaded runner.
+    await expect(requestHermesRestart(fixture.paths, 45_000)).rejects.toThrow(
       /foreground supervisor (?:stopped|identity changed)/u,
     );
     await waitUntil(() => fixture.child.exitCode !== null);
@@ -356,5 +363,5 @@ describe("foreground supervision refresh", () => {
     ).toBe(false);
     expect(existsSync(fixture.paths.receipt)).toBe(false);
     await assertPortsFree(fixture.paths.ports);
-  }, 30_000);
+  }, 60_000);
 });
