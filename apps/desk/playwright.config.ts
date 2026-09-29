@@ -20,6 +20,8 @@ export default defineConfig({
   testDir: "./e2e",
   testIgnore: process.env.PYTHIA_E2E_HERMETIC ? ["live/**"] : [],
   fullyParallel: true,
+  // CI runners have four CPUs; Playwright's default would use two.
+  ...(process.env.CI ? { workers: 4 } : {}),
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: process.env.CI ? "github" : "list",
