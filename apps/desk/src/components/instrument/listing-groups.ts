@@ -43,6 +43,7 @@ function homeNote(
   listing: SubjectListing,
   listings: readonly SubjectListing[],
 ) {
+  if (!(listing.venue ?? listing.mic)) return null;
   if (listing.primary) return "home";
   if (listing.most_liquid) return "most liquid EU line";
   const lead = listings.find((line) => !line.folded);

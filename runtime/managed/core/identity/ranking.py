@@ -72,7 +72,7 @@ def score_lines(lines: Iterable[dict], query: str, prefer: str, *, exact: str | 
             score += W["fuzzy"]
         # The representative listing of an instrument: lexicographic, not additive. A listing the query names
         # first (its venue, or its exact ticker unless the query is also the name: "relx", "ing"), then the
-        # preferred region, then any line but OTC, then the company's own shares over a receipt folded into them
+        # preferred region, then any line but OTC, then the company's own shares over a non-US receipt folded into them
         # (a receipt's home and primary line, such as a Toronto CDR, never represents the shares; an ADR still
         # beats the shares' OTC line), then a regulated listing over open-market trading (ARM's Nasdaq line over
         # its Stuttgart open-market line), then the home and primary market, then a line an installed plugin can
@@ -82,7 +82,7 @@ def score_lines(lines: Iterable[dict], query: str, prefer: str, *, exact: str | 
         classes = priced.get(line["mic"] or "")
         priceable = classes is not None and (not classes or ("crypto" if line["crypto"] else "equity") in classes)
         venue = -VENUE_ORDER.index(line["mic"]) if line["mic"] in VENUE_ORDER else -len(VENUE_ORDER)
-        key = (int(venue_hit), int(exact_hit and not named), int(preferred), -line["otc"], -line["dr"], line["reg"],
+        key = (int(venue_hit), int(exact_hit and not named), int(preferred), -line["otc"], -(line["dr"] and not line["fus"]), line["reg"],
                -line["fus"], -line["deriv"], line["home"], line["prim"], int(priceable), line["size"] or 0, venue,
                line["listing"])
         out.append((score, line, key))

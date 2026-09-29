@@ -90,7 +90,7 @@ describe("the lead line's home", () => {
       "XNYS",
     ]);
     // A crypto deployment has no venue, so no home to know.
-    const chain = line("usdc", { ticker: "USDC" });
+    const chain = line("usdc", { ticker: "USDC", primary: true });
     expect(listingLabel(chain, [chain])).toBe("USDC · EUR");
   });
 });
