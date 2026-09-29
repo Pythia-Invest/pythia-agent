@@ -49,14 +49,12 @@ class Reference(unittest.TestCase):
         for fixture in (load("asml.json"), load("crypto.json"), APPLE):
             load_reference(self.ref, fixture)
         self.ref.row_factory = sqlite3.Row
-        self.coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
 
     def tearDown(self):
         self.ref.close()
 
     def lookups(self, **extra):
-        return {"stored": lambda *_: None, "coins": lambda provider, caip19: self.coins.get((provider, caip19)),
-                "queue": [], **extra}
+        return {"stored": lambda *_: None, "queue": [], **extra}
 
     def sections(self, name, plugins=None, **extra):
         subject = page.load_subject(self.ref, SUBJECTS[name])

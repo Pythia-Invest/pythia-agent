@@ -38,6 +38,11 @@ do not prove cross-provider equivalence. Keep issuer, instrument, listing and
 source-series identity distinct. Core owns identity ([ADR 0037](../../docs/decisions/0037-identity-backbone.md),
 [ADR 0038](../../docs/decisions/0038-plugin-addressing-contract.md)); unresolved associations stay unresolved.
 
+A connector declares its own reference for a subject core keys (`addressing.subjects`)
+and the kinds of subject it may introduce (`introduces`) in its contract; core's
+maintained tables name no provider, and a plugin's name never makes an address
+confirmed.
+
 Register through Hermes and declare implemented common operations on the native
 tool schemas. Discovery/enablement remain native, not a second inventory. Declare
 concepts, coverage, qualities, filing authorities and provider rights in

@@ -12,11 +12,12 @@ from enum import StrEnum
 from pathlib import Path
 
 from .claims import (
-    BatchOrigin, Claim, ClaimBatch, ClaimEmitter, ClaimError, Deployment, EmitReceipt, IdentifierValue,
+    BatchOrigin, Claim, ClaimBatch, ClaimError, Deployment, EmitReceipt, IdentifierValue,
     RecordAttributes,
     RecordClaim, RelationClaim, batch_from_json, batch_to_json, check_batch,
 )
 from .concepts import REGISTRY, Combine, Concept, ConceptSpec, FilingAuthority, Licence
+from .declared import DECLARED_RULE, DeclaredRef
 from .live_market import LiveMarketError, validate_live_market
 from .manifest import (
     CONTRACT_VERSION, MANIFEST_FILE, CatalogueMode, ConceptEntry, Coverage, Manifest, ManifestError,

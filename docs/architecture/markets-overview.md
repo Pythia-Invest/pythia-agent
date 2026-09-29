@@ -48,9 +48,12 @@ core's curated table, `runtime/managed/core/identity/markets.json`
 ([ADR 0043](../decisions/0043-live-market-view.md), amendment "indexes, pairs,
 yields and futures"), beside the Hyperliquid perp. A continuous front-month
 future is a `market` (`market:pythia:cme-es-front-month`) whose
-`derivative_on` is its index. Yahoo's contract declares its `symbol` scope at
-the `market`, `index`, `fx` and `series` kinds. Crypto assets and listings use
-their reference subjects.
+`derivative_on` is its index. The table names no provider: Yahoo's contract
+declares its `symbol` scope at the `market`, `index`, `fx` and `series` kinds
+and its symbol for each of these subjects (`addressing.subjects`), and
+Hyperliquid's contract its coin for the perp (ADR 0043, amendment "each plugin
+declares its own reference"). Crypto assets and listings use their reference
+subjects.
 
 ## Configuration
 

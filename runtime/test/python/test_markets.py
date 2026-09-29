@@ -20,7 +20,7 @@ movers = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(movers)
 
 SP500 = "index:pythia:sp500"
-LOOKUPS = {"stored": lambda target, provider: None, "coins": lambda provider, caip19: None, "queue": []}
+LOOKUPS = {"stored": lambda target, provider: None, "queue": []}
 
 
 def quote(symbol="NVDA", **fields):

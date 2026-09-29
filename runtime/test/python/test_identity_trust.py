@@ -191,7 +191,7 @@ class InstalledTest(TrustCase):
         subject = page.load_subject(self.ref, ASML)
         stored = {row["provider"]: row for row in self.identity.bindings([ASML], ("confirmed",))}
         return {section["section"]: section for section in page.compose(
-            subject, [info], stored=lambda _target, provider: stored.get(provider), coins=lambda *_: None, queue=[])}
+            subject, [info], stored=lambda _target, provider: stored.get(provider), queue=[])}
 
     def bind(self, info: page.PluginInfo) -> None:
         record = {"level": "listing", "provenance": PROVENANCE, "identifiers": [{"scheme": "isin", "value": "NL0010273215"}],

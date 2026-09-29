@@ -243,3 +243,112 @@ rule, a plugin labelling its own rows as reference data, is met by bounding
 what claims can establish by claim type and trust level, with trust attached
 to a signed or hashed release rather than to a plugin name. Until that lands,
 the reference builder remains the only writer of the reference store.
+
+## Amendment (2026-09-30): contract version 2, introduced subjects and a plugin's own addresses
+
+**Status: accepted and implemented** (roadmap stage 0). [ADR 0044](0044-product-direction.md)
+A1, A3 and A4 let any plugin introduce subjects under declared identifier
+schemes, and rule out authority that comes from a source's name. Core's
+maintained tables did both jobs at once: `markets.json` named each index's
+Yahoo symbol and the BTC perp's Hyperliquid coin, and `canonical_assets.json`
+named each asset's CoinGecko and CoinMarketCap coin ids and their chain ids.
+Pages marked those addresses `confirmed` because the table said so. Keying an
+address by a provider's name is authority by name, and a new source for an
+index or a coin needed a core change.
+
+Version 2 adds three declarations (`identity/declared.py`) and widens two claim
+shapes. Every shipped contract is version 2.
+
+CoinGecko's addressing, abridged:
+
+```json
+"addressing": {
+  "native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}],
+  "subjects": {"security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0":
+               {"native_scope": "coin", "native_id": "bitcoin"}},
+  "chain_codes": {"ethereum": "eip155:1"}
+}
+```
+
+A DeFi source that keys pools and protocols by its own references and names
+token deployments by CAIP-19 would declare
+`"introduces": {"market": ["native"], "protocol": ["native"], "listing": ["caip19"]}`
+beside native scopes at `market` and `protocol`.
+
+- **`addressing.subjects`** maps a subject core keys, by an open identifier
+  or a Pythia key, to the plugin's own reference for it. The native scope must
+  be one the contract declares at the subject's kind; a provisional ID is not
+  core-keyed and is refused, and one reference names one subject. Page
+  composition derives the address from it without a call, under rule
+  `declared_ref@1`, before any other derivation.
+  - The address is `confirmed` when the plugin's files are granted confirm
+    ([ADR 0042](0042-source-onboarding-standard.md), amendment of
+    2026-09-30), and `derived` otherwise. A display plugin's declaration is an
+    address, shown with its source, never a confirmation.
+  - A confirm-level declaration also aliases the plugin's provisional ID for
+    that reference (`security:provisional:coingecko:coin:bitcoin`) to the
+    subject. `subject.current_id` follows these aliases with the reference's
+    own, so an ID saved before the subject was keyed keeps resolving once the
+    package stops carrying the alias. A display-level declaration never
+    aliases, because a lone display claim could otherwise re-point saved IDs
+    (A3: the absence of competing evidence never increases authority), and a
+    provisional ID two declarations give different subjects stays unaliased.
+- **`addressing.chain_codes`** maps the provider's own chain ids to CAIP-2
+  chains, for the token deployments it names. Core reads none of it yet; the
+  drift check and the reference build do.
+- **`introduces`** maps a registered subject kind to the key schemes the
+  plugin's subjects of that kind may use: an open scheme registered for the
+  kind (`KEY_SCHEMES`), or `native`, the plugin's own reference in a native
+  scope it declares at that kind (`<kind>:provisional:<provider>:<scope>:<id>`,
+  unchanged). `provisional` and `pythia` are not a plugin's to name.
+  `validate_manifest` checks each kind, each scheme and that `native` has a
+  scope. Core's ingest will apply it per record: a record the plugin may not
+  introduce stays an unmatched claim rather than rejecting its batch.
+- **Claim shapes.** A `RecordClaim` may sit at a registered kind outside the
+  hierarchy (a market, a protocol); such a record carries no identifiers and is
+  keyed by its native reference. A `RelationClaim` endpoint may be the
+  emitting plugin's own declared native reference as well as a global
+  identifier; `check_batch` checks it like a binding, refuses another
+  provider's reference or an undeclared scope, and checks the relation's kinds
+  against the kinds the contract declares that scope at. On the wire such an
+  endpoint is `{"provider", "native_scope", "native_id"}`.
+- **Relations.** `part_of` (a market to its protocol) and `market_asset` (a
+  market to a listing or security it holds or trades), both `related`.
+- **Version.** Core reads versions 1 and 2. A version 1 contract that uses a
+  version 2 field is refused, naming the field, rather than read as version 2.
+
+Superseded: "through `identity.emitter()`" (the unused `ClaimEmitter` protocol
+is deleted; plugins return claim batches from operations core dispatches),
+"core's curated canonical-asset table (rule `canonical_assets@1`, a confirmed
+binding)" among the derived addresses, and ADR 0043's "core's curated table
+supplies the reference". Core no longer reads a provider column from the
+reference package.
+
+Consequences:
+
+- `markets.json` and `canonical_assets.json` stay Pythia's maintained subject
+  lists, without provider columns. Yahoo's contract declares the 22 index,
+  future, pair and yield subjects, Hyperliquid's the BTC perp, and the
+  CoinGecko and CoinMarketCap contracts each curated asset and their chain ids.
+- A renamed copy of a coin plugin serves the same subjects under the same
+  rule, at whatever level its files are granted.
+- The Hyperliquid perp's address is now `derived`: the plugin ships
+  unsigned.
+- The reference package keeps its `canonical_assets` and `provider_chains`
+  tables and the provisional-coin aliases until its next format; the builder
+  fills them from the coin plugins' contracts meanwhile, and
+  `just canonical-assets-drift` reads the coin ids and chain ids there.
+- Editing a shipped contract changes its plugin's digest; the release grants
+  are regenerated when the payload is assembled.
+
+Rejected alternatives:
+
+- **Keeping the provider columns and trusting them only for audited
+  plugins.** The table would still name providers, and a new source for an
+  index or coin would still need a core change.
+- **A separate addresses file per plugin.** A second mechanism beside the
+  contract core already validates without running plugin code.
+- **Aliasing on any declaration.** A display plugin could re-point a saved
+  ID, which A3 rules out.
+- **Refusing a batch whose record the plugin may not introduce.** One such
+  record would hide the plugin's valid evidence; it stays an unmatched claim.

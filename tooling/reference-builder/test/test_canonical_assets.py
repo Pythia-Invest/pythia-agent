@@ -42,11 +42,10 @@ class SeedTest(unittest.TestCase):
                     seen.add(deployment)
                 self.assertEqual(asset["kind"] == "coin", "/slip44:" in asset["caip19"])
                 self.assertIn(asset["caip19"], AUDIT, "every row's evidence is in the audit note")
-        for provider in drift.PROVIDERS:
-            ids = [asset[provider] for asset in SEED["assets"]]
-            self.assertEqual(len(ids), len(set(ids)), f"{provider} ids are unique")
-        for row in SEED["provider_chains"]:
-            self.assertIn(row["caip2"], chains)
+        for provider in drift.PROVIDERS:  # each coin plugin's contract names its coin id for every curated asset
+            addressing = drift.declared(provider)
+            self.assertEqual(len(drift.coins(SEED, addressing)), len(SEED["assets"]), provider)
+            self.assertLessEqual(set(addressing["chain_codes"].values()), chains)
         for asset in SEED["assets"]:
             if "wraps" in asset:  # related, never merged: the underlying is another curated asset
                 self.assertIn(asset["wraps"], {other["caip19"] for other in SEED["assets"]} - {asset["caip19"]})
@@ -69,19 +68,19 @@ class ReferenceTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_coingecko_only_and_coinmarketcap_only_installs_address_one_subject_per_curated_asset(self):
-        coins = {(provider, caip19): native for (provider, native), caip19 in self.canonical.items()}
+        declared = {provider: drift.coins(SEED, drift.declared(provider)) for provider in drift.PROVIDERS}
         for asset in SEED["assets"]:
             with self.subTest(asset=asset["symbol"]):
                 subject_id = f"security:caip19:{asset['caip19']}"  # built with no provider installed
-                self.assertEqual({self.canonical[(provider, asset[provider])] for provider in drift.PROVIDERS},
-                                 {asset["caip19"]})
+                self.assertEqual({self.canonical[(provider, declared[provider][asset["caip19"]])]
+                                  for provider in drift.PROVIDERS}, {asset["caip19"]})
                 subject = page.load_subject(self.ref, subject_id)
                 for provider in drift.PROVIDERS:  # one installed coin plugin addresses that same subject
                     quote = next(section for section in page.compose(
-                        subject, [self.contracts[provider]], stored=lambda *_: None, queue=[],
-                        coins=lambda p, caip19: coins.get((p, caip19))) if section["section"] == "quote")
+                        subject, [self.contracts[provider]], stored=lambda *_: None, queue=[])
+                        if section["section"] == "quote")
                     self.assertEqual((quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
-                                     ("ready", asset[provider], "confirmed"))
+                                     ("ready", declared[provider][asset["caip19"]], "confirmed"))
 
     def test_an_id_minted_before_curation_aliases_to_the_curated_subject(self):
         for provider, native_id in (("coingecko", "usd-coin"), ("coinmarketcap", "3408")):
@@ -94,9 +93,7 @@ class ReferenceTest(unittest.TestCase):
         self.assertEqual(len(base["view"]["listings"]), 8)
         sui = page.load_subject(self.ref, identity.subject_id("listing", {"caip19": f"sui:mainnet/coin:{SUI_COIN}"}))
         self.assertEqual((sui["id"], sui["ids"][identity.Level.SECURITY]), (f"listing:caip19:{USDC_SUI}", f"security:caip19:{USDC}"))
-        coins = {(provider, caip19): native for (provider, native), caip19 in self.canonical.items()}
-        quote = page.compose(base, [self.contracts["coingecko"]], stored=lambda *_: None, queue=[],
-                             coins=lambda p, caip19: coins.get((p, caip19)))[0]
+        quote = page.compose(base, [self.contracts["coingecko"]], stored=lambda *_: None, queue=[])[0]
         self.assertEqual(quote["binding"]["native_id"], "usd-coin")  # a deployment's page reads its asset's coin id
         wbtc = page.load_subject(self.ref, f"security:caip19:{WBTC}")
         self.assertEqual(wbtc["view"]["related"], [{"id": f"security:caip19:{BTC}", "type": "wraps", "direction": "to",
@@ -108,17 +105,16 @@ class ReferenceTest(unittest.TestCase):
 
 
 class DriftTest(unittest.TestCase):
-    SEED = {"provider_chains": [{"provider": "coingecko", "chain": "ethereum", "caip2": "eip155:1"},
-                                {"provider": "coingecko", "chain": "base", "caip2": "eip155:8453"},
-                                {"provider": "coingecko", "chain": "sui", "caip2": "sui:mainnet"}],
-            "assets": [{"caip19": USDC, "symbol": "USDC", "deployments": [USDC_BASE, "eip155:42161/erc20:0xaf88", USDC_SUI],
-                        "coingecko": "usd-coin"},
-                       {"caip19": BTC, "symbol": "BTC", "coingecko": "bitcoin"}]}
+    SEED = {"assets": [{"caip19": USDC, "symbol": "USDC", "deployments": [USDC_BASE, "eip155:42161/erc20:0xaf88", USDC_SUI]},
+                       {"caip19": BTC, "symbol": "BTC"}]}
+    DECLARED = {"chain_codes": {"ethereum": "eip155:1", "base": "eip155:8453", "sui": "sui:mainnet"},  # its contract
+                "subjects": {f"security:caip19:{USDC}": {"native_scope": "coin", "native_id": "usd-coin"},
+                             f"security:caip19:{BTC}": {"native_scope": "coin", "native_id": "bitcoin"}}}
     ETH_USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"  # checksummed: EVM addresses compare case-insensitively
     BASE_USDC = USDC_BASE.split(":")[-1]
 
-    def findings(self, listed):
-        return drift.check(self.SEED, "coingecko", listed)
+    def findings(self, listed, declared=DECLARED):
+        return drift.check(self.SEED, declared, "coingecko", listed)
 
     def listed(self, **chains):
         return {"usd-coin": {"ethereum": {self.ETH_USDC}, "base": {self.BASE_USDC}, "sui": {SUI_COIN}} | chains}
@@ -143,6 +139,9 @@ class DriftTest(unittest.TestCase):
                 found = self.findings(listed)
                 self.assertEqual(len(found), 1, found)
                 self.assertTrue(re.search(re.escape(expected), found[0]), found[0])
+        # A curated asset its plugin's contract names no coin id for is drift too, not a skipped row.
+        bitcoin = {**self.DECLARED, "subjects": {f"security:caip19:{BTC}": self.DECLARED["subjects"][f"security:caip19:{BTC}"]}}
+        self.assertEqual(self.findings({"bitcoin": {}}, bitcoin), ["coingecko (USDC): its contract declares no coin id"])
 
     def test_coinmarketcap_chains_follow_the_connector_network_key(self):
         data = {"3408": {"contract_address": [

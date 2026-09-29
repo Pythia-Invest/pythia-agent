@@ -32,13 +32,15 @@ CONTRACTS = {
               "concepts": {"profile": {"level": "issuer", "via": "issuer", "operations": {"fields": "profile"}}},
               "resolve": {"operation": "resolve", "input_schemes": ["lei"], "echoes": ["lei"]}, "rights": OPEN,
               "signoff": OLD},
-    "coinmarketcap": {"contract_version": 1, "plugin": "coinmarketcap", "provider": "coinmarketcap",
-                      "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}]},
+    "coinmarketcap": {"contract_version": 2, "plugin": "coinmarketcap", "provider": "coinmarketcap",
+                      "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}],
+                                     "subjects": {BTC: {"native_scope": "coin", "native_id": "1"}}},
                       "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
                       "concepts": {"market_data": {**QUOTE, "level": "security", "via": "security"}},
                       "rights": {**OPEN, "licence": "business"}, "signoff": OLD},
-    "coingecko": {"contract_version": 1, "plugin": "coingecko", "provider": "coingecko",
-                  "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}]},
+    "coingecko": {"contract_version": 2, "plugin": "coingecko", "provider": "coingecko",
+                  "addressing": {"native": [{"native_scope": "coin", "level": "security", "asset_classes": ["crypto"]}],
+                                 "subjects": {BTC: {"native_scope": "coin", "native_id": "bitcoin"}}},
                   "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["coins"]},
                   "concepts": {"market_data": {**QUOTE, "level": "security", "via": "security"}},
                   "rights": {**OPEN, "licence": "business"}, "signoff": OLD},
@@ -67,10 +69,8 @@ class Fixture(unittest.TestCase):
         self.tmp.cleanup()
 
     def lookups(self, subject_id):
-        coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         stored = {(r["subject_id"], r["provider"]): r for r in self.identity.bindings([subject_id], ("confirmed",))}
-        return {"stored": lambda target, provider: stored.get((target, provider)),
-                "coins": lambda provider, caip19: coins.get((provider, caip19)), "queue": []}
+        return {"stored": lambda target, provider: stored.get((target, provider)), "queue": []}
 
     def compose(self, subject_id, plugins):
         subject = page.load_subject(self.ref, subject_id)
@@ -107,9 +107,9 @@ class PageTest(Fixture):
     def test_a_nordic_class_ticker_becomes_a_dashed_provider_symbol(self):
         contract = {**CONTRACTS["yahoo"], "addressing": {**CONTRACTS["yahoo"]["addressing"], "mic_table": {"XSTO": ".ST"}}}
         yahoo = page.PluginInfo(key="pythia-yahoo", manifest=identity.validate_manifest(contract))
-        subject = {"values": {}, "asset_class": "equity",
+        subject = {"ids": {}, "values": {}, "asset_class": "equity",
                    "listing": {"ticker": "VOLV B", "mic": "XSTO", "operating_mic": "XSTO", "status": "active"}}
-        ref, _rule = page.derive(yahoo, identity.Level.LISTING, subject, lambda provider, caip19: None)
+        ref, _rule = page.derive(yahoo, identity.Level.LISTING, subject)
         self.assertEqual(ref.native_id, "VOLV-B.ST")
         self.assertEqual(identity.normalize_identifier("ticker_mic", "VOLV B@XSTO"), "VOLV B@XSTO")
         for bloomberg in ("AAPL US@XNAS", "ASML NA@XAMS", "VOLV  B@XSTO"):
@@ -235,7 +235,7 @@ class SignOffGateTest(Fixture):
         # The page says the match waits for review, in words, never that the source has no match.
         self.identity.put_queue_item(item)
         [quote] = page.compose(page.load_subject(self.ref, ASML), [eodhd], queue=self.identity.open_queue([ASML]),
-                               stored=lambda *_: None, coins=lambda *_: None)
+                               stored=lambda *_: None)
         self.assertEqual((quote["status"], quote["queued"]), ("unresolved", "unaudited"))
         self.assertEqual(quote["reason"], "EODHD's answer is queued for review: the source is not yet audited, so its "
                                           "match waits for sign-off")
@@ -280,7 +280,7 @@ class ReviewFixesTest(Fixture):
         queue = self.identity.open_queue([ASML])
         subject = page.load_subject(self.ref, ASML)
         sections = {s["section"]: s for s in page.compose(subject, [plugin("eodhd"), plugin("yahoo")], queue=queue,
-                                                        stored=lambda *_: None, coins=lambda *_: None)}
+                                                        stored=lambda *_: None)}
         self.assertEqual(sections["quote"]["plugin"], "pythia-yahoo")
         self.assertEqual(sections["quote"]["skipped"][0]["code"], "conflict")
         self.assertIsNone(sections["quote"]["notice"])  # EODHD ranks after the free Yahoo: not a passed-over choice
@@ -294,7 +294,7 @@ class ReviewFixesTest(Fixture):
         self.identity.put_miss(ASML, "pythia-gleif", "old", -1)
         self.assertEqual(self.identity.misses(ASML), {"pythia-eodhd": "EODHD found no match"})
         subject = page.load_subject(self.ref, ASML)
-        [quote] = page.compose(subject, [plugin("eodhd")], queue=[], stored=lambda *_: None, coins=lambda *_: None,
+        [quote] = page.compose(subject, [plugin("eodhd")], queue=[], stored=lambda *_: None,
                                misses={(ASML, plugin): reason for plugin, reason in self.identity.misses(ASML).items()})
         self.assertEqual((quote["status"], quote["reason"]), ("unresolved", "EODHD found no match"))
 
@@ -319,21 +319,22 @@ class MarketPages(Fixture):
         self.hyperliquid = page.PluginInfo(key="pythia-hyperliquid", manifest=identity.validate_manifest(contract),
                                            operations={"live_market": "pythia_hyperliquid_live_market"})
 
-    def test_the_perp_page_is_one_live_section_addressed_by_the_curated_table(self):
+    def test_the_perp_page_is_one_live_section_addressed_by_the_plugins_own_reference(self):
         subject = markets.load_market(self.table, self.PERP)
         self.assertEqual(subject["view"]["related"][0], {"id": BTC, "type": "derivative_on", "direction": "to",
                                                          "kind": "security", "name": "Bitcoin"})
         sections = page.compose(subject, [self.hyperliquid, plugin("yahoo"), plugin("coingecko")],
-                                stored=lambda *_: None, coins=lambda *_: None, queue=[])
+                                stored=lambda *_: None, queue=[])
         self.assertEqual([section["section"] for section in sections], ["live"])
         live = sections[0]
-        # Unsigned (opt-in, display-only): once the investor enables it, the live view serves, labelled.
-        self.assertEqual((live["status"], live["binding_status"], live["unaudited"]), ("ready", "confirmed", True))
+        # Unsigned (opt-in, display-only): once the investor enables it, the live view serves at the address its own
+        # contract declares, labelled; a display plugin's declaration is an address, never confirmed.
+        self.assertEqual((live["status"], live["binding_status"], live["unaudited"]), ("ready", "derived", True))
         self.assertEqual(live["request"], {"plugin": "pythia-hyperliquid", "operation": "live_market", "arguments": {
             "native_ref": {"provider": "hyperliquid", "native_id": "BTC", "native_scope": "perp"},
             "subject_id": self.PERP}})
         disabled = page.PluginInfo(key="pythia-hyperliquid", manifest=self.hyperliquid.manifest, enabled=False)
-        self.assertEqual(page.compose(subject, [disabled], stored=lambda *_: None, coins=lambda *_: None,
+        self.assertEqual(page.compose(subject, [disabled], stored=lambda *_: None,
                                       queue=[])[0]["status"], "disabled")
         self.assertIsNone(markets.load_market(self.table, "market:pythia:unknown"))
 

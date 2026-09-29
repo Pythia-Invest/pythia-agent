@@ -304,11 +304,12 @@ class ManifestTest(unittest.TestCase):
 
     def test_a_newer_contract_needs_an_update_rather_than_being_invalid(self):
         # A future shape: fields this core has never seen are not reported as invalid.
-        document = {**copy.deepcopy(YAHOO), "contract_version": 2, "concepts": {"orderbook": {}}, "entitlements": {}}
+        future = identity.CONTRACT_VERSION + 1
+        document = {**copy.deepcopy(YAHOO), "contract_version": future, "concepts": {"orderbook": {}}, "entitlements": {}}
         with self.assertRaises(identity.ManifestNeedsUpdate) as caught:
             identity.validate_manifest(document)
-        self.assertEqual(caught.exception.version, 2)
-        self.assertEqual(identity.contract_version(document), 2)
+        self.assertEqual(caught.exception.version, future)
+        self.assertEqual(identity.contract_version(document), future)
 
 
 class ClaimTest(unittest.TestCase):
