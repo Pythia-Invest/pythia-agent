@@ -49,6 +49,10 @@ class ReadCheckTest(Fixture):
         quote = self.quote()
         return quote["status"], quote["binding_status"], bool(quote["verified_at"]), quote["unverified"]
 
+    def test_an_unknown_subject_is_named_so_the_desk_offers_no_retry(self):
+        issue = json.loads(self.ops.subject({"subject_id": "listing:isin:XX0000000000:XAMS:EUR"}))["issues"][0]
+        self.assertEqual((issue["code"], issue["message"]), ("unknown_subject", "Unknown subject."))
+
     def test_a_matching_read_verifies_the_derived_address(self):
         self.assertEqual(self.label(), ("ready", "derived", False, None))
         self.assertEqual(self.check(currency="EUR", venue="AMS"), "verified")

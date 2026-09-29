@@ -201,7 +201,12 @@ export const profileSchema = z.object({
   headquarters: addressSchema,
   status: optionalText,
   category: optionalText,
-  parent: z.object({ name: text, lei: optionalText }).nullish(),
+  /** The accounting parent; GLEIF may know its LEI but not its name. */
+  parent: z.object({ name: optionalText, lei: optionalText }).nullish(),
+  /** Typed names: a Latin one is shown beside a legal name in another script. */
+  names: z
+    .array(z.object({ name: text, kind: optionalText, type: optionalText }))
+    .catch([]),
   source: z.object({ label: text, url: z.string().nullish() }).nullish(),
 });
 export type Profile = z.infer<typeof profileSchema>;
@@ -227,6 +232,9 @@ export const filingsSchema = z.object({
          * authority): items sharing it are versions of one report (format,
          * language, amendment), shown as one row and never merged. */
         report_key: optionalText,
+        /** Shared by parallel reports: issuer, kind and period end. */
+        report_period: optionalText,
+        basis: optionalText, // us_gaap or ifrs, where the source states it
         url: z.string().nullish(),
         language: optionalText,
         source: optionalText,
@@ -316,11 +324,15 @@ export const SUBJECT_STALE_MS = 30_000;
 const answer = z.object({
   outcome: z.string().optional(),
   data: z.unknown(),
-  issues: z.array(z.object({ message: z.string() })).optional(),
+  issues: z
+    .array(z.object({ code: z.string().optional(), message: z.string() }))
+    .optional(),
 });
 
 /** Pythia envelopes answer "empty" with null data and an issue; an "error"
- * may carry what was tried as data, and is still a failure (D1). */
+ * may carry what was tried as data, and is still a failure (D1). The thrown
+ * error carries core's issue `code` (`unknown_subject`: asking again cannot
+ * help). */
 export function coreData<T extends z.ZodType>(
   value: unknown,
   data: T,
@@ -331,8 +343,11 @@ export function coreData<T extends z.ZodType>(
     parsed.data === null ||
     parsed.data === undefined
   )
-    throw Error(
-      parsed.issues?.[0]?.message ?? "Nothing is known about this subject.",
+    throw Object.assign(
+      Error(
+        parsed.issues?.[0]?.message ?? "Nothing is known about this subject.",
+      ),
+      { code: parsed.issues?.[0]?.code ?? null },
     );
   return data.parse(parsed.data);
 }

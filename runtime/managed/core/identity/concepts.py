@@ -187,6 +187,9 @@ ELIGIBLE = frozenset({"ready", "resolving"})  # resolving: a lookup runs before 
 NOT_COVERED = "not_covered"
 # Skips that signal something went wrong rather than the investor's own setup: they warrant a visible notice.
 NOTICE = frozenset({"conflict", "unresolved"})
+# Core's own quote section for a listing no price source covers: it says so, each source's reason listed as skipped.
+UNCOVERED = {"plugin": "pythia", "provider": "pythia", "label": "Pythia", "status": "not_covering",
+             "reason": "No price source covers this listing", "unaudited": False}
 # Filing authority of an item by the country of the mechanism a source collected it from, for a source serving
 # several: not the filer's country (filings.xbrl.org lists TotalEnergies' report under both FR and GB).
 AUTHORITY_BY_COUNTRY = {"US": FilingAuthority.SEC, "GB": FilingAuthority.FCA, "CA": FilingAuthority.SEDAR,

@@ -1,6 +1,5 @@
 "use client";
 import {
-  parseFilings,
   parseProfile,
   type SubjectPage,
   type SubjectSection,
@@ -17,7 +16,6 @@ import { useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import {
   useResolvedSections,
-  useSectionRead,
   useSubjectPage,
   useWidgetPresentation,
 } from "@/client/instrument-queries";
@@ -30,14 +28,16 @@ import {
   usingSource,
 } from "./blocks";
 import { InstrumentHeader, InstrumentPageSkeleton } from "./instrument-header";
+import { FilingsRead } from "./filings-view";
+import { LiveMarketView } from "./live-view";
 import {
   SectionFailure,
   SectionLoading,
   SectionPlaceholder,
+  SectionRead,
   SourcesLine,
 } from "./section-status";
-import { LiveMarketView } from "./live-view";
-import { FilingsView, ProfileView } from "./section-views";
+import { ProfileView } from "./section-views";
 
 /** Canonical price presentations of the market-data feature: the price
  * section with its chart, and the quote-only panel. */
@@ -109,9 +109,13 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
           {page.error.message ||
             "The local identity service did not answer. Check that Pythia is running."}
         </p>
-        <Button size="sm" variant="ghost" onClick={() => void page.refetch()}>
-          Retry
-        </Button>
+        {/* Asking again cannot find a subject core does not know. */}
+        {"code" in page.error &&
+        page.error.code === "unknown_subject" ? null : (
+          <Button size="sm" variant="ghost" onClick={() => void page.refetch()}>
+            Retry
+          </Button>
+        )}
       </div>
     );
   const view = { ...page.data, sections: resolved.sections };
@@ -214,8 +218,9 @@ function PageCard({
         )}
       </div>
       {/* Another listing's price loading or failing: this line's sources
-          would describe the wrong line. */}
-      {price ? null : (
+          would describe the wrong line. A price no source covers lists each
+          source's reason in its card instead. */}
+      {price || lead.status === "not_covering" ? null : (
         <SourcesLine
           section={lead}
           chosen={chosen}
@@ -256,47 +261,8 @@ function BlockContent({
       </SectionRead>
     );
   if (block.type === "live") return <LiveMarketView section={lead} />;
-  if (block.type === "filings")
-    return (
-      <SectionRead section={lead} label="Loading filings…">
-        {(value) => <FilingsView filings={parseFilings(value)} />}
-      </SectionRead>
-    );
+  if (block.type === "filings") return <FilingsRead section={lead} />;
   return <MarketSection block={block} page={page} />;
-}
-
-/** One section's own read through the protected read route. */
-function SectionRead({
-  section,
-  label,
-  children,
-}: {
-  section: SubjectSection;
-  label: string;
-  children(value: unknown): ReactNode;
-}) {
-  const query = useSectionRead(section.request);
-  if (!section.request)
-    return <SectionFailure message="This section has no read to show." />;
-  if (query.error)
-    return (
-      <SectionFailure
-        message={`${section.label} could not be read. ${query.error.message}`}
-        onRetry={() => void query.refetch()}
-      />
-    );
-  if (query.isPending) return <SectionLoading label={label} />;
-  try {
-    return children(query.data);
-  } catch (error) {
-    const shape = error instanceof Error && error.name === "ZodError";
-    return (
-      <SectionFailure
-        message={`${section.label}: ${shape || !(error instanceof Error) ? "the answer had an unexpected shape." : error.message}`}
-        onRetry={() => void query.refetch()}
-      />
-    );
-  }
 }
 
 /** Quote and chart through the market-data feature's own widgets, bound to

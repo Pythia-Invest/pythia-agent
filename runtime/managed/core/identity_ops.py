@@ -25,7 +25,7 @@ from .identity import (
 )
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
-from .queue_ops import NO_REFERENCE, SUBJECT_ID
+from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
 from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, queue, reference_package, search, store
 
 logger = logging.getLogger(__name__)
@@ -142,7 +142,7 @@ class Identity:
         try:
             view, issue = self._compose(str(arguments.get("subject_id") or ""))
         except ValueError:  # a malformed subject id
-            view, issue = None, "Unknown subject."
+            view, issue = None, UNKNOWN_SUBJECT
         except (sqlite3.Error, OSError):
             logger.warning("identity subject unavailable", exc_info=True)
             view, issue = None, "The reference data could not be read."
@@ -242,14 +242,14 @@ class Identity:
         """The reference path and the subject from it, with the store lookups page composition reads."""
         if subject_kind(subject_id) in markets.CURATED_KINDS:  # a curated market subject needs no reference file
             subject = markets.load_market(markets.curated(), subject_id)
-            return (None, None, {}, "Unknown subject.") if subject is None else (None, subject, self._lookups(subject, {}), None)
+            return (None, None, {}, UNKNOWN_SUBJECT) if subject is None else (None, subject, self._lookups(subject, {}), None)
         path, ref = self.reference()
         if ref is None:
             return None, None, {}, NO_REFERENCE
         try:
             subject = page.load_subject(ref, subject_id)
             if subject is None:
-                return path, None, {}, "Unknown subject."
+                return path, None, {}, UNKNOWN_SUBJECT
             default = self._default_listing(path, subject)
             if default and default != (subject["listing"] or {"id": None})["id"]:
                 subject = page.load_subject(ref, subject_id, default)
@@ -333,7 +333,7 @@ class Identity:
 def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
     body: dict[str, Any] = {"schema_version": 1, "outcome": outcome, "data": data}
     if issue:
-        body["issues"] = [{"code": "unavailable" if data is None else "empty", "message": issue}]
+        body["issues"] = [{"code": ISSUE_CODES.get(issue) or ("unavailable" if data is None else "empty"), "message": issue}]
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
 
 

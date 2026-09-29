@@ -4,6 +4,7 @@ import {
   groupReports,
   newestPerAuthority,
   pageBlocks,
+  periodRows,
   pickedSource,
   usingSource,
 } from "../src/components/instrument/blocks";
@@ -149,5 +150,36 @@ describe("filings reports", () => {
     expect(
       groupReports(rows).map((group) => group.map((row) => row.id)),
     ).toEqual([["8-K"], ["10-K/A", "10-K"], ["ESEF"], ["6-K"]]);
+  });
+
+  it("join one report filed in two places and name parallel reports", () => {
+    const period = "issuer|annual|2025-12-31";
+    const esef = (authority: string) => ({
+      id: `ESEF ${authority}`,
+      report_period: period,
+      authority,
+      source: "filings.xbrl.org",
+      form: "ESEF",
+    });
+    const sec = {
+      id: "20-F",
+      report_period: period as string | null,
+      authority: "sec",
+      source: "SEC EDGAR",
+      form: "20-F",
+    };
+    const event = { ...sec, id: "6-K", report_period: null, form: "6-K" };
+    const rows = periodRows([[esef("fca")], [sec], [esef("oam-nl")], [event]]);
+    expect(
+      rows.map((row) => [
+        row.variants.map((item) => item.id),
+        row.authorities,
+        row.parallels.map((other) => other.variants[0]?.id),
+      ]),
+    ).toEqual([
+      [["ESEF fca", "ESEF oam-nl"], ["fca", "oam-nl"], ["20-F"]],
+      [["20-F"], ["sec"], ["ESEF fca"]],
+      [["6-K"], ["sec"], []],
+    ]);
   });
 });

@@ -183,16 +183,17 @@ test("a chosen subject opens its page; cards load and fail independently", async
   ).toHaveLength(1);
 });
 
-test("an instrument that cannot be opened says so and offers a retry", async ({
+test("an instrument that cannot be opened says so and offers a retry that can help", async ({
   page,
 }) => {
+  let code = "unavailable";
   await page.route("**/api/data/read", (route) =>
     route.fulfill({
       json: {
         schema_version: 1,
         outcome: "empty",
         data: null,
-        issues: [{ code: "unavailable", message: "Unknown subject." }],
+        issues: [{ code, message: "The reference data could not be read." }],
       },
     }),
   );
@@ -202,8 +203,15 @@ test("an instrument that cannot be opened says so and offers a retry", async ({
   const failure = page
     .getByRole("alert")
     .filter({ hasText: "This instrument could not be opened." });
-  await expect(failure).toContainText("Unknown subject.");
+  await expect(failure).toContainText("The reference data could not be read.");
   await expect(failure.getByRole("button", { name: "Retry" })).toBeVisible();
+  // Core does not know the subject: asking again cannot help.
+  code = "unknown_subject";
+  await page.goto(
+    `/instrument/${encodeURIComponent("listing:synthetic:unknown")}`,
+  );
+  await expect(failure).toBeVisible();
+  await expect(failure.getByRole("button", { name: "Retry" })).toHaveCount(0);
 });
 
 test("subject ids with '/' and '%' reach core exactly once decoded", async ({

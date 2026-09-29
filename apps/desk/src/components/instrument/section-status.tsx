@@ -5,6 +5,7 @@ import type { SubjectSection } from "@pythia/market-data/subject";
 import { Button, Skeleton } from "@pythia/ui";
 import { CircleSlash, Scale, SearchX, Settings2, Shapes } from "lucide-react";
 import type { ReactNode } from "react";
+import { useSectionRead } from "@/client/instrument-queries";
 
 const STATUS_LABELS: Record<string, string> = {
   resolving: "finding match",
@@ -84,6 +85,13 @@ export function SectionPlaceholder({
       title: `${section.label} is turned off`,
       fallback: `Enable it with "hermes plugins enable ${section.plugin}" for this profile, then reopen this page.`,
     },
+    // Core's own answer when no source covers the listing: each source's
+    // reason follows.
+    not_covering: {
+      icon: <SearchX />,
+      title: section.reason ?? "No source covers this",
+      fallback: "",
+    },
   };
   const status = known[section.status];
   const unsupported = ![
@@ -104,7 +112,9 @@ export function SectionPlaceholder({
         title: `${section.label}: ${section.status.replaceAll("_", " ")}`,
         fallback: "",
       });
-  const detail = unsupported ? null : reasonDetail(section) || shown.fallback;
+  const uncovered = !unsupported && section.status === "not_covering";
+  const detail =
+    unsupported || uncovered ? null : reasonDetail(section) || shown.fallback;
   return (
     <div
       role="note"
@@ -120,6 +130,13 @@ export function SectionPlaceholder({
           <p className="mt-0.5 text-foreground-secondary text-xs [overflow-wrap:anywhere]">
             {detail}
           </p>
+        ) : null}
+        {uncovered && section.skipped.length ? (
+          <ul className="mt-0.5 text-foreground-secondary text-xs [overflow-wrap:anywhere]">
+            {section.skipped.map((item) => (
+              <li key={item.plugin}>{sentence(item.reason)}</li>
+            ))}
+          </ul>
         ) : null}
       </div>
     </div>
@@ -159,7 +176,9 @@ export function SourcesLine({
       className="flex min-w-0 flex-col gap-1 border-border/60 border-t pt-2 text-foreground-secondary text-xs"
     >
       <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <span>{sources.length > 1 ? "Sources" : "Source"}</span>
+        <span>
+          {chosen ? "Using" : sources.length > 1 ? "Sources" : "Source"}
+        </span>
         {sources.map((item, index) => (
           <span key={item.plugin} className="inline-flex items-center gap-1">
             {index ? <span aria-hidden="true">+</span> : null}
@@ -180,7 +199,7 @@ export function SourcesLine({
         ) : null}
         {chosen && onUse ? (
           <>
-            <span>· used once instead of core's choice</span>
+            <span>for this view ·</span>
             <button
               type="button"
               onClick={() => onUse(null)}
@@ -275,4 +294,38 @@ export function SectionFailure({
       ) : null}
     </div>
   );
+}
+
+/** One section's own read through the protected read route. */
+export function SectionRead({
+  section,
+  label,
+  children,
+}: {
+  section: SubjectSection;
+  label: string;
+  children(value: unknown): ReactNode;
+}) {
+  const query = useSectionRead(section.request);
+  if (!section.request)
+    return <SectionFailure message="This section has no read to show." />;
+  if (query.error)
+    return (
+      <SectionFailure
+        message={`${section.label} could not be read. ${query.error.message}`}
+        onRetry={() => void query.refetch()}
+      />
+    );
+  if (query.isPending) return <SectionLoading label={label} />;
+  try {
+    return children(query.data);
+  } catch (error) {
+    const shape = error instanceof Error && error.name === "ZodError";
+    return (
+      <SectionFailure
+        message={`${section.label}: ${shape || !(error instanceof Error) ? "the answer had an unexpected shape." : error.message}`}
+        onRetry={() => void query.refetch()}
+      />
+    );
+  }
 }

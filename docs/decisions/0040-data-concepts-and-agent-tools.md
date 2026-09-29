@@ -252,8 +252,13 @@ what it reports on.
   the authority and source, and a chip per version.
 - **Parallel reports** share `report_period` under different authorities: the
   20-F and the ESEF report, and also one ESEF report collected by two
-  mechanisms (TotalEnergies in France and the UK). They stay separate reports
-  and rows; how the Desk and the agent present them is decided separately.
+  mechanisms (TotalEnergies in France and the UK). They stay separate reports.
+  The Desk makes the link explicit in its filings table, as display only:
+  the same source's same form under several authorities (one ESEF report
+  collected in the UK and the Netherlands) is one row "filed in UK,
+  Netherlands" with a chip per authority, and every other report of the
+  period is named on the row ("Also filed with the SEC (20-F, US GAAP)"). The
+  agent reads `report_period` from each item.
 - **Basis** (`us_gaap`, `ifrs`) is an attribute of the report, null where the
   source does not state it, never part of its identity: SEC states US GAAP for
   10-K and 10-Q; a 20-F's basis (`dei:DocumentAccountingStandard`) needs the
