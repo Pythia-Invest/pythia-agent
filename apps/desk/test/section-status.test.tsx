@@ -183,8 +183,8 @@ describe("reports of one period", () => {
       />,
     );
     expect(markup).toContain("filed in UK, Netherlands · filings.xbrl.org");
-    expect(markup).toContain("Also filed with the SEC (20-F, US GAAP)");
-    expect(markup).toContain("Also filed in UK, Netherlands (ESEF)");
+    expect(markup).toContain("Parallel report: SEC 20-F (US GAAP)");
+    expect(markup).toContain("Parallel report: UK, Netherlands ESEF");
   });
 });
 
@@ -199,6 +199,11 @@ describe("a GLEIF profile", () => {
           parent: { name: null, lei: "KY37LUS27QQX7BB93L28" },
           names: [
             { name: "トヨタ自動車株式会社", kind: "legal" },
+            {
+              name: "TOYOTA OLD NAME K.K.",
+              kind: "other",
+              type: "PREVIOUS_LEGAL_NAME",
+            },
             {
               name: "TOYOTA JIDOSHA KABUSHIKI KAISHA",
               kind: "transliterated",
@@ -220,5 +225,6 @@ describe("a GLEIF profile", () => {
       /Legal name<\/dt><dd[^>]*>TOYOTA MOTOR CORPORATION/u,
     );
     expect(markup).toContain("トヨタ自動車株式会社");
+    expect(markup).not.toContain("TOYOTA OLD NAME");
   });
 });

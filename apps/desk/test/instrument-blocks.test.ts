@@ -115,6 +115,38 @@ describe("using an alternative source once", () => {
     expect(pickedSource(gone, pick, "listing:a")).toBeNull();
     expect(pickedSource(offered, null, "listing:a")).toBeNull();
   });
+
+  it("names every source a combined list still shows after a pick", () => {
+    const source = (name: string, authorities: string[]) => ({
+      source: name,
+      provider: name,
+      plugin: `pythia-${name}`,
+      authorities,
+    });
+    const [filings] = pageBlocks([
+      section("filings", {
+        sources: [
+          source("xbrl-filings", ["fca", "oam-nl"]),
+          source("sec", ["sec"]),
+        ],
+        alternatives: [
+          {
+            plugin: "pythia-nsm",
+            label: "UK FCA NSM",
+            status: "ready",
+            authorities: ["fca"],
+          },
+        ],
+      }),
+    ]);
+    if (!filings) throw Error("expected a filings card");
+    const shown = usingSource(filings, "pythia-nsm").sections[0]?.sources;
+    expect(shown?.map((item) => [item.source, item.authorities])).toEqual([
+      ["UK FCA NSM", ["fca"]],
+      ["xbrl-filings", ["oam-nl"]],
+      ["sec", ["sec"]],
+    ]);
+  });
 });
 
 describe("combined filings rows", () => {

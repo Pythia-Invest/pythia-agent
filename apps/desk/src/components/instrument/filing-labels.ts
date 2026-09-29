@@ -41,13 +41,15 @@ export function filedWhere(authorities: readonly string[]) {
     : `in ${authorities.map(authorityLabel).join(", ")}`;
 }
 
-/** A parallel report of the same period (C3), by its first filing. */
+/** Another report of the same period (C3), by its first filing: a separate
+ * document, never a copy of this one. */
 export function parallelLabel(row: PeriodRow<Filing>) {
   const filing = row.variants.at(-1) ?? row.variants[0];
-  const detail = [filing?.form, filing?.basis && BASES[filing.basis]]
+  const basis = filing?.basis && BASES[filing.basis];
+  const name = [row.authorities.map(authorityLabel).join(", "), filing?.form]
     .filter(Boolean)
-    .join(", ");
-  return `Also filed ${filedWhere(row.authorities)}${detail ? ` (${detail})` : ""}`;
+    .join(" ");
+  return `Parallel report: ${name}${basis ? ` (${basis})` : ""}`;
 }
 
 /** A version's chip names only what sets it apart from the report's others:

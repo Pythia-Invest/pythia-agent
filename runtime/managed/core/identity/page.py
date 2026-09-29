@@ -325,8 +325,8 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
         lead["skipped"] = [{**source(answer), "label": answer["label"], "code": answer["status"],
                             "reason": answer["reason"] or answer["status"].replace("_", " ")} for answer in waiting + rest]
         lead["alternatives"] = [{**source(answer), "label": answer["label"], "status": answer["status"],
-                                 "binding": answer["binding"], "request": filings_request(subject, answer["plugin"])
-                                 if combined and answer["status"] == "ready" else answer["request"]}
+                                 "authorities": answer["authorities"], "binding": answer["binding"],
+                                 "request": filings_request(subject, answer["plugin"]) if combined and answer["status"] == "ready" else answer["request"]}
                                 for answer in alternatives]
         if combined:
             lead["sources"] = [{**source(answer), "authorities": list(served), "status": answer["status"]}

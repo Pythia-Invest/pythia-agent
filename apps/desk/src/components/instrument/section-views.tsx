@@ -39,18 +39,26 @@ function words(value: string | null) {
 
 const LATIN = /^[\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]*$/u;
 
+/** Latin forms of the current legal name, preferred first; never a former
+ * or trading name. */
+const LATIN_LEGAL = [
+  "ALTERNATIVE_LANGUAGE_LEGAL_NAME",
+  "PREFERRED_ASCII_TRANSLITERATED_LEGAL_NAME",
+  "AUTO_ASCII_TRANSLITERATED_LEGAL_NAME",
+];
+
 /** A legal name in another script (トヨタ自動車株式会社) is shown after a
- * Latin one the source gives: its English legal name, else a
+ * Latin form of it the source gives: its English legal name, else a
  * transliteration. */
 function latinName(profile: Profile, legal: string | null) {
   if (!legal || LATIN.test(legal)) return null;
-  const latin = profile.names.filter(
-    (item) => item.kind !== "legal" && LATIN.test(item.name),
-  );
-  return (
-    latin.find((item) => item.type === "ALTERNATIVE_LANGUAGE_LEGAL_NAME") ??
-    latin[0]
-  )?.name;
+  for (const type of LATIN_LEGAL) {
+    const found = profile.names.find(
+      (item) => item.type === type && LATIN.test(item.name),
+    );
+    if (found) return found.name;
+  }
+  return null;
 }
 
 /** The accounting parent; GLEIF may know its LEI but not its name. */

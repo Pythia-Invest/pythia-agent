@@ -58,6 +58,7 @@ export const sectionAlternativeSchema = z.object({
   binding: providerRefSchema.nullish(),
   request: pluginRequestSchema.nullish(),
   unaudited,
+  authorities: z.array(text).default([]), // a filings source's authorities
 });
 export type SectionAlternative = z.infer<typeof sectionAlternativeSchema>;
 
@@ -330,9 +331,8 @@ const answer = z.object({
 });
 
 /** Pythia envelopes answer "empty" with null data and an issue; an "error"
- * may carry what was tried as data, and is still a failure (D1). The thrown
- * error carries core's issue `code` (`unknown_subject`: asking again cannot
- * help). */
+ * may carry what was tried as data, and is still a failure (D1). The error
+ * carries core's issue `code` (`unknown_subject`: a retry cannot help). */
 export function coreData<T extends z.ZodType>(
   value: unknown,
   data: T,

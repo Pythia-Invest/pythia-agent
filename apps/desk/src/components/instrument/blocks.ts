@@ -82,7 +82,8 @@ export function pickedSource(
 }
 
 /** A block's sections read from one alternative source instead, for this
- * view only: core's choice is not changed. */
+ * view only: core's choice is not changed. A combined list keeps its other
+ * sources for the authorities the picked one does not serve. */
 export function usingSource(
   block: PageBlock,
   plugin: string | null,
@@ -102,7 +103,24 @@ export function usingSource(
       binding: alternative.binding ?? null,
       request: alternative.request ?? null,
       reason: null,
-      sources: null,
+      sources: section.sources?.length
+        ? [
+            {
+              source: alternative.label,
+              plugin: alternative.plugin,
+              // Connector marks are keyed by provider, plugin ids by package.
+              provider: alternative.plugin.replace(/^pythia-/u, ""),
+              unaudited: alternative.unaudited,
+              authorities: alternative.authorities,
+            },
+            ...section.sources.flatMap((item) => {
+              const rest = item.authorities.filter(
+                (authority) => !alternative.authorities.includes(authority),
+              );
+              return rest.length ? [{ ...item, authorities: rest }] : [];
+            }),
+          ]
+        : null,
       notice: null,
     };
   });
