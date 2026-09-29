@@ -1,6 +1,7 @@
 # Canonical crypto assets: audit (canonical_assets@1)
 
-Audit of `runtime/managed/core/identity/canonical_assets.json` on 2026-09-28.
+Audit of `runtime/managed/core/identity/canonical_assets.json` on 2026-09-28;
+Circle's native USDC on Sui was added on 2026-09-30 (below).
 The table follows ADR 0037 (Crypto): each row is keyed by its canonical
 issuance deployment. `deployments` lists only chains where the issuer itself
 issues the asset, plus ETH on rollups through their canonical bridge.
@@ -20,13 +21,22 @@ issues the asset, plus ETH on rollups through their canonical bridge.
 - **Token contracts.** Each contract comes from the issuer source listed
   below. Every EVM contract was also read on chain (`name()` and `symbol()`
   through public RPCs, with `eth_chainId` checked). Every Solana mint was read
-  with `getAccountInfo` (a mint account of the token program).
+  with `getAccountInfo` (a mint account of the token program). The Sui coin
+  type rests on the issuer's page alone; it was not read on chain.
+- **Sui.** The Sui deployment is written in ADR 0037's Pythia-local Sui profile,
+  the form `normalize_identifier` gives the coin type.
 - **Provider ids.** CoinGecko ids and CoinMarketCap ids were cross-checked on
   name, symbol and active status in CoinGecko `/coins/list` and CoinMarketCap
   `/v1/cryptocurrency/map` and `/v2/cryptocurrency/info`. They are bindings,
   not evidence of identity.
 - **Drift check.** `just canonical-assets-drift` reported no findings for
-  either provider. Provider responses were not kept.
+  either provider. Provider responses were not kept. The Sui row adds a Sui
+  chain for each provider (`sui` for CoinGecko, `coin:20947:sui-network` for
+  CoinMarketCap, whose platform is named "Sui Network"). Run offline against
+  CoinGecko's `/coins/list` and CoinMarketCap's `/v2/cryptocurrency/info`
+  answers of 2026-09-26, the check found no drift for USDC: both list the
+  coin type under USDC's id, and no other coin id claims it. It was not re-run
+  live for this row.
 
 ## Rows
 
@@ -37,7 +47,7 @@ issues the asset, plus ETH on rollups through their canonical bridge.
 | USDT | `eip155:1/erc20:0xdac17f958d2ee523a2206206994597c13d831ec7` | Avalanche C-Chain, Solana | tether.to/en/supported-protocols (contracts). Key rule: USDT was first issued on Omni (property #31), which Tether has discontinued ("no longer issuing or obligated to redeem Tether Tokens on the … Omni Layer", same page); the earliest deployment Tether still supports is Ethereum ERC-20 (tether.io, "USD₮ and EUR₮ now supported on Ethereum", 2017), before TRON (tether.io, "USDT Introduced to TRON Blockchain", 2019) |
 | BNB | `eip155:56/slip44:714` | | BSC chain id 56 (`ethereum-lists`, native currency BNB), SLIP-44 714 (BNB). Key rule (native coin): BNB Smart Chain's protocol issues BNB |
 | XRP | `xrpl:0/slip44:144` | | xrpl CAIP-2 and CAIP-19 profiles |
-| USDC | `eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48` | OP Mainnet, Polygon PoS, Base, Arbitrum One, Avalanche C-Chain, Solana | developers.circle.com/stablecoins/usdc-contract-addresses (native USDC only; bridged USDC.e is excluded) |
+| USDC | `eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48` | OP Mainnet, Polygon PoS, Base, Arbitrum One, Avalanche C-Chain, Solana, Sui | developers.circle.com/stablecoins/usdc-contract-addresses (native USDC only; bridged USDC.e is excluded). Sui: the page's Mainnet table gives `0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC` (read 2026-09-30), so `sui:mainnet/coin:0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7%3A%3Ausdc%3A%3AUSDC`. Bridged (Wormhole) USDC on Sui is another coin type and not a deployment |
 | SOL | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501` | | solana profile, SLIP-44 501 |
 | TRX | `tron:728126428/slip44:195` | | tron profile, SLIP-44 195 |
 | ZEC | `bip122:00040fe8ec8471911baa1db1266ea15d/slip44:133` | | zcash chainparams genesis, SLIP-44 133 |
@@ -73,7 +83,7 @@ issues the asset, plus ETH on rollups through their canonical bridge.
   on HyperCore; ADR 0037 records the convention for it.
 - **No reachable issuer source.** SHIB (shib.io was unreachable).
 - **Deployments without a published CAIP-19 asset profile, or where the
-  providers use different identifiers.** USDT on Tron and TON. USDC on Sui,
+  providers use different identifiers.** USDT on Tron and TON. USDC on
   Stellar, Hedera and XRPL. On Stellar, CoinGecko names USDC by its Soroban
   contract and CoinMarketCap by its classic asset code.
 - **Bridged or third-party copies.** USDT on Arbitrum, OP and Base (USDT0),

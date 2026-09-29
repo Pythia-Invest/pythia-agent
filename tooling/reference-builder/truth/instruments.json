@@ -10776,6 +10776,7 @@
           "mic": "XNYS",
           "currency": "USD",
           "primary": true,
+          "figi": "BBG000PLD732",
           "symbols": {
             "yahoo": "TS",
             "eodhd": "TS.US"

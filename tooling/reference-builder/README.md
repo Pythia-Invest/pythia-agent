@@ -9,6 +9,7 @@ Python 3.11+ standard library only. The snapshot is one SQLite file.
 ```sh
 just reference-snapshot                      # default scope: every EU/EEA venue in FIRDS + US lines
 just reference-snapshot --mics XAMS,XPAR --no-sec
+just reference-snapshot --no-firds           # the US view: SEC and OpenFIGI only
 just reference-snapshot --offline --cache <copied downloads>   # from a cache, no network
 python3 tooling/reference-builder/run.py --help
 ```
@@ -29,11 +30,37 @@ python3 tooling/reference-builder/run.py --help
 | Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
 | Snapshot, manifest and package | `schema.py`, `writer.py`, `manifest.py`, `package.py` | |
 
+Every source can be left out of a build (ADR 0044, A1) except the ISO 10383
+venue codes and core's curated crypto table. `package.json` lists the sources
+a build read (`included_sources`), under the names its `sources` entries carry
+(`iso10383_mic`, `esma_firds`, `esma_fitrs`, `gleif_lei_records`, `openfigi`,
+`sec_company_tickers`, `sec_fund_tickers`, `canonical_assets`), and core's
+`reference-status` reports them. A source left out is not asked, so its
+silence decides no identity fact: a missing FIGI marks no line suspect, an LEI
+GLEIF was not asked about counts neither as retired nor as confirmed, and a
+SEC title is never matched against a FIRDS instrument name as if it were the
+LEI's. Such a build has fewer subjects, identifiers and links, and more open
+questions. Canaries only require what the included sources can supply.
+
+| Flag | What the build loses |
+| --- | --- |
+| `--no-firds` | EU and EEA lines and every ISIN, and with them FITRS and GLEIF, which are read for FIRDS's ISINs and LEIs: the US view, SEC lines with OpenFIGI's FIGIs under CIK-keyed issuers. A US line or security the full build keys by ISIN has no ID in it, so a device that switches to the US view flags its saved references to them as vanished: 579 lines keyed by a non-CGS ISIN and 839 securities (579 of them by such an ISIN, 260 by `cgs_isin`) on the 2026-09-28 build |
+| `--no-fitrs` | the activity check and the turnover rank |
+| `--no-gleif` | issuer names, entity status and EDGAR registrations. An issuer carries FIRDS's name; a venue operator's LEI is never confirmed as an issuer; a receipt's claim for its share's issuer is never stale, so the share's issuer is asked; a CIK one of whose shares has such an unknown issuer links to no LEI; and a receipt's stated share stays linked where GLEIF would show its issuer retired (8 receipts on the 2026-09-28 build) |
+| `--no-openfigi` | FIGIs, EU tickers, US ETFs and the CIK links that rest on FIGIs. A corporate-action line without a FIGI is suspect, not inactive, so a receipt can keep a superseded share its FIRDS record states (Tenaris' ADR on the 2026-09-28 build) |
+| `--no-sec` | US lines |
+
+One documented default does move. Without OpenFIGI or SEC the build sees no
+line outside the EEA, so an issuer's EEA admission request decides a primary
+listing that the full build leaves unknown (169 securities without OpenFIGI,
+116 without SEC, on the 2026-09-28 build). A primary is a choice, not an
+identity fact (ADR 0044, A5).
+
 `schema.py` is the only module that knows the table layout. The file is core's
 reference store (`runtime/managed/core/identity/sql/reference.sql`) with subject
-IDs from core's `subject_id()` under its versioned key rule (`subject_key@1`,
-recorded in `release`; ADR 0037): a US, Canadian or other CGS-area ISIN is an
-assertion, never a key, so those securities are keyed by share-class FIGI and
+IDs from core's `subject_id()` under its versioned key rule (`subject_key@2`,
+recorded in `release`; ADR 0037): a US, Canadian or other CGS-area ISIN never
+keys a portable subject, so those securities are keyed by share-class FIGI and
 listings by FIGI. `id_aliases` maps every other key a subject could have had
 (ISIN-, FIGI-, LEI- or CIK-based) to its ID; an alias that is itself a subject,
 or names two subjects, is dropped and counted. Identifier assertions carry
@@ -51,10 +78,14 @@ CoinMarketCap; the evidence per row is in `truth/canonical-assets-audit.md`. Sec
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit
 (`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue). A CGS-area security OpenFIGI
-does not know yet (no share-class FIGI) keeps a local, non-portable ID
-(`security:provisional:esma_firds:isin:<ISIN>`, lines without FIGI or ticker
-`listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`), counted as
-`securities_local_id`; the build that finds its FIGI aliases the local ID to it. A SEC-only security without a
+does not know yet (no share-class FIGI) has core's device-local key
+(`security:cgs_isin:<ISIN>`, its lines without a FIGI
+`listing:cgs_isin:<ISIN>:<MIC>:<currency>`), the same whichever source gives
+the ISIN, counted as `securities_local_id`; the build that finds its FIGI
+aliases the local ID to it. Rules version 2 wrote those IDs in the FIRDS
+namespace (`security:provisional:esma_firds:isin:<ISIN>`,
+`listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`); every build
+aliases those forms too. A SEC-only security without a
 share-class FIGI is keyed by its registrant's CIK and ticker
 (`security:provisional:sec:id:<CIK>.<TICKER>`, its line
 `listing:provisional:sec:ticker:<MIC>.<CIK>.<TICKER>`), never by the ticker
@@ -250,6 +281,13 @@ its name (`identity/trust.py`). The rules are versioned (below).
 assertion's `adapter_version`, `package.json` and the release table, and a
 rule change bumps it with a line here:
 
+- **3** (2026-09-30, roadmap stage 0): key rule `subject_key@2`: a CGS-area
+  security without a share-class FIGI is keyed `cgs_isin`, not in the FIRDS
+  namespace, with aliases from the old IDs; Circle's native USDC on Sui is a
+  curated USDC deployment; every source can be omitted, and a source left out
+  decides nothing by its silence (no suspect line for a missing FIGI, no stale
+  or confirmed LEI without GLEIF); a SEC title never matches a FIRDS
+  instrument name as if it were the LEI's.
 - **2** (2026-09-29, roadmap stage 0): rules test evidence kinds instead of
   source names; identifier link conflicts become `issuer_identity` questions
   instead of a winner by CIK order; the receipt rule counts every share that
@@ -392,8 +430,8 @@ because an EEA request sits beside a line outside the EEA, live securities
 written without a primary listing,
 `issuer_split_lei_cik` and `cik_link_suspect` flags, and every `skipped_*`
 count (identifiers or relations the schema rejected). The baseline is taken on a
-default-scope build (every EEA venue and US lines); an XAMS-only build reports
-checks it cannot pass without other venues as regressions. `--write-baseline`
+default-scope build (every EEA venue and US lines, every source); an XAMS-only
+build, or one without a source, reports checks it cannot pass as regressions. `--write-baseline`
 lists every truth entry's subject ID that changed since the previous baseline
 and writes nothing unless `--accept-id-changes` is given; the accepted changes
 are kept in the baseline under `accepted_id_changes`.
