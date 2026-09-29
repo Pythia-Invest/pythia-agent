@@ -186,6 +186,7 @@ class Question:
     candidates: tuple[str, ...] = ()
     evidence: tuple[str, ...] = ()  # source record digests
     values: tuple[str, ...] = ()  # the contested values (an operator's LEI)
+    suggested: tuple[str, str] | None = None  # (candidate, rule): a rule's proposed answer, never a decision
 
 
 @dataclass
@@ -203,5 +204,6 @@ class Snapshot:
     def flag(self, subject_id: str, flag: str, detail: str | None = None) -> None:
         self.flags.append(Flag(subject_id, flag, detail))
 
-    def ask(self, question: str, subject_id: str, candidates=(), evidence=(), values=()) -> None:
-        self.questions.append(Question(question, subject_id, tuple(dict.fromkeys(candidates)), tuple(evidence), tuple(values)))
+    def ask(self, question: str, subject_id: str, candidates=(), evidence=(), values=(), suggested=None) -> None:
+        self.questions.append(Question(question, subject_id, tuple(dict.fromkeys(candidates)), tuple(evidence),
+                                       tuple(values), suggested))

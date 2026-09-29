@@ -113,8 +113,12 @@ table under `writer_ignored`.
     the primary is unknown and asked (`most_liquid_only`).
   - Where the above leaves a share's primary unknown, its one line on an
     exchange in its ISIN's country (not OTC, an MTF or a trading-only venue,
-    and one the package can write, with a trading currency) is its home
-    (`isin_country_line`: TotalEnergies on Euronext Paris beside NYSE). Funds are left out: an Irish or Luxembourg fund's
+    and one the package can write, with a trading currency) is attached to
+    its home-market question as a suggested answer (`suggested`, rule
+    `isin_country`: TotalEnergies on Euronext Paris beside NYSE). It is a
+    curation suggestion, never a decision (R2, ADR 0044): the share stays
+    unknown until a curator approves it; once calibrated, the curator's back
+    office can approve such suggestions in bulk. Funds are left out: an Irish or Luxembourg fund's
     Dublin or Luxembourg line is often a technical listing.
   - A security still without a primary the package can write is priced on
     its line at FIRDS' most liquid EU market, marked `most_liquid` (the Desk labels it "most liquid EU

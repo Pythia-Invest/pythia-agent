@@ -370,8 +370,17 @@ class FirdsPrimaryTest(unittest.TestCase):
         records = [firds_record(WORLD_ISIN, "DUSB", WORLD_LEI, cfi="CEOGES", relevant="DUSB", requested="false"),
                    firds_record(WORLD_ISIN, "HAMB", WORLD_LEI, cfi="CEOGES", relevant="DUSB", requested="false"),
                    firds_record(SAP_ISIN, "XAMS", SAP_LEI, relevant="CEUX"), firds_record(SAP_ISIN, "MTAA", SAP_LEI, relevant="CEUX"),
-                   firds_record(ASML_ISIN, "XGLO", ASML_LEI, relevant="XGLO")]  # a venue habit: no evidence
+                   firds_record(ASML_ISIN, "XGLO", ASML_LEI, relevant="XGLO"),  # a venue habit: no evidence
+                   firds_record(NN_ISIN, "XAMS", NN_LEI, relevant="CEUX"), firds_record(NN_ISIN, "MTAA", NN_LEI, relevant="CEUX")]
         snap = self.build(records)
+        asked = {q.subject_id: q for q in snap.questions if q.question == "home_market"}
+        # Its one exchange line in its ISIN's country is a suggested answer, never the primary (R2, ADR 0044).
+        self.assertEqual((snap.securities[f"isin:{NN_ISIN}"].primary_mic, asked[f"isin:{NN_ISIN}"].suggested),
+                         (None, (f"XAMS:{NN_ISIN}", "isin_country")))
+        self.assertIsNone(asked[f"isin:{SAP_ISIN}"].suggested, "no line in its ISIN's country")
+        del asked[f"isin:{NN_ISIN}"]
+        snap.questions[:] = [q for q in snap.questions if q.subject_id != f"isin:{NN_ISIN}"]
+        del snap.securities[f"isin:{NN_ISIN}"]
         self.assertEqual(self.primaries(snap), {WORLD_ISIN: (None, "most_liquid_only"), SAP_ISIN: (None, "issuer_requested_several"),
                                                 ASML_ISIN: (None, "most_liquid_only")})
         self.assertEqual(sorted(q.subject_id for q in snap.questions if q.question == "home_market"),

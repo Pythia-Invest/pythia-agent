@@ -1,8 +1,8 @@
 # ESMA FIRDS source record
 
-- **Status:** issuer signed off (PR #74, below). The primary of shares is
-  pending a re-sample after the ISIN-country fix; receipt underlying and ETF
-  primaries stay in onboarding. FIRDS feeds
+- **Status:** issuer and the primary of shares decided by FIRDS claims
+  (field 8) signed off (PR #74, below); receipt underlying and ETF primaries
+  stay in onboarding. FIRDS feeds
   the reference builder and has no plugin `contract.json`, so the #62 gate
   records nothing in code for it: this record is its sign-off.
   - Stage 1: the field table below is complete for the fields the builder
@@ -167,23 +167,27 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   | Field | FIRDS decides | Asked instead (question type) |
   | --- | --: | --- |
   | Issuer | 28,101 securities carry field 5's LEI as issuer | 614 `issuer_identity`: an operator's LEI on a share outside its country |
-  | Primary | 10,863 from issuer-requested admissions (field 8); 137 more from the ISIN-country line (below) | 10,134 `home_market`: 10,032 with no request and no line outside the EEA, 71 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid |
+  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,032 with no request and no line outside the EEA, 208 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid; 137 carry a suggested answer (below) |
   | Receipt underlying | 2,737 receipts link to the field 26 security of their own issuer | 902 `receipt_underlying` (58 because field 26 names another issuer's security), 10 `receipt_conflict` |
 
-  The SEC stage adds 168 name-only issuer questions (#73). All 11,828 are
+  The SEC stage adds 168 name-only issuer questions (#73). All 11,965 are
   curation questions in the package's `claims` file, answered centrally per
   ADR 0044; none reaches the investor's Repairs queue. A security
   without a primary the package can write is priced on its line at the most
-  liquid EU market (13,650 lines), labelled so and never primary. The
+  liquid EU market (13,782 lines), labelled so and never primary. The
   `share_primary_silent` invariant counts every live share that has no
-  written primary and not both a question and that label: 4,943, of which
+  written primary and not both a question and that label: 4,946, of which
   4,928 are home lines decided from OpenFIGI that the package cannot write
-  without a trading currency (fixed by #46), and 15 questions whose most liquid
-  venue has no line.
+  without a trading currency (fixed by #46), and the rest questions whose most
+  liquid venue has no line.
 
-  **ISIN-country line (shares only).** Where field 8 and the other sources
-  leave a share's primary unknown, its one line on an exchange in its ISIN's
-  country is its home, skipping OTC, MTF and trading-only lines and lines the
+  **ISIN-country suggestion (shares only).** Where field 8 and the other
+  sources leave a share's primary unknown, its one line on an exchange in its
+  ISIN's country is attached to the home-market question as a suggested
+  answer (rule `isin_country`); the share stays unknown. It is Pythia's
+  heuristic, not source evidence, so it is a curation suggestion (R2, ADR
+  0044) that the central curator's back office can approve, in bulk once
+  calibrated. It skips OTC, MTF and trading-only lines and lines the
   package cannot write (an OpenFIGI home line without a trading currency: RELX
   on London and BCE on Toronto stay questions). Evidence, on
   the build of PR #74: where the same test applies to ordinary shares whose
@@ -191,8 +195,9 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   (99.6%; the 28 are debatable dual listings such as Viohalco on Athens).
   Funds are excluded: for Irish funds it disagrees with the decided primary
   581 times against 323, for Luxembourg funds 41 against 91, because a Dublin
-  or Luxembourg line is often a technical listing. It decides 137 shares,
-  among them TotalEnergies (Euronext Paris beside NYSE) and Magnum.
+  or Luxembourg line is often a technical listing. It suggests an answer for
+  137 shares, among them TotalEnergies (Euronext Paris beside NYSE) and
+  Magnum.
 
   Securities without a request and with a line outside the EEA keep the SEC
   or OpenFIGI line as before (7,581); those sources are onboarded next.
@@ -246,8 +251,9 @@ Classes assigned to code or to curation instead:
 
 ## Sign-off
 
-**Signed off in PR #74** for the issuer; the primary of shares waits for a
-re-sample showing the ISIN-country fix holds. After the maintainer's review of this record and [the
+**Signed off in PR #74** for the issuer and for the primary of shares that
+FIRDS claims decide (field 8); no rule-made primary is covered. After the
+maintainer's review of this record and [the
 sample](firds-signoff-sample.md). Measured on the offline build of 2026-09-28
 (FIRDS week of 2026-09-26):
 
@@ -261,19 +267,19 @@ sample](firds-signoff-sample.md). Measured on the offline build of 2026-09-28
 Questions: 25 of 30 were right to ask (83%). Only 9 of the 30 carry the true
 answer among their candidates: most answers lie outside the build (TSX
 Venture, Cboe NL, Tel Aviv, an LEI GLEIF does not hold). The ISIN-country line
-now decides General Dynamics and PepsiCo on their US line and TotalEnergies
-on Euronext Paris. BCE and RELX stay questions, priced on their most liquid EU
-line: their home lines have no trading currency the package can write (#46).
+suggests an answer for General Dynamics and PepsiCo (their US line) and
+TotalEnergies (Euronext Paris); they stay questions until a curator approves.
+BCE and RELX get no suggestion: their home lines have no trading currency the
+package can write (#46).
 
 Decisions and limits:
 
 - **Issuer:** signed off. The known error class, field 5 naming another company
   that is no venue operator (Legence under Avio, Ubiquiti), is fixed by the
   SEC registrant's issuer claim. Owner: the SEC onboarding.
-- **Primary, shares:** pending: the sample (21/22) predates the ISIN-country
-  line, which first took home lines the package cannot write (54 shares, RELX
-  and BCE among them, left with no primary, question or label). Re-sample
-  after the fix before signing off.
+- **Primary, shares:** signed off for primaries field 8 decides (21/22 in the
+  sample, all field 8 decisions). The ISIN-country line is only a suggested
+  answer on the question and is not signed off.
 - **Primary, ETFs:** accepted limit until a source that sees non-EEA listings
   (OpenFIGI home rows for ETFs, an exchange list) is onboarded. Owner: the
   OpenFIGI onboarding.

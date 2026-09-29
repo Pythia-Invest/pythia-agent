@@ -46,8 +46,6 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
             targets = [f"isin:{target}" for target in sorted(stated) if f"isin:{target}" in snap.securities]
             snap.ask("receipt_conflict", security.security_id, targets, evidence, sorted(stated))
         rule, line = _primary(claims, venues, isin, lines[security.security_id], as_of)
-        if line is None and security.kind == "share" and (home := _isin_country_line(venues, isin, lines[security.security_id])):
-            rule, line = "isin_country_line", home
         audit[f"primary_{rule}"] += 1
         for other in lines[security.security_id]:
             other.is_primary = other is line
@@ -60,7 +58,12 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
                 liquid.most_liquid = True
         if line is None and live:
             candidates = [l.listing_id for l in lines[security.security_id] if l.status != "inactive"]
-            snap.ask("home_market", security.security_id, candidates[:20], evidence)
+            # A curation suggestion, never a decision (R2, ADR 0044): the share's one writable exchange line in its
+            # ISIN's country, which a curator may approve.
+            home = _isin_country_line(venues, isin, lines[security.security_id]) if security.kind == "share" else None
+            audit["home_market_isin_country_suggestion"] += home is not None
+            snap.ask("home_market", security.security_id, candidates[:20], evidence,
+                     suggested=(home.listing_id, ISIN_COUNTRY) if home else None)
 
 
 def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as_of: str) -> tuple[str, Listing | None]:
@@ -85,6 +88,9 @@ def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as
         line = home[0] if home and not isin.startswith("US") else us_lines(lines)[0] if us_lines(lines) else home[0]
         return ("home_listing_evidence" if line.source == "openfigi" else "us_exchange_listing"), line
     return "most_liquid_only", None
+
+
+ISIN_COUNTRY = "isin_country"  # the suggestion rule: measured 99.6% agreement with decided share primaries (#74)
 
 
 def _isin_country_line(venues: Venues, isin: str, lines: list[Listing]) -> Listing | None:

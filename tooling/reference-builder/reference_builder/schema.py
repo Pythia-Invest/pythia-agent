@@ -365,7 +365,8 @@ QUESTION_SHAPE = {
 
 
 def questions(snap: Snapshot) -> list[dict]:
-    """The build's open questions in core subject IDs: `package.json`'s `claims`, imported into core's queue."""
+    """The build's open questions in core subject IDs: `package.json`'s `claims`. Curation questions, answered
+    centrally (ADR 0044) and never queued for the investor; a rule's `suggested` answer is a proposal, not a fact."""
     ids, found = _Ids(snap), []
 
     def subject(working: str) -> str | None:
@@ -381,5 +382,7 @@ def questions(snap: Snapshot) -> list[dict]:
                           "candidate_ids": [c for c in dict.fromkeys(map(subject, question.candidates)) if c],
                           "evidence_ids": list(question.evidence),
                           "scheme": "lei" if question.question == "issuer_identity" else None,
-                          "values": list(question.values)})
+                          "values": list(question.values),
+                          **({"suggested": {"chosen_id": chosen, "rule": question.suggested[1]}}
+                             if question.suggested and (chosen := subject(question.suggested[0])) else {})})
     return found
