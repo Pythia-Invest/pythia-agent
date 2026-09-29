@@ -147,7 +147,8 @@ function sessionBaseline(
 /** 1D on the instrument page (ADR 0041): the supplied session from
  * pre-market through after-hours; before the open, the prior session with
  * its extended hours, its closed night omitted, then today's pre-market.
- * A tile (ADR 0027) keeps the day simple: the regular session, followed by
+ * A tile keeps the September tile window (docs/architecture/markets-overview.md;
+ * ADR 0041 rejects it for the page): the regular session, followed by
  * after-hours once the close has passed; before the open, the prior regular
  * session, the closed time omitted, then today's pre-market. */
 function oneDay(

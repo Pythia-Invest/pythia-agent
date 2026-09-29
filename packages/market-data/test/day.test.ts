@@ -154,7 +154,7 @@ describe("the markets overview's quotes and paths", () => {
       value.price_context = {
         delay_seconds: 0,
         session: { state, basis: "source" },
-      } as ReadResult["price_context"];
+      } as NonNullable<ReadResult["price_context"]>;
       return value;
     };
     const data = render([

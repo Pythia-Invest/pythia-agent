@@ -98,6 +98,23 @@ describe("a subject that cannot be read", () => {
     expect(note).toMatch(/^Reference data is not installed on this device yet/);
     expect(note).toContain("just reference-install");
     expect(referenceNote(undefined)).toBeUndefined();
+    const installed = {
+      build_id: "reference-20260926",
+      as_of: "2026-09-26",
+      built_at: "2026-09-26T20:38:00Z",
+      format_version: 2,
+      installed_at: null,
+      sources: [],
+      notices: [],
+    };
+    expect(
+      referenceNote({ installed: { ...installed, compatible: true } }),
+    ).toBeUndefined();
+    const incompatible = referenceNote({
+      installed: { ...installed, compatible: false },
+    });
+    expect(incompatible).toMatch(/reference-20260926 is not compatible/);
+    expect(incompatible).toContain("just reference-install");
     const html = renderToStaticMarkup(
       <ReadFailure
         days={[day(bitcoin, { loading: false, failed: true })]}

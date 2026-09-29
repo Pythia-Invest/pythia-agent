@@ -41,14 +41,18 @@ function Card({
 }
 
 /** Why subjects cannot be read when the device has no usable reference
- * data, and what to do; undefined when reference data is installed. */
+ * data (none installed, an incompatible one, or a refused package), and what
+ * to do; undefined while unknown or when compatible data is installed. */
 export function referenceNote(status: ReferenceStatus | null | undefined) {
-  if (status === undefined || status?.installed) return undefined;
+  if (status === undefined || status?.installed?.compatible) return undefined;
   const install =
-    "Install a reference package (just reference-install <package>; Settings › Reference data shows what is installed), then Retry.";
-  return status?.refused
-    ? `The reference package was refused, so some subjects cannot be shown: ${status.refused.message} ${install}`
-    : `Reference data is not installed on this device yet, so some subjects cannot be shown. ${install}`;
+    "Install a reference package this Pythia reads (just reference-install <package>; Settings › Reference data shows what is installed), then Retry.";
+  const cause = status?.installed
+    ? `The installed reference package ${status.installed.build_id} is not compatible with this Pythia`
+    : status?.refused
+      ? `A reference package was refused (${status.refused.message})`
+      : "Reference data is not installed on this device yet";
+  return `${cause}, so some subjects cannot be shown. ${install}`;
 }
 
 /** A card's read failure, as the September blocks showed it: what failed,
