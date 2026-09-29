@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-from . import rules
+from . import gleif, rules
 from .assemble import FigiMap, Inputs, operating
 from .model import Evidence, GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot
 from .sec import EXCHANGE_MIC, LISTED_MICS
@@ -41,7 +41,7 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
         rows[ticker] = rows[ticker] | {"figi": line["figi"]}
     audit["listing_figi_from_composite"] = sum(1 for t in tickers if rows.get(t.ticker) and t.ticker not in lines)
 
-    evidence, isins = _link_evidence(snap, entities, tickers, rows, figi_map)
+    evidence, isins = _link_evidence(snap, entities, tickers, rows, figi_map, inputs.claims().digests)
     links = _decide(snap, tickers, evidence, audit)
     _ask_name_candidates(snap, tickers, links, audit)
     _flag_suspect_links(snap, tickers, links)
@@ -121,10 +121,12 @@ def _exchange_lines(figi_map: FigiMap, wanted: list[tuple[str, tuple[str, ...]]]
     return found
 
 
-def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, list[tuple[str, str]]], dict[str, str]]:
-    """Candidate LEIs per CIK with the rule that produced each, and FIRDS ISINs per SEC ticker."""
+def _link_evidence(snap, entities, tickers, rows, figi_map, digests: dict[str, str]
+                   ) -> tuple[dict[str, list[tuple[str, str, str | None]]], dict[str, str]]:
+    """Candidate LEIs per CIK with the rule that produced each and the record it rests on (`record:<digest>`: the
+    FIRDS record of the ISIN or share class, or GLEIF's record), and FIRDS ISINs per SEC ticker."""
     by_ticker = {t.ticker: t for t in tickers}
-    evidence: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    evidence: dict[str, list[tuple[str, str, str | None]]] = defaultdict(list)
     isins: dict[str, str] = {}
     us_isins = sorted(s.isin for s in snap.securities.values() if s.isin and s.isin.startswith("US") and s.kind == "share")
     for isin, answer in zip(us_isins, figi_map([{"idType": "ID_ISIN", "idValue": i, "exchCode": "US"} for i in us_isins])):
@@ -133,18 +135,23 @@ def _link_evidence(snap, entities, tickers, rows, figi_map) -> tuple[dict[str, l
         if match:
             issuer_id = snap.securities[f"isin:{isin}"].issuer_id
             if issuer_id:  # none when FIRDS names a venue operator's LEI: that is no issuer to link
-                evidence[match.cik].append((issuer_id[4:], "isin_exch_us"))
+                evidence[match.cik].append((issuer_id[4:], "isin_exch_us", _record(digests.get(isin))))
             snap.audit["sec"]["isin_from_firds"] += 1
             isins[match.ticker] = isin
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
     for ticker in tickers:
         security = share_classes.get((rows.get(ticker.ticker) or {}).get("shareClassFIGI"))
         if security and security.issuer_id and security.issuer_id.startswith("lei:"):
-            evidence[ticker.cik].append((security.issuer_id[4:], "share_class_figi"))
+            evidence[ticker.cik].append((security.issuer_id[4:], "share_class_figi", _record(digests.get(security.isin))))
     for entity in entities.values():
         if entity.registered_at == SEC_EDGAR_RA and (entity.registered_as or "").isdigit():
-            evidence[str(int(entity.registered_as))].append((entity.lei, "gleif_edgar_registration"))
+            evidence[str(int(entity.registered_as))].append((entity.lei, "gleif_edgar_registration",
+                                                             _record(gleif.record_digest(entity))))
     return evidence, isins
+
+
+def _record(digest: str | None) -> str | None:
+    return f"record:{digest}" if digest else None
 
 
 NAME_QUESTION = "issuer_identity_name_candidate"
@@ -185,16 +192,16 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
     candidates = []
     for cik in sorted({t.cik for t in tickers}, key=int):
         found = evidence.get(cik, [])
-        strong = {lei for lei, rule in found if rule in IDENTIFIER_RULES}
+        strong = {lei for lei, rule, _cite in found if rule in IDENTIFIER_RULES}
         if len(strong) > 1:
             snap.flag(f"cik:{cik}", "cik_lei_conflict", ",".join(sorted(strong)))
-            _ask_link(snap, cik, sorted(strong))
+            _ask_link(snap, cik, sorted(strong), _cites(evidence, [cik], strong))
             audit["link_conflicts"] += 1
             continue
         if not strong:
             continue
         lei = next(iter(strong))
-        candidates.append((cik, lei, next(r for l, r in found if l == lei and r in IDENTIFIER_RULES)))
+        candidates.append((cik, lei, next(r for l, r, _cite in found if l == lei and r in IDENTIFIER_RULES)))
     titles = _titles(tickers)
     claimants: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for cik, lei, rule in candidates:
@@ -204,8 +211,8 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
         named = [(cik, rule) for cik, rule in found if _name_alike(titles[cik], snap.issuers.get(f"lei:{lei}"))]
         if len(found) > 1 and len(named) != 1:
             for cik, _rule in found:
-                if named:  # several CIKs the LEI's names match: no rule decides, so each is asked
-                    _ask_link(snap, cik, [lei])
+                if named:  # several CIKs the LEI's names match: no rule decides, so each is asked, citing every claim
+                    _ask_link(snap, cik, [lei], _cites(evidence, [c for c, _r in found], {lei}))
                 else:  # none names it: FIRDS puts a venue's or data vendor's LEI on US ISINs (TP ICAP, Bloomberg)
                     snap.flag(f"cik:{cik}", "lei_contested_unnamed", lei)
                 audit["link_conflicts"] += 1
@@ -222,8 +229,14 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
     return links
 
 
-def _ask_link(snap: Snapshot, cik: str, leis: list[str]) -> None:
-    snap.ask("issuer_identity", f"cik:{cik}", [f"lei:{lei}" for lei in leis], values=leis)
+def _ask_link(snap: Snapshot, cik: str, leis: list[str], cites: list[str]) -> None:
+    snap.ask("issuer_identity", f"cik:{cik}", [f"lei:{lei}" for lei in leis], cites, values=leis)
+
+
+def _cites(evidence, ciks: list[str], leis: set[str]) -> list[str]:
+    """The records the CIKs' identifier links to these LEIs rest on: a conflict cites its evidence."""
+    return sorted({cite for cik in ciks for lei, rule, cite in evidence.get(cik, [])
+                   if cite and lei in leis and rule in IDENTIFIER_RULES})
 
 
 def _issuer_for(snap: Snapshot, ticker: SecTicker, link: tuple[str, str] | None) -> Issuer:

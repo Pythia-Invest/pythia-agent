@@ -427,7 +427,7 @@ class CikLinkTest(unittest.TestCase):
         snap.issuers["lei:BFAG"] = Issuer("lei:BFAG", "Biofrontera AG", "gleif", lei="BFAG",
                                           names=[("Biofrontera AG", "LEGAL_NAME", "de", "gleif")])
         tickers = [SecTicker("1858685", "Biofrontera Inc.", "BFRI", "Nasdaq", 0)]
-        evidence, _isins = linking._link_evidence(snap, {}, tickers, {}, lambda jobs: [{} for _ in jobs])
+        evidence, _isins = linking._link_evidence(snap, {}, tickers, {}, lambda jobs: [{} for _ in jobs], {})
         self.assertEqual(dict(evidence), {})
         audit = Counter()
         links = linking._decide(snap, tickers, evidence, audit)
@@ -448,7 +448,7 @@ class CikLinkTest(unittest.TestCase):
         snap.issuers["lei:BRK"] = Issuer("lei:BRK", "Berkshire Hathaway Inc.", "gleif", lei="BRK")
         tickers = [SecTicker("58361", "LEE ENTERPRISES, Inc", "LEE", "NYSE", 0),
                    SecTicker("1067983", "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE", 1)]
-        evidence = {"58361": [("BRK", "isin_exch_us")], "1067983": [("BRK", "share_class_figi")]}
+        evidence = {"58361": [("BRK", "isin_exch_us", "record:lee")], "1067983": [("BRK", "share_class_figi", "record:brk")]}
         self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {"1067983": ("BRK", "share_class_figi")})
 
     def test_a_lei_several_ciks_claim_and_several_name_links_to_none_and_asks_each(self):
@@ -459,13 +459,14 @@ class CikLinkTest(unittest.TestCase):
                                          names=[("VISHAY INTERTECHNOLOGY, INC.", "LEGAL_NAME", "en", "gleif")])
         tickers = [SecTicker("103730", "VISHAY INTERTECHNOLOGY INC", "VSH", "NYSE", 0),
                    SecTicker("1487952", "Vishay Precision Group, Inc.", "VPG", "NYSE", 1)]
-        evidence = {"103730": [("VSH", "share_class_figi")], "1487952": [("VSH", "isin_exch_us")]}
+        evidence = {"103730": [("VSH", "share_class_figi", "record:vsh")], "1487952": [("VSH", "isin_exch_us", "record:vpg")]}
         audit = Counter()
         links = linking._decide(snap, tickers, evidence, audit)
         self.assertEqual(links, {})
-        self.assertEqual([(q.question, q.subject_id, q.candidates, q.values) for q in snap.questions],
-                         [("issuer_identity", "cik:103730", ("lei:VSH",), ("VSH",)),
-                          ("issuer_identity", "cik:1487952", ("lei:VSH",), ("VSH",))])
+        both = ("record:vpg", "record:vsh")  # a conflict cites every claim's record
+        self.assertEqual([(q.question, q.subject_id, q.candidates, q.values, q.evidence) for q in snap.questions],
+                         [("issuer_identity", "cik:103730", ("lei:VSH",), ("VSH",), both),
+                          ("issuer_identity", "cik:1487952", ("lei:VSH",), ("VSH",), both)])
         self.assertEqual(audit["link_conflicts"], 2)
         linking._ask_name_candidates(snap, tickers, links, audit)  # Vishay Intertechnology's name matches too
         self.assertEqual(len(snap.questions), 2, "a CIK already asked is not asked again by name")
@@ -473,18 +474,18 @@ class CikLinkTest(unittest.TestCase):
     def test_a_cik_several_leis_claim_links_to_none_and_is_asked(self):
         snap = Snapshot(as_of="2026-09-25")
         tickers = [SecTicker("1243429", "ArcelorMittal", "MT", "NYSE", 0)]
-        evidence = {"1243429": [("AMLU", "isin_exch_us"), ("AMOLD", "share_class_figi")]}
+        evidence = {"1243429": [("AMLU", "isin_exch_us", "record:amlu"), ("AMOLD", "share_class_figi", "record:amold")]}
         self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
         self.assertEqual({f.flag for f in snap.flags}, {"cik_lei_conflict"})
-        self.assertEqual([(q.question, q.subject_id, q.candidates) for q in snap.questions],
-                         [("issuer_identity", "cik:1243429", ("lei:AMLU", "lei:AMOLD"))])
+        self.assertEqual([(q.question, q.subject_id, q.candidates, q.evidence) for q in snap.questions],
+                         [("issuer_identity", "cik:1243429", ("lei:AMLU", "lei:AMOLD"), ("record:amlu", "record:amold"))])
 
     def test_a_lei_several_ciks_claim_and_none_names_links_to_none(self):
         snap = Snapshot(as_of="2026-09-25")
         snap.issuers["lei:TPI"] = Issuer("lei:TPI", "TP ICAP (Europe)", "gleif", lei="TPI")
         tickers = [SecTicker("10329", "BASSETT FURNITURE INDUSTRIES INC", "BSET", "Nasdaq", 0),
                    SecTicker("23795", "CTO Realty Growth, Inc.", "CTO", "NYSE", 1)]
-        evidence = {"10329": [("TPI", "isin_exch_us")], "23795": [("TPI", "isin_exch_us")]}
+        evidence = {"10329": [("TPI", "isin_exch_us", "record:bset")], "23795": [("TPI", "isin_exch_us", "record:cto")]}
         self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
         self.assertEqual({f.flag for f in snap.flags}, {"lei_contested_unnamed"})
 

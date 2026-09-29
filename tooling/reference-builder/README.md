@@ -276,6 +276,9 @@ it is a choice, not an identity fact (ADR 0044, A5), so an undecided one is
 counted and never asked. `questions-<date>.json` holds them in
 core subject IDs (each with its question type, the resolution queue's `kind` and
 `reason`, candidates and evidence), and `package.json` names it under `claims`.
+A conflict always cites the records it rests on (`record:<digest>`: a FIRDS
+record, or for a CIK's conflicting links also GLEIF's), since core's queue
+refuses a conflict that cites nothing.
 These are curation questions about the world, answered centrally by a curator
 ([ADR 0044](../../docs/decisions/0044-product-direction.md), "Where conflicts
 are resolved"), never by the investor: core installs and verifies the file with

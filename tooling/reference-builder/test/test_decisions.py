@@ -4,10 +4,11 @@
 import copy
 import dataclasses
 import unittest
+from collections import Counter
 from datetime import date
 from unittest import mock
 
-from reference_builder import assemble, linking, mic, reconcile, schema, sec
+from reference_builder import assemble, firds, gleif, linking, mic, reconcile, schema, sec
 from reference_builder.assemble import Inputs
 from reference_builder.claims import Venues
 from reference_builder.config import Scope
@@ -15,7 +16,8 @@ from reference_builder.model import Evidence, Listing, Relationship, Security, S
 from reference_builder.pipeline import build_snapshot
 from reference_builder.receipts import link_receipts
 
-from .fixtures import MIC_CSV, FakeOpenFigi, sec_json
+from .fixtures import (ASML_ISIN, MIC_CSV, NN_ISIN, NN_LEI, FakeOpenFigi, firds_record, fulins, gleif_item, sec_json,
+                       stream)
 from .test_pipeline import OPENFIGI, SHELL_ISIN, WIDE_OPENFIGI, gleif_fetch, inputs, wide_inputs
 
 
@@ -105,6 +107,25 @@ class ReceiptClassTest(unittest.TestCase):
                 link_receipts(snap)
                 self.assertNotIn(receipt, {item.from_id for item in snap.relationships})
                 self.assertEqual(snap.audit["relations"]["receipt_without_underlying"], without + 1)
+
+
+class ConflictEvidenceTest(unittest.TestCase):
+    def test_every_conflict_question_cites_evidence(self):
+        # Core's queue refuses a conflict that cites nothing. NN's GLEIF record registers ASML's CIK at EDGAR beside
+        # ASML's share-class FIGI link (a CIK two LEIs claim), and NN's share states ASML as its underlying.
+        given = inputs()
+        record = firds_record(NN_ISIN, "XAMS", NN_LEI, name="NN GROUP", underlying=ASML_ISIN)
+        firds.apply(given.admissions, firds.full_records(stream(fulins([record])), given.scope.cfi_prefixes), Counter())
+        registered = gleif.entity_from_api(gleif_item(NN_LEI, "NN Group N.V.", "nl", ra="RA000665", ra_id="937966"))
+
+        def fetch(leis):
+            return gleif_fetch(leis) | ({NN_LEI: registered} if NN_LEI in leis else {})
+
+        with mock.patch("urllib.request.urlopen", side_effect=AssertionError("network access in a test")):
+            snap = build_snapshot(given, fetch, FakeOpenFigi(OPENFIGI))
+        conflicts = [q for q in schema.questions(snap) if q["kind"] == "conflict"]
+        self.assertEqual(sorted(q["question"] for q in conflicts), ["issuer_identity", "receipt_conflict"])
+        self.assertEqual([q["question"] for q in conflicts if not q["evidence_ids"]], [])
 
 
 if __name__ == "__main__":
