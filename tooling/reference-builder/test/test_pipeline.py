@@ -333,17 +333,13 @@ class AllVenuesTest(unittest.TestCase):
                 isin = db.execute("select subject_id from assertions where scheme = 'isin' and value = ?", (APPLE_ISIN,)).fetchone()
                 aliases = dict(db.execute("select old_id, new_id from id_aliases"))
                 ids = {row[0] for row in db.execute("select id from securities union select id from listings")}
-        self.assertEqual((rule, isin), (("subject_key@1",), ("security:figi:BBG001S5N8V8",)))
+        self.assertEqual((rule, isin), (("subject_key@2",), ("security:figi:BBG001S5N8V8",)))
         self.assertEqual(aliases[f"security:isin:{APPLE_ISIN}"], "security:figi:BBG001S5N8V8")
         self.assertEqual(aliases[f"listing:isin:{APPLE_ISIN}:XNAS:USD"], "listing:figi:BBG000B9Y5X2", "the Nasdaq line's FIGI, not the composite's")
         self.assertEqual(aliases["listing:figi:BBG000B9XRY4"], "listing:figi:BBG000B9Y5X2", "the old composite-keyed ID")
         self.assertFalse(set(aliases) & ids, "an alias never shadows a subject")
-        # A US-area security with no share-class FIGI keeps its lines under a local, non-portable ID,
-        # which a later build that finds the FIGI aliases to the FIGI key.
-        local = schema.local_security(UNKNOWN_US_ISIN)
-        self.assertEqual(local, f"security:provisional:esma_firds:isin:{UNKNOWN_US_ISIN}")
-        self.assertIn(local, ids)
-        self.assertIn(local, schema.aliases("security", "security:figi:BBG001S5N8V8", {"isin": UNKNOWN_US_ISIN, "share_class_figi": "BBG001S5N8V8"}))
+        # A US-area security with no share-class FIGI has a device-local ID (test_keys.py).
+        self.assertIn(f"security:cgs_isin:{UNKNOWN_US_ISIN}", ids)
         self.assertTrue(all(new in ids or new.startswith(("issuer:", "composite:")) for new in aliases.values()))
 
     def test_segment_venues_take_their_operator_label(self):

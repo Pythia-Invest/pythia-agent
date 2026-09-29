@@ -33,6 +33,7 @@ class Inputs:
     figi_mic_codes: set[str]
     sec_funds: list[SecFund] = field(default_factory=list)
     firds_claims: Claims | None = None  # built from `admissions` when not given
+    openfigi: bool = True  # whether the build reads OpenFIGI: without it, a line's missing FIGI says nothing
 
     def claims(self) -> Claims:
         if self.firds_claims is None:
@@ -146,7 +147,7 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
             registration_status=_entity_attr(entities, lei, "registration_status"),
             venue_count=len(scoped[isin]),
             has_transparency=None if inputs.transparency is None else isin in inputs.transparency,
-            has_figi=row is not None,
+            has_figi=row is not None if inputs.openfigi else None,
         )
         snap.listings[listing.listing_id] = listing
 

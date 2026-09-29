@@ -109,11 +109,12 @@ class _Ids:
         return found or identity.provisional_id("issuer", issuer.source, "id", issuer.issuer_id.split(":", 1)[1])
 
     def _security(self, security) -> str:
+        # A CGS-area ISIN without a share-class FIGI keys a device-local subject (`cgs_isin`), whatever its source.
         found = derive("security", {"isin": security.isin, "share_class_figi": security.share_class_figi})
         if found:
             return found
-        if security.isin:  # a CGS-area ISIN with no share-class FIGI yet: a local, non-portable ID
-            return local_security(security.isin)
+        if security.isin:  # malformed: no identifier, so its source's own reference
+            return identity.provisional_id("security", security.source, "isin", security.isin)
         return identity.provisional_id("security", security.source, "id", security.security_id.split(":", 1)[1])
 
     def listing(self, listing) -> str | None:
@@ -128,20 +129,21 @@ class _Ids:
             issuer = self.snap.issuers.get(listing.issuer_id or "")
             native = ".".join(part for part in (listing.mic, issuer.cik if issuer else None, listing.ticker) if part)
             return identity.provisional_id("listing", listing.source, "ticker", native)
-        return local_line(security.isin, listing.operating_mic or listing.mic, listing.currency) if security.isin else None
+        if not security.isin:
+            return None
+        native = f"{listing.operating_mic or listing.mic}.{security.isin}.{listing.currency}"  # a malformed ISIN
+        return identity.provisional_id("listing", security.source, "line", native)
 
 
-def local_security(isin: str) -> str:
-    """Provisional (non-portable, ADR 0037) ID of a security known only by a CGS-area ISIN.
-
-    Deterministic, so the build that later finds its share-class FIGI aliases it to the FIGI key.
-    """
-    return identity.provisional_id("security", "esma_firds", "isin", isin)
+def local_security(isin: str) -> str | None:
+    """Core's device-local ID (`cgs_isin`, ADR 0037) of a security known only by a CGS-area ISIN, the same from every
+    source. The build that later finds its share-class FIGI aliases it to the FIGI key."""
+    return identity.subject_id("security", {"isin": isin})
 
 
-def local_line(isin: str, operating_mic: str, currency: str) -> str:
-    """Provisional ID of such a security's venue line that carries neither a FIGI nor a ticker."""
-    return identity.provisional_id("listing", "esma_firds", "line", f"{operating_mic}.{isin}.{currency}")
+def local_line(isin: str, operating_mic: str, currency: str) -> str | None:
+    """Core's device-local ID of such a security's venue line that carries no FIGI."""
+    return identity.subject_id("listing", {"isin": isin}, operating_mic=operating_mic, currency=currency)
 
 
 def aliases(level: str, subject: str, identifiers: dict[str, str | None], *, operating_mic: str | None = None,
@@ -168,12 +170,13 @@ def aliases(level: str, subject: str, identifiers: dict[str, str | None], *, ope
                     f"figi:{valid['composite_figi']}" if valid.get("composite_figi") and country == "US" else None],
     }[level]
     found = {f"{level}:{key}" for key in keys if key}
-    if isin and isin[:2] in identity.CGS_AREA:  # the local IDs it had before a FIGI was known
+    if isin and isin[:2] in identity.CGS_AREA:  # its local IDs before a FIGI: `cgs_isin`, and subject_key@1's in FIRDS's name
         if level == "security":
-            found.add(local_security(isin))
+            found |= {local_security(isin), identity.provisional_id("security", "esma_firds", "isin", isin)}
         elif level == "listing" and operating_mic and currency:
-            found.add(local_line(isin, operating_mic, currency))
-    return found - {subject}
+            found |= {local_line(isin, operating_mic, currency),
+                      identity.provisional_id("listing", "esma_firds", "line", f"{operating_mic}.{isin}.{currency}")}
+    return found - {subject, None}
 
 
 def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str, list[dict]]:
@@ -236,7 +239,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     titles: dict[str, str | None] = {}
     for key, security in sorted(snap.securities.items()):
         subject = ids.securities[key]
-        if subject.startswith("security:provisional:esma_firds:isin:"):
+        if subject.startswith("security:cgs_isin:"):
             audit["securities_local_id"] += 1
         for alias in aliases("security", subject, {"isin": security.isin, "share_class_figi": security.share_class_figi}):
             candidates[alias].add(subject)

@@ -12,7 +12,7 @@ from pathlib import Path
 TOOL_DIR = Path(__file__).resolve().parent.parent
 # Outputs and downloads are data: they live under the checkout's ignored `.local/`.
 WORK_DIR = TOOL_DIR.parent.parent / ".local" / "reference-builder"
-BUILDER_VERSION = "2"  # the rules version: bump it on every rule change, with a line in the README's "Rules versions"
+BUILDER_VERSION = "3"  # the rules version: bump it on every rule change, with a line in the README's "Rules versions"
 
 # Generic project identification; personal contacts never belong in source.
 USER_AGENT = "pythia-agent reference builder (contact via github.com/Pythia-Invest)"
@@ -27,20 +27,28 @@ class Scope:
     """Which venues and populations a build covers.
 
     `mics=None` covers every venue in FIRDS (all EU/EEA trading venues); a tuple
-    of operating MICs restricts the build to those venues. CFI prefixes select
+    of operating MICs restricts the build to those venues, and a build without
+    FIRDS (`firds=False`) covers none. `sec` adds US lines. CFI prefixes select
     shares (ES), depositary receipts (ED) and exchange-traded funds (CE).
     """
 
     mics: tuple[str, ...] | None = None
     sec: bool = True
     cfi_prefixes: tuple[str, ...] = ("ES", "ED", "CE")
+    firds: bool = True
 
     def covers(self, operating_mic: str | None) -> bool:
-        return self.mics is None or operating_mic in self.mics
+        return self.firds and (self.mics is None or operating_mic in self.mics)
+
+    def label(self) -> str:
+        """The release's `scope`: `EEA` or the MICs FIRDS covers, and `US`."""
+        venues = (["EEA"] if self.mics is None else list(self.mics)) if self.firds else []
+        return ",".join(venues + (["US"] if self.sec else []))
 
     def describe(self) -> dict:
         return {
-            "mics": list(self.mics) if self.mics is not None else "all FIRDS venues",
+            "firds": self.firds,
+            "mics": (list(self.mics) if self.mics is not None else "all FIRDS venues") if self.firds else [],
             "sec": self.sec,
             "cfi_prefixes": list(self.cfi_prefixes),
         }
@@ -54,6 +62,8 @@ class BuildConfig:
     cache_dir: Path = WORK_DIR / "downloads"
     deltas: bool = False
     fitrs: bool = True
+    gleif: bool = True
+    openfigi: bool = True
     gates: bool = True
     contact: str | None = None
     sec_file: Path | None = None
@@ -61,6 +71,13 @@ class BuildConfig:
     openfigi_max_age_days: int = 30
     gleif_max_age_days: int = 1
     listing_file_max_age_days: int = 1
+
+    def included_sources(self) -> list[str]:
+        """The sources this build reads, as `package.json` lists them: every source can be omitted with its `--no-`
+        flag, except the ISO 10383 venue codes and core's curated crypto table."""
+        read = {"esma_firds": self.scope.firds, "esma_fitrs": self.fitrs, "gleif": self.gleif,
+                "openfigi": self.openfigi, "sec": self.scope.sec}
+        return ["iso10383_mic", *(source for source, included in read.items() if included), "canonical_assets"]
 
 
 def parse_mics(value: str | None) -> tuple[str, ...] | None:

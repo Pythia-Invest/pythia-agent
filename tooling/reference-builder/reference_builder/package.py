@@ -48,6 +48,7 @@ def write(out_dir: Path, manifest: dict) -> Path | None:
         "as_of": manifest["as_of"],
         "builder_version": manifest["builder_version"],
         "scope": manifest["scope"],
+        "included_sources": manifest["included_sources"],
         "database": {key: manifest["snapshot"][key] for key in ("file", "bytes", "sha256")},
         "sources": [
             {"source": entry["source"], "url": entry.get("url"), "version": entry.get("version"),

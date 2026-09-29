@@ -306,7 +306,7 @@ def _listing(snap: Snapshot, inputs: Inputs, ticker: SecTicker, row: dict | None
         listing.figi, listing.composite_figi = row.get("figi"), row.get("compositeFIGI")
         listing.share_class_figi = row.get("shareClassFIGI")
         listing.security_type = row.get("securityType2") or row.get("securityType")
-    else:
+    elif inputs.openfigi:
         listing.status_reasons.append("no_openfigi_line")
     if ticker.exchange == "NYSE":
         listing.status_reasons.append("sec_nyse_may_be_american_or_arca")

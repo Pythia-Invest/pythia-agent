@@ -2,7 +2,7 @@
   "reference": "reference-20260928",
   "scope": "EEA,US",
   "truth_version": "2026-09-26",
-  "key_rule": "subject_key@1",
+  "key_rule": "subject_key@2",
   "passed": [
     "aalberts:coverage:found",
     "aalberts:fold:row",
@@ -3869,7 +3869,7 @@
       }
     },
     "asr-adr": {
-      "security": "security:provisional:esma_firds:isin:US00217N1081",
+      "security": "security:cgs_isin:US00217N1081",
       "issuer": "issuer:lei:7245000G0HS48PZWUD53",
       "listings": {}
     },
