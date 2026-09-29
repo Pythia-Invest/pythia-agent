@@ -151,6 +151,30 @@ class MarketReadsTest(unittest.TestCase):
         self.assertEqual((body["outcome"], body["data"]["source"]["plugin"], body["data"]["skipped"][-1]["code"]),
                          ("ok", "pythia-other", "not_covering"))
 
+    def test_an_unreadable_reference_leaves_rows_unlinked_and_keeps_the_list(self):
+        data, issues = movers.adapt(screen(quote()), "most_active", 25)
+
+        class Broken:
+            def execute(self, *_args):
+                raise sqlite3.OperationalError("disk I/O error")
+
+            def close(self):
+                pass
+        self.reads.identity.reference = lambda: (None, Broken())
+        body = self.movers({"schema_version": 1, "outcome": "ok", "data": data, "issues": issues})
+        self.assertEqual(body["outcome"], "ok")
+        self.assertEqual([(row["subject_id"], row["unresolved"]) for row in body["data"]["rows"]],
+                         [(None, self.ops.UNRESOLVED["reference_failed"])])
+
+    def test_the_overview_says_when_it_shows_only_the_first_subjects(self):
+        from pythia_core_queue_fixture.platform import configuration
+        many = " ".join(f"index:pythia:test{number}" for number in range(30))
+        values = {"markets_cards": ("configured", many), "markets_watchlist": ("missing", None)}
+        with unittest.mock.patch.object(configuration, "value", lambda _ctx, key: values[key]):
+            body = json.loads(self.reads.overview({}))
+        self.assertEqual(len(body["data"]["cards"]), self.ops.MAX_SUBJECTS)
+        self.assertIn("lists 30 subjects", body["issues"][0]["message"])
+
     def test_the_overview_lists_configured_subjects_or_the_defaults(self):
         from pythia_core_queue_fixture.platform import configuration
         values = {"markets_cards": ("configured", "index:pythia:dax, not-an-id  fx:pythia:EURUSD"),

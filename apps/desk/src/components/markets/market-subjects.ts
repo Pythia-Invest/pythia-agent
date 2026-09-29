@@ -64,10 +64,30 @@ export function unavailableItem(
   };
 }
 
+/** A row whose page is still being read: whatever identity is known, no
+ * values and no status yet. */
+export function loadingItem(
+  id: string,
+  symbol: string,
+  name: string | undefined,
+): InstrumentDisplay {
+  return {
+    id,
+    ticker: symbol,
+    name,
+    price: null,
+    status: "unknown",
+    statusLabel: "Loading quote",
+    description: "Loading quote",
+    pathState: "loading",
+  };
+}
+
+/** The rows carry regular-session values, so after-hours reads as closed. */
 const SESSION = {
   pre: "pre",
   regular: "open",
-  post: "post",
+  post: "closed",
   closed: "closed",
 } as const;
 

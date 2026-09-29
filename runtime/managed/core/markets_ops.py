@@ -41,7 +41,8 @@ ROW = {"rank": int, "symbol": str, "ticker": (str, type(None)), "mic": (str, typ
 UNRESOLVED = {"no_venue": "Pythia does not know this row's venue",
               "not_in_reference": "Not in Pythia's reference data",
               "ambiguous": "Several instruments use this ticker on this venue",
-              "no_reference_data": "Pythia's reference data is not installed"}
+              "no_reference_data": "Pythia's reference data is not installed",
+              "reference_failed": "Pythia's reference data could not be read"}
 
 OVERVIEW_SCHEMA = {
     "name": "pythia_market_overview",
@@ -92,8 +93,9 @@ class MarketReads:
             status, value = "missing", None
         if status != "configured":
             if status == "invalid":
-                issues.append({"code": "invalid_setting", "message": f"settings.json could not be read; {key} shows "
-                                                                     "Pythia's default."})
+                issues.append({"code": "invalid_setting", "message": f"settings.json could not be read, or {key} is not "
+                                                                     "text without surrounding spaces or line breaks; "
+                                                                     "Pythia's default shows."})
             return list(default)
         items = list(dict.fromkeys(item for item in re.split(r"[,\s]+", value) if item))
         malformed = [item for item in items if not SUBJECT_PATTERN.match(item)]
@@ -101,7 +103,11 @@ class MarketReads:
             issues.append({"code": "invalid_setting",
                            "message": f"{key} in settings.json has entries that are not subject IDs: "
                                       f"{', '.join(malformed[:3])}."})
-        return [item for item in items if SUBJECT_PATTERN.match(item)][:MAX_SUBJECTS]
+        subjects = [item for item in items if SUBJECT_PATTERN.match(item)]
+        if len(subjects) > MAX_SUBJECTS:
+            issues.append({"code": "invalid_setting", "message": f"{key} in settings.json lists {len(subjects)} subjects; "
+                                                                 f"the first {MAX_SUBJECTS} show."})
+        return subjects[:MAX_SUBJECTS]
 
     # ---- market movers ----------------------------------------------------------------------------------------------
 
@@ -189,6 +195,10 @@ class MarketReads:
                     subject = found[0] if len(found) == 1 else None
                     reason = None if subject else "ambiguous" if found else "not_in_reference"
                 row.update(subject_id=subject, unresolved=UNRESOLVED[reason] if reason else None)
+        except sqlite3.Error:  # an unreadable reference leaves the rows unlinked, never fails the list
+            logger.warning("market movers could not be matched to the reference", exc_info=True)
+            for row in rows:
+                row.update(subject_id=None, unresolved=UNRESOLVED["reference_failed"])
         finally:
             if ref is not None:
                 ref.close()
@@ -203,7 +213,7 @@ def _group(subject: str) -> str:
 
 def _valid(row: Any) -> bool:
     return isinstance(row, dict) and all(isinstance(row.get(key), kind) and not isinstance(row.get(key), bool)
-                                         for key, kind in ROW.items())
+                                         and (kind is not str or row[key] != "") for key, kind in ROW.items())
 
 
 def register(ctx: Any, identity: Any) -> None:
@@ -212,8 +222,8 @@ def register(ctx: Any, identity: Any) -> None:
     reads = MarketReads(identity)
     for schema, handler, operation in ((OVERVIEW_SCHEMA, reads.overview, "market-overview"),
                                        (MOVERS_SCHEMA, reads.movers, "market-movers")):
-        # The lists are cached for a minute at the protected read route: one source call per list per minute,
-        # whatever the number of open pages.
+        # A movers answer declares a one-minute max age; concurrent identical reads share one call. The source
+        # keeps its own cache (Yahoo's worker reads keep each list for a minute).
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=True,
                           cache_seconds=60 if operation == "market-movers" else 0)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
