@@ -554,6 +554,52 @@ tables; and the builder's `snapshot` evidence outranks a plugin's claims. These
 change in roadmap stage 0 (ADR 0044's amendment "data any plugin can
 extend").
 
+### Consequential failures (roadmap stage 0)
+
+`runtime/test/python/test_identity_failures.py` tests the failures the roadmap
+names, on real identifiers from the identity truth set. Consequential
+operations do not exist yet, so the tests check what a record refers to, not
+what an operation does with it. They pin:
+
+- **Wrong share class.** Another class's ISIN or share-class FIGI is a
+  conflict. An issuer's LEI or CIK confirms only an issuer binding: a security
+  or listing answer that rests on it alone waits as a `no_key` residual.
+- **Receipt versus share.** The receipt guard blocks a receipt record. A record
+  that quotes the ISIN core sent as its `underlying` is an
+  `underlying_identifier` residual, never a binding.
+- **Ticker reuse.** A line the reference marks inactive gets no address from its
+  ticker (ADR 0038's MIC table) and sends no `ticker_mic` to a resolve, because
+  the ticker may name another company now. A confirmed binding on the line
+  still serves (rule 5).
+- **Conflicting identifiers.** A source still quoting a former ISIN is a
+  conflict and re-keys nothing.
+- **Missing currency.** An ISIN keys no listing without a currency, and a line
+  that quotes in pence (Shell in London) shows no trading currency.
+- **Corporate actions.** `successor_of` is shown as a related link and never
+  followed. A saved reference to a former ISIN stays on its subject; when a
+  release drops that subject, its rows are kept and flagged.
+- **Ambiguity.** Several records for one lookup are an `ambiguous` residual, and
+  the agent's pick only suggests.
+
+Known gaps:
+
+- No source states corporate actions, so a holding whose ISIN changed stays on
+  its old subject until a plugin states `successor_of`. Carrying positions
+  across the action is a consequential operation (ADR 0044, A6).
+- An `unqualified` ISIN, such as EODHD's, still binds by `resolve_answer@1`,
+  and only read checks label it. Making it a residual would stop every EODHD
+  resolve.
+- Ticker reuse cannot be seen on a record without identifiers, because names
+  are never compared.
+- The builder's `receipt_issuer_share@1` links a receipt to its issuer's only
+  ordinary share in the build, which is wrong when the receipt's own class is
+  missing from the build.
+- A SEC line joined to a security by share-class FIGI is not flagged when SEC
+  names another issuer (CNDIF).
+- Source removal, plugin evidence about existing subjects, a reused native
+  reference and questions queued on relevance are tested by the stage 0 work
+  that builds them.
+
 ## Amendment (2026-09-29): the agent suggests, the user confirms
 
 [ADR 0044](0044-product-direction.md) ruling 8 and the

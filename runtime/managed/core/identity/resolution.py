@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from .claims import DIGEST, IdentifierValue
 from .model import IdentifierAssertion, Provenance, ProviderRef, _coerce, _require
@@ -190,6 +190,20 @@ def corroborates(claimed: Iterable[IdentifierValue], evidence: Iterable[Identifi
     return any(item.scheme in SINGLE_VALUED and SCHEME_LEVEL[item.scheme] in named
                and claims.get(item.scheme) == item.value and item.tier is EvidenceTier.T0
                and item.validity.contains(as_of) for item in evidence)
+
+
+def resolve_evidence(evidence: Iterable[IdentifierAssertion], sent: Mapping[str, str], level: Level) -> tuple[str, ...]:
+    """The evidence a resolve answer at `level` rests on: the subject's assertions of the identifiers core sent. An
+    issuer's LEI or CIK names the company, never which of its share classes, receipts or lines a record is (ADR 0044,
+    A3), so it confirms only an issuer."""
+    return tuple(item.evidence_id for item in evidence if sent.get(item.scheme) == item.value
+                 and (level is Level.ISSUER or SCHEME_LEVEL[item.scheme] is not Level.ISSUER))
+
+
+def quotes_underlying(claimed: Iterable[IdentifierValue], sent: Mapping[str, str]) -> bool:
+    """The record quotes an identifier core sent as its underlying's: a receipt answering for its share, never that
+    instrument. Only `self` values name the record itself (ADR 0037, "Assertions and roles")."""
+    return any(item.role is IdentifierRole.UNDERLYING and sent.get(item.scheme) == item.value for item in claimed)
 
 
 def guarded(relation: VerdictRelation, record_kind: InstrumentKind | None, subject_kind: InstrumentKind | None) -> bool:
