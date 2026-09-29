@@ -2,10 +2,12 @@
 
 A venue market (a perp, a continuous front-month future), an index level, a
 currency pair or a rate series is its own subject with a Pythia-curated key; no
-open identifier names it. The table names a market's underlying (`derivative_on`,
-a related subject, never folded) where one exists, and the native reference of
-each plugin that serves the subject. `group` and `description` are display text
-for the markets overview. Standard library only; the file is read on first use.
+open identifier names it. The table is Pythia's maintained list of these
+subjects: it names a market's underlying (`derivative_on`, a related subject,
+never folded) where one exists, and `group` and `description` are display text
+for the markets overview. It names no provider: each plugin that serves a
+subject declares its own reference for it in its contract (`addressing.subjects`,
+`declared.py`). Standard library only; the file is read on first use.
 """
 from __future__ import annotations
 
@@ -14,7 +16,6 @@ from functools import cache
 from pathlib import Path
 from typing import Any, Mapping
 
-from .model import ProviderRef
 from .schemes import Kind, registered_kind, subject_kind
 
 MARKETS_RULE = "native_markets@1"
@@ -38,8 +39,6 @@ def parse(document: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
                 underlying is not None and subject_kind(underlying["id"]) not in set(Kind)) or (
                 underlying is not None and registered_kind(entry["id"]) is not Kind.MARKET) or entry["id"] in table:
             raise ValueError(f"markets: {entry['id']} is malformed")
-        for ref in entry["refs"]:
-            ProviderRef(ref["provider"], ref["native_id"], ref["native_scope"])
         table[entry["id"]] = entry
     return table
 
@@ -53,8 +52,6 @@ def load_market(table: Mapping[str, Mapping[str, Any]], subject_id: str) -> dict
     return {
         "id": subject_id, "level": kind, "ids": {kind: subject_id}, "values": {}, "evidence": [],
         "asset_class": entry.get("asset_class"), "kind": None, "listing": None,
-        "refs": {ref["provider"]: ProviderRef(ref["provider"], ref["native_id"], ref["native_scope"])
-                 for ref in entry["refs"]},
         "view": {"subject": {"id": subject_id, "level": str(kind), "name": entry["name"], "kind": None,
                              "description": entry.get("description")},
                  "identifiers": {}, "issuer": None, "security": None, "listings": [],

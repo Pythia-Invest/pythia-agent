@@ -9,7 +9,8 @@
   without the code gate. It is not counted as the source in onboarding (FIRDS
   is); this record documents its stages 1 to 3 so far.
 - **Owner:** `runtime/managed/plugins/hyperliquid/` (`feed.py` parses, `stream.py`
-  owns the socket). Core's `identity/markets.json` names the one market it serves.
+  owns the socket). Core's `identity/markets.json` lists the one market it
+  serves, and the plugin's contract declares its coin for it.
 - **Scope:** the public websocket `wss://api.hyperliquid.xyz/ws` (`l2Book` with
   `fast: true`, `trades`, `activeAssetCtx`) and two info reads (`meta`, 1-minute
   `candleSnapshot`) for perps on the first perp dex. HIP-3 builder dexes, spot,

@@ -315,14 +315,12 @@ def _name(security: str, located: dict) -> str:
 def _check_symbols(report, ref, entry, listing, found, contracts, crypto=False) -> None:
     subject = page.load_subject(ref.db, found["security_id"] if crypto else found["id"])
     level = identity.Level.SECURITY if crypto else identity.Level.LISTING
-    coins = lambda provider, caip19: (ref.one("SELECT native_id FROM canonical_assets WHERE provider = ? AND caip19 = ?",  # noqa: E731
-                                              provider, caip19) or [None])[0]
     for provider, want in listing.get("symbols", {}).items():
         info = contracts.get(provider)
         if info is None:
             report.add(entry["id"], "symbols", f"{provider}:{want}", None)
             continue
-        derived = page.derive(info, level, subject, coins)
+        derived = page.derive(info, level, subject)
         got = derived[0].native_id if derived else None
         if got is None:
             mic = listing.get("mic")

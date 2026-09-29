@@ -27,7 +27,7 @@ from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
 from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import trust
+from .identity import declared, subject as subjects, trust
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -241,32 +241,32 @@ class Identity:
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject from it, with the store lookups page composition reads."""
+        aliases = declared.aliases(info.manifest for info in installed()) if ":provisional:" in subject_id else {}
         if subject_kind(subject_id) in markets.CURATED_KINDS:  # a curated market subject needs no reference file
-            subject = markets.load_market(markets.curated(), subject_id)
-            return (None, None, {}, UNKNOWN_SUBJECT) if subject is None else (None, subject, self._lookups(subject, {}), None)
+            subject = markets.load_market(markets.curated(), aliases.get(subject_id, subject_id))
+            return (None, None, {}, UNKNOWN_SUBJECT) if subject is None else (None, subject, self._lookups(subject), None)
         path, ref = self.reference()
         if ref is None:
             return None, None, {}, NO_REFERENCE
-        try:
+        try:  # a provisional ID a confirm-level contract now addresses under its subject's key is that subject
+            subject_id = subjects.current_id(ref, subject_id, aliases) if aliases else subject_id
             subject = build_questions.load_subject(ref, subject_id, None, self.store)
             if subject is None:
                 return path, None, {}, UNKNOWN_SUBJECT
             default = self._default_listing(path, subject)
             if default and default != (subject["listing"] or {"id": None})["id"]:
                 subject = build_questions.load_subject(ref, subject_id, default, self.store)
-            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         finally:
             ref.close()
-        return path, subject, self._lookups(subject, coins), None
+        return path, subject, self._lookups(subject), None
 
-    def _lookups(self, subject: dict, coins: dict) -> dict:
+    def _lookups(self, subject: dict) -> dict:
         """The store lookups page composition reads for a subject: bindings, queue items and misses at each level."""
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
         return {"stored": lambda target, provider: stored.get((target, provider)),
-                "coins": lambda provider, caip19: coins.get((provider, caip19)),
                 "queue": identity_store.open_queue(subject_ids),
                 "misses": {(target, plugin): reason for target in subject_ids
                            for plugin, reason in identity_store.misses(target).items()},

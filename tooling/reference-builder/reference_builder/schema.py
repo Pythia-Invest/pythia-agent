@@ -22,6 +22,7 @@ from .config import BUILDER_VERSION
 from .model import Snapshot
 
 CORE = Path(__file__).resolve().parents[3] / "runtime" / "managed" / "core" / "identity"
+PLUGINS = CORE.parents[1] / "plugins"  # the plugins' contracts, for their coin ids and chain ids
 
 
 def _core():
@@ -321,12 +322,18 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
 def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[str, set[str]], at: str) -> None:
     """Core's curated canonical-asset seed (ADR 0037, Crypto): the crypto assets search finds without any provider,
     each keyed by its canonical deployment whatever providers are installed. The asset's other deployments are its
-    listings; a wrapped asset is its own security linked by `wraps`. Each provider coin id's provisional ID
-    becomes an alias, so an ID minted before the asset was curated still resolves."""
+    listings; a wrapped asset is its own security linked by `wraps`. The coin id each plugin's contract declares for
+    the asset (`addressing.subjects`) has its provisional ID aliased, so an ID minted before the asset was curated
+    still resolves; its chain ids and coin ids stay in the package's tables until its format drops them. An unsigned
+    contract is left out: a display plugin's declaration is an address, never an alias (ADR 0038)."""
     seed = json.loads((CORE / "canonical_assets.json").read_text(encoding="utf-8"))
+    declared = [(item["provider"], item["addressing"]) for item in (json.loads(path.read_text(encoding="utf-8"))
+                for path in sorted(PLUGINS.glob("*/contract.json")))
+                if item["signoff"]["status"] != "unsigned"]
     rule = seed["rule_id"]
     tables["chains"] += seed["chains"]
-    tables["provider_chains"] += seed["provider_chains"]
+    tables["provider_chains"] += [{"provider": provider, "chain": chain, "caip2": caip2}
+                                  for provider, addressing in declared for chain, caip2 in addressing.get("chain_codes", {}).items()]
     for asset in seed["assets"]:
         security = identity.subject_id("security", {"caip19": asset["caip19"]})
         tables["securities"].append({"id": security, "issuer_id": None, "name": asset["name"], "asset_class": "crypto",
@@ -340,10 +347,10 @@ def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[s
             assert_(listing, "caip19", deployment, "pythia", record=rule, authority="curated")
         for alias in asset.get("aliases", []):
             tables["names"].append({"subject_id": security, "name": alias, "source": "pythia"})
-        for provider in ("coinmarketcap", "coingecko"):
-            tables["canonical_assets"].append({"caip19": asset["caip19"], "provider": provider, "native_scope": "coin",
-                                               "native_id": asset[provider]})
-            candidates[identity.provisional_id("security", provider, "coin", asset[provider])].add(security)
+        for provider, ref in ((provider, addressing.get("subjects", {}).get(security)) for provider, addressing in declared):
+            if ref:
+                tables["canonical_assets"].append({"caip19": asset["caip19"], "provider": provider, **ref})
+                candidates[identity.provisional_id("security", provider, ref["native_scope"], ref["native_id"])].add(security)
         if asset.get("wraps"):
             underlying = identity.subject_id("security", {"caip19": asset["wraps"]})
             item = identity.Relation(type="wraps", from_id=security, to_id=underlying,
