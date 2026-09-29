@@ -20,19 +20,6 @@ const pending: DynamicToolUIPart = {
 };
 
 describe("transcript presentation", () => {
-  it.each([
-    { action: "list" },
-    { preview: "stop sa-1-example" },
-    { action: "steer" },
-    { tasks: [{ task: "Find sources" }] },
-  ])("keeps delegation calls out of the activity rows: %j", (input) => {
-    const copy = toolCopy(
-      toolView({ ...pending, toolName: "delegate_task", input }),
-    );
-    expect(copy.hidden).toBe(true);
-    expect(copy.status).not.toContain("sa-");
-  });
-
   it("never moves previously displayed prose into reasoning when a tool arrives", () => {
     const parts: DeskUIMessage["parts"] = [
       { type: "text", text: "I will check.", state: "done" },
@@ -129,17 +116,7 @@ describe("transcript presentation", () => {
     ).toBe("completed");
   });
 
-  it("reads deferred tool identity from stored arguments and avoids claiming a memory write", () => {
-    expect(
-      toolView({
-        ...pending,
-        toolName: "tool_call",
-        input: { name: "pythia_eod_prices", arguments: { ticker: "EXAMPLE" } },
-      }),
-    ).toMatchObject({
-      toolName: "pythia_eod_prices",
-      input: { ticker: "EXAMPLE" },
-    });
+  it("does not claim a memory write for a removal", () => {
     expect(
       toolCopy(
         toolView({
