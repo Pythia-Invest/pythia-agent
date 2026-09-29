@@ -34,7 +34,9 @@ not a registry: deleting the package removes the declaration.
   level; the global schemes it accepts per level (a scheme must belong to that
   level); and a flat table from operating MIC to the literal suffix core appends
   to the ticker (`".AS"`, or `""` for a bare symbol), so core can build a
-  native reference from `ticker_mic` without a call. A ticker is written as its
+  native reference from `ticker_mic` without a call. It builds none for a line
+  the reference marks inactive, whose ticker may name another company now
+  (ADR 0037, "Consequential failures"). A ticker is written as its
   venue writes it: core's ticker grammar allows one space before a one-letter
   class (`VOLV B@XSTO` on Nasdaq Stockholm and Copenhagen); a two-letter suffix
   is refused, as `AAPL US` or `ASML NA` is a Bloomberg code, not a venue ticker. A provider symbol
@@ -99,7 +101,9 @@ than stored; only its read checks are stored (ADR 0037, "Read checks"). Otherwis
 `identity-resolve` for that one plugin after rendering: core runs its declared
 `resolve` with a short timeout, applies `decide` (rule `resolve_answer@1`: the
 answer to open identifiers binds unless identifier evidence or the receipt
-guard contradicts it) and stores a binding or a queue item, so the next open
+guard contradicts it; an issuer's LEI or CIK confirms only an issuer, and a
+record quoting the sent ISIN as its underlying's is a residual) and stores a
+binding or a queue item, so the next open
 is local. Resolve answers use the wire form of `claims.batch_to_json`.
 
 ## Rationale

@@ -1,5 +1,5 @@
 {
-  "provenance_note": "Hand-written fixture for the consequential-failure tests (test_identity_failures.py). Identifiers come from the identity truth set (tooling/reference-builder/truth/instruments.json, version 2026-09-26, checked against ESMA FIRDS, GLEIF, SEC and OpenFIGI on that date): Ericsson A, B and its ADS (one LEI and CIK, two share classes and a receipt of class B); Alphabet A and C (one issuer, two classes); GSK's current ISIN and its pre-2022 ISIN GB0009252882 as an inactive security linked by successor_of (the truth set's former.isins; no source emits that relation yet); Shell's London line, which quotes in pence, so no trading currency is decided; and US Steel's X@XNYS, delisted in 2025, so the ticker may be reassigned. US Steel has no share-class FIGI in the truth set, so it is keyed by the SEC-only provisional IDs a build mints; core treats subject IDs as opaque. Each row's source_record names the truth-set entry it comes from. No provider response is recorded.",
+  "provenance_note": "Hand-written fixture for the consequential-failure tests (test_identity_failures.py). Identifiers come from the identity truth set (tooling/reference-builder/truth/instruments.json, version 2026-09-26, checked against ESMA FIRDS, GLEIF, SEC and OpenFIGI on that date): Ericsson A, B and its ADS (one LEI and CIK, two share classes and a receipt of class B); Alphabet A and C (one issuer, two classes); GSK's current ISIN and its pre-2022 ISIN GB0009252882 as an inactive security linked by successor_of (the truth set's former.isins; no source emits that relation yet); Shell's London line, which quotes in pence, so no trading currency is decided; and US Steel's X@XNYS, delisted in 2025, so the ticker may be reassigned. US Steel is modelled as a SEC-only line (CIK and ticker, no share-class FIGI in the truth set), keyed by the CIK-qualified provisional IDs a build mints for one. trading_currency is set only where the venue decides it (the US exchanges, Nasdaq Stockholm home lines), never for London. Each row's source_record names the truth-set entry it comes from. No provider response is recorded.",
   "issuers": [
     {
       "id": "issuer:lei:549300W9JLPW15XIFM52",
@@ -86,7 +86,7 @@
       "kind": "ordinary"
     },
     {
-      "id": "security:provisional:sec:id:X",
+      "id": "security:provisional:sec:id:1163302.X",
       "issuer_id": "issuer:lei:JNLUVFYJT1OZSIQ24U47",
       "name": "United States Steel Corporation",
       "asset_class": "equity",
@@ -97,6 +97,7 @@
   "listings": [
     {
       "id": "listing:isin:SE0000108649:XSTO:SEK",
+      "trading_currency": "SEK",
       "security_id": "security:isin:SE0000108649",
       "ticker": "ERIC A",
       "mic": "XSTO",
@@ -106,6 +107,7 @@
     },
     {
       "id": "listing:isin:SE0000108656:XSTO:SEK",
+      "trading_currency": "SEK",
       "security_id": "security:isin:SE0000108656",
       "ticker": "ERIC B",
       "mic": "XSTO",
@@ -115,6 +117,7 @@
     },
     {
       "id": "listing:figi:BBG000BB13V0",
+      "trading_currency": "USD",
       "security_id": "security:figi:BBG001S5QXT3",
       "ticker": "ERIC",
       "mic": "XNAS",
@@ -124,6 +127,7 @@
     },
     {
       "id": "listing:figi:BBG009S4MT03",
+      "trading_currency": "USD",
       "security_id": "security:figi:BBG009S39JY5",
       "ticker": "GOOGL",
       "mic": "XNAS",
@@ -133,6 +137,7 @@
     },
     {
       "id": "listing:figi:BBG009S4MVF2",
+      "trading_currency": "USD",
       "security_id": "security:figi:BBG009S3NB21",
       "ticker": "GOOG",
       "mic": "XNAS",
@@ -159,8 +164,9 @@
       "primary": true
     },
     {
-      "id": "listing:provisional:sec:ticker:XNYS.X",
-      "security_id": "security:provisional:sec:id:X",
+      "id": "listing:provisional:sec:ticker:XNYS.1163302.X",
+      "trading_currency": "USD",
+      "security_id": "security:provisional:sec:id:1163302.X",
       "ticker": "X",
       "mic": "XNYS",
       "operating_mic": "XNYS",
@@ -678,20 +684,7 @@
       }
     },
     {
-      "subject_id": "security:provisional:sec:id:X",
-      "scheme": "isin",
-      "value": "US9129091081",
-      "authority": "source_asserted",
-      "provenance": {
-        "plugin": "esma_firds",
-        "source": "esma_firds",
-        "adapter_version": "fixture-1",
-        "retrieved_at": "2026-09-26T00:00:00Z",
-        "source_record": "truth:us-steel"
-      }
-    },
-    {
-      "subject_id": "listing:provisional:sec:ticker:XNYS.X",
+      "subject_id": "listing:provisional:sec:ticker:XNYS.1163302.X",
       "scheme": "ticker_mic",
       "value": "X@XNYS",
       "authority": "source_asserted",

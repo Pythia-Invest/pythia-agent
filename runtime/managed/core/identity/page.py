@@ -177,9 +177,7 @@ def resolve_input(info: PluginInfo, subject: dict) -> dict[str, str]:
     if info.manifest.resolve is None:
         return {}
     values, listing = dict(subject["values"]), subject["listing"]
-    if listing is not None and listing["status"] == "inactive":
-        values.pop("ticker_mic", None)
-    elif listing is not None and listing["ticker"] and (listing["operating_mic"] or listing["mic"]):
+    if listing is not None and listing["ticker"] and (listing["operating_mic"] or listing["mic"]) and listing["status"] != "inactive":
         values.setdefault("ticker_mic", f"{listing['ticker']}@{listing['operating_mic'] or listing['mic']}")
     return {scheme: values[scheme] for scheme in info.manifest.resolve.input_schemes if values.get(scheme)}
 
@@ -361,7 +359,8 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     """
     target, plugin = subject["ids"][level], info.manifest.plugin
     records = [claim for claim in batch.claims if isinstance(claim, RecordClaim) and claim.native_ref is not None
-               and (scope := info.manifest.native_scope(claim.native_ref.native_scope)) is not None and scope.level is level]
+               and (scope := info.manifest.native_scope(claim.native_ref.native_scope)) is not None
+               and scope.level is level]
     if not records:
         return None, None, []
     evidence_ids = resolve_evidence(subject["evidence"], sent, level)

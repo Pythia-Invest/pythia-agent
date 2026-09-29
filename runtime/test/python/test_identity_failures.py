@@ -19,7 +19,7 @@ ERIC_A, ERIC_B = "listing:isin:SE0000108649:XSTO:SEK", "listing:isin:SE000010865
 GOOGL, GOOG, ALPHABET_LEI = "listing:figi:BBG009S4MT03", "listing:figi:BBG009S4MVF2", "5493006MHB84DD0ZWV18"
 GSK, GSK_BEFORE = "security:isin:GB00BN7SWP63", "security:isin:GB0009252882"
 SHEL = "listing:isin:GB00BP6MXD84:XLON:GBP"
-US_STEEL = "listing:provisional:sec:ticker:XNYS.X"
+US_STEEL = "listing:provisional:sec:ticker:XNYS.1163302.X"
 
 
 class FailureTest(unittest.TestCase):
@@ -84,34 +84,41 @@ class ReceiptTest(FailureTest):
 class TickerReuseTest(FailureTest):
     def test_a_delisted_lines_ticker_addresses_nothing(self):
         # US Steel's X@XNYS was delisted in 2025, so X may be reassigned: a saved reference to the line must not
-        # quote whoever trades X now.
-        symbols = vendor(mic_table={"XNYS": "", "XNAS": ""})
-        steel = self.world.subject(US_STEEL)
-        quote = self.world.compose(US_STEEL, [symbols])["quote"]
-        self.assertEqual((quote["binding"], [(item["plugin"], item["code"]) for item in quote["skipped"]]),
-                         (None, [("pythia-vendor", "not_addressable")]))
-        self.assertEqual(page.price_sources(steel, [symbols], **self.world.lookups(steel)), [])
-        self.assertEqual(page.resolve_input(vendor("ticker_mic", "isin"), steel), {"isin": "US9129091081"})
-        # A line that trades is addressed from its ticker as before.
-        goog = self.world.subject(GOOG)
-        self.assertEqual(page.price_sources(goog, [symbols], **self.world.lookups(goog)),
-                         [{"provider": "vendor", "native_id": "GOOG", "native_scope": "symbol"}])
+        # quote whoever trades X now, whether a source is addressed through a MIC suffix table or by ticker@MIC.
+        steel, goog = self.world.subject(US_STEEL), self.world.subject(GOOG)
+        for source, trading in ((vendor(mic_table={"XNYS": "", "XNAS": ""}), "GOOG"),
+                                (vendor("ticker_mic", name="by-ticker", scope="ticker_mic"), "GOOG@XNAS")):
+            with self.subTest(source=source.key):
+                self.assertEqual(page.price_sources(steel, [source], **self.world.lookups(steel)), [])
+                quote = self.world.compose(US_STEEL, [source])["quote"]
+                self.assertEqual((quote["binding"], quote["reason"], [item["code"] for item in quote["skipped"]]),
+                                 (None, "This line no longer trades, so its ticker is not used for a price",
+                                  ["not_addressable"]))
+                self.assertEqual(page.resolve_input(source, steel), {})
+                # A line that trades is addressed from its ticker as before.
+                [address] = page.price_sources(goog, [source], **self.world.lookups(goog))
+                self.assertEqual(address["native_id"], trading)
 
     def test_a_confirmed_binding_on_a_delisted_line_still_serves(self):
-        # Only positive evidence ends a binding (ADR 0037, rule 5): a delisting stops new addresses, not this one.
-        by_isin = vendor("isin", mic_table={"XNYS": ""})
-        binding, _item = self.world.resolve(by_isin, US_STEEL, record(by_isin, "X", ("isin", "US9129091081")))
-        self.assertEqual(binding.status, "confirmed")
-        quote = self.world.compose(US_STEEL, [by_isin])["quote"]
+        # Only positive evidence ends a binding (ADR 0037, rule 5): a delisting stops new addresses, not one the user
+        # confirmed while the line traded. (Once the ticker is reused, that binding quotes its new holder: a gap.)
+        symbols = vendor(mic_table={"XNYS": ""})
+        self.world.identity.put_binding(identity.Binding(
+            provider_ref={"provider": "vendor", "native_id": "X", "native_scope": "symbol"}, subject_id=US_STEEL,
+            status="confirmed", authority="user_attested", evidence_ids=["ev:x"], plugin="vendor"))
+        quote = self.world.compose(US_STEEL, [symbols])["quote"]
         self.assertEqual((quote["status"], quote["binding_status"], quote["binding"]["native_id"]), ("ready", "confirmed", "X"))
 
 
 class CurrencyTest(FailureTest):
     def test_a_line_quoting_in_pence_gets_no_guessed_currency(self):
-        # Shell trades in pence in London: the venue decides no trading currency, and GBP is only the key's currency.
-        view = self.world.subject(SHEL)["view"]
-        self.assertNotIn("currency", view["identifiers"])
-        self.assertEqual([line["currency"] for line in view["listings"]], [None])
+        # Shell trades in pence in London, so the venue decides no trading currency: the page asserts none (the quote
+        # states its own) and never shows GBP, the key's currency. Nasdaq decides USD for Alphabet's line.
+        for line, currency in ((SHEL, None), (GOOG, "USD")):
+            with self.subTest(line=line):
+                view = self.world.subject(line)["view"]
+                self.assertEqual((view["identifiers"].get("currency"), [item["currency"] for item in view["listings"]]),
+                                 (currency, [currency]))
         # An ISIN keys a listing only with its operating MIC and a currency.
         self.assertIsNone(identity.subject_id("listing", {"isin": "GB00BP6MXD84"}, operating_mic="XLON"))
         self.assertEqual(identity.subject_id("listing", {"isin": "GB00BP6MXD84"}, operating_mic="XLON", currency="GBP"),

@@ -45,11 +45,15 @@ def release(source: Path, directory: Path, name: str, *, renames=(), aliases=(),
     return path
 
 
-def vendor(*schemes: str, name: str = "vendor", mic_table: dict[str, str] | None = None) -> page.PluginInfo:
+def vendor(*schemes: str, name: str = "vendor", mic_table: dict[str, str] | None = None,
+           scope: str = "symbol") -> page.PluginInfo:
     """A signed-off quote source at listing level: its resolve looks records up by `schemes`, and `mic_table` lets
-    core address a line from its ticker without a call."""
+    core address a line from its ticker without a call. A `scope` named after a listing scheme (`ticker_mic`) is
+    addressed by that identifier's value."""
+    named = {"schemes": {"listing": [scope]}} if scope != "symbol" else {}
     contract = {"contract_version": 1, "plugin": name, "provider": name,
-                "addressing": {"native": [{"native_scope": "symbol", "level": "listing"}], "mic_table": mic_table or {}},
+                "addressing": {"native": [{"native_scope": scope, "level": "listing"}], "mic_table": mic_table or {},
+                               **named},
                 "concepts": {"market_data": {"level": "listing", "via": "listing", "operations": {"quote": "latest"}}},
                 **({"resolve": {"operation": "resolve", "input_schemes": list(schemes), "echoes": []}} if schemes else {}),
                 "rights": {"licence": "personal", "cache": "none", "hostable": False},

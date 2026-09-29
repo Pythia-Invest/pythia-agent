@@ -194,13 +194,16 @@ UNCOVERED = {"plugin": "pythia", "provider": "pythia", "label": "Pythia", "statu
 # never a guess): it says so instead of vanishing.
 NO_ISSUER = {**UNCOVERED, "status": "not_addressable", "via": "issuer",
              "reason": "Needs the issuer: the reference data doesn't settle which company issued this"}
+# A line the reference marks inactive: its ticker may name another company now, so no source is asked for its price.
+DELISTED = {**UNCOVERED, "reason": "This line no longer trades, so its ticker is not used for a price"}
 
 
 def core_section(subject: dict, quote: bool, found: list[dict]) -> dict | None:
-    """Core's own section where no source can serve one: a listing's price says why it has none, and a share's
-    company section (profile, filings) says it needs the issuer the reference leaves undecided. None otherwise."""
+    """Core's own section where no source can serve one: a listing's price says why it has none (a delisted line says
+    so), and a share's company section (profile, filings) says it needs the issuer the reference leaves undecided.
+    None otherwise."""
     if quote and subject["listing"] and found:
-        return UNCOVERED
+        return DELISTED if subject["listing"]["status"] == "inactive" else UNCOVERED
     ids = subject["ids"]  # a share: a security of the reference, never a curated index or market
     issuerless = subject["asset_class"] == "equity" and ids.get(Level.SECURITY) and not ids.get(Level.ISSUER)
     return NO_ISSUER if issuerless and any(answer["via"] == Level.ISSUER for answer in found) else None

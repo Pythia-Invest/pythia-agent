@@ -87,7 +87,8 @@ export const subjectSectionSchema = z.object({
   alternatives: z.array(sectionAlternativeSchema).default([]),
   reason: optionalText,
   /** Set on an `unresolved` section whose source's match waits in the
-   * resolution queue (the review reason: unaudited, ambiguous, no_key);
+   * resolution queue (the review reason: unaudited, ambiguous, no_key,
+   * underlying_identifier);
    * absent when the source found no match. */
   queued: text.nullish(),
   /** When a read of the serving address last agreed with the reference
