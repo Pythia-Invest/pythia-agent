@@ -181,7 +181,7 @@ class Flag:
 class Question:
     """What the evidence leaves open, in working IDs; the package carries it to core's resolution queue."""
 
-    question: str  # issuer_identity | home_market | receipt_underlying | receipt_conflict
+    question: str  # a `schema.QUESTION_SHAPE` key
     subject_id: str
     candidates: tuple[str, ...] = ()
     evidence: tuple[str, ...] = ()  # source record digests

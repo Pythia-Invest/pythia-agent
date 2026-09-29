@@ -64,6 +64,39 @@ VERDICT_SCHEMA = {
 }
 
 
+_BUILD_INDEX: dict[str, dict[str, list[dict]]] = {}  # installed package -> subject -> its build questions
+
+
+def surface(identity: Identity, subject_ids: list[str], family: bool = False) -> None:
+    """Put the installed build's questions about these subjects on the queue (once each): the investor opened or
+    watches them, or the agent asked. The build's other questions stay in its package, out of Repairs. With
+    `family`, a listing or security also brings its security's and issuer's questions."""
+    path = store.reference_path(identity.data_dir)
+    if path is None or not subject_ids:
+        return
+    if family:
+        _path, ref = identity.reference()
+        if ref is not None:
+            try:
+                subject_ids = [value for subject in subject_ids for value in questions.family(ref, subject)]
+            finally:
+                ref.close()
+    key = str(path)
+    if key not in _BUILD_INDEX:
+        index: dict[str, list[dict]] = {}
+        for item in reference_package.questions(path):
+            for subject in item.get("subject_ids") or ():
+                index.setdefault(subject, []).append(item)
+        _BUILD_INDEX.clear()
+        _BUILD_INDEX[key] = index
+    wanted = [item for subject in dict.fromkeys(subject_ids) for item in _BUILD_INDEX[key].get(subject, ())]
+    if wanted:
+        try:
+            questions.import_build(identity.store, wanted, store.now())
+        except (sqlite3.Error, OSError):
+            logger.warning("reference build questions could not be surfaced", exc_info=True)
+
+
 def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
     """identity-queue: open questions (and on request answered and settled ones), or one in full."""
     from .identity_ops import _envelope, installed
@@ -73,6 +106,8 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
         if ref is None:
             return _envelope("empty", None, issue=NO_REFERENCE)
         try:
+            if arguments.get("subject_id"):  # the agent asks about a subject: its build questions surface
+                surface(identity, questions.family(ref, str(arguments["subject_id"])))
             if arguments.get("item_id"):
                 view = questions.inspect(identity.store, ref, str(arguments["item_id"]))
                 return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown queue item.")

@@ -45,6 +45,7 @@ BUILD_QUESTIONS = {
     "ambiguous": "Which line is this security's primary listing? The sources do not decide it.",
     "no_key": "Which security does this depositary receipt represent? FIRDS names none the reference data holds.",
     "relation": "FIRDS classes this security as a share, yet states {values} as its underlying: which is it?",
+    "issuer": "Is this SEC registrant the same company as the issuer its name matches? No identifier links them.",
 }
 
 
@@ -60,7 +61,8 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     native = item["provider_ref"]
     reason = "bound" if item["reason"] == "binding" and len(item["subject_ids"]) > 1 else item["reason"]
     label = LABELS.get(native["provider"] if native else plugin, plugin)  # labels are keyed by provider
-    question = BUILD_QUESTIONS[reason].format(values=", ".join(item["values"])) if plugin == BUILD and not native \
+    built = "issuer" if subject_kind(item["subject_ids"][0]) == "issuer" and reason == "ambiguous" else reason
+    question = BUILD_QUESTIONS[built].format(values=", ".join(item["values"])) if plugin == BUILD and not native \
         else QUESTIONS[reason].format(label=label, ref=native["native_id"] if native else "")
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
@@ -196,8 +198,9 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
 
 def _record_answer(store: IdentityStore, view: dict, row: dict, resolver: ResolverKind, relation: str,
                    chosen_id: str | None, now: str, rationale: str | None, user_turn: str | None) -> dict:
-    """An answer to a reference-build question: recorded as the resolver's verdict and settling the question.
-    It changes no reference data; the agent's answer is provisional and the user may still override it."""
+    """An answer to a reference-build question, recorded as the resolver's verdict. It changes no reference data.
+    The user's answer settles the question. The agent's is a suggestion that leaves it open: the build's question
+    types have no calibrated question set yet, so model answers stay suggest-only (ADR 0042)."""
     user = resolver is ResolverKind.USER
     if chosen_id is not None and chosen_id not in row["candidate_ids"]:
         raise Refused("Choose one of the question's candidates.")
@@ -210,8 +213,9 @@ def _record_answer(store: IdentityStore, view: dict, row: dict, resolver: Resolv
                           input_digest=None if user else view["digest"], rationale=rationale, user_turn=user_turn)
     except ValueError as error:
         raise Refused(str(error)) from None
-    outcome = VerdictOutcome.AMBIGUOUS if verdict.relation is VerdictRelation.AMBIGUOUS else \
-        VerdictOutcome.CONFIRMED if chosen_id and verdict.relation is not VerdictRelation.UNRELATED else VerdictOutcome.NO_MATCH
+    outcome = VerdictOutcome.SUGGESTED if not user else VerdictOutcome.AMBIGUOUS \
+        if verdict.relation is VerdictRelation.AMBIGUOUS else VerdictOutcome.CONFIRMED \
+        if chosen_id and verdict.relation is not VerdictRelation.UNRELATED else VerdictOutcome.NO_MATCH
     state = {VerdictOutcome.CONFIRMED: "resolved", VerdictOutcome.NO_MATCH: "dismissed"}.get(outcome, row["state"])
     with store.transaction():
         current = store.queue_item(row["id"])
@@ -221,15 +225,17 @@ def _record_answer(store: IdentityStore, view: dict, row: dict, resolver: Resolv
         if state != row["state"]:
             store.settle(row["id"], state, verdict_id, current=current["state"])
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
-            "message": "Recorded" + (" provisionally" if not user else "") + "; the reference data is unchanged."}
+            "message": ("Recorded" if user else "Kept as a suggestion; the question stays open") +
+            "; the reference data is unchanged."}
 
 
-def import_build(store: IdentityStore, items: Iterable[dict], now: str) -> dict:
-    """Put the installed reference build's questions (its package's `claims`) on the queue, once per question:
-    one already answered is not asked again, and an open one the new build no longer asks is superseded."""
-    known = {key: state for key, state in store.db.execute("SELECT key, state FROM queue WHERE plugins = ?",
-                                                           (json.dumps([BUILD]),))}
-    asked, added = set(), 0
+def import_build(store: IdentityStore, items: Iterable[dict], now: str) -> int:
+    """Put reference-build questions (the installed package's `claims`) on the queue, each once: never all of them,
+    only those about a subject the investor opens or watches, or the agent asks about (`Identity.surface`). One
+    already open or answered is not asked again. Returns how many were added."""
+    known = {key for key, in store.db.execute("SELECT key FROM queue WHERE plugins = ? AND state <> 'superseded'",
+                                              (json.dumps([BUILD]),))}
+    added = 0
     with store.transaction():
         for raw in items:
             try:
@@ -239,16 +245,20 @@ def import_build(store: IdentityStore, items: Iterable[dict], now: str) -> dict:
                                  values=raw.get("values") or ())
             except (KeyError, TypeError, ValueError):  # one malformed question never stops the rest
                 continue
-            asked.add(item.key)
-            if known.get(item.key, "superseded") != "superseded":
+            if item.key in known:
                 continue
-            item_id = "ref-" + hashlib.sha256(f"{item.key}|{now}".encode()).hexdigest()[:28]
-            store.put_queue_item(replace(item, id=item_id))
+            known.add(item.key)
+            store.put_queue_item(replace(item, id="ref-" + hashlib.sha256(f"{item.key}|{now}".encode()).hexdigest()[:28]))
             added += 1
-        stale = [key for key, state in known.items() if state == "open" and key not in asked]
-        store.db.executemany("UPDATE queue SET state = 'superseded', updated_at = ? WHERE key = ? AND state = 'open'",
-                             [(now, key) for key in stale])
-    return {"asked": len(asked), "added": added, "superseded": len(stale)}
+    return added
+
+
+def retire_build(store: IdentityStore, now: str) -> int:
+    """A new release asks its own questions: the previous build's open ones are superseded (answers are kept)."""
+    with store.transaction():
+        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ? AND state = 'open'",
+                         (now, json.dumps([BUILD])))
+        return store.db.execute("SELECT changes()").fetchone()[0]
 
 
 def _same_venue(record: RecordClaim, subjects: list[dict]) -> bool:

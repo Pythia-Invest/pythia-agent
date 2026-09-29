@@ -360,6 +360,7 @@ QUESTION_SHAPE = {
     "home_market": ("residual", "ambiguous"),  # several lines could be the primary, or none is evidenced
     "receipt_underlying": ("residual", "no_key"),  # no underlying this build holds is stated for a receipt
     "receipt_conflict": ("conflict", "relation"),  # a share (CFI) states an underlying (field 26)
+    "issuer_identity_name_candidate": ("residual", "ambiguous"),  # a CIK only a name ties to one LEI issuer (#73)
 }
 
 

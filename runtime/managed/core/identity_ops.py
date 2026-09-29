@@ -91,8 +91,8 @@ class Identity:
             return self._store
 
     def reference_path(self, *, again: bool = False) -> Path | None:
-        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A) and then
-        queues the build's open questions once; a failure is retried on the next use. `again` carries rows written meanwhile under an older build's IDs."""
+        """The installed reference package's database. Its first use carries local rows to its subject IDs (Lifecycle A) and
+        retires the previous build's open questions; a failure is retried on the next use. `again` carries rows written meanwhile under an older build's IDs."""
         path = store.reference_path(self.data_dir)
         if path is not None and (again or path != self._rekeyed):
             try:
@@ -102,9 +102,8 @@ class Identity:
                 finally:
                     ref.close()
                 if done:
-                    logger.info("identity store carried to reference %(release)s: %(moved)d subject IDs re-keyed,"
-                                " %(rows)d rows re-pointed, %(vanished)d subjects vanished", done)
-                    queue.import_build(self.store, reference_package.questions(path), store.now())
+                    logger.info("identity store carried to reference %(release)s: %(moved)d subject IDs re-keyed, %(rows)d rows re-pointed, %(vanished)d subjects vanished", done)  # noqa: E501
+                    queue.retire_build(self.store, store.now())
                 self._rekeyed = path
             except (sqlite3.Error, OSError, ValueError):
                 logger.warning("identity store could not be carried to %s", path.name, exc_info=True)
@@ -263,6 +262,7 @@ class Identity:
         """The store lookups page composition reads for a subject."""
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
+        queue_ops.surface(self, subject_ids)  # the investor opened it: the build's questions about it surface
         stored = {(row["subject_id"], row["provider"]): row
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),

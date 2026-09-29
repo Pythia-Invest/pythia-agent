@@ -80,6 +80,8 @@ class MarketReads:
         issues: list[dict] = []
         cards = [{"subject": subject, "group": _group(subject)} for subject in self._subjects(CARDS, DEFAULT_CARDS, issues)]
         watchlist = self._subjects(WATCHLIST, DEFAULT_WATCHLIST, issues)
+        from . import queue_ops  # the investor watches these: the build's questions about them surface
+        queue_ops.surface(self.identity, watchlist, family=True)
         return _envelope("ok", {"cards": cards, "watchlist": watchlist}, issues)
 
     def _subjects(self, key: str, default: tuple[str, ...], issues: list[dict]) -> list[str]:
