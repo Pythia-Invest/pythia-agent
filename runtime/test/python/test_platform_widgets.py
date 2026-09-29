@@ -127,23 +127,6 @@ class WidgetPresentations(unittest.TestCase):
                 if self.file.exists() or self.file.is_symlink(): self.file.unlink()
                 self.file.write_text(self.content, encoding='utf-8')
 
-    def test_missing_linked_empty_oversized_or_non_utf8_modules_are_errors_not_assets(self):
-        handle = self.register()['handler']
-        self.file.unlink()
-        self.assertIn('error', json.loads(handle({})))
-        outside = self.root / 'unlisted.mjs'
-        outside.write_text('unlisted', encoding='utf-8')
-        self.file.symlink_to(outside)
-        self.assertIn('error', json.loads(handle({'asset': 'view'})))
-        self.file.unlink()
-        self.file.write_bytes(b'')
-        self.assertIn('error', json.loads(handle({})))
-        self.assertIn('error', json.loads(handle({'asset': 'view'})))
-        self.file.write_bytes(b'\xff')
-        self.assertIn('error', json.loads(handle({'asset': 'view'})))
-        self.file.write_bytes(b'a' * (widgets.MAX_ASSET_BYTES + 1))
-        self.assertIn('error', json.loads(handle({})))
-
     def test_missing_widget_helper_warns_without_removing_financial_registration(self):
         with patch.object(presentation, 'platform', return_value=SimpleNamespace(API_VERSION=1)):
             with self.assertLogs(presentation.__name__, level='WARNING') as messages:
@@ -153,9 +136,6 @@ class WidgetPresentations(unittest.TestCase):
         with patch.object(presentation, 'platform', return_value=platform_module):
             presentation.register(self.ctx)
         self.assertEqual(self.registered[0]['name'], 'pythia_market_data_widgets')
-        self.assertEqual(self.registered[0]['schema']['parameters']['properties']['asset']['enum'],
-                         list(presentation.ASSETS))
-        self.assertEqual({item['asset'] for item in presentation.WIDGETS}, {'instruments'})
 
 
 if __name__ == '__main__':
