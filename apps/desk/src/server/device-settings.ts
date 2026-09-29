@@ -32,23 +32,19 @@ export {
   type Readiness,
   type ServiceReadiness,
 } from "./device-settings-contract";
-export { lifecycleCommandEnvironment } from "./device-settings-native";
 
 /**
  * The one lock every capability change on this device takes (skills,
  * toolsets, plugins, MCP servers), so a change, its Hermes restart and its
  * readback never interleave with another.
  */
-export function capabilityMutationLock(
-  environment: NodeJS.ProcessEnv,
-  configRoot?: string,
-) {
-  return environment.PYTHIA_STATE_ROOT
-    ? join(resolve(environment.PYTHIA_STATE_ROOT), "capability-mutation.lock")
-    : join(
-        resolveConfigRoot(environment, configRoot),
-        "capability-mutation.lock",
-      );
+export function capabilityMutationLock(environment: NodeJS.ProcessEnv) {
+  return join(
+    environment.PYTHIA_STATE_ROOT
+      ? resolve(environment.PYTHIA_STATE_ROOT)
+      : resolveConfigRoot(environment),
+    "capability-mutation.lock",
+  );
 }
 
 export function createDeviceSettingsService(
@@ -60,14 +56,6 @@ export function createDeviceSettingsService(
   const restartHermes = options.restartHermes ?? defaultRestart(environment);
   const attempts = options.readbackAttempts ?? 40;
   const delay = options.readbackDelayMs ?? 125;
-
-  function paths() {
-    return {
-      lock:
-        options.lockPath ??
-        capabilityMutationLock(environment, options.configRoot),
-    };
-  }
 
   async function disabledSkills(profile: string) {
     return parseDisabled(
@@ -89,7 +77,7 @@ export function createDeviceSettingsService(
     const root =
       configured && isAbsolute(configured) ? resolve(configured) : null;
     try {
-      const profile = profileFrom(environment, options.profile);
+      const profile = profileFrom(environment);
       const response = await command([
         "-p",
         profile,
@@ -193,8 +181,8 @@ export function createDeviceSettingsService(
 
   return {
     async initializeModel(selection) {
-      await withFileLock(paths().lock, async () => {
-        const profile = profileFrom(environment, options.profile);
+      await withFileLock(capabilityMutationLock(environment), async () => {
+        const profile = profileFrom(environment);
         await initializeProfileModel(
           selection,
           profile,
@@ -211,7 +199,7 @@ export function createDeviceSettingsService(
       let skillsStatus: ServiceReadiness = "ready";
       let toolsetsStatus: ServiceReadiness = "ready";
       try {
-        profile = profileFrom(environment, options.profile);
+        profile = profileFrom(environment);
         const [nativeSkills, disabled] = await Promise.all([
           client.listSkills(),
           disabledSkills(profile),
@@ -250,8 +238,8 @@ export function createDeviceSettingsService(
           "essential_skill",
         );
       }
-      const profile = profileFrom(environment, options.profile);
-      return withFileLock(paths().lock, async () => {
+      const profile = profileFrom(environment);
+      return withFileLock(capabilityMutationLock(environment), async () => {
         const [nativeSkills, disabled] = await Promise.all([
           client.listSkills(),
           disabledSkills(profile),
@@ -304,8 +292,8 @@ export function createDeviceSettingsService(
 
     async setToolsetEnabled(rawName, enabled) {
       const name = safeIdentifier(rawName, "toolset name");
-      const profile = profileFrom(environment, options.profile);
-      return withFileLock(paths().lock, async () => {
+      const profile = profileFrom(environment);
+      return withFileLock(capabilityMutationLock(environment), async () => {
         const before = await client.listToolsets();
         if (!before.some((item) => item.name === name)) {
           throw new DeviceSettingsError(
