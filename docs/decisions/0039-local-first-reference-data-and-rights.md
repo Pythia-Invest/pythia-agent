@@ -167,12 +167,14 @@ that installs from a model-supplied path* would let a tool call name arbitrary
 files. The import step remains a lifecycle action, and the agent only reads the
 status.
 
-## Amendment (2026-09-29): a curated reference package
+## Amendment (2026-09-29): reference plugins and prebuilt caches
 
-[ADR 0044](0044-product-direction.md) sets the direction toward a signed
-reference package over open data, published by Pythia. It includes reviewed
-answers to world-level identity questions, and it is delivered as downloads so
-that Pythia's services never receive users' queries. Publishing waits for the
-checks listed in "If Pythia later publishes a snapshot" above. Raw model
-exchanges stay out of releases. Pythia still never publishes, pools or
+[ADR 0044](0044-product-direction.md) makes every reference source a
+claim-emitting plugin. Each runs directly on the device or from a prebuilt
+cache of the same plugin's output. The reference package becomes such a cache
+for the default plugins: optional, not an authority. Pythia or anyone else may
+publish it over open data once the checks listed in "If Pythia later publishes
+a snapshot" above are complete. Reviewed answers ship as an optional answer
+list, delivered as downloads so that no service receives users' queries. Raw
+model exchanges stay out of releases. Pythia still never publishes, pools or
 redistributes provider data.

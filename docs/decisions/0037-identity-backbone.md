@@ -515,10 +515,11 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
 [ADR 0044](0044-product-direction.md) changes three things:
 
 - **Jobs may trigger agent work.** This ADR says "nothing triggers the agent".
-- **Questions reach a device only for subjects it touches** (held, watched,
-  opened or forecast). World-level questions are answered centrally and ship in
-  the reference package. "Unknown plus a question" stays the principle; only
-  its delivery changes.
+- **Most questions disappear once every default reference plugin emits
+  claims.** The resolver then combines their evidence. Questions reach a device
+  only for subjects it touches (held, watched, opened or forecast). Genuine
+  judgment cases are settled by the answer lists the user trusts. "Unknown
+  plus a question" stays the principle; only its delivery changes.
 - **The backbone is scoped to a permanent address book, and plugins
   contribute to it.** Identifiers never disappear, and records that cannot be
   matched still appear as labelled subjects. Core keeps the kinds, identifier

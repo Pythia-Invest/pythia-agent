@@ -19,10 +19,13 @@ whether the agents actually have skill. Investors can also develop new
 strategies together with the agents, starting from real market observations
 and proving them on paper before any capital is involved.
 
-Pythia is open, local-first and extensible. Research, strategies, credentials,
-portfolios and ledgers stay on a machine the investor controls. Shared truth,
-such as which listing belongs to which security, is curated once and
-distributed to every installation.
+Pythia is open, local-first and pluggable. Research, strategies, credentials,
+portfolios and ledgers stay on a machine the investor controls. Every data
+source, including the official registers that establish which listing belongs
+to which security, is a plugin that integrates against a shared,
+vendor-independent backbone. There is no central authority: prebuilt data and
+curated answers are optional conveniences that anyone can publish and every
+user can replace.
 
 ## Why this matters
 
@@ -58,10 +61,10 @@ decide how much autonomy they earn.
 5. **Your workspace, your data.** Research, strategies, credentials, portfolios
    and ledgers stay on the investor's own machine. Pythia's services never see
    what an investor researches.
-6. **Curate shared truth once; let plugins extend it.** Facts that are the same
-   for every user are resolved centrally and distributed, not re-resolved on
-   every installation. Plugins add the subjects and data of their own domains
-   freely.
+6. **A shared protocol, pluggable sources.** Core defines the backbone: subject
+   kinds, identifier rules, the claim format, a deterministic resolver and open,
+   versioned default rules. Every source is a plugin that contributes claims
+   against it. Plugins add the subjects and data of their own domains freely.
 7. **Extend without forking.** Everything a builder customises is a file or a
    plugin. The core stays upstream and keeps updating.
 8. **Provider-neutral and free-first.** Pythia works with free and open sources
@@ -212,18 +215,29 @@ These rules are product invariants.
 
 ## Architecture direction
 
-### Local workspace, central truth
+### Local workspace, pluggable sources
 
-| Lives on the investor's machine | Curated centrally by Pythia |
-| --- | --- |
-| Research files, strategies, skills, mandates | Reference data: which issuer, security and listing is which, built from open registers |
-| Credentials and connections to data vendors and brokers | Answers to world-level identity questions, reviewed and signed |
-| Portfolio positions and transactions | Mappings from widely used vendors' symbols to subjects |
-| The ledger, paper books, orders and approvals | Optional deep datasets built from open sources, such as fundamentals as first reported with their filing dates |
-| Agent runs, using the investor's own model credentials | Later: hosted workspaces for users who prefer not to self-host |
+Everything that belongs to the investor stays on their machine: research
+files, strategies, skills and mandates; credentials; portfolio positions and
+transactions; the ledger, paper books, orders and approvals; and agent runs,
+which use the investor's own model credentials.
 
-Centrally curated data is delivered as signed downloads with regular updates,
-not as a live query service. Pythia's services never learn which companies an
+Data enters through plugins. The core defines the protocol: subject kinds,
+identifier rules, the claim format, a deterministic resolver that turns the
+claims of all enabled plugins into subjects and relations, and open, versioned
+default rules. Plugins only contribute claims; they never reconcile, and they
+never override the resolver.
+
+Each plugin runs in the mode that suits its source:
+
+| Mode | How it works | Examples |
+| --- | --- | --- |
+| Direct | The plugin fetches and indexes its source on the investor's machine | Official registers such as ESMA FIRDS, GLEIF and the SEC's company data, and vendors used with the investor's own credentials |
+| Prebuilt | The same plugin's output is built elsewhere and downloaded as a signed cache, where the source's terms allow it. Anyone can publish such a cache; the investor chooses which to trust, or builds directly instead | Sources that are slow to build locally, such as a full OpenFIGI mapping |
+| On demand | The plugin reads its source when data is needed | Per-symbol market data, on-chain data |
+
+Prebuilt caches and curated datasets are delivered as downloads with regular
+updates, not as a live query service. No service learns which companies an
 investor looks at, because for an investment team that is its edge. An
 installation keeps working offline.
 
@@ -286,50 +300,88 @@ A genuinely new kind is a rare addition to core. New subjects never are.
   identifiers are derived from open or native identifiers, every installation
   with that plugin arrives at the same identifiers, so these subjects are
   first-class: they get pages, can be watched, forecast and held, and appear in
-  the ledger like any listed security. The centrally curated reference is a
-  shared baseline, not a gatekeeper of what exists.
+  the ledger like any listed security. No source is a gatekeeper of what
+  exists.
 - **A plugin is the authority for its own domain.** Facts about subjects that
   other sources also describe are different: for example, which company a
   ticker belongs to, which listing is a company's home market, or which share
   a depositary receipt represents. A plugin can suggest such facts. Confirming
   them requires the audited trust level below.
 - **Links into the shared backbone happen by identifier agreement.** When a
-  DeFi pool's underlying token is the same on-chain asset as a stablecoin
-  already in the reference, the link is made automatically. Anything
+  DeFi pool's underlying token is the same on-chain asset as a stablecoin that
+  another plugin already describes, the link is made automatically. Anything
   ambiguous becomes a suggestion, raised only when it matters.
+- **Identifiers come from identifiers, not from sources.** A subject's
+  identifier is derived from open identifiers such as an ISIN, a share-class
+  FIGI, an LEI or an on-chain address. Any enabled plugin that supplies the
+  same identifier leads to the same subject, so two installations with
+  different plugins agree wherever their evidence overlaps.
+- **Defaults are preinstalled, never mandatory.** Pythia ships with a default
+  set of open reference plugins enabled. Disabling one reduces the universe
+  it covers. Where it supplied the identifier that keys a segment of the
+  market, that segment falls back to temporary identifiers. For example,
+  United States and Canadian securities are keyed by share-class FIGI, because
+  their ISINs are licensed. Enabling a source later re-keys temporary
+  identifiers through aliases.
+- **Shared artefacts carry identifier bundles.** A strategy package or ledger
+  export lists every known identifier for each subject, not only Pythia's
+  identifier, and records the version of the default rules it used. The
+  receiving installation resolves them against its own plugins.
 - **Subject identifiers never disappear.** They survive rebuilds, renames and
   corporate actions through aliases and successor links. A forecast made today
   must still resolve years from now.
 - **Holdings come first.** A position or record that no source can identify
   still appears, labelled as unmatched, instead of being dropped.
-- **The central reference grows with demand.** New reference sources are
-  added when a strategy's universe reaches a gap, not in advance. Exotic
-  domains do not need central curation at all; their plugins cover them.
+- **Coverage grows with plugins.** New reference plugins are added when a
+  strategy's universe reaches a gap. Exotic domains are covered by their own
+  plugins.
 
 ### Where conflicts are resolved
 
-The rule: solve once where the answer is the same for everyone, solve lazily
-where it is private, and never "solve" what is legitimately different.
+Most apparent conflicts are not conflicts. In an analysis of a full reference
+build over EU and United States securities, 86% of the open identity questions
+were missing evidence: one source could not see something another open source
+states. Many more were errors in a single source, such as stale identifiers
+after corporate actions. Only about 0.4% needed judgment, all of them the
+question of which of two real listings is a company's primary one. The rule
+that follows: combine the evidence of all enabled plugins with deterministic
+rules first, handle the rare genuine cases with optional answer lists, and
+never "solve" what is legitimately different.
 
 | Conflict | Example | Where and when | What the user sees |
 | --- | --- | --- | --- |
-| World identity | Which listing is a company's home market; a register pointing a receipt at the wrong share | Centrally, at build time. Rules and typed claims come first, then AI-assisted review, then maintainer approval. Answers ship in the signed reference package | Nothing to do. At most an "unknown" label, with a local override |
+| Missing evidence | A register sees only the German trading lines of a foreign share, while another source knows its home exchange | On the user's machine: the resolver combines the claims of all enabled plugins | Nothing to do |
+| Source errors | A stale identifier after a share consolidation; a register field naming the wrong company | Deterministic rules and lifecycle data, versioned in the default rules | Nothing to do |
+| Genuine judgment | Which of two listings is the primary one for a company listed in two countries | Answer lists: a published list of answers, or the user's own. When the lists a user trusts disagree, the answer stays "unknown" | An "unknown" label, or the answer from a trusted list, with a local override |
 | A plugin's own domain | DeFi pools and protocols; a vendor's proprietary indices | Nowhere: the plugin is the authority for its own subjects. Links to shared subjects, such as a pool's underlying stablecoin, are made by identifier agreement or suggested | New subjects appear with the plugin's label |
-| Vendor symbols | Mapping a vendor's ticker to a listing | Centrally for widely used vendors. For others, automatic matching by open identifiers when the plugin connects | A summary of what matched, and what stays available only from that vendor |
+| Vendor symbols | Mapping a vendor's ticker to a listing | Automatic matching by open identifiers when the plugin connects. Mappings for widely used vendors may be published as a prebuilt cache | A summary of what matched, and what stays available only from that vendor |
 | The user's own unmatched records | A broker position or wallet token that the reference does not know | On the user's machine, only when it matters (held, watched, opened or forecast). An agent proposes a match and the user confirms | The record appears immediately, labelled "not matched", with a one-click suggestion |
 | Values that differ | Two vendors reporting different revenue | Never resolved: single values are shown side by side and lists are merged without duplicates; a price view uses one source ([ADR 0040](decisions/0040-data-concepts-and-agent-tools.md)) | Labelled rows. A forecast fixes its resolution source in advance |
 | A source changes | A vendor alters a field | Detected by drift alarms and fixed by the plugin's maintainer | "Source changed, fix pending". Affected views show stale labels, never wrong data |
 | Plan limits | A key that covers end-of-day data but not intraday data | The plugin's connection check records what the credential allows | An inspectable connection result. Selection skips what is not covered |
 
-Users never answer world-level questions. They confirm matches for their own
+Users are not asked world-level questions. They confirm matches for their own
 records and see differences as labels.
 
-- **Local fixes can flow back** to the central reference by explicit opt-in per
-  fix. Only the identifiers and the reasoning are sent, never positions or
-  holdings.
-- **When a user's own vendor disagrees with the reference,** the reference is
-  the default, the disagreement is shown, and a one-click local override makes
-  the user's choice win on their installation.
+- **Default rules are open and forkable.** A handful of definitions and
+  precedence rules decide the common cases. Examples: whether a company's
+  registered filings beat a trading venue's field for its issuer, whether two
+  listings can both be primary, and whether a depositary receipt counts as
+  exposure to its underlying share. They are published, versioned and
+  changelogged, and a user can override them locally.
+  - Overrides that affect only display, such as which listing prices by
+    default, are safe to diverge.
+  - Facts a mandate reads, such as issuer grouping for position limits, must
+    match wherever a strategy runs. A shared strategy therefore records the
+    rule version it was evaluated under.
+- **Answer lists are plugins too.** Pythia may publish a default list, others
+  may publish theirs, and a user may keep their own. None is mandatory.
+- **Local fixes can be shared** with the maintainers of a list or plugin by
+  explicit opt-in per fix. Only the identifiers and the reasoning are sent,
+  never positions or holdings.
+- **When a user's own vendor disagrees with the default evidence,** the
+  default holds, the disagreement is shown, and a one-click local override
+  makes the user's choice win on their installation.
 
 ### Plugin trust levels
 
@@ -342,6 +394,17 @@ records and see differences as labels.
 Adding subjects and data needs no audit, so community plugins are cheap to
 write and a user's own paid data is fully usable. The audit is reserved for
 overruling or establishing facts that other sources also describe.
+
+- **What a plugin's claims can establish is bounded by claim type and trust
+  level.** A plugin cannot give its own claims more authority by labelling
+  them.
+- **Trust attaches to a plugin's content, not its name.** Trust is tied to a
+  signed or hashed release, so a different plugin that reuses an audited
+  plugin's name does not inherit its trust level. Trust levels and the
+  choice of answer lists stay under the user's control.
+- **Trust levels limit what data can do, not what code can do.** Running
+  untrusted community code safely also requires isolating plugins, which is
+  planned before an open marketplace.
 
 ### Connecting a plugin
 
@@ -379,17 +442,19 @@ Pythia's own source code is open under the Apache-2.0 licence, and running
 Pythia never requires a subscription. The project intends to fund itself
 through services that are shared and cost money to operate:
 
-- **Free:** the application and a regularly updated reference snapshot,
-  sufficient to use Pythia fully.
-- **Pythia Data (optional):**
-  - frequent reference updates;
-  - curated corrections as they land;
+- **Free:** the application with its default plugins, which can build their
+  data directly, plus a regularly updated prebuilt cache of the default
+  plugins, sufficient to use Pythia fully.
+- **Pythia Data (optional convenience, never an authority):**
+  - frequent prebuilt updates;
+  - a maintained answer list;
   - deep datasets built from open sources, such as fundamentals as first
     reported with their filing dates, a filings index and institutional
     holdings.
 
   Delivered as downloads; an entitlement is checked when downloading, never
-  when running.
+  when running. Everything it provides could also be built or answered
+  locally.
 - **Hosted Pythia (later):** hosted workspaces for individuals and teams.
 - **Strategy packages (later):** verified strategies that others run on their
   own installations, with their own data, models and brokers, approving their
@@ -406,7 +471,7 @@ Each stage is useful on its own.
 
 | Stage | Goal | What it proves |
 | --- | --- | --- |
-| 0. Foundations | Complete in-flight identity work within the scope above. Give Pythia its own data directory and store. Keep plugins independent of harness internals. Record this direction in the product documentation | The ground is ready without new infrastructure |
+| 0. Foundations | Complete in-flight identity work within the scope above. Make the reference sources claim-emitting plugins with direct and prebuilt modes. Tie trust to plugin content. Correct identifier rules before any ledger depends on them. Give Pythia its own data directory and store. Keep plugins independent of harness internals. Record this direction in the product documentation | The backbone is pluggable end to end, without new infrastructure |
 | 1. Portfolio and the first paper mandate | Read-only positions from brokers and wallets. Turn a strategy conversation into a paper mandate. Scheduled mandate runs with decisions, forecasts and a paper book. A read-only yield monitor for stablecoin lending | An investor opens Pythia and sees real positions, last night's decisions with forecasts, paper performance against a benchmark, and a time-stamped ledger |
 | 2. Reactive agents that are scored | Event-driven research on filings and news with deduplication and triage. A review queue. Forecast resolution and scoring against baselines. Fundamentals with filing dates, classification and market capitalisation. Alerts that need no model call | Agents react to events within minutes at a controlled cost, and their calibration can be measured |
 | 3. Approved execution | Order tickets, limits and a kill switch. Broker-drafted orders the owner places. Trade-only credentials on dedicated sub-accounts. A sandboxed agent environment. Reconciliation after fills | Real orders on the owner's accounts, each traceable to a decision and an approval |
@@ -422,6 +487,7 @@ Each stage is useful on its own.
 | The Pythia Data subscription | Active builders using Pythia, or a dataset that is impractical to build locally |
 | A separate engine service | Live automated execution, a native client, a harness replacement, or a hosted deployment |
 | A plugin marketplace and a public plugin SDK | The first external plugins |
+| Process isolation for untrusted community plugins | Before an open marketplace |
 | Native macOS and Windows clients | After the web experience has stabilised |
 | Replacing the agent harness | When the harness blocks a needed capability |
-| New reference sources and further source audits | A strategy universe that reaches a gap, or a second user |
+| New reference plugins and further source audits | A strategy universe that reaches a gap, or a second user |

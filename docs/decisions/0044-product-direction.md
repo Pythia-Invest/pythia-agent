@@ -1,4 +1,4 @@
-# 0044: Product direction: mandate-driven agents, a decision ledger, and local workspaces with central truth
+# 0044: Product direction: mandate-driven agents, a decision ledger, and a pluggable backbone
 
 ## Context
 
@@ -33,9 +33,26 @@ following:
 - **Pythia's state and plugins depend on Hermes internals.** This makes the
   harness harder to replace, and it gives the future engine no Pythia-owned
   home.
-- **Identity resolution on every device imposes a curator's work on every
-  user.** A reference build can raise more than ten thousand world-level
-  questions that have the same answer everywhere.
+- **The identity question flood is a single-source artefact.** A full claims
+  build over EU and United States reference data raised 11,965 open identity
+  questions. Only one source, ESMA FIRDS, emitted claims. SEC, GLEIF and
+  OpenFIGI facts were written into the reference store directly, bypassing the
+  resolver.
+  - 86% of the questions were missing evidence that another open source
+    states.
+  - About 8% were errors in a single source, mostly stale identifiers after
+    corporate actions.
+  - Only 47 (0.4%) needed judgment, all of them the question of which of two
+    real listings is primary.
+  - In an independent check of twelve cases against primary sources, none
+    needed human judgment. In three, the correct answer was not among the
+    question's candidates.
+- **Reference sources stopped being plugins without a decision.** An early
+  design let reference sources emit claims at runtime. A security review found
+  that any plugin could label its rows as reference data. The fix removed
+  reference claims from plugins entirely, and the separate builder became the
+  only writer of reference data. Later documents described that split without
+  deciding it.
 - **Some effort goes to breadth the goal does not yet need.** That includes
   additional reference sources and audits.
 
@@ -83,25 +100,44 @@ following:
      process at a concrete trigger: live automated execution with isolated
      credentials, a native client, a harness replacement, or a hosted
      deployment.
-7. **Local workspace, central truth.**
+7. **Local workspace, pluggable backbone.**
    - Research, strategies, credentials, portfolios and ledgers stay on the
      investor's machine.
-   - World-level identity answers, vendor symbol mappings for widely used
-     vendors, and optional datasets built from open sources are curated
-     centrally and delivered as signed downloads. Pythia's services do not
-     receive users' queries.
+   - Core is the protocol: subject kinds, identifier rules, the claim format,
+     a deterministic resolver over the claims of all enabled plugins, open
+     versioned default rules, and small shared registries such as venue codes,
+     canonical crypto assets and plugin identifier namespaces.
+   - Every source is a plugin that emits claims, including the official
+     registers (ESMA FIRDS, GLEIF, SEC, ISO 10383, OpenFIGI). Plugins never
+     reconcile.
+   - Each plugin runs in the mode its source suits: direct (built on the
+     investor's machine), prebuilt (a signed cache of the same plugin's
+     output, which anyone may publish where the source's terms allow and the
+     user chooses to trust), or on demand.
+   - Prebuilt caches and datasets are delivered as downloads, never as a live
+     query service, so no service learns what a user researches.
    - Licensed provider data is never redistributed.
+   - There is no central authority.
 8. **Conflict handling.**
-   - World identity conflicts are resolved centrally at build time, by rules,
-     typed claims and AI-assisted review, with maintainer approval.
+   - The resolver first combines the evidence of all enabled plugins with
+     deterministic rules. That settles missing evidence and known source
+     errors.
+   - The default rules (definitions and precedence) are published, versioned,
+     changelogged and forkable, and users may override them locally.
+     - Overrides that affect only display may diverge between installations.
+     - Facts that a mandate reads must match where a strategy runs, so a
+       shared strategy records the rule version it was evaluated under.
+   - Genuine judgment cases are settled by answer lists, which are plugins:
+     Pythia's default list, lists from others, or the user's own. When trusted
+     lists disagree, the answer stays unknown.
    - A user's own unmatched records are resolved lazily on their machine, with
      one-click confirmation of a suggested match.
    - Differing values are shown side by side, as ADR 0040 already requires.
    - Source drift is the plugin maintainer's responsibility.
-   - Local fixes may be contributed upstream by opt-in per fix, sending
-     identifiers and reasoning only.
-   - When a user's own vendor disagrees with the reference, the reference is
-     the default and the user may override it locally.
+   - Local fixes may be shared with a list or plugin maintainer by opt-in per
+     fix, sending identifiers and reasoning only.
+   - When a user's own vendor disagrees with the default evidence, the default
+     holds, the disagreement is shown, and the user may override it locally.
 9. **Identity scope and contributions.**
    - **Kept:** the four-level backbone and its relations, today's coverage,
      permanent identifiers (aliases, successors, and no identifier ever
@@ -119,8 +155,20 @@ following:
      - Links to shared subjects are made by identifier agreement or suggested
        for review.
    - **New kinds** are a rare core addition.
+   - **Identifiers come from identifiers, not sources.** Any enabled plugin
+     that supplies the key identifier yields the same subject identifier.
+   - **Default reference plugins are preinstalled and enabled, never
+     mandatory.** Disabling one reduces the universe it covers. Where it
+     supplies the identifier that keys a segment, that segment uses temporary
+     identifiers. For example, United States and Canadian securities are keyed
+     by share-class FIGI because their ISINs are licensed.
+   - **Enabling a source later re-keys temporary identifiers through aliases**
+     derived from stable identifiers, never from reusable tickers alone.
+   - **Shared artefacts** (strategy packages, ledger exports) carry every known
+     identifier per subject and the default-rule version, and the receiving
+     installation resolves them with its own plugins.
    - **Paused until a strategy universe reaches a gap or a second user
-     arrives:** new central reference sources and further source audits.
+     arrives:** new reference plugins and further source audits.
 10. **Plugin trust levels.** Display, suggest identity, and confirm identity.
     - **Display** covers showing data with its source and adding subjects in
       the plugin's own domain. It needs declared coverage, terms and
@@ -131,17 +179,28 @@ following:
       requires the full onboarding audit and sign-off.
 
     A user's own licensed vendor is usable at the display level.
+    - What a plugin's claims can establish is bounded by claim type and trust
+      level; a plugin cannot raise it by labelling its claims.
+    - Trust attaches to a signed or hashed plugin release, not to its name.
+    - Trust levels bound data, not code. Isolating untrusted plugin code is
+      required before an open marketplace.
 11. **Extension model.** Builders customise through files and plugins, and the
     core stays upstream and updatable.
     - **Files:** strategies, mandates, skills, prompts and agent roles.
     - **Plugins:** sources, account readers, datasets, widgets, schedules and
       monitors.
 12. **Sustainability.**
-    - The application is open source and free to run, with a free, regularly
-      updated reference snapshot.
-    - Optional paid services cover what is shared and costly to operate:
-      curated data updates and datasets built from open sources, hosted
-      workspaces, and later strategy packages after legal review.
+    - The application is open source and free to run. Its default plugins can
+      build their data directly, and a free, regularly updated prebuilt cache
+      of the default plugins is available.
+    - Optional paid services sell convenience, never authority:
+      - frequent prebuilt updates;
+      - a maintained answer list;
+      - datasets built from open sources;
+      - hosted workspaces;
+      - later, strategy packages after legal review.
+
+      Everything they provide can also be built or answered locally.
     - Model access stays bring-your-own by default.
 
 ## Rationale
@@ -159,10 +218,17 @@ following:
 - **Owning the engine's state keeps it portable.** Pythia-owned state survives
   a harness replacement, a native client and hosted deployments. Starting
   in-process avoids new infrastructure until a trigger justifies it.
-- **Resolve shared facts once.** Resolving world-level facts once keeps the
-  local workspace, and its privacy and control, without turning every user
-  into a data curator. Delivering curated data as downloads preserves privacy:
-  what an investor researches is their edge.
+- **Evidence, not authority.** The measured conflicts are overwhelmingly
+  missing evidence and single-source errors that the combined evidence of
+  standard open plugins settles deterministically.
+  - A central curator is therefore unnecessary for correctness, and it would
+    work against a plugin ecosystem.
+  - The genuine remainder is small and definitional, and optional answer lists
+    handle it without making any party mandatory.
+  - Prebuilt caches keep the convenience of central building without its
+    authority.
+  - Downloads, rather than live queries, preserve privacy: what an investor
+    researches is their edge.
 - **Scope identity to what the loop needs.** The identity backbone is what lets
   many plugins connect. Further breadth adds less than the missing engine
   does.
@@ -170,7 +236,7 @@ following:
 ## Consequences
 
 This ADR sets direction. Each component (ledger, mandates, jobs, approvals and
-execution, curated reference distribution, plugin platform interface) receives
+execution, reference plugins with prebuilt caches and answer lists, plugin platform interface) receives
 its own implementing ADR or architecture document when it is built.
 
 It amends the following rulings:
@@ -186,27 +252,42 @@ It amends the following rulings:
   subscriptions are unchanged.
 - **[ADR 0037](0037-identity-backbone.md).**
   - **"Nothing triggers the agent."** Jobs may trigger agent work.
-  - **Question delivery.** Identity questions reach a device only for subjects
-    it touches; world-level questions are answered centrally.
+  - **Question delivery.** Most questions disappear once all default plugins
+    emit claims. Identity questions reach a device only for subjects it
+    touches, and genuine judgment cases are answered by the answer lists the
+    user trusts.
   - **Plugin-contributed subjects.** Plugins may add portable, first-class
     subjects under declared identifier schemes. Today, subjects that only a
     provider knows receive provisional, non-portable identifiers, and only the
     reference build mints chain-asset keys. The shared canonical-asset table
     remains the source of keys for widely held crypto assets, so that different
     providers agree on them.
+- **[ADR 0038](0038-plugin-addressing-contract.md) "Reference sources do not
+  emit".**
+  - Reference sources become claim-emitting plugins again.
+  - The security concern that removed them, plugins labelling their own rows as
+    reference data, is addressed by bounding claims by claim type and trust
+    level (ruling 10).
 - **[ADR 0039](0039-local-first-reference-data-and-rights.md) "Pythia publishes
   no snapshot and operates no service" and "Model verdicts stay out of any
   release".**
-  - Pythia may publish a signed reference package over open data, including
-    reviewed curated answers, once the rights checks listed in that ADR are
-    complete.
+  - The reference package becomes a prebuilt cache of the default plugins'
+    output: optional, reproducible where sources allow, and not an authority.
+  - Pythia, or anyone else, may publish such a cache over open data once the
+    rights checks listed in that ADR are complete.
+  - Reviewed answers ship as an optional answer list.
   - Raw model exchanges stay out of releases.
   - Provider data is still never redistributed.
-- **[ADR 0042](0042-source-onboarding-standard.md) "verdicts stay on the
-  device".**
-  - Reviewed curated answers over open data may ship in the reference package.
-  - Gold labels on licensed data and raw model exchanges stay on the device.
+- **[ADR 0042](0042-source-onboarding-standard.md) "The builder's reference
+  sources are not plugins" and "verdicts stay on the device".**
+  - Reference sources are plugins.
   - The trust levels in ruling 10 define what requires sign-off.
+  - Reviewed answers over open data may ship as an optional answer list.
+  - Gold labels on licensed data and raw model exchanges stay on the device.
+- **Identifier corrections before any ledger.** Listing identifiers must use a
+  listing's trading currency. The current rule uses a register field with a
+  different meaning on some venues. This is corrected before any ledger or
+  strategy references listing identifiers.
 - **The deferral of agent sandboxing** ends before the first live trading
   credential is connected.
 - **Hermes-native permissions** continue to govern reads. Approval of orders is
@@ -220,9 +301,18 @@ It amends the following rulings:
   a customisable many-agent workbench expensive to operate, and conflicts with
   local control. It stays open as a later option: a hosted workspace running
   the same software.
-- **Fully local data resolution.** It would give each installation its own
-  reference build and its own world-level questions, and it would make every
-  user a data curator.
+- **A central curation authority** (an earlier draft of this direction). It
+  would have Pythia resolve world-level identity questions centrally, with
+  maintainer approval, and ship the answers as the reference. The measurements
+  above show that the question volume came from single-source claims, not from
+  genuine disagreement. Central curation would make one party mandatory and
+  work against the plugin model.
+- **Mandatory reference plugins.** They would guarantee identical identifiers
+  everywhere, but make Pythia unusable for anyone who does not want part of
+  the market. Preinstalled defaults, identifier bundles in shared artefacts
+  and alias-based re-keying achieve portability without the mandate.
+- **Every user answers world-level questions.** It would make every user a
+  data curator. Answer lists remove the need.
 - **Only the central reference may create subjects.** It would make every new
   domain wait for core and central curation, contradicting the plugin model:
   exotic domains such as a single DeFi ecosystem or a niche market would never

@@ -229,3 +229,12 @@ qualities flat per concept (delay and depth differ between a quote and daily
 history); free-form qualities (selection and labels need values core
 understands); reserving an always-empty `functions` key (adding a field raises
 the version either way).
+
+## Amendment (2026-09-29): reference sources are plugins again
+
+[ADR 0044](0044-product-direction.md) reverses "Reference sources do not
+emit". Reference sources become claim-emitting plugins with direct and
+prebuilt modes. The concern that led to the rule was that a plugin could label
+its own rows as reference data. It is addressed by bounding what claims can
+establish by claim type and the plugin's trust level, with trust attached to a
+signed or hashed release rather than to a plugin name.

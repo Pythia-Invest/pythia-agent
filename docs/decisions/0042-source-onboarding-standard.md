@@ -167,6 +167,10 @@ Establishing facts about subjects that other sources also describe requires
 this standard's full audit and sign-off. A user's own licensed vendor is usable
 at the display level.
 
-Reviewed answers over open data may ship in the reference package. Gold labels
-on licensed data and raw model exchanges stay on the device. Further source
-audits are paused until a strategy's universe or a second user needs them.
+The statement above that the builder's reference sources are not plugins is
+reversed: reference sources are claim-emitting plugins. What their claims may
+establish is bounded by claim type and trust level, and trust attaches to a
+signed or hashed plugin release, not to its name. Reviewed answers over open
+data may ship as an optional answer list. Gold labels on licensed data and raw
+model exchanges stay on the device. Further source audits are paused until a
+strategy's universe or a second user needs them.
