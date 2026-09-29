@@ -318,6 +318,23 @@ class NativeAccessTests(unittest.TestCase):
                                         updates=True)
         self.assertEqual(caught.exception.code, 'read_only_required')
 
+    def lose_the_feature_owner_during_the_read(self):
+        """The source answers while the feature tool loses its native owner (an unload); access is unchanged."""
+        for entry in self.manager._registration_order:
+            if entry.plugin_key == self.feature_key:
+                entry.active = False
+        access._eligibility.clear()
+        return {'schema_version': 1, 'outcome': 'ok', 'data': {'value': 7}, 'issues': []}
+
+    def test_a_read_whose_feature_loses_its_owner_mid_read_is_unavailable(self):
+        self.handler = self.lose_the_feature_owner_during_the_read
+        self.assertEqual(execution.call_source('synthetic', 'details', {})['issues'][0]['code'], 'unavailable')
+
+    def test_an_explicit_call_whose_feature_loses_its_owner_is_unavailable_not_a_source_error(self):
+        self.handler = self.lose_the_feature_owner_during_the_read
+        result = execution.dispatch({'action': 'call', 'provider': 'synthetic', 'operation': 'details', 'arguments': {}})
+        self.assertEqual(result['issues'][0]['code'], 'unavailable')
+
     def test_a_price_connector_registered_without_market_data_projects_once_market_data_is_present(self):
         key = 'finance/pythia-yahoo-discovery'
         root = PLUGINS / 'yahoo-discovery'

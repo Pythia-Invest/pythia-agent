@@ -4,6 +4,7 @@ Registration uses stand-ins for the pinned PluginContext; the assembled qualific
 through the real Hermes loader.
 """
 import importlib.util
+from itertools import takewhile
 import json
 import sys
 import unittest
@@ -29,7 +30,7 @@ MEMBERS = {
     'request_context': ['cancel_signal', 'cancelled', 'usage'],
     'subscription': ['Subscription'],
     'connector': ['NativeBatch', 'ReadCache', 'ReadCancelled', 'ResidentTransport', 'SourceFailure', 'StreamingWorker',
-                  'Transport', 'WorkerReads', 'cacheable', 'connection', 'detail', 'emit', 'failed_item',
+                  'Transport', 'WorkerReads', 'connection', 'detail', 'emit', 'failed_item',
                   'item_failures', 'parallel', 'qualify_failure', 'qualify_items', 'retry_after', 'worker_batch',
                   'worker_failure', 'worker_item'],
     'wire': ['CRITERIA', 'WireError', 'parameter_schema', 'require', 'validate', 'validate_parameters',
@@ -46,6 +47,13 @@ def plugin(directory):
     module = sys.modules[name] = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def requires(directory):
+    """The plugins a manifest's `requires_plugins` list names."""
+    lines = iter((PLUGINS / directory / 'plugin.yaml').read_text().splitlines())
+    next(line for line in lines if line == 'requires_plugins:')
+    return [line[4:] for line in takewhile(lambda line: line.startswith('  - '), lines)]
 
 
 class Loader(Context):
@@ -150,6 +158,8 @@ class PluginsRegisterThroughTheInterface(unittest.TestCase):
         for directory in ('sec', 'gleif', 'openfigi', 'xbrl-filings', 'nsm',
                           'eodhd', 'yahoo-discovery', 'coingecko', 'coinmarketcap'):
             with self.subTest(plugin=directory):
+                # Hermes orders loading by `requires_plugins` but never enforces it: the manifest names core alone.
+                self.assertEqual(requires(directory), ['pythia'])
                 module, ctx = self.register(directory, 'pythia-' + directory)
                 tools = getattr(module, 'TOOLS', None) or {'mapping': module.TOOL}
                 self.assertLessEqual(set(tools.values()), set(ctx.tools))

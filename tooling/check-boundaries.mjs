@@ -171,24 +171,40 @@ for (const workspace of workspaces) {
 // ADR 0045 names. A line scan guards against the known patterns; it is not a
 // sandbox.
 const MANAGED = "runtime/managed";
+// The pinned Hermes's top-level packages and modules (its pyproject), besides
+// every `hermes_*` name, which includes `hermes_plugins`, the namespace Hermes
+// loads plugins under.
 const HERMES_MODULES = new Set([
-  "hermes_cli",
-  "tools",
-  "gateway",
-  "model_tools",
-  "hermes_state",
-  "hermes_constants",
+  "acp_adapter",
   "agent",
-  "hermes_plugins",
+  "batch_runner",
+  "cli",
+  "cron",
+  "gateway",
+  "mcp_serve",
+  "model_tools",
+  "plugins",
+  "providers",
+  "registration_lifecycle",
+  "run_agent",
+  "tools",
+  "toolset_distributions",
+  "toolsets",
+  "trajectory_compressor",
+  "tui_gateway",
+  "utils",
 ]);
+const isHermes = (module) =>
+  HERMES_MODULES.has(module) || module.startsWith("hermes_");
 // A statement starts a line or follows `;` or `:` (`if x: import tools`).
 const IMPORT_STATEMENT =
   /(?:^|[;:])\s*import\s+([\w.]+(?:\s+as\s+\w+)?(?:\s*,\s*[\w.]+(?:\s+as\s+\w+)?)*)/gu;
 const FROM_STATEMENT = /(?:^|[;:])\s*from\s+([\w.]+)\s+import\b/gu;
 const PRIVATE_MANAGER =
   /\b(?:_plugins|_registration_order|get_plugin_manager)\b/u;
+// `sys.modules` also through `from sys import modules` or an aliased `sys`.
 const DYNAMIC_IMPORT =
-  /\b(?:importlib|import_module|__import__)\b|\bsys\.modules\b/u;
+  /\b(?:importlib|import_module|__import__)\b|\bsys\.modules\b|\bfrom\s+sys\s+import\b.*\bmodules\b|\bimport\s+sys\s+as\b/u;
 
 function importsHermes(line) {
   const modules = [
@@ -197,7 +213,7 @@ function importsHermes(line) {
     ),
     ...[...line.matchAll(FROM_STATEMENT)].map((match) => match[1]),
   ];
-  return modules.some((module) => HERMES_MODULES.has(module.split(".")[0]));
+  return modules.some((module) => isHermes(module.split(".")[0]));
 }
 
 function pythonFiles(path) {
@@ -213,19 +229,33 @@ function pythonFiles(path) {
   });
 }
 
+// Lines joined across a trailing backslash, each with its first line number.
+function logicalLines(text) {
+  const lines = [];
+  let pending = null;
+  text.split("\n").forEach((line, index) => {
+    pending = pending
+      ? { ...pending, text: `${pending.text} ${line}` }
+      : { number: index + 1, text: line };
+    if (!line.endsWith("\\")) {
+      lines.push(pending);
+      pending = null;
+    }
+  });
+  return pending ? [...lines, pending] : lines;
+}
+
 // Each rule is [test, reason, files allowed to match it].
 function scanPython(root, rules) {
   for (const file of pythonFiles(join(MANAGED, root))) {
     const name = relative(join(MANAGED, root), file).split(sep).join("/");
-    readFileSync(file, "utf8")
-      .split("\n")
-      .forEach((line, index) => {
-        for (const [test, reason, allowed] of rules) {
-          if (!allowed.has(name) && test(line)) {
-            violations.push(`${file}:${index + 1}: ${reason}`);
-          }
+    for (const line of logicalLines(readFileSync(file, "utf8"))) {
+      for (const [test, reason, allowed] of rules) {
+        if (!allowed.has(name) && test(line.text.replaceAll("\\", " "))) {
+          violations.push(`${file}:${line.number}: ${reason}`);
         }
-      });
+      }
+    }
   }
 }
 

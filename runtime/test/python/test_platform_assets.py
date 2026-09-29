@@ -11,6 +11,11 @@ from market_data_fixture import PLATFORM
 reader = importlib.import_module(PLATFORM + '.assets')
 
 
+def read(root, path, **options):
+    """A widget module's content as core serves it."""
+    return reader.BundledModule(root, path, **options).read(include_content=True)[1]
+
+
 class BundledAssets(unittest.TestCase):
     def test_regular_utf8_artifact_and_admission_failures(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -19,7 +24,6 @@ class BundledAssets(unittest.TestCase):
             assets.mkdir()
             file = assets / 'demo.html'
             file.write_text('<p>Demo</p>', encoding='utf-8')
-            read = reader.read_bundled_asset
             self.assertEqual(read(root, 'widgets/demo.html'), '<p>Demo</p>')
             for path in ('../demo.html', '/demo.html', 'widgets/./demo.html', 'widgets//demo.html'):
                 with self.subTest(path=path), self.assertRaises(ValueError): read(root, path)
@@ -37,7 +41,7 @@ class BundledAssets(unittest.TestCase):
             os.link(root / 'real' / 'demo.html', root / 'hard.html')
             for path in ('alias/demo.html', 'linked.html', 'hard.html', 'real/demo.html'):
                 with self.subTest(path=path), self.assertRaises((ValueError, OSError)):
-                    reader.read_bundled_asset(root, path)
+                    read(root, path)
 
     def test_concurrent_file_edit_is_rejected_before_metadata_can_be_cached(self):
         with tempfile.TemporaryDirectory() as directory:

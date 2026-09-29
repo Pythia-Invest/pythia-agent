@@ -91,7 +91,7 @@ def call_source(provider, operation, arguments):
         return failure("invalid_request")
     if platform.interrupted() or cancelled():
         return failure("cancelled")
-    access = native_access_scope()
+    scope = native_access_scope()
     sources, _invalid = project()  # Fresh native eligibility, never caller metadata.
     candidates = [item for source in sources
                   if source["contribution"]["provider"] == provider
@@ -118,7 +118,7 @@ def call_source(provider, operation, arguments):
     try:
         if cancelled() or platform.interrupted(caller_thread):
             return failure('cancelled')
-        if access != native_access_scope() or name not in eligible_tools():
+        if scope != native_access_scope() or name not in eligible_tools():
             return failure('unavailable')
         return result
     except access.ContextUnavailable:

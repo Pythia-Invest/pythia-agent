@@ -49,7 +49,10 @@ configuration = _Module(_configuration, 'value', 'needs_configuration')
 request_context = _Module(_request_context, 'cancel_signal', 'cancelled', 'usage')
 subscription = _Module(_subscription, 'Subscription')
 # The connector toolkit: bounded worker and HTTPS reads, budgets, caching, batching and safe failures.
-connector = _Module(_connector, *_connector.__all__)
+connector = _Module(_connector, 'NativeBatch', 'ReadCache', 'ReadCancelled', 'ResidentTransport', 'SourceFailure',
+                    'StreamingWorker', 'Transport', 'WorkerReads', 'connection', 'detail', 'emit', 'failed_item',
+                    'item_failures', 'parallel', 'qualify_failure', 'qualify_items', 'retry_after', 'worker_batch',
+                    'worker_failure', 'worker_item')
 wire = _Module(_wire, 'CRITERIA', 'WireError', 'parameter_schema', 'require', 'validate', 'validate_parameters',
                'validate_read_result')
 process = _Module(_process, 'WorkerError', 'run_worker')  # the default worker transport for WorkerReads

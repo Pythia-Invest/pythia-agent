@@ -54,11 +54,6 @@ def _read(handle, info, max_bytes):
     return encoded, encoded.decode('utf-8', errors='strict')
 
 
-def read_bundled_asset(root, relative_path, *, max_bytes=1_048_576):
-    with _open_asset(root, relative_path, max_bytes) as (handle, info):
-        return _read(handle, info, max_bytes)[1]
-
-
 class BundledModule:
     """One registered module's metadata, never permissions or retained content.
 

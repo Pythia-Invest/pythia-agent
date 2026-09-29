@@ -59,8 +59,8 @@ reach core.
   - `subscription`: `Subscription`;
   - `connector`: `WorkerReads`, `SourceFailure`, `qualify_failure`,
     `NativeBatch`, `worker_batch`, `worker_item`, `ResidentTransport`,
-    `Transport`, `connection`, `failed_item`, `detail`, `cacheable`,
-    `item_failures`, `qualify_items`, `worker_failure`, `emit`, `ReadCache`,
+    `Transport`, `connection`, `failed_item`, `detail`, `item_failures`,
+    `qualify_items`, `worker_failure`, `emit`, `ReadCache`,
     `ReadCancelled`, `parallel`, `StreamingWorker`, `retry_after`;
   - `wire`: `WireError`, `require`, `validate`, `validate_parameters`,
     `validate_read_result`, `parameter_schema`, `CRITERIA`;
@@ -92,11 +92,14 @@ reach core.
   financial backend, its tool, reads, selection, delivery and widgets.
 - **`tooling/check-boundaries.mjs` enforces this in `just check`, with no
   exceptions.** Under `runtime/managed/plugins/`, a Python file may not import
-  a Hermes module (also in a comma-separated import or after `;` or `:`), read
-  the plugin manager, or import dynamically: `importlib`, `import_module`,
-  `__import__` and `sys.modules` all fail. Under `runtime/managed/core/`, only
-  `harness.py` may read the plugin manager, and each of the other two seams
-  stays in its file. The check is a line scan of known patterns, not a sandbox.
+  a Hermes module: any `hermes_*` module or one of the pinned Hermes's other
+  top-level packages and modules, also in a comma-separated or
+  backslash-continued import or after `;` or `:`. It may not read the plugin
+  manager or import dynamically: `importlib`, `import_module`, `__import__` and
+  `sys.modules` all fail, as do `from sys import modules` and an aliased `sys`.
+  Under `runtime/managed/core/`, only `harness.py` may read the plugin
+  manager, and each of the other two seams stays in its file. The check is a
+  line scan of known patterns, not a sandbox.
 
 ### This overrides the Hermes contract's "no import aliases" rule
 

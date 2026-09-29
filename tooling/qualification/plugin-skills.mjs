@@ -56,7 +56,7 @@ try {
     );
     writeFileSync(
       join(root, "config.yaml"),
-      `plugins:\n  enabled: [pythia, pythia-market-data]\n  disabled: ${enabled ? "[]" : "[pythia-market-data]"}\nplatform_toolsets:\n  api_server: [pythia-market-data, file]\nskills:\n  external_dirs: [${JSON.stringify(join(managedRoot, "skills"))}]\n${skillConfig}`,
+      `plugins:\n  enabled: [pythia, pythia-market-data, pythia-sec]\n  disabled: ${enabled ? "[]" : "[pythia-market-data]"}\nplatform_toolsets:\n  api_server: [pythia-market-data, file]\nskills:\n  external_dirs: [${JSON.stringify(join(managedRoot, "skills"))}]\n${skillConfig}`,
       { mode: 0o600 },
     );
     const result = spawnSync(

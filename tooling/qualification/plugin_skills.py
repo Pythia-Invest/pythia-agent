@@ -32,6 +32,10 @@ with patch.object(socket.socket, 'connect', side_effect=AssertionError('No netwo
     assert not {'sec-edgar-research', 'eodhd-market-data'} & names, listing
     viewed = json.loads(skill_view(qualified, preprocess=False))
     plugin = manager._plugins['pythia-market-data']
+    # A connector needs core alone: SEC loads whenever core publishes its interface, whether or not market-data does.
+    sec = manager._plugins['pythia-sec']
+    assert sec.enabled == published and (sec.error is None) == published, sec.error
+    assert (registry.get_entry('pythia_sec_resolve') is not None) == published
     if enabled and not published:
         # A core from before the interface: market-data refuses to register, visibly, and leaves nothing behind.
         assert not plugin.enabled and 'pythia_platform' in (plugin.error or ''), plugin.error
@@ -56,5 +60,5 @@ with patch.object(socket.socket, 'connect', side_effect=AssertionError('No netwo
     assert viewed['success'] == available, viewed
 
 print(json.dumps({'plugin_enabled': enabled, 'qualified_skill_available': viewed['success'],
-                  'market_data_loaded': plugin.enabled,
+                  'market_data_loaded': plugin.enabled, 'sec_loaded': sec.enabled,
                   'hermes_commit': pin['commit']}))
