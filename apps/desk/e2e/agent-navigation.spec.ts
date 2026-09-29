@@ -28,6 +28,16 @@ async function directory(page: Page) {
   await page.getByRole("button", { name: /^and \d+ more$/ }).click();
   return page.getByRole("dialog", { name: "Research agents" });
 }
+/** The chat list's unread mark; a phone opens the list over the chat to read it. */
+async function expectUnread(page: Page, unread: boolean) {
+  const phone = (page.viewportSize()?.width ?? 0) < 900;
+  const chats = page.getByRole("navigation", { name: "Chats", exact: true });
+  if (phone) await page.getByRole("button", { name: "Show chats" }).click();
+  await expect(chats.getByRole("img", { name: "Unread reply" })).toHaveCount(
+    unread ? 1 : 0,
+  );
+  if (phone) await chats.getByRole("button", { name: "Hide chats" }).click();
+}
 const detailRegion = (page: Page) =>
   page.getByRole("region", { name: "Research agent conversation" });
 async function startAgents(
@@ -149,17 +159,6 @@ test("switches agents in place, retains directory navigation and restores a chil
   await expect(
     detail.getByRole("button", { name: "Jump to latest" }),
   ).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath("agent-light.png"),
-    animations: "disabled",
-  });
-  await page.evaluate(() =>
-    document.documentElement.setAttribute("data-theme", "dark"),
-  );
-  await page.screenshot({
-    path: test.info().outputPath("agent-dark.png"),
-    animations: "disabled",
-  });
   expect(await detail.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(
     true,
   );
@@ -167,10 +166,6 @@ test("switches agents in place, retains directory navigation and restores a chil
   await expect(detail).toHaveCount(0);
   await directory(page);
   await expect(search).toHaveValue("source");
-  await page.screenshot({
-    path: test.info().outputPath("agent-directory-dark.png"),
-    animations: "disabled",
-  });
   await panel.getByRole("button", { name: /Source dates/ }).click();
   await expect
     .poll(() => viewport.evaluate((e) => e.scrollTop))
@@ -253,11 +248,7 @@ test("browses 225 agents with bounded rows, incomplete search disclosure and onl
     .click();
   await directory(page);
   await panel.getByRole("searchbox", { name: "Search agents" }).fill("");
-  const initialIds = await list
-    .getByRole("button")
-    .evaluateAll((rows) =>
-      rows.map((row) => row.getAttribute("data-agent-id")),
-    );
+  const initialRows = await list.getByRole("button").allTextContents();
   f.setWorkPage(work([...agents.slice(0, 200)].reverse(), true));
   const reloaded = page.waitForResponse(
     (r) =>
@@ -270,13 +261,7 @@ test("browses 225 agents with bounded rows, incomplete search disclosure and onl
   ]);
   await reloaded;
   await expect(list.getByRole("button").first()).toContainText("Company 1");
-  expect(
-    await list
-      .getByRole("button")
-      .evaluateAll((rows) =>
-        rows.map((row) => row.getAttribute("data-agent-id")),
-      ),
-  ).toEqual(initialIds);
+  expect(await list.getByRole("button").allTextContents()).toEqual(initialRows);
   expect(f.unexpected).toEqual([]);
 });
 
@@ -335,13 +320,7 @@ test("keeps the parent run, draft and reading position while an agent uses the m
       output: "Parent finished while you were reading.",
     },
   ]);
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(sessionStorage.getItem("pythia-desk:unread-chats") ?? "[]"),
-      ),
-    )
-    .toContain("synthetic-chat");
+  await expectUnread(page, true);
   await page.getByRole("button", { name: "Back to chat" }).click();
   await expect(
     page.getByText("Parent finished while you were reading."),
@@ -352,24 +331,12 @@ test("keeps the parent run, draft and reading position while an agent uses the m
   await expect
     .poll(() => viewport.evaluate((e) => e.scrollTop))
     .toBeCloseTo(saved, 0);
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(sessionStorage.getItem("pythia-desk:unread-chats") ?? "[]"),
-      ),
-    )
-    .toContain("synthetic-chat");
+  await expectUnread(page, true);
   await page.getByRole("button", { name: "Jump to latest" }).click();
   await expect(
     page.getByText("Parent finished while you were reading."),
   ).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(sessionStorage.getItem("pythia-desk:unread-chats") ?? "[]"),
-      ),
-    )
-    .not.toContain("synthetic-chat");
+  await expectUnread(page, false);
   expect(f.streamRequests()).toBe(1);
   expect(f.submissions).toHaveLength(1);
   expect(f.unexpected).toEqual([]);
