@@ -136,11 +136,11 @@ it("rejects unadmitted writes, forged references and symlinks before a run start
   hostile.headers.set("origin", "https://foreign.example");
   expect((await routes.uploadAttachment(hostile)).status).toBe(403);
   expect(await readdir(folder)).toEqual([]);
-  for (const id of [
-    "../../outside",
-    "f".repeat(32),
-    "https://foreign.example/file",
-  ]) {
+  for (const [id, status] of [
+    ["../../outside", 400],
+    ["f".repeat(32), 404],
+    ["https://foreign.example/file", 400],
+  ] as const) {
     expect(
       (
         await routes.startRun(
@@ -151,7 +151,7 @@ it("rejects unadmitted writes, forged references and symlinks before a run start
           }),
         )
       ).status,
-    ).toBeGreaterThanOrEqual(400);
+    ).toBe(status);
   }
   const file = await store.upload(
     upload("AGENTS.md", Buffer.from("Untrusted file content")),

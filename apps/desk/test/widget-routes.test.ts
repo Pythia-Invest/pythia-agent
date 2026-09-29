@@ -75,16 +75,21 @@ describe("native widget asset admission", () => {
     ]);
   });
 
-  it("rejects changed revisions and digest mismatches without serving executable content", async () => {
-    const changed = createWidgetRoutes(async () => ({
-      ...asset,
-      data: {
-        ...asset.data,
-        content: "changed",
-        bytes: Buffer.byteLength("changed"),
-      },
-    }));
-    expect((await changed.widgetAsset(request(), context)).status).toBe(502);
+  it.each([
+    ["content changed", { content: "changed", bytes: 7 }],
+    ["UTF-16 length as bytes", { bytes: content.length }],
+  ])(
+    "refuses to serve an asset that no longer matches its declaration (%s)",
+    async (_label, change) => {
+      const routes = createWidgetRoutes(async () => ({
+        ...asset,
+        data: { ...asset.data, ...change },
+      }));
+      expect((await routes.widgetAsset(request(), context)).status).toBe(502);
+    },
+  );
+
+  it("rejects a changed revision without serving executable content", async () => {
     const routes = createWidgetRoutes(async () => asset);
     const stale = new Request(request().url.replace(sha256, "0".repeat(64)), {
       headers: request().headers,
@@ -129,14 +134,6 @@ describe("native widget asset admission", () => {
       ],
     });
     expect(read.mock.calls[0]?.slice(0, 2)).toEqual(["example", {}]);
-  });
-
-  it("rejects a declared asset size that differs from its UTF-8 content bytes", async () => {
-    const routes = createWidgetRoutes(async () => ({
-      ...asset,
-      data: { ...asset.data, bytes: content.length },
-    }));
-    expect((await routes.widgetAsset(request(), context)).status).toBe(502);
   });
 
   it.each([undefined, 0, 1.5, 1_048_577])(
