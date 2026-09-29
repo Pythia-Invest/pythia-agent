@@ -131,6 +131,7 @@ class IssuerTest(unittest.TestCase):
         found = admissions(fulins([
             firds_record("CH0038863350", "XAMS", vehicle),
             firds_record("CA6410701073", "XAMS", parent, cfi="EDSXFR", underlying="CH0038863350"),
+            firds_record("US6410694060", "XAMS", vehicle, cfi="EDSXFR", underlying="CH0038863350"),  # the ADR
             firds_record("US8835561023", "XAMS", thermo),
             firds_record("US68389X1054", "XAMS", oracle),
             firds_record("CA0000000001", "XAMS", oracle, cfi="EDSXFR", underlying="US8835561023"),
@@ -146,12 +147,17 @@ class IssuerTest(unittest.TestCase):
         snap = build_snapshot(assemble.Inputs(date(2026, 9, 26), Scope(mics=("XAMS",), sec=False), mic.parse(MIC_CSV.encode()),
                                               found, None, [], {"XAMS"}, firds_claims=loaded),
                               lambda leis: {lei: entities[lei] for lei in leis if lei in entities}, FakeOpenFigi({}))
-        issuers = {isin: snap.securities[f"isin:{isin}"].issuer_id for isin in ("CH0038863350", "US8835561023", "US58933Y1055")}
-        self.assertEqual(issuers, {"CH0038863350": None, "US8835561023": f"lei:{thermo}", "US58933Y1055": f"lei:{merck}"})
-        asked = [(q.subject_id, q.candidates, q.values) for q in snap.questions if q.question == "issuer_identity"]
-        self.assertEqual(asked, [("isin:CH0038863350", (f"lei:{parent}",), (parent, vehicle))], "the receipts' issuer leads")
-        self.assertIn(("isin:CA6410701073", "isin:CH0038863350"), {(r.from_id, r.to_id) for r in snap.relationships},
-                      "field 26 still links a receipt under an issuer claimed for the share")
+        issuers = {isin: snap.securities[f"isin:{isin}"].issuer_id
+                   for isin in ("CH0038863350", "US6410694060", "CA6410701073", "US8835561023", "US58933Y1055")}
+        self.assertEqual(issuers, {"CH0038863350": None, "US6410694060": None, "CA6410701073": f"lei:{parent}",
+                                   "US8835561023": f"lei:{thermo}", "US58933Y1055": f"lei:{merck}"})
+        asked = [(q.subject_id, q.candidates) for q in snap.questions if q.question == "issuer_identity"]
+        both = (f"lei:{parent}", f"lei:{vehicle}")  # the receipts' issuer first, then field 5: either can be the answer
+        self.assertEqual(asked, [("isin:CH0038863350", both), ("isin:US6410694060", both)])
+        self.assertLessEqual(set(both), set(snap.issuers))
+        self.assertLessEqual({("isin:CA6410701073", "isin:CH0038863350"), ("isin:US6410694060", "isin:CH0038863350")},
+                             {(r.from_id, r.to_id) for r in snap.relationships},
+                             "field 26 still links receipts under an issuer claimed for the share")
 
 
 class BuildTest(unittest.TestCase):

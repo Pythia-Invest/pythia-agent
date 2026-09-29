@@ -360,7 +360,7 @@ def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[s
 
 # How a build question sits in core's resolution queue (identity/resolution.py): its kind and reason.
 QUESTION_SHAPE = {
-    "issuer_identity": ("conflict", "identifier"),  # field 5 names an LEI that is also a venue operator's
+    "issuer_identity": ("conflict", "identifier"),  # field 5 names a venue operator's LEI, or receipts contradict it
     "home_market": ("residual", "ambiguous"),  # several lines could be the primary, or none is evidenced
     "receipt_underlying": ("residual", "no_key"),  # no underlying this build holds is stated for a receipt
     "receipt_conflict": ("conflict", "relation"),  # a share (CFI) states an underlying (field 26)

@@ -123,8 +123,8 @@ exceeds them by more than 2%):
 - `primary_missing` is at 11,997: live securities with lines whose evidence
   decided no primary. They are home-market questions, and SEC or OpenFIGI
   gaps until those sources are onboarded.
-- `questions_open` is at 11,961: questions the build left open in the
-  package's `claims` file (10,271 `home_market`, 626 `issuer_identity`, 895
+- `questions_open` is at 11,964: questions the build left open in the
+  package's `claims` file (10,271 `home_market`, 629 `issuer_identity`, 895
   receipt questions and 169 SEC name-only issuer questions).
 - Shares without a primary: `share_primary_silent` is at 1,072: 1,052 SEC
   OTC-only shares, which no rule places, and 20 home-market questions whose
@@ -134,11 +134,17 @@ exceeds them by more than 2%):
   decides none. See the [FIRDS record](../sources/firds.md).
 - Issuers: 12 shares whose receipts name another live issuer in FIRDS field 5
   (Nestlé's Toronto CDRs name Nestlé S.A., its share names Nestlé Capital
-  Markets) have an unknown issuer and an `issuer_identity` question. The
+  Markets), and 3 receipts of them filed under the same field 5 (Nestlé's
+  ADR), have an unknown issuer and an `issuer_identity` question with both
+  LEIs as candidates. Two were right as filed: Welltower, whose page loses its
+  filings and profile until a curator answers, and an old Barrick ISIN. The
   builder reads no GLEIF parent relationships, so a wrong field 5 that no
   receipt contradicts stays as filed (JTEKT under Toyota Industries;
-  `issuer_financing_vehicle` warns on 37 issuers named like financing
+  `issuer_financing_vehicle` warns on 36 issuers named like financing
   vehicles).
+- Currency read checks: London, Johannesburg and Tel Aviv home lines (1,096)
+  quote in a minor unit and carry no trading currency, so a price source's
+  stated currency is not compared there; the venue still is.
 - World-level questions are answered centrally, never on the investor's
   device (ADR 0044 ruling 7). The curator's back office that answers them
   (carried-forward answers, rules, Jev, an evidence-gathering agent and

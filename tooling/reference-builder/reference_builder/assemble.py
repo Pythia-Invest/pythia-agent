@@ -110,11 +110,8 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     audit["scope_isins"] = len(scoped)
     claims, venues = inputs.claims(), Venues(inputs.venues)
     entities = gleif_fetch({r.issuer_lei for rs in scoped.values() for r in rs if r.issuer_lei})
-    # A receipt's claim under an LEI GLEIF retired (Merck Sharp & Dohme Corp. on Merck & Co.) is stale, no contradiction.
-    contested = {isin for isin, leis in claims.receipt_issuers.items()
-                 if any(lei in entities and not rules.retired(entities[lei].entity_status, entities[lei].registration_status)
-                        for lei in leis)}
-    issuers = {isin: issuer_lei(claims, venues, entities, isin, contested) for isin in scoped}
+    disputed = contested(claims, entities)
+    issuers = {isin: issuer_lei(claims, venues, entities, isin, disputed) for isin in scoped}
 
     plan = [(isin, seg, rec) for isin, rs in scoped.items() for seg, rec in sorted(_eu_listings(inputs, isin, rs).items())]
     answers = figi_map([_figi_job(inputs, isin, seg) for isin, seg, _ in plan])
@@ -156,7 +153,31 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
         by_security[listing.security_id or ""].append(listing)
     for isin, records in scoped.items():
         _security(snap, inputs, isin, records, by_security[f"isin:{isin}"], fanout.get(isin, []), issuers[isin])
+        known = [lei for lei in disputed.get(isin, ()) if lei in entities]  # candidates need their issuer rows
+        snap.securities[f"isin:{isin}"].issuer_candidates = tuple(_issuer(snap, entities, lei, records[0]).issuer_id
+                                                                   for lei in known)
     return entities
+
+
+def contested(claims: Claims, entities: dict[str, GleifEntity]) -> dict[str, list[str]]:
+    """ISIN -> the LEIs FIRDS claims as its issuer where its records disagree: a share its receipts claim for another
+    live issuer (`Claims.receipt_issuers`; a claim under an LEI GLEIF retired, Merck Sharp & Dohme Corp. on Merck & Co.,
+    is stale), the receipts' LEIs first, then its own field 5. A receipt of it filed under that same field 5 (Nestlé's
+    ADR under Nestlé Capital Markets) is as contradicted, with the same candidates."""
+    found: dict[str, list[str]] = {}
+    for isin, leis in claims.receipt_issuers.items():
+        live = sorted(lei for lei in leis if lei in entities and not rules.retired(entities[lei].entity_status,
+                                                                                    entities[lei].registration_status))
+        if live:
+            found[isin] = live + sorted(claims.isins[isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set()))
+    receipts = {}
+    for isin, values in claims.isins.items():
+        own = values.get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
+        if (claims.one(isin, Meaning.CFI) or "").startswith("ED") and own:
+            for target in sorted(values.get(Meaning.UNDERLYING_ISIN, set()) - {isin}):
+                if target in found and own <= set(found[target]) - claims.receipt_issuers[target]:
+                    receipts[isin] = found[target]
+    return found | receipts
 
 
 def issuer_lei(claims: Claims, venues: Venues, entities: dict[str, GleifEntity], isin: str,
@@ -165,7 +186,7 @@ def issuer_lei(claims: Claims, venues: Venues, entities: dict[str, GleifEntity],
     lists it for a venue's operating entity; then it is the issuer only when GLEIF registers that entity in the
     ISIN's country (a bank's or exchange's own share; for a receipt, field 5 is the underlying issuer's LEI, so
     the underlying's ISIN, ESMA Q&A 1503), and otherwise unknown, with a question. A share its receipts claim for
-    another live issuer (`contested`, from `Claims.receipt_issuers`) is unknown too, with a question."""
+    another live issuer, and a receipt of it under the same field 5 (`contested`), are unknown too, with a question."""
     values = claims.isins.get(isin, {})
     leis = values.get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
     lei = next(iter(leis)) if len(leis) == 1 and isin not in contested else None

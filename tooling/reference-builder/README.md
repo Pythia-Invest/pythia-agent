@@ -115,8 +115,9 @@ table under `writer_ignored`.
   issues no share of its own and that GLEIF has not retired contradicts the
   share's field 5: Nestlé S.A.'s
   Toronto CDRs state the share FIRDS files under Nestlé Capital Markets, a
-  financing subsidiary. That share's issuer is unknown and asked too, the
-  receipts' LEI first among the candidates (`Claims.receipt_issuers`). A
+  financing subsidiary. That share's issuer is unknown and asked too, with
+  the receipts' LEI and field 5 as candidates (`assemble.contested`), and so
+  is a receipt of it filed under the same field 5 (Nestlé's ADR). A
   receipt LEI that issues a share of its own (14 CDRs of other companies
   stating Thermo Fisher) contradicts the receipt's field 26 instead, which is
   the receipt's question; a retired LEI's claim (Merck Sharp & Dohme Corp. on
@@ -189,8 +190,8 @@ table under `writer_ignored`.
   FIRDS receipt's stated underlying ISIN (field 26) is kept when an active
   security of the build carries it and that security's issuer is the
   receipt's (field 5 on a receipt is the underlying issuer's LEI, ESMA Q&A
-  1503), or that issuer is asked with the receipt's LEI among the claimed
-  ones (Nestlé's ADR and CDRs). A stated security of another issuer (14 Canadian receipts stating
+  1503), or both issuers are asked with a shared candidate (Nestlé's ADR and
+  CDRs). A stated security of another issuer (14 Canadian receipts stating
   Thermo Fisher) is asked, with it as the first candidate. FIRDS often names a superseded ISIN or one
   outside the scope; then, and when field 26 states none, the underlying is
   unknown and asked (`receipt_underlying`, the issuer's shares as candidates).
@@ -400,7 +401,7 @@ It prints counts and reference listing IDs only; keep its output out of commits.
 | --- | --- |
 | `sec_identity` in `${XDG_CONFIG_HOME:-~/.config}/pythia/settings.json` | The SEC plugin's configured contact, required for the SEC download: SEC fair-access rules require a name and email in the User-Agent. It is sent only to SEC and never written to the outputs. |
 | `--sec-file` | Use an already downloaded `company_tickers_exchange.json` instead. The rest still downloads, and the SEC fund file is skipped, so there are no US fund ETFs. |
-| `--offline` | Build from the download cache (`--cache`) only, whatever the age of its files: no request is sent, the ESMA file index is answered from the cached FIRDS and FITRS files, and OpenFIGI's micCode list from the cached jobs. Anything the build needs that is not cached (a GLEIF record, an OpenFIGI answer, a file) stops the build with its URL. Needs no SEC contact or OpenFIGI key. |
+| `--offline` | Build from the download cache (`--cache`) only, whatever the age of its files: no request is sent, the ESMA file index is answered from the cached FIRDS and FITRS files, and OpenFIGI's micCode list from the cached jobs. Anything the build needs that is not cached (a GLEIF record, an OpenFIGI answer, a file) stops the build with its URL, and so does a FIRDS or FITRS file set with a part missing (`1of2` without `2of2`). Needs no SEC contact or OpenFIGI key. |
 | `OPENFIGI_API_KEY` | OpenFIGI key. Otherwise `openfigi_api_key` from `${XDG_CONFIG_HOME:-~/.config}/pythia/secrets.json`. Get one: it is free. A keyed first build takes about 40 minutes (about 230k mapping jobs); keyless rate limits (10 jobs per 2.5 s) stretch that to about 16 hours. Answers are cached, so later builds only send new jobs. The key is sent only in the OpenFIGI request header. |
 
 ## Outputs

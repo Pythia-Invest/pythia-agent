@@ -130,6 +130,7 @@ class Security:
     turnover_eur: float | None = None
     turnover_method: str | None = None
     rank: int | None = None  # notability order within its source, 1 = most notable (see pipeline.rank)
+    issuer_candidates: tuple[str, ...] = ()  # issuer IDs FIRDS claims while its records disagree (`assemble.contested`)
 
 
 @dataclass

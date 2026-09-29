@@ -15,6 +15,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -213,6 +214,11 @@ def cached_index(filters: list[str], sort: str) -> list[dict]:
                    "download_link": json.loads(meta.read_text(encoding="utf-8"))["url"]}
             if all(_matches(doc, f) for f in filters):
                 docs.append(doc)
+    parts = Counter(re.sub(r"_\d+of(\d+)", r"_of\1", d["file_name"]) for d in docs)  # FULINS_E_20260926_of02.zip: 2
+    for name, held in parts.items():
+        total = re.search(r"_of(\d+)", name)
+        if total and held < int(total.group(1)):
+            raise SystemExit(f"offline build: the cache {OFFLINE} holds {held} of the {total.group(1)} parts of {name}")
     return sorted(docs, key=lambda d: d["publication_date"], reverse=sort.endswith("desc"))
 
 

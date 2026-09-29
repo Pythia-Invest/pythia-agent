@@ -143,6 +143,9 @@ class SecAndMicTest(unittest.TestCase):
             self.assertEqual(figi.mic_codes(), {"XAMS"}, "the micCodes the cached jobs used")
             with self.assertRaisesRegex(SystemExit, "offline build: https://api.gleif.org/api/v1/lei-records is needed"):
                 gleif.GleifClient(cache, "test", timedelta.max).fetch({"724500Y6DUVHQD6OXN27"})
+            (cache / "FULINS_E_20260926_02of02.zip.meta.json").unlink()
+            with self.assertRaisesRegex(SystemExit, "holds 1 of the 02 parts of FULINS_E_20260926_of02.zip"):
+                firds.firds_files("test", date(2026, 9, 29), False, ("ES",))
 
     def test_mic_rows_map_segments_to_operating_mic(self):
         venues = mic.parse(MIC_CSV.encode())
