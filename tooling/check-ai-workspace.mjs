@@ -17,6 +17,7 @@ const expectedSkills = [
   "resolve-conflicts",
   "review",
   "run-test-plan",
+  "test-audit",
   "upgrade-hermes",
 ];
 const expectedAgents = ["implementer.md", "researcher.md", "reviewer.md"];
