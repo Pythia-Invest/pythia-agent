@@ -114,7 +114,7 @@ describe("web citations", () => {
 });
 
 describe("citation pages", () => {
-  it("collects the titles the turn's web search returned", () => {
+  it("collects the titles and clean snippets the turn's web search returned", () => {
     const pages = citationPages([
       {
         type: "dynamic-tool",
@@ -126,14 +126,20 @@ describe("citation pages", () => {
           success: true,
           data: {
             web: [
-              { url: "https://news.example.com/a/", title: "Example headline" },
+              {
+                url: "https://news.example.com/a/",
+                title: "Example headline - News",
+                description:
+                  "Example headline [More](https://x.example) about **it**.",
+              },
             ],
           },
         }),
       },
     ]);
-    expect(pages.get("https://news.example.com/a")?.title).toBe(
-      "Example headline",
-    );
+    const page = pages.get("https://news.example.com/a");
+    expect(page?.title).toBe("Example headline - News");
+    // No Markdown, URLs or the repeated title: a snippet reads as a result.
+    expect(page?.snippet).toBe("More about it.");
   });
 });
