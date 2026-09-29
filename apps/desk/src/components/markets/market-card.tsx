@@ -8,6 +8,7 @@ import { useBindingSnapshot } from "@/components/widgets/bound-widget";
 import {
   loadingItem,
   subjectLabel,
+  subjectName,
   subjectQuote,
   unavailableItem,
 } from "./market-subjects";
@@ -19,7 +20,10 @@ const TILE = { name: true, change: "both" } as const;
  * composition has answered, so they join the update channel together.
  * `message` and `retry` cover the reads of every subject; each day says
  * whether its own read failed. */
-export function useSubjectDays(subjects: readonly string[]) {
+export function useSubjectDays(
+  subjects: readonly string[],
+  names: Record<string, string>,
+) {
   const pages = useSubjectPages(subjects);
   const settled = pages.every((page) => !page.isPending);
   const quotes = pages.map((page) =>
@@ -34,6 +38,7 @@ export function useSubjectDays(subjects: readonly string[]) {
     const page = pages[index];
     const quote = quotes[index];
     const label = page?.data ? subjectLabel(page.data) : undefined;
+    const name = label?.symbol ?? subjectName(subject, names);
     const at = quote?.row && settled ? next++ : -1;
     const row = at >= 0 ? snapshot?.data.rows[at] : undefined;
     const item = row
@@ -41,20 +46,20 @@ export function useSubjectDays(subjects: readonly string[]) {
       : page?.error
         ? unavailableItem(
             subject,
-            subject,
+            name,
             undefined,
             page.error.message || "This subject could not be read.",
           )
         : quote?.reason
-          ? unavailableItem(
+          ? unavailableItem(subject, name, label?.name, quote.reason)
+          : loadingItem(
               subject,
-              label?.symbol ?? subject,
+              label?.symbol ?? names[subject] ?? "",
               label?.name,
-              quote.reason,
-            )
-          : loadingItem(subject, label?.symbol ?? "", label?.name);
+            );
     return {
       subject,
+      name,
       item,
       label,
       source: quote?.row ? quote.source : undefined,
@@ -100,7 +105,7 @@ export function MarketCard({ day }: { day: SubjectDay }) {
       {day.known ? (
         <Link
           href={instrumentHref(day.subject)}
-          aria-label={`Open ${day.label?.symbol ?? day.subject}`}
+          aria-label={`Open ${day.name}`}
           className="absolute inset-0 rounded-control outline-ring focus-visible:outline-2"
         />
       ) : null}

@@ -164,7 +164,7 @@ export function WatchlistTable({ days }: { days: SubjectDay[] }) {
       day.subject,
       {
         href: day.known ? instrumentHref(day.subject) : null,
-        name: day.label?.name ?? day.label?.symbol ?? day.subject,
+        name: day.label?.name ?? day.name,
         note: day.item.statusLabel,
       },
     ]),

@@ -64,6 +64,24 @@ export function unavailableItem(
   };
 }
 
+const KINDS: Record<string, string> = {
+  listing: "Listing",
+  security: "Security",
+  issuer: "Company",
+  index: "Index",
+  fx: "Currency pair",
+  series: "Rate or series",
+  market: "Market",
+};
+
+/** What a row calls a subject its page has not named: core's curated name,
+ * else its kind in words. Never the subject ID. */
+export function subjectName(subject: string, names: Record<string, string>) {
+  if (names[subject]) return names[subject];
+  if (subject.startsWith("security:caip19:")) return "Crypto asset";
+  return KINDS[subject.split(":", 1)[0] ?? ""] ?? "Subject";
+}
+
 /** A row whose page is still being read: whatever identity is known, no
  * values and no status yet. */
 export function loadingItem(

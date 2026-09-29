@@ -2,7 +2,7 @@
 
 `market-overview` returns the subject IDs of the overview's cards and watchlist
 from settings.json (`markets_cards`, `markets_watchlist`), else the defaults
-below. `market-movers` reads one `market_movers` list from the first eligible
+below, with the names core's curated tables give them. `market-movers` reads one `market_movers` list from the first eligible
 source in the investor's order, then core's; a failed read never switches
 source. Each row is named by its Pythia listing when the reference holds
 exactly one line for its ticker on its operating MIC; otherwise it stays
@@ -14,6 +14,8 @@ import json
 import logging
 import re
 import sqlite3
+from functools import cache
+from pathlib import Path
 from typing import Any
 
 from .identity import markets, page
@@ -47,7 +49,8 @@ UNRESOLVED = {"no_venue": "Pythia does not know this row's venue",
 OVERVIEW_SCHEMA = {
     "name": "pythia_market_overview",
     "description": "The investor's markets overview: the subject IDs of its cards (indexes, futures, rates, FX, crypto) "
-                   "and of its watchlist, from settings.json (markets_cards, markets_watchlist) or Pythia's defaults. "
+                   "and of its watchlist, from settings.json (markets_cards, markets_watchlist) or Pythia's defaults, with "
+                   "the names Pythia curates for them. "
                    "Read each subject with pythia_identity_subject and its prices with pythia_market_data.",
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
@@ -81,7 +84,10 @@ class MarketReads:
         issues: list[dict] = []
         cards = [{"subject": subject, "group": _group(subject)} for subject in self._subjects(CARDS, DEFAULT_CARDS, issues)]
         watchlist = self._subjects(WATCHLIST, DEFAULT_WATCHLIST, issues)
-        return _envelope("ok", {"cards": cards, "watchlist": watchlist}, issues)
+        # Core's curated names, so a subject that cannot be read still shows a name, never its ID.
+        names = {subject: name for subject in [card["subject"] for card in cards] + watchlist
+                 if (name := _name(subject))}
+        return _envelope("ok", {"cards": cards, "watchlist": watchlist, "names": names}, issues)
 
     def _subjects(self, key: str, default: tuple[str, ...], issues: list[dict]) -> list[str]:
         """The configured subject IDs (comma or space separated), else the default. Malformed IDs are left out and
@@ -209,6 +215,18 @@ def _group(subject: str) -> str:
     """The overview group a card sits in: the curated table's, else crypto or stocks."""
     item = markets.curated().get(subject)
     return item["group"] if item else "Crypto" if subject.startswith("security:caip19:") else "Stocks"
+
+
+@cache
+def _canonical_names() -> dict[str, str]:
+    table = json.loads((Path(__file__).parent / "identity" / "canonical_assets.json").read_text(encoding="utf-8"))
+    return {f"security:caip19:{asset['caip19']}": asset["name"] for asset in table["assets"]}
+
+
+def _name(subject: str) -> str | None:
+    """A subject's name from core's curated tables (markets.json, canonical_assets.json), else None."""
+    item = markets.curated().get(subject)
+    return item["name"] if item else _canonical_names().get(subject)
 
 
 def _valid(row: Any) -> bool:

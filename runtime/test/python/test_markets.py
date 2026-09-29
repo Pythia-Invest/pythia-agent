@@ -186,6 +186,16 @@ class MarketReadsTest(unittest.TestCase):
         self.assertEqual(body["data"]["watchlist"], list(self.ops.DEFAULT_WATCHLIST))
         self.assertIn("not-an-id", body["issues"][0]["message"])
 
+    def test_the_overview_names_subjects_from_core_tables(self):
+        from pythia_core_queue_fixture.platform import configuration
+        bitcoin = "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
+        values = {"markets_cards": ("configured", f"index:pythia:dax {bitcoin}"),
+                  "markets_watchlist": ("configured", "listing:figi:BBG000B9Y5X2")}
+        with unittest.mock.patch.object(configuration, "value", lambda _ctx, key: values[key]):
+            body = json.loads(self.reads.overview({}))
+        # Names come from core's own tables, so they show without reference data; others have none.
+        self.assertEqual(body["data"]["names"], {"index:pythia:dax": "DAX", bitcoin: "Bitcoin"})
+
 
 class _Borrowed:
     """A test reference connection that survives the read closing it."""

@@ -3,6 +3,10 @@ import type { MarketOverview } from "@pythia/market-data/markets";
 import { Button, cn } from "@pythia/ui";
 import type { ReactNode } from "react";
 import { useMarketOverview } from "@/client/market-queries";
+import {
+  type ReferenceStatus,
+  useReferenceStatus,
+} from "@/client/reference-status";
 import { MarketCard, type SubjectDay, useSubjectDays } from "./market-card";
 import {
   Block,
@@ -36,22 +40,37 @@ function Card({
   );
 }
 
+/** Why subjects cannot be read when the device has no usable reference
+ * data, and what to do; undefined when reference data is installed. */
+export function referenceNote(status: ReferenceStatus | null | undefined) {
+  if (status === undefined || status?.installed) return undefined;
+  const install =
+    "Install a reference package (just reference-install <package>; Settings › Reference data shows what is installed), then Retry.";
+  return status?.refused
+    ? `The reference package was refused, so some subjects cannot be shown: ${status.refused.message} ${install}`
+    : `Reference data is not installed on this device yet, so some subjects cannot be shown. ${install}`;
+}
+
 /** A card's read failure, as the September blocks showed it: what failed,
- * that retained values are marked stale, and Retry. */
-function ReadFailure({
+ * that retained values are marked stale, and Retry. A subject that could not
+ * be read without reference data says what to do instead. */
+export function ReadFailure({
   days,
   message,
+  reference,
   retry,
 }: {
   days: SubjectDay[];
   message: string | undefined;
+  reference: string | undefined;
   retry: () => void;
 }) {
   if (!days.some((day) => day.failed)) return null;
+  const unread = days.some((day) => day.failed && !day.known);
   return (
     <>
       <p role="alert" className="mt-2 max-w-prose text-error text-xs">
-        {message ?? "Some subjects could not be read."}
+        {(unread && reference) || message || "Some subjects could not be read."}
       </p>
       <Button className="mt-2" size="sm" variant="ghost" onClick={retry}>
         Retry
@@ -108,10 +127,18 @@ export function MarketsOverview() {
   const cards = data?.cards ?? [];
   // Cards and watchlist share one read, so their quotes and paths reach the
   // update channel together.
-  const { days, message, retry } = useSubjectDays([
-    ...cards.map((card) => card.subject),
-    ...(data?.watchlist ?? []),
-  ]);
+  const { days, message, retry } = useSubjectDays(
+    [...cards.map((card) => card.subject), ...(data?.watchlist ?? [])],
+    data?.names ?? {},
+  );
+  const referenceStatus = useReferenceStatus();
+  const reference = referenceNote(
+    referenceStatus.data ? (referenceStatus.data.data ?? null) : undefined,
+  );
+  const retryAll = () => {
+    retry();
+    void referenceStatus.refetch();
+  };
   const cardDays = days.slice(0, cards.length);
   const watchDays = days.slice(cards.length);
   return (
@@ -154,7 +181,12 @@ export function MarketsOverview() {
           ) : cards.length ? (
             <>
               <MarketGroups cards={cards} days={cardDays} />
-              <ReadFailure days={cardDays} message={message} retry={retry} />
+              <ReadFailure
+                days={cardDays}
+                message={message}
+                reference={reference}
+                retry={retryAll}
+              />
             </>
           ) : data ? (
             <p className="py-3 text-foreground-secondary text-xs">
@@ -174,7 +206,12 @@ export function MarketsOverview() {
         {data ? (
           <Card title="Watchlist">
             <WatchlistTable days={watchDays} />
-            <ReadFailure days={watchDays} message={message} retry={retry} />
+            <ReadFailure
+              days={watchDays}
+              message={message}
+              reference={reference}
+              retry={retryAll}
+            />
           </Card>
         ) : null}
       </div>
