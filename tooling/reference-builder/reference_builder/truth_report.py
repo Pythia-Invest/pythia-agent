@@ -284,7 +284,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         accepted = list(dict.fromkeys([*previous.get("accepted_id_changes", []), *unaliased]))  # kept across re-takes
         data = baseline_of(report) | {"accepted_id_changes": accepted,
-                                      "expected_failures": previous.get("expected_failures") or {}}
+                                      "expected_failures": {key: why for key, why in (previous.get("expected_failures") or {}).items()
+                                                            if key not in baseline_of(report)["passed"]}}
         baseline_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {baseline_path}")
     return 1 if regressed or firds_broken or sec_broken or any(r.failed for r in checked) else 0
