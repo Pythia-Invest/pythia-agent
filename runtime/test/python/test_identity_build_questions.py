@@ -177,6 +177,14 @@ class SurfaceTest(BuildQuestionFixture):
         self.assertEqual([answer["chosen_id"] for answer in item["answers"] if answer["relation"] == "same_issuer"],
                          [ISSUER, OPERATOR_ISSUER])
 
+    def test_an_issuer_candidate_shows_the_companys_identifiers_not_a_securitys(self):
+        self.install([issuer_question()], self.world(issuer=False))
+        self.page(NASDAQ)
+        [item] = json.loads(self.queue_ops.read_queue(self.ops, {}))["data"]["items"]
+        [candidate] = item["candidates"]
+        self.assertEqual((candidate["id"], candidate["identifiers"]), (ISSUER, {"lei": LEI, "cik": "0000937966"}),
+                         "never the ISIN or FIGI of a security the company issued")
+
     def test_a_question_without_candidates_waits_until_a_release_offers_some(self):
         self.install([{**RECEIPT_OF, "candidate_ids": []}], self.world())
         with self.assertLogs(self.build_questions.logger, "INFO") as logged:
