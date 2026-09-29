@@ -96,9 +96,13 @@ class Deployment:
 class RecordClaim:
     """One source record at its native level, with the identifiers it co-asserts.
 
-    A crypto asset record (level security) may add its token deployments, and
-    `native_of` (the provider chain id it is the native asset of) only where the
-    provider states that as identity; a chain's fee or gas coin is not identity.
+    A crypto asset record (level security) may carry CAIP-19 deployments: at most
+    one `self`, its canonical issuance and the only one that may key the asset,
+    and any number `unqualified`, such as a provider's platform list. On the wire
+    each of these states its role explicitly. The record may add its token
+    deployments as the provider names them, and `native_of` (the provider chain id
+    it is the native asset of) only where the provider states that as identity; a
+    chain's fee or gas coin is not identity.
     """
 
     level: Level
@@ -128,8 +132,8 @@ class RecordClaim:
             deployment = item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY
             _require(_DEPTH[item.level] <= _DEPTH[self.level] or deployment,
                      f"record: a {self.level} record cannot assert {item.scheme}")
-        own = [item.scheme for item in self.identifiers if item.role is IdentifierRole.SELF
-               and item.scheme in SINGLE_VALUED and not (item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY)]
+        own = [item.scheme for item in self.identifiers
+               if item.role is IdentifierRole.SELF and item.scheme in SINGLE_VALUED]
         _require(len(own) == len(set(own)), "record: one self value per single-valued scheme")
 
 
@@ -243,6 +247,11 @@ def batch_from_json(document: Mapping[str, Any] | str) -> ClaimBatch:
             try:
                 if not isinstance(item, Mapping):
                     raise ValueError("object required")
+                if item.get("level") == "security" and any(
+                        isinstance(value, Mapping) and value.get("scheme") == "caip19" and "role" not in value
+                        for value in item.get("identifiers") or ()):
+                    # `self` is the default role, and on an asset record it claims canonical issuance: never implied.
+                    raise ValueError("record: a crypto asset record states each CAIP-19's role")
                 claims.append(RelationClaim(**item) if "from_key" in item else RecordClaim(**item))
             except (TypeError, ValueError) as error:
                 raise _fail(index, str(error)) from None
