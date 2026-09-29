@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 TOOLSET = "pythia-desk"  # the only Pythia toolset the model sees; plugin and core operation toolsets stay hidden
 MAX_CHARS = 16_000       # far below Hermes's 100k spill: a result is replayed on every later turn
 CONTEXT = ("task_id", "session_id")      # what a nested dispatch forwards from the native call
-HOME_UNKNOWN = ("Pythia's reference data does not decide this instrument's home listing; say so, and label any web "
-                "answer as unverified.")
+HOME_UNKNOWN = ("No source decides a primary listing; the listing in use (subject.listing) is Pythia's default. Say "
+                "which listing you used, and label a home-market claim from memory or the web as unverified.")
 
 SUBJECT = {"type": "string", "minLength": 5, "maxLength": 370,
            "description": "A subject id from pythia_find, such as listing:… or security:…"}
@@ -49,10 +49,10 @@ FIND = {
 INSTRUMENT = {
     "name": "pythia_instrument",
     "description": "Identifiers, listings and data sources of an investment. Everything Pythia knows locally about "
-                   "one investment: identifiers (ISIN, LEI, CIK, FIGI), issuer, "
-                   "its listings and related instruments, and which source serves each concept (quote, chart, profile, "
-                   "filings) or why none does. Use it to pick a listing, find an issuer's LEI or CIK, or see which "
-                   "sources are connected. Local only.",
+                   "one investment: identifiers (ISIN, LEI, CIK, FIGI) and their sources, issuer, its listings and "
+                   "related instruments, flags for what is uncertain, and which source serves each concept (quote, "
+                   "chart, profile, filings) or why none does. Use it to pick a listing, find an issuer's LEI or CIK, "
+                   "or see which sources are connected. Local only.",
     "parameters": {"type": "object", "properties": {"subject_id": SUBJECT},
                    "required": ["subject_id"], "additionalProperties": False},
 }
@@ -275,10 +275,12 @@ def instrument(arguments: dict, **_context: Any) -> str:
         view["home"] = next((line["id"] for line in own if line.get("primary")), "unknown")
         if view["home"] == "unknown":
             view["home_note"] = HOME_UNKNOWN
-    queue = view.pop("queue", [])
+    for line in view.get("listings", []):  # summarised by the not_exchange_traded and no_home_country_line flags
+        line.pop("home_country", None)
+        line.pop("regulated", None)
+    view.pop("queue", None)  # counted by the identity_question_open flag, read in full by pythia_identity_questions
+    view.pop("contested", None)  # the conflicting_identifier flag gives each value with its sources
     view["provider_tools"] = provider_tools_for(str(arguments.get("subject_id") or ""))
-    if queue:
-        view["open_identity_questions"] = len(queue)
     result["next"] = ("pythia_prices for quote and chart, pythia_filings for filings; a listed provider tool with "
                       "subject_id for provider depth (reported facts, fundamentals, profiles, news).")
     return encode(result)

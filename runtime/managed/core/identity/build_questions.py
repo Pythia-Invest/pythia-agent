@@ -298,6 +298,7 @@ def _value(subject: dict, answer: dict, values: list[str]) -> None:
         _contradicted(subject, answer, subject_id(level, {scheme: release}), (value, release))
     subject["values"][scheme] = value
     subject["contested"].pop(scheme, None)
+    subject.setdefault("attested", set()).add(scheme)  # the user decided it (`evidence.show`'s provenance)
 
 
 def _receipt(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:

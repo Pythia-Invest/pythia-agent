@@ -242,16 +242,18 @@ class Directory:
         Empty for a security not in the directory."""
         with self.lock:
             rows = self.db.execute(
-                "SELECT listing, ticker, mic, venue, currency, kind, security <> inst, prim, liq FROM doc"
+                "SELECT listing, ticker, mic, venue, currency, kind, security <> inst, prim, liq, home, reg FROM doc"
                 " WHERE inst = (SELECT inst FROM doc WHERE security = ? LIMIT 1) AND crypto = 0"
                 " ORDER BY security <> inst, security, prim DESC, fus, otc, home DESC, liq DESC, mic, listing",
                 (security,)).fetchall()
         # `folded`: a line of a security that folds into the instrument (a receipt), not of the instrument's own.
         # Only a flagged line of the instrument's own security is its primary; with none, no line claims it.
         # With no primary, the first line may be FIRDS' most liquid EU market: labelled so, never primary.
+        # `home_country` and `regulated` (a regulated market or a US exchange) feed the read's flags (`flags.derive`).
         return [dict(zip(("id", "ticker", "mic", "venue", "currency", "kind"), row), folded=bool(row[6]),
                      primary=index == 0 and not row[6] and bool(row[7]),
-                     most_liquid=index == 0 and not row[6] and not row[7] and bool(row[8]))
+                     most_liquid=index == 0 and not row[6] and not row[7] and bool(row[8]),
+                     home_country=bool(row[9]), regulated=bool(row[10]))
                 for index, row in enumerate(rows)]
 
     def other_instruments(self, security: str) -> list[dict]:

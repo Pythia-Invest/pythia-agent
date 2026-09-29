@@ -856,7 +856,8 @@ of the instrument's own lines in this order (`search.Directory.instrument_listin
 
 A view's own choice rides in `?listing=`, and search's lead line follows the
 investor's `search_listing_preference`. The page labels the lead line `(home)`
-only for a decided primary, and says so when it is the most liquid EU line.
+only for a decided primary, says so when it is the most liquid EU line, and
+otherwise labels it `(default)`: Pythia's default, never a home.
 
 Rejected alternatives:
 
@@ -908,7 +909,9 @@ trust level to count at.
   that differs from a record's contradicts it, whoever asserted it. Where
   confirm-level assertions disagree, the fact is contested: every value is
   kept, none is applied (`values` holds only agreed values), and the view
-  carries `contested`. Every answer but the user's is blocked.
+  carries `contested`: each value with the sources stating it, which the
+  instrument page shows where the identifier goes and the agent reads as a
+  `conflicting_identifier` flag. Every answer but the user's is blocked.
 - **The user decides.** A user's answer, a verdict or a build-question
   override, is refused only by unanimous confirm-level identifier proof: where
   the evidence for a scheme agrees on one other value. A contested identifier

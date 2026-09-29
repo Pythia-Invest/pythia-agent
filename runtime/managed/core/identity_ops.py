@@ -27,7 +27,7 @@ from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
 from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import trust
+from .identity import flags, trust
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -237,7 +237,7 @@ class Identity:
             others = {item["id"] for item in view["other_securities"]}
             view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item]
         sections = page.compose(subject, installed(), **lookups)
-        return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
+        return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject from it, with the store lookups page composition reads."""

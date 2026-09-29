@@ -37,7 +37,8 @@ class ContestedTest(QueueFixture):
     def test_two_confirm_level_isins_that_disagree_block_both_answers_and_mark_the_fact_contested(self):
         add(self.path, SECURITY, "isin", B, "vendor")  # beside the build's own ISIN, with its `snapshot` marker
         subject = page.load_subject(self.ref, ASML)
-        self.assertEqual(subject["view"]["contested"], {"isin": sorted([A, B])})
+        self.assertEqual(subject["view"]["contested"], {"isin": [{"value": B, "sources": ["vendor"]},
+                                                                 {"value": A, "sources": ["gleif"]}]})
         self.assertNotIn("isin", subject["view"]["identifiers"])  # neither value is applied
         self.assertIsNone(subject["view"]["security"]["isin"])
         for isin in (A, B):
@@ -83,7 +84,9 @@ class ContestedTest(QueueFixture):
                 binding, item, _ = page.apply_resolve(answer(("isin", isin)), eodhd, identity.Level.LISTING, subject,
                                                       {"isin": isin}, now=NOW, as_of=AS_OF)
                 outcomes.append((binding and binding.status, item and (item.kind, item.reason)))
-            return subject["view"].get("contested"), subject["values"].get("isin"), outcomes
+            contested = {scheme: [item["value"] for item in found]  # the values; each is shown with its own source
+                         for scheme, found in subject["view"].get("contested", {}).items()}
+            return contested, subject["values"].get("isin"), outcomes
 
         build, vendor = ("esma_firds", "snapshot"), ("vendor", "source_asserted")
         decided = decide(build, vendor)
@@ -173,6 +176,7 @@ class AnswerTest(BuildQuestionFixture):
         self.assertEqual(self.answer(item["id"], "same_security", SECURITY)["state"], "resolved")
         view = self.page(ASML)
         self.assertEqual((view["identifiers"]["isin"], "contested" in view), (A, False))
+        self.assertEqual(view["provenance"]["isin"]["authority"], "user_attested")  # the user decided it
 
     def test_a_contested_identifier_does_not_refuse_the_users_answer_to_a_company_question(self):
         self.install([NAME], self.world())  # the registrant's CIK differs from the one ASML's issuer has: refused
