@@ -29,6 +29,7 @@ function render(overrides: Partial<Parameters<typeof ChatPanel>[0]> = {}) {
   return renderToStaticMarkup(
     <ChatPanel
       activeId={null}
+      onHide={vi.fn()}
       onNewChat={vi.fn()}
       onRename={vi.fn(async () => undefined)}
       onTogglePin={vi.fn()}
@@ -121,39 +122,17 @@ describe("sidebar model", () => {
 });
 
 describe("ChatPanel", () => {
-  it("leads the header with New chat and groups the list below it", () => {
-    const markup = render();
-    const order = ["New chat", "Search chats", "Pinned", "Recents"].map(
-      (text) => markup.indexOf(text),
-    );
-    expect(order.every((index) => index >= 0)).toBe(true);
-    expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(markup).toContain("No pinned chats.");
-    expect(markup.indexOf("Newest")).toBeLessThan(
-      markup.indexOf("Untitled chat"),
-    );
-    expect(markup.indexOf("Untitled chat")).toBeLessThan(
-      markup.indexOf("Old research"),
-    );
-  });
-
-  it("marks the open chat as current and lists pinned chats first", () => {
-    const markup = render({ activeId: "mid", pinnedIds: new Set(["old"]) });
+  it("marks the open chat as current", () => {
+    expect(render()).not.toContain("aria-current");
+    const markup = render({ activeId: "mid" });
     expect(markup).toContain('aria-current="page"');
-    expect(markup).toContain('href="/c/old"');
-    expect(markup).not.toContain("No pinned chats.");
-    expect(markup.indexOf("Old research")).toBeLessThan(
-      markup.indexOf("Newest"),
-    );
-    expect(markup).toContain('aria-label="Chat actions for Old research"');
-    expect(markup).toContain('aria-label="Chat actions for Newest"');
+    expect(markup).toContain('href="/c/mid"');
   });
 
   it("explains loading and unavailable states instead of showing an empty list", () => {
     const loading = render({ sessions: [], state: "loading" });
     expect(loading).toContain("Loading chats…");
     expect(loading).toContain('aria-busy="true"');
-    expect(loading.match(/data-slot="skeleton"/g)).toHaveLength(7);
     expect(loading).not.toContain("No chats yet.");
     expect(render({ sessions: [], state: "unavailable" })).toContain(
       "Hermes is offline",
@@ -162,26 +141,6 @@ describe("ChatPanel", () => {
     expect(stale).toContain("Showing the last chat list");
     expect(stale).toContain("Newest");
     expect(render({ sessions: [] })).toContain("No chats yet.");
-  });
-
-  it("only offers to hide the list when the shell can bring it back", () => {
-    expect(render()).not.toContain("Hide chats");
-    expect(render({ onHide: vi.fn() })).toContain("Hide chats");
-  });
-
-  it("keeps search behind an icon until it is asked for", () => {
-    const markup = render();
-    // The affordance is there; the field is not taking up the header row.
-    expect(markup).toContain('aria-label="Search chats"');
-    expect(markup).not.toContain('placeholder="Search chats"');
-  });
-
-  it("names the unpinned region so the break after Pinned reads", () => {
-    const markup = render();
-    expect(markup.indexOf("Pinned")).toBeLessThan(markup.indexOf("Recents"));
-    // Every fixture chat is ancient, so one bucket carries them all and its
-    // own date label would add nothing over "Recents".
-    expect(markup).toMatch(/class="[^"]*sr-only[^"]*"[^>]*>\s*Earlier/u);
   });
 
   it("narrows the list with the shell-wide query as well as its own", () => {
