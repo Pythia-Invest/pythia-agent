@@ -30,8 +30,8 @@ QUEUE_SCHEMA = {
     "description": "List open identity questions: provider records the device could not place on a subject "
                    "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
                    "subject, plugin or kind. On an open question, agent_answer is the agent's suggestion awaiting "
-                   "the user. With answered, also lists questions only the agent answered: they route "
-                   "provisionally until the user confirms or overrides them. With settled, also lists questions "
+                   "the user's confirmation. With answered, also lists older questions an agent answer settled "
+                   "provisionally, which the user may confirm or override. With settled, also lists questions "
                    "rules or the user settled. With item_id, returns one question in full: its record, "
                    "candidates, evidence and earlier verdicts. Local only.",
     "parameters": {"type": "object", "properties": {
@@ -50,9 +50,9 @@ VERDICT_SCHEMA = {
                    "the question's candidates; 'unrelated' says the record is a different instrument than that "
                    "candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the "
                    "identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the "
-                   "record's own identifiers disprove, is refused. An accepted answer takes effect provisionally: a "
-                   "match routes the record to the subject until the user or identifier evidence overrides it. "
-                   "Accepted and refused answers are recorded.",
+                   "record's own identifiers disprove, is refused. An accepted answer is a suggestion: the question "
+                   "stays open and nothing changes until the user confirms it in Repairs. Accepted and refused "
+                   "answers are recorded.",
     "parameters": {"type": "object", "properties": {
         "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
         "relation": {"type": "string", "enum": ["same_listing", "same_composite", "same_security", "same_issuer",
@@ -91,7 +91,7 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
 
 def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
     """identity-verdict: one answer, attributed to the user or the agent by the transport."""
-    from .identity_ops import _envelope, installed
+    from .identity_ops import _envelope
     from .platform.request_context import usage
     desk = usage.get() == "dashboard"  # trusted transport scope: the Desk's own HTTP call, never a model tool call
     now = store.now()
@@ -105,8 +105,7 @@ def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
             chosen_id=arguments.get("chosen_id"), now=now, as_of=date.today().isoformat(),
             resolver=questions.ResolverKind.USER if desk else questions.ResolverKind.AGENT,
             rationale=arguments.get("rationale"),
-            user_turn=f"desk:identity-verdict:{now}" if desk else None,
-            unaudited={info.manifest.plugin for info in installed() if info.manifest.unaudited})
+            user_turn=f"desk:identity-verdict:{now}" if desk else None)
     except questions.Refused as refused:
         result = {"outcome": "refused", "message": str(refused)}
     except (sqlite3.Error, OSError):

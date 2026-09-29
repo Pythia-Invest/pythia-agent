@@ -198,9 +198,11 @@ while issues are open. The page uses the back-office `DataTable` and
 subject, plugin, times, status); a kind (`components/repairs/`) only supplies a
 row's context and actions. Today the only kind is an identity question from
 core's `identity-queue`: its context shows the provider's record beside the
-instrument and the evidence, and "Match" / "Not a match" (or "Confirm" /
-"Override" for an agent's provisional answer, whose badge reads "Agent: match"
-or "Agent: not a match") send `identity-verdict` with an optional note. Answered and settled questions are shown through the
+instrument and the evidence. "Match" (one per candidate) and "Not a match"
+send `identity-verdict` with an optional note; an agent's suggestion, whose
+badge reads "Agent suggests: match", adds a one-click "Confirm" that sends it as
+the user's answer. Answers the agent settled before it only suggested read
+"Agent: match" and take the same actions. Answered and settled questions are shown through the
 Status filter.
 
 `/instrument/[subject]` is one instrument's page (URL-encoded subject id,

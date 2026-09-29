@@ -522,3 +522,25 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
 - **The backbone is scoped to a permanent address book.** Identifiers never
   disappear, records that cannot be matched still appear as labelled subjects,
   and new subject kinds or sources are added when a strategy needs them.
+
+## Amendment (2026-09-29): the agent suggests, the user confirms
+
+[ADR 0044](0044-product-direction.md) ruling 8 and the
+[vision](../vision.md) ("an agent proposes a match and the user confirms")
+replace the provisional routing of the Hermes agent's answer described above
+(the "T3 agent answer" row and "Working the queue").
+
+- The agent's answer is still decided by `decide` and recorded with its own
+  authority (`agent_confirmed`) and input digest. An answer that would bind or
+  dismiss is recorded with outcome `suggested`: the question stays open, no
+  binding is written, and reads route as before.
+- `identity-queue` shows an open question's latest suggestion as
+  `agent_answer`. Repairs shows it with a one-click Confirm, which is the
+  user's own verdict (`user_attested`) and takes effect only then.
+- Answers the agent settled before this amendment keep their provisional
+  bindings. The user may still confirm or override them, and identifier
+  evidence still supersedes them.
+
+Rejected alternative: keeping provisional routing (the answer routes until the
+user overrides it). The agent's answer would change what the investor sees
+before anyone reviewed it, which ADR 0044 rules out for identity.

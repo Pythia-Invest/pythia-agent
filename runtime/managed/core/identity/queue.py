@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from typing import Any, Collection, Iterable
+from typing import Any, Iterable
 
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
@@ -58,8 +58,8 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     settled = item["settled"] if item["state"] != "open" else None
     return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
                                        "candidate_ids", "opened_at", "updated_at")} | {
-        # A question only the agent answered: its answer routes provisionally and the user may still override it.
-        # On an open question: the agent's suggestion, which waits for the user.
+        # On an open question: the agent's suggestion, which waits for the user. On a question an agent answer
+        # settled before suggestions (ADR 0037 amendment): that provisional answer, which the user may override.
         "agent_answer": _suggestion(store, item) if item["state"] == "open"
         else settled if settled and settled["by"] == "agent" else None,
         "label": label, "question": question, "record": _record(record) if record else None,
@@ -112,13 +112,13 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
 
 def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resolver: ResolverKind, relation: str,
            chosen_id: str | None, now: str, as_of: str, rationale: str | None = None,
-           user_turn: str | None = None, unaudited: Collection[str] = ()) -> dict:
+           user_turn: str | None = None) -> dict:
     """Decide and record one agent or user verdict.
 
-    A confirmed answer binds the record, a "not a match" dismisses the question. The agent's answer is
-    provisional (`agent_confirmed`): the user may still answer a question only the agent settled, and that
-    answer supersedes it, re-pointing or withdrawing the agent's binding. On a record from an `unaudited`
-    plugin (not yet signed off, ADR 0042) the agent only suggests: only the user confirms it."""
+    The user's confirmed answer binds the record, a "not a match" dismisses the question. The agent only
+    suggests (ADR 0044 ruling 8): its answer is recorded, the question stays open, and nothing changes until
+    the user confirms it. The user may still answer a question an earlier agent answer settled provisionally,
+    re-pointing or withdrawing that binding."""
     resolver = ResolverKind(resolver)
     user = resolver is ResolverKind.USER
     view, row = inspect(store, ref, item_id), store.queue_item(item_id)
@@ -153,8 +153,8 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                          or (row["reason"] == "binding" and len(row["subject_ids"]) > 1))
     except ValueError as error:
         raise Refused(str(error)) from None
-    if not user and outcome is VerdictOutcome.CONFIRMED and set(item.plugins) & set(unaudited):
-        outcome = VerdictOutcome.SUGGESTED
+    if not user and outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
+        outcome = VerdictOutcome.SUGGESTED  # the agent proposes, the user confirms
     state, message = row["state"], _MESSAGES[outcome]
     if outcome is VerdictOutcome.BLOCKED and verdict.relation in ("unrelated", "none"):
         message = _NAMED
@@ -178,8 +178,6 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
             state = "dismissed"
         if outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
             store.settle(item_id, state, verdict_id, current=current["state"])
-    if not user and outcome is VerdictOutcome.CONFIRMED:
-        message = _PROVISIONAL
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
 
@@ -272,12 +270,10 @@ def _settle_one(store: IdentityStore, ref: sqlite3.Connection, info: PluginInfo 
     return False
 
 
-_PROVISIONAL = ("Confirmed provisionally: the record routes to the chosen instrument until the user or identifier "
-                "evidence overrides it.")
 _NAMED = "Refused: the record's own identifier names this instrument, so it cannot be dismissed."
 _MESSAGES = {
     VerdictOutcome.CONFIRMED: "Confirmed: the record is bound to the chosen instrument.",
-    VerdictOutcome.SUGGESTED: "Kept as a suggestion: it does not route reads until a confirming verdict.",
+    VerdictOutcome.SUGGESTED: "Kept as a suggestion: nothing changes until the user confirms it in Repairs.",
     VerdictOutcome.BLOCKED: "Refused: identifier evidence or the depositary-receipt guard contradicts this answer.",
     VerdictOutcome.AMBIGUOUS: "Left open: the answers disagree or several candidates fit.",
     VerdictOutcome.NO_MATCH: "Recorded: the record is not this instrument.",

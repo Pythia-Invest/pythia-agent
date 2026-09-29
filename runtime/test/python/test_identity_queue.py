@@ -50,6 +50,20 @@ class QueueFixture(Fixture):
         return queue.submit(self.identity, self.ref, item_id=item.id, resolver=resolver, relation=relation,
                             chosen_id=chosen_id, now=NOW, as_of=AS_OF, **fields)
 
+    def settled_by_agent_before_suggestions(self, item):
+        """An agent answer as it took effect before the agent only suggested (ADR 0037 amendment): a provisional
+        binding on a resolved question. Stores from then still hold such answers."""
+        verdict = identity.Verdict(item_id=item.id, resolver="agent", authority="agent_confirmed", relation="same_listing",
+                                   chosen_id=ASML, model=queue.AGENT_MODEL, prompt_version=queue.PROMPT_VERSION,
+                                   input_digest="sha256:" + "0" * 64, provenance=PROVENANCE)
+        with self.identity.transaction():
+            verdict_id = self.identity.put_verdict(verdict, identity.VerdictOutcome.CONFIRMED)
+            self.identity.put_binding(identity.Binding(
+                provider_ref=item.provider_ref, subject_id=ASML, status="confirmed", authority="agent_confirmed",
+                plugin="eodhd", evidence_ids=(identity.evidence_id({"kind": "verdict", "verdict": verdict_id}),)),
+                verdict_id=verdict_id)
+            self.identity.settle(item.id, "resolved", verdict_id)
+
 
 class VerdictTest(QueueFixture):
     def test_a_match_from_a_source_not_yet_audited_waits_for_the_user(self):
@@ -59,7 +73,7 @@ class VerdictTest(QueueFixture):
         self.assertEqual((item.kind, item.reason, item.candidate_ids), ("residual", "unaudited", (ASML,)))
         self.assertTrue(item.evidence_ids)
         self.assertEqual(view["question"], "EODHD is not yet audited; its record ASML.AS matches the reference identifiers.")
-        agent = self.submit(item, "agent", unaudited={"eodhd"})
+        agent = self.submit(item, "agent")
         self.assertEqual(agent["outcome"], "suggested")  # the agent's answer is not review
         self.assertIsNone(self.identity.binding_for(item.provider_ref))
         # The open question carries the suggestion, so Repairs shows it for the user to confirm.
@@ -67,7 +81,7 @@ class VerdictTest(QueueFixture):
                                  answered=False, notice=False)["items"]
         self.assertEqual((listed["state"], listed["agent_answer"]),
                          ("open", {"by": "agent", "relation": "same_listing", "chosen_id": ASML}))
-        user = self.submit(item, "user", user_turn="desk:identity-verdict:test", unaudited={"eodhd"})
+        user = self.submit(item, "user", user_turn="desk:identity-verdict:test")
         self.assertEqual(user["outcome"], "confirmed")
         self.assertEqual(self.identity.binding_for(item.provider_ref)["subject_id"], ASML)
 
@@ -108,30 +122,46 @@ class VerdictTest(QueueFixture):
             result = self.submit(item, "user", relation="unrelated", user_turn="desk:identity-verdict:test")
             self.assertEqual((result["outcome"], result["state"]), ("no_match", "dismissed"))
 
-    def test_a_verdict_may_confirm_without_identifier_proof_and_leaves_an_audit_trail(self):
+    def test_the_agents_answer_changes_nothing_until_the_user_confirms_it(self):
         item = self.ask(answer(), subject=self.bare())  # nothing proves the answer: a residual
         self.assertEqual((item.kind, item.reason, item.candidate_ids), ("residual", "no_key", (ASML,)))
         view = queue.inspect(self.identity, self.ref, item.id)
         self.assertEqual((view["record"]["name"], view["candidates"][0]["name"]), ("ASML Holding", "ASML Holding N.V."))
         self.assertIn({"relation": "same_listing", "chosen_id": ASML}, view["answers"])
 
+        # ADR 0044 ruling 8: the agent proposes. Its answer is recorded; the question stays open and nothing routes.
         agent = self.submit(item, "agent")
-        self.assertEqual((agent["outcome"], agent["state"], agent["authority"]), ("confirmed", "resolved", "agent_confirmed"))
-
-        bound = self.identity.binding_for(item.provider_ref)
-        self.assertEqual((bound["subject_id"], bound["authority"], bound["verdict_id"]),
-                         (ASML, "agent_confirmed", agent["verdict_id"]))
+        self.assertEqual((agent["outcome"], agent["state"], agent["authority"]), ("suggested", "open", "agent_confirmed"))
+        self.assertIsNone(self.identity.binding_for(item.provider_ref))
         row = self.identity.db.execute("SELECT * FROM verdicts WHERE id = ?", (agent["verdict_id"],)).fetchone()
         self.assertEqual((row["model"], row["input_digest"], row["confidence"]), (queue.AGENT_MODEL, view["digest"], None))
         _subject, sections = self.compose(ASML, [plugin("eodhd")])
-        self.assertEqual((sections["quote"]["status"], sections["quote"]["binding_status"]), ("ready", "confirmed"))
-        with self.assertRaises(queue.Refused):  # the agent does not answer a settled question again
-            self.submit(item, "agent")
+        self.assertNotEqual(sections["quote"]["binding_status"], "confirmed")
+        no = self.submit(item, "agent", relation="none", chosen_id=None)  # a "not a match" dismisses nothing either
+        self.assertEqual((no["outcome"], self.identity.queue_item(item.id)["state"]), ("suggested", "open"))
+        self.assertEqual(self.identity.queue_items(subject_ids=[ASML], which="answered"), [])
 
-        # The agent's answer is provisional: no longer open, listed apart with its answer, and the user overrides it.
+        # The user confirms the agent's latest suggestion; only then is the record bound.
+        [listed] = [queue.summary(self.identity, self.ref, entry) for entry in self.identity.queue_items(subject_ids=[ASML])]
+        self.assertEqual(listed["agent_answer"], {"by": "agent", "relation": "none", "chosen_id": None})
+        user = self.submit(item, "user", user_turn="desk:identity-verdict:test")
+        self.assertEqual((user["outcome"], user["state"], user["authority"]), ("confirmed", "resolved", "user_attested"))
+        bound = self.identity.binding_for(item.provider_ref)
+        self.assertEqual((bound["subject_id"], bound["authority"]), (ASML, "user_attested"))
+        _subject, sections = self.compose(ASML, [plugin("eodhd")])
+        self.assertEqual((sections["quote"]["status"], sections["quote"]["binding_status"]), ("ready", "confirmed"))
+        history = queue.inspect(self.identity, self.ref, item.id)["history"]
+        self.assertEqual([(entry["resolver"], entry["outcome"]) for entry in history],
+                         [("agent", "suggested"), ("agent", "suggested"), ("user", "confirmed")])
+
+    def test_the_user_overrides_an_answer_the_agent_settled_before_suggestions(self):
+        item = self.ask(answer(), subject=self.bare())
+        self.settled_by_agent_before_suggestions(item)
         self.assertEqual(self.identity.queue_items(subject_ids=[ASML]), [])
         [listed] = [queue.summary(self.identity, self.ref, entry) for entry in self.identity.queue_items(subject_ids=[ASML], which="answered")]
         self.assertEqual(listed["agent_answer"], {"by": "agent", "relation": "same_listing", "chosen_id": ASML})
+        with self.assertRaises(queue.Refused):  # the agent does not answer a settled question again
+            self.submit(item, "agent")
         user = self.submit(item, "user", relation="unrelated", user_turn="desk:identity-verdict:test")
         self.assertEqual((user["outcome"], user["state"]), ("no_match", "dismissed"))
         self.assertEqual(self.identity.binding_for(item.provider_ref)["status"], "rejected")
@@ -139,12 +169,10 @@ class VerdictTest(QueueFixture):
         [settled] = self.identity.queue_items(subject_ids=[ASML], which="settled")  # the history keeps it
         self.assertEqual((settled["id"], settled["state"], settled["settled"]["by"]), (item.id, "dismissed", "user"))
         self.assertIsNone(queue.summary(self.identity, self.ref, settled)["agent_answer"])  # the user's, not the agent's
-        history = queue.inspect(self.identity, self.ref, item.id)["history"]
-        self.assertEqual([(entry["resolver"], entry["outcome"]) for entry in history], [("agent", "confirmed"), ("user", "no_match")])
 
     def test_identifier_evidence_re_points_a_provisional_binding(self):
         item = self.ask(answer(), subject=self.bare())
-        self.submit(item, "agent", chosen_id=ASML)
+        self.settled_by_agent_before_suggestions(item)
         nasdaq = "listing:isin:USN070592100:XNAS:USD"
         proof = identity.Binding(provider_ref=item.provider_ref, subject_id=nasdaq, status="confirmed",
                                  authority="rule_confirmed", rule_id="resolve_answer@1", evidence_ids=["ev:x"], plugin="eodhd")
@@ -275,8 +303,8 @@ class TransportTest(QueueFixture):
             user = json.loads(desk.run(queue_ops.submit_verdict, ops, arguments))["data"]
             listed = json.loads(queue_ops.read_queue(ops, {"subject_id": ASML}))
         ops.store.db.close()
-        self.assertEqual((agent["authority"], agent["outcome"]), ("agent_confirmed", "confirmed"))
-        self.assertEqual((waiting["total"], [row["id"] for row in waiting["answered"]]), (0, [item.id]))
+        self.assertEqual((agent["authority"], agent["outcome"]), ("agent_confirmed", "suggested"))
+        self.assertEqual(([row["id"] for row in waiting["items"]], waiting["answered"]), ([item.id], []))
         self.assertEqual(waiting_outcome, "ok")
         self.assertEqual((user["authority"], user["outcome"], user["state"]), ("user_attested", "confirmed", "resolved"))
         self.assertEqual((listed["outcome"], listed["data"]["items"]), ("empty", []))

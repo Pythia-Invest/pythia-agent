@@ -20,8 +20,8 @@ class Authority(StrEnum):
     RULE_CONFIRMED = "rule_confirmed"    # a versioned T1 rule, named by rule_id
     MODEL_CONFIRMED = "model_confirmed"  # a model verdict at or above its calibrated threshold
     MODEL_SUGGESTED = "model_suggested"  # a model verdict below it: a candidate, never routable
-    AGENT_CONFIRMED = "agent_confirmed"  # the Hermes agent's answer: routes provisionally; a user attestation or
-                                         # identifier evidence supersedes and re-points it
+    AGENT_CONFIRMED = "agent_confirmed"  # the Hermes agent's answer: a suggestion the user confirms (ADR 0044);
+                                         # bindings from before that route provisionally until superseded
     USER_ATTESTED = "user_attested"      # the user stated it, directly or through the agent
     CURATED = "curated"                  # a reviewed, Pythia-authored reference table
 
