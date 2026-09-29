@@ -10,7 +10,7 @@ import { resolveWorkspaceLink, workspaceContentUrl } from "@/workspace/paths";
 import type { WorkspaceLocation } from "./reader-context";
 import { WorkspaceLink } from "./workspace-link";
 
-export function safeMarkdownUrl(url: string) {
+function safeMarkdownUrl(url: string) {
   return /^https?:\/\//i.test(url) ||
     /^mailto:/i.test(url) ||
     (!/^[a-z][a-z\d+.-]*:/i.test(url) &&
@@ -25,7 +25,7 @@ function nodeText(node: unknown): string {
   const value = node as { value?: string; children?: unknown[] };
   return value.value ?? value.children?.map(nodeText).join("") ?? "";
 }
-export function headingSlug(text: string) {
+function headingSlug(text: string) {
   return text
     .toLowerCase()
     .trim()
