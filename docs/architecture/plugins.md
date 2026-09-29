@@ -319,8 +319,9 @@ addressing (the full shape is in the ADR 0038 amendment):
   (`docs/sources/<source>.md` or an https link). An unsigned source is a
   display source: off in fresh profiles, never core's choice ahead of an
   audited one and never confirming identity, but once enabled it joins merged
-  lists and side-by-side values, labelled "not yet audited". Core honours any other status only from plugins Pythia
-  bundles.
+  lists and side-by-side values, labelled "not yet audited". The status is a
+  declaration: core honours any other status only where a trust grant on the
+  plugin's files confirms it (below).
 - `coverage.operations` narrows coverage for one operation, for example a
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
@@ -364,6 +365,37 @@ concept is enough.
 Core validates the file with `identity.validate_manifest`; a contract newer
 than the installed Pythia shows as `needs_update`. A bundled plugin lists
 `contract.json` among its copied files in `scripts/dev/managed-plugins.mjs`.
+
+### Trust follows the files, not the name
+
+A plugin's trust level is looked up by a digest of its files
+([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment of
+2026-09-30), never by its name or by being bundled. The digest,
+`pythia-plugin-digest@1`, is the SHA-256 of the sorted lines
+`<relpath>\t<sha256>\n` for every regular file in the plugin directory,
+without `.git/`, `__pycache__/`, `*.pyc` and the copy receipt. A symlink in the
+directory means no digest, so display.
+
+- Pythia's own grants are generated into core's payload
+  (`identity/trust.json`) when the payload is assembled: each shipped plugin
+  whose contract is `signed_off` or `grandfathered` is confirm at the digest of
+  its payload files. Editing a shipped plugin changes its digest; the next
+  `just dev-init` or `just dev` regenerates the grants, and until then core
+  logs that the plugin is display.
+- A user's own grants live in `trust.json` in the Pythia config folder and win
+  in both directions. From the checkout, with the stack's Hermes Python:
+
+  ```sh
+  python -P runtime/managed/core/identity/trust.py grant <plugin dir> confirm   # or display
+  python -P runtime/managed/core/identity/trust.py status [<plugin dir> ...]
+  ```
+
+  Both read the config folder from `PYTHIA_CONFIG_ROOT` or `--config-root`.
+  A grant covers exactly those files: after an update the plugin is display
+  until its new digest is granted. A malformed file is ignored with one
+  warning.
+- The levels are display and confirm. The user's confirm grant is their own
+  sign-off: it confirms the plugin whatever its contract declares.
 
 ## Skills and contracts
 

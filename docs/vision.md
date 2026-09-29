@@ -355,7 +355,7 @@ Today:
   plugins contribute data but not subjects;
 - reference sources are builder adapters that cannot be disabled, and the
   builder's evidence outranks a plugin's;
-- only bundled plugins bind, and only onto reference subjects;
+- only confirm-level plugins bind, and only onto reference subjects;
 - the build's open questions are queued only when an instrument is opened,
   watched or used by the agent, not yet when it is held or forecast, and a
   later release that contradicts the user's answer raises no question yet.
@@ -475,17 +475,19 @@ establishing facts that other sources also describe.
   level.** A plugin cannot raise it by labelling its claims.
 - **Trust attaches to a plugin's content, not its name.** Trust is tied to a
   signed or hashed release, so a different plugin that reuses an audited
-  plugin's name does not inherit it. Today trust still follows Pythia's list of
-  bundled plugin names; that changes in stage 0.
+  plugin's name does not inherit it. Today it follows a digest of the plugin's
+  files; signatures come with a published release.
 - **Trust levels limit what data can do, not what code can do.** Running
   untrusted community code safely also requires isolating plugins, which is
   planned before an open marketplace.
 
-Today two levels exist, set by the plugin's sign-off status: an unsigned plugin
+Today two levels exist, set by a grant on the digest of the plugin's files:
+Pythia generates grants for its own plugins from their sign-off, and a user's
+own grant may confirm or demote any plugin. A plugin without a confirm grant
 is display (off until the user enables it, then merged into lists and shown
 side by side, labelled "not yet audited"; for a single-source view it comes
 after every audited source, serving only if the user names it or nothing
-audited can), and a signed-off or grandfathered one confirms. Suggest
+audited can), and one with a confirm grant confirms. Suggest
 arrives with the first plugin that needs it
 ([ADR 0042](decisions/0042-source-onboarding-standard.md)).
 

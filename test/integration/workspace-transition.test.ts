@@ -132,6 +132,7 @@ function fixture() {
   const options = () => ({
     nativeConfig,
     pluginDoctor: () => undefined,
+    releaseGrants: () => undefined,
     expected: previewWorkspaceTransition(paths, { nativeConfig }).expected,
     adoptSeeds: [
       "workspace/AGENTS.md",
@@ -274,6 +275,7 @@ describe("explicit workspace storage transition", () => {
       applyWorkspaceTransition(f.paths, {
         nativeConfig: f.nativeConfig,
         pluginDoctor: () => undefined,
+        releaseGrants: () => undefined,
       }).stagedAt,
     ).toBe(staged.stagedAt);
   });
@@ -320,6 +322,7 @@ describe("explicit workspace storage transition", () => {
       applyWorkspaceTransition(f.paths, {
         nativeConfig: f.nativeConfig,
         pluginDoctor: () => undefined,
+        releaseGrants: () => undefined,
         afterConfig() {
           throw new Error("config interruption");
         },
@@ -328,6 +331,7 @@ describe("explicit workspace storage transition", () => {
     const staged = applyWorkspaceTransition(f.paths, {
       nativeConfig: f.nativeConfig,
       pluginDoctor: () => undefined,
+      releaseGrants: () => undefined,
     });
     expect(staged.phase).toBe("staged");
     expect(readFileSync(join(staged.backupRoot, "config.yaml"), "utf8")).toBe(
