@@ -6,12 +6,12 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from market_data_fixture import PACKAGE
+from market_data_fixture import PACKAGE, PLATFORM
 
 governor = importlib.import_module(PACKAGE + '.governor')
 process = importlib.import_module(PACKAGE + '.process')
 cache = importlib.import_module(PACKAGE + '.cache')
-context = importlib.import_module(PACKAGE + '.request_context')
+context = importlib.import_module(PLATFORM + '.request_context')
 
 
 class Budgets(unittest.TestCase):

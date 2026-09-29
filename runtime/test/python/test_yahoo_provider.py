@@ -8,7 +8,7 @@ import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from native_plugin_fixtures import bind_feature_platform, Context
+from native_plugin_fixtures import Context
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins'
 for name, directory in (('test_yahoo', 'yahoo-discovery'), ('test_yahoo_feature', 'market-data')):
@@ -20,7 +20,6 @@ series = importlib.import_module('test_yahoo.series')
 results = importlib.import_module('test_yahoo.results')
 definition = importlib.import_module('test_yahoo.definition')
 wire = importlib.import_module('test_yahoo_feature.wire')
-bind_feature_platform('test_yahoo_feature')
 
 
 class Yahoo(unittest.TestCase):

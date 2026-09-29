@@ -36,11 +36,11 @@ def priced() -> dict:
     global _priced_cache, _priced_failed
     try:
         from hermes_cli.config import load_config_readonly
-        from hermes_cli.plugins import get_plugin_manager
         from .identity_ops import installed
+        from .platform import harness
         from .platform.access import canonical_access_revision, native_plugin_enabled
         config, stamp = load_config_readonly(), [canonical_access_revision()]
-        for key, plugin in sorted(tuple(get_plugin_manager()._plugins.items())):
+        for key, plugin in sorted(harness.plugins().items()):
             contract = Path(plugin.manifest.path) / MANIFEST_FILE if plugin.manifest.path else None
             try:
                 changed = contract.stat().st_mtime_ns if contract else None

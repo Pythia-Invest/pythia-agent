@@ -63,6 +63,8 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "platform/assets.py",
   "platform/widgets.py",
   "platform/configuration.py",
+  "platform/harness.py",
+  "platform/v1.py",
   "identity/__init__.py",
   "identity/claims.py",
   "identity/filings.py",

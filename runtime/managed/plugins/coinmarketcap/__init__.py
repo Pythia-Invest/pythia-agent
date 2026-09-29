@@ -33,12 +33,13 @@ def dependencies(ctx):
     if not ctx.has_plugin('pythia-market-data') or len(loaded) != 1:
         raise RuntimeError('unavailable')
     package = loaded[0].module.__name__
-    return [importlib.import_module(package + '.' + name) for name in ('wire', 'process', 'connector', '_platform')]
+    return [importlib.import_module(package + '.' + name) for name in ('wire', 'process', 'connector')]
 
 
 def register(ctx):
-    wire, process, connector, platform_module = dependencies(ctx)
-    platform = platform_module.platform()
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
+    wire, process, connector = dependencies(ctx)
     definitions = schemas(wire)
     reads = connector.WorkerReads(process)
     quote_batch = connector.NativeBatch(size=100, age=600)

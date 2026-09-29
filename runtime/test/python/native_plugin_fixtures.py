@@ -7,13 +7,12 @@ Native discovery and ownership are exercised separately by assembled qualificati
 import sys
 from types import ModuleType, SimpleNamespace
 
-from market_data_fixture import platform_module
+import market_data_fixture  # noqa: F401 - binds `pythia_platform` for the plugins under test
 
 
-def bind_feature_platform(package):
-    dependency = ModuleType(package + '._platform')
-    dependency.platform = lambda: platform_module
-    sys.modules[dependency.__name__] = dependency
+def keep_platform_binding(test):
+    """Registering a core copy publishes its own `pythia_platform`; give the suite's binding back after `test`."""
+    test.addCleanup(sys.modules.__setitem__, 'pythia_platform', sys.modules['pythia_platform'])
 
 
 class Context:

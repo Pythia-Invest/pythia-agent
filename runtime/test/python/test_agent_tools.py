@@ -35,7 +35,7 @@ core = sys.modules["pythia_core_fixture"]
 agent_tools = importlib.import_module("pythia_core_fixture.agent_tools")
 agent_reads = importlib.import_module("pythia_core_fixture.agent_reads")
 agent_depth = importlib.import_module("pythia_core_fixture.agent_depth")
-platform_module = importlib.import_module("pythia_core_fixture.platform")
+platform_module = importlib.import_module("pythia_core_fixture.platform.v1")
 identity_ops = importlib.import_module("pythia_core_fixture.identity_ops")
 queue_ops = importlib.import_module("pythia_core_fixture.queue_ops")
 page = importlib.import_module("pythia_core_fixture.identity.page")
@@ -122,6 +122,9 @@ class Context:
         self.hooks[name] = callback
 
     def register_platform_handler(self, *_args):
+        pass
+
+    def on_unload(self, *_args):
         pass
 
     def register_system_prompt_section(self, *args, **kwargs):

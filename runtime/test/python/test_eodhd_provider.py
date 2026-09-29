@@ -8,14 +8,13 @@ import tempfile
 import types
 import unittest
 from unittest.mock import patch
-from native_plugin_fixtures import bind_feature_platform, Context
+from native_plugin_fixtures import Context
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins'
 for name, directory in (('test_eodhd', 'eodhd'), ('test_eodhd_feature', 'market-data')):
     package = types.ModuleType(name)
     package.__path__ = [str(ROOT / directory)]
     sys.modules[name] = package
-bind_feature_platform('test_eodhd_feature')
 identity = importlib.import_module('test_eodhd.identity')
 series = importlib.import_module('test_eodhd.series')
 results = importlib.import_module('test_eodhd.results')

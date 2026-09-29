@@ -19,11 +19,22 @@ specialist operations use the same adapter, never arbitrary native-tool dispatch
 Contribution metadata uses the native tool parameter schema's standard `$comment`
 annotation. Projection reads Hermes registry schemas; native plugin, platform,
 disabled-toolset and readiness checks remain authoritative before reuse/publication.
-There is no additional capability inventory. The pinned native manager's loaded
-plugin module namespace supplies dependency helpers; connectors must require the
-native feature rather than invent import aliases or source loaders.
+There is no additional capability inventory. Plugins reach core only through
+the platform interface `pythia_platform`
+([ADR 0045](../../docs/decisions/0045-plugin-platform-interface.md)). Core's
+`register(ctx)` binds that one module name to `core/platform/v1.py` and removes it
+through native `ctx.on_unload`. A plugin requires `pythia` and imports it inside
+its own `register(ctx)`, which native `requires_plugins` ordering runs after
+core's. This single alias replaces the earlier rule that dependency helpers come
+from the manager's loaded module namespace (ADR 0044 ruling 6). Plugins invent
+no other import alias or source loader, import no Hermes module and never read
+the plugin manager; `tooling/check-boundaries.mjs` enforces this. Its temporary
+exceptions are the market-data and connector files that change when the connector
+toolkit moves into core.
 
-Access also projects the pinned manager's active `_registration_order` handles
+Core's reads of the pinned manager's private state live only in
+`core/platform/harness.py`; recheck that file when the pin changes. Access
+projects the manager's active `_registration_order` handles
 to determine actual tool ownership. Manifest `provides_tools` and a specialist
 annotation are descriptions, not authority. Native category keys and legacy bare
 names are accepted with `plugins.disabled` taking precedence over `enabled`.
@@ -33,9 +44,9 @@ publication after access changes, including uncached shared calls and CLI reads.
 
 The protected address is `/v1/pythia/plugins/{plugin-id}/{operation}`. Market data
 declares `pythia-market-data/query` through the same mechanism as other features;
-the generic adapter does not depend on financial enablement. The native loaded
-core module supplies reusable transport helpers, with no separate operation
-inventory. The shared updates channel includes plugin and operation in each resource.
+the generic adapter does not depend on financial enablement. `pythia_platform`
+supplies reusable transport helpers, with no separate operation inventory. The
+shared updates channel includes plugin and operation in each resource.
 
 Native `ctx.register_skill(name, path, description=...)` attaches a bundled
 skill to its plugin registration. The pinned runtime exposes its qualified name

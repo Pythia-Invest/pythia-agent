@@ -165,6 +165,94 @@ for (const workspace of workspaces) {
   }
 }
 
+// Plugins reach Pythia only through `pythia_platform` (ADR 0045): no Hermes
+// module, no private plugin-manager state and no computed import of another
+// plugin's modules. Core's private Hermes reads stay in one adapter file.
+const MANAGED = "runtime/managed";
+const HERMES_IMPORT =
+  /^\s*(?:from|import)\s+(?:hermes_cli|tools|gateway|model_tools|hermes_state|hermes_constants|agent|hermes_plugins)(?:[.\s,]|$)/u;
+const PRIVATE_HERMES =
+  /\b(?:_plugins|_registration_order|get_plugin_manager)\b/u;
+const COMPUTED_IMPORT = /\b(?:import_module|__import__)\(\s*(?!["']\.)/u;
+// Temporary: W2-toolkit moves market-data's connector toolkit into core,
+// switches these files to `pythia_platform` and empties this list.
+const PLUGIN_EXCEPTIONS = new Set([
+  "coingecko/__init__.py",
+  "coinmarketcap/__init__.py",
+  "eodhd/__init__.py",
+  "eodhd/definition.py",
+  "eodhd/stream.py",
+  "gleif/__init__.py",
+  "market-data/__init__.py",
+  "market-data/contributions.py",
+  "market-data/execution.py",
+  "market-data/process.py",
+  "market-data/subscriptions.py",
+  "market-data/worker_reads.py",
+  "nsm/__init__.py",
+  "openfigi/__init__.py",
+  "openfigi/client.py",
+  "sec/__init__.py",
+  "sec/client.py",
+  "xbrl-filings/__init__.py",
+  "yahoo-discovery/__init__.py",
+]);
+
+function pythonFiles(path) {
+  if (!existsSync(path)) {
+    return [];
+  }
+  return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = join(path, entry.name);
+    if (entry.isDirectory()) {
+      return entry.name === "__pycache__" ? [] : pythonFiles(entryPath);
+    }
+    return entry.isFile() && entry.name.endsWith(".py") ? [entryPath] : [];
+  });
+}
+
+// An exempt file must still need its exception, so the list only shrinks.
+function scanPython(root, rules, exempt) {
+  const needed = new Set();
+  for (const file of pythonFiles(join(MANAGED, root))) {
+    const name = relative(join(MANAGED, root), file).split(sep).join("/");
+    const found = readFileSync(file, "utf8")
+      .split("\n")
+      .flatMap((line, index) =>
+        rules
+          .filter(([pattern]) => pattern.test(line))
+          .map(([, reason]) => `${file}:${index + 1}: ${reason}`),
+      );
+    if (!exempt.has(name)) {
+      violations.push(...found);
+    } else if (found.length > 0) {
+      needed.add(name);
+    }
+  }
+  for (const name of exempt) {
+    if (!needed.has(name)) {
+      violations.push(
+        `${join(MANAGED, root, name)}: remove its unused exception`,
+      );
+    }
+  }
+}
+
+scanPython(
+  "plugins",
+  [
+    [HERMES_IMPORT, "plugins may not import Hermes; use pythia_platform"],
+    [PRIVATE_HERMES, "plugins may not read Hermes's plugin manager"],
+    [COMPUTED_IMPORT, "plugins may not import computed module names"],
+  ],
+  PLUGIN_EXCEPTIONS,
+);
+scanPython(
+  "core",
+  [[PRIVATE_HERMES, "private Hermes reads belong in core/platform/harness.py"]],
+  new Set(["platform/harness.py"]),
+);
+
 if (violations.length > 0) {
   throw new Error(`Workspace boundary check failed:\n${violations.join("\n")}`);
 }

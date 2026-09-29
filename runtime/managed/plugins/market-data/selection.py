@@ -82,13 +82,13 @@ def fingerprint(value):
 
 
 def canonical_access_revision():
-    from ._platform import platform
-    return platform().access.canonical_access_revision()
+    from pythia_platform import access
+    return access.canonical_access_revision()
 
 
 def native_access_scope():
-    from ._platform import platform
-    return platform().access.native_access_scope()
+    from pythia_platform import access
+    return access.native_access_scope()
 
 
 def selector(series):

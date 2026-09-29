@@ -1,8 +1,6 @@
 """Financial delivery semantics behind an ordinary plugin-owned operation."""
 import asyncio
 
-from ._platform import platform
-
 
 class FinancialDelivery:
     push = True
@@ -17,7 +15,8 @@ class FinancialDelivery:
         # A page chart follows the series its source declares, so their list
         # is subscribable like the reads it plans.
         if updates and arguments.get('action') not in ('read', 'read_many', 'series'):
-            raise platform().admission.AdmissionError('unsupported_operation', 404)
+            from pythia_platform import admission
+            raise admission.AdmissionError('unsupported_operation', 404)
         validate_window(resource)
         reads = arguments.get('reads', [arguments])
         # A subject read follows core's routing, which the investor's source order changes.
@@ -37,8 +36,9 @@ class FinancialDelivery:
 
 
 def register(ctx, schema, handler, backend_factory):
-    platform().declare_operation(schema, plugin=ctx.plugin_id, operation='query', handler=handler,
-                                 support=FinancialDelivery(backend_factory), updates=True)
+    import pythia_platform as platform
+    platform.declare_operation(schema, plugin=ctx.plugin_id, operation='query', handler=handler,
+                               support=FinancialDelivery(backend_factory), updates=True)
     # Domain workers belong to this feature, not the platform transport.
     def lifecycle(app, _adapter):
         async def cleanup(_app):

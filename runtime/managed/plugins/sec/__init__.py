@@ -33,7 +33,7 @@ def helpers(ctx):
     if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
         raise RuntimeError('unavailable')
     namespace = loaded.module.__name__
-    return tuple(importlib.import_module(namespace + '.' + name) for name in ('wire', 'connector', 'selection', '_platform'))
+    return tuple(importlib.import_module(namespace + '.' + name) for name in ('wire', 'connector', 'selection'))
 
 
 def envelope(data, issues=None):
@@ -210,9 +210,10 @@ class Reader:
 
 
 def register(ctx):
-    wire, connector, _selection, platform = helpers(ctx)
-    reader = Reader(wire, connector, lambda: platform.platform().configuration, ctx,
-                    extract=lambda response, check: platform.platform().read_document(response, check))
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
+    wire, connector, _selection = helpers(ctx)
+    reader = Reader(wire, connector, lambda: platform.configuration, ctx, extract=platform.read_document)
 
     def available():
         try:
@@ -237,7 +238,7 @@ def register(ctx):
     for operation, schema in reader.definitions.items():
         ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation),
                           check_fn=available)
-    agent = platform.platform().register_agent_tool
+    agent = platform.register_agent_tool
     agent(ctx, 'sec_company_facts', TOOLS['facts'], 'Reported financial facts (revenue, net income) from SEC. Named '
           'XBRL concepts of one taxonomy (us-gaap, ifrs-full, dei, srt) for a US-listed or foreign SEC filer, such as '
           'Revenues, NetIncomeLoss or Assets, keeping periods, filing revisions and units. Use sec_fundamentals for '

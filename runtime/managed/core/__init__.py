@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import identity  # noqa: F401  (contracts plugins reach as the loaded core's `identity`)
 from .desk_view import SCHEMA as DESK_VIEW_SCHEMA, desk_view
 from .operating import operating_context
 
@@ -38,3 +37,4 @@ def register(ctx: Any) -> None:
         position="after_memory",
         max_chars=4000,
     )
+    platform.publish(ctx)  # last: plugins find `pythia_platform` only once core registered in full

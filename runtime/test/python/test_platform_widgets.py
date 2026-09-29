@@ -3,6 +3,7 @@ import hashlib
 import importlib
 import json
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import tempfile
@@ -10,7 +11,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from market_data_fixture import PACKAGE, PLATFORM, platform_module
+from market_data_fixture import PACKAGE, PLATFORM
 
 widgets = importlib.import_module(PLATFORM + '.widgets')
 asset_reader = importlib.import_module(PLATFORM + '.assets')
@@ -145,13 +146,12 @@ class WidgetPresentations(unittest.TestCase):
         self.assertIn('error', json.loads(handle({})))
 
     def test_missing_widget_helper_warns_without_removing_financial_registration(self):
-        with patch.object(presentation, 'platform', return_value=SimpleNamespace(API_VERSION=1)):
+        with patch.dict(sys.modules, {'pythia_platform': SimpleNamespace(API_VERSION=1)}):
             with self.assertLogs(presentation.__name__, level='WARNING') as messages:
                 presentation.register(self.ctx)
         self.assertEqual(self.registered, [])
         self.assertIn('financial backend remains available', messages.output[0])
-        with patch.object(presentation, 'platform', return_value=platform_module):
-            presentation.register(self.ctx)
+        presentation.register(self.ctx)
         self.assertEqual(self.registered[0]['name'], 'pythia_market_data_widgets')
         self.assertEqual(self.registered[0]['schema']['parameters']['properties']['asset']['enum'],
                          list(presentation.ASSETS))

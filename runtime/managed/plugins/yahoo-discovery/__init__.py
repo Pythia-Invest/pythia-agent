@@ -19,12 +19,13 @@ def compatible(actual, native):
 
 
 def register(ctx):
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
     from hermes_cli.plugins import get_plugin_manager
     loaded = get_plugin_manager()._plugins.get('pythia-market-data')
     if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
         raise RuntimeError('unavailable')
     wire = importlib.import_module(loaded.module.__name__ + '.wire')
-    specialist = importlib.import_module(loaded.module.__name__ + '.specialist')
     connector = importlib.import_module(loaded.module.__name__ + '.connector')
     process = connector.ResidentTransport()
     if hasattr(ctx, 'on_unload'): ctx.on_unload(process.shutdown)
@@ -166,9 +167,10 @@ def register(ctx):
         def handler(arguments, _op=operation, **context):
             return json.dumps(invoke(_op, arguments, context.get('cancelled')), allow_nan=False)
         ctx.register_tool(name=TOOLS[operation], toolset=TOOLSET, schema=schema, handler=handler, check_fn=ready)
-    specialist.register_read_command(ctx, 'yahoo-finance', TOOLS['research'], 'Read public Yahoo Finance research', schema=definitions['research'], plugin='pythia-yahoo-discovery')
-    specialist.register_read_command(ctx, 'yahoo-dashboard', TOOLS['dashboard'], 'Read Yahoo quotes or intraday charts', cache_seconds=60, schema=definitions['dashboard'], plugin='pythia-yahoo-discovery')
-    agent = importlib.import_module(wire.__package__ + '._platform').platform().register_agent_tool
+    item_issues = lambda result: failures.item_failures(result.get('data'))
+    platform.register_read_command(ctx, 'yahoo-finance', TOOLS['research'], 'Read public Yahoo Finance research', schema=definitions['research'], plugin='pythia-yahoo-discovery', result_issues=item_issues)
+    platform.register_read_command(ctx, 'yahoo-dashboard', TOOLS['dashboard'], 'Read Yahoo quotes or intraday charts', cache_seconds=60, schema=definitions['dashboard'], plugin='pythia-yahoo-discovery', result_issues=item_issues)
+    agent = platform.register_agent_tool
     agent(ctx, 'yahoo_finance', TOOLS['research'], 'Company profile, financials, dividends and news from Yahoo. Yahoo '
           'Finance research for a listing: quoteSummary (profile, valuation, dividends, analyst ratings, fund '
           'holdings; options_json modules), fundamentalsTimeSeries (income, balance-sheet and cash-flow statements), '

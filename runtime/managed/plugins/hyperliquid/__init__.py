@@ -11,17 +11,6 @@ from .definition import TOOLS, TOOLSET, schemas
 from .stream import Streams
 
 
-def core():
-    """The one enabled native Pythia core, which owns the platform and the `live_market` schema."""
-    from hermes_cli.plugins import get_plugin_manager
-    plugins = [item for item in get_plugin_manager()._plugins.values()
-               if item.manifest.name == 'pythia' and item.enabled and item.module is not None]
-    module = plugins[0].module if len(plugins) == 1 else None
-    if module is None or getattr(getattr(module, 'platform', None), 'API_VERSION', None) != 1:
-        raise RuntimeError('hyperliquid requires one enabled native Pythia core with platform support v1')
-    return module
-
-
 class LiveSupport:
     """Push delivery for the platform's update channel: read-only, no relative window."""
 
@@ -50,8 +39,9 @@ def target(arguments):
 
 
 def register(ctx):
-    pythia = core()
-    streams = Streams(pythia.identity.validate_live_market)
+    import pythia_platform as platform  # published by Pythia core (ADR 0045), which owns `live_market`
+    platform.require(1)
+    streams = Streams(platform.validate_live_market)
     ctx.on_unload(streams.close)
     schema = schemas()['live_market']
 
@@ -70,10 +60,10 @@ def register(ctx):
             return json.dumps({'schema_version': 1, 'outcome': 'error', 'data': None,
                                'issues': [{'code': code, 'severity': 'error', 'message': 'The live read was refused.'}]})
 
-    pythia.platform.declare_operation(schema, plugin=ctx.plugin_id, operation='live_market', handler=handler,
-                                      support=LiveSupport(pythia.platform.admission), updates=True, read_only=True)
+    platform.declare_operation(schema, plugin=ctx.plugin_id, operation='live_market', handler=handler,
+                               support=LiveSupport(platform.admission), updates=True, read_only=True)
     ctx.register_tool(name=TOOLS['live_market'], toolset=TOOLSET, schema=schema, handler=handler)
-    pythia.platform.register_agent_tool(
+    platform.register_agent_tool(
         ctx, 'hyperliquid_live_market', TOOLS['live_market'],
         'Live Hyperliquid perp state: order book, trades, funding. Live market state of one Hyperliquid '
         'perpetual only: the top 5 order-book levels per side, recent trades, the last trade at each minute of the '

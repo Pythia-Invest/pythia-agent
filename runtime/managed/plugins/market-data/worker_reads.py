@@ -6,10 +6,12 @@ from threading import get_ident
 
 from .cache import ReadCache
 from . import process
-from .request_context import cancel_signal, cancelled as is_cancelled
 from .selection import fingerprint
 from .failures import cacheable, MESSAGES
 from . import diagnostics
+from pythia_platform import request_context
+
+cancel_signal, is_cancelled = request_context.cancel_signal, request_context.cancelled
 
 
 class SourceFailure(RuntimeError):
