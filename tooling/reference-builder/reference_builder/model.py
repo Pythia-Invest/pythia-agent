@@ -7,6 +7,17 @@ securities and listings. Only `schema.py` knows how these map onto tables.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+
+class Evidence(StrEnum):
+    """The kind of evidence a row rests on. Rules test this, never a source's name: `source` is provenance only, so
+    another source of the same kind decides alike (ADR 0044, A2)."""
+
+    ADMISSION_REGISTER = "admission_register"  # a regulator's register of admissions to trading venues (FIRDS)
+    LISTING_DIRECTORY = "listing_directory"  # a symbology directory's venue lines (OpenFIGI)
+    REGISTRANT_FILING = "registrant_filing"  # a securities regulator's registrant ticker and exchange files (SEC)
+    STATED_UNDERLYING = "stated_underlying"  # a receipt's own record states its underlying (FIRDS field 26)
 
 
 # ---- parsed source rows -------------------------------------------------------
@@ -117,6 +128,7 @@ class Security:
     security_id: str
     kind: str  # share | dr | etf | preferred | fund | other
     source: str
+    evidence: Evidence
     issuer_id: str | None = None
     isin: str | None = None
     share_class_figi: str | None = None
@@ -137,6 +149,7 @@ class Security:
 class Listing:
     listing_id: str
     source: str
+    evidence: Evidence
     row_class: str
     security_id: str | None = None
     issuer_id: str | None = None
@@ -172,6 +185,7 @@ class Relationship:
     to_id: str
     source: str
     rule_id: str
+    evidence: Evidence | None  # the kind of evidence stating it; None when a builder rule (`rule_id`) infers it
 
 
 @dataclass(frozen=True)
@@ -190,7 +204,6 @@ class Question:
     candidates: tuple[str, ...] = ()
     evidence: tuple[str, ...] = ()  # source record digests
     values: tuple[str, ...] = ()  # the contested values (an operator's LEI)
-    suggested: tuple[str, str] | None = None  # (candidate, rule): a rule's proposed answer, never a decision
 
 
 @dataclass
@@ -208,6 +221,6 @@ class Snapshot:
     def flag(self, subject_id: str, flag: str, detail: str | None = None) -> None:
         self.flags.append(Flag(subject_id, flag, detail))
 
-    def ask(self, question: str, subject_id: str, candidates=(), evidence=(), values=(), suggested=None) -> None:
+    def ask(self, question: str, subject_id: str, candidates=(), evidence=(), values=()) -> None:
         self.questions.append(Question(question, subject_id, tuple(dict.fromkeys(candidates)), tuple(evidence),
-                                       tuple(values), suggested))
+                                       tuple(values)))

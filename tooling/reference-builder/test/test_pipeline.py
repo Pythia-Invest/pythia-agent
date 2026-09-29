@@ -14,7 +14,7 @@ from reference_builder import assemble, firds, gleif, linking, manifest, mic, sc
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
 from reference_builder.receipts import link_receipts
-from reference_builder.model import Issuer, Listing, Relationship, SecFund, SecTicker, Security, Snapshot
+from reference_builder.model import Evidence, Issuer, Listing, Relationship, SecFund, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
 
 from .fixtures import (
@@ -111,7 +111,8 @@ class PipelineTest(unittest.TestCase):
         edges = {(item.from_id, item.relation, item.to_id, item.rule_id) for item in self.snap.relationships}
         receipt = self.snap.listings["XNAS:ASML"].security_id
         self.assertIn((receipt, "depositary_receipt_of", f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
-        self.snap.securities["preferred"] = Security("preferred", "preferred", "sec", issuer_id=self.snap.securities[receipt].issuer_id)
+        self.snap.securities["preferred"] = Security("preferred", "preferred", "sec", Evidence.REGISTRANT_FILING,
+                                                     issuer_id=self.snap.securities[receipt].issuer_id)
         self.snap.relationships.clear()
         self.snap.audit.clear()
         link_receipts(self.snap)  # a receipt might be of the preferred: never guessed
@@ -120,13 +121,13 @@ class PipelineTest(unittest.TestCase):
     def test_a_stated_underlying_outside_the_build_or_inactive_is_a_question_with_the_issuers_share(self):
         receipt = self.snap.listings["XNAS:ASML"].security_id
         issuer = self.snap.securities[receipt].issuer_id
-        self.snap.securities["isin:NL9999999998"] = Security("isin:NL9999999998", "share", "esma_firds", issuer_id=issuer,
-                                                             isin="NL9999999998", activity="inactive")  # superseded
+        self.snap.securities["isin:NL9999999998"] = Security("isin:NL9999999998", "share", "esma_firds", Evidence.ADMISSION_REGISTER,
+                                                             issuer_id=issuer, isin="NL9999999998", activity="inactive")  # superseded
         for stated, reason in (("isin:NL9999999999", "firds_underlying_outside_build"),
                                ("isin:NL9999999998", "firds_underlying_inactive")):
             with self.subTest(reason=reason):
                 self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", stated, "esma_firds",
-                                                           "firds_underlying_isin")]
+                                                           "firds_underlying_isin", Evidence.STATED_UNDERLYING)]
                 self.snap.audit.clear()
                 self.snap.questions.clear()
                 link_receipts(self.snap)
@@ -139,10 +140,10 @@ class PipelineTest(unittest.TestCase):
     def test_a_field_26_underlying_of_another_issuer_is_a_question_carrying_it(self):
         receipt = self.snap.listings["XNAS:ASML"].security_id
         self.snap.securities[receipt].isin = "US0000000009"
-        self.snap.securities["isin:NL0000000042"] = Security("isin:NL0000000042", "share", "esma_firds", issuer_id="lei:OTHER",
-                                                             isin="NL0000000042")
+        self.snap.securities["isin:NL0000000042"] = Security("isin:NL0000000042", "share", "esma_firds", Evidence.ADMISSION_REGISTER,
+                                                             issuer_id="lei:OTHER", isin="NL0000000042")
         self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", "isin:NL0000000042", "esma_firds",
-                                                   "firds_underlying_isin")]
+                                                   "firds_underlying_isin", Evidence.STATED_UNDERLYING)]
         self.snap.questions.clear()
         self.snap.audit.clear()
         link_receipts(self.snap, frozenset({"US0000000009"}))
@@ -158,14 +159,13 @@ class PipelineTest(unittest.TestCase):
         line = self.snap.listings["XCBO:EXLT"]
         self.assertEqual((line.mic, line.operating_mic, line.is_primary), ("XCBO", "XCBO", True))
 
-    def test_an_eea_request_beside_a_line_outside_the_eea_is_asked_and_priced_on_the_most_liquid_line(self):
-        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. That line
-        # is keyed in London's currency, so it is the question's ISIN-country suggestion, never the primary. London
-        # quotes in pence, so the line claims no trading currency.
+    def test_an_eea_request_beside_a_line_outside_the_eea_leaves_the_primary_unknown_and_priced_on_the_most_liquid_line(self):
+        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. The primary
+        # stays unknown and is asked nothing: which listing a view shows is a choice (ADR 0044, A5). London quotes
+        # in pence, so the line claims no trading currency.
         shell = self.snap.securities[f"isin:{SHELL_ISIN}"]
         self.assertEqual((shell.primary_mic, shell.primary_rule), (None, "requested_in_eea_listed_outside"))
-        asked = {q.subject_id: q for q in self.snap.questions if q.question == "home_market"}
-        self.assertEqual(asked[shell.security_id].suggested, ("XLON:SHEL", "isin_country"))
+        self.assertNotIn(shell.security_id, {q.subject_id for q in self.snap.questions})
         self.assertEqual((self.snap.listings["XLON:SHEL"].currency, self.snap.listings["XLON:SHEL"].trading_currency),
                          ("GBP", None))
         self.assertTrue(self.snap.listings[f"XAMS:{SHELL_ISIN}"].most_liquid)
@@ -205,7 +205,7 @@ class PipelineTest(unittest.TestCase):
             curated = sum(1 + len(asset.get("deployments", ())) for asset in seed["assets"])
             self.assertEqual(written + dropped, len(self.snap.listings) + curated)  # every line is accounted for
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
-            # Shell's home market is asked, so no line of it is written as primary.
+            # Shell's primary is unknown, so no line of it is written as primary.
             self.assertEqual(self.snap.audit["schema"]["securities_without_primary"], 1)
 
     def test_eu_only_scope_makes_no_sec_lookups(self):
@@ -257,6 +257,14 @@ WIDE_OPENFIGI = OPENFIGI | {
 }
 
 
+def wide_inputs():
+    admissions = {}
+    firds.apply(admissions, firds.full_records(stream(WIDE_FIRDS), Scope().cfi_prefixes), Counter())
+    turnover = firds.select_transparency(firds.transparency_records(stream(fitrs([(ASML_ISIN, "2026-04-01", 5e8), (APPLE_ISIN, "2026-04-01", 1e6)]))), date(2026, 9, 25))
+    return Inputs(date(2026, 9, 25), Scope(), mic.parse(MIC_CSV.encode()), admissions, turnover, sec.parse(WIDE_SEC),
+                  {"XAMS", "XETA", "FRAB"}, WIDE_FUNDS)
+
+
 class AllVenuesTest(unittest.TestCase):
     """The default scope: every FIRDS venue under the venue policy, ETFs, and SEC fund ETFs."""
 
@@ -264,13 +272,7 @@ class AllVenuesTest(unittest.TestCase):
         patcher = mock.patch("urllib.request.urlopen", side_effect=AssertionError("network access in a test"))
         patcher.start()
         self.addCleanup(patcher.stop)
-        admissions = {}
-        firds.apply(admissions, firds.full_records(stream(WIDE_FIRDS), Scope().cfi_prefixes), Counter())
-        turnover = firds.select_transparency(firds.transparency_records(stream(fitrs([(ASML_ISIN, "2026-04-01", 5e8), (APPLE_ISIN, "2026-04-01", 1e6)]))), date(2026, 9, 25))
-        self.snap = build_snapshot(
-            Inputs(date(2026, 9, 25), Scope(), mic.parse(MIC_CSV.encode()), admissions, turnover, sec.parse(WIDE_SEC),
-                   {"XAMS", "XETA", "FRAB"}, WIDE_FUNDS),
-            gleif_fetch, FakeOpenFigi(WIDE_OPENFIGI))
+        self.snap = build_snapshot(wide_inputs(), gleif_fetch, FakeOpenFigi(WIDE_OPENFIGI))
 
     def lines(self, isin):
         return sorted(l.mic for l in self.snap.listings.values() if l.security_id == f"isin:{isin}" and l.source == "esma_firds")
@@ -388,30 +390,22 @@ class FirdsPrimaryTest(unittest.TestCase):
         self.assertEqual(self.primaries(snap), {SAP_ISIN: ("XETR", "issuer_requested_most_liquid"),
                                                 WORLD_ISIN: ("XETR", "issuer_requested")})
 
-    def test_without_a_request_or_with_several_the_primary_is_asked(self):
+    def test_without_a_request_or_with_several_the_primary_stays_unknown(self):
         records = [firds_record(WORLD_ISIN, "DUSB", WORLD_LEI, cfi="CEOGES", relevant="DUSB", requested="false"),
                    firds_record(WORLD_ISIN, "HAMB", WORLD_LEI, cfi="CEOGES", relevant="DUSB", requested="false"),
                    firds_record(SAP_ISIN, "XAMS", SAP_LEI, relevant="CEUX"), firds_record(SAP_ISIN, "MTAA", SAP_LEI, relevant="CEUX"),
                    firds_record(ASML_ISIN, "XGLO", ASML_LEI, relevant="XGLO"),  # a venue habit: no evidence
                    firds_record(NN_ISIN, "XAMS", NN_LEI, relevant="CEUX"), firds_record(NN_ISIN, "MTAA", NN_LEI, relevant="CEUX")]
         snap = self.build(records)
-        asked = {q.subject_id: q for q in snap.questions if q.question == "home_market"}
-        # Its one exchange line in its ISIN's country is a suggested answer, never the primary (R2, ADR 0044).
-        self.assertEqual((snap.securities[f"isin:{NN_ISIN}"].primary_mic, asked[f"isin:{NN_ISIN}"].suggested),
-                         (None, (f"XAMS:{NN_ISIN}", "isin_country")))
-        self.assertIsNone(asked[f"isin:{SAP_ISIN}"].suggested, "no line in its ISIN's country")
-        del asked[f"isin:{NN_ISIN}"]
-        snap.questions[:] = [q for q in snap.questions if q.subject_id != f"isin:{NN_ISIN}"]
-        del snap.securities[f"isin:{NN_ISIN}"]
+        # NN's one exchange line in its ISIN's country (XAMS) decides nothing either: an inference, not evidence.
         self.assertEqual(self.primaries(snap), {WORLD_ISIN: (None, "most_liquid_only"), SAP_ISIN: (None, "issuer_requested_several"),
-                                                ASML_ISIN: (None, "most_liquid_only")})
-        self.assertEqual(sorted(q.subject_id for q in snap.questions if q.question == "home_market"),
-                         sorted(f"isin:{isin}" for isin in (WORLD_ISIN, SAP_ISIN, ASML_ISIN)))
+                                                ASML_ISIN: (None, "most_liquid_only"), NN_ISIN: (None, "issuer_requested_several")})
+        self.assertEqual(snap.questions, [], "an unknown primary is a coverage count, never a question (ADR 0044, A5)")
         liquid = [l.listing_id for l in snap.listings.values() if l.most_liquid]
         self.assertIn(f"DUSB:{WORLD_ISIN}", liquid, "priced on the most liquid EU line, never marked primary")
         self.assertFalse(any(l.is_primary for l in snap.listings.values()))
 
-    def test_a_us_line_decides_without_an_eea_request_and_is_a_question_beside_one(self):
+    def test_a_us_line_decides_without_an_eea_request_and_leaves_it_unknown_beside_one(self):
         records = [firds_record(LINDE_ISIN, "MUNB", LINDE_LEI, name="LINDE PLC", relevant="MUNB", requested="false"),
                    firds_record(STLA_ISIN, "MTAA", STLA_LEI, name="STELLANTIS", relevant="MTAA")]
         answers = {("ID_ISIN", LINDE_ISIN, "MUNB"): [figi_row("LIN", "GM", "BBGLINDEGM01", "BBGLINDESC01")],
@@ -423,7 +417,7 @@ class FirdsPrimaryTest(unittest.TestCase):
         self.assertEqual(self.primaries(snap), {LINDE_ISIN: ("XNAS", "us_exchange_listing"),
                                                 STLA_ISIN: (None, "requested_in_eea_listed_outside")})
         self.assertTrue(snap.listings["XNAS:LIN"].is_primary)
-        self.assertIn(f"isin:{STLA_ISIN}", {q.subject_id for q in snap.questions if q.question == "home_market"})
+        self.assertNotIn(f"isin:{STLA_ISIN}", {q.subject_id for q in snap.questions})
 
 
 class CikLinkTest(unittest.TestCase):
@@ -433,7 +427,7 @@ class CikLinkTest(unittest.TestCase):
         snap.issuers["lei:BFAG"] = Issuer("lei:BFAG", "Biofrontera AG", "gleif", lei="BFAG",
                                           names=[("Biofrontera AG", "LEGAL_NAME", "de", "gleif")])
         tickers = [SecTicker("1858685", "Biofrontera Inc.", "BFRI", "Nasdaq", 0)]
-        evidence, _isins = linking._link_evidence(snap, {}, tickers, {}, lambda jobs: [{} for _ in jobs])
+        evidence, _isins = linking._link_evidence(snap, {}, tickers, {}, lambda jobs: [{} for _ in jobs], {})
         self.assertEqual(dict(evidence), {})
         audit = Counter()
         links = linking._decide(snap, tickers, evidence, audit)
@@ -454,15 +448,44 @@ class CikLinkTest(unittest.TestCase):
         snap.issuers["lei:BRK"] = Issuer("lei:BRK", "Berkshire Hathaway Inc.", "gleif", lei="BRK")
         tickers = [SecTicker("58361", "LEE ENTERPRISES, Inc", "LEE", "NYSE", 0),
                    SecTicker("1067983", "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE", 1)]
-        evidence = {"58361": [("BRK", "isin_exch_us")], "1067983": [("BRK", "share_class_figi")]}
+        evidence = {"58361": [("BRK", "isin_exch_us", "record:lee")], "1067983": [("BRK", "share_class_figi", "record:brk")]}
         self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {"1067983": ("BRK", "share_class_figi")})
+
+    def test_a_lei_several_ciks_claim_and_several_name_links_to_none_and_asks_each(self):
+        # FIRDS gives Vishay Precision Group's US ISIN Vishay Intertechnology's LEI; both SEC titles match its names,
+        # so no rule decides and CIK order never picks one (ADR 0044, A2).
+        snap = Snapshot(as_of="2026-09-25")
+        snap.issuers["lei:VSH"] = Issuer("lei:VSH", "Vishay Intertechnology, Inc.", "gleif", lei="VSH",
+                                         names=[("VISHAY INTERTECHNOLOGY, INC.", "LEGAL_NAME", "en", "gleif")])
+        tickers = [SecTicker("103730", "VISHAY INTERTECHNOLOGY INC", "VSH", "NYSE", 0),
+                   SecTicker("1487952", "Vishay Precision Group, Inc.", "VPG", "NYSE", 1)]
+        evidence = {"103730": [("VSH", "share_class_figi", "record:vsh")], "1487952": [("VSH", "isin_exch_us", "record:vpg")]}
+        audit = Counter()
+        links = linking._decide(snap, tickers, evidence, audit)
+        self.assertEqual(links, {})
+        both = ("record:vpg", "record:vsh")  # a conflict cites every claim's record
+        self.assertEqual([(q.question, q.subject_id, q.candidates, q.values, q.evidence) for q in snap.questions],
+                         [("issuer_identity", "cik:103730", ("lei:VSH",), ("VSH",), both),
+                          ("issuer_identity", "cik:1487952", ("lei:VSH",), ("VSH",), both)])
+        self.assertEqual(audit["link_conflicts"], 2)
+        linking._ask_name_candidates(snap, tickers, links, audit)  # Vishay Intertechnology's name matches too
+        self.assertEqual(len(snap.questions), 2, "a CIK already asked is not asked again by name")
+
+    def test_a_cik_several_leis_claim_links_to_none_and_is_asked(self):
+        snap = Snapshot(as_of="2026-09-25")
+        tickers = [SecTicker("1243429", "ArcelorMittal", "MT", "NYSE", 0)]
+        evidence = {"1243429": [("AMLU", "isin_exch_us", "record:amlu"), ("AMOLD", "share_class_figi", "record:amold")]}
+        self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
+        self.assertEqual({f.flag for f in snap.flags}, {"cik_lei_conflict"})
+        self.assertEqual([(q.question, q.subject_id, q.candidates, q.evidence) for q in snap.questions],
+                         [("issuer_identity", "cik:1243429", ("lei:AMLU", "lei:AMOLD"), ("record:amlu", "record:amold"))])
 
     def test_a_lei_several_ciks_claim_and_none_names_links_to_none(self):
         snap = Snapshot(as_of="2026-09-25")
         snap.issuers["lei:TPI"] = Issuer("lei:TPI", "TP ICAP (Europe)", "gleif", lei="TPI")
         tickers = [SecTicker("10329", "BASSETT FURNITURE INDUSTRIES INC", "BSET", "Nasdaq", 0),
                    SecTicker("23795", "CTO Realty Growth, Inc.", "CTO", "NYSE", 1)]
-        evidence = {"10329": [("TPI", "isin_exch_us")], "23795": [("TPI", "isin_exch_us")]}
+        evidence = {"10329": [("TPI", "isin_exch_us", "record:bset")], "23795": [("TPI", "isin_exch_us", "record:cto")]}
         self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
         self.assertEqual({f.flag for f in snap.flags}, {"lei_contested_unnamed"})
 

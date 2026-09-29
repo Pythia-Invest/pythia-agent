@@ -2153,7 +2153,6 @@
     "nestle-adr:fold:row",
     "nestle-adr:relation:nestle",
     "nestle-adr:security:kind",
-    "nestle-adr:subject_key:issuer",
     "nestle-adr:subject_key:security",
     "news-a:coverage:found",
     "news-a:fold:row",
@@ -3882,10 +3881,10 @@
       }
     },
     "bac-pk": {
-      "security": "security:provisional:sec:id:BAC-PK",
+      "security": "security:provisional:sec:id:70858.BAC-PK",
       "issuer": "issuer:lei:9DJT3UXIJIZJI4WXO774",
       "listings": {
-        "BAC-PK@XNYS": "listing:provisional:sec:ticker:XNYS.BAC-PK"
+        "BAC-PK@XNYS": "listing:provisional:sec:ticker:XNYS.70858.BAC-PK"
       }
     },
     "bbva": {
@@ -4461,10 +4460,10 @@
       }
     },
     "jpm-pc": {
-      "security": "security:provisional:sec:id:JPM-PC",
+      "security": "security:provisional:sec:id:19617.JPM-PC",
       "issuer": "issuer:lei:8I5DZWZKVSZI1NUHU748",
       "listings": {
-        "JPM-PC@XNYS": "listing:provisional:sec:ticker:XNYS.JPM-PC"
+        "JPM-PC@XNYS": "listing:provisional:sec:ticker:XNYS.19617.JPM-PC"
       }
     },
     "jpmorgan": {
@@ -4632,7 +4631,7 @@
     },
     "nestle-adr": {
       "security": "security:figi:BBG001S6XFC0",
-      "issuer": "issuer:lei:549300PZN3NFSOUXLC42",
+      "issuer": null,
       "listings": {}
     },
     "news-a": {
@@ -4778,10 +4777,10 @@
       }
     },
     "psa-ph": {
-      "security": "security:provisional:sec:id:PSA-PH",
+      "security": "security:provisional:sec:id:1393311.PSA-PH",
       "issuer": "issuer:cik:0001393311",
       "listings": {
-        "PSA-PH@XNYS": "listing:provisional:sec:ticker:XNYS.PSA-PH"
+        "PSA-PH@XNYS": "listing:provisional:sec:ticker:XNYS.1393311.PSA-PH"
       }
     },
     "qiagen": {
@@ -5026,10 +5025,10 @@
       }
     },
     "t-pa": {
-      "security": "security:provisional:sec:id:T-PA",
+      "security": "security:provisional:sec:id:732717.T-PA",
       "issuer": "issuer:lei:549300Z40J86GGSTL398",
       "listings": {
-        "T-PA@XNYS": "listing:provisional:sec:ticker:XNYS.T-PA"
+        "T-PA@XNYS": "listing:provisional:sec:ticker:XNYS.732717.T-PA"
       }
     },
     "te-connectivity": {
@@ -5277,10 +5276,10 @@
       }
     },
     "wfc-pl": {
-      "security": "security:provisional:sec:id:WFC-PL",
+      "security": "security:provisional:sec:id:72971.WFC-PL",
       "issuer": "issuer:lei:PBLD0EJDB5FWOLXP3B76",
       "listings": {
-        "WFC-PL@XNYS": "listing:provisional:sec:ticker:XNYS.WFC-PL"
+        "WFC-PL@XNYS": "listing:provisional:sec:ticker:XNYS.72971.WFC-PL"
       }
     },
     "wolters-kluwer": {
@@ -5323,22 +5322,32 @@
   "accepted_id_changes": [
     "asr-adr:subject_id: security changed security:figi:BBG00J0BB527 -> security:provisional:esma_firds:isin:US00217N1081",
     "btc-mini:subject_id: issuer changed issuer:lei:529900WHTNX5LZCNWB27 -> issuer:cik:0002015034",
-    "ibit:subject_id: issuer changed issuer:lei:529900HVFN08L8P4H851 -> issuer:cik:0001980994"
+    "ibit:subject_id: issuer changed issuer:lei:529900HVFN08L8P4H851 -> issuer:cik:0001980994",
+    "bac-pk:subject_id: security changed security:provisional:sec:id:BAC-PK -> security:provisional:sec:id:70858.BAC-PK",
+    "bac-pk:subject_id: listing BAC-PK@XNYS changed listing:provisional:sec:ticker:XNYS.BAC-PK -> listing:provisional:sec:ticker:XNYS.70858.BAC-PK",
+    "jpm-pc:subject_id: security changed security:provisional:sec:id:JPM-PC -> security:provisional:sec:id:19617.JPM-PC",
+    "jpm-pc:subject_id: listing JPM-PC@XNYS changed listing:provisional:sec:ticker:XNYS.JPM-PC -> listing:provisional:sec:ticker:XNYS.19617.JPM-PC",
+    "psa-ph:subject_id: security changed security:provisional:sec:id:PSA-PH -> security:provisional:sec:id:1393311.PSA-PH",
+    "psa-ph:subject_id: listing PSA-PH@XNYS changed listing:provisional:sec:ticker:XNYS.PSA-PH -> listing:provisional:sec:ticker:XNYS.1393311.PSA-PH",
+    "t-pa:subject_id: security changed security:provisional:sec:id:T-PA -> security:provisional:sec:id:732717.T-PA",
+    "t-pa:subject_id: listing T-PA@XNYS changed listing:provisional:sec:ticker:XNYS.T-PA -> listing:provisional:sec:ticker:XNYS.732717.T-PA",
+    "wfc-pl:subject_id: security changed security:provisional:sec:id:WFC-PL -> security:provisional:sec:id:72971.WFC-PL",
+    "wfc-pl:subject_id: listing WFC-PL@XNYS changed listing:provisional:sec:ticker:XNYS.WFC-PL -> listing:provisional:sec:ticker:XNYS.72971.WFC-PL"
   ],
   "expected_failures": {
     "arcelormittal-nyrs:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
     "arcelormittal-nyrs:relation:arcelormittal": "field 26 names a superseded ISIN: lifecycle successor_of",
-    "ferrari:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "ferrari:primary:home": "an EEA request beside a non-EEA line leaves the primary unknown and counted, not asked (ADR 0044, A5); decided by the SEC registrant exchange (SEC onboarding) or co-primary",
     "gsk-adr:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
     "gsk-adr:relation:gsk": "field 26 names a superseded ISIN: lifecycle successor_of",
-    "magnum:primary:home": "the ISIN-country line is a curation suggestion, not a decision (R2, ADR 0044): approved centrally, or decided by the SEC registrant exchange (SEC onboarding)",
-    "qiagen:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "magnum:primary:home": "the primary stays unknown and counted, not asked (ADR 0044, A5); the ISIN-country line decides nothing; decided by the SEC registrant exchange (SEC onboarding)",
+    "qiagen:primary:home": "an EEA request beside a non-EEA line leaves the primary unknown and counted, not asked (ADR 0044, A5); decided by the SEC registrant exchange (SEC onboarding) or co-primary",
     "sanofi-adr:fold:row": "field 26 names a wrong ISIN: receipt question",
     "sanofi-adr:relation:sanofi": "field 26 names a wrong ISIN: receipt question",
-    "stellantis:primary:home": "an EEA request beside a non-EEA line is a home-market question; decided by the SEC registrant exchange (SEC onboarding) or co-primary",
+    "stellantis:primary:home": "an EEA request beside a non-EEA line leaves the primary unknown and counted, not asked (ADR 0044, A5); decided by the SEC registrant exchange (SEC onboarding) or co-primary",
     "tenaris-adr:fold:row": "field 26 names a superseded ISIN: lifecycle successor_of",
     "tenaris-adr:relation:tenaris": "field 26 names a superseded ISIN: lifecycle successor_of",
-    "totalenergies:primary:home": "the ISIN-country line is a curation suggestion, not a decision (R2, ADR 0044): approved centrally, or decided by the SEC registrant exchange (SEC onboarding)",
+    "totalenergies:primary:home": "the primary stays unknown and counted, not asked (ADR 0044, A5); the ISIN-country line decides nothing; decided by the SEC registrant exchange (SEC onboarding)",
     "tsmc-adr:fold:row": "field 26 names an ISIN outside the build: receipt question",
     "tsmc-adr:relation:tsmc": "field 26 names an ISIN outside the build: receipt question",
     "unilever-adr:fold:row": "field 26 names the receipt itself: receipt question",

@@ -731,3 +731,24 @@ This amendment supersedes:
 - **Parsing generic type arguments.** Only a generic type whose arguments are
   all primitives could fit in 128 characters. Supporting that rare shape
   would need a Move type grammar in core.
+
+## Amendment (2026-09-29): ticker-only SEC keys carry the CIK
+
+The builder keyed a SEC-only security without a share-class FIGI by its
+ticker alone (`security:provisional:sec:id:<TICKER>`, its line
+`listing:provisional:sec:ticker:<MIC>.<TICKER>`). When a delisted company's
+ticker passed to another registrant, the next build gave the new company the
+same ID and Lifecycle A kept saved rows on it, so they silently followed the
+ticker. About 1,590 securities had such IDs on the 2026-09-28 build.
+
+- Since builder rules version 2 these IDs carry the registrant's CIK:
+  `security:provisional:sec:id:<CIK>.<TICKER>` and
+  `listing:provisional:sec:ticker:<MIC>.<CIK>.<TICKER>`.
+- Unlike other re-keys, no alias maps the ticker-only form. That alias would
+  carry a delisted company's reference to the ticker's next owner. Rows that
+  name an old ID are flagged as vanished subjects, as above; no package is
+  published, so only development stores hold them.
+
+Rejected alternative: comparing issuers across releases in Lifecycle A to
+detect a reused ticker. It would be a heuristic in the re-key, while the key
+itself can carry the registrant.

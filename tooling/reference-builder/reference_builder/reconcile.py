@@ -3,13 +3,14 @@
 - Issuer: RTS 23 field 5 (`assemble.issuer_lei`). An LEI ISO 10383 lists for a venue's operating entity decides
   nothing, nor does a share's field 5 its receipts contradict (`Claims.receipt_issuers`): the issuer is unknown and
   `issuer_identity` is asked, the receipts' issuer and field 5 as the candidates.
-- Primary: field 8 names the EEA admissions the issuer requested; it decides only an EEA primary. When another
-  source puts a line outside the EEA (an OpenFIGI home-exchange line, a SEC exchange line), the answer is unknown
-  and `home_market` is asked. Among requested admissions, the most liquid EU market (the relevant venue) picks the
-  line when it belongs to a requested venue's operating entity (Xetra for Frankfurt: Deutsche Börse AG). Field 8
-  on `firds.FIELD8_VENUE_HABIT` segments decides nothing. With no request, a line outside the EEA decides as the
-  SEC and OpenFIGI stages always have (to be onboarded next); with none, the relevant venue is only a liquidity
-  measure, so the primary is unknown and asked.
+- Primary: field 8 names the EEA admissions the issuer requested; it decides only an EEA primary. When a listing
+  directory or registrant filing puts a line outside the EEA (an OpenFIGI home-exchange line, a SEC exchange line),
+  the primary is unknown. Among requested admissions, the most liquid EU market (the relevant venue) picks the line
+  when it belongs to a requested venue's operating entity (Xetra for Frankfurt: Deutsche Börse AG). Field 8 on
+  `firds.FIELD8_VENUE_HABIT` segments decides nothing. With no request, a line outside the EEA decides as the SEC
+  and OpenFIGI stages always have (to be onboarded next); with none, the relevant venue is only a liquidity
+  measure, so the primary is unknown. An unknown primary is a coverage count, never a question: which listing a
+  view shows is a choice (ADR 0044, A5), and the line at the most liquid EU market is priced meanwhile.
 - Receipt underlying: field 26 (`receipts.link_receipts`); a share that states one is asked as `receipt_conflict`.
 """
 
@@ -20,7 +21,7 @@ from collections import Counter, defaultdict
 from . import firds, rules
 from .claims import Claims, Meaning, Venues, requested
 from .linking import us_lines
-from .model import Listing, Snapshot
+from .model import Evidence, Listing, Snapshot
 
 # A venue attribute (Pythia-authored): Deutsche Börse runs the Frankfurt Stock Exchange's regulated market on two
 # venues, the Frankfurt floor and Xetra, its main one. When the claims decide that market, the line is on Xetra.
@@ -28,14 +29,14 @@ MAIN_VENUE = {"XFRA": "XETR"}
 
 
 def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> None:
-    """Decide FIRDS securities' primaries and ask what the claims leave open."""
+    """Decide admission-register (FIRDS) securities' primaries and ask what the claims leave open."""
     audit = snap.audit.setdefault("reconcile", Counter())
     lines: dict[str, list[Listing]] = defaultdict(list)
     for listing in snap.listings.values():
         lines[listing.security_id or ""].append(listing)
     for security in snap.securities.values():
         isin = security.isin
-        if security.source != firds.SOURCE or isin not in claims.isins:
+        if security.evidence != Evidence.ADMISSION_REGISTER or isin not in claims.isins:
             continue
         live, evidence = security.activity != "inactive", [f"record:{claims.digests[isin]}"]
         leis = claims.isins[isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
@@ -58,20 +59,13 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
             liquid = _on(lines[security.security_id], venues.op(relevant), relevant)
             if liquid:
                 liquid.most_liquid = True
-        if line is None and live:
-            candidates = [l.listing_id for l in lines[security.security_id] if l.status != "inactive"]
-            # A curation suggestion, never a decision (R2, ADR 0044): the share's one writable exchange line in its
-            # ISIN's country, which a curator may approve.
-            home = _isin_country_line(venues, isin, lines[security.security_id]) if security.kind == "share" else None
-            audit["home_market_isin_country_suggestion"] += home is not None
-            snap.ask("home_market", security.security_id, candidates[:20], evidence,
-                     suggested=(home.listing_id, ISIN_COUNTRY) if home else None)
 
 
 def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as_of: str) -> tuple[str, Listing | None]:
     """(rule, primary line or None when the evidence does not decide)."""
     asked = requested(claims, isin, as_of) - firds.FIELD8_VENUE_HABIT
-    outside = [line for line in lines if line.source == "openfigi"] + us_lines(lines)  # other sources' lines
+    # Lines outside FIRDS: a listing directory's home-exchange line, a registrant's US exchange line.
+    outside = [line for line in lines if line.evidence == Evidence.LISTING_DIRECTORY] + us_lines(lines)
     if asked and outside:
         return "requested_in_eea_listed_outside", None
     relevant = claims.one(isin, Meaning.MOST_LIQUID_EU_MARKET)
@@ -86,27 +80,14 @@ def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as
             return "issuer_requested", line
         return "issuer_requested_several", None
     if outside:  # no EEA request: a US ISIN's home is its US line; another ISIN's, its home-country line first
-        home = [line for line in outside if line.source == "openfigi"]
+        home = [line for line in outside if line.evidence == Evidence.LISTING_DIRECTORY]
         line = home[0] if home and not isin.startswith("US") else us_lines(lines)[0] if us_lines(lines) else home[0]
-        return ("home_listing_evidence" if line.source == "openfigi" else "us_exchange_listing"), line
+        return ("home_listing_evidence" if line.evidence == Evidence.LISTING_DIRECTORY else "us_exchange_listing"), line
     return "most_liquid_only", None
-
-
-ISIN_COUNTRY = "isin_country"  # the suggestion rule: measured 99.6% agreement with decided share primaries (#74)
-
-
-def _isin_country_line(venues: Venues, isin: str, lines: list[Listing]) -> Listing | None:
-    """A share's one live line on an exchange in its ISIN's country (the issuer's home: TotalEnergies on Euronext
-    Paris beside NYSE), skipping OTC, MTF and trading-only lines and lines the package cannot write (no trading
-    currency). None when there is none or several."""
-    found = [line for line in lines if line.status != "inactive" and line.country == isin[:2] and line.currency
-             and line.operating_mic not in rules.TRADING_ONLY_VENUES and line.operating_mic != "OTCM"
-             and (venues.venues.get(line.mic or "") is None or venues.venues[line.mic].category != "MLTF")]
-    return found[0] if len({line.operating_mic for line in found}) == 1 and len(found) == 1 else None
 
 
 def _on(lines: list[Listing], operating_mic: str | None, relevant: str | None) -> Listing | None:
     """A security's line on a venue: the relevant segment, then an active line, then by segment MIC."""
-    found = [line for line in lines if line.operating_mic == operating_mic and line.source == firds.SOURCE]
+    found = [line for line in lines if line.operating_mic == operating_mic and line.evidence == Evidence.ADMISSION_REGISTER]
     return min(found, key=lambda l: (l.mic != rules.lit_segment(relevant or ""), l.status != "active", l.mic or ""),
                default=None)

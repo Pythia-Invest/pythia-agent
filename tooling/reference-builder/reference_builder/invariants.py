@@ -104,13 +104,14 @@ INVARIANTS: tuple[Invariant, ...] = (
     Invariant("primary_more_than_one", "error", "A security has more than one primary listing.", primary_more_than_one),
     Invariant("primary_inactive", "error", "A live security's primary listing is inactive.", primary_inactive),
     Invariant("primary_missing", "error", "A live security has lines but no primary: its evidence did not decide one.",
-              primary_missing, 11997, "home-market questions and SEC or OpenFIGI gaps (claims step 3)", headroom=0.02),
+              primary_missing, 11997, "primaries the evidence does not decide, a coverage count (ADR 0044, A5), and SEC "
+              "or OpenFIGI gaps (claims step 3)", headroom=0.02),
     Invariant("share_primary_silent", "error",
-              "A live share has no primary, and not both a home-market question and a most-liquid line.",
-              share_primary_silent, 1072, "1,052 SEC OTC-only shares, which no rule places; 20 home-market questions "
-              "whose most liquid venue has no line", headroom=0.02),
+              "A live share has neither a primary nor a most-liquid line.",
+              share_primary_silent, 1072, "1,052 SEC OTC-only shares, which no rule places; 20 shares whose most liquid "
+              "venue has no line", headroom=0.02),
     Invariant("questions_open", "error", "A question the build left open (the package's claims file).",
-              questions_open, 11964, "evidence that does not decide (claims step 3)", headroom=0.02),
+              questions_open, 1698, "evidence that does not decide (claims step 3)", headroom=0.02),
     Invariant("primary_open_market_beside_us_exchange", "error",
               "A security with a live NYSE/Nasdaq line has its primary on an EEA open-market segment.",
               primary_open_market_beside_us_exchange),

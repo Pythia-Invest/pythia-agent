@@ -34,7 +34,7 @@ questions open:
 | `database` | `file` (a plain file name in the same directory), `bytes` and `sha256`: the checksum of the SQLite file. |
 | `sources` | One entry per source file or API: `source`, `url`, `version`, `as_of` (retrieval date), `retrieved_at`, `licence`, and `notice`, the attribution to show wherever that data is shown. |
 | `quality` | The builder's quality summary: table row counts, canary results, the assembly audit and the identity truth-set scores (`tables`, `canaries`, `audit`, `truth_audit`). |
-| `claims` | Optional: `file`, `bytes` and `sha256` of `questions-<YYYYMMDD>.json`, the questions the build left open where its sources did not decide a value (`{"build_id", "questions": [...]}`, each in core subject IDs with the resolution queue's `kind`, `reason`, candidates and evidence). The installer copies and verifies it with the database. These are curation questions, answered centrally ([ADR 0044](../decisions/0044-product-direction.md)); core queues none of them, and supersedes any reference-build rows an earlier core queued. An older core ignores the key. |
+| `claims` | Optional: `file`, `bytes` and `sha256` of `questions-<YYYYMMDD>.json`, the questions the build left open where its sources did not decide a value (`{"build_id", "questions": [...]}`, each in core subject IDs with the resolution queue's `kind`, `reason`, candidates and evidence). `issuer_identity` has two shapes with the same fields: on a security it asks who issued it (FIRDS field 5 names a venue operator's LEI, or its receipts contradict it; `values` holds the claimed LEIs), and on a CIK-only issuer it asks whether that CIK is the candidate LEI's issuer (identifier links disagree; `values` holds the candidate LEIs). The installer copies and verifies it with the database. These are curation questions, answered centrally ([ADR 0044](../decisions/0044-product-direction.md)); core queues none of them, and supersedes any reference-build rows an earlier core queued. An older core ignores the key. |
 
 The builder writes `package.json` into its output directory
 (`.local/reference-builder/out/`, or `--out`) after each build, beside the
@@ -126,17 +126,18 @@ gap.
 exceeds them by more than 2%):
 
 - `primary_missing` is at 11,997: live securities with lines whose evidence
-  decided no primary. They are home-market questions, and SEC or OpenFIGI
+  decided no primary. The primary is a choice, not an identity fact (ADR
+  0044, A5), so they are counted and not asked; the rest are SEC or OpenFIGI
   gaps until those sources are onboarded.
-- `questions_open` is at 11,964: questions the build left open in the
-  package's `claims` file (10,271 `home_market`, 629 `issuer_identity`, 895
-  receipt questions and 169 SEC name-only issuer questions).
+- `questions_open` is at 1,698 since rules version 2: questions the build
+  left open in the package's `claims` file (637 `issuer_identity`, 895
+  receipt questions and 166 SEC name-only issuer questions). It asks no
+  `home_market` question (10,271 before).
 - Shares without a primary: `share_primary_silent` is at 1,072: 1,052 SEC
-  OTC-only shares, which no rule places, and 20 home-market questions whose
-  most liquid venue has no line. A security without a written primary is
-  priced on its most liquid EU line (9,770 lines), labelled so and never
-  primary. The ISIN-country line suggests an answer for 189 shares but
-  decides none. See the [FIRDS record](../sources/firds.md).
+  OTC-only shares, which no rule places, and 20 shares whose most liquid
+  venue has no line. A security without a written primary is priced on its
+  most liquid EU line (9,770 lines), labelled so and never primary. See the
+  [FIRDS record](../sources/firds.md).
 - Issuers: 12 shares whose receipts name another live issuer in FIRDS field 5
   (Nestlé's Toronto CDRs name Nestlé S.A., its share names Nestlé Capital
   Markets), and 3 receipts of them filed under the same field 5 (Nestlé's
