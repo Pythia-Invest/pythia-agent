@@ -81,8 +81,7 @@ class Transport:
         return value
 
     def _get(self, operation, url, contact, accept, cancelled, budget, timeout, body):
-        from importlib import import_module
-        retry_after = import_module(self.connector.__package__ + '.worker_budget').retry_after
+        retry_after = self.connector.retry_after
         req = Request(url, headers={'User-Agent': contact, 'Accept': accept, 'Accept-Encoding': 'gzip'})
         started, status = time.monotonic(), None
 

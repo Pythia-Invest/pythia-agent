@@ -4,7 +4,6 @@ It supplies FIGI evidence to Pythia's core, never a canonical decision, and has
 no search operation. The API key is optional; without it the documented keyless
 limits apply.
 """
-import importlib
 import json
 
 from . import mapping
@@ -12,15 +11,6 @@ from .client import Transport
 from .definition import TOOL, schema
 
 AGE = 86400  # Identical successful mappings are retained for a day.
-
-
-def helpers(ctx):
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = get_plugin_manager()._plugins.get('pythia-market-data')
-    if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
-        raise RuntimeError('unavailable')
-    namespace = loaded.module.__name__
-    return tuple(importlib.import_module(namespace + '.' + name) for name in ('wire', 'connector', 'selection'))
 
 
 def failure(code, message):
@@ -80,29 +70,19 @@ class Resolver:
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
-    wire, connector, _selection = helpers(ctx)
-    resolver = Resolver(wire, connector, lambda: platform.configuration, ctx)
-
-    def available():
-        try:
-            helpers(ctx)
-            return True
-        except RuntimeError:
-            return False
+    resolver = Resolver(platform.wire, platform.connector, lambda: platform.configuration, ctx)
 
     def handler(arguments, **context):
         try:
-            selection = helpers(ctx)[2]  # A disabled dependency cannot serve retained results.
-            access = selection.native_access_scope()
+            access = platform.access.native_access_scope()
             result = resolver.invoke(arguments, context.get('cancelled'), scope=access)
-            if selection.native_access_scope() != access:
+            if platform.access.native_access_scope() != access:
                 result = failure('unavailable', 'Access changed during the OpenFIGI read.')
         except RuntimeError:
             result = failure('unavailable', 'The OpenFIGI connector is unavailable.')
         return json.dumps(result, allow_nan=False)
 
-    ctx.register_tool(name=TOOL, toolset='pythia-core', schema=resolver.definition,
-                      handler=handler, check_fn=available)
+    ctx.register_tool(name=TOOL, toolset='pythia-core', schema=resolver.definition, handler=handler)
     platform.register_agent_tool(ctx, 'openfigi_identifiers', TOOL, 'FIGI identifiers for an ISIN or ticker '
         'from OpenFIGI. Every venue\'s FIGI and share-class FIGI; pythia_find already knows the investor\'s own '
-        'reference, so use this only for identifiers it lacks.', check_fn=available)
+        'reference, so use this only for identifiers it lacks.')

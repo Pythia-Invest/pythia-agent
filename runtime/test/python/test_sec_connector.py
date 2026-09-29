@@ -17,7 +17,8 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from market_data_fixture import wire
+from market_data_fixture import connector, platform_module, wire
+from native_plugin_fixtures import without_market_data
 from test_plugin_contracts import checked_batch
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/sec'
@@ -29,7 +30,6 @@ identity = importlib.import_module('sec_fixture.identity')
 financials = importlib.import_module('sec_fixture.financials')
 filings = importlib.import_module('sec_fixture.filings')
 client = importlib.import_module('sec_fixture.client')
-connector = importlib.import_module(wire.__package__ + '.connector')
 
 STAMP = '2026-09-24T10:00:00+00:00'
 CIK = '0000123456'
@@ -424,18 +424,24 @@ class SecConfiguration(unittest.TestCase):
                 self.assertEqual((issue['code'], issue['fields'][0]['key']), ('needs_configuration', 'sec_identity'))
                 self.assertEqual(transport.calls, [])
 
-    def test_reads_stay_visible_and_report_configuration_when_called(self):
+    def test_registers_through_core_alone_reports_configuration_and_resolves(self):
         tools = {}
         ctx = SimpleNamespace(register_tool=lambda **tool: tools.update({tool['name']: tool}))
-        selection = SimpleNamespace(native_access_scope=lambda: {'cacheable': True, 'scope': 'fixture'})
-        platform = SimpleNamespace(require=lambda _version: None, configuration=settings('missing'), read_document=None,
-                                   register_agent_tool=lambda *_args, **_kwargs: None)
-        self.enterContext(patch.dict(sys.modules, {'pythia_platform': platform}))
-        self.enterContext(patch.object(plugin, 'helpers', return_value=(wire, connector, selection)))
-        plugin.register(ctx)
-        self.assertTrue(all(tool['check_fn']() for tool in tools.values()))
-        result = json.loads(tools['pythia_sec_resolve']['handler']({'identifiers': {'cik': CIK}}))
+        transport = Transport({'submissions': SUBMISSIONS})
+        without_market_data(self)
+        self.enterContext(patch.object(platform_module.access, 'native_access_scope',
+                                       return_value={'cacheable': True, 'scope': 'fixture'}))
+        self.enterContext(patch.object(plugin, 'Transport', return_value=transport))
+        with patch.object(platform_module, 'configuration', settings('missing')):
+            plugin.register(ctx)
+            self.assertTrue(all(tool.get('check_fn') is None for tool in tools.values()))  # visible while unconfigured
+            result = json.loads(tools['pythia_sec_resolve']['handler']({'identifiers': {'cik': CIK}}))
         self.assertEqual(result['issues'][0]['code'], 'needs_configuration')
+        self.assertEqual(transport.calls, [])
+        with patch.object(platform_module, 'configuration', settings()):
+            answer = tools['pythia_sec_resolve']['handler']({'identifiers': {'cik': CIK}})
+        claim, = checked_batch('sec', json.loads(answer)).claims
+        self.assertEqual(claim.native_ref.native_id, CIK)
 
 
 class SecExecution(unittest.TestCase):

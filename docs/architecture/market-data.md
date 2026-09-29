@@ -14,8 +14,8 @@ the feature keeps no source choices of its own.
 Ordinary dashboard consumers must use the resident endpoint, without model calls
 or per-request Hermes startup.
 
-The release installs the shared owner, contracts, execution helpers and agent
-skill, plus the credential-free [Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md)
+The release installs the shared owner and its agent skill, plus the
+credential-free [Yahoo Finance connector](../../runtime/managed/plugins/yahoo-discovery/README.md)
 and the [CoinGecko connector](../../runtime/managed/plugins/coingecko/README.md)
 (keyless, or with the investor's own optional key). `describe` reports only
 installed, enabled native contributions. The bundled
@@ -47,7 +47,11 @@ provider search, and both return evidence rather than identity decisions.
 - [Backend operations](../../packages/market-data/BACKEND.md): preferred and
   pinned reads, compatibility selection, cache authorization and native actions.
 - [Connector support](connector-support.md): reusable execution, batching,
-  cancellation, budgets, structured failures and Hermes logs.
+  cancellation, budgets, structured failures and Hermes logs. Core owns this
+  toolkit and the wire contract, not market-data: every connector depends on
+  core alone ([ADR 0045](../decisions/0045-plugin-platform-interface.md)).
+  Disabling market-data turns off its financial reads and price contributions,
+  while the SEC, OpenFIGI, GLEIF, filings.xbrl.org and NSM sources keep working.
 - [Data delivery](data-delivery.md): resident HTTP/SSE and demand lifetime.
 
 Two keyless issuer-level connectors also ship by default and use the same

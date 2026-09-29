@@ -1,5 +1,4 @@
 """Financial delivery semantics behind an ordinary plugin-owned operation."""
-import asyncio
 
 
 class FinancialDelivery:
@@ -39,10 +38,3 @@ def register(ctx, schema, handler, backend_factory):
     import pythia_platform as platform
     platform.declare_operation(schema, plugin=ctx.plugin_id, operation='query', handler=handler,
                                support=FinancialDelivery(backend_factory), updates=True)
-    # Domain workers belong to this feature, not the platform transport.
-    def lifecycle(app, _adapter):
-        async def cleanup(_app):
-            from .process_stream import close_all
-            await asyncio.to_thread(close_all)
-        app.on_cleanup.append(cleanup)
-    ctx.register_platform_handler('api_server', lifecycle)

@@ -1,6 +1,5 @@
 """Flat native entrypoint schema; ordinary backend code owns action variants."""
-from .selection import CRITERIA
-from .wire import parameter_schema
+from pythia_platform import wire
 
 TOOL_NAME = "pythia_market_data"
 TOOLSET = "pythia-core"  # core's one hidden toolset for plugin operations (docs/architecture/agent-tools.md)
@@ -20,11 +19,11 @@ SCHEMA = {
         "action": {"type": "string", "enum": ACTIONS},
         "provider": TEXT, "operation": {"type": "string", "enum": ["details", "series", "latest", "history"]},
         "arguments": {"type": "object", "description": "Specialist arguments for explicit call, matching the native source schema."},
-        "native_ref": parameter_schema("provider_ref"), "binding": parameter_schema("binding"),
-        "request": parameter_schema("read_request"), "criteria": CRITERIA,
+        "native_ref": wire.parameter_schema("provider_ref"), "binding": wire.parameter_schema("binding"),
+        "request": wire.parameter_schema("read_request"), "criteria": wire.CRITERIA,
         "reads": {"type": "array", "minItems": 1, "maxItems": 32, "items": {
             "type": "object", "additionalProperties": False, "required": ["request"], "properties": {
-                "request": parameter_schema("read_request"), "criteria": CRITERIA,
+                "request": wire.parameter_schema("read_request"), "criteria": wire.CRITERIA,
                 "series": {"type": "object", "description": "Retained full descriptor for pinned reads."}}}},
         "series": {"type": "object", "description": "Complete retained Series descriptor for a source-pinned read; validated by the wire contract."},
     }},

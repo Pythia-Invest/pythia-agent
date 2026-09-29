@@ -145,6 +145,20 @@ DEFS = {
         "cadence": obj({}, {key: {"type": "integer", "minimum": 1, "maximum": 86400} for key in ("latest", "history", "series")})}),
 }
 
+# The common series criteria: what a read may ask of a source's series. A tool parameter, not a wire kind (it is not
+# exported); market-data's tool and a connector's `series` operation accept the same object.
+CRITERIA = {"type": "object", "additionalProperties": False, "properties": {
+    "measurement": {"type": "string", "enum": ["last_trade", "close", "bid", "ask", "midpoint", "aggregate_price", "ohlc", "count", "ratio", "percent"]},
+    "interval": {"type": "object", "additionalProperties": False,
+                 "properties": {"kind": {"type": "string", "enum": ["tick", "day", "minute", "hour", "unknown"]},
+                                "count": {"type": "integer", "minimum": 1}}, "required": ["kind", "count"]},
+    "session": {"type": "string", "enum": ["regular", "extended", "all", "unknown"]},
+    "price_adjustment": {"type": "string", "enum": ["none", "split", "split_dividend", "unknown"]},
+    "market_data_type": {**DEFS["market_data_type"], "type": "string"},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "venue": {"type": "string", "minLength": 1, "maxLength": 512},
+    "route": {"type": "string", "minLength": 1, "maxLength": 512}}, "required": []}
+
 
 def schema(kind=None):
     """Return this contract's portable Draft 2020-12 schema."""

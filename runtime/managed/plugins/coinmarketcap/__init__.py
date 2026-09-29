@@ -1,10 +1,9 @@
 """CoinMarketCap native connector: catalogue, aggregate quotes and coin profiles.
 
-Each HTTPS read runs in one isolated standard-library worker process under the
-market-data connector budgets. There is no provider search operation: discovery
-reads the local directory, which `catalogue` feeds.
+Each HTTPS read runs in one isolated standard-library worker process under core's
+connector budgets. There is no provider search operation: discovery reads the
+local directory, which `catalogue` feeds.
 """
-import importlib
 import json
 import os
 import sys
@@ -26,31 +25,17 @@ PER_MINUTE = 30
 CACHE = {'map': 0, 'listings': 3600, 'info': 21600, 'history': 900}
 
 
-def dependencies(ctx):
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = [item for item in get_plugin_manager()._plugins.values()
-              if item.manifest.name == 'pythia-market-data' and item.enabled and item.module is not None]
-    if not ctx.has_plugin('pythia-market-data') or len(loaded) != 1:
-        raise RuntimeError('unavailable')
-    package = loaded[0].module.__name__
-    return [importlib.import_module(package + '.' + name) for name in ('wire', 'process', 'connector')]
-
-
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
-    wire, process, connector = dependencies(ctx)
+    wire, process, connector = platform.wire, platform.process, platform.connector
     definitions = schemas(wire)
     reads = connector.WorkerReads(process)
     quote_batch = connector.NativeBatch(size=100, age=600)
     config.register_cli(ctx)
 
     def ready():
-        try:
-            dependencies(ctx)
-            return Path(sys.executable).is_absolute() and WORKER.is_file()
-        except Exception:
-            return False
+        return Path(sys.executable).is_absolute() and WORKER.is_file()
 
     def invoke(operation, arguments, cancelled=None, quotes=None):
         request = None
@@ -142,8 +127,7 @@ def register(ctx):
                     if mode == 'latest':
                         groups.setdefault(unit, set()).add(reference(native))
                 replies = {unit: call('quotes', {'id': ','.join(sorted(ids)), 'convert': unit}) for unit, ids in groups.items()}
-                parallel = importlib.import_module(wire.__package__ + '.coordinated').parallel
-                return envelope(parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies), clean['reads']))
+                return envelope(connector.parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies), clean['reads']))
             native, mode, unit = selector(clean['source_selector'], config.CURRENCIES)
             series = wire.validate('series', definition(native, mode, unit))
             if (mode == 'latest') != (operation == 'latest') or request['view'] != {'kind': 'source', 'series_id': series['id']}:

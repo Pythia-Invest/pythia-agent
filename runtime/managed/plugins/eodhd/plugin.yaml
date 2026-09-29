@@ -3,7 +3,7 @@ version: 0.1.0
 description: Bounded EODHD prices, reference metadata, news and statement facts
 license: Apache-2.0
 requires_plugins:
-  - pythia-market-data
+  - pythia
 provides_tools:
   - pythia_eodhd_details
   - pythia_eodhd_series

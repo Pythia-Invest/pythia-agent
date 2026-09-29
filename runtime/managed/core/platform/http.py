@@ -194,10 +194,12 @@ def register(ctx, *, workers=4, timeout=30):
         install(app, authorize, read_body, error, poll, access, subscribe)
 
         async def cleanup(_app):
+            from .connector.process_stream import close_all  # the connector toolkit's streaming children
             for reader in readers.values(): await reader.close()
             await admission.close()
             await histories.close()
             await control.close()
+            await asyncio.to_thread(close_all)
         app.on_cleanup.append(cleanup)
         path = '/v1/pythia/plugins/{plugin:.+}/{operation}'
         app.router.add_post(path, handler)

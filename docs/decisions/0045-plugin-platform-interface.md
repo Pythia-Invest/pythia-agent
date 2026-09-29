@@ -1,8 +1,8 @@
 # 0045: Plugin platform interface v1
 
-**Status.** Accepted (2026-09-29). Implemented for core, market-data and
-Hyperliquid. The other bundled connectors follow when the connector toolkit
-moves into core.
+**Status.** Accepted (2026-09-29). Implemented for core and every bundled
+plugin. The connector toolkit moved into core on 2026-09-30, and each connector
+now depends on core alone.
 
 ## Context
 
@@ -33,29 +33,73 @@ reach core.
   `requires_plugins: [pythia]`, so Hermes runs core's `register()` first. It then
   runs `import pythia_platform as platform` and `platform.require(1)`. While core
   is missing, disabled or failed to register, the import raises
-  `ModuleNotFoundError`, and the plugin reports that it requires Pythia core.
-- **v1 is what plugins already used, and nothing new:**
+  `ModuleNotFoundError: No module named 'pythia_platform'`. The plugin adds no
+  message of its own: Hermes records that error as the plugin's load failure.
+- **v1 is what plugins use, and nothing more:**
   - `API_VERSION` and `require`;
+  - `declare_operation`, `register_read_command`, `register_agent_tool` and
+    `register_widget_presentation`;
+  - `price_sources`, `check_read`, `read_document`, `validate_live_market` and
+    the vocabulary `FilingKind`;
   - the modules `access`, `admission`, `configuration`, `request_context` and
     `subscription`;
-  - `declare_operation`, `register_read_command`, `register_agent_tool`,
-    `register_widget_presentation` and `read_bundled_asset`;
-  - `price_sources`, `check_read`, `read_document` and `validate_live_market`.
-- **Versioning is one integer.** Names are only added within a version. Removing
-  a name or changing its meaning makes version 2. A plugin that needs a later
-  addition checks for it with `hasattr`. `__all__` lists the surface, and a test
-  freezes it.
+  - the connector toolkit: the modules `connector`, `wire` and `process`;
+  - for a plugin that coordinates other plugins' reads (market-data), five
+    wrappers of Hermes's public API: `tool_schemas`, `dispatch`, `interrupted`,
+    `session` and `session_platform`.
+- **An exported module offers only its frozen members.** v1 exports a view of
+  each module, not the module, and a member outside the list raises
+  `AttributeError`, so core's other contents, such as `access.native_tool_owners`
+  and its Hermes plugin objects, stay private. The frozen members are:
+  - `access`: `ContextUnavailable`, `eligible_tools`, `native_access_scope`,
+    `owned_tools`;
+  - `admission`: `AdmissionError`;
+  - `configuration`: `value`, `needs_configuration`;
+  - `request_context`: `cancel_signal`, `cancelled`, `usage`;
+  - `subscription`: `Subscription`;
+  - `connector`: `WorkerReads`, `SourceFailure`, `qualify_failure`,
+    `NativeBatch`, `worker_batch`, `worker_item`, `ResidentTransport`,
+    `Transport`, `connection`, `failed_item`, `detail`, `item_failures`,
+    `qualify_items`, `worker_failure`, `emit`, `ReadCache`,
+    `ReadCancelled`, `parallel`, `StreamingWorker`, `retry_after`;
+  - `wire`: `WireError`, `require`, `validate`, `validate_parameters`,
+    `validate_read_result`, `parameter_schema`, `CRITERIA`;
+  - `process`: `run_worker`, `WorkerError`.
+- **Versioning is one integer.** Names and members are only added within a
+  version. Removing either or changing its meaning makes version 2. A plugin
+  that needs a later addition checks for it with `hasattr`. `__all__` and the
+  member lists are the surface, and a test freezes both.
 - **The module is flat, not a package.** `from pythia_platform import access`
   works. `import pythia_platform.access` fails with "not a package" instead of
   loading a second copy of core's files.
-- **Core's private reads of Hermes live in one file,
-  `core/platform/harness.py`.** Core still has no public way to list the loaded
-  plugins or find a tool's actual owner at the pin, so it reads `_plugins` and
-  `_registration_order` there and nowhere else.
-- **`tooling/check-boundaries.mjs` enforces this in `just check`.** Under
-  `runtime/managed/plugins/`, a Python file may not import a Hermes module, read
-  the plugin manager, or import a computed module name. Under
-  `runtime/managed/core/`, only `harness.py` may read the plugin manager.
+- **One core serves a process.** While another core's interface is still
+  published, `publish` raises instead of rebinding, and unloading a core
+  removes the binding only if it is still that core's.
+- **Core's reads of the plugin manager's private state live in one file,
+  `core/platform/harness.py`.** Core still has no public way to find a tool's
+  actual owner at the pin, so it reads `_plugins` and `_registration_order`
+  there and nowhere else. Core also uses two other private Hermes seams, each
+  in the one file that needs it: `model_tools._clear_tool_defs_cache` in
+  `core/platform/access.py`, before it computes the tools a caller may run, and
+  the API server adapter's `_expected_api_key` and `_check_auth` in
+  `core/platform/http.py`, which authenticate the protected HTTP adapter.
+- **The connector toolkit is core's.** Bounded worker and HTTPS reads, budgets,
+  caching, batching, safe failures, logging and the market-data wire contract
+  live in `core/platform/connector/`. [ADR 0033](0033-native-feature-packages.md)
+  already gives platform support bounded execution and cleanup, and every
+  connector needs them whether or not it contributes prices. A connector
+  declares `requires_plugins: [pythia]` and nothing else. Market-data keeps the
+  financial backend, its tool, reads, selection, delivery and widgets.
+- **`tooling/check-boundaries.mjs` enforces this in `just check`, with no
+  exceptions.** Under `runtime/managed/plugins/`, a Python file may not import
+  a Hermes module: any `hermes_*` module or one of the pinned Hermes's other
+  top-level packages and modules, also in a comma-separated or
+  backslash-continued import or after `;` or `:`. It may not read the plugin
+  manager or import dynamically: `importlib`, `import_module`, `__import__` and
+  `sys.modules` all fail, as do `from sys import modules` and an aliased `sys`.
+  Under `runtime/managed/core/`, only `harness.py` may read the plugin
+  manager, and each of the other two seams stays in its file. The check is a
+  line scan of known patterns, not a sandbox.
 
 ### This overrides the Hermes contract's "no import aliases" rule
 
@@ -79,19 +123,22 @@ table. The contract now describes this one alias and still rules out any other.
   still planned, not built.
 - **One core per process** remains the invariant. The interface adds no support
   for several Hermes homes in one process.
-- **A Hermes pin bump** now requires rechecking `harness.py` and core's public
-  Hermes imports. If load ordering by `requires_plugins` changed, the assembled
-  qualification would fail on `import pythia_platform`.
+- **A Hermes pin bump** now requires rechecking `harness.py`, the two other
+  private seams in `access.py` and `http.py`, and core's public Hermes imports.
+  If load ordering by `requires_plugins` changed, the assembled qualification
+  would fail on `import pythia_platform`.
 - **An edited core kept from before v1** does not publish the interface. Updated
   plugins then refuse to register until the investor reconciles that core.
-- **Temporary exceptions.** Market-data's connector toolkit (`wire`,
-  `connector`, `process` and the rest) still lives in market-data. Until it
-  moves into core, the nine bundled connectors reach it through the plugin
-  manager, and market-data still imports `tools.registry`, `tools.interrupt` and
-  `gateway.session_context`. The boundary check lists exactly those files, and
-  it fails when a listed file no longer needs its exception, so the list only
-  shrinks. The toolkit move empties it and adds v1 names for market-data's
-  remaining Hermes needs.
+- **No compatibility shim is kept.** A plugin written to the old
+  `runtime/contracts/hermes.md` rule, whether user-edited or third-party, looked
+  up market-data in Hermes's plugin table and imported its `wire`, `connector`
+  or `process` modules. Market-data no longer holds them, so such a plugin stops
+  loading until it moves to `pythia_platform`. The same holds for market-data's
+  retired `credentials.py` token reader.
+- **Disabling market-data no longer unloads unrelated sources.** SEC, OpenFIGI,
+  GLEIF, filings.xbrl.org and NSM depend on core alone and keep serving identity
+  and filings. Price connectors still register; their contributions become
+  sources again when market-data is enabled.
 
 ## Rejected alternatives
 
@@ -112,3 +159,9 @@ table. The contract now describes this one alias and still rules out any other.
   prepares a harness replacement that is not a stage 0 goal.
 - **Routing core's ordinary Hermes imports through the adapter now.** ADR 0033
   accepts them. Only the private reads move.
+- **Market-data publishing its own toolkit to connectors.** That would be a
+  second platform, and connectors would still fail whenever market-data is
+  disabled.
+- **Exporting whole modules and freezing only the top-level names.** Every
+  member of an exported module, including Hermes objects, would then be part of
+  the interface by accident.

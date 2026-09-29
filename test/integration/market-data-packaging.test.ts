@@ -218,7 +218,12 @@ platform_toolsets:
         // Native validation begins only after the complete set is copied.
         expect(
           existsSync(
-            join(paths.profileRoot, "plugins", "pythia-market-data", "wire.py"),
+            join(
+              paths.profileRoot,
+              "plugins",
+              "pythia-market-data",
+              "reads.py",
+            ),
           ),
         ).toBe(true);
         commands.push(args);
@@ -270,8 +275,8 @@ platform_toolsets:
     const core = join(paths.profileRoot, "plugins", "pythia");
     mkdirSync(core, { recursive: true });
     writeFileSync(join(core, "marker"), "previous");
-    const wire = join(paths.managedRoot, "plugins/market-data/wire.py");
-    rmSync(wire);
+    const reads = join(paths.managedRoot, "plugins/market-data/reads.py");
+    rmSync(reads);
     const execute = () => {
       throw new Error("must not run native commands");
     };
@@ -280,17 +285,17 @@ platform_toolsets:
     ).toThrow();
     expect(readFileSync(join(core, "marker"), "utf8")).toBe("previous");
     symlinkSync(
-      join(paths.managedRoot, "plugins/market-data/wire_schema.py"),
-      wire,
+      join(paths.managedRoot, "plugins/market-data/selection.py"),
+      reads,
     );
     expect(() =>
       refreshManagedPlugins(paths, "synthetic", { execute }),
     ).toThrow(/regular file/u);
     expect(readFileSync(join(core, "marker"), "utf8")).toBe("previous");
-    rmSync(wire);
+    rmSync(reads);
     copyFileSync(
-      join(repository, "runtime/managed/plugins/market-data/wire.py"),
-      wire,
+      join(repository, "runtime/managed/plugins/market-data/reads.py"),
+      reads,
     );
     rmSync(core, { recursive: true });
     const foreign = join(paths.root, "foreign");

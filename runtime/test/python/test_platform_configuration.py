@@ -8,11 +8,10 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from market_data_fixture import PACKAGE, PLATFORM, platform_module  # noqa: F401 - loads the core fixture
+from market_data_fixture import PLATFORM
 
 configuration = importlib.import_module(PLATFORM + '.configuration')
 access = importlib.import_module(PLATFORM + '.access')
-credentials = importlib.import_module(PACKAGE + '.credentials')
 
 CONTACT = {'key': 'sec_identity', 'kind': 'identity', 'label': 'SEC contact',
            'description': 'Name email@example.org', 'url': 'https://www.sec.gov/os/accessing-edgar-data',
@@ -80,10 +79,6 @@ class PluginConfiguration(unittest.TestCase):
         self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('invalid', None))
         self.store('secrets.json', {'example_api_token': 'x' * 513})
         self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('invalid', None))
-
-    def test_market_data_uses_the_core_reader(self):
-        self.store('secrets.json', {'eodhd_api_token': 'synthetic-eodhd'})
-        self.assertEqual(credentials.eodhd_token(), ('configured', 'synthetic-eodhd'))
 
     def test_cached_access_changes_when_identity_settings_change(self):
         self.store('secrets.json', {})

@@ -4,39 +4,23 @@ Connectors opt into read_batch through their existing native contribution.
 Otherwise independent reads run with bounded concurrency. No source retry,
 substitution, discovery registry, or observation archive is introduced.
 """
-from concurrent.futures import ThreadPoolExecutor
-from contextvars import copy_context, ContextVar
+from pythia_platform import connector, wire
 
 from .reads import prepare_read
-from .selection import CRITERIA, fingerprint
-from .wire import require, validate, validate_parameters, validate_read_result
-
-_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='pythia-read-group')
-_inside = ContextVar('pythia_parallel_read', default=False)
+from .selection import fingerprint
 
 
 def validate_input(item):
-    require(type(item) is dict and {"request"} <= set(item) <= {"request", "criteria", "series"}, "reads", "invalid read fields")
-    validate("read_request", item["request"])
-    validate_parameters(CRITERIA, item.get("criteria", {}))
+    wire.require(type(item) is dict and {"request"} <= set(item) <= {"request", "criteria", "series"}, "reads", "invalid read fields")
+    wire.validate("read_request", item["request"])
+    wire.validate_parameters(wire.CRITERIA, item.get("criteria", {}))
     if "series" in item:
-        validate("series", item["series"])
+        wire.validate("series", item["series"])
     return item
 
 
-def parallel(function, values):
-    if _inside.get():
-        return [function(value) for value in values]
-    def call(value):
-        token = _inside.set(True)
-        try: return function(value)
-        finally: _inside.reset(token)
-    tasks = [_pool.submit(copy_context().run, call, value) for value in values]
-    return [task.result() for task in tasks]
-
-
 def read_many(backend, items):
-    require(type(items) is list and 1 <= len(items) <= 32, "reads", "expected one to 32 reads")
+    wire.require(type(items) is list and 1 <= len(items) <= 32, "reads", "expected one to 32 reads")
     for item in items:
         validate_input(item)
     keys = [fingerprint(item) for item in items]
@@ -52,7 +36,7 @@ def read_many(backend, items):
         except StopIteration as done:
             return key, None, None, done.value
 
-    for key, plan, execution, result in parallel(prepare, list(unique.items())):
+    for key, plan, execution, result in connector.parallel(prepare, list(unique.items())):
         if plan is None:
             results[key] = result
         else:
@@ -90,10 +74,10 @@ def read_many(backend, items):
             rows = [backend.source(provider, operation, entry["arguments"]) for entry in entries]
         return [(key, raw) for entry, raw in zip(entries, rows) for key in entry["keys"]]
 
-    for group in parallel(execute, list(groups.items())):
+    for group in connector.parallel(execute, list(groups.items())):
         for key, raw in group:
             try:
                 plans[key].send(raw)
             except StopIteration as done:
-                results[key] = validate_read_result(done.value)
+                results[key] = wire.validate_read_result(done.value)
     return [results[key] for key in keys]

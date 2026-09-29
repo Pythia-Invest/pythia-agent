@@ -5,14 +5,14 @@ import types
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
-from market_data_fixture import PACKAGE
+from market_data_fixture import TOOLKIT
 
 path = Path(__file__).resolve().parents[2] / 'managed/plugins/eodhd'
 module = types.ModuleType('stream_context_fixture'); module.__path__ = [str(path)]
 sys.modules[module.__name__] = module
 results = importlib.import_module(module.__name__ + '.stream_results')
 series = importlib.import_module(module.__name__ + '.series')
-wire = importlib.import_module(PACKAGE + '.wire')
+wire = importlib.import_module(TOOLKIT + '.wire')
 
 
 class StreamContext(unittest.TestCase):

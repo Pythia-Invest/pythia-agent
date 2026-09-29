@@ -1,9 +1,8 @@
 """Native filings.xbrl.org connector: issuer resolve and report content by LEI.
 
-Shared host support owns transport and authorization; market-data's connector
-library supplies bounded reads. There is deliberately no search operation.
+Shared host support owns transport and authorization; core's connector toolkit
+supplies bounded reads. There is deliberately no search operation.
 """
-import importlib
 import json
 from pathlib import Path
 import time
@@ -18,14 +17,6 @@ MESSAGES = {
     'unavailable_report': 'The selected report has validation errors or no machine-readable data. Inspect its filing link; no older report was substituted.',
     'missing_observation': 'The repository has no report matching this request.',
 }
-
-
-def helpers(ctx):
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = get_plugin_manager()._plugins.get('pythia-market-data')
-    if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
-        raise RuntimeError('unavailable')
-    return tuple(importlib.import_module(loaded.module.__name__ + '.' + name) for name in ('wire', 'connector', 'selection'))
 
 
 def envelope(data, issues=None, outcome=None):
@@ -158,18 +149,15 @@ class Reader:
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
-    wire, connector, selection = helpers(ctx)
-    reader = Reader(wire, connector, extract=platform.read_document)
+    reader = Reader(platform.wire, platform.connector, extract=platform.read_document)
     ctx.register_skill('xbrl-filings', Path(__file__).parent / 'skills/xbrl-filings/SKILL.md',
         description='Read public ESEF and other XBRL annual report links and reported financial facts by company LEI.',
         frontmatter={'platforms': ['linux', 'macos']})
     for operation, schema in reader.definitions.items():
         def handler(arguments, _operation=operation, **context):
-            helpers(ctx)
-            access = selection.native_access_scope()
+            access = platform.access.native_access_scope()
             result = reader.invoke(_operation, arguments, context.get('cancelled'), cache_scope=access)
-            helpers(ctx)
-            if selection.native_access_scope() != access:
+            if platform.access.native_access_scope() != access:
                 return json.dumps(envelope(None, [{'code': 'unavailable', 'severity': 'error',
                     'message': 'Native access changed during the XBRL repository read.'}]))
             return json.dumps(result, allow_nan=False)
