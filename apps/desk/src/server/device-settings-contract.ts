@@ -32,7 +32,7 @@ export type DeviceSettingsSnapshot = {
 export interface DeviceSettingsService {
   /** Save an empty profile's first-send model; true when this call saved it. */
   initializeModel(selection: ModelSelection): Promise<boolean>;
-  /** Keep a first-send model only if its run does not fail (null: it never started). */
+  /** Clear a first-send model if its run fails on provider credentials (null: it never started). */
   settleInitialModel(
     selection: ModelSelection,
     runId: string | null,
@@ -54,6 +54,8 @@ export type DeviceSettingsOptions = {
   restartHermes?: () => Promise<void>;
   readbackAttempts?: number;
   readbackDelayMs?: number;
+  /** Poll interval while watching a first-send run (default 500 ms, for two minutes). */
+  firstRunPollMs?: number;
 };
 
 export class DeviceSettingsError extends Error {

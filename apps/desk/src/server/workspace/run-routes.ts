@@ -73,10 +73,10 @@ export function createWorkspaceRunRoutes(
           run = await client.startRun(sessionId, input, selection);
         } catch (error) {
           if (selection && initialized)
-            await settings.settleInitialModel(selection, null).catch(() => {});
+            void settings.settleInitialModel(selection, null).catch(() => {});
           throw error;
         }
-        // A first-send model that cannot run fails inside the run; do not keep it.
+        // A first-send model without usable credentials fails inside the run; do not keep it.
         if (selection && initialized)
           void settings
             .settleInitialModel(selection, run.run_id)

@@ -36,6 +36,9 @@ const TERMINAL_RUN = new Set([
   "cancelled",
   "interrupted",
 ]);
+// Pinned Hermes's /v1/runs error when the run cannot resolve provider credentials
+// (_ProviderAuthResolutionError in gateway/platforms/api_server_runs.py).
+const PROVIDER_AUTH_FAILED = /^⚠️ Provider authentication failed: /u;
 
 export {
   DeviceSettingsError,
@@ -193,14 +196,15 @@ export function createDeviceSettingsService(
     );
   }
 
-  // Hermes resolves the provider inside the run; watch it about two minutes by default.
-  async function runOutcome(runId: string) {
-    for (let attempt = 0; attempt < attempts * 6; attempt += 1) {
-      await sleep(delay * 4);
+  // Hermes resolves the provider inside the run, so watch the first run's native status.
+  async function finishedRun(runId: string) {
+    const poll = options.firstRunPollMs ?? 500;
+    for (let waited = 0; waited < 120_000; waited += Math.max(poll, 1)) {
+      await sleep(poll);
       const run = await client.getRun(runId).catch(() => null);
-      if (run && TERMINAL_RUN.has(run.status)) return run.status;
+      if (run && TERMINAL_RUN.has(run.status)) return run;
     }
-    return "unknown";
+    return null;
   }
 
   return {
@@ -216,7 +220,15 @@ export function createDeviceSettingsService(
       );
     },
     async settleInitialModel(selection, runId) {
-      if (runId !== null && (await runOutcome(runId)) !== "failed") return;
+      if (runId !== null) {
+        // Only a credential failure clears the pair; outages and crashes keep it.
+        const run = await finishedRun(runId);
+        if (
+          run?.status !== "failed" ||
+          !PROVIDER_AUTH_FAILED.test(run.error ?? "")
+        )
+          return;
+      }
       await withFileLock(paths().lock, async () =>
         releaseProfileModel(
           selection,

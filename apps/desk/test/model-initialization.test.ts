@@ -13,7 +13,7 @@ afterEach(() => {
 function fixture(
   initial: unknown = {},
   authenticated = true,
-  runStatus = "completed",
+  run: { status: string; error?: string } = { status: "completed" },
 ) {
   const root = mkdtempSync(join(tmpdir(), "pythia-first-model-"));
   roots.push(root);
@@ -36,7 +36,7 @@ function fixture(
   });
   const restartHermes = vi.fn(async () => {});
   const service = createDeviceSettingsService({
-    readbackDelayMs: 0,
+    firstRunPollMs: 0,
     configRoot: root,
     environment: { NODE_ENV: "test" },
     profile: "fixture",
@@ -48,7 +48,7 @@ function fixture(
           { slug: "example", authenticated, models: [{ id: "model-one" }] },
         ],
       }),
-      getRun: async (run_id: string) => ({ run_id, status: runStatus }),
+      getRun: async (run_id: string) => ({ run_id, ...run }),
     } as HermesClient,
   });
   return { service, command, restartHermes, stored: () => stored };
@@ -100,14 +100,26 @@ it("does not start successfully if native readback or restart fails", async () =
     "restart failed",
   );
 });
+const saved = { provider: "example", default: "model-one" };
+const authFailure = {
+  status: "failed",
+  error:
+    "⚠️ Provider authentication failed: No Anthropic credentials found. Set ANTHROPIC_TOKEN or ANTHROPIC_API_KEY.",
+};
 it.each([
-  ["failed", "r-1", {}],
-  ["never started", null, {}],
-  ["completed", "r-1", { provider: "example", default: "model-one" }],
+  ["a credential failure", authFailure, "r-1", {}],
+  ["a run that never started", { status: "completed" }, null, {}],
+  [
+    "a network error",
+    { status: "failed", error: "ConnectError: connection reset" },
+    "r-1",
+    saved,
+  ],
+  ["a completed run", { status: "completed" }, "r-1", saved],
 ])(
-  "keeps a first-send model only if its run does not fail: %s",
-  async (status, runId, expected) => {
-    const f = fixture({}, true, status);
+  "clears a first-send model only after %s",
+  async (_label, run, runId, expected) => {
+    const f = fixture({}, true, run);
     expect(await f.service.initializeModel(selection)).toBe(true);
     await f.service.settleInitialModel(selection, runId);
     expect(f.stored()).toEqual(expected);
@@ -116,14 +128,18 @@ it.each([
     );
   },
 );
-it("leaves a choice made since the first send alone", async () => {
-  const f = fixture(
-    { provider: "other", default: "model-two" },
-    true,
-    "failed",
-  );
-  expect(await f.service.initializeModel(selection)).toBe(false);
+it("leaves a choice changed since the first send alone", async () => {
+  const f = fixture({}, true, authFailure);
+  expect(await f.service.initializeModel(selection)).toBe(true);
+  await f.command([
+    "-p",
+    "fixture",
+    "config",
+    "set",
+    "model.default",
+    "model-two",
+  ]);
   await f.service.settleInitialModel(selection, "r-1");
-  expect(f.stored()).toEqual({ provider: "other", default: "model-two" });
-  expect(f.restartHermes).not.toHaveBeenCalled();
+  expect(f.stored()).toEqual({ provider: "example", default: "model-two" });
+  expect(f.restartHermes).toHaveBeenCalledTimes(1);
 });

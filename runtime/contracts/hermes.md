@@ -382,9 +382,14 @@ overwrites an existing or partial selection. The catalog's `authenticated`
 flag means Hermes discovered a credential, not that the runtime can use it: an
 expired Claude Code token counts for discovery (`list_authenticated_providers`)
 but `resolve_anthropic_token` must refresh it. The provider is resolved inside
-the run, so Desk polls that first run's native status for about two minutes and,
-if it fails, unsets exactly the pair it saved (`hermes config unset`) and restarts
-Hermes; a kept failure would break every later request. Shared root defaults and
+the run, so Desk polls that first run's native status for about two minutes. Only
+when it fails with the error `⚠️ Provider authentication failed: …` (the
+`_ProviderAuthResolutionError` branch in `api_server_runs.py`) does Desk unset
+exactly the pair it saved (`hermes config unset`) and restart Hermes; a kept
+credential failure would break every later request. Outages, provider errors and
+crashes keep the pair. That branch also covers a rate-limited `AuthError` and any
+other runtime-resolution error (`gateway/run.py` `_resolve_runtime_agent_kwargs`);
+clearing then only returns the profile to empty. Shared root defaults and
 credentials remain untouched. Later requests use ordinary native overrides.
 Evidence: the pinned `api_server.py` handlers `_handle_model_options`,
 `_request_agent_overrides`, `_request_reasoning_config`, and the run handler in

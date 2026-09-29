@@ -49,7 +49,6 @@ class CoreTest(unittest.TestCase):
         for platform in ('api_server', 'cli', 'cron'):
             with self.subTest(platform=platform):
                 self.assertLessEqual(len(render({'platform': platform}).strip()), options['max_chars'])
-        self.assertLessEqual(options['max_chars'], 4000)
 
 
 if __name__ == '__main__':

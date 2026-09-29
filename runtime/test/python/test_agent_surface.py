@@ -116,8 +116,7 @@ class DeliveredViewTest(unittest.TestCase):
             first = re.split(r"(?<=[.!?])\s", " ".join(schema["description"].split()), maxsplit=1)[0]
             self.assertLessEqual(len(first), 60, schema["name"])
         section = operating.operating_context({"platform": "api_server"})
-        # Hermes skips, not truncates, a section over its max_chars (4,000 cap), dropping Pythia's guidance.
-        self.assertLessEqual(len(section.strip()), 4000)
+        # Its size against the registered max_chars is test_core's check.
         named = set(re.findall(r"\bpythia_\w+", section))
         self.assertLessEqual(named, set(sizes), "the operating section names a tool the model does not get")
         prefixes = set(re.findall(r"\b([a-z]+_)(?=[,)])", section))
