@@ -1,7 +1,8 @@
 """What the FIRDS claims decide for each security, and the questions they leave (R2: never a guess stored as fact).
 
 - Issuer: RTS 23 field 5 (`assemble.issuer_lei`). An LEI ISO 10383 lists for a venue's operating entity decides
-  nothing: the issuer is unknown and `issuer_identity` is asked.
+  nothing, nor does a share's field 5 its receipts contradict (`Claims.receipt_issuers`): the issuer is unknown and
+  `issuer_identity` is asked, the receipts' issuer and field 5 as the candidates.
 - Primary: field 8 names the EEA admissions the issuer requested; it decides only an EEA primary. When another
   source puts a line outside the EEA (an OpenFIGI home-exchange line, a SEC exchange line), the answer is unknown
   and `home_market` is asked. Among requested admissions, the most liquid EU market (the relevant venue) picks the
@@ -40,7 +41,8 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
         leis = claims.isins[isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
         if security.issuer_id is None and live:
             others = {line.issuer_id for line in lines[security.security_id] if line.issuer_id}
-            snap.ask("issuer_identity", security.security_id, sorted(others), evidence, sorted(leis))
+            snap.ask("issuer_identity", security.security_id, [*security.issuer_candidates, *sorted(others)], evidence,
+                     sorted(leis))
         stated = claims.isins[isin].get(Meaning.UNDERLYING_ISIN, set()) - {isin}
         if security.kind != "dr" and stated and live:  # the CFI says share, field 26 says receipt
             targets = [f"isin:{target}" for target in sorted(stated) if f"isin:{target}" in snap.securities]

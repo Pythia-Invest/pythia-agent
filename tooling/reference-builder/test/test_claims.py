@@ -11,11 +11,12 @@ from datetime import date
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import assemble, claims, firds, main, mic, source_drift
+from reference_builder import assemble, claims, firds, gleif, main, mic, source_drift
 from reference_builder.config import BuildConfig, Scope
+from reference_builder.pipeline import build_snapshot
 from reference_builder.schema import identity
 
-from .fixtures import ASML_ISIN, ASML_LEI, MIC_CSV, FakeOpenFigi, firds_record, fulins, stream
+from .fixtures import ASML_ISIN, ASML_LEI, MIC_CSV, FakeOpenFigi, firds_record, fulins, gleif_item, stream
 from .test_pipeline import OPENFIGI, SHELL_ISIN, SHELL_LEI, gleif_fetch
 
 OPERATOR_LEI = "529900OPERATORLEI001"  # illustrative: the LEI ISO 10383 lists for the Frankfurt open market
@@ -119,6 +120,44 @@ class IssuerTest(unittest.TestCase):
         decided = {isin: assemble.issuer_lei(found, claims.Venues(venues), entities, isin) for isin in found.isins}
         self.assertEqual(decided, {ASML_ISIN: ASML_LEI, "US0000000003": None, "DE0000000004": OPERATOR_LEI,
                                    "US0000000001": OPERATOR_LEI})
+
+    def test_receipts_claiming_a_share_for_a_live_issuer_without_shares_leave_its_issuer_asked(self):
+        # Field 5 on a receipt names its underlying's issuer (Q&A 1503): Nestlé S.A.'s CDR states the share FIRDS files
+        # under Nestlé Capital Markets. Another company's CDR stating a share (Oracle's, stating Thermo Fisher)
+        # contradicts its own field 26 instead: that company issues a share of its own. A retired LEI's claim (Merck
+        # Sharp & Dohme Corp. on Merck & Co.) is stale.
+        parent, vehicle, thermo, oracle = "KY37LUS27QQX7BB93L28", "549300PZN3NFSOUXLC42", "THERMOLEI00000000001", "ORACLELEI00000000001"
+        merck, msd = "4YV9Y5M8S0BRK1RP0397", "MZK1AT00SJV4XB7WNL71"
+        found = admissions(fulins([
+            firds_record("CH0038863350", "XAMS", vehicle),
+            firds_record("CA6410701073", "XAMS", parent, cfi="EDSXFR", underlying="CH0038863350"),
+            firds_record("US6410694060", "XAMS", vehicle, cfi="EDSXFR", underlying="CH0038863350"),  # the ADR
+            firds_record("US8835561023", "XAMS", thermo),
+            firds_record("US68389X1054", "XAMS", oracle),
+            firds_record("CA0000000001", "XAMS", oracle, cfi="EDSXFR", underlying="US8835561023"),
+            firds_record("US58933Y1055", "XAMS", merck),
+            firds_record("CA0000000002", "XAMS", msd, cfi="EDSXFR", underlying="US58933Y1055"),
+        ]))
+        loaded = claims.load(firds.claims(found))
+        self.assertEqual(loaded.receipt_issuers, {"CH0038863350": {parent}, "US58933Y1055": {msd}})
+        entities = {e.lei: e for e in map(gleif.entity_from_api, [
+            gleif_item(parent, "NESTLÉ S.A."), gleif_item(vehicle, "NESTLÉ CAPITAL MARKETS SA"), gleif_item(oracle, "Oracle"),
+            gleif_item(thermo, "Thermo"), gleif_item(merck, "MERCK & CO., INC."),
+            gleif_item(msd, "MERCK SHARP & DOHME CORP.", status="INACTIVE", registration="RETIRED")])}
+        snap = build_snapshot(assemble.Inputs(date(2026, 9, 26), Scope(mics=("XAMS",), sec=False), mic.parse(MIC_CSV.encode()),
+                                              found, None, [], {"XAMS"}, firds_claims=loaded),
+                              lambda leis: {lei: entities[lei] for lei in leis if lei in entities}, FakeOpenFigi({}))
+        issuers = {isin: snap.securities[f"isin:{isin}"].issuer_id
+                   for isin in ("CH0038863350", "US6410694060", "CA6410701073", "US8835561023", "US58933Y1055")}
+        self.assertEqual(issuers, {"CH0038863350": None, "US6410694060": None, "CA6410701073": f"lei:{parent}",
+                                   "US8835561023": f"lei:{thermo}", "US58933Y1055": f"lei:{merck}"})
+        asked = [(q.subject_id, q.candidates) for q in snap.questions if q.question == "issuer_identity"]
+        both = (f"lei:{parent}", f"lei:{vehicle}")  # the receipts' issuer first, then field 5: either can be the answer
+        self.assertEqual(asked, [("isin:CH0038863350", both), ("isin:US6410694060", both)])
+        self.assertLessEqual(set(both), set(snap.issuers))
+        self.assertLessEqual({("isin:CA6410701073", "isin:CH0038863350"), ("isin:US6410694060", "isin:CH0038863350")},
+                             {(r.from_id, r.to_id) for r in snap.relationships},
+                             "field 26 still links receipts under an issuer claimed for the share")
 
 
 class BuildTest(unittest.TestCase):

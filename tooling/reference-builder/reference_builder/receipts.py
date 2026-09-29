@@ -35,10 +35,10 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
                 asked.add(item.from_id)
                 continue
             receipt = snap.securities.get(item.from_id)
-            if item.source == "esma_firds" and (not receipt or not receipt.issuer_id
-                                                or receipt.issuer_id != snap.securities[target].issuer_id):
+            if item.source == "esma_firds" and not (receipt and _issuers(receipt) & _issuers(snap.securities[target])):
                 # Field 5 on a receipt is the underlying issuer's LEI (ESMA Q&A 1503): field 26 decides only when the
-                # stated security is that issuer's. Otherwise (14 CDRs stating Thermo Fisher) it is a question.
+                # stated security is that issuer's, or both are open with that LEI among the candidates (Nestlé's ADR
+                # and CDRs). Otherwise (14 CDRs stating Thermo Fisher) it is a question.
                 audit["firds_underlying_other_issuer"] += 1
                 asked.add(item.from_id)
                 stated_targets[item.from_id] = target
@@ -77,3 +77,8 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
                                                "pythia", RECEIPT_RULE))
         audit[RECEIPT_RULE] += 1
         audit["receipt_issuer_share_narrowed_to_firds"] += narrowed  # a guess worth seeing in the report
+
+
+def _issuers(security: Security) -> set[str]:
+    """Its issuer, or while FIRDS disagrees (`assemble.contested`), every issuer claimed for it."""
+    return {security.issuer_id} if security.issuer_id else set(security.issuer_candidates)

@@ -15,7 +15,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from .config import sec_user_agent
-from .fetch import Downloader
+from .fetch import Downloader, offline
 from .model import SecFund, SecTicker
 from .source_drift import Fingerprint
 
@@ -49,9 +49,9 @@ def fetch_funds(downloader: Downloader, contact: str | None, max_age: timedelta)
     return Path(record.path).read_bytes()
 
 
-def _agent(contact: str | None) -> str:
+def _agent(contact: str | None) -> str | None:
     agent = sec_user_agent(contact)
-    if agent is None:
+    if agent is None and not offline():  # an offline build sends nothing
         raise SystemExit(
             "SEC requires a name and email in the User-Agent: set `sec_identity` in "
             "<config>/pythia/settings.json (the SEC plugin's contact), pass --sec-file with a "

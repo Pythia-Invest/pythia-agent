@@ -115,23 +115,36 @@ The identity backbone reached its finish line
 with these limits accepted. Each has an owner or a trigger; none is a silent
 gap.
 
-**Reference data** (counts from the 2026-09-28 build; the ratchets in
+**Reference data** (counts from the offline default-scope build of
+2026-09-29, FIRDS week of 2026-09-26; the ratchets in
 `tooling/reference-builder/reference_builder/invariants.py` fail a build that
 exceeds them by more than 2%):
 
-- `primary_missing` is at 16,053: live securities with lines whose evidence
+- `primary_missing` is at 11,997: live securities with lines whose evidence
   decided no primary. They are home-market questions, and SEC or OpenFIGI
   gaps until those sources are onboarded.
-- `questions_open` is at 11,965: questions the build left open in the
-  package's `claims` file (10,271 `home_market`, 614 `issuer_identity`, 912
-  receipt questions and 168 SEC name-only issuer questions).
-- Shares without a primary: `share_primary_silent` is at 4,946, of which
-  4,928 are home lines decided from OpenFIGI that the package cannot write
-  without a trading currency (fixed by home currencies, #46). A security
-  without a written primary is priced on its most liquid EU line (13,782
-  lines), labelled so and never primary. The ISIN-country line suggests an
-  answer for 137 shares but decides none. See the
-  [FIRDS record](../sources/firds.md).
+- `questions_open` is at 11,964: questions the build left open in the
+  package's `claims` file (10,271 `home_market`, 629 `issuer_identity`, 895
+  receipt questions and 169 SEC name-only issuer questions).
+- Shares without a primary: `share_primary_silent` is at 1,072: 1,052 SEC
+  OTC-only shares, which no rule places, and 20 home-market questions whose
+  most liquid venue has no line. A security without a written primary is
+  priced on its most liquid EU line (9,770 lines), labelled so and never
+  primary. The ISIN-country line suggests an answer for 189 shares but
+  decides none. See the [FIRDS record](../sources/firds.md).
+- Issuers: 12 shares whose receipts name another live issuer in FIRDS field 5
+  (Nestlé's Toronto CDRs name Nestlé S.A., its share names Nestlé Capital
+  Markets), and 3 receipts of them filed under the same field 5 (Nestlé's
+  ADR), have an unknown issuer and an `issuer_identity` question with both
+  LEIs as candidates. Two were right as filed: Welltower, whose page loses its
+  filings and profile until a curator answers, and an old Barrick ISIN. The
+  builder reads no GLEIF parent relationships, so a wrong field 5 that no
+  receipt contradicts stays as filed (JTEKT under Toyota Industries;
+  `issuer_financing_vehicle` warns on 36 issuers named like financing
+  vehicles).
+- Currency read checks: London, Johannesburg and Tel Aviv home lines (1,096)
+  quote in a minor unit and carry no trading currency, so a price source's
+  stated currency is not compared there; the venue still is.
 - World-level questions are answered centrally, never on the investor's
   device (ADR 0044 ruling 7). The curator's back office that answers them
   (carried-forward answers, rules, Jev, an evidence-gathering agent and

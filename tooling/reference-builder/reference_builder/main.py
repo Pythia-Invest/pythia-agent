@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import claims, firds, firds_audit, manifest, mic, schema, sec, source_drift, truth_report, writer
+from . import claims, fetch, firds, firds_audit, manifest, mic, schema, sec, source_drift, truth_report, writer
 from .assemble import Inputs
 from .config import BUILDER_VERSION, USER_AGENT, BuildConfig, Scope, load_openfigi_key, load_sec_identity, parse_mics
 from .fetch import Downloader, log, utc_now
@@ -29,6 +29,8 @@ def parse_args(argv: list[str]) -> BuildConfig:
     parser.add_argument("--no-fitrs", action="store_true", help="skip the FITRS activity and turnover check")
     parser.add_argument("--sec-file", type=Path, help="use a downloaded company_tickers_exchange.json")
     parser.add_argument("--no-gates", action="store_true", help="write the snapshot even if a canary fails")
+    parser.add_argument("--offline", action="store_true",
+                        help="build from the download cache only, whatever its age; stop if something is not cached")
     args = parser.parse_args(argv)
     defaults = BuildConfig(scope=Scope(), as_of=args.as_of)
     return BuildConfig(
@@ -39,15 +41,21 @@ def parse_args(argv: list[str]) -> BuildConfig:
         deltas=args.deltas,
         fitrs=not args.no_fitrs,
         gates=not args.no_gates,
-        contact=load_sec_identity() if not args.no_sec and not args.sec_file else None,
+        contact=load_sec_identity() if not args.no_sec and not args.sec_file and not args.offline else None,
         sec_file=args.sec_file,
+        offline=args.offline,
     )
 
 
 def run(config: BuildConfig) -> int:
     started, clock = utc_now(), time.monotonic()
+    fetch.OFFLINE = config.cache_dir if config.offline else None  # offline, every request stops the build
+
+    def max_age(days: int) -> timedelta:  # offline, any cached copy will do
+        return timedelta.max if config.offline else timedelta(days=days)
+
     downloads = Downloader(config.cache_dir, USER_AGENT)
-    day = timedelta(days=config.listing_file_max_age_days)
+    day = max_age(config.listing_file_max_age_days)
     venues = mic.parse(mic.fetch(downloads, day))
 
     full_docs, delta_docs = firds.firds_files(USER_AGENT, config.as_of, config.deltas, config.scope.cfi_prefixes)
@@ -81,9 +89,9 @@ def run(config: BuildConfig) -> int:
         return 2
     sec_rows = sec.parse(sec_files[sec.TICKERS]) if sec.TICKERS in sec_files and sec.TICKERS not in sec_broken else []
     funds = sec.parse_funds(sec_files[sec.FUNDS]) if sec.FUNDS in sec_files and sec.FUNDS not in sec_broken else []
-    figi = OpenFigi(config.cache_dir, USER_AGENT, load_openfigi_key(), timedelta(days=config.openfigi_max_age_days))
+    figi = OpenFigi(config.cache_dir, USER_AGENT, load_openfigi_key(), max_age(config.openfigi_max_age_days))
     log(f"OpenFIGI: {'keyed' if figi.keyed else 'keyless (slower rate limits)'}")
-    gleif = GleifClient(config.cache_dir, USER_AGENT, timedelta(days=config.gleif_max_age_days))
+    gleif = GleifClient(config.cache_dir, USER_AGENT, max_age(config.gleif_max_age_days))
 
     inputs = Inputs(config.as_of, config.scope, venues, admissions, transparency, sec_rows, figi.mic_codes(), funds,
                     firds_claims)

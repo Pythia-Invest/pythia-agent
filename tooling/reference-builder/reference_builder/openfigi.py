@@ -16,7 +16,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .fetch import HttpError, log, request, utc_now
+from .fetch import HttpError, log, offline, request, utc_now
 
 MAPPING_URL = "https://api.openfigi.com/v3/mapping"
 MIC_VALUES_URL = "https://api.openfigi.com/v3/mapping/values/micCode"
@@ -55,7 +55,10 @@ class OpenFigi:
         return self._key is not None
 
     def mic_codes(self) -> set[str]:
-        """The micCode values OpenFIGI accepts (fetched once per build, keyless GET)."""
+        """The micCode values OpenFIGI accepts (fetched once per build, keyless GET). Offline, the ones the cached
+        jobs used: the same jobs again, so the same cached answers."""
+        if offline():
+            return {mic for (mic,) in self._db.execute("SELECT DISTINCT json_extract(job, '$.micCode') FROM answers") if mic}
         return set(request(MIC_VALUES_URL, user_agent=self.user_agent).json().get("values") or [])
 
     def _fresh(self, entry: dict) -> bool:
