@@ -6,9 +6,9 @@ import importlib
 from threading import Event
 import unittest
 
-from market_data_fixture import PACKAGE, PLATFORM
+from market_data_fixture import PLATFORM, TOOLKIT
 
-cache = importlib.import_module(PACKAGE + '.cache')
+cache = importlib.import_module(TOOLKIT + '.cache')
 context = importlib.import_module(PLATFORM + '.request_context')
 LiveReads = importlib.import_module(PLATFORM + '.live').LiveReads
 

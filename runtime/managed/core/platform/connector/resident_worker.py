@@ -11,7 +11,7 @@ from pathlib import Path
 from . import diagnostics
 from .process import WorkerError
 from .process_stream import StreamingWorker
-from .selection import fingerprint
+from ..access import fingerprint
 
 
 class ResidentTransport:

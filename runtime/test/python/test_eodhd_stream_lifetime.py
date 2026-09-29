@@ -4,14 +4,15 @@ import threading
 import time
 import types
 import unittest
-from test_eodhd_provider import identity, series, wire, request
+from market_data_fixture import platform_module
+from test_eodhd_provider import identity, series, request
 
 Streams = importlib.import_module('test_eodhd.stream').Streams
 
 
 class StreamLifetime(unittest.TestCase):
     def test_disconnect_between_listener_registration_and_cached_delivery_stays_stale(self):
-        owner = Streams(types.SimpleNamespace(get_config=lambda *_: 'demo'), wire,
+        owner = Streams(types.SimpleNamespace(get_config=lambda *_: 'demo'), platform_module,
                         types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic')))
         closed, received, errors = threading.Event(), [], []
         owner.worker = types.SimpleNamespace(closed=closed, close=closed.set, send=lambda *_: None)
@@ -20,7 +21,7 @@ class StreamLifetime(unittest.TestCase):
         descriptor = series.definition(identity.native('SYNTH.US', 'USD'), 'edgx_latest')
         owner.latest[('us', 'SYNTH')] = {'type': 'data', 'feed': 'us', 'symbol': 'SYNTH',
             'rows': [{'t': 1788955200000, 'p': '2', 'v': '0'}], 'gap': False}
-        Subscription = importlib.import_module(wire.__package__ + '.subscriptions').Subscription
+        Subscription = platform_module.subscription.Subscription
         subscription = Subscription(received.append)
         def join():
             try:
@@ -52,7 +53,7 @@ class StreamLifetime(unittest.TestCase):
             owner.close()
 
     def test_data_delivery_and_concurrent_loss_preserve_event_order(self):
-        owner = Streams(None, None, None)
+        owner = Streams(None, platform_module, None)
         owner.generation = 'fixture'
         started, release, attempted, finished = (threading.Event() for _ in range(4))
         received, errors = [], []
@@ -91,13 +92,13 @@ class StreamLifetime(unittest.TestCase):
         self.assertEqual(received[:2], ['ready', 'stale'])
 
     def test_published_callback_can_release_its_native_subscription(self):
-        owner = Streams(types.SimpleNamespace(get_config=lambda *_: 'demo'), wire,
+        owner = Streams(types.SimpleNamespace(get_config=lambda *_: 'demo'), platform_module,
                         types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic')))
         closed = threading.Event()
         owner.worker = types.SimpleNamespace(closed=closed, close=closed.set, send=lambda *_: None)
         owner.generation = 'fixture'
         descriptor = series.definition(identity.native('SYNTH.US', 'USD'), 'edgx_latest')
-        Subscription = importlib.import_module(wire.__package__ + '.subscriptions').Subscription
+        Subscription = platform_module.subscription.Subscription
         subscription = Subscription(lambda _event: subscription.close())
         owner.subscribe({'request': request(descriptor, 'latest'),
             'source_selector': descriptor['source_detail']['values']['read_selector']}, subscription)
@@ -116,7 +117,7 @@ class StreamLifetime(unittest.TestCase):
             owner.close()
 
     def test_new_subscriber_does_not_receive_ready_after_no_recent_observation(self):
-        owner = Streams(types.SimpleNamespace(get_config=lambda *_: 'demo'), wire,
+        owner = Streams(types.SimpleNamespace(get_config=lambda *_: 'demo'), platform_module,
                         types.SimpleNamespace(eodhd_token=lambda: ('configured', 'synthetic')))
         closed, received, stops = threading.Event(), [], []
         owner.worker = types.SimpleNamespace(closed=closed, close=closed.set, send=lambda *_: None)

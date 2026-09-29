@@ -2,9 +2,9 @@
 
 Native `pythia-gleif` is an issuer-level reference connector. It resolves an LEI
 or ISIN to GLEIF legal-entity references and reads the legal-entity profile by
-LEI. It needs no key and uses the shared protected operation adapter and
-market-data's connector library. The package includes the `pythia-gleif:gleif`
-skill.
+LEI. It needs no key and uses the shared protected operation adapter and core's
+connector toolkit, and it depends on Pythia core alone. The package includes the
+`pythia-gleif:gleif` skill.
 
 It has no search operation. Finding an investment is a local directory read owned
 by Pythia's core; this plugin only answers explicit identifier questions and

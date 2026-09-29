@@ -1,5 +1,4 @@
 """Native EODHD provider; configuration checks never probe entitlement or network."""
-import importlib
 import json
 import hashlib
 import os
@@ -15,17 +14,6 @@ from .catalogue_pages import catalogue_page
 NEWS_WARNINGS = frozenset({'schema_drift'})
 
 
-def helpers(ctx):
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = get_plugin_manager()._plugins.get('pythia-market-data')
-    if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
-        raise RuntimeError('unavailable')
-    import pythia_platform  # published by Pythia core (ADR 0045)
-    namespace = loaded.module.__name__
-    wire, process = (importlib.import_module(namespace + '.' + name) for name in ('wire', 'process'))
-    return wire, process, pythia_platform.configuration
-
-
 def paths():
     root = os.environ.get('PYTHIA_MANAGED_ROOT', '')
     node = os.environ.get('PYTHIA_NODE', '')
@@ -38,14 +26,14 @@ def paths():
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
-    wire, process, core = helpers(ctx)
-    configuration = Configuration(ctx, core)
+    wire, process = platform.wire, platform.process
+    configuration = Configuration(ctx, platform.configuration)
     definitions = schemas(wire)
-    budgets = failures = batching = importlib.import_module(wire.__package__ + '.connector')
+    budgets = failures = batching = platform.connector
     reads = failures.WorkerReads(process)
     quote_batch = batching.NativeBatch(size=32, age=60)
     from .stream import Streams
-    streams = Streams(ctx, wire, configuration)
+    streams = Streams(ctx, platform, configuration)
 
     ctx.register_skill('eodhd', Path(__file__).parent / 'skills/eodhd/SKILL.md',
         description='Use EODHD source series, identifier mappings, catalogue, news, fundamentals, specialist quotes and explicitly enabled EDGX streams.')
@@ -57,11 +45,10 @@ def register(ctx):
         if args.mode is not None: ctx.set_config('streaming', args.mode)
         print(json.dumps({'streaming': streams.mode()}))
     ctx.register_cli_command('eodhd-streaming', 'Explicitly enable Cboe EDGX demo or account streaming; does not change existing series', stream_setup, stream_config)
-    metadata_cache = importlib.import_module(wire.__package__ + '.cache').ReadCache(max_entries=128, ttl_seconds=300)
+    metadata_cache = platform.connector.ReadCache(max_entries=128, ttl_seconds=300)
 
     def installed():
         try:
-            helpers(ctx)
             paths()
             return True
         except Exception:
@@ -142,8 +129,7 @@ def register(ctx):
                 return nonread_result(raw)
             if operation == 'read_batch':
                 if any(selector(item['source_selector'])[1] in STREAM_MODES for item in clean['reads']):
-                    parallel = importlib.import_module(wire.__package__ + '.coordinated').parallel
-                    return envelope(parallel(lambda item: invoke(item['request']['operation'], item, cancelled), clean['reads']))
+                    return envelope(batching.parallel(lambda item: invoke(item['request']['operation'], item, cancelled), clean['reads']))
                 symbols = set()
                 for item in clean['reads']:
                     native, mode = selector(item['source_selector'])
@@ -154,8 +140,7 @@ def register(ctx):
                 if symbols:
                     raw = call('latest_batch', {'symbols': sorted(symbols)})
                     replies = raw
-                parallel = importlib.import_module(wire.__package__ + '.coordinated').parallel
-                return envelope(parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies), clean['reads']))
+                return envelope(batching.parallel(lambda item: invoke(item['request']['operation'], item, cancelled, replies), clean['reads']))
             if operation == 'dashboard':
                 return failures.qualify_items(nonread_result(call(operation, clean)))
             if operation in ('reverse', 'identifiers'):

@@ -1,13 +1,13 @@
 # CoinMarketCap connector
 
-`pythia-coinmarketcap` is a native plugin that depends on `pythia-market-data`.
+`pythia-coinmarketcap` is a native plugin that depends on Pythia core alone.
 It supplies a crypto **catalogue** for the local directory, aggregate **quotes**
 and price samples through the common market-data reads, and coin **profiles**
 (description, logo, links, deployments) as page content. It has no provider
 search operation: search reads the local directory, which `catalogue` feeds.
 
 Each HTTPS read runs in one isolated standard-library worker (`worker.py`, run
-with the pinned Hermes interpreter and `-I`) under the market-data connector
+with the pinned Hermes interpreter and `-I`) under core's connector
 budget. Requests go only to fixed `https://pro-api.coinmarketcap.com` endpoints,
 never follow redirects, and address coins by numeric CoinMarketCap ID.
 

@@ -59,6 +59,11 @@ def native_tool_owners():
     return tool_owners()
 
 
+def owned_tools():
+    """Names of the active tools that have an actual native plugin owner."""
+    return frozenset(native_tool_owners())
+
+
 def native_plugin_enabled(key, plugin, config):
     settings = config.get('plugins')
     settings = settings if isinstance(settings, dict) else {}

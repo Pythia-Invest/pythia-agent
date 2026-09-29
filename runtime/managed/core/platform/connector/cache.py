@@ -7,9 +7,8 @@ import json
 from threading import RLock, Event, BoundedSemaphore
 import time
 
-from pythia_platform import request_context
+from ..request_context import cancel_signal, cancelled
 
-cancel_signal, cancelled = request_context.cancel_signal, request_context.cancelled
 _pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix='pythia-shared-read')
 _capacity = BoundedSemaphore(64)
 _producing = ContextVar('pythia_cache_producer', default=False)

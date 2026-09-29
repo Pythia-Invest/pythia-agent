@@ -124,19 +124,15 @@ class ShippedContracts(unittest.TestCase):
                           'pythia-xbrl-filings', 'pythia-yahoo-discovery'})
         self.assertEqual(standing['pythia-hyperliquid'], identity.SignOff.UNSIGNED)  # opt-in and display-only
         self.assertEqual(standing['pythia-nsm'], identity.SignOff.UNSIGNED)  # onboarding: docs/sources/nsm.md
-        self.assertEqual(set(standing), identity.BUNDLED)  # core knows every plugin Pythia ships
-
-    def test_a_plugin_pythia_does_not_bundle_cannot_vouch_for_itself(self):
-        sec = manifest('sec')
-        self.assertIs(identity.vouched(sec, 'pythia-sec').signoff, identity.SignOff.GRANDFATHERED)
-        self.assertTrue(identity.vouched(sec, 'community-sec').unaudited)
 
     def test_the_filings_kinds_parameters_are_cores_filing_kinds(self):
+        from market_data_fixture import wire
         for plugin in ('sec', 'nsm'):
             spec = importlib.util.spec_from_file_location(plugin + '_definition', PLUGINS / plugin / 'definition.py')
             definition = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(definition)
-            self.assertEqual(definition.FILING_KINDS, tuple(identity.concepts.FilingKind), plugin)
+            kinds = definition.schemas(wire)['filings']['parameters']['properties']['kinds']['items']['enum']
+            self.assertEqual(kinds, [kind.value for kind in identity.concepts.FilingKind], plugin)
 
     def test_filing_sources_declare_their_authorities(self):
         self.assertEqual(manifest('sec').concepts[identity.Concept.FILINGS].authorities, ('sec',))

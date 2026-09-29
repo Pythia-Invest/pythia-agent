@@ -100,17 +100,22 @@ def register(ctx):
 ```
 
 Version 1 holds `declare_operation`, `register_read_command`,
-`register_agent_tool`, `register_widget_presentation`, `read_bundled_asset`,
-`price_sources`, `check_read`, `read_document`, `validate_live_market`, and the
-modules `configuration`, `access`, `admission`, `request_context` and
-`subscription`. A version only gains names; check a later addition with
-`hasattr`. Import names from the module (`from pythia_platform import
-configuration`), not submodules: it is not a package.
+`register_agent_tool`, `register_widget_presentation`, `price_sources`,
+`check_read`, `read_document`, `validate_live_market` and `FilingKind`; the
+[connector toolkit](connector-support.md) as `connector`, `wire` and `process`;
+the modules `configuration`, `access`, `admission`, `request_context` and
+`subscription`; and, for a plugin that coordinates other plugins' reads,
+`tool_schemas`, `dispatch`, `interrupted`, `session` and `session_platform`. An
+exported module offers only the members ADR 0045 lists. A version only gains
+names; check a later addition with `hasattr`. Import names from the module
+(`from pythia_platform import configuration`), not submodules: it is not a
+package.
 
-Plugins do not import Hermes modules, read Hermes's plugin manager or load
-another plugin's modules by a computed name. `just check` enforces this for the
-bundled plugins. Until market-data's connector toolkit moves into core,
-market-data and the connectors that use the toolkit are listed as exceptions.
+Plugins do not import Hermes modules, read Hermes's plugin manager or import
+anything dynamically (`importlib`, `import_module`, `__import__`,
+`sys.modules`), so no plugin loads another plugin's modules. `just check`
+enforces this for the bundled plugins, with no exceptions. A connector therefore
+needs only `requires_plugins: [pythia]`.
 
 ## A small operation export
 
@@ -176,10 +181,11 @@ requested changes to authorized callers, while an automatically refreshed widget
 cannot invoke that mutation. Authors must not
 label an operation read-only if it performs user-directed mutations.
 
-For coordinated financial data, use the feature's existing connector helpers
-instead of copying this demonstration's handler. `pythia_platform` also exports
-`declare_operation` for code that needs declaration helpers and handler-bound
-coordination hooks; neither mechanism creates another inventory.
+For coordinated financial data, use core's connector toolkit
+(`pythia_platform.connector`) instead of copying this demonstration's handler.
+`pythia_platform` also exports `declare_operation` for code that needs
+declaration helpers and handler-bound coordination hooks; neither mechanism
+creates another inventory.
 
 ## Reaching the agent
 
@@ -319,8 +325,9 @@ addressing (the full shape is in the ADR 0038 amendment):
   (`docs/sources/<source>.md` or an https link). An unsigned source is a
   display source: off in fresh profiles, never core's choice ahead of an
   audited one and never confirming identity, but once enabled it joins merged
-  lists and side-by-side values, labelled "not yet audited". Core honours any other status only from plugins Pythia
-  bundles.
+  lists and side-by-side values, labelled "not yet audited". The status is a
+  declaration: core honours any other status only where a trust grant on the
+  plugin's files confirms it (below).
 - `coverage.operations` narrows coverage for one operation, for example a
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
@@ -364,6 +371,37 @@ concept is enough.
 Core validates the file with `identity.validate_manifest`; a contract newer
 than the installed Pythia shows as `needs_update`. A bundled plugin lists
 `contract.json` among its copied files in `scripts/dev/managed-plugins.mjs`.
+
+### Trust follows the files, not the name
+
+A plugin's trust level is looked up by a digest of its files
+([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment of
+2026-09-30), never by its name or by being bundled. The digest,
+`pythia-plugin-digest@1`, is the SHA-256 of the sorted lines
+`<relpath>\t<sha256>\n` for every regular file in the plugin directory,
+without `.git/`, `__pycache__/`, `*.pyc` and the copy receipt. A symlink in the
+directory means no digest, so display.
+
+- Pythia's own grants are generated into core's payload
+  (`identity/trust.json`) when the payload is assembled: each shipped plugin
+  whose contract is `signed_off` or `grandfathered` is confirm at the digest of
+  its payload files. Editing a shipped plugin changes its digest; the next
+  `just dev-init` or `just dev` regenerates the grants, and until then core
+  logs that the plugin is display.
+- A user's own grants live in `trust.json` in the Pythia config folder and win
+  in both directions. From the checkout, with the stack's Hermes Python:
+
+  ```sh
+  python -P runtime/managed/core/identity/trust.py grant <plugin dir> confirm   # or display
+  python -P runtime/managed/core/identity/trust.py status [<plugin dir> ...]
+  ```
+
+  Both read the config folder from `PYTHIA_CONFIG_ROOT` or `--config-root`.
+  A grant covers exactly those files: after an update the plugin is display
+  until its new digest is granted. A malformed file is ignored with one
+  warning.
+- The levels are display and confirm. The user's confirm grant is their own
+  sign-off: it confirms the plugin whatever its contract declares.
 
 ## Skills and contracts
 

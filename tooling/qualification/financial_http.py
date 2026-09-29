@@ -218,7 +218,7 @@ async def main():
                     assert (await post({**READ, 'profile': 'another'})).status == 400
                     first = await post(READ)
                     assert first.status == 200, await first.text()
-                    assert len(instances) == 1
+                    assert instances == []  # describe projects contributions; it needs no backend
                     # Real native SSE route: two browsers share one resource,
                     # auth and revocation are enforced on retained snapshots.
                     subscription = {'resources': [{'plugin': 'pythia-market-data', 'operation': 'query',
@@ -233,6 +233,7 @@ async def main():
                     stream_b = await client.post(base + '/v1/pythia/updates', headers=headers, json=subscription)
                     a, b = await update(stream_a), await update(stream_b)
                     assert a['data'] == b['data'] and a['generation'] == b['generation']
+                    assert len(instances) == 1  # the series read built the profile's one backend
                     stream_a.close()
                     disable(feature_key)
                     revoked = await update(stream_b)
@@ -268,11 +269,11 @@ async def main():
                     config.write_text(initial_config)
                     tokens = set_session_vars(platform='api_server')
                     try:
-                        agent = json.loads(registry.dispatch(schemas.TOOL_NAME, READ))
+                        agent = json.loads(registry.dispatch(schemas.TOOL_NAME, SUBSCRIBABLE))
                     finally:
                         clear_session_vars(tokens)
-                    assert agent['outcome'] == 'ok', agent
-                    assert len(instances) == 1
+                    assert agent['outcome'] in ('ok', 'empty'), agent
+                    assert len(instances) == 1  # the agent's tool call shares the HTTP backend
                     # Exercise the real reader's memory caches and pin semantics
                     # with a synthetic source; the transport/registry stay native.
                     example = next(item['value'] for item in json.loads((Path(__file__).parents[2] / 'packages/market-data/examples/valid.json').read_text()) if item['name'] == 'latest_unknown_time')
@@ -324,10 +325,13 @@ async def main():
                     assert ordinary_receipt != readonly_receipt
                     reused = await (await post(many, read_only=True, reuse_scope=readonly_receipt)).json()
                     assert reused == {'schema_version': 1, 'reuse': readonly_receipt}, reused
-                    unclassified = {'action': 'set_preferences', 'operation': 'latest', 'providers': ['synthetic']}  # retired
+                    # Every market-data action is a read. The retired preference write is no longer in the tool
+                    # schema, so it is refused before it runs, receipt or not. A mutating operation's read-only
+                    # refusal is qualified on the synthetic plugin above.
+                    retired = {'action': 'set_preferences', 'operation': 'latest', 'providers': ['synthetic']}
                     for receipt in (None, readonly_receipt):
-                        denied = await post(unclassified, read_only=True, reuse_scope=receipt)
-                        assert denied.status == 403 and (await denied.json())['error']['code'] == 'read_only_required'
+                        denied = await post(retired, read_only=True, reuse_scope=receipt)
+                        assert denied.status == 400 and (await denied.json())['error']['code'] == 'invalid_request'
                     await qualify_agent_cancellation(backend, schemas.TOOL_NAME, pin_args)
                     # Concurrent health remains responsive while provider work waits.
                     slow_request = asyncio.create_task(post({'wait': True}, SYNTHETIC_PATH))

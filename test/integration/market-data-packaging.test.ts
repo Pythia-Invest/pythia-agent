@@ -21,7 +21,11 @@ import {
   managedRunnerBuilds,
   refreshManagedPlugins,
 } from "../../scripts/dev/managed-plugins.mjs";
-import { PLUGIN_COPY_RECEIPT } from "../../scripts/dev/files.mjs";
+import {
+  PLUGIN_COPY_RECEIPT,
+  RELEASE_GRANTS,
+} from "../../scripts/dev/files.mjs";
+import { writeReleaseGrants } from "../../scripts/dev/release-grants.mjs";
 
 const repository = new URL("../../", import.meta.url).pathname;
 const runnerBuilds = managedRunnerBuilds(MANAGED_PLUGINS);
@@ -56,6 +60,7 @@ function fixture(profile = "fixture") {
   for (const { source, files } of MANAGED_PLUGINS) {
     mkdirSync(join(managedRoot, source), { recursive: true });
     for (const file of files) {
+      if (source === "core" && file === RELEASE_GRANTS) continue; // generated below
       mkdirSync(dirname(join(managedRoot, source, file)), { recursive: true });
       copyFileSync(
         join(repository, "runtime/managed", source, file),
@@ -76,13 +81,15 @@ function fixture(profile = "fixture") {
       destination,
     );
   }
-  return {
+  const paths = {
     root,
     profile,
     profileRoot,
     managedRoot,
     managedCore: join(managedRoot, "core"),
   };
+  writeReleaseGrants(paths, { python: "python3" }); // as preparation does
+  return paths;
 }
 
 describe("native market-data lifecycle payload", () => {
@@ -164,6 +171,44 @@ platform_toolsets:
     expect(commands.every((args) => args[1] === paths.profile)).toBe(true);
   });
 
+  it("installs each shipped plugin at the digest its release grant names", () => {
+    // Generated from the payload lists before the copy; core hashes the
+    // installed files at runtime with the same function (ADR 0042, amendment
+    // of 2026-09-30). Bytecode written beside them is not part of a release.
+    const paths = fixture();
+    refreshManagedPlugins(paths, "synthetic", { execute: () => {} });
+    const core = join(paths.profileRoot, "plugins", "pythia");
+    const granted = JSON.parse(
+      readFileSync(join(core, RELEASE_GRANTS), "utf8"),
+    ).grants;
+    const contracts = MANAGED_PLUGINS.filter((plugin) =>
+      plugin.files.includes("contract.json"),
+    ).map((plugin) => join(paths.profileRoot, "plugins", plugin.name));
+    for (const directory of contracts) {
+      mkdirSync(join(directory, "__pycache__"));
+      writeFileSync(join(directory, "__pycache__", "x.cpython-312.pyc"), "");
+    }
+    const status = JSON.parse(
+      execFileSync(
+        "python3",
+        ["-P", "-B", join(core, "identity/trust.py"), "status", ...contracts],
+        { encoding: "utf8", env: { PATH: process.env.PATH } },
+      ),
+    );
+    const installed = Object.fromEntries(
+      status.directories.map((item: { directory: string }) => [
+        item.directory.split("/").at(-1),
+        item,
+      ]),
+    );
+    expect(granted.length).toBeGreaterThan(0);
+    for (const grant of granted)
+      expect(installed[grant.plugin], grant.plugin).toMatchObject({
+        digest: grant.digest,
+        level: "confirm",
+      });
+  });
+
   it("validates the complete copied payload before enabling fresh profiles", () => {
     const paths = fixture();
     const commands: string[][] = [];
@@ -173,7 +218,12 @@ platform_toolsets:
         // Native validation begins only after the complete set is copied.
         expect(
           existsSync(
-            join(paths.profileRoot, "plugins", "pythia-market-data", "wire.py"),
+            join(
+              paths.profileRoot,
+              "plugins",
+              "pythia-market-data",
+              "reads.py",
+            ),
           ),
         ).toBe(true);
         commands.push(args);
@@ -225,8 +275,8 @@ platform_toolsets:
     const core = join(paths.profileRoot, "plugins", "pythia");
     mkdirSync(core, { recursive: true });
     writeFileSync(join(core, "marker"), "previous");
-    const wire = join(paths.managedRoot, "plugins/market-data/wire.py");
-    rmSync(wire);
+    const reads = join(paths.managedRoot, "plugins/market-data/reads.py");
+    rmSync(reads);
     const execute = () => {
       throw new Error("must not run native commands");
     };
@@ -235,17 +285,17 @@ platform_toolsets:
     ).toThrow();
     expect(readFileSync(join(core, "marker"), "utf8")).toBe("previous");
     symlinkSync(
-      join(paths.managedRoot, "plugins/market-data/wire_schema.py"),
-      wire,
+      join(paths.managedRoot, "plugins/market-data/selection.py"),
+      reads,
     );
     expect(() =>
       refreshManagedPlugins(paths, "synthetic", { execute }),
     ).toThrow(/regular file/u);
     expect(readFileSync(join(core, "marker"), "utf8")).toBe("previous");
-    rmSync(wire);
+    rmSync(reads);
     copyFileSync(
-      join(repository, "runtime/managed/plugins/market-data/wire.py"),
-      wire,
+      join(repository, "runtime/managed/plugins/market-data/reads.py"),
+      reads,
     );
     rmSync(core, { recursive: true });
     const foreign = join(paths.root, "foreign");

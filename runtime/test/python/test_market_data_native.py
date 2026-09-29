@@ -9,8 +9,8 @@ import sys
 import tempfile
 import unittest
 
-from market_data_fixture import PACKAGE
-WORKER = __import__('importlib').import_module(PACKAGE + '.process')
+from market_data_fixture import TOOLKIT
+WORKER = __import__('importlib').import_module(TOOLKIT + '.process')
 
 
 class WorkerTest(unittest.TestCase):

@@ -55,8 +55,7 @@ class Transport:
             time.sleep(min(delay, .05))
 
     def _post(self, jobs, key, *, cancelled, budget, deadline):
-        from importlib import import_module
-        retry_after = import_module(self.connector.__package__ + '.worker_budget').retry_after
+        retry_after = self.connector.retry_after
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'Pythia-OpenFIGI/1'}
         if key:
             headers['X-OPENFIGI-APIKEY'] = key

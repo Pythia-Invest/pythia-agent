@@ -49,11 +49,15 @@ subject or relation without review. A source that has not signed off:
 - is not enabled by default in fresh profiles;
 - is not the default source for any page section.
 
-Core enforces this from the `signoff` each plugin declares in `contract.json`
-(`signed_off` with its record, `grandfathered` or `unsigned`); ADR 0042 lists
-what the gate does. Its trust level ([ADR 0044](../decisions/0044-product-direction.md)
-ruling 10) follows: `unsigned` is display, the other two are confirm, and
-suggest is not represented yet. An `unsigned` source can still be enabled by
+Each plugin declares its `signoff` in `contract.json` (`signed_off` with its
+record, `grandfathered` or `unsigned`); ADR 0042 lists what the gate does. Its
+trust level ([ADR 0044](../decisions/0044-product-direction.md) A4) follows:
+`unsigned` is display, the other two are confirm, and suggest is not
+represented yet. Core enforces it by a grant on the digest of the plugin's
+files, never by its name: Pythia's release grants confirm the shipped plugins
+that signed off or are grandfathered, and the user's own grants may confirm
+another plugin or demote one of Pythia's
+([plugin trust](plugins.md#trust-follows-the-files-not-the-name)). An `unsigned` source can still be enabled by
 the investor. It then serves like any other source, labelled "not yet
 audited": it joins merged lists and side-by-side values, and where one source
 serves it serves only if the investor names it or nothing audited can. An

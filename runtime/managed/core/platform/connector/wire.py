@@ -10,10 +10,11 @@ import re
 from datetime import date, datetime
 from decimal import Decimal
 
+# CRITERIA, the common series criteria, is part of this module's interface (`pythia_platform.wire.CRITERIA`).
 try:
-    from .wire_schema import DEFS
+    from .wire_schema import CRITERIA, DEFS
 except ImportError:  # Direct provider-free qualification / script import.
-    from wire_schema import DEFS
+    from wire_schema import CRITERIA, DEFS
 
 
 class WireError(ValueError):

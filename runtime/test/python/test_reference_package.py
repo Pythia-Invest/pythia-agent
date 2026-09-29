@@ -1,6 +1,7 @@
 """Reference packages: core installs a verified package atomically, keeps the previous one and reads only it."""
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -179,17 +180,21 @@ class InstallTest(unittest.TestCase):
         installed = reference_package.install(source, self.data)["installed"]
         self.assertEqual(installed["included_sources"], ["esma_firds"])
 
-    def test_the_command_line_reports_refusals_plainly(self):
+    def test_the_command_line_reports_refusals_plainly_and_records_the_users_trust(self):
         script = Path(reference_package.__file__)
         bad = make_package(self.root / "bad")
         (bad / "reference-20260926.sqlite3").write_bytes(b"not the file")
+        environment = {**os.environ, "PYTHIA_CONFIG_ROOT": str(self.root / "config")}  # never the investor's folder
         result = subprocess.run([sys.executable, "-P", str(script), "install", str(bad), "--data-dir", str(self.data)],
-                                capture_output=True, text=True, check=False)
+                                capture_output=True, text=True, check=False, env=environment)
         self.assertEqual(result.returncode, 2)
         self.assertIn("Reference package refused: Checksum mismatch", result.stderr)
-        result = subprocess.run([sys.executable, "-P", str(script), "install", str(make_package(self.root / "ok")),
-                                 "--data-dir", str(self.data)], capture_output=True, text=True, check=True)
-        self.assertEqual(json.loads(result.stdout)["installed"]["build_id"], "reference-20260926")
+        good = make_package(self.root / "ok")
+        for flags, level in (([], "confirm"), (["--display"], "display")):
+            result = subprocess.run([sys.executable, "-P", str(script), "install", str(good), "--data-dir", str(self.data),
+                                     *flags], capture_output=True, text=True, check=True, env=environment)
+            installed = json.loads(result.stdout)["installed"]
+            self.assertEqual((installed["build_id"], installed["trust"]), ("reference-20260926", level))
 
 
 if __name__ == "__main__":

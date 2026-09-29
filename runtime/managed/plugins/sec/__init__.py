@@ -1,9 +1,8 @@
 """Native SEC reference connector: filer resolve and filing content.
 
-It uses the market-data plugin's shared execution helpers and reads its declared
-configuration through core; identity decisions stay with Pythia's core.
+It uses core's connector toolkit and reads its declared configuration through
+core (`pythia_platform`); identity decisions stay with Pythia's core.
 """
-import importlib
 from collections import OrderedDict
 import json
 from threading import Lock
@@ -25,15 +24,6 @@ INVALID_CONTACT = {'schema_version': 1, 'outcome': 'error', 'data': None, 'issue
     'fields': [{'key': 'sec_identity', 'label': 'SEC contact', 'file': 'settings.json', 'status': 'invalid'}],
     'message': 'This plugin needs configuration in the Pythia config folder: SEC contact (sec_identity in '
                'settings.json) must be a name followed by an email address, in plain ASCII.'}]}
-
-
-def helpers(ctx):
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = get_plugin_manager()._plugins.get('pythia-market-data')
-    if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
-        raise RuntimeError('unavailable')
-    namespace = loaded.module.__name__
-    return tuple(importlib.import_module(namespace + '.' + name) for name in ('wire', 'connector', 'selection'))
 
 
 def envelope(data, issues=None):
@@ -212,23 +202,15 @@ class Reader:
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
-    wire, connector, _selection = helpers(ctx)
-    reader = Reader(wire, connector, lambda: platform.configuration, ctx, extract=platform.read_document)
-
-    def available():
-        try:
-            helpers(ctx)
-            return True
-        except RuntimeError:
-            return False
+    reader = Reader(platform.wire, platform.connector, lambda: platform.configuration, ctx,
+                    extract=platform.read_document)
 
     def handler(operation):
         def read(arguments, **context):
             try:
-                selection = helpers(ctx)[2]  # A disabled dependency cannot serve retained results.
-                access = selection.native_access_scope()
+                access = platform.access.native_access_scope()
                 result = reader.invoke(operation, arguments, context.get('cancelled'), scope=access)
-                if selection.native_access_scope() != access:
+                if platform.access.native_access_scope() != access:
                     result = failure('unavailable', 'Access changed during the SEC read.')
             except RuntimeError:
                 result = failure('unavailable', 'The SEC connector is unavailable.')
@@ -236,13 +218,12 @@ def register(ctx):
         return read
 
     for operation, schema in reader.definitions.items():
-        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation),
-                          check_fn=available)
+        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation))
     agent = platform.register_agent_tool
     agent(ctx, 'sec_company_facts', TOOLS['facts'], 'Reported financial facts (revenue, net income) from SEC. Named '
           'XBRL concepts of one taxonomy (us-gaap, ifrs-full, dei, srt) for a US-listed or foreign SEC filer, such as '
           'Revenues, NetIncomeLoss or Assets, keeping periods, filing revisions and units. Use sec_fundamentals for '
-          'the standard annual set; pythia_filings lists the filings.', check_fn=available)
+          'the standard annual set; pythia_filings lists the filings.')
     agent(ctx, 'sec_fundamentals', TOOLS['fundamentals'], 'Annual revenue, earnings and balance sheet from SEC EDGAR. '
           'Supported reported annual income, cash-flow and balance-sheet facts of a US GAAP or IFRS filer, with actual '
-          'annual periods; no TTM, quarterly subtraction or conversion.', check_fn=available)
+          'annual periods; no TTM, quarterly subtraction or conversion.')

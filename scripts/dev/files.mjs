@@ -32,6 +32,10 @@ function fsyncDirectory(path) {
   }
 }
 
+// Pythia's release trust grants: generated into the checkout by release-grants.mjs
+// before core is copied, never committed (ADR 0042, amendment of 2026-09-30).
+export const RELEASE_GRANTS = "identity/trust.json";
+
 export const MANAGED_CORE_FILES = Object.freeze([
   "__init__.py",
   "plugin.yaml",
@@ -65,6 +69,21 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "platform/configuration.py",
   "platform/harness.py",
   "platform/v1.py",
+  "platform/connector/__init__.py",
+  "platform/connector/cache.py",
+  "platform/connector/diagnostics.py",
+  "platform/connector/failures.py",
+  "platform/connector/governor.py",
+  "platform/connector/native_batch.py",
+  "platform/connector/parallel.py",
+  "platform/connector/process.py",
+  "platform/connector/process_stream.py",
+  "platform/connector/public_http.py",
+  "platform/connector/resident_worker.py",
+  "platform/connector/wire.py",
+  "platform/connector/wire_schema.py",
+  "platform/connector/worker_budget.py",
+  "platform/connector/worker_reads.py",
   "identity/__init__.py",
   "identity/build_questions.py",
   "identity/claims.py",
@@ -86,6 +105,8 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/search.py",
   "identity/store.py",
   "identity/subject.py",
+  "identity/trust.py",
+  RELEASE_GRANTS,
   "identity/vocabulary.py",
   "identity/sql/identity.sql",
   "identity/sql/reference.sql",

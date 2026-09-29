@@ -12,9 +12,9 @@ import logging
 from pathlib import Path
 import sqlite3
 
-from .cache import ReadCache, ReadCancelled
-from .selection import CRITERIA, available, compatible_ref, fingerprint, native_access_scope, matches, permits_implicit, caches_observations
-from .wire import WireError, require, validate, validate_parameters
+from pythia_platform import connector, wire
+
+from .selection import available, compatible_ref, fingerprint, native_access_scope, matches, permits_implicit, caches_observations
 
 
 logger = logging.getLogger(__name__)
@@ -73,8 +73,7 @@ def core_price_sources(subject_id):
 
 def core_check_read(subject_id, native_ref, stated):
     import pythia_platform as platform
-    check = getattr(platform, "check_read", None)  # an older core has no read check
-    return check(subject_id, native_ref, stated) if check else None
+    return platform.check_read(subject_id, native_ref, stated)
 
 
 def stated(series):
@@ -110,8 +109,8 @@ class Backend:
         self._subjects = subjects or core_price_sources
         self._check_read = check_read or core_check_read
         retire_source_choices(data_dir)
-        self.cache = cache or ReadCache()
-        self.metadata_cache = ReadCache(max_entries=128, ttl_seconds=300)
+        self.cache = cache or connector.ReadCache()
+        self.metadata_cache = connector.ReadCache(max_entries=128, ttl_seconds=300)
 
     def context(self):
         sources, _invalid = self._project()
@@ -129,7 +128,7 @@ class Backend:
         if operation in ('latest', 'history', 'read_batch') and access['cacheable'] and caches_observations(sources, provider):
             try:
                 return self.cache.coalesce(fingerprint({'native_read': operation, 'provider': provider, 'arguments': arguments, 'access': access}), call)
-            except ReadCancelled:
+            except connector.ReadCancelled:
                 from .execution import failure
                 return failure('cancelled')
         if operation != "series" or not access["cacheable"] or not caches_observations(sources, provider):
@@ -164,7 +163,7 @@ class Backend:
         named in `source_order`, `unaudited` those not yet signed off (ADR 0042), and `reason` says why a subject
         has no refs:
         "issuer_subject", "no_reference_data", "unknown_subject" or "core_unavailable"."""
-        validate("binding", binding)
+        wire.validate("binding", binding)
         if "provider" in binding:
             return {"asset_class": None, "refs": [binding], "named": [], "unaudited": [], "reason": None}
         if binding["kind"] == "issuer":  # an issuer has no price; never ask a source
@@ -193,7 +192,7 @@ class Backend:
         return outcome if isinstance(outcome, dict) else {"status": "unchecked", "label": None}
 
     def details(self, native_ref):
-        native = validate("provider_ref", native_ref)
+        native = wire.validate("provider_ref", native_ref)
         return self.source(native["provider"], "details", {"native_ref": native})
 
     def series(self, binding, criteria):
@@ -222,8 +221,8 @@ class Backend:
             if checked["status"] == "unverified":
                 issues.append(unverified_issue(native["provider"], checked["label"]))
             for value in response.get("data", []):
-                series = validate("series", value)
-                require(compatible_ref(native, series["provider_ref"]), "series", "source binding differs")
+                series = wire.validate("series", value)
+                wire.require(compatible_ref(native, series["provider_ref"]), "series", "source binding differs")
                 if matches(series, criteria):
                     if "provider" not in binding:
                         series["subject"] = binding
@@ -246,19 +245,19 @@ class Backend:
             return self._handle(request)
 
     def _handle(self, request):
-        require(type(request) is dict, "backend", "expected request object")
+        wire.require(type(request) is dict, "backend", "expected request object")
         self.context()  # Native feature eligibility applies to local actions too.
         action = request.get("action")
         shapes = {
             "details": ({"native_ref"}, set()), "series": ({"binding"}, {"criteria"}),
             "read": ({"request"}, {"criteria", "series"}), "read_many": ({"reads"}, set()),
         }
-        require(action in shapes, "backend", "unknown action")
+        wire.require(action in shapes, "backend", "unknown action")
         required, optional = shapes[action]
         fields = set(request) - {"action"}
-        require(required <= fields <= required | optional, "backend", "invalid action fields")
+        wire.require(required <= fields <= required | optional, "backend", "invalid action fields")
         criteria = request.get("criteria", {})
-        validate_parameters(CRITERIA, criteria)
+        wire.validate_parameters(wire.CRITERIA, criteria)
         if action == "details":
             return self.details(request["native_ref"])
         if action == "series":
@@ -270,7 +269,7 @@ class Backend:
         if action == "read_many":
             from .coordinated import read_many
             return envelope(read_many(self, request["reads"]))
-        raise WireError("backend: unknown action")
+        raise wire.WireError("backend: unknown action")
 
     def subject_scope(self, reads):
         """What the Pythia-view reads of a batch route through now; a change invalidates reused results."""
@@ -280,6 +279,6 @@ class Backend:
             if view.get("kind") == "pythia":
                 try:
                     scope.append(self.route(view.get("subject"))["refs"])
-                except WireError:  # the read itself reports its invalid request
+                except wire.WireError:  # the read itself reports its invalid request
                     scope.append(None)
         return scope

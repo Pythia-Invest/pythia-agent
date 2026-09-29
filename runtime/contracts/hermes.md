@@ -27,13 +27,20 @@ through native `ctx.on_unload`. A plugin requires `pythia` and imports it inside
 its own `register(ctx)`, which native `requires_plugins` ordering runs after
 core's. This single alias replaces the earlier rule that dependency helpers come
 from the manager's loaded module namespace (ADR 0044 ruling 6). Plugins invent
-no other import alias or source loader, import no Hermes module and never read
-the plugin manager; `tooling/check-boundaries.mjs` enforces this. Its temporary
-exceptions are the market-data and connector files that change when the connector
-toolkit moves into core.
+no other import alias or source loader, import no Hermes module, import nothing
+dynamically and never read the plugin manager; `tooling/check-boundaries.mjs`
+enforces this with no exceptions. The connector toolkit is core's
+(`core/platform/connector/`), so no plugin loads another plugin's modules. The
+one plugin that coordinates other plugins' reads, market-data, reaches the
+native registry, interrupts and session context only through the interface's
+`tool_schemas`, `dispatch`, `interrupted`, `session` and `session_platform`.
 
 Core's reads of the pinned manager's private state live only in
-`core/platform/harness.py`; recheck that file when the pin changes. Access
+`core/platform/harness.py`. Core also uses two other private Hermes seams:
+`model_tools._clear_tool_defs_cache` (`core/platform/access.py`) and the API
+server adapter's `_expected_api_key` and `_check_auth`
+(`core/platform/http.py`); the boundary check keeps each in its file. Recheck
+all three files when the pin changes. Access
 projects the manager's active `_registration_order` handles
 to determine actual tool ownership. Manifest `provides_tools` and a specialist
 annotation are descriptions, not authority. Native category keys and legacy bare

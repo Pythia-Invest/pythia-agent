@@ -3,12 +3,11 @@ import json
 
 OPERATIONS = ('resolve', 'filings', 'news')
 TOOLS = {operation: 'pythia_nsm_' + operation for operation in OPERATIONS}
-# Core's filing kinds (FilingKind).
-FILING_KINDS = ('annual', 'half_year', 'quarterly', 'earnings_release', 'event', 'ownership', 'prospectus', 'other')
 NOTICE = ('It reads the FCA\'s undocumented NSM search endpoint, which can change or break at any time.')
 
 
 def schemas(wire):
+    from pythia_platform import FilingKind  # core's filing kinds
     native_ref = wire.parameter_schema('provider_ref')
     limit = {'type': 'integer', 'minimum': 1, 'maximum': 100}
     refresh = {'type': 'boolean', 'description': 'Read fresh NSM data, bypassing the retained copy.'}
@@ -18,7 +17,7 @@ def schemas(wire):
                      'refresh': refresh}, ['identifiers']),
         'filings': ({'native_ref': native_ref, 'limit': limit,
                      'kinds': {'type': 'array', 'minItems': 1, 'maxItems': 8,
-                               'items': {'type': 'string', 'enum': list(FILING_KINDS)},
+                               'items': {'type': 'string', 'enum': [kind.value for kind in FilingKind]},
                                'description': 'Only these kinds. annual, half_year, quarterly, earnings_release, '
                                               'ownership and prospectus are searched through the whole archive; '
                                               'event and other are found among the newest 100 disclosures.'},

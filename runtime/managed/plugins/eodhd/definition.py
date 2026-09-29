@@ -22,8 +22,7 @@ def closed(properties, required):
 
 
 def schemas(wire):
-    import importlib
-    criteria = importlib.import_module(wire.__package__ + '.selection').CRITERIA
+    criteria = wire.CRITERIA
     text = lambda limit: {'type': 'string', 'minLength': 1, 'maxLength': limit}
     properties = {
         'news': ({'native_ref': wire.parameter_schema('provider_ref'), 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 30},

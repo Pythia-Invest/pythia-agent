@@ -22,7 +22,12 @@ function python(paths, args) {
     );
   }
   const result = spawnSync(executable, ["-P", ...args], {
-    env: { ...redactedEnvironment(), HERMES_HOME: paths.profileRoot },
+    // The config folder holds the user's trust grants, which install records.
+    env: {
+      ...redactedEnvironment(),
+      HERMES_HOME: paths.profileRoot,
+      PYTHIA_CONFIG_ROOT: paths.configRoot,
+    },
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 600_000,

@@ -4,11 +4,10 @@ import json
 OPERATIONS = ('resolve', 'filings', 'fundamentals', 'facts', 'document')
 TOOLS = {operation: 'pythia_sec_' + operation for operation in OPERATIONS}
 TAXONOMIES = ('us-gaap', 'ifrs-full', 'dei', 'srt')
-# Pythia's filing kinds (core's FilingKind), the vocabulary of `filings.KINDS`.
-FILING_KINDS = ('annual', 'half_year', 'quarterly', 'earnings_release', 'event', 'ownership', 'prospectus', 'other')
 
 
 def schemas(wire):
+    from pythia_platform import FilingKind  # core's filing kinds, the vocabulary of `filings.KINDS`
     native_ref = wire.parameter_schema('provider_ref')
     refresh = {'type': 'boolean', 'description': 'Read fresh SEC data, bypassing the retained copy.'}
     fields = {
@@ -23,7 +22,7 @@ def schemas(wire):
                                               'its form. Searches the filer\'s whole recent list and, when needed, '
                                               'older pages back five years.'},
                      'kinds': {'type': 'array', 'minItems': 1, 'maxItems': 8,
-                               'items': {'type': 'string', 'enum': list(FILING_KINDS)},
+                               'items': {'type': 'string', 'enum': [kind.value for kind in FilingKind]},
                                'description': 'Only these kinds of filing (annual, quarterly, earnings_release, event, '
                                               'ownership, prospectus, other), searched like forms. ownership reads '
                                               'the insider and major-holder filings.'},

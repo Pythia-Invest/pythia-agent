@@ -8,8 +8,6 @@ route gives the renderer provider access.
 The top bar composes @pythia/market-data/search-ui (ADR 0036); it is Desk's
 product default unless the workspace's desk/top-bar.json selects another.
 """
-import logging
-
 WIDGETS = (
     {'id': 'instrument-tile', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
     {'id': 'instrument-compact-tile', 'asset': 'instruments', 'input_contract': 'pythia.instrument-read.v1'},
@@ -24,11 +22,5 @@ ASSETS = {'instruments': 'dist/widgets/instruments.mjs', 'instrument-chart': 'di
 
 def register(ctx):
     import pythia_platform as platform
-    register_widgets = getattr(platform, 'register_widget_presentation', None)
-    if not callable(register_widgets):
-        logging.getLogger(__name__).warning(
-            'Market-data widget presentations are unavailable: the selected Pythia core lacks widget support. '
-            'The financial backend remains available; update or reconcile the preserved core package explicitly.')
-        return
-    register_widgets(ctx, tool_name='pythia_market_data_widgets', toolset='pythia-core',
-                     widgets=WIDGETS, assets=ASSETS)
+    platform.register_widget_presentation(ctx, tool_name='pythia_market_data_widgets', toolset='pythia-core',
+                                          widgets=WIDGETS, assets=ASSETS)

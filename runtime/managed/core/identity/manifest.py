@@ -21,6 +21,7 @@ from typing import Any, Mapping
 
 from .concepts import REGISTRY, Combine, Concept, FilingAuthority, Licence
 from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, SCHEME_LEVEL, Kind, Level, Scheme
+from .trust import CONFIRM
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
@@ -29,10 +30,6 @@ RESERVED = frozenset({"reference"})  # tags the reference build's own questions 
 OPERATION = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")  # a plugin operation name, as `declare_operation` accepts
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 LIMIT_UNITS = ("call", "credit", "request")
-# Pythia's own plugins (the managed payloads in scripts/dev/managed-plugins.mjs). A plugin cannot vouch for itself:
-# core honours `signed_off` or `grandfathered` only from these; any other plugin is unsigned (ADR 0042).
-BUNDLED = frozenset({"pythia-coingecko", "pythia-coinmarketcap", "pythia-eodhd", "pythia-gleif", "pythia-hyperliquid",
-                     "pythia-nsm", "pythia-sec", "pythia-xbrl-filings", "pythia-yahoo-discovery"})
 RECORD = re.compile(r"^(docs/sources/[a-z0-9][a-z0-9-]{0,63}\.md|https://\S{1,500})\Z")  # a public source record
 
 
@@ -42,8 +39,8 @@ class CatalogueMode(StrEnum):
 
 
 class SignOff(StrEnum):
-    """A source's standing under the onboarding standard (ADR 0042), which sets its trust level (ADR 0044 ruling 10):
-    unsigned is display, signed off or grandfathered is confirm. Suggest arrives with the first plugin that needs it."""
+    """A source's declared standing under the onboarding standard (ADR 0042). Core honours a grant on the plugin's
+    files instead (`trust.py`); Pythia's release grants confirm its own signed-off or grandfathered ones."""
 
     SIGNED_OFF = "signed_off"        # passed the four stages; its record says so
     GRANDFATHERED = "grandfathered"  # in use before the standard: keeps its role until its turn
@@ -320,9 +317,13 @@ def _limits(value: Any) -> Limits:
                                                  for name in ("per_second", "per_minute", "per_day", "per_month")})
 
 
-def vouched(manifest: Manifest, key: str) -> Manifest:
-    """The contract as core trusts it for installed plugin `key`: unsigned unless Pythia bundles the plugin."""
-    return manifest if key in BUNDLED else replace(manifest, signoff=SignOff.UNSIGNED)
+def vouched(manifest: Manifest, level: str) -> Manifest:
+    """The contract as core trusts it at the trust level granted to its plugin's files (`trust.level`): unsigned below
+    confirm; at confirm the grant is the sign-off, so a contract that declares itself unsigned (a user's confirm grant,
+    ADR 0044 A2) is signed off too. A plugin cannot vouch for itself: its `signoff` alone never raises its trust."""
+    if level != CONFIRM:
+        return replace(manifest, signoff=SignOff.UNSIGNED)
+    return replace(manifest, signoff=SignOff.SIGNED_OFF) if manifest.unaudited else manifest
 
 
 def validate_manifest(document: Any) -> Manifest:

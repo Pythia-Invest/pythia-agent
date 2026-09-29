@@ -4,8 +4,8 @@ Scans every builder module except the adapters and audits named below, which may
 `identity/*.py`. It catches `x.source == "sec"`, `row["plugin"] in (...)`, `row.get("provider") != SEC` and a
 `match` on such a field with a string case. A lookup keyed by provider (`LABELS`, `ALIASES`), a provenance
 assignment, and membership in a record named `source` are no comparison, so they pass. Rules test a row's kind of
-evidence (`model.Evidence`) or trust instead. Core's `BUNDLED` plugin list is trust by name too; it stays until trust
-follows a hashed release.
+evidence (`model.Evidence`) or trust instead. Core's plugin trust follows a digest of the plugin's files, never its
+name (`identity/trust.py`).
 """
 
 from __future__ import annotations

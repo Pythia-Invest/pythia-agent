@@ -5,7 +5,6 @@ it at any time, so every answer is checked for drift (records.py) and a refused 
 as "no disclosures". One search per issuer serves resolve, filings and news, and is kept for five minutes.
 """
 from collections import OrderedDict
-import importlib
 import json
 from threading import Lock
 
@@ -19,14 +18,6 @@ DROPS = frozenset({'malformed_row', 'missing_field', 'foreign_lei', 'foreign_cod
                    'malformed_time', 'malformed_id', 'malformed_code', 'malformed_link', 'malformed_text'})
 REFUSED = ('The NSM refused Pythia\'s search. It is an undocumented endpoint, so its interface may have changed; '
            'nothing is known about this issuer\'s disclosures until it is fixed.')
-
-
-def helpers(ctx):
-    from hermes_cli.plugins import get_plugin_manager
-    loaded = get_plugin_manager()._plugins.get('pythia-market-data')
-    if not ctx.has_plugin('pythia-market-data') or loaded is None or not loaded.enabled or loaded.module is None:
-        raise RuntimeError('unavailable')
-    return tuple(importlib.import_module(loaded.module.__name__ + '.' + name) for name in ('wire', 'connector', 'selection'))
 
 
 def envelope(data, issues=None, outcome=None):
@@ -131,23 +122,16 @@ class Reader:
 
 
 def register(ctx):
-    wire, connector, _selection = helpers(ctx)
-    reader = Reader(wire, connector)
-
-    def available():
-        try:
-            helpers(ctx)
-            return True
-        except RuntimeError:
-            return False
+    import pythia_platform as platform  # published by Pythia core (ADR 0045)
+    platform.require(1)
+    reader = Reader(platform.wire, platform.connector)
 
     def handler(operation):
         def read(arguments, **context):
             try:
-                selection = helpers(ctx)[2]  # A disabled dependency cannot serve retained results.
-                access = selection.native_access_scope()
+                access = platform.access.native_access_scope()
                 result = reader.invoke(operation, arguments, context.get('cancelled'), cache_scope=access)
-                if selection.native_access_scope() != access:
+                if platform.access.native_access_scope() != access:
                     result = failure('unavailable', 'Access changed during the NSM read.')
             except RuntimeError:
                 result = failure('unavailable', 'The NSM connector is unavailable.')
@@ -155,5 +139,4 @@ def register(ctx):
         return read
 
     for operation, schema in reader.definitions.items():
-        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation),
-                          check_fn=available)
+        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handler(operation))
