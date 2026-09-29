@@ -466,21 +466,17 @@ class CoreReadsTest(Reference):
                    {"plugin": "d", "provider": "d", "status": "disabled"}]
         chosen, alternatives, skipped = identity.concepts.select(entries, combine=identity.Combine.SIDE_BY_SIDE)
         self.assertEqual(([e["plugin"] for e, _ in chosen], [e["plugin"] for e in alternatives],
-                          [e["plugin"] for e in skipped]), (["a", "b"], ["u"], ["d"]))
+                          [e["plugin"] for e in skipped]), (["a", "b", "u"], [], ["d"]))
 
-    def test_an_unaudited_source_is_labelled_and_not_in_the_default_order(self):
+    def test_an_enabled_unaudited_source_merges_labelled_without_being_named(self):
+        # ADR 0044 ruling 10: a display source serves once enabled; it needs no place in the investor's order.
         plugins = [provider("pythia-yahoo-discovery", "yahoo"), provider("acme", "acme", signoff="unsigned")]
         answers = {"yahoo_news": news(("A", "https://example.com/a", "2026-09-27T08:00:00Z")),
                    "acme_news": news(("B", "https://example.com/b", "2026-09-27T09:00:00Z"))}
         body = self.read(answers, plugins=lambda: plugins, handler="news")
-        self.assertEqual([item["plugin"] for item in body["data"]["news"]], ["pythia-yahoo-discovery"])
-        self.assertEqual(body["data"]["alternatives"], [{"source": "acme", "provider": "acme", "plugin": "acme",
-                                                         "unaudited": True, "status": "ready"}])
-        self.reads.identity._load = lambda _id: (None, page.load_subject(self.ref, SUBJECTS["asml_xams"]),
-                                                 self.lookups(order=("acme",)), None)
-        named = self.read(answers, plugins=lambda: plugins, handler="news")
-        self.assertEqual([(item["plugin"], item.get("unaudited")) for item in named["data"]["news"]],
+        self.assertEqual([(item["plugin"], item.get("unaudited")) for item in body["data"]["news"]],
                          [("acme", True), ("pythia-yahoo-discovery", None)])
+        self.assertEqual(body["data"]["alternatives"], [])
 
 
 def provider(plugin, name, concept="news", operations=None, signoff="grandfathered"):

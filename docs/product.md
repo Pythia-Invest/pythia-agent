@@ -63,9 +63,9 @@ investor's one source order; pinned series and retained research preserve their 
 The backend foundation is available first; concrete shared connectors and reusable
 Desk widgets are separate increments. See [market data](architecture/market-data.md).
 
-Investment search will read a local directory built on the device from open
-reference sources and the investor's connected providers, and it will call no
-provider while the investor types. No paid provider will be required. Pythia is
+Investment search reads a local directory built on the device from open
+reference sources and the investor's connected providers, and it calls no
+provider while the investor types. No paid provider is required. Pythia is
 personal software: each installation serves one investor, who uses provider data
 under their own agreement with the provider. Each plugin carries its provider's
 terms, and Pythia itself never publishes, pools or redistributes provider data;

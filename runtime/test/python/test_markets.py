@@ -2,6 +2,7 @@
 
 Screener rows are synthetic, shaped like yahoo-finance2 4.0.2's ScreenerQuote (docs/sources/yahoo-screener.md).
 """
+import dataclasses
 import importlib.util
 import json
 import sqlite3
@@ -113,7 +114,8 @@ class MarketReadsTest(unittest.TestCase):
         plugins = [info if info.key != "pythia-yahoo-discovery" else page.PluginInfo(
             key=info.key, manifest=info.manifest, operations={"movers": "pythia_yahoo_movers"}) for info in shipped()]
         yahoo = next(info for info in plugins if info.key == "pythia-yahoo-discovery")
-        plugins += [page.PluginInfo(key="pythia-other", manifest=yahoo.manifest, operations={"movers": "other_movers"})
+        other = dataclasses.replace(yahoo.manifest, signoff=type(yahoo.manifest.signoff).UNSIGNED)  # not yet audited
+        plugins += [page.PluginInfo(key="pythia-other", manifest=other, operations={"movers": "other_movers"})
                     for _ in more]
         registry = types.SimpleNamespace(dispatch=dispatch)
         with unittest.mock.patch.dict("sys.modules", {"tools": types.ModuleType("tools"),
@@ -150,6 +152,7 @@ class MarketReadsTest(unittest.TestCase):
         self.assertEqual([tool for tool, _ in self.calls], ["pythia_yahoo_movers", "other_movers"])
         self.assertEqual((body["outcome"], body["data"]["source"]["plugin"], body["data"]["skipped"][-1]["code"]),
                          ("ok", "pythia-other", "not_covering"))
+        self.assertTrue(body["data"]["source"]["unaudited"])  # labelled wherever its data appears (ADR 0042)
 
     def test_the_overview_lists_configured_subjects_or_the_defaults(self):
         from pythia_core_queue_fixture.platform import configuration

@@ -313,7 +313,7 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
         if not any(answer["status"] not in ABSENT for answer in found):
             continue
         combine = REGISTRY[SERVES[section][0]].combine
-        chosen, alternatives, skipped = select(found, combine=combine, order=order)
+        chosen, alternatives, skipped = select(found, combine=combine)
         # A combined section reads its ready sources at once; one still to be looked up is listed (the read is
         # partial), not awaited, and the Desk looks it up as it does a resolving section.
         ready = [(answer, served) for answer, served in chosen if answer["status"] == "ready"]

@@ -229,10 +229,14 @@ installation keeps working offline.
 
 - **Pythia owns its domain engine and its state:** subjects and sources,
   mandates and guard, the ledger, portfolio, jobs, order tickets and approvals.
-  Its stores live in Pythia's own data directory.
-- **An agent harness runs agent turns.** Today this is Hermes, behind a single
-  adapter, which keeps the harness replaceable. Plugins use a small, versioned
-  Pythia platform interface and never import harness internals.
+  Its stores live in Pythia's own data directory. Today the identity store,
+  reference packages and document cache still live in Hermes's plugin data
+  directory; moving them is roadmap stage 0.
+- **An agent harness runs agent turns.** Today this is Hermes. The goal is a
+  single adapter, which keeps the harness replaceable, and plugins that use a
+  small, versioned Pythia platform interface and never import harness
+  internals. That is planned, not built: core and every plugin still import
+  Hermes modules directly. Only core's identity package is free of them.
 - **The engine starts in the existing backend process** and moves into its own
   process when there is a concrete reason: live automated execution with
   isolated credentials, a native client, a harness replacement, or a hosted team
@@ -314,6 +318,14 @@ records and see differences as labels.
 A plugin that only displays data, including a user's own licensed vendor, needs
 no audit. That keeps community plugins cheap to write and a user's paid data
 fully usable.
+
+Today two levels exist, set by the plugin's sign-off status: an unsigned plugin
+is display (off until the user enables it, then merged into lists and shown
+side by side, labelled "not yet audited"; for a single-source view it comes
+after every audited source, serving only if the user names it or nothing
+audited can), and a signed-off or grandfathered one confirms. Suggest
+arrives with the first plugin that needs it
+([ADR 0042](decisions/0042-source-onboarding-standard.md)).
 
 ### Connecting a plugin
 

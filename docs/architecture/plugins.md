@@ -288,9 +288,10 @@ addressing (the full shape is in the ADR 0038 amendment):
 - `signoff` states where the source stands in [onboarding](source-onboarding.md):
   `{"status": "unsigned"}` for a new source, `grandfathered` for the sources
   ADR 0042 lists, and `signed_off` with the `record` that shows it
-  (`docs/sources/<source>.md` or an https link). An unsigned source is off in
-  fresh profiles, never core's choice ahead of an audited one and never
-  confirms identity. Core honours any other status only from plugins Pythia
+  (`docs/sources/<source>.md` or an https link). An unsigned source is a
+  display source: off in fresh profiles, never core's choice ahead of an
+  audited one and never confirming identity, but once enabled it joins merged
+  lists and side-by-side values, labelled "not yet audited". Core honours any other status only from plugins Pythia
   bundles.
 - `coverage.operations` narrows coverage for one operation, for example a
   live stream that covers fewer markets than the provider's history.

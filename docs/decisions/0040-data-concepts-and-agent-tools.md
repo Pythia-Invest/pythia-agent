@@ -70,8 +70,8 @@ get their read and row shape with their first source's onboarding.
 Each concept entry in `contract.json` (the ADR 0038 contract-v1 amendment)
 declares the plugin operation per concept operation, **coverage** (asset
 classes and, where narrower than addressing, operating MICs, optionally
-narrowed per operation: EODHD's live stream covers US listings only while its
-quotes and history stay global), **qualities**
+narrowed per operation, for a live stream that covers fewer markets than the
+provider's quotes and history; no bundled contract narrows one yet), **qualities**
 per operation from the registry's closed vocabulary, and for filings the
 **authorities** it serves (`sec`, `fca`, `sedar`, and `oam-fr`, `oam-nl`… for
 the EEA's national mechanisms; see the amendment below). Qualities are the
@@ -100,10 +100,12 @@ operation:
    comes first, then core's default order for the concept, which lists free
    and open sources before paid ones (Yahoo first for stocks and ETFs,
    CoinGecko first for crypto; EODHD and CoinMarketCap after them). Adding a
-   key does not change which source serves: a paid source serves only where
-   the investor puts it first in their own order, or where no free source
-   covers. A plugin that needs a key is ineligible until the key is
-   configured.
+   key never replaces a free source that covers the subject: a paid source
+   serves where the investor puts it first in their own order, or where no
+   source before it covers the subject (none can address it, its lookup found
+   nothing, or it answered `not_covered`). A free source's error never hands
+   over to a paid one (rule 4). A plugin that needs a key is ineligible until
+   the key is configured.
 3. **The first eligible candidate serves.** A candidate that is disabled,
    needs configuration, cannot be addressed for this subject by identity, is
    under an identity conflict, found nothing on lookup or answers that it does
@@ -235,8 +237,9 @@ combined read and the SEC plugin take `kinds`; `ownership` reads Forms 3, 4,
 
 **Report identity and parallel reports.** A company can report one period
 under two regimes, as an instrument has several listings: ASML files a 20-F
-with the SEC and an ESEF annual report with the AFM for the same year. The
-backbone models this explicitly. A periodic report (annual, half-year,
+with the SEC and an ESEF annual report with the AFM for the same year. Core
+models this explicitly on every filing item it reads (see "What exists" below
+for how far that goes). A periodic report (annual, half-year,
 quarterly, earnings release) is identified by `report_key` = issuer, kind,
 period end and **authority**; `report_period` = issuer, kind and period end is
 what it reports on.
@@ -266,6 +269,30 @@ keeps its id and link. Fundamentals (P8) reuse the identity: each statement
 figure's provenance carries the `report_key` of the report it was read from,
 with the basis as the figure's own attribute, so a statement column is one
 report and parallel statements are told apart by authority.
+
+**What exists, and what fundamentals add.** Report identity is core code, not
+a key convention left to plugins: `identity/filings.py` computes `report_key`
+and `report_period` from the issuer's subject id and the authority core chose
+the source for, so no plugin can shape it. The Desk groups versions by
+`report_key`, the agent's filings and document tools address a report by it,
+and `report_period` links parallel reports. It is not yet in the backbone the
+way listings are: nothing is stored. A report exists only while a filings read
+returns it, the identity store has no report record or relation, and a
+report's basis is known only if the read that returned it states it. The
+fundamentals work (roadmap stage 2) adds the stored part when statements
+first need it:
+
+- a report record per `report_key` in the identity store, with its issuer,
+  kind, period end, authority and basis once known, so statement figures and
+  decision evidence cite a report that outlives one read;
+- the parallel link stored between reports sharing a `report_period`, as
+  listings hang under their security, so a 20-F and its ESEF report stay
+  linked when only one is in the current read;
+- each filing id kept against its report, so a version or amendment read
+  later joins the same report.
+
+The key's formula does not change, so items read before then keep their
+identity.
 
 Rejected: grouping on `(issuer, period_end, kind)` alone (it folds a 20-F into
 the ESEF report); the accounting basis in the key (sometimes unknown, so the
@@ -337,8 +364,9 @@ a section read asks for more, through `max_chars`).
 `live_market` snapshot schema version 1 (`identity.validate_live_market`).
 One bounded snapshot fits a 20-level, signed crypto perp book with funding
 context (Hyperliquid) and a one-level, unsigned, single-venue stock feed with
-session context (EODHD's Cboe EDGX stream), so the Live view never learns the
-provider and a second provider needs no contract change.
+session context (EODHD's Cboe EDGX stream, planned: its contract does not
+declare `live` yet), so the Live view never learns the provider and a second
+provider needs no contract change.
 
 - The subject may be of any kind. A venue is `source.venue`, never a new
   subject; `source.scope: venue` obliges a single-venue label.
@@ -518,11 +546,13 @@ names it; it is core's, never a user setting.
   Selection already takes every eligible source for them; the read and its row
   shape arrive with each concept's first source, defined against that source's
   real data (estimates are per period, each with its own analyst count).
-- **Unaudited sources.** Under `merge` and `side_by_side` a source not yet signed
-  off ([ADR 0042](0042-source-onboarding-standard.md)) contributes only when the
-  investor names it in `source_order` or no audited source is eligible (which
-  includes every audited source answering not covered); otherwise it is an
-  alternative labelled "not yet audited". Its items carry `unaudited`.
+- **Unaudited sources.** Under `merge` and `side_by_side` an enabled source not
+  yet signed off ([ADR 0042](0042-source-onboarding-standard.md)) contributes like
+  any other: it is a display source ([ADR 0044](0044-product-direction.md)
+  ruling 10), and enabling it is the opt-in. Its items carry `unaudited`, which
+  the Desk shows as "not yet audited". Where one source serves (per authority,
+  or a single-source concept) it still follows every audited source unless the
+  investor names it.
 - A failed source is listed as skipped and the result marked partial, as for
   filings. A filing row whose period end is not a date is left out, and the
   list says so (`invalid_rows`) instead of failing the read.
