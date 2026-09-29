@@ -5,8 +5,9 @@ import type { ReactNode } from "react";
 import {
   useChangeDeviceSetting,
   useDeviceSettings,
-  useReleaseStatus,
 } from "@/client/settings-queries";
+import { useUpdateFlow } from "@/client/update-flow";
+import { UpdateStatus, versionLabel } from "@/components/updates/update-status";
 
 export function SettingRow({
   control,
@@ -204,49 +205,18 @@ export function CapabilitySettings() {
   );
 }
 
+/** The installed version and its updates, until Settings gains its About page. */
 export function UpdateSettings() {
-  const query = useReleaseStatus();
-  const release = query.data;
+  const { release } = useUpdateFlow();
   return (
-    <div data-slot="update-settings">
-      {query.isPending ? <p role="status">Checking for updates…</p> : null}
-      <SettingsError
-        error={query.error}
-        retry={() => {
-          void query.refetch();
-        }}
-      />
-      {release ? (
-        <SettingRow
-          label={
-            release.channel === "preview" ? "Preview main" : "Pythia release"
-          }
-          description={
-            release.message ??
-            (release.update_available
-              ? `${release.target_version ?? "An update"} is available.`
-              : release.status === "ready"
-                ? "Up to date."
-                : "Update status unavailable.")
-          }
-          control={
-            <Button
-              size="sm"
-              disabled={query.isFetching}
-              onClick={() => {
-                void query.refetch();
-              }}
-            >
-              Check again
-            </Button>
-          }
-        />
-      ) : null}
-      {release?.update_available ? (
-        <p className="text-body text-foreground-secondary">
-          Run <code>pythia update</code> on the Pythia host to update.
-        </p>
-      ) : null}
+    <div className="grid gap-4" data-slot="update-settings">
+      <p
+        className="m-0 text-body text-foreground-secondary tabular-nums"
+        title={release?.current_revision}
+      >
+        {versionLabel(release)}
+      </p>
+      <UpdateStatus />
     </div>
   );
 }

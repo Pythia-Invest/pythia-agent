@@ -97,6 +97,10 @@ function fakeSettings() {
 
 function fakeReleases() {
   return {
+    start: vi.fn(async (expected: { target: string }) => ({
+      started: true as const,
+      target_revision: expected.target,
+    })),
     snapshot: vi.fn(async () => ({
       status: "ready" as const,
       channel: "stable" as const,
@@ -439,6 +443,29 @@ describe("Desk routes", () => {
     );
     expect(rejected.status).toBe(403);
     expect(releases.snapshot).toHaveBeenCalledTimes(1);
+    expect(releases.snapshot).toHaveBeenCalledWith(false);
+    await routes.updateStatus(readRequest("/api/update-status?check=1"));
+    expect(releases.snapshot).toHaveBeenLastCalledWith(true);
+  });
+
+  it("requires browser admission before handing an update to the lifecycle", async () => {
+    const releases = fakeReleases();
+    const routes = createDeskRoutes(fakeClient(), fakeSettings(), releases);
+    const expected = { current: "a".repeat(40), target: "b".repeat(40) };
+    const rejected = await routes.startUpdate(
+      new Request("http://localhost:8644/api/update-status", {
+        method: "POST",
+        body: "not-json",
+        headers: { host: "attacker.example" },
+      }),
+    );
+    expect(rejected.status).toBe(403);
+    expect(releases.start).not.toHaveBeenCalled();
+    const accepted = await routes.startUpdate(
+      mutation("/api/update-status", expected),
+    );
+    expect(accepted.status).toBe(202);
+    expect(releases.start).toHaveBeenCalledWith(expected);
   });
 
   it("returns confirmed native capability state after an admitted settings change", async () => {

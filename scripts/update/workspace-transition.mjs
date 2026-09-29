@@ -6,6 +6,7 @@ import {
   atomicWriteJson,
   ensurePrivateDirectory,
 } from "../install/files.mjs";
+import { assertManagedPluginCopy } from "../dev/plugin-copy.mjs";
 import { MANAGED_CORE_FILES, refreshManagedPlugin } from "../dev/files.mjs";
 import {
   VERSION,
@@ -58,6 +59,13 @@ export function applyWorkspaceTransition(paths, options = {}) {
     throw new Error(
       "Customized Basic Memory binding is preserved. Reconcile it using native Hermes configuration, then preview again.",
     );
+  // Ownership conflicts must be diagnosed before creating the receipt, importing
+  // research, replacing instruction seeds or disabling the legacy integration.
+  assertManagedPluginCopy(
+    paths.managedCore,
+    join(paths.profileRoot, "plugins", "pythia"),
+    MANAGED_CORE_FILES,
+  );
   if (!state) {
     regular(join(paths.legacyPython, ".venv", "bin", "basic-memory"));
     if (!options.expected || options.expected !== preview.expected)
@@ -162,6 +170,28 @@ export function applyWorkspaceTransition(paths, options = {}) {
     options.afterCopy?.(file);
   }
   verifyCopies(paths, state);
+  const pluginCopy = refreshManagedPlugin(
+    paths.managedCore,
+    join(paths.profileRoot, "plugins", "pythia"),
+  );
+  if (pluginCopy.status === "preserved")
+    throw new Error(
+      "Workspace transition preserved a locally owned Pythia plugin. Reconcile that replacement before staging the managed transition.",
+    );
+  (
+    options.pluginDoctor ??
+    ((currentPaths) =>
+      nativeHermes(currentPaths, [
+        "plugins",
+        "doctor",
+        join(currentPaths.profileRoot, "plugins", "pythia"),
+        "--ci",
+      ]))
+  )(paths);
+  state.pluginFiles = MANAGED_CORE_FILES.map((name) => ({
+    name,
+    sha256: digest(regular(join(paths.managedCore, name))),
+  }));
   for (const seed of state.seeds) {
     if (seed.action === "retain") {
       const currentHash = existsSync(seed.destination)
@@ -200,28 +230,6 @@ export function applyWorkspaceTransition(paths, options = {}) {
   if (!["owned-disabled", "absent"].includes(binding(paths, execute).status))
     throw new Error("Native MCP disable readback failed.");
   options.afterConfig?.();
-  const pluginCopy = refreshManagedPlugin(
-    paths.managedCore,
-    join(paths.profileRoot, "plugins", "pythia"),
-  );
-  if (pluginCopy.status === "preserved")
-    throw new Error(
-      "Workspace transition preserved a locally owned Pythia plugin. Reconcile that replacement before staging the managed transition.",
-    );
-  (
-    options.pluginDoctor ??
-    ((currentPaths) =>
-      nativeHermes(currentPaths, [
-        "plugins",
-        "doctor",
-        join(currentPaths.profileRoot, "plugins", "pythia"),
-        "--ci",
-      ]))
-  )(paths);
-  state.pluginFiles = MANAGED_CORE_FILES.map((name) => ({
-    name,
-    sha256: digest(regular(join(paths.managedCore, name))),
-  }));
   const legacyExecutable = join(
     paths.legacyPython,
     ".venv",

@@ -42,7 +42,7 @@ const sections = [
   {
     id: "updates",
     label: "Updates",
-    description: "Check the installed channel. Desk never applies an update.",
+    description: "Check for updates and install them on this device.",
   },
 ] as const;
 

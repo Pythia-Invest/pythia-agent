@@ -18,6 +18,7 @@ import {
 } from "react";
 import { useDeskApi, useDeskView, useDeskDrafts } from "@/client/providers";
 import { deskKeys, useSessions } from "@/client/queries";
+import { useDailyUpdateCheck } from "@/client/update-flow";
 import { useChatAttention } from "@/client/use-chat-attention";
 import { WorkspaceCompanion } from "@/components/workspace/workspace-companion";
 import { ShellDock, useWideShell } from "./shell-dock";
@@ -72,6 +73,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const sessions = useSessions();
   const { workingIds, unreadIds } = useChatAttention();
+  useDailyUpdateCheck();
   const api = useDeskApi();
   const viewPublisher = useDeskView();
   const drafts = useDeskDrafts();

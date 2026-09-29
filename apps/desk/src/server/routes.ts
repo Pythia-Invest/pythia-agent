@@ -1,5 +1,6 @@
-import { createWorkRoutes } from "./work-routes";
+import { createReleaseRoutes } from "./release-routes";
 import { createWorkspaceRunRoutes } from "./workspace/run-routes";
+import { createWorkRoutes } from "./work-routes";
 import { createDeskViewRoutes } from "./view-context/routes";
 import {
   createNativeSessionContextRoutes,
@@ -106,6 +107,7 @@ export function createDeskRoutes(
 ) {
   return {
     ...createWorkRoutes(client),
+    ...createReleaseRoutes(releases),
     ...createWidgetRoutes(),
     ...createTopBarRoutes(workspace),
     ...createPluginInvokeRoutes(),
@@ -197,15 +199,6 @@ export function createDeskRoutes(
           Number(url.searchParams.get("offset") ?? 0) || 0,
         );
         return result({ data: await client.listSessions(limit, offset) });
-      } catch (error) {
-        return routeError(error);
-      }
-    },
-    async updateStatus(request: Request) {
-      const rejection = admitBrowserRequest(request, "read");
-      if (rejection) return rejection;
-      try {
-        return result(await releases.snapshot());
       } catch (error) {
         return routeError(error);
       }

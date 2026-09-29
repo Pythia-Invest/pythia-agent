@@ -30,9 +30,19 @@ pythia update
 ```
 
 The technical-preview updater follows `origin/main` only when the installed
-source records clean `main`. It is a manual command and accepts a fast-forward
-only. Stable tag discovery and signature verification are designed for a later
+source records clean `main`. It accepts a fast-forward only and runs only after an explicit user action. Stable tag discovery and signature verification are designed for a later
 stable channel; no stable release is currently published.
+
+On an installed device, **Settings → Updates** shows the activated version,
+build and channel. **Check now** performs release discovery, and Desk also checks once a day
+while it is open; opening Settings reads local inventory only. When an
+update is available, **Update now** invokes the same lifecycle through an
+independent systemd user service. The action restarts Pythia and interrupts running
+chats, while preserving saved conversations, files and configuration. Desk
+reconnects and offers **Reload Desk** after the new build is confirmed. If it does
+not return, use the host status and recovery commands below. Development
+workspaces show their source build but cannot apply installed-device updates.
+See [ADR 0017](decisions/0017-updates-from-desk.md) for the handoff boundary.
 
 Before stopping services or changing source, the updater requires the checkout
 to be clean, owned, and conflict-free. It never stashes, merges, rebases,
@@ -58,6 +68,72 @@ the same complete-before-enable boundary. Inspect `pythia status` and
 If an explicit rebuild fails, inspect the same status and doctor readbacks, fix
 the cause, and rerun `pythia rebuild` from the chosen checkout. `pythia recover`
 does not resume install or rebuild transactions.
+
+## Compatibility with already installed updaters
+
+The updater that begins an update belongs to the **installed** release. New
+checks cannot retroactively change that executable. Releases containing the
+target-prerequisite handshake fetch and verify the exact target under the
+installed trust policy, extract only its `scripts/` and `runtime/` into a temporary
+snapshot, and run its read-only prerequisite check before stopping services or
+advancing the live checkout. The snapshot is removed on success or failure; it
+is not a second installation or Git worktree. The target check must not prepare
+dependencies, migrate data, change configuration, invoke providers or control
+services. It runs trusted release code, not sandboxed third-party code. Unknown
+or missing checks fail closed before a new update. Recovery retains its recorded
+target, including targets predating this handshake, and still runs their normal
+candidate preparation checks.
+
+The deployed `562dfc9` updater predates this protocol. For a preview installation,
+an operator can inspect a reviewed newer target without activating it:
+
+```sh
+# Run from the installed clean checkout. Preview main is unsigned.
+git fetch --no-tags origin refs/heads/main
+preview_target=$(git rev-parse FETCH_HEAD)
+preview_snapshot=$(mktemp -d)
+git archive "$preview_target" scripts runtime | tar -x -C "$preview_snapshot"
+preview_data_base=${PYTHIA_INSTALL_DATA_HOME:-${XDG_DATA_HOME:-"$HOME/.local/share"}}
+preview_node="$preview_data_base/pythia/runtime/node/22.16.0/bin/node"
+"$preview_node" "$preview_snapshot/scripts/update/preflight.mjs" --checkout "$PWD"
+rm -rf "$preview_snapshot"
+```
+
+This compatibility command is provided by releases containing the handshake;
+it cannot inspect targets that predate it. It uses the installation's normal
+release discovery and trust policy, verifies the fetched target, reports its
+revision, and does not stop services or change the live source. It may fetch Git
+objects. Review the target source before running it; this preview-only example
+is not a substitute for stable tag verification. If preflight fails, keep the
+current installation running until a maintenance window is available. Running
+the original old `pythia update` still follows its original stop-first behavior.
+There is no supported automatic online migration across that old boundary.
+
+For the Basic Memory transition from `562dfc9`, plan for Desk to be unavailable
+while the target checkout is selected and migration is completed. If the old
+updater already failed, do not reset source, rerun update against a newer target,
+or delete the transaction. Use the target release's commands:
+
+1. Run `pythia status` and `pythia workspace-transition`. Review the pending
+   migration, plugin ownership, seed choices and service state.
+2. Stage using the preview token and explicit seed choices as described below.
+   Resolve reported ownership conflicts before changing or moving any plugin.
+3. Use the supported transition checkpoint described below. If using its native
+   session path, run `pythia workspace-transition --chat`. This opens native
+   Hermes with the installed environment; you choose whether to send a brief
+   message (which may use your provider). Use `/status` for its session ID and
+   `/exit`, then `pythia workspace-transition --complete <session-id>`. A successful
+   provider answer is not required once native prompt context is persisted. Desk
+   may remain stopped throughout this recovery.
+4. Run `pythia recover`. This resumes the original recorded target, prepares and
+   verifies it, restores both services, and enables normal startup only after
+   readiness. Confirm `pythia status` and `pythia doctor`.
+
+Preflight reports whether it changed service state, not a claim that Desk is
+currently available. A recovery failure records stopped or stop-unconfirmed
+state and the latest preparation error. Keep migration backups and original
+notes, and start new chats after adoption: existing conversations retain their
+stored native context.
 
 ## What Pythia owns
 
