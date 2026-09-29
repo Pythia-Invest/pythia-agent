@@ -14,6 +14,24 @@ live = importlib.import_module(PLATFORM + '.live')
 LiveReads = live.LiveReads
 
 
+def promptly():
+    """Run LiveReads' one-second idle re-checks every 10 ms."""
+    async def sleep(seconds):
+        await asyncio.sleep(min(seconds, .01))
+    def wait_for(awaitable, timeout):
+        return asyncio.wait_for(awaitable, min(timeout, .01))
+    runtime = SimpleNamespace(**{**vars(asyncio), 'sleep': sleep, 'wait_for': wait_for})
+    return patch.object(live, 'asyncio', runtime)
+
+
+async def until(check, timeout=2):
+    deadline = asyncio.get_running_loop().time() + timeout
+    while not check():
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError('Timed out waiting for delivery state')
+        await asyncio.sleep(.005)
+
+
 class Delivery(unittest.IsolatedAsyncioTestCase):
     async def test_push_notification_wakes_delivery_immediately(self):
         subscribed, published = asyncio.Queue(), asyncio.Queue()
@@ -76,32 +94,38 @@ class Delivery(unittest.IsolatedAsyncioTestCase):
                         await hub.close()
 
     async def test_push_reset_discards_late_callbacks_from_previous_selection(self):
-        scope, callbacks, stopped, events = ['first'], [], [], []
-        async def access(_): return scope[0]
+        scope, callbacks, stopped, events, checks = ['first'], [], [], [], []
+        async def access(_):
+            checks.append(scope[0])
+            return scope[0]
         async def read(_): raise AssertionError('Push must not poll a different feed')
         async def subscribe(_, publish):
             callbacks.append(publish)
             selected = scope[0]
             return lambda: stopped.append(selected)
         async def publish(_, event): events.append(event)
-        hub = LiveReads(read, access, subscribe=subscribe)
-        try:
-            await hub.attach([{'operation': 'fixture', 'arguments': {}}], publish)
-            await asyncio.sleep(.02)
-            callbacks[0]({'type': 'snapshot', 'state': 'ready', 'data': {'source': 'first'}})
-            await asyncio.sleep(1.05)
-            scope[0] = 'second'
-            await asyncio.sleep(1.05)
-            self.assertEqual(stopped, ['first'])
-            self.assertEqual(events[-1]['type'], 'reset')
-            callbacks[0]({'type': 'snapshot', 'state': 'ready', 'data': {'source': 'first-late'}})
-            callbacks[1]({'type': 'snapshot', 'state': 'ready', 'data': {'source': 'second'}})
-            await asyncio.sleep(1.05)
-            self.assertEqual(events[-1]['data'], {'source': 'second'})
-            self.assertNotEqual(events[0]['generation'], events[-1]['generation'])
-            self.assertFalse(any(event.get('data') == {'source': 'first-late'} for event in events))
-        finally:
-            await hub.close()
+        with promptly():
+            hub = LiveReads(read, access, subscribe=subscribe)
+            try:
+                await hub.attach([{'operation': 'fixture', 'arguments': {}}], publish)
+                await until(lambda: len(callbacks) == 1)
+                callbacks[0]({'type': 'snapshot', 'state': 'ready', 'data': {'source': 'first'}})
+                await until(lambda: events and events[-1].get('data') == {'source': 'first'})
+                scope[0] = 'second'
+                # The changed selection stops the old feed, resets, then resubscribes.
+                await until(lambda: len(callbacks) == 2)
+                self.assertEqual(stopped, ['first'])
+                self.assertEqual(events[-1]['type'], 'reset')
+                callbacks[0]({'type': 'snapshot', 'state': 'ready', 'data': {'source': 'first-late'}})
+                # Two further delivery cycles would have published an accepted late event.
+                seen = len(checks)
+                await until(lambda: len(checks) >= seen + 2)
+                self.assertFalse(any(event.get('data') == {'source': 'first-late'} for event in events))
+                callbacks[1]({'type': 'snapshot', 'state': 'ready', 'data': {'source': 'second'}})
+                await until(lambda: events[-1].get('data') == {'source': 'second'})
+                self.assertNotEqual(events[0]['generation'], events[-1]['generation'])
+            finally:
+                await hub.close()
         self.assertEqual(stopped, ['first', 'second'])
 
     async def test_one_cancelled_consumer_does_not_cancel_joiner_and_queue_is_bounded(self):
@@ -143,30 +167,27 @@ class Delivery(unittest.IsolatedAsyncioTestCase):
         async def read(_):
             calls.append(1)
             return {'value': 42}, 60
-        hub = LiveReads(read, access, grace=.01)
         request = {'operation': 'synthetic', 'arguments': {}}
         a, b = [], []
         async def publish_a(_, event): a.append(event)
         async def publish_b(_, event): b.append(event)
-        try:
-            one = await hub.attach([request], publish_a)
-            for _ in range(20):
-                if a: break
-                await asyncio.sleep(.01)
-            two = await hub.attach([request], publish_b)
-            self.assertEqual(a[0]['data'], b[0]['data'])
-            self.assertEqual(calls, [1])
-            hub.detach(one)
-            scope[0] = 'denied'
-            await asyncio.sleep(1.1)
-            self.assertEqual(b[-1]['type'], 'reset')
-            self.assertNotIn('data', b[-1])
-            denied = await hub.attach([request], publish_a)
-            self.assertEqual(a[-1]['type'], 'reset')
-            self.assertNotIn('data', a[-1])
-            hub.detach(denied)
-            hub.detach(two)
-            await asyncio.sleep(1.1)
-            self.assertEqual(len(hub.resources), 0)
-        finally:
-            await hub.close()
+        with promptly():
+            hub = LiveReads(read, access, grace=.01)
+            try:
+                one = await hub.attach([request], publish_a)
+                await until(lambda: a)
+                two = await hub.attach([request], publish_b)
+                self.assertEqual(a[0]['data'], b[0]['data'])
+                self.assertEqual(calls, [1])
+                hub.detach(one)
+                scope[0] = 'denied'
+                await until(lambda: b[-1]['type'] == 'reset')
+                self.assertNotIn('data', b[-1])
+                denied = await hub.attach([request], publish_a)
+                self.assertEqual(a[-1]['type'], 'reset')
+                self.assertNotIn('data', a[-1])
+                hub.detach(denied)
+                hub.detach(two)
+                await until(lambda: not hub.resources)
+            finally:
+                await hub.close()
