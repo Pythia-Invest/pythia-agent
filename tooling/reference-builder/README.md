@@ -54,11 +54,27 @@ Lines core cannot key are left out and counted in the manifest audit
 does not know yet (no share-class FIGI) keeps a local, non-portable ID
 (`security:provisional:esma_firds:isin:<ISIN>`, lines without FIGI or ticker
 `listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`), counted as
-`securities_local_id`; the build that finds its FIGI aliases the local ID to it. Rows the writer ignores
+`securities_local_id`; the build that finds its FIGI aliases the local ID to it. A SEC-only security without a
+share-class FIGI is keyed by its registrant's CIK and ticker
+(`security:provisional:sec:id:<CIK>.<TICKER>`, its line
+`listing:provisional:sec:ticker:<MIC>.<CIK>.<TICKER>`), never by the ticker
+alone, and no alias maps the older ticker-only form: that alias would carry a
+delisted company's reference to the ticker's next owner. Rows the writer ignores
 (duplicate IDs of collapsed lines, or a constraint violation) are counted per
 table under `writer_ignored`.
 
 ## Rules applied
+
+Rules name kinds of evidence, never sources (ADR 0044, A2). Each assembled row
+carries the kind it rests on (`model.Evidence`): `admission_register` (FIRDS),
+`listing_directory` (OpenFIGI's home-exchange lines), `registrant_filing` (the
+SEC ticker and fund files) and, on a receipt edge, `stated_underlying` (FIRDS
+field 26). A rule tests that kind; `source` is provenance only, so another
+source of the same kind decides alike (`test_decisions.py` renames every
+source and gets the same decisions). `check_names.py`, run by `just check`,
+fails when a module that decides, or core's `identity/*.py`, compares a
+source, plugin or provider name with a literal. The rules are versioned
+(below).
 
 - **Activity.** FIRDS rarely sets termination dates. A line is `inactive` when
   it is terminated, is a corporate-action line without an OpenFIGI line, or its
@@ -124,31 +140,30 @@ table under `writer_ignored`.
   Merck & Co.) is stale.
 - **Primary venue (FIRDS securities, `reconcile.py`).** Field 8 names the EEA
   admissions the issuer requested; it decides only an EEA primary.
-  - A request beside a line outside the EEA from another source (an OpenFIGI
-    home-exchange line, a SEC exchange line) leaves the primary unknown and
-    asked (`requested_in_eea_listed_outside`: Ferrari, Stellantis, Shell).
+  - A request beside a line outside the EEA from a listing directory or a
+    registrant filing (an OpenFIGI home-exchange line, a SEC exchange line)
+    leaves the primary unknown (`requested_in_eea_listed_outside`: Ferrari,
+    Stellantis, Shell).
   - Among requested admissions, the most liquid EU market (the relevant
     venue) picks the line when it belongs to a requested venue's operating
     entity (ISO 10383 LEI); with one requested venue, that venue. Deutsche
     Börse runs the Frankfurt regulated market on Xetra and the floor, and
     Xetra is its main venue (`reconcile.MAIN_VENUE`), so SAP lists on Xetra.
-    Requested venues of several entities with none the most liquid are asked.
+    Requested venues of several entities with none the most liquid leave it
+    unknown.
   - Field 8 on `firds.FIELD8_VENUE_HABIT` segments (Warsaw GlobalConnect,
     Vorvel) decides nothing.
   - Without a request, a line outside the EEA decides as before: a US ISIN's
     first SEC exchange line, another ISIN's OpenFIGI home-exchange line, else
     its SEC line. With none, the relevant venue is only a liquidity measure:
-    the primary is unknown and asked (`most_liquid_only`).
-  - Where the above leaves a share's primary unknown, its one line on an
-    exchange in its ISIN's country (not OTC, an MTF or a trading-only venue,
-    and one the package can write, with a trading currency) is attached to
-    its home-market question as a suggested answer (`suggested`, rule
-    `isin_country`: TotalEnergies on Euronext Paris beside NYSE, RELX and
-    Shell on London). It is a
-    curation suggestion, never a decision (R2, ADR 0044): the share stays
-    unknown until a curator approves it; once calibrated, the curator's back
-    office can approve such suggestions in bulk. Funds are left out: an Irish or Luxembourg fund's
-    Dublin or Luxembourg line is often a technical listing.
+    the primary is unknown (`most_liquid_only`).
+  - An unknown primary is a coverage count, never a question: which listing a
+    view shows is a preference or a documented default (ADR 0044, A5). The
+    build log and the manifest count live securities without a written
+    primary (`securities_without_primary`), and so does the `primary_missing`
+    invariant. The line in the ISIN's country is an inference, not evidence,
+    so it decides nothing and is not suggested either; core's default order
+    already puts home-country lines first.
   - A security still without a primary the package can write is priced on
     its line at FIRDS' most liquid EU market, marked `most_liquid` (the Desk labels it "most liquid EU
     line") and never primary; core ranks it after home-country lines.
@@ -175,11 +190,16 @@ table under `writer_ignored`.
   SEC title normalises to exactly one active LEI issuer's name, that match is an
   open issuer-identity question with the LEI as its candidate
   (`issuer_identity_name_candidate`; the name-only join once linked Biofrontera
-  Inc. to Biofrontera AG), carried in the package's questions file. Conflicts become flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
-  title matches the LEI's names wins, then CIK order (FIRDS gives Lee
-  Enterprises' ISIN Berkshire Hathaway's LEI); when none matches, none links
-  (`lei_contested_unnamed`: FIRDS puts venue and data-vendor LEIs such as TP
-  ICAP's or Bloomberg's on US ISINs). Generic words (GROUP, HOLDINGS, BANK…)
+  Inc. to Biofrontera AG), carried in the package's questions file. Conflicts
+  never merge, and a disagreement no rule decides stays unresolved and asked. A
+  CIK that identifiers link to several LEIs links to none and is asked
+  (`cik_lei_conflict`, an `issuer_identity` question with the LEIs as
+  candidates). When several CIKs link one LEI by identifier, the one whose SEC
+  title matches the LEI's names links (FIRDS gives Lee Enterprises' ISIN
+  Berkshire Hathaway's LEI); when several match, none links and each CIK is
+  asked with the LEI as candidate (Vishay Intertechnology and Vishay Precision
+  Group); when none matches, none links (`lei_contested_unnamed`: FIRDS puts
+  venue and data-vendor LEIs such as TP ICAP's or Bloomberg's on US ISINs). Generic words (GROUP, HOLDINGS, BANK…)
   do not count as a match. Two cases are flagged for review
   and left as built:
   an identifier link whose SEC title shares no name word with any GLEIF name of
@@ -200,9 +220,15 @@ table under `writer_ignored`.
   FIRDS name no underlying (neither does OpenFIGI), so rule
   `receipt_issuer_share@1` links a receipt to its issuer's
   one active ordinary share with an active ticker line (a share search cannot
-  show folds nothing in), preferring the FIRDS share when the issuer also has
-  a SEC-only line (counted). An issuer with a preferred share or several
-  candidate shares gets no edge (`receipt_without_underlying`). No source
+  show folds nothing in). An issuer with a preferred share or several
+  candidate shares gets no edge (`receipt_without_underlying`): a shared issuer
+  never picks a share class (ADR 0044, A3), so a FIRDS class A beside a SEC-only
+  class B no longer takes the receipt. The single-share case stays: on the
+  2026-09-28 build it links 201 receipts; for 198 of them the issuer has no
+  other share in the build, and for 3 (Inficon, Erste Bank Polska, Anadolu
+  Efes) its other share has no active ticker line, so it is no candidate. The
+  edge names its rule in `source_record`, so it is a display default and never
+  a validated fact (ADR 0044, A6). No source
   states share classes, so the builder writes no `share_class_of`. Core's
   search folds a receipt into its share only through this relation, and the
   audit lists any second fold target or fold cycle.
@@ -216,6 +242,20 @@ table under `writer_ignored`.
   venue, or no snapshot is written (`--no-gates` writes it anyway for
   inspection).
 
+### Rules versions
+
+`config.BUILDER_VERSION` versions the rules. It is written into every
+assertion's `adapter_version`, `package.json` and the release table, and a
+rule change bumps it with a line here:
+
+- **2** (2026-09-29, roadmap stage 0): rules test evidence kinds instead of
+  source names; identifier link conflicts become `issuer_identity` questions
+  instead of a winner by CIK order; the receipt rule no longer narrows several
+  candidate shares to the FIRDS-listed one; the primary listing is no longer
+  asked (`home_market` and its `isin_country` suggestion are gone); SEC-only
+  subjects are keyed by CIK and ticker.
+- **1**: the rules before roadmap stage 0.
+
 ## Claims, questions and the FIRDS adapter
 
 `firds.claims()` turns every FIRDS field the builder reads into a `Claim`
@@ -228,7 +268,9 @@ claims `isin:<ISIN>@<segment MIC>`. The build decides FIRDS securities' issuer,
 primary and receipt underlying from these claims (rules above).
 
 Where the evidence does not decide, the value stays empty and the build asks a
-question, never storing a guess as fact. `questions-<date>.json` holds them in
+question, never storing a guess as fact. A primary listing is the exception:
+it is a choice, not an identity fact (ADR 0044, A5), so an undecided one is
+counted and never asked. `questions-<date>.json` holds them in
 core subject IDs (each with its question type, the resolution queue's `kind` and
 `reason`, candidates and evidence), and `package.json` names it under `claims`.
 These are curation questions about the world, answered centrally by a curator
@@ -340,7 +382,7 @@ scope. A check that passed in `truth/baseline.json` and fails now, or a subject
 ID that changed without an `id_aliases` row, is a regression and fails the
 command. The builder runs the same audit after writing a snapshot and records
 the scores under `truth_audit` in the manifest; it never blocks a build. Both
-also list build counts to review from the manifest's audit: primaries asked
+also list build counts to review from the manifest's audit: primaries left unknown
 because an EEA request sits beside a line outside the EEA, live securities
 written without a primary listing,
 `issuer_split_lei_cik` and `cik_link_suspect` flags, and every `skipped_*`

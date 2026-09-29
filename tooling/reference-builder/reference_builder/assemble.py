@@ -14,7 +14,8 @@ from datetime import date
 from . import firds, rules
 from .claims import Claims, Meaning, Venues, load
 from .config import Scope
-from .model import FirdsRecord, GleifEntity, Issuer, Listing, Relationship, Security, SecFund, SecTicker, Snapshot, Transparency, Venue
+from .model import (Evidence, FirdsRecord, GleifEntity, Issuer, Listing, Relationship, Security, SecFund, SecTicker, Snapshot,
+                    Transparency, Venue)
 
 FigiMap = Callable[[list[dict]], list[dict]]
 GleifFetch = Callable[[set[str]], dict[str, GleifEntity]]
@@ -131,7 +132,8 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
         op = operating(inputs.venues, segment)
         venue = inputs.venues.get(segment) or inputs.venues.get(op or "")
         listing = Listing(
-            listing_id=f"{segment}:{isin}", source="esma_firds", row_class=rules.firds_kind(record.cfi),
+            listing_id=f"{segment}:{isin}", source="esma_firds", evidence=Evidence.ADMISSION_REGISTER,
+            row_class=rules.firds_kind(record.cfi),
             security_id=f"isin:{isin}", issuer_id=issuer.issuer_id if issuer else None, mic=segment, operating_mic=op,
             country=venue.country if venue else None, currency=record.currency, name=record.full_name,
             valid_from=record.first_trade, valid_to=record.termination,
@@ -240,7 +242,7 @@ def _security(snap, inputs, isin, records, listings, fanout, lei) -> None:
     share_class = next((l.share_class_figi for l in listings if l.share_class_figi), None)
     fitrs = (inputs.transparency or {}).get(isin)
     security = Security(
-        security_id=f"isin:{isin}", kind=rules.firds_kind(head.cfi), source="esma_firds",
+        security_id=f"isin:{isin}", kind=rules.firds_kind(head.cfi), source="esma_firds", evidence=Evidence.ADMISSION_REGISTER,
         issuer_id=f"lei:{lei}" if lei else None, isin=isin, share_class_figi=share_class, cfi=head.cfi,
         fisn=head.short_name, name=head.full_name, currency=head.currency,
         turnover_eur=fitrs.turnover_eur if fitrs else None, turnover_method=fitrs.methodology if fitrs else None,
@@ -249,14 +251,16 @@ def _security(snap, inputs, isin, records, listings, fanout, lei) -> None:
     if rules.also_us_listed(fanout, share_class):
         snap.flag(security.security_id, "also_us_listed")
     if head.cfi.startswith("ED") and head.underlying_isin and head.underlying_isin != isin:
-        snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", f"isin:{head.underlying_isin}", "esma_firds", "firds_underlying_isin"))
+        snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", f"isin:{head.underlying_isin}",
+                                               "esma_firds", "firds_underlying_isin", Evidence.STATED_UNDERLYING))
     home = rules.home_row(isin, fanout)
     if home:  # a line outside FIRDS, in the ISIN's country: evidence for the primary, decided in `reconcile`
         mic, row = home
         ticker = rules.home_ticker(row["ticker"], mic)
         currency = rules.country_currency(isin[:2], inputs.as_of.isoformat())  # the home venue's (`COUNTRY_CURRENCY`)
         listing = Listing(
-            listing_id=f"{mic}:{ticker}", source="openfigi", row_class=security.kind, security_id=security.security_id,
+            listing_id=f"{mic}:{ticker}", source="openfigi", evidence=Evidence.LISTING_DIRECTORY, row_class=security.kind,
+            security_id=security.security_id,
             issuer_id=security.issuer_id, mic=mic, operating_mic=operating(inputs.venues, mic), country=isin[:2],
             currency=currency, trading_currency=None if mic in rules.MINOR_UNIT_VENUES else currency, name=row.get("name"),
         )

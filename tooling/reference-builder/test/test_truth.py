@@ -121,7 +121,7 @@ class AuditTest(unittest.TestCase):
                                                "issuer_split_lei_cik": 0, "cik_link_suspect": 1,
                                                "issuer_identity_name_candidate": 0, "skipped_ticker_mic": 5})
         self.assertIn("       5  rejected by the schema: ticker_mic", logged)
-        self.assertIn("       3  primary asked: an EEA request beside a line outside the EEA", logged)
+        self.assertIn("       3  primary unknown: an EEA request beside a line outside the EEA", logged)
         self.assertIsNone(truth_report.manifest_audit(self.path))  # no manifest beside this reference
         (self.path.parent / "manifest.json").write_text(json.dumps({"snapshot": {"file": self.path.name}, "audit": audit}))
         self.assertEqual(truth_report.manifest_audit(self.path), audit)

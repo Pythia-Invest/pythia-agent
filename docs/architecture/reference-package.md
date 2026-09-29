@@ -121,17 +121,18 @@ gap.
 exceeds them by more than 2%):
 
 - `primary_missing` is at 11,997: live securities with lines whose evidence
-  decided no primary. They are home-market questions, and SEC or OpenFIGI
+  decided no primary. The primary is a choice, not an identity fact (ADR
+  0044, A5), so they are counted and not asked; the rest are SEC or OpenFIGI
   gaps until those sources are onboarded.
-- `questions_open` is at 11,964: questions the build left open in the
-  package's `claims` file (10,271 `home_market`, 629 `issuer_identity`, 895
-  receipt questions and 169 SEC name-only issuer questions).
+- `questions_open` is at 1,698 since rules version 2: questions the build
+  left open in the package's `claims` file (637 `issuer_identity`, 895
+  receipt questions and 166 SEC name-only issuer questions). It asks no
+  `home_market` question (10,271 before).
 - Shares without a primary: `share_primary_silent` is at 1,072: 1,052 SEC
-  OTC-only shares, which no rule places, and 20 home-market questions whose
-  most liquid venue has no line. A security without a written primary is
-  priced on its most liquid EU line (9,770 lines), labelled so and never
-  primary. The ISIN-country line suggests an answer for 189 shares but
-  decides none. See the [FIRDS record](../sources/firds.md).
+  OTC-only shares, which no rule places, and 20 shares whose most liquid
+  venue has no line. A security without a written primary is priced on its
+  most liquid EU line (9,770 lines), labelled so and never primary. See the
+  [FIRDS record](../sources/firds.md).
 - Issuers: 12 shares whose receipts name another live issuer in FIRDS field 5
   (Nestlé's Toronto CDRs name Nestlé S.A., its share names Nestlé Capital
   Markets), and 3 receipts of them filed under the same field 5 (Nestlé's

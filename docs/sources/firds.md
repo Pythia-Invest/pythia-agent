@@ -167,37 +167,30 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   | Field | FIRDS decides | Asked instead (question type) |
   | --- | --: | --- |
   | Issuer | 28,087 securities carry field 5's LEI as issuer | 629 `issuer_identity`: 614 an operator's LEI on a share outside its country, 15 a share its receipts claim for another live issuer or a receipt of it under the same field 5 (Nestlé and its ADR) |
-  | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid; 189 carry a suggested answer (below) |
+  | Primary | 10,863 from issuer-requested admissions (field 8) | None since rules version 2: the primary is a choice (ADR 0044, A5), so 10,271 stay unknown and counted: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid |
   | Receipt underlying | 2,754 receipts link to the field 26 security of their own issuer, or of an issuer claimed for it while it is asked | 885 `receipt_underlying` (42 because field 26 names another issuer's security), 10 `receipt_conflict` |
 
-  The SEC stage adds 169 name-only issuer questions (#73). All 11,964 are
-  curation questions in the package's `claims` file, answered centrally per
-  ADR 0044; none reaches the investor's Repairs queue. A security
+  The SEC stage adds 166 name-only issuer questions (#73) and 8
+  `issuer_identity` questions on CIKs whose identifier links conflict. All
+  1,698 are in the package's `claims` file, answered centrally per ADR 0044;
+  none reaches the investor's Repairs queue. A security
   without a primary the package can write is priced on its line at the most
   liquid EU market (9,770 lines), labelled so and never primary. The
-  `share_primary_silent` invariant counts every live share that has no
-  written primary and not both a question and that label: 1,072, of which
-  1,052 are SEC OTC-only shares, which no rule places, and 20 questions whose
-  most liquid venue has no line. The OpenFIGI home lines decided before
+  `share_primary_silent` invariant counts every live share that has neither a
+  written primary nor that label: 1,072, of which 1,052 are SEC OTC-only
+  shares, which no rule places, and 20 shares whose most liquid venue has no
+  line. The OpenFIGI home lines decided before
   (London, SIX, Toronto, ASX, Tokyo and others) are written since they take
   their venue country's currency: 4,946 before.
 
-  **ISIN-country suggestion (shares only).** Where field 8 and the other
-  sources leave a share's primary unknown, its one line on an exchange in its
-  ISIN's country is attached to the home-market question as a suggested
-  answer (rule `isin_country`); the share stays unknown. It is Pythia's
-  heuristic, not source evidence, so it is a curation suggestion (R2, ADR
-  0044) that the central curator's back office can approve, in bulk once
-  calibrated. It skips OTC, MTF and trading-only lines and lines the
-  package cannot write (no trading currency). Evidence, on
-  the build of PR #74: where the same test applies to ordinary shares whose
-  primary was already decided, it agrees 7,684 times and disagrees 28 times
-  (99.6%; the 28 are debatable dual listings such as Viohalco on Athens).
-  Funds are excluded: for Irish funds it disagrees with the decided primary
-  581 times against 323, for Luxembourg funds 41 against 91, because a Dublin
-  or Luxembourg line is often a technical listing. It suggests an answer for
-  189 shares, among them TotalEnergies (Euronext Paris beside NYSE), Magnum,
-  and RELX and Shell on London.
+  **ISIN-country suggestion: removed in rules version 2.** A share's one
+  exchange line in its ISIN's country used to be attached to the home-market
+  question as a suggested answer. Both went with ADR 0044's A5: the line is an
+  inference, not evidence, and core's default listing order already ranks
+  home-country lines first. The measurement behind it still describes that
+  default: on the build of PR #74 it agreed with 7,684 decided share
+  primaries and disagreed with 28 (99.6%), and it fails for Irish and
+  Luxembourg funds, whose local line is often a technical listing.
 
   Securities without a request and with a line outside the EEA keep the SEC
   or OpenFIGI line as before (7,581); those sources are onboarded next.
@@ -230,7 +223,6 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |
 | --- | --- | --- | --- | --- |
 | The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity`: 614 open) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
-| The home market when field 8 does not decide it (`home_market`: 10,271 open) | Which listing is the issuer's home is a knowledge question; the evidence may be outside FIRDS | Not written | Not done | Suggest-only |
 | The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 859 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
 
 The questions ship in the package's `claims` file as curation questions,
@@ -244,11 +236,14 @@ Classes assigned to code or to curation instead:
   - fund share classes, from the sub-fund LEI;
   - a receipt's underlying, from field 26 and `successor_of`;
   - the trading currency, from venue-specific evidence.
-- **Unknown, with a curation question (answered centrally per ADR 0044):** the primary venue when no
+- **Unknown, with a curation question (answered centrally per ADR 0044):** the
+  trading currency until a venue-specific source exists (`trading_currency`);
+  a receipt with no usable field 26 (`receipt_underlying`).
+- **Unknown and counted, never asked:** the primary venue when no
   issuer-sought listing exists, or when an EEA request conflicts with a
-  primary outside the EEA (`home_market`); the trading currency until a
-  venue-specific source exists (`trading_currency`); a receipt with no usable
-  field 26 (`receipt_underlying`).
+  primary outside the EEA. Which listing a view shows is a preference or a
+  documented default (ADR 0044, A5); since rules version 2 the build asks no
+  `home_market` question.
 
 ## Sign-off
 
@@ -271,7 +266,8 @@ Venture, Cboe NL, Tel Aviv, an LEI GLEIF does not hold). The ISIN-country line
 suggests an answer for General Dynamics and PepsiCo (their US line) and
 TotalEnergies (Euronext Paris); they stay questions until a curator approves.
 BCE and RELX now get their home line as the suggestion (Toronto, London), since
-home lines take their venue country's currency.
+home lines take their venue country's currency. Rules version 2 removed the
+suggestion and the home-market question (ADR 0044, A5).
 
 Decisions and limits:
 
@@ -279,8 +275,8 @@ Decisions and limits:
   that is no venue operator (Legence under Avio, Ubiquiti), is fixed by the
   SEC registrant's issuer claim. Owner: the SEC onboarding.
 - **Primary, shares:** signed off for primaries field 8 decides (21/22 in the
-  sample, all field 8 decisions). The ISIN-country line is only a suggested
-  answer on the question and is not signed off.
+  sample, all field 8 decisions). The ISIN-country line decides nothing and
+  is not signed off.
 - **Primary, ETFs:** accepted limit until a source that sees non-EEA listings
   (OpenFIGI home rows for ETFs, an exchange list) is onboarded. Owner: the
   OpenFIGI onboarding.

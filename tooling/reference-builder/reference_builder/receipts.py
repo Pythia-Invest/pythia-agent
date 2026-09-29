@@ -1,10 +1,10 @@
-"""Receipts: each depositary receipt's `depositary_receipt_of` edge, from FIRDS field 26 or the issuer rule."""
+"""Receipts: each depositary receipt's `depositary_receipt_of` edge, from its stated underlying or the issuer rule."""
 
 from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-from .model import Relationship, Security, Snapshot
+from .model import Evidence, Relationship, Security, Snapshot
 
 RECEIPT_RULE = "receipt_issuer_share@1"
 
@@ -12,13 +12,12 @@ RECEIPT_RULE = "receipt_issuer_share@1"
 def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> None:
     """Every receipt's `depositary_receipt_of` names a security of this build, or the receipt has none.
 
-    A FIRDS-stated underlying ISIN is kept when an active security of the build carries it; FIRDS often names a
-    superseded ISIN (GSK, ArcelorMittal, Tenaris) or one outside the scope, so such an edge is dropped, flagged
-    and counted. A
-    receipt no source links (SEC ADRs and New York registry shares; OpenFIGI names no underlying) is linked to its
-    issuer's one active ordinary share. Several candidates narrow to the ones FIRDS lists (an ISIN); an issuer with
-    a preferred share, or still several candidates, gets no edge: a receipt of a preferred or of another class is
-    never guessed. Every drop and narrowing is counted in the build report."""
+    A stated underlying ISIN (FIRDS field 26) is kept when an active security of the build carries it; FIRDS often
+    names a superseded ISIN (GSK, ArcelorMittal, Tenaris) or one outside the scope, so such an edge is dropped,
+    flagged and counted. A receipt no source links (SEC ADRs and New York registry shares; OpenFIGI names no
+    underlying) is linked to its issuer's one active ordinary share. An issuer with a preferred share or several
+    candidate shares gets no edge: a shared issuer never picks a class (ADR 0044, A3), so a receipt of a preferred
+    or of another class is never guessed. Every drop is counted in the build report."""
     audit = snap.audit.setdefault("relations", Counter())
     by_isin = {security.isin: key for key, security in snap.securities.items() if security.isin}
     kept, asked, stated_targets = [], set(), {}
@@ -35,7 +34,8 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
                 asked.add(item.from_id)
                 continue
             receipt = snap.securities.get(item.from_id)
-            if item.source == "esma_firds" and not (receipt and _issuers(receipt) & _issuers(snap.securities[target])):
+            if item.evidence == Evidence.STATED_UNDERLYING and not (
+                    receipt and _issuers(receipt) & _issuers(snap.securities[target])):
                 # Field 5 on a receipt is the underlying issuer's LEI (ESMA Q&A 1503): field 26 decides only when the
                 # stated security is that issuer's, or both are open with that LEI among the candidates (Nestlé's ADR
                 # and CDRs). Otherwise (14 CDRs stating Thermo Fisher) it is a question.
@@ -43,7 +43,7 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
                 asked.add(item.from_id)
                 stated_targets[item.from_id] = target
                 continue
-            item = Relationship(item.from_id, item.relation, target, item.source, item.rule_id)
+            item = Relationship(item.from_id, item.relation, target, item.source, item.rule_id, item.evidence)
         kept.append(item)
     snap.relationships[:] = kept
     stated = {item.from_id for item in kept if item.relation == "depositary_receipt_of"}
@@ -68,15 +68,12 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
             continue
         if not security.issuer_id:
             continue
-        narrowed = len(shares) > 1
-        shares = [item for item in shares if item.isin] if narrowed else shares
         if len(shares) != 1 or any(item.kind == "preferred" for item in siblings):
             audit["receipt_without_underlying"] += 1
             continue
         snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", shares[0].security_id,
-                                               "pythia", RECEIPT_RULE))
+                                               "pythia", RECEIPT_RULE, None))
         audit[RECEIPT_RULE] += 1
-        audit["receipt_issuer_share_narrowed_to_firds"] += narrowed  # a guess worth seeing in the report
 
 
 def _issuers(security: Security) -> set[str]:
