@@ -10,7 +10,7 @@ import unittest.mock
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity
-from test_identity_page import ASML, LEI, Fixture, plugin, unsigned
+from test_identity_page import ASML, CONTRACTS, LEI, Fixture, plugin, unsigned
 from test_reference_package import make_package
 from pythia_identity_fixture import page, queue, reference_package, store  # noqa: E402
 
@@ -286,6 +286,28 @@ class SubjectOperationTest(QueueFixture):
         ops.store.db.close()
         del core
         self.assertEqual((routed["reason"], routed["named"]), (None, ["eodhd"]))  # an unknown name names no provider
+
+    def test_a_miss_answers_the_section_as_the_next_source_now_serves_it(self):
+        """ADR 0040 hand-over: EODHD finds nothing, so its quote section is led by the next source, still to look up."""
+        core = load_core()
+        from pythia_core_queue_fixture import identity_ops
+        reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
+        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
+        mirror = {**CONTRACTS["eodhd"], "plugin": "mirror", "provider": "mirror",
+                  "addressing": {**CONTRACTS["eodhd"]["addressing"],
+                                 "native": [{"native_scope": "catalogue", "level": "listing", "asset_classes": ["equity"]}]}}
+        plugins = [plugin("eodhd"), page.PluginInfo(key="pythia-mirror", manifest=identity.validate_manifest(mirror))]
+        with unittest.mock.patch.object(identity_ops, "installed", lambda: plugins), \
+                unittest.mock.patch.object(ops, "_resolve", lambda *_: ("EODHD found no match", False)):
+            before = {s["section"]: s for s in json.loads(ops.subject({"subject_id": ASML}))["data"]["sections"]}
+            answer = json.loads(ops.resolve({"subject_id": ASML, "plugin": "pythia-eodhd"}))["data"]["sections"]
+        ops.store.db.close()
+        del core
+        self.assertEqual((before["quote"]["plugin"], before["quote"]["status"]), ("pythia-eodhd", "resolving"))
+        [quote] = answer
+        self.assertEqual((quote["plugin"], quote["status"]), ("pythia-mirror", "resolving"))
+        self.assertEqual([(item["plugin"], item["reason"]) for item in quote["skipped"]],
+                         [("pythia-eodhd", "EODHD found no match")])
 
     def test_a_share_class_is_listed_once_under_other_securities_not_related(self):
         core = load_core()

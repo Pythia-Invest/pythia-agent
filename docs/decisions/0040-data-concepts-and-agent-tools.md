@@ -191,8 +191,13 @@ country of the mechanism it was collected from, not the filer's. Each
 source runs only if Pythia may run its native tool for this caller
 (`eligible_tools`), with the caller's cancellation; one Pythia may not run is
 skipped as unavailable. A source still to be looked up is listed as skipped,
-not awaited, and does not make the list partial; a source that does not know
-the entity lists nothing.
+not awaited; like an unavailable one it makes the list partial (review fix,
+2026-09-29: otherwise a missing SEC 20-F beside an ESEF report went unsaid), and
+the Desk looks it up on page open, then reads the list again. A source that
+does not know the entity lists nothing. The read's outcome says what happened:
+`ok` or `empty` when sources answered, `partial` when one did not, `error` when
+every source read failed (never an empty list, D1), and `empty` with a
+`not_covered` issue when no source serves the subject.
 
 **Model visibility.** On this base every core Desk operation is also a tool
 the Desk chat model sees (toolset `pythia-desk`), and so is `filings`

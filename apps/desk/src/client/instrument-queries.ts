@@ -8,7 +8,7 @@ import {
   type SubjectSection,
   subjectQueryKey,
 } from "@pythia/market-data/subject";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { busyRetry } from "./busy-retry";
 import type { PluginRequest } from "./data-protocol";
 import { useDeskApi } from "./providers";
@@ -43,12 +43,15 @@ export function useSubjectPage(subjectId: string) {
 
 /**
  * Sections core could not address are resolved by their plugin when the page
- * opens: one `identity-resolve` invoke per plugin, all in parallel; core
- * answers with that plugin's updated sections. This core-owned write is the
- * recorded exception to "automatic requests stay read-only" (ADR 0036
- * amendment), so it runs once per page open and never again on focus,
- * reconnect or remount. A failed resolution leaves its sections "resolving"
- * and is reported per section with its retry.
+ * opens, as is a combined section's source still to be looked up: one
+ * `identity-resolve` invoke per plugin, all in parallel; core answers with the
+ * sections that plugin can serve. This core-owned write is the recorded
+ * exception to "automatic requests stay read-only" (ADR 0036 amendment), so
+ * it runs once per page open and never again on focus, reconnect or remount.
+ * A resolution changes what core composes (a miss hands a section to the next
+ * source, a new binding joins the combined filings), so the compositions and
+ * core's section reads are read again. A failed resolution leaves its
+ * sections "resolving" and is reported per section with its retry.
  */
 export function useResolvedSections(
   subjectId: string,
@@ -58,11 +61,15 @@ export function useResolvedSections(
   sections: readonly SubjectSection[],
 ) {
   const api = useDeskApi();
+  const client = useQueryClient();
   const plugins = [
     ...new Set(
-      sections
-        .filter((section) => section.status === "resolving")
-        .map((section) => section.plugin),
+      sections.flatMap((section) => [
+        ...(section.status === "resolving" ? [section.plugin] : []),
+        ...section.skipped
+          .filter((skip) => skip.code === "resolving")
+          .map((skip) => skip.plugin),
+      ]),
     ),
   ];
   // Core says which level each section's plugin addresses it through.
@@ -81,12 +88,18 @@ export function useResolvedSections(
           subject,
           plugin,
         ],
-        queryFn: () =>
-          resolveSections(
+        queryFn: async () => {
+          const answer = await resolveSections(
             { invoke: (request) => api.pluginInvoke(request) },
             subject,
             plugin,
-          ),
+          );
+          for (const read of ["identity-subject", "section"])
+            void client.invalidateQueries({
+              queryKey: ["plugin", SUBJECT_PLUGIN, read],
+            });
+          return answer;
+        },
         staleTime: Infinity,
         refetchOnMount: false,
         refetchOnWindowFocus: false,

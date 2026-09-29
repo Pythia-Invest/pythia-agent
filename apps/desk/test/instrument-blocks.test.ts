@@ -4,6 +4,7 @@ import {
   groupReports,
   newestPerAuthority,
   pageBlocks,
+  pickedSource,
   usingSource,
 } from "../src/components/instrument/blocks";
 const yahoo = {
@@ -94,6 +95,24 @@ describe("using an alternative source once", () => {
     expect(usingSource(block, "pythia-unknown").sections).toEqual(
       block.sections,
     );
+  });
+
+  it("lapses on another listing, or once core no longer offers the source", () => {
+    const also = {
+      plugin: "pythia-eodhd",
+      label: "EODHD",
+      status: "ready",
+      request: null,
+    };
+    const [offered] = pageBlocks([section("quote", { alternatives: [also] })]);
+    const [gone] = pageBlocks([section("quote")]);
+    if (!offered || !gone) throw Error("expected a quote card");
+    const pick = { plugin: "pythia-eodhd", subject: "listing:a" };
+    expect(pickedSource(offered, pick, "listing:a")).toBe("pythia-eodhd");
+    // The card keeps its React state across a listing switch; the pick does not.
+    expect(pickedSource(offered, pick, "listing:b")).toBeNull();
+    expect(pickedSource(gone, pick, "listing:a")).toBeNull();
+    expect(pickedSource(offered, null, "listing:a")).toBeNull();
   });
 });
 

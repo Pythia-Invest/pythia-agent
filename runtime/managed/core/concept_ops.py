@@ -23,7 +23,7 @@ import time
 from typing import Any
 
 from .identity import filings, news, page
-from .identity.concepts import FilingKind, not_covered
+from .identity.concepts import NOT_COVERED, FilingKind, not_covered
 from .identity.page import Section
 from .queue_ops import SUBJECT_ID
 
@@ -68,10 +68,10 @@ NEWS_SCHEMA = {
 }
 
 
-def _envelope(outcome: str, data: Any, issue: str | None = None) -> str:
+def _envelope(outcome: str, data: Any, issue: str | None = None, code: str | None = None) -> str:
     body: dict[str, Any] = {"schema_version": 1, "outcome": outcome, "data": data}
     if issue:
-        body["issues"] = [{"code": "unavailable" if data is None else "empty", "message": issue}]
+        body["issues"] = [{"code": code or ("unavailable" if data is None else "empty"), "message": issue}]
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -195,9 +195,18 @@ class ConceptReads:
                                for answer in skipped if answer["plugin"] not in rest)]
         merged["alternatives"] = [{**page.source(answer), "status": answer["status"]} for answer in alternatives]
         merged["subject_id"] = subject["id"]
-        outcome = "error" if not merged["sources"] and read else "partial" if merged["partial"] else (
-            "ok" if merged[key] else "empty")
-        return _envelope(outcome, merged)
+        # A chosen source not read (still to be looked up, not runnable here) leaves the list short, as a failure does.
+        merged["partial"] = bool(merged["sources"]) and (merged["partial"] or bool(waiting))
+        if merged["sources"]:
+            return _envelope("partial" if merged["partial"] else "ok" if merged[key] else "empty", merged)
+        # No source answered: every read failed (an error, never an empty list), or none serves this subject yet.
+        if read:
+            failures = "; ".join(f"{item['source']}: {item['reason']}" for item in merged["skipped"]
+                                 if item["code"] == "failed")
+            return _envelope("error", merged, f"No {key} source could be read: {failures}", "unavailable")
+        reasons = "; ".join(item["reason"] for item in merged["skipped"]) or "no source declares it"
+        return _envelope("empty", merged, f"No {key} source serves this subject: {reasons}",
+                         "empty" if waiting else NOT_COVERED)
 
     @staticmethod
     def _dispatch(tool: str, binding: dict, forms: list[str] = (), cancelled: Any = lambda: False,

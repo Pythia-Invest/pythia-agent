@@ -163,14 +163,19 @@ export function FilingsView({ filings }: { filings: Filings }) {
   const [kind, setKind] = useState<string | null>(null);
   const [reading, setReading] = useState<readonly Filing[] | null>(null);
   const names = filings.sources.map((item) => item.source);
+  // A combined read where no source answered says why (not covered, not yet
+  // looked up); only a source that answered can list nothing.
+  const unserved = !names.length && filings.skipped.length > 0;
   if (!filings.filings.length)
     return (
       <div className="flex flex-col gap-1">
         <PartialNote filings={filings} />
         <p className="text-foreground-secondary text-xs">
-          {names.length
-            ? `${names.join(" and ")} list no filings for this entity.`
-            : `${filings.source?.label ?? "The source"} lists no filings for this entity.`}
+          {unserved
+            ? `No filings source serves this entity: ${filings.skipped.map((item) => item.reason).join("; ")}.`
+            : names.length
+              ? `${names.join(" and ")} list no filings for this entity.`
+              : `${filings.source?.label ?? "The source"} lists no filings for this entity.`}
         </p>
       </div>
     );
@@ -239,7 +244,8 @@ export function FilingsView({ filings }: { filings: Filings }) {
           <tbody>
             {shown.map((variants, index) => {
               const [filing] = variants as [Filing, ...Filing[]];
-              // A report is named by its first filing (a 10-K, not its 10-K/A).
+              // A report is named, dated and read by its first filing (a
+              // 10-K, not its 10-K/A); the chips list every version.
               const original = variants.at(-1) ?? filing;
               const grouped = variants.length > 1;
               return (
@@ -258,12 +264,12 @@ export function FilingsView({ filings }: { filings: Filings }) {
                       </span>
                     ) : null}
                     {!grouped && filing.language ? (
-                      <span className="ml-1.5 text-[10px] text-foreground-secondary uppercase">
+                      <span className="ml-1.5 text-foreground-secondary text-xs uppercase">
                         {filing.language}
                       </span>
                     ) : null}
                     {combined && filing.source ? (
-                      <span className="ml-1.5 text-[10px] text-foreground-secondary">
+                      <span className="ml-1.5 text-foreground-secondary text-xs">
                         {filing.authority
                           ? `${authorityLabel(filing.authority)} · `
                           : ""}
@@ -273,26 +279,26 @@ export function FilingsView({ filings }: { filings: Filings }) {
                     {grouped ? <VariantChips variants={variants} /> : null}
                   </td>
                   <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
-                    {filing.period_end ?? "—"}
+                    {original.period_end ?? "—"}
                   </td>
                   {filed ? (
                     <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
-                      {filing.filed_at ? (
+                      {original.filed_at ? (
                         <span
                           title={
-                            filing.filed_time
-                              ? `Filed ${filing.filed_time.replace("T", " ").replace("Z", " UTC")}`
+                            original.filed_time
+                              ? `Filed ${original.filed_time.replace("T", " ").replace("Z", " UTC")}`
                               : undefined
                           }
                         >
-                          {filing.filed_at.slice(0, 10)}
+                          {original.filed_at.slice(0, 10)}
                         </span>
-                      ) : filing.date_basis === "indexed" && filing.date ? (
+                      ) : original.date_basis === "indexed" && original.date ? (
                         <span
                           className="text-foreground-secondary"
                           title="No filing date is published; this is the day the source indexed the report."
                         >
-                          {filing.date} (indexed)
+                          {original.date} (indexed)
                         </span>
                       ) : (
                         "—"
@@ -305,7 +311,7 @@ export function FilingsView({ filings }: { filings: Filings }) {
                       (item) => item.id && READABLE.has(item.format ?? ""),
                     ) ? (
                       <IconButton
-                        label={`Read ${original.form ?? "filing"} ${filing.period_end ?? ""}`.trim()}
+                        label={`Read ${original.form ?? "filing"} ${original.period_end ?? ""}`.trim()}
                         size="sm"
                         variant="ghost"
                         className="mr-1 size-6"

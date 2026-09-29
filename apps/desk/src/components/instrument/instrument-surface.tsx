@@ -22,7 +22,13 @@ import {
   useWidgetPresentation,
 } from "@/client/instrument-queries";
 import { BoundWidget } from "@/components/widgets/bound-widget";
-import { type PageBlock, pageBlocks, usingSource } from "./blocks";
+import {
+  type PageBlock,
+  pageBlocks,
+  pickedSource,
+  type SourcePick,
+  usingSource,
+} from "./blocks";
 import { InstrumentHeader, InstrumentPageSkeleton } from "./instrument-header";
 import {
   SectionFailure,
@@ -59,12 +65,16 @@ function SectionCard({
   className,
   chosen,
   onUse,
+  sourced = true,
   children,
 }: {
   block: PageBlock;
   className?: string;
   chosen?: string | null;
   onUse?: (plugin: string | null) => void;
+  /** False while the body is not this block's (another listing's price
+   * loading or failing): its source line would describe the wrong line. */
+  sourced?: boolean;
   children: ReactNode;
 }) {
   const lead = block.sections[0] as SubjectSection;
@@ -81,7 +91,9 @@ function SectionCard({
     >
       <h2 className="font-semibold text-body text-foreground">{block.title}</h2>
       <div className="min-w-0 flex-1">{children}</div>
-      <SourcesLine section={lead} chosen={chosen} onUse={onUse} />
+      {sourced ? (
+        <SourcesLine section={lead} chosen={chosen} onUse={onUse} />
+      ) : null}
     </section>
   );
 }
@@ -199,7 +211,10 @@ function PageCard({
   /** The chosen listing's price state, when it replaces a price block. */
   price: ReactNode;
 }) {
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [pick, setPick] = useState<SourcePick | null>(null);
+  // Use-once (D1): the pick lapses on another listing or once core no longer
+  // offers that source.
+  const chosen = pickedSource(original, pick, page.subject.id);
   const block = usingSource(original, chosen);
   const servable =
     block.type !== "other" &&
@@ -212,7 +227,10 @@ function PageCard({
       block={block}
       className={SPAN[block.type]}
       chosen={chosen}
-      onUse={(plugin) => setChosen(plugin)}
+      onUse={(plugin) =>
+        setPick(plugin ? { plugin, subject: page.subject.id } : null)
+      }
+      sourced={!price}
     >
       {price ? (
         price

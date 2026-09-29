@@ -472,7 +472,7 @@
   },
   {
     "name": "pythia_prices",
-    "description": "Price of a stock, fund or crypto: quote, history, returns. From the investor's connected market-data sources, with source, as-of and delay. Without start: the latest quote; with start (and end): daily or intraday bars (interval) and a summary with first and last close and change. period (1D to 5Y) gives a period's return. A company reads its primary listing.",
+    "description": "Price of a stock, fund or crypto: quote, history, returns. From the investor's connected market-data sources, with source, as-of and delay. Without start: the latest quote; with start (and end): daily or intraday bars (interval) and a summary with first and last close and change. period (1D to 5Y) gives a period's return. A company reads its default listing.",
     "parameters": {
       "type": "object",
       "properties": {

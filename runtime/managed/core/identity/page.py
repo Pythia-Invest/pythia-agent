@@ -84,6 +84,13 @@ ALIASES = {"sec": ("edgar", "sec edgar", "sec-edgar"), "xbrl-filings": ("esef", 
            "eodhd": ("eod",)}
 CORE_PLUGIN = "pythia"  # core's own operations (the combined filings read)
 ABSENT = frozenset({"not_covering", "not_addressable"})  # a section only these could serve is not shown
+# Why a source's answer waits in the resolution queue instead of binding, in the investor's words.
+QUEUED = {"unaudited": "the source is not yet audited, so its match waits for sign-off",
+          "ambiguous": "several of its records match", "no_key": "its record carries no identifier to check"}
+
+
+def queued_reason(label: str, reason: str) -> str:
+    return f"{label}'s answer is queued for review: {QUEUED.get(reason, reason.replace('_', ' '))}"
 
 
 def named(name: str | None, plugins: list[PluginInfo]) -> str | None:
@@ -234,8 +241,9 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     if (conflict and not (row and row["status"] == "confirmed")) or (row and row["status"] == "conflicting"):
         return {**answer, "status": "conflict", "reason": f"{info.label}'s record contradicts the reference; queued for review"}
     if wants_resolve and (queued or info.key in misses):
-        reason = misses.get(info.key) or f"{info.label}'s answer is queued for review ({queued['reason']})"
-        return {**answer, "status": "unresolved", "reason": reason}
+        reason = misses.get(info.key) or queued_reason(info.label, queued["reason"])
+        # `queued`: a match held for review (ADR 0042 sign-off, several matches), not "no match"
+        return {**answer, "status": "unresolved", "reason": reason, **({"queued": queued["reason"]} if queued else {})}
     if wants_resolve:
         return {**answer, "status": "resolving", "reason": f"Looking up in {info.label}"}
     if row:
@@ -306,8 +314,8 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
             continue
         combine = REGISTRY[SERVES[section][0]].combine
         chosen, alternatives, skipped = select(found, combine=combine, order=order)
-        # A combined section reads its ready sources at once; one still to be looked up is listed, not awaited. It
-        # is looked up (by the Desk, as for any section) only when no combined source is ready yet.
+        # A combined section reads its ready sources at once; one still to be looked up is listed (the read is
+        # partial), not awaited, and the Desk looks it up as it does a resolving section.
         ready = [(answer, served) for answer, served in chosen if answer["status"] == "ready"]
         combined = combine is Combine.PER_AUTHORITY and bool(ready)
         waiting = [answer for answer, _ in chosen if answer["status"] != "ready"] if combined else []
@@ -318,16 +326,18 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
         lead["source"] = source(lead)
         lead["skipped"] = [{**source(answer), "label": answer["label"], "code": answer["status"],
                             "reason": answer["reason"] or answer["status"].replace("_", " ")} for answer in waiting + rest]
+        # Filings are the issuer's: every listing of it reads the same list.
+        issuer = subject["ids"].get(Level.ISSUER) or subject["id"]
         lead["alternatives"] = [{**source(answer), "label": answer["label"], "status": answer["status"],
                                  "binding": answer["binding"],
-                                 "request": filings_request(subject["id"], answer["plugin"]) if combined
+                                 "request": filings_request(issuer, answer["plugin"]) if combined
                                  and answer["status"] == "ready" else answer["request"]}
                                 for answer in alternatives]
         if combined:
             lead["sources"] = [{**source(answer), "authorities": list(served), "status": answer["status"]}
                                for answer, served in chosen]
             lead["label"] = " + ".join(answer["label"] for answer, _ in chosen)
-            lead.update(status="ready", reason=None, request=filings_request(subject["id"]))
+            lead.update(status="ready", reason=None, request=filings_request(issuer))
         # Amber only when a source ranked ahead of the one serving could have served and did not: the investor
         # named it, or something went wrong (contradicted, not found). Setup states are not warnings.
         served = {entry["plugin"] for entry, _ in chosen} or {lead["plugin"]}

@@ -85,6 +85,10 @@ export const subjectSectionSchema = z.object({
   /** Eligible sources not chosen; the investor can use one once. */
   alternatives: z.array(sectionAlternativeSchema).default([]),
   reason: optionalText,
+  /** Set on an `unresolved` section whose source's match waits in the
+   * resolution queue (the review reason: unaudited, ambiguous, no_key);
+   * absent when the source found no match. */
+  queued: text.nullish(),
   /** When a read of the serving address last agreed with the reference
    * (core's read check), or why it did not ("currency differs"); it still serves. */
   verified_at: text.nullish(),
@@ -177,7 +181,7 @@ export const subjectPageSchema = z.object({
     )
     .default([]),
   sections: z.array(subjectSectionSchema).default([]),
-  /** Open conflict/residual items; the page only counts them. */
+  /** Open conflict/residual items; the Desk page does not show them. */
   queue: z.array(z.unknown()).default([]),
 });
 export type SubjectPage = z.infer<typeof subjectPageSchema>;
@@ -315,10 +319,15 @@ const answer = z.object({
   issues: z.array(z.object({ message: z.string() })).optional(),
 });
 
-/** Pythia envelopes answer "empty" or "error" with null data and an issue. */
+/** Pythia envelopes answer "empty" with null data and an issue; an "error"
+ * may carry what was tried as data, and is still a failure (D1). */
 function coreData<T extends z.ZodType>(value: unknown, data: T): z.infer<T> {
   const parsed = answer.parse(value);
-  if (parsed.data === null || parsed.data === undefined)
+  if (
+    parsed.outcome === "error" ||
+    parsed.data === null ||
+    parsed.data === undefined
+  )
     throw Error(
       parsed.issues?.[0]?.message ?? "Nothing is known about this subject.",
     );

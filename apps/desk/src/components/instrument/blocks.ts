@@ -59,6 +59,24 @@ export function pageBlocks(sections: readonly SubjectSection[]): PageBlock[] {
   return blocks.sort((a, b) => ORDER.indexOf(a.type) - ORDER.indexOf(b.type));
 }
 
+/** An investor's use-once pick of an alternative source for one card. */
+export type SourcePick = { plugin: string; subject: string };
+
+/** The alternative a pick still reads, or null: a pick holds only for the
+ * page subject (listing) it was made on, and only while core still offers
+ * that source for the card. */
+export function pickedSource(
+  block: PageBlock,
+  pick: SourcePick | null,
+  subject: string,
+): string | null {
+  if (!pick || pick.subject !== subject) return null;
+  const offered = block.sections.some((section) =>
+    section.alternatives.some((item) => item.plugin === pick.plugin),
+  );
+  return offered ? pick.plugin : null;
+}
+
 /** A block's sections read from one alternative source instead, for this
  * view only: core's choice is not changed. */
 export function usingSource(

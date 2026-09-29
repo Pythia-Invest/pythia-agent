@@ -171,9 +171,11 @@ class Identity:
             self.reference_path(again=True)
         queue_ops.settle(self, [value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
-        sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
+        # The sections this plugin can serve, whoever serves them now: after a miss the next source leads (ADR 0040).
+        names = {str(section) for section in page.SECTIONS if page.served_by(info.manifest, section)}
+        sections = [section for section in (view or {}).get("sections", []) if section["section"] in names]
         for section in sections:
-            if section["status"] == "resolving":
+            if section["status"] == "resolving" and section["plugin"] == info.key:
                 section.update(status="unresolved", reason=reason or f"{info.label} is not available")
         return _envelope("ok", {"sections": sections})
 
@@ -325,7 +327,7 @@ class Identity:
                 return f"{info.label}'s record was reviewed: it is not this instrument", False
             if item is not None:
                 self.store.put_queue_item(item)
-                return f"{info.label}'s answer is queued for review ({item.reason})", False
+                return page.queued_reason(info.label, item.reason), False
         return f"{info.label} found no match", False
 
 

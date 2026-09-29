@@ -44,8 +44,22 @@ function useClock(ms: number) {
 
 const number = (value: string | undefined) =>
   value === undefined ? null : Number(value);
+/** The viewer's local time, with its zone so a venue's hours are not misread. */
 const clock = (time: number) =>
-  new Date(time).toLocaleTimeString(undefined, { hourCycle: "h23" });
+  new Date(time).toLocaleTimeString(undefined, {
+    hourCycle: "h23",
+    timeZoneName: "short",
+  });
+
+/** The feed class the source declares: only a real-time feed is called one. */
+function timing(source: LiveMarket["source"]) {
+  if (source.market_data_type === "realtime") return "real time";
+  if (source.market_data_type === "delayed")
+    return source.delay_seconds
+      ? `delayed ${Math.round(source.delay_seconds / 60)} min`
+      : "delayed";
+  return source.market_data_type.replaceAll("_", " ");
+}
 
 /** Price decimals from the source's own prices, trailing zeros ignored. */
 function pricePrecision(market: LiveMarket) {
@@ -142,7 +156,7 @@ export function LiveMarketPanel({
   const venueOnly =
     market.source.scope === "venue" &&
     !market.subject.subject_id.startsWith("market:");
-  const provenance = `${label}${venueOnly ? ` (${market.source.venue} only)` : ""}, real time. Last update ${clock(market.retrieved_at)}.`;
+  const provenance = `${label}${venueOnly ? ` (${market.source.venue} only)` : ""}, ${timing(market.source)}. Last update ${clock(market.retrieved_at)}.`;
   const header: InstrumentDisplay = {
     id: `${market.subject.subject_id}:live`,
     ticker: unit ?? market.source.venue,
@@ -159,7 +173,9 @@ export function LiveMarketPanel({
             : (session?.session ?? "continuous"),
       data: stale ? "stale" : "current",
     },
-    statusLabel: stale ? "Updates paused" : "Real time",
+    statusLabel: stale
+      ? "Updates paused"
+      : timing(market.source).replace(/^./u, (first) => first.toUpperCase()),
     description: provenance,
     ...(price !== null && previous
       ? {
