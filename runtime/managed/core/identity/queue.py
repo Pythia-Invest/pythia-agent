@@ -21,7 +21,7 @@ from .page import LABELS, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_su
 from .resolution import RELATION_LEVEL, QueueItem, ResolverKind, Verdict, VerdictOutcome, decide
 from .schemes import subject_kind, subject_level
 from .store import IdentityStore
-from .vocabulary import Authority, InstrumentKind, VerdictRelation
+from .vocabulary import Authority, InstrumentKind, VerdictRelation, stored_authority
 
 AGENT_MODEL = "hermes-agent"
 PROMPT_VERSION = "pythia_identity_verdict@1"
@@ -118,9 +118,10 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     """Decide and record one agent or user verdict.
 
     The user's confirmed answer binds the record, a "not a match" dismisses the question. An answer to a reference
-    build question binds nothing: its resolved question is the local override reads apply (`build_questions`). The
-    agent only suggests (ADR 0044 ruling 8): its answer is recorded, the question stays open, and nothing changes
-    until the user confirms it."""
+    build question binds nothing: its resolved question is the local override reads apply (`build_questions`), in
+    place of the user's earlier answer about the same fact. Only unanimous confirm-level identifier evidence refuses
+    the user (`decide`). The agent only suggests (ADR 0044 ruling 8): its answer is recorded, the question stays
+    open, and nothing changes until the user confirms it."""
     resolver = ResolverKind(resolver)
     user = resolver is ResolverKind.USER
     view, row = inspect(store, ref, item_id), store.queue_item(item_id)
@@ -143,10 +144,11 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
         raise Refused(str(error)) from None
     record = _claim(raw) if raw else None
     subject = load_subject(ref, chosen_id) if chosen_id else None
-    if chosen_id and subject is None:
-        raise Refused("The chosen subject is not in the reference data.")
+    if chosen_id and subject is None and not (built and build_questions.own_identifier(row)):
+        raise Refused("The chosen subject is not in the reference data.")  # a contested value need not name one
     # Against "none", every candidate's evidence counts.
-    subjects = [subject] if subject else [found for other in item.candidate_ids if (found := load_subject(ref, other))]
+    subjects = [subject] if subject else [] if chosen_id else [
+        found for other in item.candidate_ids if (found := load_subject(ref, other))]
     prior = [] if user else [_verdict(entry, item_id) for entry in store.history(row)
                              if entry["item_id"] == item_id and entry["resolver"] != resolver
                              and entry["outcome"] == "suggested"]
@@ -184,6 +186,8 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
         if outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
             state = "resolved" if outcome is VerdictOutcome.CONFIRMED else "dismissed"
             store.settle(item_id, state, verdict_id)
+        if built and outcome is VerdictOutcome.CONFIRMED:
+            build_questions.replace_answer(store, row, verdict.relation)
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
 
@@ -285,11 +289,11 @@ _BUILT = {  # answers to a reference build question
 
 
 def _evidence(ref: sqlite3.Connection, cited: list[str]) -> list[dict]:
-    """The reference assertions an item cites."""
+    """The reference assertions an item cites, each with its source and the kind of evidence it is."""
     rows = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({','.join('?' * len(cited))})", cited).fetchall() \
         if cited else []
-    return [{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "authority", "source",
-                                       "retrieved_at")} for row in rows]
+    return [{**{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "source", "retrieved_at")},
+             "authority": str(stored_authority(row["authority"], row["source_record"]))} for row in rows]
 
 
 def _raw(store: IdentityStore, item: dict) -> dict | None:

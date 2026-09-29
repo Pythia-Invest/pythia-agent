@@ -188,7 +188,7 @@ class ScaleTest(QueueFixture):
         for index in range(self.ALIASES):
             old, new = f"listing:isin:NL{index:010d}:XAMS:EUR", f"listing:figi:BBG{index:09d}"
             item = identity.IdentifierAssertion(subject_id=new, scheme="ticker_mic", value=f"T{index}@XAMS",
-                                                authority="snapshot", provenance=provenance)
+                                                authority="source_asserted", provenance=provenance)
             rows.append((item.evidence_id, new, item.value))
             aliases.append((old, new, "reference-20261001"))
             if index < self.BOUND:

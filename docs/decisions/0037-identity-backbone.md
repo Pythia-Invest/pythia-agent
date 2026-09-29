@@ -128,27 +128,29 @@ A crypto security's key comes only from core's curated canonical-asset table
 identity, and wrapped tokens are separate assets linked by `wraps`.
 
 **Authorities.** Plugins never choose a tier; core derives it from the
-authority.
+authority. An authority names the kind of evidence, never where it came from;
+how much the evidence counts also depends on its contributor's trust level (see
+the amendment "evidence counts by kind and trust level").
 
 | Tier | Authorities | Confirms? |
 | --- | --- | --- |
-| T0 identifier | `source_asserted`, `snapshot` | Yes |
+| T0 identifier | `source_asserted`: a source's own record, a reference package's or a plugin's alike | Yes, at confirm level |
 | T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`) | Yes |
 | T3 model verdict | `model_confirmed` at or above the threshold; `model_suggested` below | Only `model_confirmed` |
 | T3 agent answer | `agent_confirmed` (the Hermes agent) | No: it suggests (see the 2026-09-29 amendment) |
-| T4 attestation | `user_attested`, `curated` | Yes |
+| T4 attestation | `user_attested` | Yes |
 
 A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
 
 **The authority rule** is one pure function, `decide`, for every resolver:
 
 1. No authority confirms against contradicting identifier evidence
-   (`contradicts`): a valid T0 assertion for a single-valued scheme, at that
-   scheme's own level on the subject or an ancestor, with a different value.
-   Open reference evidence outranks a provider's identifier; a provider's value
-   vetoes only where no open evidence exists for that scheme. Reference-store
-   assertions carry authority `snapshot` and provider claim assertions
-   carry `source_asserted`, so an open ISIN wins over a provider's stale one.
+   (`contradicts`): a valid confirm-level T0 assertion for a single-valued
+   scheme, at that scheme's own level on the subject or an ancestor, with a
+   different value, whoever asserted it. Where confirm-level contributors
+   disagree, every answer but the user's is blocked; the user's answer is
+   refused only when that evidence is unanimous. Display-level evidence never
+   blocks.
 2. The depositary-receipt guard overrides every verdict: a receipt and its
    share are never the same instrument.
 3. A verdict's relation must fit the chosen subject's level.
@@ -551,8 +553,7 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
   and the absence of competing evidence never increases it.
 
 Not built yet: subjects come only from the reference build and core's curated
-tables, and the builder's `snapshot` evidence outranks a plugin's claims. These
-change in roadmap stage 0 (ADR 0044's amendment "data any plugin can
+tables. This changes in roadmap stage 0 (ADR 0044's amendment "data any plugin can
 extend"). Questions for relevant instruments are built; see the amendment
 "questions on touch, answers as local overrides" below.
 
@@ -804,10 +805,10 @@ answer resolves it with a `user_attested` verdict; "None of these" dismisses it
 and the fact stays unknown. An answer goes through `decide` with the question's
 own subject standing in for the provider record. For a receipt answer the record
 is a receipt, so the depositary-receipt guard refuses a receipt as the
-underlying. A user verdict never beats identifier evidence: an issuer answer
-whose identifiers contradict the question's subject (two different CIKs, two
-different LEIs) is refused. When evidence is weighed by trust level (roadmap
-stage 0), this narrows to unanimous confirm-level identifier proof. This
+underlying. A user verdict never beats unanimous confirm-level identifier
+proof: an issuer answer whose identifiers contradict the question's subject
+(two different CIKs, two different LEIs) is refused, unless confirm-level
+contributors disagree on that identifier (amendment of 2026-09-30). This
 replaces "a question without a provider record takes no verdict" for the
 build's questions.
 
@@ -829,11 +830,10 @@ code. The user can undo it: Reopen in Repairs supersedes the answered question,
 keeps its verdict in the history, and asks it again as the installed release
 asks it; the agent cannot.
 
-**Known gap.** A later release whose evidence contradicts an override does not
-yet raise a conflict question. The override stays applied, so nothing changes
-silently, but nothing tells the user either. W2-evidence (package facts) and
-W3-ingest (plugin claims) add conflict questions, raised when relevant and
-showing both values.
+**A later release that contradicts an override** raises a conflict question
+when relevant, showing both values; the override stays applied until the user
+answers it (amendment of 2026-09-30). Plugin claims that contradict one join
+with plugin evidence (roadmap stage 0, W3-ingest).
 
 **Repairs.** A build question is titled by what it asks ("Issuer unclear",
 "Same company?", "Receipt's share unknown", "Share or receipt?"), shows its
@@ -867,3 +867,102 @@ Rejected alternatives:
   touch; nothing else is needed.
 - **An override table.** The resolved question already holds the subject, the
   answer and its verdict, and lifecycle already re-keys it.
+
+## Amendment (2026-09-30): evidence counts by kind and trust level
+
+**Context.** [ADR 0044](0044-product-direction.md) A1, A2 and A4 say evidence
+counts by its kind and its contributor's trust level, never by its origin, and
+that a prebuilt package has no more authority than the same plugin run
+locally. Two authorities named origins instead. `snapshot` marked a value
+carried from the reference build and outranked a provider's `source_asserted`
+value for the same scheme, and `curated` marked Pythia's own tables at the
+user's tier. The page also showed the first of two differing values
+(`subject.py`), so a disagreement was never visible. Trust now follows a hashed
+release ([ADR 0042](0042-source-onboarding-standard.md), amendment of
+2026-09-30), which gives every contributor, the reference package included, a
+trust level to count at.
+
+**Ruling.**
+
+- **Authorities are kinds.** `snapshot` and `curated` are removed. A value read
+  from a source is `source_asserted`, whichever contributor read it; a value a
+  builder rule derived is `rule_confirmed` with the rule's ID. Core reads an
+  older package's values as kinds (`vocabulary.stored_authority`): `snapshot`
+  and `curated` are `source_asserted` (`curated` rows are Pythia's own list),
+  except a `snapshot` row whose `source_record` names a rule (`name@version`),
+  which is `rule_confirmed`. The identity store's schema and the package format
+  do not change for this: the builder's next format writes only kinds.
+- **Trust per contributor.** A reference package's rows count at the level the
+  user granted the package (`trust.package_level`); a plugin's claims count at
+  its plugin's (`installed()`). The reference connection carries its package's
+  level (`store.open_reference`).
+  - Confirm-level evidence proves and blocks.
+  - Display-level evidence is shown with its source (the view's `shown`) and
+    never proves, blocks or confirms. A display-level package still serves
+    search and pages: its values fill the view, and addresses built from them
+    are `derived`.
+  - An address is `confirmed` only where confirm-level evidence states it: a
+    package's provider coin ids at the package's level. Addresses from core's
+    market table are `derived` until plugins declare their own.
+- **Contested facts.** Any valid confirm-level value of a single-valued scheme
+  that differs from a record's contradicts it, whoever asserted it. Where
+  confirm-level assertions disagree, the fact is contested: every value is
+  kept, none is applied (`values` holds only agreed values), and the view
+  carries `contested`. Every answer but the user's is blocked.
+- **The user decides.** A user's answer, a verdict or a build-question
+  override, is refused only by unanimous confirm-level identifier proof: where
+  the evidence for a scheme agrees on one other value. A contested identifier
+  never refuses it. The receipt guard still applies.
+- **Conflict questions on touch.** When a subject is touched (the gate of the
+  amendment "questions on touch"), core queues, once per question key:
+  - a contested identifier, as a `conflict`/`identifier` question whose
+    candidates are the subjects its values name under the subject-key rule. The
+    answer gives the subject that value. A value that names no subject (a
+    CUSIP-area ISIN, a composite FIGI) leaves the fact contested and shown but
+    unasked;
+  - a user's answer that the installed release contradicts at confirm level (it
+    names another issuer for the security, another underlying for the receipt,
+    or another value for the identifier), as a `conflict`/`binding` question
+    whose candidates are the answer's choice and the release's. The answer
+    stays applied until the user answers; that answer supersedes the earlier
+    one, which stays in the history.
+
+  Both are tagged like the build's questions and answered the same way, so
+  the answer is a local override, and a new release supersedes them while
+  open. A contradiction the user already answered is not asked again.
+
+**Rationale.** A value counts because of what kind of statement it is and how
+much the user trusts whoever made it. Keying on the transport (`snapshot`) or
+the author (`curated`) would let a prebuilt package, or Pythia's own list,
+outrank the same statement from a plugin. With two levels only, disagreement
+between confirm-level contributors cannot be ranked honestly, so it stays open
+and the user decides. The escape hatch when unanimous proof is wrong is to
+demote the contributor. Mapping old values on read keeps installed packages
+and stores working without a schema bump.
+
+**Consequences.**
+
+- On today's packages a contested fact is rare: the builder writes one value
+  per scheme and asks where its sources disagree. Contests appear once plugin
+  evidence joins the union.
+- A resolve answer against a contested identifier becomes a conflict for the
+  user, never a binding.
+- A package installed with `--display` confirms nothing: resolve answers wait
+  in the queue, and its coin addresses show as derived.
+- The mapping covers relations too (a receipt edge the builder's rule derived is
+  `rule_confirmed`), but no relation is weighed yet: a confirm-level plugin
+  relation that contradicts a package relation is handled where plugin
+  relations first enter (roadmap stage 0, W3-ingest).
+
+**Rejected alternatives.**
+
+- **Ranking confirm-level contributors** (a newer or "open" source wins): trust
+  by origin again, and the exact weighing rules stay open (ADR 0044 A8).
+- **A numeric trust comparison** in `contradicts`: with two levels only confirm
+  counts, and equal-level disagreement has no honest winner.
+- **Per-source trust inside a package:** a lookup keyed by a row's `source` is
+  trust by name. A package is one contributor at one level.
+- **An identity-store migration for the old values:** nothing in production
+  writes them there, and a schema bump belongs to device subjects.
+- **Letting the user's answer beat unanimous proof:** a user who disagrees with
+  every confirm-level contributor demotes one of them instead.

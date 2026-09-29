@@ -6,7 +6,8 @@ user's attestation, from a model tool call the agent's verdict; the transport
 decides which, never an argument. `settle` lets the rules resolver re-ask the
 join inside write operations, never on search or page reads. `surface` queues
 the reference build's questions about an instrument the investor or the agent
-touches: a bounded, idempotent write on those reads (ADR 0044 A2).
+touches, and the conflicts its evidence raises (a contested fact, an answer the
+release contradicts): a bounded, idempotent write on those reads (ADR 0044 A2).
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from .identity import queue as questions
-from .identity import build_questions, location, reference_package, schemes, store
+from .identity import build_questions, conflicts, location, reference_package, schemes, store
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -69,9 +70,9 @@ VERDICT_SCHEMA = {
 
 def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> int:
     """Queue the installed build's questions about these subjects, each once: the investor opened or watches them,
-    or the agent read them. With `family`, a listing also brings its security's, issuer's and composite's. The
-    build's other questions stay in its package. Search, market movers, price routing and settling never call
-    this. Returns how many were added."""
+    or the agent read them. With `family`, a listing also brings its security's, issuer's and composite's. Their
+    conflicts are queued too (`conflicts`). The build's other questions stay in its package. Search, market movers,
+    price routing and settling never call this. Returns how many were added."""
     if not subject_ids:
         return 0
     try:
@@ -81,9 +82,10 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> 
         try:
             wanted = [value for subject in subject_ids for value in questions.family(ref, subject)] if family \
                 else list(subject_ids)
+            raised = conflicts.raised(ref, identity.store, subject_ids)
         finally:
             ref.close()
-        return build_questions.import_build(identity.store, build_questions.about(path, wanted), store.now())
+        return build_questions.import_build(identity.store, [*build_questions.about(path, wanted), *raised], store.now())
     except (sqlite3.Error, OSError):
         logger.warning("reference build questions could not be queued", exc_info=True)
         return 0

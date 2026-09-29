@@ -12,7 +12,8 @@ INDEX = "index:provisional:eodhd:catalogue:GSPC.INDX"
 
 
 def relation(type, start, end, **extra):
-    return model.Relation(type=type, from_id=start, to_id=end, authority="curated", provenance=PROVENANCE, **extra)
+    return model.Relation(type=type, from_id=start, to_id=end, authority="source_asserted", provenance=PROVENANCE,
+                          **extra)
 
 
 class KindTest(Fixture):

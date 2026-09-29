@@ -3,6 +3,7 @@ agent touches, and answered by the user as local overrides that every read appli
 import contextvars
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
 import types
@@ -13,7 +14,7 @@ from test_identity_contracts import identity, load_reference
 from test_identity_page import ASML, CONTRACTS, LEI, plugin
 from test_identity_queue import QueueFixture, load_core
 from test_reference_package import make_package
-from pythia_identity_fixture import reference_package  # noqa: E402
+from pythia_identity_fixture import reference_package, trust  # noqa: E402
 
 SECURITY, ISSUER = "security:isin:NL0010273215", f"issuer:lei:{LEI}"
 RECEIPT, NASDAQ = "security:figi:BBG001SCG0R3", "listing:figi:BBG000K6N6G7"  # ASML's New York Registry Shares
@@ -66,6 +67,7 @@ class BuildQuestionFixture(QueueFixture):
         self.agent_tools, self.identity_ops, self.queue_ops = agent_tools, identity_ops, queue_ops
         self.build_questions = build_questions
         self.data = Path(self.tmp.name) / "core"
+        self.enterContext(unittest.mock.patch.dict(os.environ, {"PYTHIA_CONFIG_ROOT": str(Path(self.tmp.name) / "config")}))
         self.plugins = []
         self.enterContext(unittest.mock.patch.object(identity_ops, "installed", lambda: self.plugins))
         self.ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=self.data)
@@ -90,8 +92,8 @@ class BuildQuestionFixture(QueueFixture):
                 db.execute(*statement)
         return path
 
-    def install(self, questions, source, build="reference-20260926"):
-        """A package whose `claims` file holds these questions, installed on the device."""
+    def install(self, questions, source, build="reference-20260926", level=trust.CONFIRM):
+        """A package whose `claims` file holds these questions, installed on the device at the trust `level`."""
         out = make_package(Path(self.tmp.name) / build, build, source=source)
         data = json.dumps({"build_id": build, "questions": questions}).encode()
         (out / f"questions-{build[-8:]}.json").write_bytes(data)
@@ -99,7 +101,7 @@ class BuildQuestionFixture(QueueFixture):
         manifest["claims"] = {"file": f"questions-{build[-8:]}.json", "bytes": len(data),
                               "sha256": hashlib.sha256(data).hexdigest()}
         (out / "package.json").write_text(json.dumps(manifest))
-        reference_package.install(out, self.data)
+        reference_package.install(out, self.data, level)
 
     def page(self, subject_id):
         """The subject as the Desk reads it (the instrument page, a markets card or a watchlist row)."""

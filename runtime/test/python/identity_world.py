@@ -81,7 +81,7 @@ class World:
             db.executescript(identity.schema_sql("reference"))
             for name in fixtures:
                 load_reference(db, load(name))
-        self.ref = store.open_reference(self.path)
+        self.ref = store.open_reference(self.path, "confirm")  # a build the user trusts to confirm
         self.identity = store.IdentityStore(tmp / "core")
 
     def close(self) -> None:

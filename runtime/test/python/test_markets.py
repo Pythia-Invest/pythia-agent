@@ -43,7 +43,7 @@ class CuratedSubjectTest(unittest.TestCase):
         quote_section = sections["quote"]
         self.assertEqual((quote_section["plugin"], quote_section["binding"], quote_section["binding_status"]),
                          ("pythia-yahoo-discovery", {"provider": "yahoo", "native_id": "^GSPC", "native_scope": "symbol"},
-                          "confirmed"))
+                          "derived"))  # core's table names the address; no contributor's evidence states it
         self.assertEqual(set(sections), {"quote", "chart"})  # no profile or filings for an index
 
     def test_a_pair_without_an_asset_class_is_served_where_a_plugin_addresses_it(self):

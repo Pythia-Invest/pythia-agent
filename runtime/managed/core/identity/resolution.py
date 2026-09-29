@@ -163,33 +163,43 @@ class Verdict:
         _require(self.rationale is None or len(self.rationale) <= 400, "verdict: rationale at most 400 characters")
 
 
-def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str) -> bool:
+def _current(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion],
+             as_of: str) -> tuple[dict[str, str], dict[str, set[str]]]:
+    """The record's own values by scheme, and the values the T0 evidence asserts for those single-valued schemes,
+    valid at `as_of`."""
+    claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
+    found: dict[str, set[str]] = {}
+    for item in evidence:
+        if item.scheme in SINGLE_VALUED and item.scheme in claims and item.tier is EvidenceTier.T0 \
+                and item.validity.contains(as_of):
+            found.setdefault(item.scheme, set()).add(item.value)
+    return claims, found
+
+
+def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str, *,
+                unanimous: bool = False) -> bool:
     """Rule 2: identifier evidence contradicts an association.
 
     `claimed`: the record's identifiers; only those naming the record itself count.
-    `evidence`: the assertions on the chosen subject and its ancestors. A T0
-    assertion of a single-valued scheme, valid at `as_of`, contradicts when its
-    value differs. Open reference evidence (snapshot) prevails; a provider's own
-    assertion (source_asserted) counts only where no open evidence has that scheme.
+    `evidence`: the confirm-level assertions on the chosen subject and its ancestors (display-level evidence never
+    blocks; callers leave it out). A T0 assertion of a single-valued scheme, valid at `as_of`, contradicts when its
+    value differs, whoever asserted it, so where confirm-level contributors disagree every answer is blocked. With
+    `unanimous` (the user's answer), only a scheme whose evidence agrees on one other value contradicts.
     """
-    claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
-    current = [item for item in evidence if item.scheme in SINGLE_VALUED and item.scheme in claims
-               and item.tier is EvidenceTier.T0 and item.validity.contains(as_of)]
-    open_schemes = {item.scheme for item in current if item.authority is Authority.SNAPSHOT}
-    return any(item.value != claims[item.scheme] for item in current
-               if item.authority is Authority.SNAPSHOT or item.scheme not in open_schemes)
+    claims, found = _current(claimed, evidence, as_of)
+    return any(values != {claims[scheme]} for scheme, values in found.items() if not unanimous or len(values) == 1)
 
 
 def corroborates(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion], as_of: str,
-                 level: Level, same_venue: bool = False) -> bool:
+                 level: Level, same_venue: bool = False, *, unanimous: bool = False) -> bool:
     """Identifier evidence names the question's own subject: one of the record's own single-valued identifiers at
-    that `level` equals a valid T0 assertion. A listing is also named by its security's ISIN on the same venue
-    (`same_venue`). A shared issuer LEI or a sibling venue's ISIN says nothing about which instrument this is."""
-    claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
+    that `level` equals a valid T0 assertion (with `unanimous`, the only value its evidence asserts). A listing is
+    also named by its security's ISIN on the same venue (`same_venue`). A shared issuer LEI or a sibling venue's ISIN
+    says nothing about which instrument this is."""
+    claims, found = _current(claimed, evidence, as_of)
     named = {level} | ({Level.SECURITY} if level is Level.LISTING and same_venue else set())
-    return any(item.scheme in SINGLE_VALUED and SCHEME_LEVEL[item.scheme] in named
-               and claims.get(item.scheme) == item.value and item.tier is EvidenceTier.T0
-               and item.validity.contains(as_of) for item in evidence)
+    return any(SCHEME_LEVEL[scheme] in named and claims[scheme] in values and (not unanimous or len(values) == 1)
+               for scheme, values in found.items())
 
 
 def resolve_evidence(evidence: Iterable[IdentifierAssertion], sent: Mapping[str, str], level: Level) -> tuple[str, ...]:
@@ -227,11 +237,12 @@ def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierVal
     """The authority rule (ADR 0037), identical for every resolver.
 
     A verdict may confirm in the absence of identifier proof, never against it:
-    contradicting identifier evidence and the receipt guard always block. Likewise
-    "not a match" is blocked when the record's own identifiers name the candidate. If the
-    resolver found several candidates, or a standing `prior` verdict on the item
-    gives a different answer, nothing is confirmed. A model verdict confirms only
-    at or above the relation's gold-calibrated `threshold`; without one it suggests.
+    contradicting confirm-level identifier evidence and the receipt guard always block. Likewise
+    "not a match" is blocked when the record's own identifiers name the candidate. The user's
+    answer is refused only by unanimous identifier proof: where confirm-level contributors
+    disagree, the user decides. If the resolver found several candidates, or a standing `prior`
+    verdict on the item gives a different answer, nothing is confirmed. A model verdict confirms
+    only at or above the relation's gold-calibrated `threshold`; without one it suggests.
     The queue keeps an agent answer that would take effect as a suggestion.
     """
     if verdict.item_id != item.id or any(other.item_id != item.id for other in prior):
@@ -240,11 +251,13 @@ def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierVal
         raise ValueError("verdict: chosen_id must come from the item's candidates")
     if verdict.relation is VerdictRelation.AMBIGUOUS:
         return VerdictOutcome.AMBIGUOUS
+    user = verdict.authority is Authority.USER_ATTESTED
     if verdict.relation in (VerdictRelation.NONE, VerdictRelation.UNRELATED):
         named = verdict.chosen_id or next(iter(item.candidate_ids), None)
-        proven = named is not None and corroborates(claimed, evidence, as_of, subject_level(named), same_venue)
+        proven = named is not None and corroborates(claimed, evidence, as_of, subject_level(named), same_venue,
+                                                    unanimous=user)
         return VerdictOutcome.BLOCKED if proven else VerdictOutcome.NO_MATCH
-    if contradicts(claimed, evidence, as_of) or guarded(verdict.relation, record_kind, subject_kind):
+    if contradicts(claimed, evidence, as_of, unanimous=user) or guarded(verdict.relation, record_kind, subject_kind):
         return VerdictOutcome.BLOCKED
     answer = (verdict.relation, verdict.chosen_id)
     if any(other.chosen_id is not None and (other.relation, other.chosen_id) != answer for other in prior):
