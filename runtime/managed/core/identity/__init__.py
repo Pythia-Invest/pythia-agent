@@ -14,7 +14,7 @@ from pathlib import Path
 from .claims import (
     BatchOrigin, Claim, ClaimBatch, ClaimEmitter, ClaimError, Deployment, EmitReceipt, IdentifierValue,
     RecordAttributes,
-    RecordClaim, RelationClaim, batch_from_json, batch_to_json, check_batch,
+    RecordClaim, RelationClaim, batch_from_json, batch_to_json, check_batch, record_subject_id,
 )
 from .concepts import REGISTRY, Combine, Concept, ConceptSpec, FilingAuthority, Licence
 from .live_market import LiveMarketError, validate_live_market

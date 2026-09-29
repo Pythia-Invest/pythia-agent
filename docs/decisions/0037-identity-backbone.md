@@ -576,3 +576,89 @@ replace the provisional routing of the Hermes agent's answer described above
 Rejected alternative: keeping provisional routing (the answer routes until the
 user overrides it). The agent's answer would change what the investor sees
 before anyone reviewed it, which ADR 0044 rules out for identity.
+
+## Amendment (2026-09-29): crypto keys come from a claim type; the Sui profile is minted
+
+[ADR 0044](0044-product-direction.md) A3 rules that identifiers come from
+identifiers, not sources: any enabled plugin that supplies the same identifier
+yields the same subject. The crypto-keys amendment above made core's curated
+table the only source of an asset key, which is a rule on source. Its reason
+was a kind of claim: a provider's platform list or primary chain is an
+opinion, not a statement of issuance.
+
+### Ruling
+
+- **An asset key comes from a claim type.** A crypto asset's key,
+  `security:caip19:<deployment>`, comes only from a canonical-issuance claim: a
+  security-level record carrying exactly one CAIP-19 with role `self`. Any
+  plugin may make it. A plugin marks a CAIP-19 `self` only where its source
+  states issuance: an issuer's contract list, a chain's native coin, or a coin
+  type defined by the issuer's own package.
+  - A record carries at most one `self` CAIP-19, as the Assertions and roles
+    ruling already says for every single-valued scheme; `RecordClaim` no
+    longer exempts crypto asset records.
+  - `claims.record_subject_id` derives a record's key from its `self` values
+    only.
+- **A platform list never keys or merges an asset.** A provider's platform
+  list is marked `unqualified` or given as `deployments`. It names deployment
+  listings, `listing:caip19:<deployment>`, which get the same ID from every
+  plugin. It never picks an asset's key or makes two assets one.
+- **Conflicting canonical-issuance claims** are kept side by side and never
+  merge assets.
+- **The curated table is the maintained default.**
+  `canonical_assets.json` stays Pythia's supplier of canonical-issuance
+  claims, through the reference build, with its evidence rules, audit and
+  drift check unchanged. A plugin's claim keys nothing until core ingests
+  plugin claims into subjects (roadmap stage 0). An uncurated coin keeps
+  `security:provisional:<provider>:coin:<id>`.
+
+### The Pythia-local Sui profile is minted
+
+The Sui profile recorded above is now minted. `normalize_identifier`
+canonicalises and checks every `sui:` CAIP-19 value:
+
+- A coin type is `sui:mainnet/coin:<type>`.
+  - Every address in the type is written in lowercase 64-hex long form, and
+    whitespace is dropped.
+  - Every character outside CAIP-19's reference set (letters, digits, `-` and
+    `.`) is percent-encoded in uppercase hex: `::usdc::USDC` becomes
+    `%3A%3Ausdc%3A%3AUSDC`, and `my_coin` becomes `my%5Fcoin`.
+  - An encoded value is decoded first, so every spelling of one type yields
+    one ID.
+- Native SUI, `0x2::sui::SUI` in either address form, is
+  `sui:mainnet/slip44:784`. No other `slip44` value is valid on Sui.
+- A type whose encoded reference exceeds 128 characters is refused. It has no
+  `caip19` key and keeps a provisional ID.
+
+This corrects the recorded profile, which encoded only `::`. Move identifiers
+often contain `_`, which CAIP-19's reference set excludes, and standard URL
+quoting leaves `_` unencoded as well.
+
+This amendment supersedes:
+
+- the Crypto paragraph's "comes only from core's curated canonical-asset
+  table" and the Subject IDs table's "of a curated crypto asset";
+- in the crypto-keys amendment, "the only source of a portable crypto key" and
+  "Only the reference build mints a security-level `caip19` key";
+- the Sui profile's `::`-only encoding and "not minted yet".
+
+### Consequences
+
+- No existing ID changes. The curated table's only Sui row is native SUI,
+  already `sui:mainnet/slip44:784`, and the key rule stays `subject_key@1`.
+- Two plugins that name the same Sui coin type get the same
+  `listing:caip19:` ID.
+- A record with a refused identifier is rejected, so a plugin normalises a
+  coin type before emitting it and leaves out one that is refused.
+- Native USDC on Sui now has a key form. Adding it to the curated table is a
+  separate data change.
+
+### Rejected alternatives
+
+- **Keeping the curated table as the only key source.** A key would depend on
+  where a claim comes from, which A3 rules out, and a plugin whose source
+  states issuance could never key an asset.
+- **Letting any CAIP-19 on an asset record key it.** A provider's platform
+  list would pick the key again, which is the failure the crypto-keys
+  amendment fixed.
+- **Encoding only `::`.** Many Move coin types would give invalid CAIP-19.

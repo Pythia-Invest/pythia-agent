@@ -369,7 +369,11 @@ exists, so the build's open questions simply stay open:
   builder's `snapshot` evidence outranks a plugin's `source_asserted` claim.
 - Trust follows the list of bundled plugin names. Only a bundled plugin binds,
   and only onto reference subjects.
-- Portable crypto keys come only from core's curated table.
+- A crypto asset's key comes from a claim type, a canonical-issuance claim,
+  rather than from a source. Core's curated table, through the reference
+  build, is Pythia's default supplier of these claims. A plugin can make the
+  same claim, but it keys nothing until core ingests plugin claims into
+  subjects.
 
 Documents that cite the first version of these rulings describe this current
 behaviour or its original plan. The central curator's back office they mention

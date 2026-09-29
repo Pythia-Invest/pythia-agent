@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import hashlib
 import re
+import string
 from enum import StrEnum
 from typing import Mapping
+from urllib.parse import unquote
 
 
 class Level(StrEnum):
@@ -149,12 +151,41 @@ def _checksum(scheme: Scheme, value: str) -> bool:
     return True
 
 
+# The Pythia-local Sui profile (ADR 0037): `sui:<chain>/coin:<coin type>`, and native SUI as `slip44:784`.
+_SUI_ADDRESS = re.compile(r"(?<![A-Za-z0-9_])0x([0-9a-fA-F]{1,64})(?![A-Za-z0-9_])")
+_SUI_COIN = re.compile(r"^0x[0-9a-f]{64}::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*(<[A-Za-z0-9_:<>,]+>)?\Z")
+_SUI_NATIVE = f"0x{'2':0>64}::sui::SUI"
+_CAIP19_REFERENCE = frozenset("-." + string.ascii_letters + string.digits)  # plus `%`, the escape itself
+
+
+def _sui(value: str) -> str:
+    """A `sui:` CAIP-19 in the Pythia-local profile. Every address in a coin type takes lowercase 64-hex long form,
+    whitespace is dropped, and every character outside CAIP-19's reference set is percent-encoded in uppercase hex
+    (a Move `_` as well as `::`). Encoded input is decoded first, so the form is stable."""
+    chain, _, asset = value.partition("/")
+    namespace, _, reference = asset.partition(":")
+    if (namespace, reference) == ("slip44", "784"):
+        return value
+    coin = _SUI_ADDRESS.sub(lambda match: "0x" + match[1].lower().zfill(64), "".join(unquote(reference).split()))
+    if namespace != "coin" or not _SUI_COIN.match(coin):
+        raise IdentifierError("caip19: a sui asset is slip44:784 or a coin type")
+    if coin == _SUI_NATIVE:
+        return f"{chain}/slip44:784"
+    encoded = "".join(char if char in _CAIP19_REFERENCE else f"%{ord(char):02X}" for char in coin)
+    if len(encoded) > 128:
+        raise IdentifierError("caip19: a sui coin type over 128 characters has no CAIP-19 key")
+    return f"{chain}/coin:{encoded}"
+
+
 def normalize_identifier(scheme: Scheme | str, value: str) -> str:
     """Return the canonical form of `value` or raise IdentifierError.
 
     CIKs are zero-padded to ten digits (SEC form). EVM (eip155) asset references
     are hex addresses and are lower-cased, so a checksummed and a plain address
-    name one token; other chains' references are case-sensitive and kept exact.
+    name one token. Sui references follow the Pythia-local profile (`_sui`): a raw
+    coin type such as `sui:mainnet/coin:0x2::sui::SUI` is accepted and canonicalised,
+    and one whose reference exceeds CAIP-19's 128 characters is refused, so it keeps
+    a provisional ID. Other chains' references are case-sensitive and kept exact.
     """
     scheme = Scheme(scheme)
     if not isinstance(value, str) or not value or len(value) > 256:
@@ -163,6 +194,8 @@ def normalize_identifier(scheme: Scheme | str, value: str) -> str:
         value = value.zfill(10)
     if scheme is Scheme.CAIP19 and value.startswith("eip155:"):
         value = value.lower()
+    if scheme is Scheme.CAIP19 and value.startswith("sui:"):
+        value = _sui(value)
     if not _PATTERNS[scheme].match(value):
         raise IdentifierError(f"{scheme}: malformed value")
     if scheme is Scheme.CIK and int(value) == 0:
@@ -226,7 +259,7 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
     Every install and every rebuild derives the same ID from the same open
     evidence. Precedence per level (KEY_RULE; "isin" means an ISIN outside CGS_AREA):
       issuer     lei, else cik
-      security   isin, else share_class_figi, else caip19 (a curated crypto asset's canonical deployment)
+      security   isin, else share_class_figi, else caip19 (a crypto asset's canonical issuance deployment)
       composite  the security key + country
       listing    isin + operating MIC + currency, else figi, else caip19 (a chain deployment)
     Tickers are attributes, not keys, so a ticker change keeps the ID.
@@ -277,6 +310,7 @@ def provisional_id(kind: Kind | str, provider: str, native_scope: str, native_id
     return f"{Kind(kind)}:provisional:{provider}:{native_scope}:{key}"
 
 
-# Core's curated canonical-asset table (canonical_assets.json, ADR 0037 Crypto): the only source of a portable crypto key.
+# Core's curated canonical-asset table (canonical_assets.json, ADR 0037 Crypto): Pythia's maintained default supplier
+# of canonical-issuance claims, the one claim type that keys a crypto asset (`claims.record_subject_id`).
 CANONICAL_ASSETS_RULE = "canonical_assets@1"
 

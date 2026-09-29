@@ -150,6 +150,27 @@ class StoreSchemaTest(unittest.TestCase):
         usdc = "eip155:1/erc20:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
         self.assertEqual(identity.normalize_identifier("caip19", usdc), identity.normalize_identifier("caip19", usdc.lower()))
 
+    def test_sui_coin_types_follow_the_pythia_local_profile(self):
+        normalize, address = (lambda value: identity.normalize_identifier("caip19", value)), "0x" + "dba3" * 16
+        usdc = f"sui:mainnet/coin:{address}%3A%3Ausdc%3A%3AUSDC"
+        for spelling in (f"sui:mainnet/coin:{address}::usdc::USDC", usdc, usdc.replace("%3A", "%3a"),
+                         f"sui:mainnet/coin:{address.upper().replace('0X', '0x')}::usdc::USDC"):
+            with self.subTest(spelling=spelling):
+                self.assertEqual(normalize(spelling), usdc)
+        # Every character outside CAIP-19's reference set is encoded, a Move `_` too; a short address is long-formed.
+        self.assertEqual(normalize("sui:mainnet/coin:0x6::my_coin::MY_COIN"),
+                         f"sui:mainnet/coin:0x{'6':0>64}%3A%3Amy%5Fcoin%3A%3AMY%5FCOIN")
+        for native in ("sui:mainnet/coin:0x2::sui::SUI", f"sui:mainnet/coin:0x{'2':0>64}::sui::SUI",
+                       "sui:mainnet/slip44:784"):
+            with self.subTest(native=native):
+                self.assertEqual(normalize(native), "sui:mainnet/slip44:784")
+        self.assertEqual(identity.subject_id("listing", {"caip19": f"sui:mainnet/coin:{address}::usdc::USDC"}),
+                         f"listing:caip19:{usdc}")
+        lp = f"sui:mainnet/coin:{address}::lp::LP<0x2::sui::SUI, {address}::usdc::USDC>"  # over 128: stays provisional
+        for refused in (lp, "sui:mainnet/coin:usdc", "sui:mainnet/slip44:60", f"sui:mainnet/erc20:{address}"):
+            with self.subTest(refused=refused), self.assertRaises(identity.IdentifierError):
+                normalize(refused)
+
 
 class FixtureTest(unittest.TestCase):
     def test_subject_ids_are_derived_from_open_identifiers(self):
@@ -313,6 +334,23 @@ class ClaimTest(unittest.TestCase):
                     deployments=[{"chain": "ethereum", "contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"}])
         with self.assertRaises(ValueError):
             self.record(native_of="ethereum")
+
+    def test_only_a_canonical_issuance_claim_keys_a_crypto_asset(self):
+        usdc, base = "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "eip155:8453/erc20:0x833589fcd6"
+        listed = [{"scheme": "caip19", "value": usdc, "role": "unqualified"},
+                  {"scheme": "caip19", "value": base, "role": "unqualified"}]
+        platforms = self.record(level="security", identifiers=listed, deployments=[{"chain": "base", "contract": "0x8335"}],
+                                native_ref={"provider": "coingecko", "native_id": "usd-coin", "native_scope": "coin"})
+        self.assertIsNone(identity.record_subject_id(platforms))  # a provider's platform list never keys an asset
+        # Any plugin may make the claim, and the same claim keys the same asset.
+        for plugin in ("coingecko", "issuer-list"):
+            canonical = self.record(level="security", identifiers=[{"scheme": "caip19", "value": usdc}, listed[1]],
+                                    provenance={**PROVENANCE, "plugin": plugin, "source": plugin}, native_ref=None)
+            with self.subTest(plugin=plugin):
+                self.assertEqual(identity.record_subject_id(canonical), f"security:caip19:{usdc}")
+        with self.assertRaises(ValueError):
+            self.record(level="security", native_ref=None, identifiers=[{"scheme": "caip19", "value": usdc},
+                                                                       {"scheme": "caip19", "value": base}])
 
     def test_batches_round_trip_through_the_wire_form(self):
         relation = identity.RelationClaim(

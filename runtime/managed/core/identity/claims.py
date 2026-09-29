@@ -17,7 +17,7 @@ from typing import Any, Mapping, Protocol
 from .manifest import Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
 from .schemes import (
-    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Level, Scheme, normalize_identifier,
+    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Level, Scheme, normalize_identifier, subject_id,
 )
 from .vocabulary import (
     AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
@@ -96,9 +96,12 @@ class Deployment:
 class RecordClaim:
     """One source record at its native level, with the identifiers it co-asserts.
 
-    A crypto asset record (level security) may add its token deployments, and
-    `native_of` (the provider chain id it is the native asset of) only where the
-    provider states that as identity; a chain's fee or gas coin is not identity.
+    A crypto asset record (level security) may carry CAIP-19 deployments: at most
+    one `self`, its canonical issuance (see `record_subject_id`), and any number
+    `unqualified`, such as a provider's platform list. It may add its token
+    deployments as the provider names them, and `native_of` (the provider chain id
+    it is the native asset of) only where the provider states that as identity; a
+    chain's fee or gas coin is not identity.
     """
 
     level: Level
@@ -128,9 +131,25 @@ class RecordClaim:
             deployment = item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY
             _require(_DEPTH[item.level] <= _DEPTH[self.level] or deployment,
                      f"record: a {self.level} record cannot assert {item.scheme}")
-        own = [item.scheme for item in self.identifiers if item.role is IdentifierRole.SELF
-               and item.scheme in SINGLE_VALUED and not (item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY)]
+        own = [item.scheme for item in self.identifiers
+               if item.role is IdentifierRole.SELF and item.scheme in SINGLE_VALUED]
         _require(len(own) == len(set(own)), "record: one self value per single-valued scheme")
+
+
+def record_subject_id(record: RecordClaim) -> str | None:
+    """The subject ID a record's own identifiers derive (`subject_id`), or None when they name no key.
+
+    Only `self` values key, so a crypto asset's `security:caip19:` key comes from one claim type, whichever plugin
+    makes it: the canonical-issuance claim, a security record with exactly one `self` CAIP-19. A plugin marks it
+    `self` only where its source states issuance (an issuer's contract list, a chain's native coin, a coin type the
+    issuer's own package defines). A provider's platform list (`unqualified` CAIP-19s, or `deployments`) never
+    keys an asset.
+    """
+    own = {item.scheme: item.value for item in record.identifiers
+           if item.role is IdentifierRole.SELF and item.scheme in SINGLE_VALUED}
+    attributes = record.attributes
+    return subject_id(record.level, own, operating_mic=attributes.operating_mic, currency=attributes.currency,
+                      country=attributes.country)
 
 
 @dataclass(frozen=True, slots=True)
