@@ -102,7 +102,7 @@ def compare(info: page.PluginInfo, subject: dict, stated: Mapping[str, str]) -> 
         {listing["operating_mic"] or listing["mic"]} if listing else set())
     if said.get("operating_mic") and lines - {None} and said["operating_mic"] not in lines:
         differs.append("venue")
-    trading = listing and listing["currency"]
+    trading = listing and listing["trading_currency"]  # None: no source states it, nothing to compare
     if said.get("currency") and trading and MINOR_UNITS.get(currency, currency) != MINOR_UNITS.get(trading, trading):
         differs.append("currency")
     return said, differs
@@ -119,7 +119,8 @@ def _check(identity: Identity, subject_id: str, ref: ProviderRef, said: dict) ->
         return UNCHECKED
     info = next(item for item in plugins if item.key == served["plugin"])
     stated, differs = compare(info, subject, said)
-    comparable = ("operating_mic" in stated and subject["view"]["listings"]) or ("currency" in stated and subject["listing"])
+    comparable = (("operating_mic" in stated and subject["view"]["listings"])
+                  or ("currency" in stated and subject["listing"] and subject["listing"]["trading_currency"]))
     if not comparable:
         return UNCHECKED
     note = (" and ".join(differs) + (" differ" if len(differs) > 1 else " differs") if differs

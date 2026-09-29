@@ -38,7 +38,8 @@ listings by FIGI. `id_aliases` maps every other key a subject could have had
 or names two subjects, is dropped and counted. Identifier assertions carry
 authority `snapshot`. Venues carry their ISO 10383 market category (`RMKT`,
 `MLTF`…), which search uses to prefer a regulated listing over open-market
-trading. It also carries core's curated canonical crypto assets
+trading (outside the EEA, an exchange ISO leaves unspecified, `NSPD`, counts as
+one). It also carries core's curated canonical crypto assets
 (`runtime/managed/core/identity/canonical_assets.json`, rule
 `canonical_assets@1`: chains, provider chain ids, and per asset its canonical
 deployment, its same-security deployments and each provider's coin id), so
@@ -48,8 +49,7 @@ CoinMarketCap; the evidence per row is in `truth/canonical-assets-audit.md`. Sec
 `rank` (FITRS turnover order, SEC file order, curated coin order) for search; a
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit
-(`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue) and
-OpenFIGI-only home lines (no trading currency). A CGS-area security OpenFIGI
+(`schema`): SEC tickers whose exchange the SEC file leaves empty (no venue). A CGS-area security OpenFIGI
 does not know yet (no share-class FIGI) keeps a local, non-portable ID
 (`security:provisional:esma_firds:isin:<ISIN>`, lines without FIGI or ticker
 `listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`), counted as
@@ -75,6 +75,19 @@ table under `writer_ignored`.
   midpoint, auction, a second retail book) are one listing, as core keys a
   listing by operating MIC and currency: the operator's own MIC wins, then a
   regulated-market segment, then a lit segment.
+- **Currency.** A listing carries two. `currency` is the key currency (core
+  keys a listing by ISIN, operating MIC and currency): FIRDS field 13, the
+  instrument's notional currency, on a FIRDS line (Apple is USD on every
+  record). `trading_currency` is the currency the line trades in, set only
+  where its venue decides it: a venue that quotes everything in one currency
+  (`rules.SINGLE_CURRENCY_VENUES`: the German exchanges, Tradegate and Vienna
+  in euros, the US exchanges and OTC Markets in dollars), and an OpenFIGI home
+  line, which takes its venue country's (`rules.COUNTRY_CURRENCY`: London GBP,
+  SIX CHF, Tokyo JPY) as both. Elsewhere it is unknown (IWDA on Amsterdam):
+  labels, search rows and read checks then claim no currency, and the Desk
+  shows the quote's own. On the default-scope build 117,615 of 135,547 venue
+  lines have one. Bloomberg's slashes leave a home line's ticker (`BP/` is
+  `BP`, `RCI/B` is `RCI-B`; Hong Kong codes keep four digits).
 - **ETFs.** FIRDS `CE` instruments become `etf` securities. ETCs and ETNs are
   debt instruments in FIRDS and are not covered yet.
 - **US ETFs.** The SEC company file leaves most exchange-traded funds out. The
@@ -115,7 +128,8 @@ table under `writer_ignored`.
     exchange in its ISIN's country (not OTC, an MTF or a trading-only venue,
     and one the package can write, with a trading currency) is attached to
     its home-market question as a suggested answer (`suggested`, rule
-    `isin_country`: TotalEnergies on Euronext Paris beside NYSE). It is a
+    `isin_country`: TotalEnergies on Euronext Paris beside NYSE, RELX and
+    Shell on London). It is a
     curation suggestion, never a decision (R2, ADR 0044): the share stays
     unknown until a curator approves it; once calibrated, the curator's back
     office can approve such suggestions in bulk. Funds are left out: an Irish or Luxembourg fund's
@@ -337,8 +351,8 @@ vehicle as issuer, and a Munich primary beside a Xetra line.
 An error above its limit fails the command; a warning never does. Limits are the
 exact counts on the default-scope build of the FIRDS week of 2026-09-26. Rules with
 a pending fix also carry headroom: twice the drift measured against the previous
-week (a few rows where the count did not move; 460 rows on 74,796 German-venue
-currency lines), stored as a share of the count so it shrinks with every lowered
+week (a few rows where the count did not move; 57 rows on 92 tickers whose
+currency suffix disagrees with their line's trading currency), stored as a share of the count so it shrinks with every lowered
 limit and is 0 once a rule is cleared. Ordinary weekly data passes and a jump fails.
 A count below its limit is reported as `under (lower to N)`: a fix lowers the limit
 in the same change. Raising a limit needs a stated reason in the pull request. When

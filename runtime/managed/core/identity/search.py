@@ -92,11 +92,14 @@ class Directory:
                 out.setdefault(key, []).append(value)
             return out
 
-        # Regulated listings: an ISO 10383 RMKT segment or a US exchange (whose operating MICs ISO leaves
-        # unspecified). A build from before the category column ranks no line as regulated.
+        # Listings, not open-market trading: an ISO 10383 RMKT segment, a US exchange, or an exchange outside the
+        # EEA whose ISO record leaves the category unspecified (NSPD: Toronto, the ASX, Hong Kong, Tel Aviv). In the
+        # EEA, NSPD marks operator MICs (Frankfurt, Borsa Italiana, BME), never a listing. A build from before the
+        # category column ranks no line as regulated.
         categorised = "category" in {row[1] for row in ref.execute("PRAGMA table_info(venues)")}
         venues = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT mic, name, country FROM venues")}
-        regulated = ({row[0] for row in ref.execute("SELECT mic FROM venues WHERE category = 'RMKT'")}
+        regulated = ({mic for mic, category, country in ref.execute("SELECT mic, category, country FROM venues")
+                      if category == "RMKT" or (category == "NSPD" and country not in ranking.EEA)}
                      | set(US_LISTED)) if categorised else set()
         issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
@@ -106,7 +109,7 @@ class Directory:
         if odd:  # the builder's report and the reference audit list them
             logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
         rows = ref.execute(
-            "SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.currency, l.chain,"
+            "SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.trading_currency, l.chain,"
             " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank, l.most_liquid FROM listings l"
             " JOIN securities s ON s.id = l.security_id WHERE l.status <> 'inactive' AND s.status <> 'inactive'")
         docs = []

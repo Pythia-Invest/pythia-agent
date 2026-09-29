@@ -8,23 +8,8 @@ import sqlite3
 from collections import defaultdict
 from pathlib import Path
 
-from .rules import EEA, TRADING_ONLY_VENUES
+from .rules import EEA, SINGLE_CURRENCY_VENUES, TRADING_ONLY_VENUES, country_currency
 
-# Trading currency by venue country (ISO 4217); a country that changed currency lists
-# (currency, first day) pairs, newest last.
-COUNTRY_CURRENCY: dict[str, tuple[tuple[str, str], ...]] = {
-    **{c: (("EUR", "1999-01-01"),) for c in "AT BE DE ES FI FR IE IT LU NL PT".split()},
-    "GR": (("EUR", "2001-01-01"),), "SI": (("EUR", "2007-01-01"),), "CY": (("EUR", "2008-01-01"),),
-    "MT": (("EUR", "2008-01-01"),), "SK": (("EUR", "2009-01-01"),), "EE": (("EUR", "2011-01-01"),),
-    "LV": (("EUR", "2014-01-01"),), "LT": (("EUR", "2015-01-01"),), "HR": (("HRK", "1994-05-30"), ("EUR", "2023-01-01")),
-    "BG": (("BGN", "1999-07-05"), ("EUR", "2026-01-01")),
-    "SE": (("SEK", "1900-01-01"),), "DK": (("DKK", "1900-01-01"),), "NO": (("NOK", "1900-01-01"),),
-    "IS": (("ISK", "1900-01-01"),), "PL": (("PLN", "1995-01-01"),), "CZ": (("CZK", "1993-01-01"),),
-    "HU": (("HUF", "1900-01-01"),), "RO": (("RON", "2005-07-01"),), "LI": (("CHF", "1900-01-01"),),
-    "CH": (("CHF", "1900-01-01"),), "GB": (("GBP", "1900-01-01"),), "US": (("USD", "1900-01-01"),),
-    "CA": (("CAD", "1900-01-01"),), "JP": (("JPY", "1900-01-01"),), "HK": (("HKD", "1900-01-01"),),
-    "AU": (("AUD", "1900-01-01"),),
-}
 # ISO 4217 codes withdrawn on the given day (replaced by the euro or redenominated), and
 # `XXX` ("no currency"). A line quoted in one of them after that day is a stale record.
 WITHDRAWN = {
@@ -33,12 +18,6 @@ WITHDRAWN = {
     "LVL": "2014-01-15", "LTL": "2015-01-16", "HRK": "2023-01-15", "BGN": "2026-02-01", "ROL": "2006-12-31",
     "TRL": "2005-12-31", "XXX": "0000-01-01", "XEU": "1999-01-01",
 }
-# Operating MICs that quote every instrument in one currency (Pythia-authored, from each
-# venue's trading rules): the German exchanges and Vienna trade foreign shares, receipts and
-# ETFs in euros. A line there in another currency is FIRDS' notional currency, not the
-# trading currency.
-SINGLE_CURRENCY_VENUES = {mic: "EUR" for mic in ("XETR", "XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER", "TGAT",
-                                                 "XWBO")}
 US_EXCHANGES = frozenset({"XNAS", "XNYS", "XCBO"})
 GERMAN_FLOORS = frozenset({"XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER"})
 CURRENCY_SUFFIX = re.compile(r"^(?P<root>[A-Z0-9]{2,})(?P<ccy>EUR|USD|GBP|GBX|CHF|SEK|NOK|DKK|PLN|CZK|HUF|JPY|CAD|AUD)$")
@@ -87,9 +66,7 @@ class Build:
         return (self.venues.get(line["mic"]) or self.venues.get(line["operating_mic"]) or {}).get("country")
 
     def currency_of(self, country: str | None) -> str | None:
-        periods = COUNTRY_CURRENCY.get(country or "")
-        current = [code for code, start in periods or () if start <= self.as_of]
-        return current[-1] if current else None
+        return country_currency(country, self.as_of)
 
     def label(self, line: dict) -> str:
         security = self.securities.get(line["security_id"]) or {}
@@ -104,11 +81,15 @@ def currency_withdrawn(build: Build) -> list[tuple]:
             if build.live(line) and WITHDRAWN.get(line["currency"] or "", "9999") <= build.as_of]
 
 
+# The currency rules below check the trading currency a line shows (`trading_currency`); `currency` is the key
+# currency, FIRDS' notional one on a FIRDS line, and never shown.
+
+
 def currency_single_currency_venue(build: Build) -> list[tuple]:
     found = []
     for line in build.listings:
         wanted = SINGLE_CURRENCY_VENUES.get(line["operating_mic"] or "")
-        if wanted and build.live(line) and line["currency"] != wanted and line["currency"] not in WITHDRAWN:
+        if wanted and build.live(line) and line.get("trading_currency") != wanted:
             found.append((build.label(line), line["id"]))
     return found
 
@@ -125,7 +106,7 @@ def currency_is_issue_country(build: Build) -> list[tuple]:
         home = build.currency_of(build.country(line))
         isin = build.isin.get(line["security_id"]) or ""
         issued = build.currency_of(isin[:2])
-        if home and issued and line["currency"] != home and line["currency"] == issued:
+        if home and issued and line.get("trading_currency") not in (None, home) and line["trading_currency"] == issued:
             found.append((build.label(line), line["id"]))
     return found
 
@@ -135,7 +116,8 @@ def ticker_currency_suffix(build: Build) -> list[tuple]:
     found = []
     for line in build.listings:
         match = CURRENCY_SUFFIX.match(line["ticker"] or "")
-        if match and build.live(line) and len(match["root"]) >= 3 and match["ccy"] != line["currency"]:
+        if (match and build.live(line) and len(match["root"]) >= 3
+                and line.get("trading_currency") not in (None, match["ccy"])):
             found.append((build.label(line), match["ccy"], line["id"]))
     return found
 

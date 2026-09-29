@@ -225,12 +225,14 @@ def _security(snap, inputs, isin, records, listings, fanout, lei) -> None:
     home = rules.home_row(isin, fanout)
     if home:  # a line outside FIRDS, in the ISIN's country: evidence for the primary, decided in `reconcile`
         mic, row = home
+        ticker = rules.home_ticker(row["ticker"], mic)
+        currency = rules.country_currency(isin[:2], inputs.as_of.isoformat())  # the home venue's (`COUNTRY_CURRENCY`)
         listing = Listing(
-            listing_id=f"{mic}:{row['ticker'].replace('/', '-')}", source="openfigi", row_class=security.kind,
-            security_id=security.security_id, issuer_id=security.issuer_id, mic=mic, operating_mic=mic,
-            country=isin[:2], name=row.get("name"),
+            listing_id=f"{mic}:{ticker}", source="openfigi", row_class=security.kind, security_id=security.security_id,
+            issuer_id=security.issuer_id, mic=mic, operating_mic=operating(inputs.venues, mic), country=isin[:2],
+            currency=currency, trading_currency=currency, name=row.get("name"),
         )
-        _apply_figi(listing, row, security.fisn)
+        _apply_figi(listing, row | {"ticker": ticker}, security.fisn)
         listing.status_reasons = ["home_line_from_openfigi"]
         snap.listings.setdefault(listing.listing_id, listing)
     states = {l.status for l in listings}

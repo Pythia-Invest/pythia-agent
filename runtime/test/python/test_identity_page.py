@@ -129,7 +129,7 @@ class SearchTest(Fixture):
                          {"name": "ASML Holding N.V.", "kind": "ordinary", "listings": 2})
         self.assertEqual(group["rows"][0], {"id": ASML, "instrument": "security:isin:NL0010273215", "ticker": "ASML",
                                             "name": "ASML Holding N.V.", "kind": "ordinary", "mic": "XAMS",
-                                            "venue": "Euronext Amsterdam", "country": "NL", "currency": "EUR"})
+                                            "venue": "Euronext Amsterdam", "country": "NL", "currency": None})
         # The registry shares are a listing row of the same company, with their own type; the page they open is
         # the share's instrument, which they fold into.
         self.assertEqual({key: group["rows"][1][key] for key in ("id", "kind", "instrument")},
@@ -267,6 +267,49 @@ class SearchTest(Fixture):
         for query in ("shelf", "SHELF", "SHF0"):
             row = leads(directory, query, limit=1, priced=lambda: priced)[0]
             self.assertEqual(row, "listing:shelf:xetb" if query == "SHF0" else "listing:shelf:xams", query)
+
+    def test_a_listing_shows_a_currency_only_where_its_venue_decides_it(self):
+        # FIRDS gives IWDA and Apple their notional USD everywhere: the key currency, never shown. Xetra quotes in euros;
+        # Amsterdam decides nothing, so IWDA there claims no currency and the page takes the quote's.
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country, category)"
+                       " VALUES ('XETR', 'XETR', 'Xetra', 'DE', 'RMKT')")
+            db.execute("INSERT INTO issuers (id, name, country) VALUES ('issuer:lei:ISHR', 'iShares plc', 'IE')")
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, ?, 'equity', ?)",
+                           [("security:isin:IE00B4L5Y983", "issuer:lei:ISHR", "iShares Core MSCI World", "etf"),
+                            ("security:figi:BBG001S5N8V8", None, "Apple Inc.", "ordinary")])
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, trading_currency,"
+                           " is_primary) VALUES (?, ?, ?, ?, ?, 'USD', ?, 0)",
+                           [("listing:isin:IE00B4L5Y983:XAMS:USD", "security:isin:IE00B4L5Y983", "XAMS", "XAMS", "IWDA", None),
+                            ("listing:figi:BBG000BPCGF6", "security:figi:BBG001S5N8V8", "XETR", "XETR", "APC", "EUR")])
+        directory = search.Directory(self.ref)
+        row = lambda query: directory.search(query, limit=1)["groups"][0]["rows"][0]  # noqa: E731
+        self.assertEqual((row("IWDA")["id"], row("IWDA")["currency"]), ("listing:isin:IE00B4L5Y983:XAMS:USD", None))
+        self.assertEqual((row("APC")["id"], row("APC")["currency"]), ("listing:figi:BBG000BPCGF6", "EUR"))
+        iwda = page.load_subject(self.ref, "listing:isin:IE00B4L5Y983:XAMS:USD")["view"]
+        self.assertNotIn("currency", iwda["identifiers"])
+        self.assertEqual([line["currency"] for line in iwda["listings"]], [None])
+        apple = page.load_subject(self.ref, "listing:figi:BBG000BPCGF6")["view"]
+        self.assertEqual((apple["identifiers"]["currency"], apple["listings"][0]["currency"]), ("EUR", "EUR"))
+
+    def test_an_unspecified_iso_category_is_a_listing_only_outside_the_eea(self):
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
+                           [("XETB", "XETR", "Xetra", "DE", "MLTF"), ("XTSE", "XTSE", "Toronto", "CA", "NSPD"),
+                            ("XFRA", "XFRA", "Frankfurt", "DE", "NSPD")])
+            db.executemany("INSERT INTO issuers (id, name, country) VALUES (?, ?, 'GB')",
+                           [("issuer:lei:MAPL", "Maple plc"), ("issuer:lei:OPCO", "Opco plc")])
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind) VALUES (?, ?, 'x', 'equity', 'ordinary')",
+                           [("security:mapl", "issuer:lei:MAPL"), ("security:opco", "issuer:lei:OPCO")])
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary)"
+                           " VALUES (?, ?, ?, ?, ?, ?, 0)",
+                           [("listing:mapl:xetb", "security:mapl", "XETB", "XETR", "MPL", "EUR"),
+                            ("listing:mapl:xtse", "security:mapl", "XTSE", "XTSE", "MPL", "CAD"),
+                            ("listing:opco:xfra", "security:opco", "XFRA", "XFRA", "OPC", "EUR"),
+                            ("listing:opco:xetb", "security:opco", "XETB", "XETR", "OPC", "EUR")])
+        directory = search.Directory(self.ref)
+        self.assertEqual(leads(directory, "maple", limit=1), ["listing:mapl:xtse"])  # Toronto is an exchange
+        self.assertEqual(leads(directory, "opco", limit=1), ["listing:opco:xetb"])  # Frankfurt's operator MIC is not
 
     def test_a_build_without_venue_categories_ranks_no_line_as_regulated(self):
         with contextlib.closing(sqlite3.connect(self.path)) as db, db:

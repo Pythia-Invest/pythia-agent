@@ -57,6 +57,17 @@ class FigiPickTest(unittest.TestCase):
         self.assertEqual(rules.pick_figi_row(rows, "XWBO")[0]["ticker"], "STR")
 
 
+class CurrencyAndHomeTickerTest(unittest.TestCase):
+    def test_a_countrys_currency_follows_its_changes(self):
+        self.assertEqual(rules.country_currency("BG", "2025-12-31"), "BGN")
+        self.assertEqual(rules.country_currency("BG", "2026-09-28"), "EUR")  # euro from 2026
+        self.assertIsNone(rules.country_currency("KY", "2026-09-28"))
+
+    def test_home_tickers_drop_bloombergs_slashes_and_hong_kong_keeps_four_digits(self):
+        self.assertEqual([rules.home_ticker(t) for t in ("BP/", "BT/A", "RCI/B", "SHEL")], ["BP", "BT-A", "RCI-B", "SHEL"])
+        self.assertEqual(rules.home_ticker("11", "XHKG"), "0011")
+
+
 class NamesAndClassesTest(unittest.TestCase):
     def test_name_keys_ignore_legal_forms_but_keep_distinguishing_words(self):
         self.assertEqual(rules.normalized_name("ASML Holding N.V."), rules.normalized_name("ASML HOLDING NV"))

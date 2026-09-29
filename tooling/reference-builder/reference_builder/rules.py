@@ -23,6 +23,28 @@ HOME = {
     "ZA": (("SJ",), "XJSE"),
     "US": (("UN", "UW", "UQ", "UR", "UA", "UP"), None),
 }
+# Each country's currency (ISO 4217) from its first day, newest last. An OpenFIGI home line (which carries none) takes
+# its venue's: London quotes in pence; the listing's currency is GBP.
+COUNTRY_CURRENCY: dict[str, tuple[tuple[str, str], ...]] = {
+    **{c: (("EUR", "1999-01-01"),) for c in "AT BE DE ES FI FR IE IT LU NL PT".split()},
+    "GR": (("EUR", "2001-01-01"),), "SI": (("EUR", "2007-01-01"),), "CY": (("EUR", "2008-01-01"),),
+    "MT": (("EUR", "2008-01-01"),), "SK": (("EUR", "2009-01-01"),), "EE": (("EUR", "2011-01-01"),),
+    "LV": (("EUR", "2014-01-01"),), "LT": (("EUR", "2015-01-01"),), "HR": (("HRK", "1994-05-30"), ("EUR", "2023-01-01")),
+    "BG": (("BGN", "1999-07-05"), ("EUR", "2026-01-01")),
+    "SE": (("SEK", "1900-01-01"),), "DK": (("DKK", "1900-01-01"),), "NO": (("NOK", "1900-01-01"),),
+    "IS": (("ISK", "1900-01-01"),), "PL": (("PLN", "1995-01-01"),), "CZ": (("CZK", "1993-01-01"),),
+    "HU": (("HUF", "1900-01-01"),), "RO": (("RON", "2005-07-01"),), "LI": (("CHF", "1900-01-01"),),
+    "CH": (("CHF", "1900-01-01"),), "GB": (("GBP", "1900-01-01"),), "US": (("USD", "1900-01-01"),),
+    "CA": (("CAD", "1900-01-01"),), "JP": (("JPY", "1900-01-01"),), "HK": (("HKD", "1900-01-01"),),
+    "AU": (("AUD", "1900-01-01"),), "SG": (("SGD", "1900-01-01"),), "IL": (("ILS", "1900-01-01"),),
+    "ZA": (("ZAR", "1900-01-01"),),
+}
+# Operating MICs that quote every instrument in one currency (Pythia-authored, from each venue's trading rules): the
+# German exchanges and Vienna trade foreign shares, receipts and ETFs in euros, the US exchanges and OTC Markets in
+# dollars. A line there has a decided trading currency; elsewhere FIRDS gives only the notional one.
+SINGLE_CURRENCY_VENUES = {**dict.fromkeys(("XETR", "XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER", "TGAT", "XWBO"),
+                                          "EUR"),
+                          **dict.fromkeys(("XNAS", "XNYS", "XCBO", "OTCM"), "USD")}
 # Nasdaq Stockholm and Copenhagen write a share class after a space (`VOLV B`); OpenFIGI glues it on (`VOLVB`).
 # Helsinki writes it glued (`KESKOB`), as Yahoo does.
 SPACED_CLASS_VENUES = frozenset({"XSTO", "XCSE"})
@@ -160,6 +182,20 @@ def lit_segment(mic: str) -> str:
 
 def _unaccented(text: str) -> str:
     return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
+
+
+def country_currency(country: str | None, as_of: str) -> str | None:
+    """The currency of a country on a day (`COUNTRY_CURRENCY`), or None for a country the table does not hold."""
+    current = [code for code, start in COUNTRY_CURRENCY.get(country or "", ()) if start <= as_of]
+    return current[-1] if current else None
+
+
+def home_ticker(ticker: str, mic: str | None = None) -> str:
+    """OpenFIGI writes home tickers the Bloomberg way: a padding slash (`BP/`) and a slash before a share class
+    (`BT/A`, `RCI/B`). The line keeps `BP`, and the class after `-` as SEC tickers do (`RCI-B`, Yahoo `RCI-B.TO`).
+    Hong Kong writes its numeric codes with four digits (`0011`, not `11`)."""
+    ticker = (ticker.rstrip("/") or ticker).replace("/", "-")
+    return ticker.zfill(4) if mic == "XHKG" and ticker.isdigit() else ticker
 
 
 def exchange_ticker(root: str, klass: str | None, operating_mic: str | None) -> str | None:

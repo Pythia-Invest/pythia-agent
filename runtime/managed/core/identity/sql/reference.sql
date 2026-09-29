@@ -47,7 +47,11 @@ CREATE TABLE listings (
   mic TEXT CHECK (mic IS NULL OR length(mic) = 4),
   operating_mic TEXT CHECK (operating_mic IS NULL OR length(operating_mic) = 4),
   ticker TEXT,
+  -- The key currency (identity.schemes: ISIN + operating MIC + currency): FIRDS' notional currency on a FIRDS line.
   currency TEXT CHECK (currency IS NULL OR length(currency) = 3),
+  -- The currency the line trades in where its venue decides it (Xetra: EUR, Nasdaq: USD); NULL when no source states
+  -- it. Labels, search rows and read checks use this one, never `currency`.
+  trading_currency TEXT CHECK (trading_currency IS NULL OR length(trading_currency) = 3),
   chain TEXT,
   is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
   -- The builder's line on FIRDS' most liquid EU market for a security whose primary it could not decide: the line

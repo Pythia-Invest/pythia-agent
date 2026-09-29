@@ -159,11 +159,14 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual((line.mic, line.operating_mic, line.is_primary), ("XCBO", "XCBO", True))
 
     def test_an_eea_request_beside_a_line_outside_the_eea_is_asked_and_priced_on_the_most_liquid_line(self):
-        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. That line has
-        # no trading currency, so the package cannot write it and the ISIN-country rule does not take it.
+        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. That line
+        # trades in London's currency, so it is the question's ISIN-country suggestion, never the primary.
         shell = self.snap.securities[f"isin:{SHELL_ISIN}"]
         self.assertEqual((shell.primary_mic, shell.primary_rule), (None, "requested_in_eea_listed_outside"))
-        self.assertIn(shell.security_id, {q.subject_id for q in self.snap.questions if q.question == "home_market"})
+        asked = {q.subject_id: q for q in self.snap.questions if q.question == "home_market"}
+        self.assertEqual(asked[shell.security_id].suggested, ("XLON:SHEL", "isin_country"))
+        self.assertEqual((self.snap.listings["XLON:SHEL"].currency, self.snap.listings["XLON:SHEL"].trading_currency),
+                         ("GBP", "GBP"))
         self.assertTrue(self.snap.listings[f"XAMS:{SHELL_ISIN}"].most_liquid)
         self.assertFalse(self.snap.listings[f"XAMS:{SHELL_ISIN}"].is_primary)
 
@@ -201,7 +204,7 @@ class PipelineTest(unittest.TestCase):
             curated = sum(1 + len(asset.get("deployments", ())) for asset in seed["assets"])
             self.assertEqual(written + dropped, len(self.snap.listings) + curated)  # every line is accounted for
             json.dumps(self.snap.audit)  # the audit section must serialise into the manifest
-            # Shell's London home line has no trading currency, so no line of it is written as primary.
+            # Shell's home market is asked, so no line of it is written as primary.
             self.assertEqual(self.snap.audit["schema"]["securities_without_primary"], 1)
 
     def test_eu_only_scope_makes_no_sec_lookups(self):
@@ -214,6 +217,7 @@ class PipelineTest(unittest.TestCase):
 
 APPLE_ISIN, APPLE_LEI = "US0378331005", "HWUPKR0MPOU8FGXBT394"
 ETF_ISIN, ETF_LEI = "IE00B5BMR087", "549300AAAAAAAAAAAA03"
+IWDA_ISIN = "IE00B4L5Y983"
 DARK_ISIN = "NL0000000077"  # trades only on a trading-only venue
 UNKNOWN_US_ISIN = "US5949181045"
 WIDE_FIRDS = fulins([
@@ -221,10 +225,13 @@ WIDE_FIRDS = fulins([
     firds_record(ASML_ISIN, "XETB", ASML_LEI, name="ASML HOLDING"),  # two Xetra segments: one Xetra line
     firds_record(ASML_ISIN, "XETA", ASML_LEI, name="ASML HOLDING"),
     firds_record(ASML_ISIN, "CEUX", ASML_LEI, name="ASML HOLDING"),  # Cboe Europe trades it; it lists on XAMS
-    firds_record(APPLE_ISIN, "FRAB", APPLE_LEI, name="APPLE INC", relevant="XFRA", requested="false"),
-    firds_record(ETF_ISIN, "XETA", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM"),
-    firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM", requested="false"),
+    firds_record(APPLE_ISIN, "FRAB", APPLE_LEI, name="APPLE INC", relevant="XFRA", requested="false", currency="USD"),
+    # FIRDS field 13 is the notional currency: the ETF trades in euros on Xetra, in an unstated one in Amsterdam.
+    firds_record(ETF_ISIN, "XETA", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM", currency="USD"),
+    firds_record(ETF_ISIN, "TWEM", ETF_LEI, cfi="CEOGES", name="CORE SP500 UCITS ETF", relevant="TWEM", requested="false",
+                 currency="USD"),
     firds_record(DARK_ISIN, "CEUX", NN_LEI, name="DARK ONLY", relevant="CEUX"),
+    firds_record(IWDA_ISIN, "XAMS", ETF_LEI, cfi="CEOGES", name="ISHARES CORE MSCI WORLD", relevant="XAMS", currency="USD"),
     firds_record(UNKNOWN_US_ISIN, "FRAB", APPLE_LEI, name="NO FIGI YET", relevant="XFRA"),  # OpenFIGI has no line
 ])
 WIDE_SEC = sec_json([
@@ -276,6 +283,20 @@ class AllVenuesTest(unittest.TestCase):
         self.assertEqual((self.lines(ETF_ISIN), etf.primary_mic, etf.primary_rule, etf.kind),
                          (["XETA"], "XETR", "issuer_requested", "etf"))
         self.assertTrue(self.snap.listings[f"XETA:{ETF_ISIN}"].is_primary)
+
+    def test_a_line_claims_a_trading_currency_only_where_its_venue_decides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reference-test.sqlite3"
+            writer.write(self.snap, path, {"build_id": "test"}, [])
+            with sqlite3.connect(path) as db:
+                lines = dict(((mic, security), (currency, trading)) for mic, security, currency, trading in db.execute(
+                    "select l.mic, a.value, l.currency, l.trading_currency from listings l"
+                    " join assertions a on a.subject_id = l.security_id and a.scheme = 'isin'"))
+        # FIRDS field 13 stays the key currency; Xetra and Frankfurt quote in euros; Amsterdam decides nothing.
+        self.assertEqual(lines[("XETA", ETF_ISIN)], ("USD", "EUR"))
+        self.assertEqual(lines[("FRAB", APPLE_ISIN)], ("USD", "EUR"))
+        self.assertEqual(lines[("XAMS", IWDA_ISIN)], ("USD", None))
+        self.assertEqual(lines[("XNAS", APPLE_ISIN)], ("USD", "USD"))
 
     def test_us_share_traded_in_europe_keeps_its_us_home_line_and_rank(self):
         apple = self.snap.securities[f"isin:{APPLE_ISIN}"]
@@ -475,7 +496,6 @@ class NordicTickerTest(unittest.TestCase):
                 found = db.execute("select value from assertions where scheme = 'ticker_mic'").fetchall()
         self.assertEqual(found, [("VOLV B@XSTO",)])
         self.assertNotIn("skipped_ticker_mic", snap.audit["schema"])
-
 
 if __name__ == "__main__":
     unittest.main()

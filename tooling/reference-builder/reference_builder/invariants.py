@@ -82,19 +82,17 @@ class Result:
 INVARIANTS: tuple[Invariant, ...] = (
     # Currency
     Invariant("currency_single_currency_venue", "error",
-              "A line on a venue that quotes everything in one currency (German exchanges, Vienna: EUR) carries another.",
-              currency_single_currency_venue, 74796, "FIRDS' notional currency as the trading currency; weekly drift 228",
-              headroom=460 / 74796),  # twice the weekly drift of 228, rounded up
+              "A line on a venue that quotes everything in one currency (German exchanges, Vienna: EUR) shows another.",
+              currency_single_currency_venue),
     Invariant("currency_withdrawn", "error",
               "A live line's currency is a withdrawn ISO 4217 code (NLG, SKK, HRK, BGN since 2026) or XXX.",
-              currency_withdrawn, 112, "stale FIRDS records; the currency fix clears them", headroom=12 / 112),
+              currency_withdrawn, 112, "stale FIRDS records in the key currency (FIRDS field 13)", headroom=12 / 112),
     Invariant("currency_is_issue_country", "error",
-              "Outside RFQ platforms and internalisers, a line's currency is not its venue country's but its ISIN country's.",
-              currency_is_issue_country, 1411, "shares and receipts on Borsa Italiana, Sofia, Stockholm: notional currency",
-              headroom=5 / 1411),  # drift 1 between the two weeks and on the UK/Swiss build: a few rows
+              "Outside RFQ platforms and internalisers, a line shows its ISIN country's currency, not its venue country's.",
+              currency_is_issue_country),
     Invariant("ticker_currency_suffix", "error",
               "A ticker that ends in a currency code (HONAEUR) disagrees with the line's currency.",
-              ticker_currency_suffix, 124, "weekly drift 38", headroom=2 * 38 / 124),
+              ticker_currency_suffix, 92, "weekly drift 38", headroom=2 * 38 / 124),
     # Tickers
     Invariant("ticker_two_securities", "error", "One ticker on one venue names two live securities.",
               ticker_two_securities, 41, "all on Stuttgart: a home-market ticker picked for a Stuttgart line",
@@ -106,12 +104,11 @@ INVARIANTS: tuple[Invariant, ...] = (
     Invariant("primary_more_than_one", "error", "A security has more than one primary listing.", primary_more_than_one),
     Invariant("primary_inactive", "error", "A live security's primary listing is inactive.", primary_inactive),
     Invariant("primary_missing", "error", "A live security has lines but no primary: its evidence did not decide one.",
-              primary_missing, 16053, "home-market questions and SEC or OpenFIGI gaps (claims step 3)", headroom=0.02),
+              primary_missing, 11997, "home-market questions and SEC or OpenFIGI gaps (claims step 3)", headroom=0.02),
     Invariant("share_primary_silent", "error",
               "A live share has no primary, and not both a home-market question and a most-liquid line.",
-              share_primary_silent, 4946, "4,928 decided home lines the package cannot write (OpenFIGI gives no trading "
-              "currency; fixed by #46's home currencies), 3,800 of them priced on the most liquid EU line; the rest "
-              "home-market questions whose most liquid venue has no line", headroom=0.02),
+              share_primary_silent, 1072, "1,052 SEC OTC-only shares, which no rule places; 20 home-market questions "
+              "whose most liquid venue has no line", headroom=0.02),
     Invariant("questions_open", "error", "A question the build left open (the package's claims file).",
               questions_open, 11965, "evidence that does not decide (claims step 3)", headroom=0.02),
     Invariant("primary_open_market_beside_us_exchange", "error",
@@ -132,7 +129,7 @@ INVARIANTS: tuple[Invariant, ...] = (
               us_share_without_us_line, 284, "mostly delisted or acquired companies still carried by EU venues"),
     Invariant("stale_isin_twin", "warning",
               "An issuer has two live ordinary securities with the same name and only one has a ticker (an old ISIN left active).",
-              stale_isin_twin, 73),
+              stale_isin_twin, 76),  # home lines, now written, show 4 more (Capital Gearing, Anglesey Mining)
     Invariant("issuer_financing_vehicle", "warning",
               "A share or receipt's issuer is named like a financing vehicle (Nestlé Capital Markets).", issuer_financing_vehicle, 38),
     Invariant("primary_floor_beside_xetra", "warning",

@@ -275,6 +275,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         tables["listings"].append({
             "id": subject, "security_id": security_id, "composite_id": composite, "mic": listing.mic,
             "operating_mic": listing.operating_mic, "ticker": listing.ticker, "currency": listing.currency,
+            "trading_currency": listing.trading_currency or rules.SINGLE_CURRENCY_VENUES.get(listing.operating_mic or ""),
             "chain": None, "is_primary": int(listing.is_primary), "most_liquid": int(listing.most_liquid),
             "status": STATUS.get(listing.status, "unknown")})
         span = {"start": listing.valid_from, "end": listing.valid_to}

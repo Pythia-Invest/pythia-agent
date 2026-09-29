@@ -71,7 +71,7 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     identifiers = {"isin": values.get("isin"), "lei": values.get("lei"), "cik": values.get("cik"),
                    "figi": values.get("figi"), "caip19": values.get("caip19"),
                    "ticker": listing["ticker"] if listing else None, "mic": listing["operating_mic"] if listing else None,
-                   "currency": listing["currency"] if listing else None}
+                   "currency": listing["trading_currency"] if listing else None}
     return {
         "id": subject_id, "level": level, "ids": ids, "values": values, "evidence": evidence,
         "asset_class": security["asset_class"] if security else None,
@@ -85,7 +85,7 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
             if issuer else None,
             "security": {"id": security["id"], "name": security["name"], "isin": values.get("isin")} if security else None,
             "listings": [{"id": row["id"], "ticker": row["ticker"], "mic": row["operating_mic"] or row["mic"],
-                          "venue": venues.get(row["mic"] or ""), "currency": row["currency"], "primary": bool(row["is_primary"])}
+                          "venue": venues.get(row["mic"] or ""), "currency": row["trading_currency"], "primary": bool(row["is_primary"])}
                          for row in siblings],
             "related": related(ref, subjects),
         },
