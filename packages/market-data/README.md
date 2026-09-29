@@ -234,7 +234,9 @@ session; continuous markets show the past 24 hours. Multi-day views join
 regular sessions and omit the closed time between them (daily views omit
 closed days); a gap inside a session stays. Their baseline and period change
 start from the close before the period. Open, high, low and volume come from the
-latest daily bar (with its date), the previous close only from the quote's
+latest daily bar (with its date); when that bar is an earlier session than the
+quote's, as while Yahoo withholds the current bar's close, their labels name
+its date. The previous close comes only from the quote's
 `reference_close`, and the 52-week range from a year of daily bars; a field the
 source does not supply is omitted. A connector's `price_context.extended`
 (latest pre/post trade, qualified against the regular close) becomes the
