@@ -74,6 +74,7 @@ describe("using an alternative source once", () => {
       plugin: "pythia-eodhd",
       label: "EODHD",
       status: "ready",
+      authorities: [],
       binding: eodhd,
       request: null,
       unaudited: true,
@@ -103,6 +104,7 @@ describe("using an alternative source once", () => {
       plugin: "pythia-eodhd",
       label: "EODHD",
       status: "ready",
+      authorities: [],
       request: null,
     };
     const [offered] = pageBlocks([section("quote", { alternatives: [also] })]);
