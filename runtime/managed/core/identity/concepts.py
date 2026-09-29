@@ -220,15 +220,16 @@ def not_covered(result: Any) -> str | None:
     return None if issue is None else str(issue.get("message") or "does not cover this subject")
 
 
-def select(entries: list[dict], *, combine: Combine | None = None, order: tuple[str, ...] = ()
+def select(entries: list[dict], *, combine: Combine | None = None
            ) -> tuple[list[tuple[dict, tuple[str, ...]]], list[dict], list[dict]]:
     """(chosen with the authorities each serves, alternatives, skipped) from ranked entries. Pure: no I/O.
 
     Each entry has `plugin`, `status` and, for a combining concept, `authorities`. The first eligible entry
     serves; under `per_authority` the first eligible entry serving each authority serves it; under `merge` and
-    `side_by_side` every eligible entry serves, except that a source not yet signed off (`unaudited`) serves only
-    when the investor's `order` names it or no audited entry is eligible. The other eligible entries are
-    alternatives; the rest are skipped with their status as the reason."""
+    `side_by_side` every eligible entry serves. An enabled source not yet signed off (`unaudited`) is a display
+    source (ADR 0044 ruling 10): it merges like any other, labelled, and is picked for a single slot only after
+    every audited entry, as `ranked` orders it. The other eligible entries are alternatives; the rest are skipped
+    with their status as the reason."""
     eligible = [entry for entry in entries if entry["status"] in ELIGIBLE]
     skipped = [entry for entry in entries if entry["status"] not in ELIGIBLE]
     if combine is Combine.PER_AUTHORITY:
@@ -239,9 +240,7 @@ def select(entries: list[dict], *, combine: Combine | None = None, order: tuple[
         chosen = [(entry, tuple(a for a, plugin in served.items() if plugin == entry["plugin"]))
                   for entry in eligible if entry["plugin"] in served.values()]
     elif combine in (Combine.MERGE, Combine.SIDE_BY_SIDE):
-        audited = [entry for entry in eligible if not entry.get("unaudited")
-                   or {entry["plugin"], entry.get("provider")} & set(order)]
-        chosen = [(entry, ()) for entry in audited or eligible]
+        chosen = [(entry, ()) for entry in eligible]
     else:
         chosen = [(eligible[0], ())] if eligible else []
     taken = {entry["plugin"] for entry, _ in chosen}

@@ -7,34 +7,46 @@ import {
 } from "@pythia/ui";
 import { ArrowUpRight, Unlink } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { useLocalTime } from "@/client/local-time";
 import { useMarketMovers } from "@/client/market-queries";
 import { instrumentHref } from "@/components/instrument/instrument-href";
 import type { SubjectDay } from "./market-card";
-import { Block } from "./markets-overview";
 import { moverItem } from "./market-subjects";
 
 const MOVERS_ROWS = 10;
 
+/** One titled block of a card, titled in small secondary type. */
+export function Block({
+  title,
+  meta,
+  children,
+}: {
+  title: string;
+  meta?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-label={title} className="min-w-0">
+      <h3 className="mb-2.5 flex items-baseline justify-between gap-2 font-medium text-[11px] text-foreground-secondary">
+        {title}
+        {meta ? (
+          <span className="min-w-0 truncate font-normal text-[10px]">
+            {meta}
+          </span>
+        ) : null}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
 /** Where a row leads: its instrument page, or null with the reason. */
 type RowLink = { href: string | null; name: string; note?: string | undefined };
 
-/** A row's end: a link to its page, or why it has none. */
-function OpenLink({ href, name }: { href: string | null; name: string }) {
-  return href ? (
-    <Link
-      href={href}
-      data-slot="market-open"
-      aria-label={`Open ${name}`}
-      className="grid size-6 place-items-center rounded-sm text-foreground-secondary outline-ring hover:text-foreground focus-visible:outline-2"
-    >
-      <ArrowUpRight aria-hidden="true" className="size-3.5" />
-    </Link>
-  ) : null;
-}
-
-/** A table whose rows open their instrument page on click. */
+/** A table whose rows are links to their instrument page: each row's open
+ * link covers the row, and the row's status controls sit above it. A row
+ * without a page shows why instead. */
 function LinkedTable({
   read,
   path,
@@ -44,23 +56,8 @@ function LinkedTable({
   path: boolean;
   links: Map<string, RowLink>;
 }) {
-  const router = useRouter();
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut; each row's link is the keyboard path
-    // biome-ignore lint/a11y/useKeyWithClickEvents: as above
-    <div
-      className="[&_[data-slot=instrument-row]:hover]:bg-interaction-hover [&_[data-slot=instrument-row]]:cursor-pointer"
-      onClick={(event) => {
-        // A click on a row opens what its link names; the row's own controls keep their clicks.
-        const target = event.target as Element;
-        if (target.closest("a, button")) return;
-        const href = target
-          .closest("[data-slot=instrument-row]")
-          ?.querySelector("[data-slot=market-open]")
-          ?.getAttribute("href");
-        if (href) router.push(href);
-      }}
-    >
+    <div className="[&_[data-slot=instrument-row]:has(a):hover]:bg-interaction-hover [&_[data-slot=instrument-row]]:relative [&_button]:relative [&_button]:z-10">
       <InstrumentTable
         read={read}
         options={{ name: true, path }}
@@ -68,7 +65,15 @@ function LinkedTable({
           const target = links.get(item.id);
           if (!target) return null;
           if (target.href)
-            return <OpenLink href={target.href} name={target.name} />;
+            return (
+              <Link
+                href={target.href}
+                aria-label={`Open ${target.name}`}
+                className="grid size-6 place-items-center rounded-sm text-foreground-secondary outline-ring after:absolute after:inset-0 hover:text-foreground focus-visible:outline-2"
+              >
+                <ArrowUpRight aria-hidden="true" className="size-3.5" />
+              </Link>
+            );
           return (
             <span
               role="img"
@@ -159,13 +164,14 @@ export function WatchlistTable({ days }: { days: SubjectDay[] }) {
       day.subject,
       {
         href: day.known ? instrumentHref(day.subject) : null,
-        name: day.label?.name ?? day.label?.symbol ?? day.subject,
+        name: day.label?.name ?? day.name,
         note: day.item.statusLabel,
       },
     ]),
   );
   const rows = days.map((day) => day.item);
-  const loading = days.every((day) => !day.known && day.loading);
+  // The quotes answer together: known identities wait as placeholders.
+  const loading = days.some((day) => day.loading);
   const read: InstrumentRead = !days.length
     ? {
         state: "empty",
@@ -173,8 +179,6 @@ export function WatchlistTable({ days }: { days: SubjectDay[] }) {
         message:
           "Add subject IDs to markets_watchlist in settings.json to follow them here.",
       }
-    : loading
-      ? { state: "loading", rows: [] }
-      : { state: "ready", rows };
+    : { state: loading ? "loading" : "ready", rows };
   return <LinkedTable read={read} path links={links} />;
 }

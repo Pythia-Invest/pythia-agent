@@ -14,8 +14,10 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { busyRetry } from "./busy-retry";
 import { useDeskApi } from "./providers";
 
-/** A list refreshes each minute while the page is visible; core's read route
- * caches each list for a minute, so every open page shares one source call. */
+/** A list refreshes each minute while the page is visible. Core shares
+ * concurrent identical reads; the source's own cache (Yahoo keeps each list
+ * for a minute) spares it repeated calls, so a row can be up to about two
+ * minutes old. */
 const MOVERS_REFRESH_MS = 60_000;
 
 /** The overview's card and watchlist subjects: a local core read of settings. */

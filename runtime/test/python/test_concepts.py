@@ -174,8 +174,9 @@ def crypto(config):
         ("coingecko", "bitcoin")]
 
 
-# Free sources come first in core's default order, so a key never changes the source: Yahoo serves stocks and
-# CoinGecko crypto. Every source that declares the concept and does not serve is listed as skipped with its reason.
+# Free sources come first in core's default order, so a key never replaces a covering free source: Yahoo serves
+# stocks and CoinGecko crypto. Every source that declares the concept and does not serve is listed as skipped with
+# its reason.
 CONFIGS = {"all_ready": {}, "yahoo_off_keys_missing": {"yahoo-discovery": {"enabled": False},
                                                        "eodhd": {"missing": True}, "coinmarketcap": {"missing": True}},
            "no_keys": {"eodhd": {"missing": True}, "coinmarketcap": {"missing": True}}}

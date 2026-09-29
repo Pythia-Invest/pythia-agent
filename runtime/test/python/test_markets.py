@@ -2,6 +2,7 @@
 
 Screener rows are synthetic, shaped like yahoo-finance2 4.0.2's ScreenerQuote (docs/sources/yahoo-screener.md).
 """
+import dataclasses
 import importlib.util
 import json
 import sqlite3
@@ -113,7 +114,8 @@ class MarketReadsTest(unittest.TestCase):
         plugins = [info if info.key != "pythia-yahoo-discovery" else page.PluginInfo(
             key=info.key, manifest=info.manifest, operations={"movers": "pythia_yahoo_movers"}) for info in shipped()]
         yahoo = next(info for info in plugins if info.key == "pythia-yahoo-discovery")
-        plugins += [page.PluginInfo(key="pythia-other", manifest=yahoo.manifest, operations={"movers": "other_movers"})
+        other = dataclasses.replace(yahoo.manifest, signoff=type(yahoo.manifest.signoff).UNSIGNED)  # not yet audited
+        plugins += [page.PluginInfo(key="pythia-other", manifest=other, operations={"movers": "other_movers"})
                     for _ in more]
         registry = types.SimpleNamespace(dispatch=dispatch)
         with unittest.mock.patch.dict("sys.modules", {"tools": types.ModuleType("tools"),
@@ -150,6 +152,31 @@ class MarketReadsTest(unittest.TestCase):
         self.assertEqual([tool for tool, _ in self.calls], ["pythia_yahoo_movers", "other_movers"])
         self.assertEqual((body["outcome"], body["data"]["source"]["plugin"], body["data"]["skipped"][-1]["code"]),
                          ("ok", "pythia-other", "not_covering"))
+        self.assertTrue(body["data"]["source"]["unaudited"])  # labelled wherever its data appears (ADR 0042)
+
+    def test_an_unreadable_reference_leaves_rows_unlinked_and_keeps_the_list(self):
+        data, issues = movers.adapt(screen(quote()), "most_active", 25)
+
+        class Broken:
+            def execute(self, *_args):
+                raise sqlite3.OperationalError("disk I/O error")
+
+            def close(self):
+                pass
+        self.reads.identity.reference = lambda: (None, Broken())
+        body = self.movers({"schema_version": 1, "outcome": "ok", "data": data, "issues": issues})
+        self.assertEqual(body["outcome"], "ok")
+        self.assertEqual([(row["subject_id"], row["unresolved"]) for row in body["data"]["rows"]],
+                         [(None, self.ops.UNRESOLVED["reference_failed"])])
+
+    def test_the_overview_says_when_it_shows_only_the_first_subjects(self):
+        from pythia_core_queue_fixture.platform import configuration
+        many = " ".join(f"index:pythia:test{number}" for number in range(30))
+        values = {"markets_cards": ("configured", many), "markets_watchlist": ("missing", None)}
+        with unittest.mock.patch.object(configuration, "value", lambda _ctx, key: values[key]):
+            body = json.loads(self.reads.overview({}))
+        self.assertEqual(len(body["data"]["cards"]), self.ops.MAX_SUBJECTS)
+        self.assertIn("lists 30 subjects", body["issues"][0]["message"])
 
     def test_the_overview_lists_configured_subjects_or_the_defaults(self):
         from pythia_core_queue_fixture.platform import configuration
@@ -161,6 +188,16 @@ class MarketReadsTest(unittest.TestCase):
                                                  {"subject": "fx:pythia:EURUSD", "group": "Rates & FX"}])
         self.assertEqual(body["data"]["watchlist"], list(self.ops.DEFAULT_WATCHLIST))
         self.assertIn("not-an-id", body["issues"][0]["message"])
+
+    def test_the_overview_names_subjects_from_core_tables(self):
+        from pythia_core_queue_fixture.platform import configuration
+        bitcoin = "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
+        values = {"markets_cards": ("configured", f"index:pythia:dax {bitcoin}"),
+                  "markets_watchlist": ("configured", "listing:figi:BBG000B9Y5X2")}
+        with unittest.mock.patch.object(configuration, "value", lambda _ctx, key: values[key]):
+            body = json.loads(self.reads.overview({}))
+        # Names come from core's own tables, so they show without reference data; others have none.
+        self.assertEqual(body["data"]["names"], {"index:pythia:dax": "DAX", bitcoin: "Bitcoin"})
 
 
 class _Borrowed:

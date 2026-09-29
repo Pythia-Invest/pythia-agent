@@ -41,11 +41,13 @@ class CatalogueMode(StrEnum):
 
 
 class SignOff(StrEnum):
-    """A source's standing under the onboarding standard (ADR 0042)."""
+    """A source's standing under the onboarding standard (ADR 0042), which sets its trust level (ADR 0044 ruling 10):
+    unsigned is display, signed off or grandfathered is confirm. Suggest arrives with the first plugin that needs it."""
 
     SIGNED_OFF = "signed_off"        # passed the four stages; its record says so
     GRANDFATHERED = "grandfathered"  # in use before the standard: keeps its role until its turn
-    UNSIGNED = "unsigned"            # opt-in only: off in fresh profiles, never core's choice, never confirms
+    UNSIGNED = "unsigned"            # display: off in fresh profiles; once enabled it serves and merges, labelled,
+                                     # after every audited source where one serves; never confirms identity
 
 
 @dataclass(frozen=True, slots=True)

@@ -34,7 +34,9 @@ with this reduced model for research or agent use.
 - The static dot means activity. Status icons describe delay, extended trading,
   closure or data problems. Concise labels convey the same meaning without
   relying on color. A known delay is supplied explicitly, never inferred from
-  quote age. Both controls retain a 32px keyboard/touch target around their small
+  quote age. A source that reports a zero delay supplies current data unless
+  it marks the result stale; without a reported delay or freshness, the data
+  state stays unknown. Both controls retain a 32px keyboard/touch target around their small
   visual mark. Routine snapshots need no extra icon.
 - Changes retain their supplied basis and unit. Previous-close, rolling-window
   and basis-point changes must not be relabelled or calculated interchangeably.

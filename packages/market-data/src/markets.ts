@@ -24,6 +24,9 @@ export const marketOverviewSchema = z.object({
   /** Each card's subject and the group it shows in ("US", "Rates & FX"). */
   cards: z.array(z.object({ subject: text, group: text })).default([]),
   watchlist: z.array(text).default([]),
+  /** Names from core's curated tables, by subject ID, so a subject that
+   * cannot be read still shows a name. */
+  names: z.record(z.string(), text).default({}),
 });
 export type MarketOverview = z.infer<typeof marketOverviewSchema>;
 

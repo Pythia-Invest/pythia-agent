@@ -107,3 +107,60 @@ latest package, then install it exactly as above. Core, the package contract
 and the installer stay the same. Hosting, signing and update cadence are open
 questions for a later ADR. Until then Pythia publishes no package, and the
 builder keeps running on the device.
+
+## Known limits at the finish line
+
+The identity backbone reached its finish line
+([ADR 0044](../decisions/0044-product-direction.md) ruling 9, roadmap stage 0)
+with these limits accepted. Each has an owner or a trigger; none is a silent
+gap.
+
+**Reference data** (counts from the 2026-09-28 build; the ratchets in
+`tooling/reference-builder/reference_builder/invariants.py` fail a build that
+exceeds them by more than 2%):
+
+- `primary_missing` is at 16,053: live securities with lines whose evidence
+  decided no primary. They are home-market questions, and SEC or OpenFIGI
+  gaps until those sources are onboarded.
+- `questions_open` is at 11,965: questions the build left open in the
+  package's `claims` file (10,271 `home_market`, 614 `issuer_identity`, 912
+  receipt questions and 168 SEC name-only issuer questions).
+- Shares without a primary: `share_primary_silent` is at 4,946, of which
+  4,928 are home lines decided from OpenFIGI that the package cannot write
+  without a trading currency (fixed by home currencies, #46). A security
+  without a written primary is priced on its most liquid EU line (13,782
+  lines), labelled so and never primary. The ISIN-country line suggests an
+  answer for 137 shares but decides none. See the
+  [FIRDS record](../sources/firds.md).
+- World-level questions are answered centrally, never on the investor's
+  device (ADR 0044 ruling 7). The curator's back office that answers them
+  (carried-forward answers, rules, Jev, an evidence-gathering agent and
+  curator approval) is designed but not built, so today these questions stay
+  open and the package leaves those fields unknown.
+- SEC is `grandfathered`, not signed off. Remaining steps
+  ([SEC record](../sources/sec.md#sign-off)): typed claims for the CIK to LEI
+  links, the judgement questions written and checked on a sampled build, and
+  the founder's spot-check of the sample.
+
+**Sources and reads:**
+
+- News and fundamentals were architecture probes, not production features.
+  News has a core read that merges sources and drops duplicates, but no Desk
+  section, and the read sits in core's hidden toolset, so the agent cannot
+  call it; the FCA NSM plugin is the only source that declares it.
+  Fundamentals and estimates have their selection rule and report identity
+  but no read, row shape or source yet
+  ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md)).
+- Parallel reports are linked at read time, not stored in the backbone; ADR
+  0040 ("Report identity and parallel reports") lists what the fundamentals
+  work adds.
+- "Also:" reads a source once, for the view only. Nothing remembers it per
+  subject: a source the investor wants every time goes in `source_order`,
+  which puts it first for every concept it serves. Where one source serves, a
+  display (unsigned) source comes after every audited one: it serves unnamed
+  only if nothing audited can (NSM for a UK issuer filings.xbrl.org does not
+  cover), and otherwise is an "Also:" link (NSM beside filings.xbrl.org).
+- Plugin trust levels have two of three levels in code: display and confirm
+  ([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment).
+  Suggest arrives with the first plugin that needs it; until then a user's
+  own vendor addressed by `resolve` needs the investor's confirm per subject.
