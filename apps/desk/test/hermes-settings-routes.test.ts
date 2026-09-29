@@ -44,4 +44,32 @@ describe("Hermes settings routes", () => {
     expect(accepted.status).toBe(200);
     expect(saveConfig).toHaveBeenCalledWith(change);
   });
+
+  it("refuses a provider key sent as a simple cross-site form body", async () => {
+    const setKey = vi.fn();
+    const routes = createHermesSettingsRoutes({
+      setKey,
+    } as unknown as HermesSettingsService);
+    const plain = request("/api/hermes/keys", {
+      key: "OPENROUTER_API_KEY",
+      value: "x",
+    });
+    plain.headers.set("content-type", "text/plain");
+    const response = await routes.setProviderKey(plain, none);
+    expect(response.status).toBe(415);
+    expect(setKey).not.toHaveBeenCalled();
+  });
+
+  it("passes a plugin's name and requested state to the service", async () => {
+    const setPluginEnabled = vi.fn(async () => []);
+    const routes = createHermesSettingsRoutes({
+      setPluginEnabled,
+    } as unknown as HermesSettingsService);
+    const response = await routes.setAgentPlugin(
+      request("/api/hermes/plugins/research", { enabled: false }),
+      { params: Promise.resolve({ name: "research" }) },
+    );
+    expect(response.status).toBe(200);
+    expect(setPluginEnabled).toHaveBeenCalledWith("research", false);
+  });
 });

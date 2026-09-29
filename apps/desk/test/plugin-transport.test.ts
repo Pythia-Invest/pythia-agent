@@ -81,6 +81,13 @@ test.each([
     "query",
     /loopback HTTP address/,
   ],
+  [
+    "a loopback address with a path",
+    { PYTHIA_HERMES_API_URL: "http://127.0.0.1:8765/path" },
+    "local",
+    "query",
+    /loopback HTTP address/,
+  ],
   ["a traversing plugin", {}, "../runs", "query", /invalid_plugin/],
   ["an encoded plugin path", {}, "local%2Fruns", "query", /invalid_plugin/],
   ["a nested plugin path", {}, "a/b/c", "query", /invalid_plugin/],

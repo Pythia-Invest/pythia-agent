@@ -21,7 +21,6 @@ export type DeviceSettingsSnapshot = {
   model_auth: {
     provider: typeof MODEL_PROVIDER;
     status: Readiness | "unavailable";
-    setup_command: string;
   };
   skills: DeviceSkill[];
   skills_status: ServiceReadiness;

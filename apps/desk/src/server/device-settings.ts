@@ -218,9 +218,6 @@ export function createDeviceSettingsService(
         model_auth: {
           provider: MODEL_PROVIDER,
           status: await modelAuth(),
-          setup_command: environment.PYTHIA_LIFECYCLE_COMMAND
-            ? "pythia auth openai-codex"
-            : "just auth openai-codex",
         },
         skills,
         skills_status: skillsStatus,
