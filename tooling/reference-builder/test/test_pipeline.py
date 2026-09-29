@@ -136,6 +136,20 @@ class PipelineTest(unittest.TestCase):
                 self.assertEqual(self.snap.audit["relations"][reason], 1)
                 self.assertIn((receipt, reason, stated), {(f.subject_id, f.flag, f.detail) for f in self.snap.flags})
 
+    def test_a_field_26_underlying_of_another_issuer_is_a_question_carrying_it(self):
+        receipt = self.snap.listings["XNAS:ASML"].security_id
+        self.snap.securities[receipt].isin = "US0000000009"
+        self.snap.securities["isin:NL0000000042"] = Security("isin:NL0000000042", "share", "esma_firds", issuer_id="lei:OTHER",
+                                                             isin="NL0000000042")
+        self.snap.relationships[:] = [Relationship(receipt, "depositary_receipt_of", "isin:NL0000000042", "esma_firds",
+                                                   "firds_underlying_isin")]
+        self.snap.questions.clear()
+        self.snap.audit.clear()
+        link_receipts(self.snap, frozenset({"US0000000009"}))
+        self.assertEqual(self.snap.relationships, [])
+        self.assertEqual([(q.question, q.candidates[0]) for q in self.snap.questions],
+                         [("receipt_underlying", "isin:NL0000000042")], "the stated security leads the candidates")
+
     def test_similar_names_do_not_link_different_companies(self):
         self.assertIsNone(self.snap.issuers[f"lei:{NN_LEI}"].cik)
         self.assertEqual(self.snap.listings["XNAS:NNBR"].issuer_id, "cik:918541")
@@ -144,13 +158,13 @@ class PipelineTest(unittest.TestCase):
         line = self.snap.listings["XCBO:EXLT"]
         self.assertEqual((line.mic, line.operating_mic, line.is_primary), ("XCBO", "XCBO", True))
 
-    def test_an_eea_request_beside_a_home_line_outside_the_eea_is_a_question(self):
-        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line.
+    def test_an_eea_request_beside_a_line_outside_the_eea_leaves_the_share_to_its_isin_country(self):
+        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. The one line
+        # on an exchange in its ISIN's country (GB) is its home.
         shell = self.snap.securities[f"isin:{SHELL_ISIN}"]
-        self.assertEqual((shell.primary_mic, shell.primary_rule), (None, "requested_in_eea_listed_outside"))
-        self.assertFalse(any(l.is_primary for l in self.snap.listings.values() if l.security_id == shell.security_id))
-        asked = {q.subject_id: q for q in self.snap.questions if q.question == "home_market"}
-        self.assertEqual(set(asked[shell.security_id].candidates), {"XLON:SHEL", f"XAMS:{SHELL_ISIN}"})
+        self.assertEqual((shell.primary_mic, shell.primary_rule), ("XLON", "isin_country_line"))
+        self.assertTrue(self.snap.listings["XLON:SHEL"].is_primary)
+        self.assertNotIn(shell.security_id, {q.subject_id for q in self.snap.questions})
 
     def test_terminated_line_stays_with_its_validity_window(self):
         fund = self.snap.listings[f"XAMS:{FUND_ISIN}"]
@@ -361,6 +375,9 @@ class FirdsPrimaryTest(unittest.TestCase):
                                                 ASML_ISIN: (None, "most_liquid_only")})
         self.assertEqual(sorted(q.subject_id for q in snap.questions if q.question == "home_market"),
                          sorted(f"isin:{isin}" for isin in (WORLD_ISIN, SAP_ISIN, ASML_ISIN)))
+        liquid = [l.listing_id for l in snap.listings.values() if l.most_liquid]
+        self.assertIn(f"DUSB:{WORLD_ISIN}", liquid, "priced on the most liquid EU line, never marked primary")
+        self.assertFalse(any(l.is_primary for l in snap.listings.values()))
 
     def test_a_us_line_decides_without_an_eea_request_and_is_a_question_beside_one(self):
         records = [firds_record(LINDE_ISIN, "MUNB", LINDE_LEI, name="LINDE PLC", relevant="MUNB", requested="false"),
@@ -391,8 +408,8 @@ class CikLinkTest(unittest.TestCase):
         self.assertEqual(links, {})
         # The match is kept as an open question carrying its candidate, never a link.
         linking._ask_name_candidates(snap, tickers, links, audit)
-        self.assertEqual([(f.subject_id, f.flag, f.detail) for f in snap.flags],
-                         [("cik:1858685", "issuer_identity_name_candidate", "lei:BFAG")])
+        self.assertEqual([(q.question, q.subject_id, q.candidates) for q in snap.questions],
+                         [("issuer_identity_name_candidate", "cik:1858685", ("lei:BFAG",))])
         self.assertEqual(audit["name_candidate_questions"], 1)
         # A LEI an identifier already links, or a CIK it links, is asked nothing.
         other = Snapshot(as_of="2026-09-25")

@@ -176,9 +176,7 @@ class BuildTest(unittest.TestCase):
                                                                       "questions-20260926.json", "reference-20260926.sqlite3"])
             package = json.loads((out / "package.json").read_text())
             questions = claims.read(out / package["claims"]["file"])["questions"]
-            self.assertEqual([(q["question"], q["kind"], q["reason"], q["subject_ids"]) for q in questions],
-                             [("home_market", "residual", "ambiguous", [f"security:isin:{SHELL_ISIN}"])],
-                             "Shell sought Amsterdam and OpenFIGI shows London")
+            self.assertEqual(questions, [], "Shell's London home line is its only GB exchange line: nothing to ask")
 
             gone = [r.replace("<IssrReq>true</IssrReq>", "") for r in self.RECORDS]  # ESMA stops sending field 8
             self.assertEqual(self.run_build(tmp, "2026-10-03", gone), 2)
