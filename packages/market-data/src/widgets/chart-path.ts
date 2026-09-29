@@ -2,20 +2,10 @@ import type { InstrumentPath } from "@pythia/widget-sdk";
 import type { ReadResult } from "../index";
 import { decimalNumber, seriesSemantics } from "./display";
 import { DAY, intervalMs, periodStart, type ChartPeriod } from "./chart-plan";
-import { points, type Point } from "./chart-view";
+import { localDate, points, type Point } from "./chart-view";
 
 /** Most points a page chart draws; sources may return more. */
 export const DRAW_POINTS = 800;
-
-function localDate(time: number, zone: string | undefined) {
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: zone ?? "UTC" }).format(
-      time,
-    );
-  } catch {
-    return undefined;
-  }
-}
 
 /** Largest-triangle-three-buckets: keeps real observations, including the
  * first and last, that best preserve the path's shape. */

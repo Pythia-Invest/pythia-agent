@@ -27,10 +27,11 @@ questions open:
 | Field | Meaning |
 | --- | --- |
 | `format` | Always `pythia-reference-package`. |
-| `format_version` | The number core checks for compatibility. It covers the manifest layout and the database schema, and it equals the database's `release.schema_version`. Core installs only its own version (currently `4`: 3 added the curated `canonical_assets` table, 4 the listings' `most_liquid` flag). |
+| `format_version` | The number core checks for compatibility. It covers the manifest layout and the database schema, and it equals the database's `release.schema_version`. Core installs only its own version (currently `5`: 3 added the curated `canonical_assets` table, 4 the listings' `most_liquid` flag, 5 their `trading_currency`). |
 | `build_id` | The build, for example `reference-20260928`. It must match the database's `release.release`. |
 | `built_at`, `as_of` | When the build finished (UTC), and the date its sources describe. |
 | `builder_version`, `scope` | The builder's own version, and the venues and sources it covered. |
+| `included_sources` | The sources the build read, named as their `sources` entries are (the part before any `:`), for example `["iso10383_mic", "esma_firds", "esma_fitrs", "sec_company_tickers", "sec_fund_tickers", "gleif_lei_records", "openfigi", "canonical_assets"]`. A build can leave out FIRDS, FITRS, GLEIF, OpenFIGI and SEC ([builder flags](../../tooling/reference-builder/README.md#sources-and-stages)); the ISO 10383 venue codes and core's curated crypto table are always included. Optional, a list of names: a package from before builder rules version 3 has none. |
 | `database` | `file` (a plain file name in the same directory), `bytes` and `sha256`: the checksum of the SQLite file. |
 | `sources` | One entry per source file or API: `source`, `url`, `version`, `as_of` (retrieval date), `retrieved_at`, `licence`, and `notice`, the attribution to show wherever that data is shown. |
 | `quality` | The builder's quality summary: table row counts, canary results, the assembly audit and the identity truth-set scores (`tables`, `canaries`, `audit`, `truth_audit`). |
@@ -112,9 +113,10 @@ core does not read counts as no reference data. Loose files left in the old
 `reference/` location are ignored and kept.
 
 The `reference-status` operation (tool `pythia_reference_status`) reports the
-installed build, format, dates, sources with their as-of dates and licences,
-the deduplicated notices, its trust level (`trust`, looked up by its digest
-like any contributor's), and the last refused package with its reason. Desk
+installed build, format, dates, the sources the build included
+(`included_sources`), each source file with its as-of date and licence, the
+deduplicated notices, its trust level (`trust`, looked up by its digest like
+any contributor's), and the last refused package with its reason. Desk
 shows it under **Settings → Reference data**.
 
 ## Later: automated packages

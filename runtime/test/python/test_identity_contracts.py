@@ -202,13 +202,19 @@ class FixtureTest(unittest.TestCase):
         self.assertEqual(derive("issuer", keys["issuer:lei:724500Y6DUVHQD6OXN27"]), "issuer:lei:724500Y6DUVHQD6OXN27")
         self.assertEqual(derive("issuer", {"cik": "937966"}), "issuer:cik:0000937966")
         self.assertEqual(derive("listing", {"figi": "BBG000K6N6G7"}), "listing:figi:BBG000K6N6G7")
-        # subject_key@1: a CGS-area ISIN (here ASML's New York registry shares) is an assertion, never a key.
-        self.assertEqual(identity.KEY_RULE, "subject_key@1")
+        # A CGS-area ISIN (here ASML's New York registry shares) never keys a portable subject. Without a FIGI it
+        # keys a device-local one (subject_key@2), the same whichever source supplies it, and never a composite.
+        self.assertEqual(identity.KEY_RULE, "subject_key@2")
         self.assertEqual(derive("security", {"isin": "USN070592100", "share_class_figi": "BBG001SCG0R3"}),
                          "security:figi:BBG001SCG0R3")
-        self.assertIsNone(derive("security", {"isin": "US0378331005"}))
+        self.assertEqual(derive("security", {"isin": "US0378331005"}), "security:cgs_isin:US0378331005")
+        self.assertIsNone(derive("composite", {"isin": "US0378331005"}, country="US"))
         self.assertEqual(derive("listing", {"isin": "USN070592100", "figi": "BBG000K6N6G7"}, operating_mic="XNAS",
                                 currency="USD"), "listing:figi:BBG000K6N6G7")
+        self.assertEqual(derive("listing", {"isin": "USN070592100"}, operating_mic="XNAS", currency="USD"),
+                         "listing:cgs_isin:USN070592100:XNAS:USD")
+        self.assertIsNone(derive("listing", {"isin": "USN070592100"}, operating_mic="XNAS"))
+        self.assertIs(identity.subject_level("listing:cgs_isin:USN070592100:XNAS:USD"), identity.Level.LISTING)
         for row in load("crypto.json")["listings"]:
             caip19 = next(item["value"] for item in load("crypto.json")["assertions"] if item["subject_id"] == row["id"])
             self.assertEqual(derive("listing", {"caip19": caip19}), row["id"])

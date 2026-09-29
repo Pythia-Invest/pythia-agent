@@ -44,9 +44,9 @@ _STAGING = ".staging-"
 MOVE_LOCK = ".move.lock"  # in the store directory: one mover at a time (`adopt`, and identity's `location`)
 STATUS_SCHEMA = {  # core's read-only `reference-status` operation (identity_ops)
     "name": "pythia_reference_status",
-    "description": "Describe the reference data installed on this device: its build, as-of date, and each source "
-                   "with its as-of date, licence and the notice to show when citing it; also the last package "
-                   "that was refused, and why. Local only.",
+    "description": "Describe the reference data installed on this device: its build, as-of date, the sources the "
+                   "build included, and each source file with its as-of date, licence and the notice to show when "
+                   "citing it; also the last package that was refused, and why. Local only.",
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
 
@@ -107,10 +107,9 @@ def _summary(manifest: dict) -> dict:
     sources = [{key: entry.get(key) for key in ("source", "url", "as_of", "licence", "notice")}
                for entry in manifest["sources"]]
     notices = list(dict.fromkeys(entry["notice"] for entry in sources if entry.get("notice")))
-    return {"build_id": manifest["build_id"], "format_version": manifest["format_version"],
-            "built_at": manifest["built_at"], "as_of": manifest["as_of"],
-            "bytes": manifest["database"]["bytes"], "sha256": manifest["database"]["sha256"],
-            "sources": sources, "notices": notices}
+    return {"build_id": manifest["build_id"], "format_version": manifest["format_version"], "built_at": manifest["built_at"],
+            "as_of": manifest["as_of"], "bytes": manifest["database"]["bytes"], "sha256": manifest["database"]["sha256"],
+            "included_sources": manifest.get("included_sources"), "sources": sources, "notices": notices}
 
 
 def _installed(root: Path) -> tuple[Path, dict] | None:
@@ -169,6 +168,8 @@ def read_manifest(package: Path) -> dict:
         ("sources", isinstance(manifest.get("sources"), list)
          and all(isinstance(entry, dict) and isinstance(entry.get("source"), str) for entry in manifest["sources"])),
         ("quality", isinstance(manifest.get("quality"), dict)),
+        ("included_sources", isinstance(manifest.get("included_sources", []), list)  # absent before builder rules 3
+         and all(isinstance(entry, str) for entry in manifest.get("included_sources", []))),
         ("claims", manifest.get("claims") is None or (
             isinstance(manifest["claims"], dict) and isinstance(manifest["claims"].get("file"), str)
             and _CLAIMS.fullmatch(manifest["claims"]["file"]) and isinstance(manifest["claims"].get("sha256"), str)

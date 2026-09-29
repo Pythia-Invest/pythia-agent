@@ -9,6 +9,7 @@ import {
   type InstrumentChartData,
 } from "../src/widgets";
 import { downsample, periodPath } from "../src/widgets/chart-path";
+import { statistics } from "../src/widgets/chart-view";
 import { readQuery } from "../src/widgets/chart-plan";
 
 const NOW = Date.parse("2026-09-26T10:00:00Z");
@@ -180,6 +181,53 @@ function render(
     { formatTimestamp: String },
   ).data as InstrumentChartData;
 }
+
+describe("quote statistics", () => {
+  // The latest daily bar is 2026-01-05 in New York.
+  const year = readResultSchema.parse(
+    examples.find((item) => item.name === "equity_daily")?.value,
+  );
+  const quote = (time: string) =>
+    read(declared("latest", { kind: "tick", count: 1 }, 1), [time]);
+  const labels = (time: string, bar = year) =>
+    statistics(quote(time), bar, false).map((stat) => stat.label);
+
+  it("takes session values from the quote's own session without a date", () => {
+    expect(labels("2026-01-05T20:30:00Z")).toEqual([
+      "Open",
+      "High",
+      "Low",
+      "Volume",
+    ]);
+  });
+
+  it("names the date of an earlier session's bar beside a newer price", () => {
+    // Yahoo sends the quote's session bar without a close until it settles.
+    expect(labels("2026-01-06T20:30:00Z")).toEqual([
+      "Open (5 Jan)",
+      "High (5 Jan)",
+      "Low (5 Jan)",
+      "Volume (5 Jan)",
+    ]);
+  });
+
+  it("compares the quote's date in the exchange's time zone, not UTC", () => {
+    // 02:00 UTC on 6 Jan is still the evening of 5 Jan in New York.
+    expect(labels("2026-01-06T02:00:00Z")).toEqual([
+      "Open",
+      "High",
+      "Low",
+      "Volume",
+    ]);
+  });
+
+  it("writes the month as three letters", () => {
+    const september = structuredClone(year);
+    const last = september.observations.at(-1);
+    if (last) last.time = { kind: "session_date", value: "2026-09-28" };
+    expect(labels("2026-09-29T15:37:00Z", september)[0]).toBe("Open (28 Sep)");
+  });
+});
 
 describe("the default 1D view", () => {
   const intraday = declared("m5", { kind: "minute", count: 5 }, 60);

@@ -43,13 +43,13 @@ class Kind(StrEnum):
 INSTRUMENT_KINDS = frozenset(Level)
 # The key schemes (an ID's second segment) each kind may use: `subject_id` derives the instrument keys; a kind
 # outside the hierarchy takes a Pythia-curated (`pythia`) or provisional key until its open schemes are registered
-# with its first data.
+# with its first data. `cgs_isin` is the device-local key of a CGS-area ISIN (see KEY_RULE).
 _OTHER_KEYS = frozenset({"pythia", "provisional"})
 KEY_SCHEMES: dict[Kind, frozenset[str]] = {
     Kind.ISSUER: frozenset({"lei", "cik", "provisional"}),
-    Kind.SECURITY: frozenset({"isin", "figi", "caip19", "provisional"}),
+    Kind.SECURITY: frozenset({"isin", "figi", "caip19", "cgs_isin", "provisional"}),
     Kind.COMPOSITE: frozenset({"isin", "figi", "provisional"}),
-    Kind.LISTING: frozenset({"isin", "figi", "caip19", "provisional"}),
+    Kind.LISTING: frozenset({"isin", "figi", "caip19", "cgs_isin", "provisional"}),
     **{kind: _OTHER_KEYS for kind in Kind if kind not in INSTRUMENT_KINDS},
 }
 
@@ -240,13 +240,14 @@ def subject_level(subject_id: str) -> Level:
 
 
 
-# The subject-key rule (ADR 0037), versioned: a new rule is `subject_key@2`, recorded in the
-# reference `release` table, with aliases from the old IDs. Keys use only identifiers every build
-# path has and may host. ISINs from CUSIP Global Services (US and Canadian ISINs, and those of the
-# territories and offshore centres whose ISINs carry a CUSIP/CINS number) are licensed, local-only
-# evidence, so they never key a subject: such securities are keyed by share-class FIGI and keep
-# the ISIN as an assertion.
-KEY_RULE = "subject_key@1"
+# The subject-key rule (ADR 0037), versioned: a new rule is a new version, recorded in the
+# reference `release` table, with aliases from the old IDs. Portable keys use only identifiers every
+# build path has and may host. ISINs from CUSIP Global Services (US and Canadian ISINs, and those of
+# the territories and offshore centres whose ISINs carry a CUSIP/CINS number) are licensed, local-only
+# evidence, so they never key a portable subject: such securities are keyed by share-class FIGI and
+# keep the ISIN as an assertion. Until a FIGI is known, the ISIN keys a device-local subject
+# (`cgs_isin`, last in precedence), the same from every source; `subject_key@2` added it.
+KEY_RULE = "subject_key@2"
 CGS_AREA = frozenset((
     "US", "CA",  # CGS is the national numbering agency
     "AS", "GU", "MP", "PR", "VI", "UM",  # US territories
@@ -259,11 +260,13 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
     """Derive the deterministic subject ID from open identifiers, or None if none applies.
 
     Every install and every rebuild derives the same ID from the same open
-    evidence. Precedence per level (KEY_RULE; "isin" means an ISIN outside CGS_AREA):
+    evidence. Precedence per level (KEY_RULE; "isin" means an ISIN outside CGS_AREA, "cgs_isin" one inside):
       issuer     lei, else cik
-      security   isin, else share_class_figi, else caip19 (a crypto asset's canonical issuance deployment)
-      composite  the security key + country
-      listing    isin + operating MIC + currency, else figi, else caip19 (a chain deployment)
+      security   isin, else share_class_figi, else caip19 (a crypto asset's canonical issuance deployment),
+                 else cgs_isin (device-local)
+      composite  the security key + country (none for a caip19 or cgs_isin security)
+      listing    isin + operating MIC + currency, else figi, else caip19 (a chain deployment),
+                 else cgs_isin + operating MIC + currency (device-local)
     Tickers are attributes, not keys, so a ticker change keeps the ID.
     Collisions: venue lines with the same ISIN, operating MIC and currency are
     one listing; their segment MICs and tickers are attributes (ticker_mic is
@@ -273,8 +276,8 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
     """
     level = Level(level)
     known = {Scheme(scheme): normalize_identifier(scheme, value) for scheme, value in identifiers.items() if value}
-    if known.get(Scheme.ISIN, "")[:2] in CGS_AREA:
-        del known[Scheme.ISIN]  # an assertion, never a key
+    cgs = known.pop(Scheme.ISIN) if known.get(Scheme.ISIN, "")[:2] in CGS_AREA else None  # never a portable key
+    venue = bool(operating_mic and currency and MIC.match(operating_mic) and CURRENCY.match(currency))
 
     def security_key() -> str | None:
         for scheme, tag in ((Scheme.ISIN, "isin"), (Scheme.SHARE_CLASS_FIGI, "figi"), (Scheme.CAIP19, "caip19")):
@@ -286,16 +289,18 @@ def subject_id(level: Level | str, identifiers: Mapping[Scheme | str, str], *, o
         key = f"lei:{known[Scheme.LEI]}" if Scheme.LEI in known else (
             f"cik:{known[Scheme.CIK]}" if Scheme.CIK in known else None)
     elif level is Level.SECURITY:
-        key = security_key()
+        key = security_key() or (f"cgs_isin:{cgs}" if cgs else None)
     elif level is Level.COMPOSITE:
         base = security_key()
         key = f"{base}:{country}" if base and not base.startswith("caip19:") and country and COUNTRY.match(country) else None
-    elif Scheme.ISIN in known and operating_mic and currency and MIC.match(operating_mic) and CURRENCY.match(currency):
+    elif Scheme.ISIN in known and venue:
         key = f"isin:{known[Scheme.ISIN]}:{operating_mic}:{currency}"
     elif Scheme.FIGI in known:
         key = f"figi:{known[Scheme.FIGI]}"
+    elif Scheme.CAIP19 in known:
+        key = f"caip19:{known[Scheme.CAIP19]}"
     else:
-        key = f"caip19:{known[Scheme.CAIP19]}" if Scheme.CAIP19 in known else None
+        key = f"cgs_isin:{cgs}:{operating_mic}:{currency}" if cgs and venue else None
     return f"{level}:{key}" if key else None
 
 

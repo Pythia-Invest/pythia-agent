@@ -718,7 +718,12 @@ This amendment supersedes:
   record. A plugin therefore normalises a coin type before emitting it and
   leaves out one that is refused.
 - Native USDC on Sui now has a key form. Adding it to the curated table is a
-  separate data change.
+  separate data change. It was added on 2026-09-30 (builder rules version 3):
+  Circle's coin type `0xdba3…00e7::usdc::USDC`, from Circle's USDC contract
+  address page, is a listing of the one USDC security,
+  `listing:caip19:sui:mainnet/coin:0xdba3…00e7%3A%3Ausdc%3A%3AUSDC`. The
+  drift check covers it through a Sui chain row per provider. Bridged
+  (Wormhole) USDC on Sui is another coin type and stays a separate subject.
 
 ### Rejected alternatives
 
@@ -867,6 +872,56 @@ Rejected alternatives:
   touch; nothing else is needed.
 - **An override table.** The resolved question already holds the subject, the
   answer and its verdict, and lifecycle already re-keys it.
+
+## Amendment (2026-09-30): a CGS-area ISIN keys a device-local subject (`subject_key@2`)
+
+A CGS-area security that no share-class FIGI names had a provisional ID in
+the FIRDS namespace, `security:provisional:esma_firds:isin:<ISIN>`, and its
+lines without a FIGI `listing:provisional:esma_firds:line:<MIC>.<ISIN>.<currency>`.
+The builder minted them itself, outside the key rule. Another source with the
+same ISIN would have minted a different ID, which
+[ADR 0044](0044-product-direction.md) A3 rules out: identifiers come from
+identifiers, not sources.
+
+- **Ruling.** Key rule `subject_key@2` adds the key scheme `cgs_isin`, last
+  in precedence at its level:
+  - a security whose only key is a CGS-area ISIN is
+    `security:cgs_isin:<ISIN>`;
+  - a listing of it with no FIGI and no CAIP-19 is
+    `listing:cgs_isin:<ISIN>:<operating MIC>:<currency>`;
+  - a composite has no `cgs_isin` key.
+- **Device-local.** CGS ISINs stay licensed, local-only evidence, so the key
+  is no more hostable than the ISIN itself. It is the same from every source
+  and every rebuild on a device. When a share-class FIGI or listing FIGI
+  appears, the build aliases the local ID to the portable FIGI key, as
+  before.
+- **Aliases.** Every build aliases the FIRDS-namespaced forms to the subject's
+  current ID, and a FIGI-keyed subject also aliases its `cgs_isin` form, so a
+  saved ID of either form resolves. Lifecycle A re-points local rows on the
+  first read of the new release.
+
+This amendment supersedes, in the Subject IDs section, `subject_key@1` and
+"until a share-class FIGI is known, such a security has a provisional,
+non-portable ID".
+
+### Consequences
+
+- On the offline build of 2026-09-28, 4,380 securities and 17,116 listings
+  were re-keyed. Every old ID aliases to a subject of the new build, and
+  1,178 relations moved with their endpoints. The aliases grew from 212,012
+  to 269,525. The build's 1,698 questions are unchanged; 603 now name a
+  `cgs_isin` subject. The truth set scores as before (3,033 of 3,114), with
+  no regression. FIGI-keyed subjects keep their IDs.
+- The reference format does not change: only IDs, aliases and
+  `release.subject_key` do.
+
+### Rejected alternatives
+
+- **Keeping the FIRDS namespace.** A key would depend on the source that
+  supplied the ISIN.
+- **Keying such securities `security:isin:<CGS ISIN>`.** That would make
+  licensed evidence a portable key, which the key rule has refused since
+  `subject_key@1`.
 
 ## Amendment (2026-09-30): evidence counts by kind and trust level
 

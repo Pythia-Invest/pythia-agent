@@ -19,7 +19,7 @@ from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
 from .page import LABELS, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_subject, resolve_input
 from .resolution import RELATION_LEVEL, QueueItem, ResolverKind, Verdict, VerdictOutcome, decide
-from .schemes import subject_kind, subject_level
+from .schemes import Level, subject_kind, subject_level
 from .store import IdentityStore
 from .vocabulary import Authority, InstrumentKind, VerdictRelation, stored_authority
 
@@ -316,8 +316,11 @@ def _describe(ref: sqlite3.Connection, subject_id: str) -> dict:
     if subject is None:
         return {"id": subject_id, "level": subject_kind(subject_id), "known": False}
     view = subject["view"]
+    identifiers = view["identifiers"]
+    if subject["level"] is Level.ISSUER:  # a company's own identifiers, never those of a security it issued
+        identifiers = {scheme: view["issuer"][scheme] for scheme in ("lei", "cik") if view["issuer"][scheme]}
     return {"id": subject_id, "level": str(subject["level"]), "known": True, "name": view["subject"]["name"],
-            "kind": subject["kind"], "identifiers": view["identifiers"]}
+            "kind": subject["kind"], "identifiers": identifiers}
 
 
 def _kind(subject: dict | None) -> InstrumentKind | None:
