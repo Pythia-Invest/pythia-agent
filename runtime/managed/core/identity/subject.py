@@ -61,8 +61,9 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     rows = ref.execute(f"SELECT * FROM assertions WHERE subject_id IN ({','.join('?' * len(subjects))})", subjects).fetchall()
     evidence = [_assertion(row) for row in rows]
     values: dict[str, str] = {}
-    for item in evidence:
-        values.setdefault(item.scheme, item.value)
+    for item in evidence:  # a delisted line's ticker may name another company now, so it addresses nothing
+        if item.scheme != "ticker_mic" or listing is None or listing["status"] != "inactive":
+            values.setdefault(item.scheme, item.value)
     venues = {row["mic"]: row["name"] for row in ref.execute("SELECT mic, name FROM venues")}
     siblings = ref.execute("SELECT * FROM listings WHERE security_id = ? AND status <> 'inactive'"
                            " ORDER BY is_primary DESC, operating_mic, id", (security["id"],)).fetchall() if security else []
