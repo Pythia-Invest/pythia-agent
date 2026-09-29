@@ -5,7 +5,7 @@ unmodified Hermes runtime described in `runtime/contracts/`. Keep the product
 simple and local: do not add another agent loop, capability registry, control
 plane, cloud dependency, or globally installed Hermes prerequisite.
 
-Before changing code, read `docs/product.md`,
+Before changing code, read `docs/product.md`, `docs/vision.md`,
 `docs/architecture/ownership.md`, and the nearest nested `AGENTS.md`. Read
 `.agents/change-validation.md` for proportionate verification and matching
 `.agents/rules/*.md` for cross-cutting guidance. Repository-builder workflows

@@ -11,6 +11,10 @@ for the exercised installation and browser surfaces. Research usefulness with
 real model credentials has not been qualified. Concrete financial connectors
 are delivered separately from the shared backend foundation.
 
+Where the project is going (mandate-driven research agents, a verifiable
+decision ledger, and owner-approved execution) is described in the
+[vision](docs/vision.md).
+
 ## Try the Git preview on Ubuntu
 
 The installed preview supports Ubuntu x86-64. It installs the files in the

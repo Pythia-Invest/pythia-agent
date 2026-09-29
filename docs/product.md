@@ -7,8 +7,13 @@ judgment and capital decisions.
 
 The product begins with a local Desk and one manager. The manager can use
 managed research capabilities and preserve useful work, while the investor can
-inspect, edit, or reject consequential changes. Pythia is not a trading
-system, investment adviser, or substitute for independent judgment.
+inspect, edit, or reject consequential changes. Pythia is not an investment
+adviser or a substitute for independent judgment. It acts on an owner's own
+accounts only with that owner's explicit approval.
+
+This document describes what exists today. [Vision](vision.md) describes where
+Pythia is going: mandate-driven agents, a verifiable decision ledger, and local
+workspaces with centrally curated shared data ([ADR 0044](decisions/0044-product-direction.md)).
 
 This repository is Pythia's public monorepo and implementation authority. It
 contains product source, the managed local runtime, tests, and development
