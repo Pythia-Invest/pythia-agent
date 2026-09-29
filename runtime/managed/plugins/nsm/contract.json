@@ -1,0 +1,58 @@
+{
+  "contract_version": 1,
+  "plugin": "pythia-nsm",
+  "provider": "nsm",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "lei",
+        "level": "issuer"
+      }
+    ],
+    "schemes": {
+      "issuer": [
+        "lei"
+      ]
+    }
+  },
+  "concepts": {
+    "filings": {
+      "level": "issuer",
+      "via": "issuer",
+      "operations": {
+        "list": "filings"
+      },
+      "authorities": [
+        "fca"
+      ]
+    },
+    "news": {
+      "level": "issuer",
+      "via": "issuer",
+      "operations": {
+        "list": "news"
+      }
+    }
+  },
+  "resolve": {
+    "operation": "resolve",
+    "input_schemes": [
+      "lei"
+    ],
+    "echoes": [
+      "lei"
+    ]
+  },
+  "rights": {
+    "licence": "open",
+    "cache": "unlimited",
+    "hostable": false,
+    "attribution": {
+      "text": "FCA National Storage Mechanism (undocumented endpoint; may break at any time)",
+      "url": "https://data.fca.org.uk/#/nsm/nationalstoragemechanism"
+    }
+  },
+  "signoff": {
+    "status": "unsigned"
+  }
+}

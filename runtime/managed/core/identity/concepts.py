@@ -25,7 +25,7 @@ class Concept(StrEnum):
     FILINGS = "filings"
     FUNDAMENTALS = "fundamentals"  # side by side per report; its core read arrives with its first source
     ESTIMATES = "estimates"        # side by side; its core read and row shape arrive with its first source
-    NEWS = "news"                  # one merged feed through core's combined read; no bundled plugin declares it yet
+    NEWS = "news"                  # one merged feed through core's combined read
     MARKET_MOVERS = "market_movers"  # a market's ranked lists (most active, gainers, losers); about no one subject
 
 

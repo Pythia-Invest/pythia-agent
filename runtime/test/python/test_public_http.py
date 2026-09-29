@@ -66,6 +66,18 @@ class PublicHttpTests(unittest.TestCase):
         self.assertEqual(len(redirect_opener.calls), 1)
         self.assertIsNone(http.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://other.example/'))
 
+    def test_a_json_body_is_sent_as_a_post_to_the_same_fixed_origin(self):
+        opener = Opener()
+        self.read(self.transport(opener))
+        self.read(self.transport(opener), json={'size': 2})
+        (get, _), (post, _) = opener.calls
+        self.assertEqual((get.get_method(), get.data), ('GET', None))
+        self.assertEqual((post.get_method(), post.data, post.get_header('Content-type')),
+                         ('POST', b'{"size": 2}', 'application/json'))
+        with self.assertRaises(reads_module.SourceFailure):
+            self.read(self.transport(opener), url='https://other.example/search', json={'size': 2})
+        self.assertEqual(len(opener.calls), 2)
+
     def test_a_body_reader_streams_the_response_past_the_json_cap(self):
         content = b'<p>report</p>' * 1000
         opener = Opener(lambda: Response(content, headers={'Content-Type': 'application/xhtml+xml'}))
