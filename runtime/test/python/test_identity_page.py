@@ -470,6 +470,13 @@ class SignOffGateTest(Fixture):
         self.assertIsNone(binding)
         self.assertEqual((item.kind, item.reason, item.candidate_ids), ("residual", "unaudited", (ASML,)))
         self.assertTrue(item.evidence_ids)  # the reviewer sees the identifiers that matched
+        # The page says the match waits for review, in words, never that the source has no match.
+        self.identity.put_queue_item(item)
+        [quote] = page.compose(page.load_subject(self.ref, ASML), [eodhd], queue=self.identity.open_queue([ASML]),
+                               stored=lambda *_: None, coins=lambda *_: None)
+        self.assertEqual((quote["status"], quote["queued"]), ("unresolved", "unaudited"))
+        self.assertEqual(quote["reason"], "EODHD's answer is queued for review: the source is not yet audited, so its "
+                                          "match waits for sign-off")
 
 
 class ReviewFixesTest(Fixture):
@@ -526,7 +533,7 @@ class ReviewFixesTest(Fixture):
         self.assertEqual(self.identity.misses(ASML), {"pythia-eodhd": "EODHD found no match"})
         subject = page.load_subject(self.ref, ASML)
         [quote] = page.compose(subject, [plugin("eodhd")], queue=[], stored=lambda *_: None, coins=lambda *_: None,
-                               misses=self.identity.misses(ASML))
+                               misses={(ASML, plugin): reason for plugin, reason in self.identity.misses(ASML).items()})
         self.assertEqual((quote["status"], quote["reason"]), ("unresolved", "EODHD found no match"))
 
     def test_unreadable_stores_degrade(self):

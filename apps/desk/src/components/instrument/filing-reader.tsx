@@ -102,7 +102,7 @@ function Body({
         )}
         {document.passages.map((passage) => (
           <article
-            key={passage.citation.offsets.join(":")}
+            key={`${passage.citation.section}:${passage.citation.offsets.join(":")}`}
             className="flex flex-col gap-1 border-border/60 border-b pb-3 last:border-b-0"
           >
             <button

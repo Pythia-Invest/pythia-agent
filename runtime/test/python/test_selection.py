@@ -343,7 +343,7 @@ class CoreReadsTest(Reference):
         merge = FilingsMergeTest()
         with unittest.mock.patch.object(self.reads, "eligible", lambda: {"pythia_xbrl_filings_filings"}):
             body = self.read({"pythia_xbrl_filings_filings": merge.xbrl()})
-        self.assertEqual(body["outcome"], "ok")
+        self.assertEqual(body["outcome"], "partial")  # the list lacks SEC's filings, and says why
         self.assertEqual([(item["plugin"], item["code"]) for item in body["data"]["skipped"]],
                          [("pythia-sec", "unavailable"), ("pythia-nsm", "unresolved")])
         self.assertNotIn("pythia_sec_filings", self.sent)
@@ -351,7 +351,7 @@ class CoreReadsTest(Reference):
         self.assertEqual((body["outcome"], self.sent), ("error", {}))
 
     def test_a_source_still_to_be_looked_up_is_listed_not_awaited(self):
-        """An EU issuer without a CIK: SEC would need a lookup; the ESEF list is read at once, and not partial."""
+        """An EU issuer without a CIK: SEC would need a lookup; the ESEF list is read at once, marked partial."""
         subject = page.load_subject(self.ref, SUBJECTS["asml_xams"])
         subject = {**subject, "values": {key: value for key, value in subject["values"].items() if key != "cik"}}
         self.reads.identity._load = lambda _id: (None, subject, self.lookups(), None)
@@ -361,8 +361,25 @@ class CoreReadsTest(Reference):
         self.assertEqual([(item["plugin"], item["code"]) for item in filings_section["skipped"]],
                          [("pythia-sec", "resolving"), ("pythia-nsm", "unresolved")])
         body = self.read({"pythia_xbrl_filings_filings": FilingsMergeTest().xbrl()})
-        self.assertEqual((body["outcome"], body["data"]["partial"]), ("ok", False))
+        self.assertEqual((body["outcome"], body["data"]["partial"]), ("partial", True))
         self.assertEqual([item["code"] for item in body["data"]["skipped"]], ["resolving", "unresolved"])
+        # Filings are the issuer's: every listing reads (and caches) one list.
+        self.assertEqual(filings_section["request"]["arguments"]["subject_id"], subject["ids"]["issuer"])
+
+    def test_every_source_failing_is_an_error_and_none_covering_is_not_an_empty_list(self):
+        """D1: a failed read is never an honest empty list; "not covered" says so too."""
+        failed = {"schema_version": 1, "outcome": "error", "data": None,
+                  "issues": [{"code": "rate_limit", "severity": "error", "message": "rate limited"}]}
+        body = self.read({"pythia_xbrl_filings_filings": failed, "pythia_sec_filings": failed})
+        self.assertEqual((body["outcome"], body["data"]["sources"], body["issues"][0]["code"]),
+                         ("error", [], "unavailable"))
+        self.assertEqual(body["issues"][0]["message"], "No filings source could be read: filings.xbrl.org: rate limited; "
+                                                       "SEC EDGAR: rate limited")
+        uncovered = {"schema_version": 1, "outcome": "empty", "data": None,
+                     "issues": [{"code": "not_covered", "severity": "warning", "message": "not listed here"}]}
+        body = self.read({"pythia_xbrl_filings_filings": uncovered, "pythia_sec_filings": uncovered})
+        self.assertEqual((body["outcome"], body["issues"][0]["code"]), ("empty", "not_covered"))
+        self.assertEqual({item["code"] for item in body["data"]["skipped"]} - {"unresolved"}, {"not_covering"})
 
     # ---- sources work together (ADR 0040 amendment) ----------------------------------------------------------------
 

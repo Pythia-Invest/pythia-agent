@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readSubject } from "../src/subject";
+import { parseFilings, readSubject } from "../src/subject";
 
 describe("subject page client", () => {
   it("reads a page whose later section types and statuses it does not know", async () => {
@@ -63,5 +63,27 @@ describe("subject page client", () => {
       status: "throttled",
       alternatives: [],
     });
+  });
+});
+
+describe("filings answers", () => {
+  it("fail when every source failed, though core lists what it tried (D1)", () => {
+    const tried = { filings: [], sources: [], skipped: [], partial: false };
+    expect(() =>
+      parseFilings({
+        schema_version: 1,
+        outcome: "error",
+        data: tried,
+        issues: [
+          {
+            code: "unavailable",
+            message: "No filings source could be read: SEC EDGAR: rate limited",
+          },
+        ],
+      }),
+    ).toThrow("No filings source could be read: SEC EDGAR: rate limited");
+    expect(
+      parseFilings({ schema_version: 1, outcome: "empty", data: tried }),
+    ).toMatchObject({ filings: [] });
   });
 });

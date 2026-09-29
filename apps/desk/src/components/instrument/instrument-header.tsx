@@ -19,7 +19,7 @@ const IDENTIFIERS = [
 
 /** The listing whose price the composition shows: its own subject when it
  * is a listing, else the one core priced it through. */
-export function currentListing(page: SubjectPage): SubjectListing | undefined {
+function currentListing(page: SubjectPage): SubjectListing | undefined {
   const priced = page.subject.listing ?? page.subject.id;
   return (
     page.listings.find((listing) => listing.id === priced) ??

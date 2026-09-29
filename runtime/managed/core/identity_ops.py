@@ -150,30 +150,30 @@ class Identity:
 
     def resolve(self, arguments: dict, **_context: Any) -> str:
         subject_id, wanted = str(arguments.get("subject_id") or ""), arguments.get("plugin")
-        try:
-            path, ref = self.reference()
-            if ref is None:
-                return _envelope("empty", None, issue=NO_REFERENCE)
-            try:
-                subject = page.load_subject(ref, subject_id)
-            finally:
-                ref.close()
+        try:  # the subject as its page composes it (a security or issuer through its default listing)
+            path, subject, _lookups, issue = self._load(subject_id)
         except (ValueError, sqlite3.Error, OSError):
-            subject = None
+            path, subject, issue = None, None, None
+        if issue == NO_REFERENCE:
+            return _envelope("empty", None, issue=NO_REFERENCE)
         info = next((item for item in installed() if wanted in (item.key, item.manifest.plugin)), None)
         if subject is None or info is None or info.manifest.resolve is None:
             return _envelope("empty", None, issue="Unknown subject or no resolving plugin.")
         # A disabled or unconfigured plugin is never called; its sections already say why.
         reason, transient = self._resolve(info, subject) if info.enabled and not info.missing else (None, False)
-        if reason:  # remember the miss so reopening the page does not call the provider again
-            self.store.put_miss(subject_id, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
+        # A miss is kept where bindings go (each level the plugin addresses): every page and read of it sees it.
+        targets = {subject["ids"].get(entry.via) for entry in info.manifest.concepts.values()} - {None}
+        for target in targets if reason else ():
+            self.store.put_miss(target, info.key, reason, MISS_RETRY if transient else NO_MATCH_TTL)
         if store.reference_path(self.data_dir) != path:  # a new build landed during the call: carry this answer to it
             self.reference_path(again=True)
         queue_ops.settle(self, [value for value in subject["ids"].values() if value])
         view, issue = self._compose(subject_id)
-        sections = [section for section in (view or {}).get("sections", []) if section["plugin"] == info.key]
+        # The sections this plugin can serve, whoever serves them now: after a miss the next source leads (ADR 0040).
+        names = {str(section) for section in page.SECTIONS if page.served_by(info.manifest, section)}
+        sections = [section for section in (view or {}).get("sections", []) if section["section"] in names]
         for section in sections:
-            if section["status"] == "resolving":
+            if section["status"] == "resolving" and section["plugin"] == info.key:
                 section.update(status="unresolved", reason=reason or f"{info.label} is not available")
         return _envelope("ok", {"sections": sections})
 
@@ -242,7 +242,7 @@ class Identity:
         """The reference path and the subject from it, with the store lookups page composition reads."""
         if subject_kind(subject_id) in markets.CURATED_KINDS:  # a curated market subject needs no reference file
             subject = markets.load_market(markets.curated(), subject_id)
-            return (None, None, {}, "Unknown subject.") if subject is None else (None, subject, self._lookups(subject_id, subject, {}), None)
+            return (None, None, {}, "Unknown subject.") if subject is None else (None, subject, self._lookups(subject, {}), None)
         path, ref = self.reference()
         if ref is None:
             return None, None, {}, NO_REFERENCE
@@ -256,19 +256,20 @@ class Identity:
             coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
         finally:
             ref.close()
-        return path, subject, self._lookups(subject_id, subject, coins), None
+        return path, subject, self._lookups(subject, coins), None
 
-    def _lookups(self, subject_id: str, subject: dict, coins: dict) -> dict:
-        """The store lookups page composition reads for a subject."""
+    def _lookups(self, subject: dict, coins: dict) -> dict:
+        """The store lookups page composition reads for a subject: bindings, queue items and misses at each level."""
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
-        lookups = {"stored": lambda target, provider: stored.get((target, provider)),
-                   "coins": lambda provider, caip19: coins.get((provider, caip19)),
-                   "queue": identity_store.open_queue(subject_ids), "misses": identity_store.misses(subject_id),
-                   "order": self.order(), **read_checks.lookups(self, subject_ids)}
-        return lookups
+        return {"stored": lambda target, provider: stored.get((target, provider)),
+                "coins": lambda provider, caip19: coins.get((provider, caip19)),
+                "queue": identity_store.open_queue(subject_ids),
+                "misses": {(target, plugin): reason for target in subject_ids
+                           for plugin, reason in identity_store.misses(target).items()},
+                "order": self.order(), **read_checks.lookups(self, subject_ids)}
 
     @staticmethod
     def _default_listing(path: Path, subject: dict) -> str | None:
@@ -285,7 +286,7 @@ class Identity:
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
         """Run the plugin's resolve once; store what the authority rule decides.
 
-        Returns (reason when unresolved, whether the failure is transient)."""
+        Returns (reason when nothing was found, whether the failure is transient)."""
         from tools.registry import registry
         sent = page.resolve_input(info, subject)
         levels = {entry.via for entry in info.manifest.concepts.values()} & {level for level in Level if subject["ids"].get(level)}
@@ -324,8 +325,8 @@ class Identity:
             if item is not None and self.store.dismissed(item.key, item.evidence_ids):
                 return f"{info.label}'s record was reviewed: it is not this instrument", False
             if item is not None:
-                self.store.put_queue_item(item)
-                return f"{info.label}'s answer is queued for review ({item.reason})", False
+                self.store.put_queue_item(item)  # not a miss: the open item says why, and ends with its review
+                return None, False
         return f"{info.label} found no match", False
 
 

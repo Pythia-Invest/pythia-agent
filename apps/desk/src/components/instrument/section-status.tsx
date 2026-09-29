@@ -14,6 +14,14 @@ const STATUS_LABELS: Record<string, string> = {
   disabled: "turned off",
 };
 
+/** An unresolved section whose match waits in the resolution queue is under
+ * review, not "no match". */
+function statusLabel(section: Pick<SubjectSection, "status" | "queued">) {
+  if (section.status === "unresolved" && section.queued)
+    return "awaiting review";
+  return STATUS_LABELS[section.status] ?? section.status.replaceAll("_", " ");
+}
+
 function levelName(level: string) {
   return level.replaceAll("_", " ");
 }
@@ -53,11 +61,18 @@ export function SectionPlaceholder({
       title: `${section.label} needs configuration`,
       fallback: "Add the plugin's required settings, then reopen this page.",
     },
-    unresolved: {
-      icon: <SearchX />,
-      title: `${section.label} has no match for this ${levelName(level)}`,
-      fallback: "The source did not recognise this instrument's identifiers.",
-    },
+    unresolved: section.queued
+      ? {
+          icon: <Scale />,
+          title: `${section.label} match awaits review`,
+          fallback: "Review it in Repairs.",
+        }
+      : {
+          icon: <SearchX />,
+          title: `${section.label} has no match for this ${levelName(level)}`,
+          fallback:
+            "The source did not recognise this instrument's identifiers.",
+        },
     conflict: {
       icon: <Scale />,
       title: `${section.label} match is under review`,
@@ -67,7 +82,7 @@ export function SectionPlaceholder({
     disabled: {
       icon: <CircleSlash />,
       title: `${section.label} is turned off`,
-      fallback: `Enable it with \`hermes plugins enable ${section.plugin}\` for this profile, then reopen this page.`,
+      fallback: `Enable it with "hermes plugins enable ${section.plugin}" for this profile, then reopen this page.`,
     },
   };
   const status = known[section.status];
@@ -141,7 +156,7 @@ export function SourcesLine({
   return (
     <div
       data-slot="instrument-sources"
-      className="flex min-w-0 flex-col gap-1 border-border/60 border-t pt-2 text-[11px] text-foreground-secondary"
+      className="flex min-w-0 flex-col gap-1 border-border/60 border-t pt-2 text-foreground-secondary text-xs"
     >
       <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
         <span>{sources.length > 1 ? "Sources" : "Source"}</span>
@@ -154,11 +169,7 @@ export function SourcesLine({
           </span>
         ))}
         {section.status !== "ready" ? (
-          <span>
-            ·{" "}
-            {STATUS_LABELS[section.status] ??
-              section.status.replaceAll("_", " ")}
-          </span>
+          <span>· {statusLabel(section)}</span>
         ) : null}
         {section.unverified && !chosen ? (
           <span>· unverified ({section.unverified})</span>

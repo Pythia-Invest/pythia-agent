@@ -22,7 +22,13 @@ import {
   useWidgetPresentation,
 } from "@/client/instrument-queries";
 import { BoundWidget } from "@/components/widgets/bound-widget";
-import { type PageBlock, pageBlocks, usingSource } from "./blocks";
+import {
+  type PageBlock,
+  pageBlocks,
+  pickedSource,
+  type SourcePick,
+  usingSource,
+} from "./blocks";
 import { InstrumentHeader, InstrumentPageSkeleton } from "./instrument-header";
 import {
   SectionFailure,
@@ -53,38 +59,6 @@ const SPAN: Record<PageBlock["type"], string> = {
   filings: "@3xl:col-span-3",
   other: "",
 };
-
-function SectionCard({
-  block,
-  className,
-  chosen,
-  onUse,
-  children,
-}: {
-  block: PageBlock;
-  className?: string;
-  chosen?: string | null;
-  onUse?: (plugin: string | null) => void;
-  children: ReactNode;
-}) {
-  const lead = block.sections[0] as SubjectSection;
-  return (
-    <section
-      aria-label={block.title}
-      data-slot="instrument-section"
-      data-section={block.type}
-      data-status={lead.status}
-      className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-container border border-border/60 bg-container p-4",
-        className,
-      )}
-    >
-      <h2 className="font-semibold text-body text-foreground">{block.title}</h2>
-      <div className="min-w-0 flex-1">{children}</div>
-      <SourcesLine section={lead} chosen={chosen} onUse={onUse} />
-    </section>
-  );
-}
 
 /** The routed instrument page (Koyfin-like): header, listing switcher and one
  * card per page block. The composition is a fast local read, often already
@@ -186,7 +160,8 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
   );
 }
 
-/** One card; the investor may show it from an alternative source once. */
+/** One card: its content and its sources; the investor may show it from an
+ * alternative source once. */
 function PageCard({
   block: original,
   page,
@@ -199,7 +174,10 @@ function PageCard({
   /** The chosen listing's price state, when it replaces a price block. */
   price: ReactNode;
 }) {
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [pick, setPick] = useState<SourcePick | null>(null);
+  // Use-once (D1): the pick lapses on another listing or once core no longer
+  // offers that source.
+  const chosen = pickedSource(original, pick, page.subject.id);
   const block = usingSource(original, chosen);
   const servable =
     block.type !== "other" &&
@@ -208,27 +186,45 @@ function PageCard({
     );
   const lead = block.sections[0] as SubjectSection;
   return (
-    <SectionCard
-      block={block}
-      className={SPAN[block.type]}
-      chosen={chosen}
-      onUse={(plugin) => setChosen(plugin)}
+    <section
+      aria-label={block.title}
+      data-slot="instrument-section"
+      data-section={block.type}
+      data-status={lead.status}
+      className={cn(
+        "flex min-w-0 flex-col gap-3 rounded-container border border-border/60 bg-container p-4",
+        SPAN[block.type],
+      )}
     >
-      {price ? (
-        price
-      ) : servable ? (
-        <BlockContent
-          block={block}
-          page={page}
-          retryResolve={chosen ? undefined : retry}
-        />
-      ) : (
-        <SectionPlaceholder
-          section={chosen ? lead : (original.sections[0] as SubjectSection)}
-          level={page.subject.level}
+      <h2 className="font-semibold text-body text-foreground">{block.title}</h2>
+      <div className="min-w-0 flex-1">
+        {price ? (
+          price
+        ) : servable ? (
+          <BlockContent
+            block={block}
+            page={page}
+            retryResolve={chosen ? undefined : retry}
+          />
+        ) : (
+          <SectionPlaceholder
+            section={chosen ? lead : (original.sections[0] as SubjectSection)}
+            level={page.subject.level}
+          />
+        )}
+      </div>
+      {/* Another listing's price loading or failing: this line's sources
+          would describe the wrong line. */}
+      {price ? null : (
+        <SourcesLine
+          section={lead}
+          chosen={chosen}
+          onUse={(plugin) =>
+            setPick(plugin ? { plugin, subject: page.subject.id } : null)
+          }
         />
       )}
-    </SectionCard>
+    </section>
   );
 }
 

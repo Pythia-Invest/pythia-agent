@@ -23,7 +23,9 @@ export function listingGroups(
     },
     {
       key: "folded",
-      label: "Depositary receipts",
+      // Core reads registry shares as receipts too (one kind), so the label
+      // names both.
+      label: "Receipts and registry shares",
       listings: listings.filter((listing) => listing.folded),
     },
   ];

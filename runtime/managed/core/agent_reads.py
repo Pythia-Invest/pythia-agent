@@ -24,7 +24,7 @@ PRICES = {
     "description": "Price of a stock, fund or crypto: quote, history, returns. From the investor's connected "
                    "market-data sources, with source, as-of and delay. Without start: the latest quote; with "
                    "start (and end): daily or intraday bars (interval) and a summary with first and last close and "
-                   "change. period (1D to 5Y) gives a period's return. A company reads its primary listing.",
+                   "change. period (1D to 5Y) gives a period's return. A company reads its default listing.",
     "parameters": {"type": "object", "properties": {
         "subject_id": SUBJECT,
         "start": {"type": "string", "format": "date", "description": "First date (YYYY-MM-DD) for history."},
@@ -216,7 +216,7 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
     if error:
         return encode(error)
     target = subject["id"]
-    if subject["level"] is Level.ISSUER:  # a company has no price: read its primary listing, as its page does
+    if subject["level"] is Level.ISSUER:  # a company has no price: read the listing its page prices
         target = subject["ids"].get(Level.LISTING)
         if not target:
             return encode(failure("no_listing", "This issuer has no listing in the reference; it has no price."))
