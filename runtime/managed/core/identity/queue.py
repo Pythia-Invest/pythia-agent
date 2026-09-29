@@ -13,6 +13,8 @@ import json
 import sqlite3
 from typing import Any, Iterable
 
+from . import build_questions
+from .build_questions import BUILD
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
 from .page import LABELS, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_subject, resolve_input
@@ -21,7 +23,6 @@ from .schemes import subject_kind, subject_level
 from .store import IdentityStore
 from .vocabulary import Authority, InstrumentKind, VerdictRelation
 
-BUILD = "reference"  # rows an earlier core queued from the reference build's questions (now curation, ADR 0044)
 AGENT_MODEL = "hermes-agent"
 PROMPT_VERSION = "pythia_identity_verdict@1"
 CORE = "pythia"
@@ -55,6 +56,10 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
                                   if level == subject_kind(candidate)), "unrelated")]
+    built = build_questions.asked(item) if build_questions.is_build(item) else None
+    if built:  # a reference build question: its own text, and one relation per candidate
+        label, question = build_questions.LABEL, built[0]
+        answers = [{"relation": str(built[1]), "chosen_id": candidate} for candidate in item["candidate_ids"]]
     return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
                                        "candidate_ids", "opened_at", "updated_at")} | {
         # On an open question: the agent's suggestion, which waits for the user.
@@ -63,6 +68,8 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
         "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
         "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
         "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
+        "settled_answer": {key: item["settled"][key] for key in ("relation", "chosen_id")}
+        if item["state"] != "open" and item["settled"] else None,
         "evidence": _evidence(ref, item["evidence_ids"]),
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
 
@@ -110,17 +117,21 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
            user_turn: str | None = None) -> dict:
     """Decide and record one agent or user verdict.
 
-    The user's confirmed answer binds the record, a "not a match" dismisses the question. The agent only
-    suggests (ADR 0044 ruling 8): its answer is recorded, the question stays open, and nothing changes until
-    the user confirms it."""
+    The user's confirmed answer binds the record, a "not a match" dismisses the question. An answer to a reference
+    build question binds nothing: its resolved question is the local override reads apply (`build_questions`). The
+    agent only suggests (ADR 0044 ruling 8): its answer is recorded, the question stays open, and nothing changes
+    until the user confirms it."""
     resolver = ResolverKind(resolver)
     user = resolver is ResolverKind.USER
     view, row = inspect(store, ref, item_id), store.queue_item(item_id)
     if view is None or row["state"] != "open":
         raise Refused("This question is not open.")
     raw = _raw(store, row)
-    if raw is None:  # identifier or relation conflicts without a provider record: no answer has an effect yet
+    built = build_questions.asked(row) if build_questions.is_build(row) else None
+    if raw is None and built is None:  # a plugin's conflict without a provider record: no answer has an effect yet
         raise Refused("This question has no provider record to bind, so no answer can take effect.")
+    if built and relation not in (built[1], "none", "ambiguous"):
+        raise Refused(f"This question takes {built[1]}, none or ambiguous as its answer.")
     item = _queue_item(row)
     authority = Authority.USER_ATTESTED if user else Authority.AGENT_CONFIRMED
     try:
@@ -130,7 +141,7 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                           input_digest=None if user else view["digest"], rationale=rationale, user_turn=user_turn)
     except ValueError as error:
         raise Refused(str(error)) from None
-    record = _claim(raw)
+    record = _claim(raw) if raw else None
     subject = load_subject(ref, chosen_id) if chosen_id else None
     if chosen_id and subject is None:
         raise Refused("The chosen subject is not in the reference data.")
@@ -140,46 +151,49 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
                              if entry["item_id"] == item_id and entry["resolver"] != resolver
                              and entry["outcome"] == "suggested"]
     try:
-        outcome = decide(verdict, item, claimed=record.identifiers, as_of=as_of, record_kind=record.attributes.kind,
+        # A build question's own subject stands in for the record: its identifiers, and for a receipt answer its kind,
+        # so a receipt is never chosen as the underlying.
+        outcome = decide(verdict, item, claimed=record.identifiers if record else build_questions.claimed(ref, row),
+                         as_of=as_of, record_kind=record.attributes.kind if record else InstrumentKind.DEPOSITARY_RECEIPT
+                         if built[1] is VerdictRelation.DEPOSITARY_RECEIPT_OF else None,
                          evidence=[assertion for found in subjects for assertion in found["evidence"]],
-                         subject_kind=_kind(subject), prior=prior, same_venue=_same_venue(record, subjects)
-                         # A bound conflict is a resolve answer to this listing's identifiers: its venue is this one.
-                         or (row["reason"] == "binding" and len(row["subject_ids"]) > 1))
+                         subject_kind=_kind(subject), prior=prior, same_venue=record is not None and (
+                             _same_venue(record, subjects)
+                             # A bound conflict is a resolve answer to this listing's identifiers: its venue is this one.
+                             or (row["reason"] == "binding" and len(row["subject_ids"]) > 1)))
     except ValueError as error:
         raise Refused(str(error)) from None
     if not user and outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
         outcome = VerdictOutcome.SUGGESTED  # the agent proposes, the user confirms
-    state, message = row["state"], _MESSAGES[outcome]
+    state, message = row["state"], (_BUILT if built else _MESSAGES).get(outcome, _MESSAGES[outcome])
     if outcome is VerdictOutcome.BLOCKED and verdict.relation in ("unrelated", "none"):
         message = _NAMED
     with store.transaction():
         current = store.queue_item(item_id)
         if current is None or current["state"] != "open":  # another resolver answered meanwhile
             raise Refused("This question is not open.")
-        firm = store.bound_subject(item.provider_ref)
+        firm = store.bound_subject(item.provider_ref) if record else None
         if outcome is VerdictOutcome.CONFIRMED and firm not in (None, chosen_id):
             outcome, message = VerdictOutcome.BLOCKED, "Refused: the record is bound to another instrument."
         verdict_id = store.put_verdict(verdict, outcome)
-        if outcome is VerdictOutcome.CONFIRMED:
+        if outcome is VerdictOutcome.CONFIRMED and record:
             store.put_binding(Binding(provider_ref=item.provider_ref, subject_id=chosen_id, status="confirmed",
                                       authority=authority, plugin=item.plugins[0],
                                       evidence_ids=(evidence_id({"kind": "verdict", "verdict": verdict_id}),)),
                               verdict_id=verdict_id)
-            state = "resolved"
-        elif outcome is VerdictOutcome.NO_MATCH:
-            state = "dismissed"
         if outcome in (VerdictOutcome.CONFIRMED, VerdictOutcome.NO_MATCH):
+            state = "resolved" if outcome is VerdictOutcome.CONFIRMED else "dismissed"
             store.settle(item_id, state, verdict_id)
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
 
 
 def retire_build(store: IdentityStore, now: str) -> int:
-    """Supersede open reference-build rows: the build's questions are curation questions, answered centrally (ADR
-    0044), never in the investor's Repairs (ADR 0037). Queues from before that decision may still hold some."""
+    """A new release asks its own questions: the previous build's open ones are superseded, and answered ones are
+    kept. The next touch of an instrument queues the new release's questions about it (`build_questions`)."""
     with store.transaction():
-        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ? AND state = 'open'",
-                         (now, json.dumps([BUILD])))
+        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ?"
+                         " AND provider_ref IS NULL AND state = 'open'", (now, json.dumps([BUILD])))
         return store.db.execute("SELECT changes()").fetchone()[0]
 
 
@@ -263,6 +277,10 @@ _MESSAGES = {
     VerdictOutcome.BLOCKED: "Refused: identifier evidence or the depositary-receipt guard contradicts this answer.",
     VerdictOutcome.AMBIGUOUS: "Left open: the answers disagree or several candidates fit.",
     VerdictOutcome.NO_MATCH: "Recorded: the record is not this instrument.",
+}
+_BUILT = {  # answers to a reference build question
+    VerdictOutcome.CONFIRMED: "Recorded: your answer applies on this device; the reference data is unchanged.",
+    VerdictOutcome.NO_MATCH: "Recorded: none of these; the answer stays unknown.",
 }
 
 

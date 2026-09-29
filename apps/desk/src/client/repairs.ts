@@ -38,6 +38,19 @@ const IDENTITY_TITLES: Record<string, string> = {
   residual: "Record not matched",
   conflict: "Record conflicts with reference",
 };
+/** Core's tag for a question Pythia's reference build left open. It carries
+ * no provider record and asks about its own subject; titled by its reason. */
+export const REFERENCE_BUILD = "reference";
+const BUILD_TITLES: Record<string, string> = {
+  identifier: "Issuer unclear",
+  ambiguous: "Same company?",
+  no_key: "Receipt's share unknown",
+  relation: "Share or receipt?",
+};
+
+export function isBuildQuestion(item: IdentityQuestion) {
+  return item.plugins[0] === REFERENCE_BUILD && !item.record;
+}
 
 /** An answer's relation in two or three words; a receipt is never "a match". */
 function agentAnswerWords({
@@ -48,8 +61,11 @@ function agentAnswerWords({
   return relation === "depositary_receipt_of" ? "depositary receipt" : "match";
 }
 
-function identityRepair(item: IdentityQuestion): IdentityRepair {
-  const candidate = item.candidates[0];
+export function identityRepair(item: IdentityQuestion): IdentityRepair {
+  const built = isBuildQuestion(item);
+  // A record's question is about the instrument it may be; a build
+  // question about its own subject.
+  const candidate = built ? item.subjects[0] : item.candidates[0];
   const status: RepairStatus =
     item.state === "open"
       ? "open"
@@ -60,7 +76,9 @@ function identityRepair(item: IdentityQuestion): IdentityRepair {
   return {
     id: `identity:${item.id}`,
     kind: "identity",
-    title: IDENTITY_TITLES[item.kind] ?? "Identity question",
+    title:
+      (built ? BUILD_TITLES[item.reason] : IDENTITY_TITLES[item.kind]) ??
+      "Identity question",
     description: item.question,
     subject: candidate ? { id: candidate.id, name: candidate.name } : null,
     plugin: item.label,

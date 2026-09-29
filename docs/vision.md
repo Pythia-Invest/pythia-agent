@@ -356,8 +356,9 @@ Today:
 - reference sources are builder adapters that cannot be disabled, and the
   builder's evidence outranks a plugin's;
 - only bundled plugins bind, and only onto reference subjects;
-- the build's open questions ship in the package's claims file, and none are
-  queued on the device.
+- the build's open questions are queued only when an instrument is opened,
+  watched or used by the agent, not yet when it is held or forecast, and a
+  later release that contradicts the user's answer raises no question yet.
 
 Letting any plugin add subjects and evidence through the same contract, and
 queueing questions only for instruments that become relevant, is roadmap

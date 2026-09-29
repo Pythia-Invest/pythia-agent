@@ -11,8 +11,9 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from .agent_tools import (MAX_CHARS, SOURCE, SUBJECT, choose, concept_sources, encode, failure, label, logger, plugins,
-                          run_tool, serving, source_key, unknown_source)
+from . import queue_ops
+from .agent_tools import (MAX_CHARS, SOURCE, SUBJECT, choose, concept_sources, encode, failure, identity, label, logger,
+                          plugins, run_tool, serving, source_key, unknown_source)
 from .documents import PROPERTIES
 from .identity.concepts import FilingKind
 from .identity.page import Section
@@ -285,6 +286,7 @@ def filings(ctx: Any, arguments: dict, **context: Any) -> str:
     """A thin front end over core's combined filings read, which searches by form: this tool adds the date filter,
     the projection and the bound."""
     subject_id, wanted = str(arguments.get("subject_id") or ""), arguments.get("source")
+    queue_ops.surface(identity(), [subject_id])  # the agent uses the instrument: its build questions are queued
     forms = [str(item) for item in arguments.get("forms") or []][:8]
     kinds = [str(item) for item in arguments.get("kinds") or []][:8]
     since, limit = arguments.get("since"), max(1, min(int(arguments.get("limit") or 20), 50))

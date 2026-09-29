@@ -64,6 +64,7 @@ def answer_schema() -> dict:
     parameters = {key: value for key, value in copy.deepcopy(queue_ops.VERDICT_SCHEMA["parameters"]).items()
                   if key != "$comment"}
     parameters["properties"]["chosen_id"] = {"type": "string", "minLength": 5, "maxLength": 370}
+    parameters["properties"]["relation"]["enum"].remove(queue_ops.REOPEN)  # the user's undo, from the Desk only
     return {"name": "pythia_answer_identity_question", "parameters": parameters,
             "description": "Answer an open identity question in Repairs. Read it in full first with "
                            "pythia_identity_questions. "
@@ -204,8 +205,10 @@ def concept_sources(subject_id: str, section: Section, wanted: str | None, infos
                     ) -> tuple[dict | None, list, list, str | None]:
     """The subject, its usable sources for one concept in core's order and the skipped ones with reasons.
 
-    A source whose reference needs a lookup is resolved once when it would be used, as the Desk does."""
+    A source whose reference needs a lookup is resolved once when it would be used, as the Desk does. The agent uses
+    the instrument, so the reference build's questions about it are queued (ADR 0044 A2)."""
     core = identity()
+    queue_ops.surface(core, [subject_id])
     try:
         _path, subject, lookups, issue = core._load(subject_id)
     except ValueError:
@@ -257,7 +260,7 @@ def find(arguments: dict, **_context: Any) -> str:
 
 
 def instrument(arguments: dict, **_context: Any) -> str:
-    result = json.loads(identity().subject(arguments))
+    result = json.loads(queue_ops.read_subject(identity(), arguments))
     view = result.get("data")
     if not isinstance(view, dict):
         return encode(result)

@@ -63,14 +63,14 @@ def current(data_dir: Path) -> Path | None:
     return path if manifest["format_version"] == FORMAT_VERSION and path.is_file() else None
 
 
-def questions(path: Path) -> list[dict]:
-    """The open questions the installed package's build left (its optional `claims` file), for the resolution queue.
-    `path` is the installed SQLite file."""
+def questions(path: Path) -> list[dict] | None:
+    """The open questions the installed package's build left (its optional `claims` file), for the resolution queue,
+    or None when they could not be read. `path` is the installed SQLite file."""
     try:
         claims = read_manifest(Path(path).parent).get("claims")
         found = json.loads((Path(path).parent / claims["file"]).read_text(encoding="utf-8")) if claims else {}
     except (OSError, ValueError, PackageError):
-        return []
+        return None
     items = found.get("questions") if isinstance(found, dict) else None
     return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
