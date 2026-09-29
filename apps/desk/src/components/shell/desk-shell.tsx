@@ -252,7 +252,7 @@ export function DeskShell({ children }: { children: ReactNode }) {
    * wiring is built once here so a change reaches all three, and so no
    * placement can drift onto its own copy of the Hermes data.
    */
-  const chatList: ChatPanelProps = useMemo(
+  const chatList: Omit<ChatPanelProps, "onHide"> = useMemo(
     () => ({
       activeId: routeSessionId,
       globalQuery: searchQuery,
