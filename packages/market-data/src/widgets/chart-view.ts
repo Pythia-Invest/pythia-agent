@@ -53,11 +53,12 @@ export function periodChange(
   };
 }
 
-const DAY_MONTH = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  timeZone: "UTC",
-});
+const MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+/** "28 Sep" for a session date (YYYY-MM-DD); spelled out, as ICU may write "Sept". */
+function dayMonth(date: string) {
+  const [, month = 1, day] = date.split("-").map(Number);
+  return `${day} ${MONTHS[month - 1]}`;
+}
 
 /** Statistics only from fields the source supplies. Session values come from
  * the latest daily bar and carry its date; the 52-week range from daily bars. */
@@ -87,7 +88,7 @@ export function statistics(
     bar?.time.kind === "session_date" &&
     quoteDay !== undefined &&
     bar.time.value < quoteDay
-      ? ` (${DAY_MONTH.format(Date.parse(bar.time.value))})`
+      ? ` (${dayMonth(bar.time.value)})`
       : "";
   if (bar?.shape === "ohlc" && series) {
     const date = bar.time.kind === "unknown" ? "date unknown" : bar.time.value;

@@ -189,8 +189,8 @@ describe("quote statistics", () => {
   );
   const quote = (time: string) =>
     read(declared("latest", { kind: "tick", count: 1 }, 1), [time]);
-  const labels = (time: string) =>
-    statistics(quote(time), year, false).map((stat) => stat.label);
+  const labels = (time: string, bar = year) =>
+    statistics(quote(time), bar, false).map((stat) => stat.label);
 
   it("takes session values from the quote's own session without a date", () => {
     expect(labels("2026-01-05T20:30:00Z")).toEqual([
@@ -209,6 +209,23 @@ describe("quote statistics", () => {
       "Low (5 Jan)",
       "Volume (5 Jan)",
     ]);
+  });
+
+  it("compares the quote's date in the exchange's time zone, not UTC", () => {
+    // 02:00 UTC on 6 Jan is still the evening of 5 Jan in New York.
+    expect(labels("2026-01-06T02:00:00Z")).toEqual([
+      "Open",
+      "High",
+      "Low",
+      "Volume",
+    ]);
+  });
+
+  it("writes the month as three letters", () => {
+    const september = structuredClone(year);
+    const last = september.observations.at(-1);
+    if (last) last.time = { kind: "session_date", value: "2026-09-28" };
+    expect(labels("2026-09-29T15:37:00Z", september)[0]).toBe("Open (28 Sep)");
   });
 });
 
