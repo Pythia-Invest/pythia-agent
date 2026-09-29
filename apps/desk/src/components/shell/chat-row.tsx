@@ -20,6 +20,7 @@ import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { HermesSession } from "@/server/types";
+import { ChatIndicator } from "./chat-indicator";
 import {
   activityTitle,
   chatHref,
@@ -39,6 +40,8 @@ export interface ChatRowProps {
   onSelect?: ((sessionId: string) => void) | undefined;
   pinned: boolean;
   session: HermesSession;
+  working?: boolean;
+  unread?: boolean;
 }
 
 /**
@@ -57,6 +60,8 @@ export function ChatRow({
   onTogglePin,
   pinned,
   session,
+  working = false,
+  unread = false,
 }: ChatRowProps) {
   const title = chatTitle(session);
   const href = chatHref(session.id);
@@ -105,26 +110,30 @@ export function ChatRow({
       {/* Same row treatment either way; only what activating it does differs. */}
       {onSelect ? (
         <SidebarButton
+          aria-label={title}
           className="min-h-7 rounded-md py-0 pr-8 pl-2 font-normal text-body text-foreground data-active:font-medium"
           data-active={active ? "" : undefined}
           onClick={() => onSelect(session.id)}
           title={title}
         >
+          <ChatIndicator working={working} unread={unread} />
           <span className="min-w-0 flex-1 truncate">{title}</span>
         </SidebarButton>
       ) : (
         <SidebarLink
+          aria-label={title}
           active={active}
           className="min-h-7 rounded-md py-0 pr-8 pl-2 font-normal text-body text-foreground data-active:font-medium"
           render={<Link href={href} />}
           title={title}
         >
+          <ChatIndicator working={working} unread={unread} />
           <span className="min-w-0 flex-1 truncate">{title}</span>
         </SidebarLink>
       )}
       {age ? (
         <span
-          className="motion-fast pointer-events-none absolute inset-y-0 right-2 my-auto h-4 text-foreground-disabled text-xs tabular-nums transition-opacity group-focus-within:opacity-0 group-hover:opacity-0"
+          className="motion-fast pointer-events-none absolute inset-y-0 right-2 my-auto h-4 text-foreground-disabled text-xs tabular-nums transition-opacity group-focus-within:opacity-0 group-hover:opacity-0 max-md:hidden"
           title={fullTimestamp ?? undefined}
         >
           {age}

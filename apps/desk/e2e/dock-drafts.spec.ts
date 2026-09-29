@@ -4,15 +4,13 @@ import { fixture } from "./stream-fixture";
 test("new dock chats have independent drafts and can all be closed", async ({
   page,
 }) => {
+  test.skip(
+    (page.viewportSize()?.width ?? 0) < 900,
+    "A phone dock names one chat instead of a tab strip; the history sheet switches chats.",
+  );
   await fixture(page);
   // Client navigation retains the shell's local tabs. All API traffic is mocked.
-  if ((page.viewportSize()?.width ?? 0) < 900)
-    await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("link", { name: "Watchlist", exact: true }).click();
-  if ((page.viewportSize()?.width ?? 0) < 900)
-    await page
-      .getByRole("button", { name: "Open Pythia", exact: true })
-      .click();
   const dock = page.getByRole("complementary", { name: "Pythia", exact: true });
   // fixture begins in an existing session. Close that tab, then use the initial draft.
   await dock

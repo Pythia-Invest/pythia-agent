@@ -171,6 +171,8 @@ async function openFile(page: import("@playwright/test").Page, name: string) {
     .click();
 }
 async function switchFile(page: import("@playwright/test").Page, name: string) {
+  // A phone has no file tabs: it reopens the file from the list.
+  if ((page.viewportSize()?.width ?? 1440) < 900) return openFile(page, name);
   const tab = page.getByRole("tab", { name, exact: true });
   if (await tab.isVisible()) await tab.click();
   else {

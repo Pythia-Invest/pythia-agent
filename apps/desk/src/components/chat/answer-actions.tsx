@@ -86,7 +86,8 @@ const ACTION_CLASS =
 /**
  * The quiet row under an answer: copy, the sources it cites, and
  * when it was answered. On the latest answer the actions stay visible; on
- * earlier ones the row appears on hover or focus. The time always waits for it.
+ * earlier ones the row appears on hover or focus, and always on a touch
+ * screen. The time always waits for hover or focus.
  */
 export function AnswerActions({
   text,
@@ -107,7 +108,8 @@ export function AnswerActions({
         className={cn(
           "motion-fast -ms-[5px] flex flex-wrap items-center transition-opacity",
           !latest &&
-            "opacity-0 focus-within:opacity-100 group-hover/message:opacity-100",
+            // A touch screen has no hover to reveal them, so they stay.
+            "opacity-0 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover/message:opacity-100",
         )}
         data-slot="answer-actions"
       >

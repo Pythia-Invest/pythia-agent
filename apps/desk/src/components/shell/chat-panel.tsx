@@ -29,6 +29,8 @@ export interface ChatPanelProps {
   onTogglePin: (sessionId: string) => void;
   pinnedIds: ReadonlySet<string>;
   sessions: readonly HermesSession[];
+  workingIds?: ReadonlySet<string> | undefined;
+  unreadIds?: ReadonlySet<string> | undefined;
   state: ChatListState;
 }
 
@@ -54,6 +56,8 @@ export function ChatPanel({
   onTogglePin,
   pinnedIds,
   sessions,
+  workingIds,
+  unreadIds,
   state,
 }: ChatPanelProps) {
   const [query, setQuery] = useState("");
@@ -184,6 +188,8 @@ export function ChatPanel({
               onRename={onRename}
               pinnedIds={pinnedIds}
               sessions={pinned}
+              workingIds={workingIds}
+              unreadIds={unreadIds}
               skeletonRows={loading ? 1 : 0}
             />
           ) : null}
@@ -219,6 +225,8 @@ export function ChatPanel({
                     onRename={onRename}
                     pinnedIds={pinnedIds}
                     sessions={group.sessions}
+                    workingIds={workingIds}
+                    unreadIds={unreadIds}
                     // One bucket adds nothing over "Recents"; several date it.
                     showHeading={timeGroups.length > 1}
                     tone="bucket"

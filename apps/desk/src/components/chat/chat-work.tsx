@@ -46,7 +46,8 @@ export function ChatWork({
     agent: WorkAgent;
     position: ConversationPosition;
   } | null>(null);
-  useChatReading(sessionId, !selected, atLatest);
+  const surface = useRef<HTMLElement>(null);
+  useChatReading(sessionId, !selected, atLatest, surface);
   const back = useRef<HTMLButtonElement>(null);
   const mainPosition = useRef<ConversationPosition>({
     top: 0,
@@ -102,6 +103,7 @@ export function ChatWork({
   };
   return (
     <section
+      ref={surface}
       className="flex min-h-0 min-w-0 flex-1 flex-col"
       data-slot="chat-work"
       aria-label={agent ? "Research agent conversation" : "Main conversation"}

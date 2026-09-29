@@ -25,9 +25,17 @@ async function chatLinks(page: Page) {
 
 test("separates the navigation rail from the chat list", async ({ page }) => {
   await openDesk(page);
+  // On a phone the same search waits behind its button in the top bar.
+  if (isNarrow(page))
+    await page
+      .getByRole("search")
+      .getByRole("button", { name: "Search", exact: true })
+      .click();
   await expect(
     page.getByRole("search").getByRole("searchbox", { name: "Search" }),
   ).toBeVisible();
+  if (isNarrow(page))
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await openNavigation(page);
   const rail = page.getByRole("complementary", { name: "Desk navigation" });
   await expect(rail.getByRole("link", { name: "Pythia home" })).toHaveAttribute(
@@ -41,8 +49,16 @@ test("separates the navigation rail from the chat list", async ({ page }) => {
     rail.getByRole("link", { name: "Chat", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(rail.getByRole("link", { name: "Settings" })).toBeVisible();
-
+  // The menu holds the rail only; the chat list keeps its own place, opened
+  // on a phone from the chat header.
   const chats = page.getByRole("navigation", { name: "Chats" });
+  if (isNarrow(page)) {
+    await expect(rail.getByRole("navigation", { name: "Chats" })).toHaveCount(
+      0,
+    );
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Show chats" }).click();
+  }
   // Search is an affordance, not a permanent field, so the header stays quiet.
   await expect(
     chats.getByRole("button", { name: "Search chats" }),

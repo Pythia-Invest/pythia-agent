@@ -219,7 +219,9 @@ is submitting or observing a run; a completed assistant answer becomes unread
 when its main conversation is not visible at the latest messages in the focused
 browser document. Reading a child agent, a different chat, older messages, or a
 hidden browser tab does not acknowledge the parent's answer. Opening the main
-conversation at the bottom or using Jump to latest clears its dot. Only unread
+conversation at the bottom or using Jump to latest clears its dot. A chat
+counts as read only while it is on screen: one kept mounted in a background
+dock tab or a closed sheet leaves its reply unread until it is shown. Only unread
 session IDs are kept in browser session storage so a reload preserves them;
 no transcript, native session record, or read receipt is added.
 
@@ -299,16 +301,25 @@ and native structured Hermes user content; storage and retention are defined
 in [ADR 0010](0010-local-chat-attachments.md).
 
 
-The shell's desktop dock remains a resizable side panel. Below 900px it opens
-only on request in the shared modal Drawer, preserving access to the routed
-page. Mobile navigation stacks its existing rail and chat list within the
-viewport. Projects are omitted: the in-memory grouping had no durable native
+The shell's desktop dock remains a resizable side panel. Below 900px the
+layout becomes a phone layout rather than a squeezed desktop. The rail moves
+into a modal drawer opened by a menu button before the top-bar title; a custom
+top bar receives that button with its actions, so navigation stays reachable.
+The chat list opens over the conversation from the chat header's Show chats
+(top-bar search opens it to show matches and closes it again when that search
+is cancelled). Top-bar search waits behind a Search button and takes the whole
+bar while open. The closed dock becomes a floating Pythia button that opens the
+same dock as a full-screen sheet; its header names the current chat instead of
+a tab strip, and its history sheet switches chats. The file viewer is likewise
+full screen with its own close button. The chat header also stays on the
+new-chat surface, so a first message does not shift when its route takes over.
+Projects are omitted: the in-memory grouping had no durable native
 Hermes owner and implied a capability it could not preserve. Pins and native
 session history remain the supported chat organization; a parallel project
 store was rejected.
 
-Mobile navigation uses the shared modal Drawer for focus containment, Escape
-and restoration to its trigger. The dock uses shared Tabs for roving focus,
+Phone navigation, sheets and the chat list use the shared modal Drawer for
+focus containment, Escape and restoration to their trigger. The dock uses shared Tabs for roving focus,
 arrow activation and panel associations; these primitives retain the existing
 rail, chat-list and tab-strip appearance. Open chat IDs remain in the strip
 even when absent from the bounded session list; missing list metadata uses a

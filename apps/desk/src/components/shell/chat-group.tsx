@@ -72,6 +72,8 @@ export function ChatGroup({
   onRename,
   pinnedIds,
   sessions,
+  workingIds,
+  unreadIds,
   showHeading = true,
   skeletonRows = 0,
   tone,
@@ -87,6 +89,8 @@ export function ChatGroup({
   onRename: (sessionId: string, title: string) => Promise<void>;
   pinnedIds: ReadonlySet<string>;
   sessions: readonly HermesSession[];
+  workingIds?: ReadonlySet<string> | undefined;
+  unreadIds?: ReadonlySet<string> | undefined;
   showHeading?: boolean;
   skeletonRows?: number;
 }) {
@@ -110,6 +114,8 @@ export function ChatGroup({
               onRename={onRename}
               pinned={pinnedIds.has(session.id)}
               session={session}
+              working={workingIds?.has(session.id) ?? false}
+              unread={unreadIds?.has(session.id) ?? false}
             />
           ))}
         </SidebarList>
