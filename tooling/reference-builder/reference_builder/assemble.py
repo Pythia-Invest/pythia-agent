@@ -110,7 +110,7 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     audit["scope_isins"] = len(scoped)
     claims, venues = inputs.claims(), Venues(inputs.venues)
     entities = gleif_fetch({r.issuer_lei for rs in scoped.values() for r in rs if r.issuer_lei})
-    disputed = contested(claims, entities)
+    disputed = contested(claims, entities, venues)
     issuers = {isin: issuer_lei(claims, venues, entities, isin, disputed) for isin in scoped}
 
     plan = [(isin, seg, rec) for isin, rs in scoped.items() for seg, rec in sorted(_eu_listings(inputs, isin, rs).items())]
@@ -159,17 +159,18 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     return entities
 
 
-def contested(claims: Claims, entities: dict[str, GleifEntity]) -> dict[str, list[str]]:
+def contested(claims: Claims, entities: dict[str, GleifEntity], venues: Venues) -> dict[str, list[str]]:
     """ISIN -> the LEIs FIRDS claims as its issuer where its records disagree: a share its receipts claim for another
     live issuer (`Claims.receipt_issuers`; a claim under an LEI GLEIF retired, Merck Sharp & Dohme Corp. on Merck & Co.,
-    is stale), the receipts' LEIs first, then its own field 5. A receipt of it filed under that same field 5 (Nestlé's
+    is stale), the receipts' LEIs first, then its own field 5 unless it is a venue operator's. A receipt of it filed under that same field 5 (Nestlé's
     ADR under Nestlé Capital Markets) is as contradicted, with the same candidates."""
     found: dict[str, list[str]] = {}
     for isin, leis in claims.receipt_issuers.items():
         live = sorted(lei for lei in leis if lei in entities and not rules.retired(entities[lei].entity_status,
                                                                                     entities[lei].registration_status))
         if live:
-            found[isin] = live + sorted(claims.isins[isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set()))
+            own = claims.isins[isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
+            found[isin] = live + sorted(lei for lei in own if not venues.operated.get(lei))
     receipts = {}
     for isin, values in claims.isins.items():
         own = values.get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
