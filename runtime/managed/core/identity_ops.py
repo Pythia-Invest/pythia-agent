@@ -129,9 +129,9 @@ class Identity:
             data = (directory.group(group, kinds=kinds) if group
                     else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
                                           suffixes=search_venues.suffixes, priced=search_venues.priced) if query else empty)
-        except (sqlite3.Error, OSError):  # search degrades, never errors out
+        except (sqlite3.Error, OSError) as error:  # search degrades, never errors out; a closed store says why
             logger.warning("identity search unavailable", exc_info=True)
-            return _envelope("empty", empty, issue="Search is unavailable: the reference data could not be read.")
+            return _envelope("empty", empty, issue=f"Search is unavailable. {location.reason(error)}")
         return _envelope("ok" if data["groups"] else "empty", data)
 
     def reference_status(self, _arguments: dict, **_context: Any) -> str:
@@ -143,9 +143,9 @@ class Identity:
             view, issue = self._compose(str(arguments.get("subject_id") or ""))
         except ValueError:  # a malformed subject id
             view, issue = None, UNKNOWN_SUBJECT
-        except (sqlite3.Error, OSError):
+        except (sqlite3.Error, OSError) as error:
             logger.warning("identity subject unavailable", exc_info=True)
-            view, issue = None, "The reference data could not be read."
+            view, issue = None, location.reason(error)
         return _envelope("ok", view) if view else _envelope("empty", None, issue=issue)
 
     def resolve(self, arguments: dict, **_context: Any) -> str:

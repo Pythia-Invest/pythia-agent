@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -110,6 +111,14 @@ class MoveTest(StoreFixture):
         self.assertEqual(reopened.metadata("schema_version"), store.SCHEMA_VERSION)
         reopened.db.close()
 
+    def variant(self, name: str, change: str) -> bytes:
+        """The bytes of a readable identity store that `change` (SQL) spoils."""
+        path = self.root / f"{name}.sqlite3"
+        shutil.copyfile(self.legacy / location.IDENTITY, path)
+        with closing(sqlite3.connect(path)) as db:
+            db.executescript(change)
+        return path.read_bytes()
+
     def test_a_corrupt_or_foreign_earlier_store_is_left_as_it_was_and_identity_stays_closed(self):
         self.identity.db.close()
         source = self.legacy / location.IDENTITY
@@ -117,10 +126,19 @@ class MoveTest(StoreFixture):
         with closing(sqlite3.connect(foreign)) as db:
             db.execute("CREATE TABLE notes (text TEXT)")
             db.commit()
-        for name, content in (("corrupt", b"SQLite format 3\x00" + b"\xff" * 4096), ("foreign", foreign.read_bytes())):
+        # Readable, but an index's pages belong to nothing: integrity_check fails.
+        orphaned = self.variant("orphaned", "CREATE TABLE extra (a TEXT); CREATE INDEX extra_a ON extra (a);"
+                                "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 300)"
+                                " INSERT INTO extra SELECT printf('%.80d', i) FROM n;"
+                                "PRAGMA writable_schema = ON; DELETE FROM sqlite_master WHERE name = 'extra_a';")
+        unversioned = self.variant("unversioned", "DELETE FROM metadata WHERE key = 'schema_version';")
+        for name, content, why in (("corrupt", b"SQLite format 3\x00" + b"\xff" * 4096, "could not be read"),
+                                   ("foreign", foreign.read_bytes(), "could not be read"),
+                                   ("orphaned pages", orphaned, r"did not verify \(integrity: \*\*\*"),
+                                   ("no schema version", unversioned, "did not verify .*schema version: None")):
             with self.subTest(name):
                 source.write_bytes(content)
-                with self.assertRaisesRegex(location.Unavailable, "left in place"):
+                with self.assertRaisesRegex(location.Unavailable, f"{why}.*left in place. {location.REMEDY}"):
                     self.adopt()
                 self.assertEqual(source.read_bytes(), content)
                 self.assertEqual(sorted(path.name for path in self.target.iterdir()), [reference_package.MOVE_LOCK])
@@ -129,8 +147,8 @@ class MoveTest(StoreFixture):
         with self.assertLogs(level="WARNING") as logged:
             answers = [json.loads(ops.search({"query": "ASML"})), json.loads(ops.subject({"subject_id": ASML})),
                        json.loads(queue_ops.read_queue(ops, {}))]
-        self.assertEqual(sum(f"identity is unavailable: the identity store {source}" in line for line in logged.output), 1)
-        self.assertIn("unavailable", answers[0]["issues"][0]["message"])
+        self.assertEqual(sum(f"identity is unavailable. The identity store {source}" in line for line in logged.output), 1)
+        self.assertIn(location.REMEDY, answers[0]["issues"][0]["message"])  # search says what to do
         self.assertEqual([body["issues"][0]["code"] for body in answers[1:]], ["unavailable", "unavailable"])
         with self.assertRaisesRegex(OSError, "left in place"):  # a write answers the reason (the registry's error)
             queue_ops.submit_verdict(ops, {"item_id": "q", "relation": "none"})
@@ -167,6 +185,34 @@ class MoveTest(StoreFixture):
         source.unlink()
         self.assertIsNone(json.loads(ops.reference_status({}))["data"]["both_present"])
         self.assertNotIn("notice", json.loads(queue_ops.read_queue(ops, {}))["data"] or {})
+
+    def test_a_write_ahead_log_moves_with_the_old_file(self):
+        """Another connection holds the old store in WAL mode, its last commit only in the -wal file."""
+        before = self.answers()
+        source = self.legacy / location.IDENTITY
+        other = sqlite3.connect(source)
+        self.addCleanup(other.close)
+        other.execute("PRAGMA journal_mode = WAL")
+        other.execute("INSERT INTO metadata (key, value) VALUES ('wal_only', '1')")
+        other.commit()
+        self.assertTrue(source.with_name(source.name + "-wal").stat().st_size)
+        self.adopt()
+        moved, kept = self.target / location.IDENTITY, self.legacy / location.MOVED
+        self.assertEqual(sorted(path.name for path in self.legacy.iterdir()),
+                         ["MOVED.json", location.MOVED, location.MOVED + "-shm", location.MOVED + "-wal"])
+        for path in (moved, kept):  # the store and the kept original both hold the commit that was only in the WAL
+            with closing(sqlite3.connect(path)) as db:
+                self.assertEqual(db.execute("SELECT value FROM metadata WHERE key = 'wal_only'").fetchone(), ("1",))
+        with closing(sqlite3.connect(moved)) as db:
+            self.assertEqual(db.execute("PRAGMA journal_mode").fetchone(), ("delete",))  # the store's own mode
+        self.assertEqual(self.rows(moved), before)
+
+    def test_without_hard_links_the_store_is_published_where_none_exists(self):
+        before = self.answers()
+        with unittest.mock.patch.object(location.os, "link", side_effect=OSError(errno.EPERM, "Operation not permitted")):
+            [note] = self.adopt()
+        self.assertIn("kept as identity.moved.sqlite3", note)
+        self.assertEqual((self.rows(self.target / location.IDENTITY), list(self.target.glob("*.part"))), (before, []))
 
     def test_two_movers_at_once_publish_once(self):
         before = self.answers()

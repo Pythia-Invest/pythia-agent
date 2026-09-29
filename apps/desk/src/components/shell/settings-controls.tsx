@@ -256,13 +256,14 @@ export function UpdateSettings() {
 }
 
 /** The installed reference package: which build search and instrument pages
- * read, the notices its sources require wherever the data is shown, and a
- * package the installer last refused. */
+ * read, the notices its sources require wherever the data is shown, a package
+ * the installer last refused, and an earlier store still on the device. */
 export function ReferenceSettings() {
   const query = useReferenceStatus();
   const time = useLocalTime();
   const reference = query.data?.data?.installed;
   const refused = query.data?.data?.refused;
+  const earlier = query.data?.data?.both_present;
   return (
     <div data-slot="reference-settings">
       {query.isPending ? <p role="status">Reading reference data…</p> : null}
@@ -284,6 +285,15 @@ export function ReferenceSettings() {
         >
           {refused.message}
           {refused.at ? ` (${time(refused.at, "compact")})` : ""}
+        </Alert>
+      ) : null}
+      {earlier ? (
+        <Alert
+          className="wrap-anywhere mb-2"
+          tone="warning"
+          title="An earlier copy of Pythia's store is still on this device."
+        >
+          {earlier}
         </Alert>
       ) : null}
       {query.data && !reference ? (

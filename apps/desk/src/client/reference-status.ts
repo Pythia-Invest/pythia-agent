@@ -38,6 +38,8 @@ export const referenceStatusSchema = z.object({
           notices: z.array(z.string().min(1)).default([]),
         })
         .nullish(),
+      /** An earlier copy of Pythia's store still beside the current one, until deleted by hand. */
+      both_present: z.string().nullish(),
       /** The last package the installer refused; cleared once one installs. */
       refused: z
         .object({

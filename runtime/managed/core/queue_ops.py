@@ -69,8 +69,9 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
     limit = arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20
     try:
         _path, ref = identity.reference()
-        if ref is None:
-            return _envelope("empty", None, issue=NO_REFERENCE)
+        if ref is None:  # an earlier store left beside this one is still worth saying (Repairs shows the notice)
+            earlier = location.both_present(identity.data_dir)
+            return _envelope("empty", {"notice": earlier} if earlier else None, issue=NO_REFERENCE)
         try:
             if arguments.get("item_id"):
                 view = questions.inspect(identity.store, ref, str(arguments["item_id"]))

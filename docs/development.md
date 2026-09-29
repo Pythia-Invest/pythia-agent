@@ -246,7 +246,12 @@ stack's store, `<data>/store/reference/`, never the builder's output folder
 worktree (`just dev-paths` prints its data root), and core finds it through
 `PYTHIA_DATA_ROOT`. A store from before the move to `<data>/store` is moved
 there the first time the stack uses it; the old identity file stays behind as
-`identity.moved.sqlite3`. `just dev-init`,
+`identity.moved.sqlite3`. Open Markets or Repairs once on each stack you keep
+before the Hermes pin is bumped, and do not run older code in the same checkout
+afterwards
+([ADR 0034](decisions/0034-core-and-optional-features.md), 2026-09-29
+amendment). The old `plugin-data/…/documents/` cache is left behind and can be
+deleted by hand. `just dev-init`,
 `just dev` and `just dev-refresh` install this checkout's
 `.local/reference-builder/out/` package when there is one; set
 `PYTHIA_DEV_REFERENCE_PACKAGE` to use another package directory. To install

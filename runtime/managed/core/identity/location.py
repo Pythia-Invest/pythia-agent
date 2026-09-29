@@ -9,6 +9,7 @@ unavailable for the process and writes nothing anywhere else.
 """
 from __future__ import annotations
 
+import errno
 import json
 import logging
 import os
@@ -23,6 +24,8 @@ from . import reference_package
 logger = logging.getLogger(__name__)
 ROOT = "PYTHIA_DATA_ROOT"  # the per-stack data root the lifecycle passes to Hermes
 IDENTITY, MOVED = "identity.sqlite3", "identity.moved.sqlite3"
+SIDE_FILES = ("-journal", "-wal", "-shm")  # SQLite's files beside a database, renamed with it
+REMEDY = "Move it aside or recover it, then restart Pythia."
 _opened: dict[tuple[str, str], Path | str] = {}  # (old directory, root) -> the store directory, or why there is none
 _opening = threading.Lock()
 
@@ -43,7 +46,7 @@ def store_dir(legacy: Path) -> Path:
                 _opened[key] = _open(Path(legacy), key[1])
             except OSError as error:
                 _opened[key] = str(error)
-                logger.error("identity is unavailable: %s", error)
+                logger.error("identity is unavailable. %s", error)
         found = _opened[key]
     if isinstance(found, str):
         raise Unavailable(found)
@@ -57,8 +60,13 @@ def both_present(store: Path) -> str | None:
         earlier = [Path(legacy) for (legacy, _root), found in _opened.items() if found == store]
     found = [f"{path} ({_bytes(path)} bytes)" for legacy in earlier for path in (legacy / IDENTITY, legacy / "reference")
              if path.exists()]
-    return (f"An earlier copy of Pythia's store is still present: {'; '.join(found)}. Pythia uses only {store}; "
-            "nothing in the earlier copy is merged, and it can be deleted by hand.") if found else None
+    return (f"An earlier copy of Pythia's store is still present: {'; '.join(found)}. Pythia uses only {store} and "
+            "merges nothing from the earlier copy; delete it by hand once you no longer need it.") if found else None
+
+
+def reason(error: Exception) -> str:
+    """Why an identity read could not answer: a closed store's own reason, else that the reference could not be read."""
+    return str(error) if isinstance(error, Unavailable) else "The reference data could not be read."
 
 
 def _bytes(path: Path) -> int:
@@ -67,7 +75,7 @@ def _bytes(path: Path) -> int:
 
 def _open(legacy: Path, root: str) -> Path:
     if not os.path.isabs(root):
-        raise Unavailable(f"{ROOT} is not set to an absolute path, so Pythia has no directory for its store")
+        raise Unavailable(f"{ROOT} is not set to an absolute path, so Pythia has no directory for its store.")
     directory = Path(root) / "store"
     directory.mkdir(mode=0o700, exist_ok=True)  # inside the root the lifecycle created, never in its place
     adopt_legacy(legacy, directory)
@@ -100,20 +108,30 @@ def _move_identity(source: Path, target: Path) -> str:
             with closing(sqlite3.connect(f"{source.resolve().as_uri()}?mode=rw", uri=True)) as old, \
                     closing(sqlite3.connect(part)) as new:
                 old.backup(new)
+                new.execute("PRAGMA journal_mode = DELETE")  # the store's own mode, whatever the old file used
                 checked = new.execute("PRAGMA integrity_check").fetchone()[0]
                 version = new.execute("SELECT value FROM metadata WHERE key = 'schema_version'").fetchone()
         except sqlite3.Error as error:
-            raise Unavailable(f"the identity store {source} could not be read ({error}); it was left in place") from None
+            raise Unavailable(f"The identity store {source} could not be read ({error}), so it was left in place. "
+                              f"{REMEDY}") from None
         if checked != "ok" or version is None:
-            raise Unavailable(f"the identity store {source} did not verify (integrity: {checked}; schema version: "
-                              f"{version and version[0]}); it was left in place")
+            raise Unavailable(f"The identity store {source} did not verify (integrity: {' '.join(checked.split())[:120]};"
+                              f" schema version: {version and version[0]}), so it was left in place. {REMEDY}")
         os.chmod(part, 0o600)
-        os.link(part, target)  # exclusive: never over a store that exists
+        try:
+            os.link(part, target)  # exclusive: never over a store that exists
+        except OSError as error:  # a file system without hard links: under the lock, publish where none appeared
+            if error.errno not in (errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP) or target.exists():
+                raise
+            os.replace(part, target)
     finally:
         part.unlink(missing_ok=True)
     kept = source.with_name(MOVED)
     kept = kept if not kept.exists() else source.with_name(f"identity.moved-{uuid.uuid4().hex[:8]}.sqlite3")
-    try:
+    try:  # the side files first, as the store sets a file aside: a WAL may hold its latest commits
+        for suffix in SIDE_FILES:
+            if source.with_name(source.name + suffix).exists():
+                source.with_name(source.name + suffix).rename(kept.with_name(kept.name + suffix))
         source.rename(kept)
         (source.parent / "MOVED.json").write_text(json.dumps({"moved_to": str(target), "kept_as": kept.name}) + "\n",
                                                   encoding="utf-8")

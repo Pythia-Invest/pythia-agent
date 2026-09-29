@@ -77,6 +77,21 @@ it("shows a refused package beside the build that stays in use", () => {
   expect(html).toContain("Checksum mismatch for reference-20260929.sqlite3.");
 });
 
+it("says when an earlier copy of the store is still beside the current one", () => {
+  const earlier =
+    "An earlier copy of Pythia's store is still present: /old/identity.sqlite3 (98304 bytes).";
+  state.body = {
+    schema_version: 1,
+    outcome: "ok",
+    data: { installed: summary, refused: null, both_present: earlier },
+  };
+  const html = renderToStaticMarkup(<ReferenceSettings />);
+  expect(html).toContain(
+    "An earlier copy of Pythia&#x27;s store is still on this device.",
+  );
+  expect(html).toContain("/old/identity.sqlite3 (98304 bytes)");
+});
+
 it("says there is no reference data, without a development-only command", () => {
   state.body = {
     schema_version: 1,

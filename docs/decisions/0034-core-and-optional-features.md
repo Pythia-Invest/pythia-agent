@@ -96,21 +96,31 @@ native identity, `pythia`, and its copy in the profile are unchanged.
     package keeps its name, so nothing is re-keyed.
   - An identity store that cannot be moved (unreadable, corrupt or not an
     identity store) is left as it was. Identity then stays unavailable for
-    that process, with the reason in the log, rather than start empty.
+    that process, with the reason in the log and in search, rather than start
+    empty. The remedy is to move the file aside or recover it, then restart
+    Pythia.
   - While an earlier copy is still in place beside the store (a move stopped
     after publishing, older code run again, or a reference copy kept),
-    `reference-status` and the Repairs notice say that both are present, until
-    the earlier copy is deleted by hand. Nothing in it is merged.
+    `reference-status` (shown in Settings) and the Repairs notice say that both
+    are present, until the earlier copy is deleted by hand. Nothing in it is
+    merged.
   - The development reference install runs the same move before it installs.
 - **Purge keeps the store.** `pythia uninstall --purge` removes configuration,
   state and cache. The store holds the investor's answers and bindings, so it
   stays, like the workspace.
 
-**Consequences.** A Hermes upgrade no longer changes where the store is. Code
-from before this amendment, run on the same stack afterwards, starts with an
-empty store; the answers are still in `identity.moved.sqlite3`. Reference
-copies left in the old place are logged with their size and can be deleted by
-hand.
+**Consequences.** Once moved, a Hermes upgrade no longer changes where the
+store is. Operationally:
+
+- Every kept stack must use identity once on this code before the Hermes pin
+  is bumped. A new Hermes may name the plugin data directory differently, and
+  the move would then not find the old store.
+- Never run code from before this amendment in the same checkout afterwards.
+  It starts with an empty store in the old place; the answers are still in
+  `identity.moved.sqlite3`, and the new code reports both stores as present.
+- The old document cache, `<plugin-data>/documents/`, is not moved and can be
+  deleted by hand, like a reference copy left in the old place (logged with its
+  size).
 
 **Rejected.**
 - *Moving the identity store in a lifecycle step (install or `just dev`).*
