@@ -20,7 +20,7 @@ import {
   commit,
   signedTag,
   releaseFixture,
-} from "./helpers/release-fixture";
+} from "../support/release-fixture";
 describe("release verification and update", () => {
   it("orders strict stable tags and verifies annotated SSH tags", () => {
     const fixture = releaseFixture();
@@ -28,6 +28,17 @@ describe("release verification and update", () => {
     expect(
       verifyStableTag(fixture.checkout, "v0.1.0", fixture.paths.allowedSigners),
     ).toBe(fixture.revisionA);
+    // A lightweight stable tag carries no signature to verify.
+    run(fixture.source, ["git", "tag", "v0.2.1"]);
+    run(fixture.source, ["git", "tag", "-a", "release-b", "-m", "release-b"]);
+    for (const [tag, code] of [
+      ["v0.2.1", "unsigned_tag"],
+      ["release-b", "invalid_tag"],
+    ]) {
+      expect(() =>
+        verifyStableTag(fixture.source, tag, fixture.paths.allowedSigners),
+      ).toThrow(expect.objectContaining({ code }));
+    }
   });
 
   it("discovers the peeled commit without changing checkout refs or worktree", () => {

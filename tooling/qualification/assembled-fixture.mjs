@@ -51,7 +51,7 @@ function stackEnvironment(root, worktree, configHome, cache) {
   return environment;
 }
 
-export function qualificationCacheEnvironment(
+function qualificationCacheEnvironment(
   files,
   hostPath = process.env.PATH ?? "",
 ) {

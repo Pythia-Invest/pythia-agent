@@ -1,4 +1,4 @@
-import { fixture, roots } from "../helpers/workspace-transition-fixture";
+import { fixture, roots } from "../support/workspace-transition-fixture";
 import { workspaceTransitionChat } from "../../scripts/update/workspace-transition-chat.mjs";
 import { applyUpdate } from "../../scripts/update/apply-operation.mjs";
 import {

@@ -6,6 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   copySourceSnapshot,
@@ -16,7 +17,7 @@ import {
 } from "../../tooling/source-snapshot.mjs";
 
 export const repositoryRoot = resolve(import.meta.dirname, "../..");
-export const predecessorSpecification = join(
+const predecessorSpecification = join(
   repositoryRoot,
   "test/fixtures/releases/technical-preview-a.json",
 );
@@ -29,46 +30,10 @@ export function cleanupReleaseFixtures() {
   }
 }
 
-export function temporaryQualificationRoot(label: string, task = "t10") {
-  const parent = join(repositoryRoot, ".local", "qualification", task);
-  mkdirSync(parent, { recursive: true, mode: 0o700 });
-  const root = mkdtempSync(join(parent, `${label}-`));
+export function temporaryQualificationRoot(label: string) {
+  const root = mkdtempSync(join(tmpdir(), `pythia-qualification-${label}-`));
   roots.push(root);
   return root;
-}
-
-export function createExactSourceFixture() {
-  const root = temporaryQualificationRoot("exact-source", "t08");
-  const repository = join(root, "repository");
-  const remote = join(root, "origin.git");
-  const clone = join(root, "clone");
-  const worktreeOne = join(root, "worktree-one");
-  const worktreeTwo = join(root, "worktree-two");
-  copySourceSnapshot(repositoryRoot, repository);
-  initializeRepository(repository);
-  const revision = commit(repository, "exact disposable source");
-  git(root, ["init", "--bare", "--initial-branch=main", remote]);
-  git(repository, ["remote", "add", "origin", remote]);
-  git(repository, ["push", "origin", "main"]);
-  git(root, ["clone", remote, clone]);
-  git(repository, ["worktree", "add", "--detach", worktreeOne, revision]);
-  git(repository, ["worktree", "add", "--detach", worktreeTwo, revision]);
-  const source = sourceManifest(repositoryRoot);
-  for (const snapshot of [repository, clone, worktreeOne, worktreeTwo]) {
-    if (directoryManifest(snapshot).digest !== source.digest) {
-      throw new Error(`Exact source fixture diverged at ${snapshot}.`);
-    }
-  }
-  return {
-    clone,
-    remote,
-    repository,
-    revision,
-    root,
-    source,
-    worktreeOne,
-    worktreeTwo,
-  };
 }
 
 export function run(
@@ -107,12 +72,7 @@ function commit(repository: string, message: string) {
   return git(repository, ["rev-parse", "HEAD"]);
 }
 
-function signedTag(
-  repository: string,
-  key: string,
-  tag: string,
-  target?: string,
-) {
+function signedTag(repository: string, key: string, tag: string) {
   git(
     repository,
     [
@@ -123,7 +83,6 @@ function signedTag(
       "tag",
       "-s",
       tag,
-      ...(target ? [target] : []),
       "-m",
       tag,
     ],
@@ -152,8 +111,6 @@ function signingIdentity(root: string, label: string) {
   return { allowedSigners, key, signerLine };
 }
 
-export type SnapshotFixture = ReturnType<typeof createSnapshotFixture>;
-
 export function createSnapshotFixture({ signedOverlay = false } = {}) {
   const root = temporaryQualificationRoot("release");
   const exactB = join(root, "exact-b");
@@ -162,7 +119,6 @@ export function createSnapshotFixture({ signedOverlay = false } = {}) {
   const remote = join(root, "origin.git");
   const clone = join(root, "clone");
   const signing = signingIdentity(root, "qualification");
-  const untrustedSigning = signingIdentity(root, "untrusted");
 
   copySourceSnapshot(repositoryRoot, exactB);
   copySourceSnapshot(repositoryRoot, predecessorA);
@@ -184,19 +140,10 @@ export function createSnapshotFixture({ signedOverlay = false } = {}) {
   synchronizeSnapshot(predecessorA, repository);
   const revisionA = commit(repository, "technical preview A");
   signedTag(repository, signing.key, "v0.0.1");
-  signedTag(repository, untrustedSigning.key, "v0.0.2", revisionA);
-  const treeA = git(repository, ["rev-parse", "HEAD^{tree}"]);
 
   synchronizeSnapshot(exactB, repository);
   const revisionB = commit(repository, "release B");
   signedTag(repository, signing.key, "v0.1.0");
-  signedTag(repository, untrustedSigning.key, "v0.1.1", revisionB);
-  git(repository, ["tag", "v0.1.2", revisionB]);
-  const treeB = git(repository, ["rev-parse", "HEAD^{tree}"]);
-  const tagA = git(repository, ["rev-parse", "refs/tags/v0.0.1"]);
-  const tagB = git(repository, ["rev-parse", "refs/tags/v0.1.0"]);
-  const untrustedTagA = git(repository, ["rev-parse", "refs/tags/v0.0.2"]);
-  const untrustedTagB = git(repository, ["rev-parse", "refs/tags/v0.1.1"]);
 
   git(root, ["init", "--bare", "--initial-branch=main", remote]);
   git(repository, ["remote", "add", "origin", remote]);
@@ -212,22 +159,11 @@ export function createSnapshotFixture({ signedOverlay = false } = {}) {
   return {
     ...signing,
     clone,
-    exactB,
-    predecessorA,
     remote,
-    repository,
     revisionA,
     revisionB,
     root,
     source: sourceManifest(repositoryRoot),
-    snapshotA: directoryManifest(predecessorA),
     snapshotB: directoryManifest(exactB),
-    treeA,
-    treeB,
-    tagA,
-    tagB,
-    untrustedTagA,
-    untrustedTagB,
-    signedOverlay,
   };
 }
