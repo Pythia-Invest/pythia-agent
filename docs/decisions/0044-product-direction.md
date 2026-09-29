@@ -365,16 +365,13 @@ exists:
 - The build's open questions are queued only when an instrument is opened,
   watched or used by the agent, and the user's answer is a local override
   ([ADR 0037](0037-identity-backbone.md), amendment "questions on touch").
-  Holdings, forecasts and operations join as triggers in stage 1. A later
-  release that contradicts a user's answer does not yet raise a conflict
-  question: the answer stays applied.
+  Holdings, forecasts and operations join as triggers in stage 1.
 - Subjects come only from the reference build and core's curated tables.
 - Reference sources are builder adapters. A build can leave out any of them
   (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
   sources it includes; only the ISO 10383 venue codes and core's curated
   crypto table are always in. A device cannot yet remove an installed
-  package, and the builder's `snapshot` evidence outranks a plugin's
-  `source_asserted` claim.
+  package.
 - Trust follows a digest of each plugin's files, never its name: Pythia's
   release grants confirm its signed-off and grandfathered plugins, and the
   user's own grants may confirm another or demote one (ADR 0042, amendment of

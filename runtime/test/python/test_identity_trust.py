@@ -166,7 +166,7 @@ class InstalledTest(TrustCase):
             db.executescript(identity.schema_sql("reference"))
             load_reference(db, load("asml.json"))
             db.commit()
-        self.ref = store.open_reference(path)
+        self.ref = store.open_reference(path, trust.CONFIRM)
         self.addCleanup(self.ref.close)
         self.identity = store.IdentityStore(self.root / "store")
         self.addCleanup(self.identity.db.close)

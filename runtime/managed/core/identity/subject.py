@@ -7,9 +7,10 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Mapping
 
+from . import evidence as weighing
 from .model import IdentifierAssertion
 from .schemes import INSTRUMENT_KINDS, Level, subject_kind, subject_level
-from .vocabulary import RELATIONS, Grouping
+from .vocabulary import RELATIONS, Grouping, stored_authority
 
 
 def current_id(ref: sqlite3.Connection, subject_id: str, declared: Mapping[str, str] = {}) -> str:
@@ -35,6 +36,9 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
 
     An ID the reference no longer holds (an older key rule, a re-key, another build path)
     resolves through `id_aliases` (ADR 0037); the result carries the current ID.
+
+    Its assertions count at the package's trust level (`evidence.weigh`): `evidence` proves and blocks only at
+    confirm, `shown` is display-level, and a contested scheme has no value.
     """
     if subject_kind(subject_id) not in INSTRUMENT_KINDS:
         return None
@@ -63,39 +67,36 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     ids = {Level.LISTING: listing and listing["id"], Level.SECURITY: security and security["id"],
            Level.ISSUER: issuer and issuer["id"], Level.COMPOSITE: listing and listing["composite_id"]}
     subjects = [value for value in ids.values() if value]
-    rows = ref.execute(f"SELECT * FROM assertions WHERE subject_id IN ({','.join('?' * len(subjects))})", subjects).fetchall()
-    evidence = [_assertion(row) for row in rows]
-    values: dict[str, str] = {}
-    for item in evidence:  # a delisted line's ticker may name another company now, so it addresses nothing
-        if item.scheme != "ticker_mic" or listing is None or listing["status"] != "inactive":
-            values.setdefault(item.scheme, item.value)
+    rows = ref.execute(f"SELECT * FROM assertions WHERE subject_id IN ({','.join('?' * len(subjects))}) ORDER BY rowid",
+                       subjects).fetchall()  # stored order: one source's several values keep their first
+    trust = weighing.level(ref)
+    weighed = weighing.weigh((_assertion(row) for row in rows), trust)
+    if listing is not None and listing["status"] == "inactive":  # a delisted line's ticker may name another company
+        weighed["values"].pop("ticker_mic", None)
     venues = {row["mic"]: row["name"] for row in ref.execute("SELECT mic, name FROM venues")}
     siblings = ref.execute("SELECT * FROM listings WHERE security_id = ? AND status <> 'inactive'"
                            " ORDER BY is_primary DESC, operating_mic, id", (security["id"],)).fetchall() if security else []
     name = (issuer["name"] if issuer and (security is None or security["asset_class"] != "crypto") else None) or (
         security["name"] if security else subject_id)
-    identifiers = {"isin": values.get("isin"), "lei": values.get("lei"), "cik": values.get("cik"),
-                   "figi": values.get("figi"), "caip19": values.get("caip19"),
-                   "ticker": listing["ticker"] if listing else None, "mic": listing["operating_mic"] if listing else None,
-                   "currency": listing["trading_currency"] if listing else None}
-    return {
-        "id": subject_id, "level": level, "ids": ids, "values": values, "evidence": evidence,
+    subject = {
+        "id": subject_id, "level": level, "ids": ids, **weighed, "trust": trust,
         "asset_class": security["asset_class"] if security else None,
         "kind": security["kind"] if security else None,
         "listing": listing,
         "view": {
             "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None,
                         "listing": listing["id"] if listing else None},
-            "identifiers": {key: value for key, value in identifiers.items() if value},
-            "issuer": {"id": issuer["id"], "name": issuer["name"], "lei": values.get("lei"), "cik": values.get("cik")}
-            if issuer else None,
-            "security": {"id": security["id"], "name": security["name"], "isin": values.get("isin")} if security else None,
+            "identifiers": {},
+            "issuer": {"id": issuer["id"], "name": issuer["name"]} if issuer else None,
+            "security": {"id": security["id"], "name": security["name"]} if security else None,
             "listings": [{"id": row["id"], "ticker": row["ticker"], "mic": row["operating_mic"] or row["mic"],
                           "venue": venues.get(row["mic"] or ""), "currency": row["trading_currency"], "primary": bool(row["is_primary"])}
                          for row in siblings],
             "related": related(ref, subjects),
         },
     }
+    weighing.show(subject)
+    return subject
 
 
 RELATED = tuple(type for type, rule in RELATIONS.items() if rule.grouping is Grouping.RELATED)
@@ -123,8 +124,10 @@ def related(ref: sqlite3.Connection, subject_ids: list[str]) -> list[dict[str, A
 
 
 def _assertion(row: sqlite3.Row) -> IdentifierAssertion:
+    """A stored assertion, its authority read as the kind of evidence it is (`stored_authority`)."""
     return IdentifierAssertion(
-        subject_id=row["subject_id"], scheme=row["scheme"], value=row["value"], authority=row["authority"],
+        subject_id=row["subject_id"], scheme=row["scheme"], value=row["value"],
+        authority=stored_authority(row["authority"], row["source_record"]),
         provenance={"plugin": row["plugin"], "source": row["source"], "adapter_version": row["adapter_version"],
                     "retrieved_at": row["retrieved_at"], "source_record": row["source_record"]},
         validity={"valid_from": row["valid_from"], "valid_to": row["valid_to"]})

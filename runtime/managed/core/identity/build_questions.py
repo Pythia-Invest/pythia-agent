@@ -6,11 +6,15 @@ uses it (`queue_ops.surface`). Each is asked once, and a new release supersedes 
 is an instrument's home is a choice (A5), even from an older package; a question with no candidate, whose only
 answer is "None of these" while the page already says the fact is unknown; and a malformed one.
 
+Core asks two more kinds when a subject is touched (`conflicts`): a fact confirm-level evidence contests, and a
+user's answer the installed release contradicts. They are tagged and answered like the build's.
+
 An answer takes the question's one relation. The agent's answer is a suggestion that leaves the question open.
-The user's answer resolves it with a `user_attested` verdict, unless identifier evidence contradicts it
-(`queue.submit`). That resolved row is the local override every read applies (`load_subject`): an issuer answer
-gives the security that issuer, and a receipt answer adds a `related` entry. It stays applied until the user
-reopens the question (`reopen`).
+The user's answer resolves it with a `user_attested` verdict, unless unanimous confirm-level identifier evidence
+contradicts it (`queue.submit`). That resolved row is the local override every read applies (`load_subject`): an
+issuer answer gives the security that issuer, a receipt answer adds a `related` entry, and an answer to a contested
+identifier gives the subject that value. It stays applied until the user reopens the question (`reopen`) or answers a
+later conflict about the same fact (`replace_answer`).
 """
 from __future__ import annotations
 
@@ -23,10 +27,11 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable
 
+from . import evidence as weighing
 from . import reference_package
 from .claims import IdentifierValue
 from .resolution import QueueItem
-from .schemes import SCHEME_LEVEL, Level, subject_kind
+from .schemes import SCHEME_LEVEL, Level, subject_id, subject_kind, subject_level
 from .subject import _assertion
 from .subject import load_subject as load_reference_subject
 from .vocabulary import Authority, VerdictRelation
@@ -37,9 +42,13 @@ LABEL = "Pythia reference"  # the source Repairs shows: it names the origin and 
 EPOCH = "1970-01-01T00:00:00Z"  # an indexed question's placeholder `opened_at`; queueing sets the real one
 # The build's question types (tooling/reference-builder `QUESTION_SHAPE`) by queue reason, and the one relation an
 # answer takes: `issuer_identity` (who issued a security, or which company an issuer is), the name-only
-# `issuer_identity_name_candidate`, `receipt_underlying` and `receipt_conflict`.
+# `issuer_identity_name_candidate`, `receipt_underlying` and `receipt_conflict`. An `identifier` question about a
+# contested identifier takes its scheme's level, and a `binding` one (an answer a release contradicts) its answer's.
 RELATIONS = {"identifier": VerdictRelation.SAME_ISSUER, "ambiguous": VerdictRelation.SAME_ISSUER,
-             "no_key": VerdictRelation.DEPOSITARY_RECEIPT_OF, "relation": VerdictRelation.DEPOSITARY_RECEIPT_OF}
+             "no_key": VerdictRelation.DEPOSITARY_RECEIPT_OF, "relation": VerdictRelation.DEPOSITARY_RECEIPT_OF,
+             "binding": VerdictRelation.DEPOSITARY_RECEIPT_OF}
+SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
+        Level.SECURITY: VerdictRelation.SAME_SECURITY, Level.ISSUER: VerdictRelation.SAME_ISSUER}
 _INDEX: dict[str, dict[str, list[QueueItem]]] = {}  # installed package -> subject -> its queueable questions
 _UNREADABLE: set[str] = set()  # packages whose claims file could not be read, warned about once
 
@@ -56,11 +65,21 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
     relation, issuer = RELATIONS.get(item["reason"]), subject_kind(item["subject_ids"][0]) == "issuer"
     if relation is None or (item["reason"] == "ambiguous" and not issuer):
         return None
-    scheme = (item.get("scheme") or "").upper()
+    scheme = (item.get("scheme") or "").upper().replace("_", " ")
     values = ", ".join(f"{scheme} {value}".strip() for value in item.get("values") or ())
+    own, candidates = own_identifier(item), item.get("candidate_ids") or ()
+    if own:
+        relation = SAME[own]
+    elif item["reason"] == "binding" and candidates and subject_kind(candidates[0]) == "issuer":
+        relation = VerdictRelation.SAME_ISSUER
+    fact = f"its {scheme}" if own else "which security this depositary receipt represents" \
+        if relation is not VerdictRelation.SAME_ISSUER else "which company this is" if issuer else "who issued this security"
     text = {
-        "identifier": ("Which company is this? " if issuer else "Who issued this security? ")
+        "identifier": (f"Which {scheme} is this? " if own and not issuer else
+                       "Which company is this? " if issuer else "Who issued this security? ")
         + (f"Its sources name {values}, which does not decide it." if values else "Its sources do not decide it."),
+        "binding": f"Your answer and the installed reference data now disagree about {fact}"
+                   + (f" ({values})" if values else "") + ". Which is it?",
         "ambiguous": "Is this SEC registrant the same company as the issuer its name matches? No identifier links them.",
         "no_key": "Which security does this depositary receipt represent? FIRDS names none the reference data holds.",
         "relation": f"FIRDS classes this security as a share, yet states {values or 'an underlying'} as its "
@@ -119,37 +138,65 @@ def reopen(store, item_id: str, now: str, path: Path | None) -> bool:
     return True
 
 
+def own_identifier(item: dict) -> Level | None:
+    """The level of a question about which value of the subject's own identifier holds, whose candidates are the
+    subjects those values name (`conflicts`), else None."""
+    scheme, subject = item.get("scheme"), item["subject_ids"][0]
+    level = SCHEME_LEVEL.get(scheme) if item["reason"] in ("identifier", "binding") and scheme else None
+    return level if level is not None and subject_kind(subject) == level else None
+
+
 def claimed(ref: sqlite3.Connection, item: dict) -> list[IdentifierValue]:
-    """What identifies the question's own subject where an answer joins it: its issuer's identifiers for an issuer
-    question, which a chosen issuer's must not contradict. A receipt answer relates two instruments: none."""
-    found = asked(item)
-    subject = load_reference_subject(ref, item["subject_ids"][0]) \
-        if found and found[1] is VerdictRelation.SAME_ISSUER else None
-    return [IdentifierValue(value.scheme, value.value) for value in subject["evidence"]
-            if SCHEME_LEVEL[value.scheme] is Level.ISSUER] if subject else []
+    """What identifies the question's own subject where an answer joins it: a company's own identifiers for the
+    question which company it is, which a chosen issuer's must not contradict; only the confirm-level values its
+    evidence agrees on, so never a contested one. Who issued a security asks about its issuer link, and a receipt
+    answer relates two instruments: none, and neither does a contested identifier of a security or a listing."""
+    found, question = asked(item), item["subject_ids"][0]
+    subject = load_reference_subject(ref, question) \
+        if found and found[1] is VerdictRelation.SAME_ISSUER and subject_kind(question) == "issuer" else None
+    trusted = {str(value.scheme) for value in subject["evidence"]} if subject else set()
+    return [IdentifierValue(scheme, value) for scheme, value in subject["values"].items()
+            if scheme in trusted and SCHEME_LEVEL[scheme] is Level.ISSUER] if subject else []
 
 
 def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None, store) -> dict[str, Any] | None:
     """The reference subject (`subject.load_subject`) with the user's answers about its listing, security or issuer
-    applied."""
+    applied. An answer stays applied where the installed release, at confirm level, states another value for the
+    same fact; `contradicted` lists those for `conflicts` to ask about."""
     subject = load_reference_subject(ref, subject_id, listing_id)
     if subject is None:
         return None
+    subject["contradicted"] = []
     ids = [value for value in subject["ids"].values() if value]
     rows = store.select(
-        "SELECT q.subject_ids, v.relation, v.chosen_id FROM queue q JOIN verdicts v ON v.id = q.resolved_by"
-        " WHERE q.plugins = ? AND q.provider_ref IS NULL AND q.state = 'resolved' AND v.resolver = 'user' AND EXISTS"
+        "SELECT q.reason, q.subject_ids, q.scheme, q.contested_values, v.id, v.relation, v.chosen_id FROM queue q"
+        " JOIN verdicts v ON v.id = q.resolved_by WHERE q.plugins = ? AND q.provider_ref IS NULL"
+        " AND q.state = 'resolved' AND v.resolver = 'user' AND EXISTS"
         " (SELECT 1 FROM (SELECT value FROM json_each(q.subject_ids) UNION ALL SELECT value FROM"
         " json_each(q.candidate_ids)) WHERE value IN (SELECT value FROM json_each(?)))",
         (json.dumps([BUILD]), json.dumps(ids)))
-    answers = sorted(((json.loads(row[0])[0], row[1], row[2]) for row in rows),
-                     key=lambda answer: subject_kind(answer[0]) == "issuer")  # a security's answer first
-    for question, relation, chosen in answers:
+    for reason, questions, scheme, values, verdict, relation, chosen in sorted(
+            rows, key=lambda row: subject_kind(json.loads(row[1])[0]) == "issuer"):  # a security's answer first
+        question = json.loads(questions)[0]
+        answer = {"question": question, "reason": reason, "scheme": scheme, "verdict": verdict, "chosen": chosen}
         if relation == VerdictRelation.SAME_ISSUER:
-            _issuer(ref, subject, question, chosen)
+            _issuer(ref, subject, answer)
         elif relation == VerdictRelation.DEPOSITARY_RECEIPT_OF:
-            _receipt(ref, subject, question, chosen)
+            _receipt(ref, subject, answer)
+        if own_identifier({"reason": reason, "scheme": scheme, "subject_ids": [question]}):
+            _value(subject, answer, json.loads(values))
+    weighing.show(subject)
     return subject
+
+
+def replace_answer(store, row: dict, relation: str, now: str) -> None:
+    """The user's answer replaces their earlier one about the same fact (the question's subject and scheme, and the
+    relation), which is superseded and kept as history. Called inside the answer's transaction."""
+    store.db.execute(
+        "UPDATE queue SET state = 'superseded', updated_at = ? WHERE id IN (SELECT q.id FROM queue q JOIN verdicts v"
+        " ON v.id = q.resolved_by WHERE q.plugins = ? AND q.provider_ref IS NULL AND q.state = 'resolved' AND q.id <> ?"
+        " AND json_extract(q.subject_ids, '$[0]') = ? AND q.scheme IS ? AND v.relation = ?)",
+        (now, json.dumps([BUILD]), row["id"], row["subject_ids"][0], row["scheme"], relation))
 
 
 def _index(items: list[dict]) -> dict[str, list[QueueItem]]:
@@ -194,15 +241,28 @@ def _unasked(store, items: Iterable[QueueItem]) -> list[QueueItem]:
     return list(wanted.values())
 
 
-def _issuer(ref: sqlite3.Connection, subject: dict, question: str, chosen: str) -> None:
+def _contradicted(subject: dict, answer: dict, release: str | None, values: tuple[str, ...] = ()) -> None:
+    """Note an answer the installed release contradicts: at confirm level it names the subject `release` for the
+    same fact (with `values`, the answer's value and the release's)."""
+    if release is not None and release != answer["chosen"] and subject["trust"] == weighing.CONFIRM:
+        subject["contradicted"].append({**answer, "release": release, "values": list(values)})
+
+
+def _issuer(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:
     """The chosen issuer becomes the security's, in place of any the reference names, so profile and filings route
     to it. A name match joins two issuers: the registrant's page and the chosen issuer's carry both issuers'
-    identifiers, the chosen one's first."""
-    ids, evidence = subject["ids"], subject["evidence"]
+    identifiers, the chosen one's first. Where the release gives the registrant an LEI or CIK of its own that the
+    chosen issuer's differs from, the answer is contradicted: it stays applied, and the registrant is the other
+    candidate."""
+    ids, question, chosen = subject["ids"], answer["question"], answer["chosen"]
+    if chosen == question:  # "this company is itself": an answer to its contested identifier (`_value`)
+        return
+    drop, own = frozenset(), {}
     if question == ids[Level.SECURITY]:
-        other, evidence = chosen, [item for item in evidence if SCHEME_LEVEL[item.scheme] is not Level.ISSUER]
+        _contradicted(subject, answer, ids[Level.ISSUER])  # the issuer the release names for the security, if any
+        other, drop = chosen, frozenset({Level.ISSUER})
     elif question == ids[Level.ISSUER]:
-        other = chosen
+        other, own = chosen, {scheme: subject["values"].get(scheme) for scheme in ("lei", "cik")}
     elif ids[Level.ISSUER] == chosen and subject_kind(question) == "issuer":
         other = question
     else:
@@ -211,26 +271,47 @@ def _issuer(ref: sqlite3.Connection, subject: dict, question: str, chosen: str) 
     if row is None:  # the chosen issuer is no longer in the reference
         return
     ids[Level.ISSUER] = chosen
-    subject["evidence"] = [*evidence, *(_assertion(item) for item in
-                                        ref.execute("SELECT * FROM assertions WHERE subject_id = ?", (other,)))]
+    joined = weighing.weigh((_assertion(item) for item in
+                             ref.execute("SELECT * FROM assertions WHERE subject_id = ?", (other,))), subject["trust"])
+    if any(value and joined["values"].get(scheme) not in (None, value) for scheme, value in own.items()):
+        _contradicted(subject, answer, question)
+    for name in ("evidence", "shown"):
+        subject[name] = [*(item for item in subject[name] if SCHEME_LEVEL[item.scheme] not in drop), *joined[name]]
     values = subject["values"]
     for scheme in ("lei", "cik"):
         values.pop(scheme, None)
-    for item in sorted(subject["evidence"], key=lambda item: item.subject_id != chosen):
-        values.setdefault(item.scheme, item.value)
-    view = subject["view"]
-    view["issuer"] = {"id": chosen, "name": row["name"], "lei": values.get("lei"), "cik": values.get("cik"),
-                      "authority": str(Authority.USER_ATTESTED)}
-    for scheme in ("lei", "cik"):
-        view["identifiers"].pop(scheme, None)
-        view["identifiers"].update({scheme: values[scheme]} if values.get(scheme) else {})
+        subject["contested"].pop(scheme, None)
+    for item in sorted([*subject["evidence"], *subject["shown"]], key=lambda item: item.subject_id != chosen):
+        if SCHEME_LEVEL[item.scheme] is Level.ISSUER:  # the user's answer: the chosen issuer's identifiers first
+            values.setdefault(item.scheme, item.value)
+    subject["view"]["issuer"] = {"id": chosen, "name": row["name"], "authority": str(Authority.USER_ATTESTED)}
 
 
-def _receipt(ref: sqlite3.Connection, subject: dict, question: str, chosen: str) -> None:
+def _value(subject: dict, answer: dict, values: list[str]) -> None:
+    """An answer to a contested identifier: the subject takes the value the chosen candidate names, in place of the
+    contested ones or the one the release states."""
+    question, scheme = answer["question"], answer["scheme"]
+    if question not in subject["ids"].values():
+        return
+    level = subject_level(question)
+    value = next((value for value in values if subject_id(level, {scheme: value}) == answer["chosen"]), None)
+    if value is None:
+        return
+    release = subject["values"].get(scheme)  # the one value the release's evidence agrees on, if any
+    if release not in (None, value):
+        _contradicted(subject, answer, subject_id(level, {scheme: release}), (value, release))
+    subject["values"][scheme] = value
+    subject["contested"].pop(scheme, None)
+
+
+def _receipt(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:
     """A `related` entry on the receipt's page ("to" its share) and on its share's ("from" the receipt)."""
-    security = subject["ids"][Level.SECURITY]
+    security, question, chosen = subject["ids"][Level.SECURITY], answer["question"], answer["chosen"]
     if security not in (question, chosen):
         return
+    stated = [row[0] for row in ref.execute("SELECT to_id FROM relations WHERE type = ? AND from_id = ? ORDER BY to_id",
+                                            (str(VerdictRelation.DEPOSITARY_RECEIPT_OF), question))]
+    _contradicted(subject, answer, None if chosen in stated else next(iter(stated), None))
     other, direction = (chosen, "to") if security == question else (question, "from")
     name = ref.execute("SELECT name FROM securities WHERE id = ?", (other,)).fetchone()
     subject["view"]["related"].append({"id": other, "type": str(VerdictRelation.DEPOSITARY_RECEIPT_OF),

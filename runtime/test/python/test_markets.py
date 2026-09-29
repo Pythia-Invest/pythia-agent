@@ -43,7 +43,7 @@ class CuratedSubjectTest(unittest.TestCase):
         quote_section = sections["quote"]
         self.assertEqual((quote_section["plugin"], quote_section["binding"], quote_section["binding_status"]),
                          ("pythia-yahoo-discovery", {"provider": "yahoo", "native_id": "^GSPC", "native_scope": "symbol"},
-                          "confirmed"))
+                          "confirmed"))  # Yahoo's own contract declares it, and Yahoo's files are confirm-level
         self.assertEqual(set(sections), {"quote", "chart"})  # no profile or filings for an index
 
     def test_a_pair_without_an_asset_class_is_served_where_a_plugin_addresses_it(self):
@@ -86,6 +86,13 @@ class ScreenerAdapterTest(unittest.TestCase):
         self.assertIn("1 row ", issues[0]["message"])
         self.assertNotIn("newYahooField", issues[0]["message"])
         self.assertEqual(movers.adapt({"result": {}}, "losers", 25)[0], None)
+
+    def test_a_venue_or_market_state_that_is_not_text_leaves_only_its_row_out(self):
+        with self.assertLogs(movers.logger, "WARNING"):
+            data, issues = movers.adapt(screen(quote(), quote("LIST", exchange=["NMS"]),
+                                               quote("OBJ", marketState={"state": "PRE"})), "losers", 25)
+        self.assertEqual([row["symbol"] for row in data["rows"]], ["NVDA"])
+        self.assertIn("2 rows ", issues[0]["message"])
 
 
 class MarketReadsTest(unittest.TestCase):

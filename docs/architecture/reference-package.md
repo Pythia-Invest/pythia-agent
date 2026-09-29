@@ -84,7 +84,10 @@ name, so nothing is re-keyed. The installer:
    with `--display`. Reinstalling the same package keeps the grant already
    recorded. Without a config folder (`PYTHIA_CONFIG_ROOT`) the command line
    refuses to install, since the choice could not be recorded. Core grants a package installed before grants existed confirm
-   once, on first use, and logs it.
+   once, on first use, and logs it. The package's rows count at that level: only
+   at confirm do they prove or block a match; at display they are shown with
+   their source and confirm nothing ([ADR 0037](../decisions/0037-identity-backbone.md),
+   amendment of 2026-09-30).
 
 One package is installed at a time; there is no separate rollback. Going back
 to an older build is an ordinary install of that package, a release change

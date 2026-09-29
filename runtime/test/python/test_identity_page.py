@@ -61,7 +61,7 @@ class Fixture(unittest.TestCase):
             load_reference(db, load(name))
         db.commit()
         db.close()
-        self.ref = store.open_reference(self.path)
+        self.ref = store.open_reference(self.path, "confirm")  # a build the user trusts to confirm
         self.identity = store.IdentityStore(Path(self.tmp.name) / "core")
 
     def tearDown(self):
@@ -121,7 +121,7 @@ class PageTest(Fixture):
         self.assertIsNone(page.load_subject(self.ref, old))
         with sqlite3.connect(self.path) as db:  # the builder writes aliases; the reference opens read-only
             db.execute("INSERT INTO id_aliases VALUES (?, ?, 'test')", (old, current))
-        ref = store.open_reference(self.path)
+        ref = store.open_reference(self.path, "confirm")
         self.addCleanup(ref.close)
         subject = page.load_subject(ref, old)
         self.assertEqual((subject["id"], subject["listing"]["ticker"]), (current, "ASML"))
@@ -130,7 +130,7 @@ class PageTest(Fixture):
         gleif = plugin("gleif", operations={"profile": "pythia_gleif_profile"})
         with sqlite3.connect(self.path) as db:  # the builder leaves an undecided issuer empty (R2)
             db.execute("UPDATE securities SET issuer_id = NULL")
-        ref = store.open_reference(self.path)
+        ref = store.open_reference(self.path, "confirm")
         self.addCleanup(ref.close)
         subject = page.load_subject(ref, ASML)
         [profile] = [section for section in page.compose(subject, [gleif], **self.lookups(ASML))

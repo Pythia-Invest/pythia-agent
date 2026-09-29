@@ -4,7 +4,8 @@ The file is core's reference store (`runtime/managed/core/identity/sql/reference
 with subject IDs from core's `subject_id()`, so core reads it without a mapping.
 The assembled snapshot keeps its own working IDs; this module translates them.
 Identifier assertions carry authority `snapshot` (carried from a verified build);
-the curated canonical-asset seed carries `curated`.
+the curated canonical-asset seed carries `curated`. Core reads both as the kind of
+evidence they are (`stored_authority`); the next package format writes the kinds.
 """
 
 from __future__ import annotations
@@ -181,7 +182,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     def assert_(subject, scheme, value, source, *, record=None, start=None, end=None, authority="snapshot"):
         try:
             item = identity.IdentifierAssertion(
-                subject_id=subject, scheme=scheme, value=value, authority=authority,
+                subject_id=subject, scheme=scheme, value=value, authority=identity.stored_authority(authority, record),
                 provenance={"plugin": source, "source": source, "adapter_version": BUILDER_VERSION, "retrieved_at": at,
                             "source_record": record},
                 validity={"valid_from": start, "valid_to": end})
@@ -291,7 +292,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         # receipts.link_receipts keeps only targets this build holds; anything else is skipped and counted below.
         source, target = ids.securities.get(relation.from_id), ids.securities.get(relation.to_id)
         try:
-            item = identity.Relation(type=relation.relation, from_id=source, to_id=target, authority="snapshot",
+            item = identity.Relation(type=relation.relation, from_id=source, to_id=target,
+                                     authority=identity.stored_authority("snapshot", relation.rule_id),
                                      provenance={"plugin": relation.source, "source": relation.source,
                                                  "adapter_version": BUILDER_VERSION, "retrieved_at": at,
                                                  "source_record": relation.rule_id})
@@ -348,7 +350,8 @@ def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[s
                 candidates[identity.provisional_id("security", provider, ref["native_scope"], ref["native_id"])].add(security)
         if asset.get("wraps"):
             underlying = identity.subject_id("security", {"caip19": asset["wraps"]})
-            item = identity.Relation(type="wraps", from_id=security, to_id=underlying, authority="curated",
+            item = identity.Relation(type="wraps", from_id=security, to_id=underlying,
+                                     authority=identity.stored_authority("curated"),
                                      provenance={"plugin": "pythia", "source": "pythia", "adapter_version": BUILDER_VERSION,
                                                  "retrieved_at": at, "source_record": rule})
             tables["relations"].append({

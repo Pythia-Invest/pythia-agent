@@ -5,7 +5,8 @@ the installed plugins' contracts, and never calls a plugin. A plugin whose
 contract lets core build its native reference (its own reference for the subject,
 `addressing.subjects`; a MIC suffix table; an identifier-named native scope) is
 addressed at once; that derived reference is an address, never identifier
-evidence. Only when core cannot derive the address is the section `resolving`:
+evidence. A declared address is `confirmed` only when the plugin's files are
+granted confirm. Only when core cannot derive the address is the section `resolving`:
 the Desk then asks for that plugin's resolve (`identity-resolve`), which
 `apply_resolve` decides with the one authority rule.
 
