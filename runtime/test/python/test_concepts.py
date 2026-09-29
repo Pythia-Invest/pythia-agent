@@ -235,7 +235,7 @@ class PageCompositionTest(unittest.TestCase):
         sections = {s["section"]: s for s in page.compose(subject, self.plugins({}), **lookups)}
         self.assertEqual(sections["profile"]["request"]["operation"], "profile")
         self.assertEqual(sections["filings"]["request"], {"plugin": "pythia", "operation": "filings",
-                                                          "arguments": {"subject_id": SUBJECTS["asml_xams"]}})
+                                                          "arguments": {"subject_id": subject["ids"]["issuer"]}})
 
 
 if __name__ == "__main__":
