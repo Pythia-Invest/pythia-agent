@@ -50,10 +50,12 @@ def failure(code, message):
 class Reader:
     """``configuration()`` returns core's ``platform.configuration`` for ``ctx``."""
 
-    def __init__(self, wire, connector, configuration, ctx, *, transport=None):
+    def __init__(self, wire, connector, configuration, ctx, *, transport=None, extract=None):
         self.wire, self.connector, self.configuration, self.ctx = wire, connector, configuration, ctx
         self.definitions = schemas(wire)
-        self.reads = connector.WorkerReads(transport or Transport(connector))
+        self.transport = transport or Transport(connector)
+        self.reads = connector.WorkerReads(self.transport)
+        self.extract = extract  # core's document reader (platform.read_document)
         # A fresh companyfacts read is not retained by WorkerReads, so a re-read for a new filing is kept here, once
         # per filing and access scope, until the retained copy it replaces would have expired.
         self._reread, self._reread_lock = OrderedDict(), Lock()
@@ -86,6 +88,11 @@ class Reader:
             if operation == 'resolve':
                 return self.resolve(clean, fetch)
             number = identity.from_reference(clean['native_ref'])
+            if operation == 'document':  # streamed through core's reader, never retained here
+                url = filings.document_url(number, clean['id'], clean['url'])
+                raw = self.transport.document(url, contact, cancelled=cancelled or (lambda: False), budget=budget,
+                                              read=self.extract)
+                return envelope({**raw['data'], 'url': url, 'observed_at': raw['observed_at']})
             if operation == 'filings':
                 raw = fetch('submissions', number)
                 limit, forms, kinds = clean.get('limit', 20), clean.get('forms'), clean.get('kinds')
@@ -204,7 +211,8 @@ class Reader:
 
 def register(ctx):
     wire, connector, _selection, platform = helpers(ctx)
-    reader = Reader(wire, connector, lambda: platform.platform().configuration, ctx)
+    reader = Reader(wire, connector, lambda: platform.platform().configuration, ctx,
+                    extract=lambda response, check: platform.platform().read_document(response, check))
 
     def available():
         try:
