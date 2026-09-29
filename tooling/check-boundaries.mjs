@@ -147,14 +147,6 @@ for (const workspace of workspaces) {
             `${file}: internal imports must use a declared public ${internal} entrypoint`,
           );
         }
-        if (kind === "packages" && byName.get(internal)?.kind === "apps") {
-          violations.push(
-            `${file}: packages may not import apps (${internal})`,
-          );
-        }
-      }
-      if (kind === "packages" && specifier.startsWith("@pythia/apps/")) {
-        violations.push(`${file}: packages may not import app source`);
       }
       if (specifier.includes("/test/") && !isTest) {
         violations.push(

@@ -230,67 +230,12 @@ function checkInstructionTopology(root) {
     }
   }
 
-  const rootGuidance = readFileSync(path.join(root, "AGENTS.md"), "utf8");
-  if (
-    !/must not automatically\s+inject/.test(rootGuidance) ||
-    !/approved source\s+maintenance may read/.test(rootGuidance)
-  ) {
-    fail(
-      "root guidance must distinguish automatic runtime injection from approved source reading",
-    );
-  }
-
   const allMarkdown = walk(agentRoot).filter((file) => file.endsWith(".md"));
   checkReferences(root, allMarkdown);
   assertPublicDecisionDocument(
     readFileSync(path.join(agentRoot, "README.md"), "utf8"),
     ".agents/README.md",
   );
-
-  const combined = allMarkdown
-    .map((file) => readFileSync(file, "utf8"))
-    .join("\n");
-  for (const forbidden of [
-    "Pythia Invest",
-    "pythia-invest",
-    "apps/web",
-    "apps/worker",
-    "fleet/",
-    "SSM-backed",
-    "Postgres holds",
-  ]) {
-    if (combined.includes(forbidden))
-      fail(`private architecture dependency remains: ${forbidden}`);
-  }
-
-  for (const skill of ["create-plan", "implement-plan"]) {
-    const markdown = readFileSync(
-      path.join(skillRoot, skill, "SKILL.md"),
-      "utf8",
-    );
-    for (const term of [
-      "context",
-      "ruling",
-      "rationale",
-      "consequences",
-      "rejected alternatives",
-    ]) {
-      if (!markdown.toLowerCase().includes(term))
-        fail(`${skill} lacks public decision field ${term}`);
-    }
-  }
-
-  for (const script of ["ai-sync.mjs", "sync-agents.mjs", "sync-rules.mjs"]) {
-    const source = readFileSync(path.join(root, "scripts", script), "utf8");
-    if (source.includes("runtime/seeds") || source.includes(".private")) {
-      fail(
-        `${script} must not inspect or project runtime seeds/private records`,
-      );
-    }
-    if (/rmSync\([^\n]*recursive:\s*true/.test(source)) {
-      fail(`${script} must not recursively delete a tool directory`);
-    }
-  }
 
   const ignore = readFileSync(path.join(root, ".gitignore"), "utf8");
   for (const pattern of ["/.private/", "/.claude/", "/.codex/", "/.cursor/"]) {

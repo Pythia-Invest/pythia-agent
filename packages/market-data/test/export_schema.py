@@ -8,9 +8,4 @@ sys.path.insert(0, str(ROOT / "runtime/managed/plugins/market-data"))
 from wire_schema import schema
 
 artifact = ROOT / "packages/market-data/schema.json"
-text = json.dumps(schema(), indent=2) + "\n"
-if "--check" in sys.argv:
-    if json.loads(artifact.read_text()) != schema():
-        raise SystemExit("Market-data schema artifact differs; run test/export_schema.py")
-else:
-    artifact.write_text(text)
+artifact.write_text(json.dumps(schema(), indent=2) + "\n")

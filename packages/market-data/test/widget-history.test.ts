@@ -6,12 +6,12 @@ import type { ReadResult, Series } from "../src/index";
 import {
   financialBinding,
   financialInput,
-  financialInstrument,
   financialQueryKey,
   financialSourceSchema,
   readResultSchema,
   type FinancialRow,
 } from "../src/widgets";
+import { financialInstrument } from "../src/widgets/display";
 
 const row: FinancialRow = {
   subject: { kind: "listing", id: "listing:synthetic-history" },
@@ -248,15 +248,19 @@ describe("financial history presentation", () => {
   });
 
   it("falls back to the requested window without session evidence or with date-only bars", () => {
+    const requested = {
+      start: Date.parse("2026-01-05"),
+      end: Date.parse("2026-01-08"),
+    };
     const result = history("minute");
     delete result.price_context;
     const chart = path(result, view("session"));
     expect(chart.points).toHaveLength(4);
-    expect(chart.window).toBeDefined();
+    expect(chart.window).toEqual(requested);
     expect(chart.session).toBeUndefined();
     const dates = path(dateHistory(), view("session", "sessions"));
     expect(dates.points).toHaveLength(3);
-    expect(dates.window).toBeDefined();
+    expect(dates.window).toEqual(requested);
     expect(dates.session).toBeUndefined();
     expect(dates.label).toContain("Session dates");
   });
