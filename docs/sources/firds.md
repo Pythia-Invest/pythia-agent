@@ -166,11 +166,11 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
   | Field | FIRDS decides | Asked instead (question type) |
   | --- | --: | --- |
-  | Issuer | 28,101 securities carry field 5's LEI as issuer | 614 `issuer_identity`: an operator's LEI on a share outside its country |
+  | Issuer | 28,090 securities carry field 5's LEI as issuer | 626 `issuer_identity`: 614 an operator's LEI on a share outside its country, 12 a share its receipts claim for another live issuer (Nestlé) |
   | Primary | 10,863 from issuer-requested admissions (field 8) | 10,271 `home_market`: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid; 189 carry a suggested answer (below) |
-  | Receipt underlying | 2,737 receipts link to the field 26 security of their own issuer | 902 `receipt_underlying` (58 because field 26 names another issuer's security), 10 `receipt_conflict` |
+  | Receipt underlying | 2,754 receipts link to the field 26 security of their own issuer, or of an issuer claimed for it while it is asked | 885 `receipt_underlying` (42 because field 26 names another issuer's security), 10 `receipt_conflict` |
 
-  The SEC stage adds 168 name-only issuer questions (#73). All 11,965 are
+  The SEC stage adds 169 name-only issuer questions (#73). All 11,961 are
   curation questions in the package's `claims` file, answered centrally per
   ADR 0044; none reaches the investor's Repairs queue. A security
   without a primary the package can write is priced on its line at the most
@@ -207,7 +207,8 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | Case | Count (unit) | Example | Explanation | Handling | Status |
 | --- | --- | --- | --- | --- | --- |
 | Venue operator's LEI in field 5 | 838 ISINs; 623 securities (local build) | Vastned Retail Belgium under TP ICAP MTF | Field 5 allows the venue operator's LEI | The issuer is unknown when the LEI is in ISO 10383's LEI column, and a judgement question opens | Open |
-| Financing subsidiary in field 5 | 38 securities (local build) | Nestlé Capital Markets on Nestlé shares; Brambles Finance; Orica Finance | Not explained by RTS 23 or the Q&A | A `parent_of` claim from GLEIF Level 2 consolidation; the rest go to a judgement question | Open |
+| Financing subsidiary or another company in field 5, contradicted by the share's receipts | 12 shares (offline build of 2026-09-29) | Nestlé under Nestlé Capital Markets (its CDRs name Nestlé S.A.); REA Group under News Corp; MonotaRO under W.W. Grainger | Field 5 on a receipt is its underlying's issuer (Q&A 1503), so the two records disagree | Issuer unknown, `issuer_identity` asked with the receipts' LEI first (`Claims.receipt_issuers`); a retired LEI's claim or one from a company with shares of its own does not count. Two of the 12 were right as filed (Welltower, Barrick), so the receipts' LEI is a candidate, not a suggestion | Asked |
+| Financing subsidiary in field 5, uncontradicted | 37 issuers named like a financing vehicle (`issuer_financing_vehicle` warning) | Brambles Finance; Orica Finance; JTEKT under Toyota Industries (not a vehicle) | Not explained by RTS 23 or the Q&A | A `parent_of` claim from GLEIF Level 2 consolidation, which the builder does not read yet; the rest go to a judgement question | Open |
 | Another company's LEI in field 5 | 14 of 852 CIK to LEI identifier links in the local build of 2026-09-28 (XAMS, XETR and US) share no name word with the LEI; they include venue and data-vendor LEIs, subsidiaries and renames ([SEC record](sec.md)) | Lee Enterprises under Berkshire Hathaway's LEI; Legence Corp. under Avio S.p.A.'s | Unknown | An identifier conflict with the SEC registrant joined by ISIN; the SEC record's question Q1 | Open |
 | Notional currency copied to every venue | Every ISIN | Apple USD on Xetra | Field 13 is the notional currency | A `notional_currency` claim, kept as the listing's key currency. The trading currency is a separate field (`listings.trading_currency`), set only where the venue decides it: 75,099 lines on German venues and Vienna show EUR instead of field 13. Other FIRDS lines show no currency (IWDA on Amsterdam) | Fixed for single-currency venues; open elsewhere until a venue-specific source exists |
 | Withdrawn currency codes | 153 records (audit): 63 `XXX` (UBS internaliser), 68 `BGN` after Bulgaria adopted the euro on 2026-01-01, 16 NLG, 4 SKK, 1 DEM, 1 HRK | — | Stale records | Counted (`withdrawn_notional_currency`); never coerced | Counted |

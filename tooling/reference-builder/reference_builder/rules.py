@@ -24,7 +24,7 @@ HOME = {
     "US": (("UN", "UW", "UQ", "UR", "UA", "UP"), None),
 }
 # Each country's currency (ISO 4217) from its first day, newest last. An OpenFIGI home line (which carries none) takes
-# its venue's: London quotes in pence; the listing's currency is GBP.
+# its venue's as its key currency.
 COUNTRY_CURRENCY: dict[str, tuple[tuple[str, str], ...]] = {
     **{c: (("EUR", "1999-01-01"),) for c in "AT BE DE ES FI FR IE IT LU NL PT".split()},
     "GR": (("EUR", "2001-01-01"),), "SI": (("EUR", "2007-01-01"),), "CY": (("EUR", "2008-01-01"),),
@@ -39,6 +39,9 @@ COUNTRY_CURRENCY: dict[str, tuple[tuple[str, str], ...]] = {
     "AU": (("AUD", "1900-01-01"),), "SG": (("SGD", "1900-01-01"),), "IL": (("ILS", "1900-01-01"),),
     "ZA": (("ZAR", "1900-01-01"),),
 }
+# Home venues that quote in a minor unit (London pence GBX, Johannesburg cents ZAc, Tel Aviv agorot ILA): the quote
+# carries the unit, so a home line there keeps its country's currency as key but decides no trading currency.
+MINOR_UNIT_VENUES = frozenset({"XLON", "XJSE", "XTAE"})
 # Operating MICs that quote every instrument in one currency (Pythia-authored, from each venue's trading rules): the
 # German exchanges and Vienna trade foreign shares, receipts and ETFs in euros, the US exchanges and OTC Markets in
 # dollars. A line there has a decided trading currency; elsewhere FIRDS gives only the notional one.
@@ -267,6 +270,11 @@ def also_us_listed(fanout: list[dict], share_class_figi: str | None) -> bool:
     )
 
 
+def retired(entity_status: str | None, registration_status: str | None) -> bool:
+    """GLEIF no longer registers the entity as it was: inactive, or its LEI retired, merged, annulled or a duplicate."""
+    return entity_status == "INACTIVE" or (registration_status or "") in RETIRED_REGISTRATION
+
+
 def admission_status(
     *,
     as_of: str,
@@ -292,7 +300,7 @@ def admission_status(
         (doubt if has_figi else dead).append("corporate_action_line")
     elif cfi.startswith("ESXX") and not has_figi:
         dead.append("unclassified_line_without_figi")
-    if entity_status == "INACTIVE" or (registration_status or "") in RETIRED_REGISTRATION:
+    if retired(entity_status, registration_status):
         dead.append("issuer_lei_retired")
     if dead:
         return "inactive", dead

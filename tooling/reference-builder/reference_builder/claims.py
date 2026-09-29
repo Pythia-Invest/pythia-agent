@@ -15,6 +15,7 @@ with the newest older good one; a build whose source broke (written with
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 from collections import Counter, defaultdict
@@ -105,6 +106,23 @@ class Claims:
 
     def name(self, isin: str) -> str:
         return f"{isin} {self.one(isin, Meaning.INSTRUMENT_FULL_NAME) or ''}".strip()
+
+    @functools.cached_property
+    def receipt_issuers(self) -> dict[str, set[str]]:
+        """Share ISIN -> the other issuer LEIs its receipts claim. Field 5 on a receipt is its underlying issuer's LEI
+        (ESMA Q&A 1503), so a receipt stating a share (field 26) under another LEI contradicts the share's own field 5
+        (Nestlé S.A.'s CDRs on the share FIRDS files under Nestlé Capital Markets). Only LEIs that issue no share of
+        their own count: a company's receipt stating another company's share (14 CDRs stating Thermo Fisher)
+        contradicts its field 26 instead, which is the receipt's question."""
+        issuer, cfi = Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, Meaning.CFI
+        shares = {isin for isin in self.isins if (self.one(isin, cfi) or "").startswith("ES")}
+        issuing = {lei for isin in shares for lei in self.isins[isin].get(issuer, ())}
+        found: dict[str, set[str]] = defaultdict(set)
+        for isin, values in self.isins.items():
+            if (self.one(isin, cfi) or "").startswith("ED"):
+                for target in values.get(Meaning.UNDERLYING_ISIN, set()) & shares - {isin}:
+                    found[target] |= values.get(issuer, set()) - self.isins[target].get(issuer, set()) - issuing
+        return {isin: leis for isin, leis in found.items() if leis}
 
 
 def load(claims: Iterable[Claim]) -> Claims:

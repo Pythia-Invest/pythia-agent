@@ -160,13 +160,14 @@ class PipelineTest(unittest.TestCase):
 
     def test_an_eea_request_beside_a_line_outside_the_eea_is_asked_and_priced_on_the_most_liquid_line(self):
         # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. That line
-        # trades in London's currency, so it is the question's ISIN-country suggestion, never the primary.
+        # is keyed in London's currency, so it is the question's ISIN-country suggestion, never the primary. London
+        # quotes in pence, so the line claims no trading currency.
         shell = self.snap.securities[f"isin:{SHELL_ISIN}"]
         self.assertEqual((shell.primary_mic, shell.primary_rule), (None, "requested_in_eea_listed_outside"))
         asked = {q.subject_id: q for q in self.snap.questions if q.question == "home_market"}
         self.assertEqual(asked[shell.security_id].suggested, ("XLON:SHEL", "isin_country"))
         self.assertEqual((self.snap.listings["XLON:SHEL"].currency, self.snap.listings["XLON:SHEL"].trading_currency),
-                         ("GBP", "GBP"))
+                         ("GBP", None))
         self.assertTrue(self.snap.listings[f"XAMS:{SHELL_ISIN}"].most_liquid)
         self.assertFalse(self.snap.listings[f"XAMS:{SHELL_ISIN}"].is_primary)
 

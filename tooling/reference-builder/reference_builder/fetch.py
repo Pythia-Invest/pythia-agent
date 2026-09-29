@@ -6,9 +6,11 @@ can state its URL, retrieval time, version and checksum.
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import http.client
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -18,6 +20,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 RETRY_STATUS = {429, 500, 502, 503, 504}
+# The download cache an offline build (`--offline`) reads instead of the network; None when online.
+OFFLINE: Path | None = None
 
 
 def log(message: str) -> None:
@@ -45,6 +49,10 @@ class Response:
         return json.loads(self.body)
 
 
+def offline() -> bool:
+    return OFFLINE is not None
+
+
 def request(
     url: str,
     *,
@@ -56,8 +64,11 @@ def request(
 ) -> Response:
     """Perform one HTTP request with bounded retries on throttling and server errors.
 
-    Error messages carry only the URL and status, never request headers.
+    Error messages carry only the URL and status, never request headers. An offline build stops here: what it
+    needs is not in its cache.
     """
+    if OFFLINE is not None:
+        raise SystemExit(f"offline build: {url.split('?')[0]} is needed and not in the cache {OFFLINE}")
     merged = {"User-Agent": user_agent, **(headers or {})}
     last: HttpError | None = None
     for attempt in range(attempts):
@@ -187,3 +198,28 @@ def _fresh(retrieved_at: str, max_age: timedelta | None) -> bool:
         return True
     when = datetime.fromisoformat(retrieved_at.replace("Z", "+00:00"))
     return datetime.now(timezone.utc) - when < max_age
+
+
+def cached_index(filters: list[str], sort: str) -> list[dict]:
+    """An offline build's answer to an ESMA file index query: the cached `.zip` files, dated by their names
+    (`FULINS_E_20260926_01of02.zip`), matched against the query's name, type and date filters."""
+    docs = []
+    for meta in sorted(OFFLINE.glob("*.zip.meta.json")) if OFFLINE else ():
+        name = meta.name.removesuffix(".meta.json")
+        day = re.search(r"_(\d{4})(\d{2})(\d{2})_", name)
+        if day:
+            iso = "{}-{}-{}T00:00:00Z".format(*day.groups())
+            doc = {"file_name": name, "file_type": name.split("_")[0], "publication_date": iso, "creation_date": iso,
+                   "download_link": json.loads(meta.read_text(encoding="utf-8"))["url"]}
+            if all(_matches(doc, f) for f in filters):
+                docs.append(doc)
+    return sorted(docs, key=lambda d: d["publication_date"], reverse=sort.endswith("desc"))
+
+
+def _matches(doc: dict, query: str) -> bool:
+    field, _, value = query.partition(":")
+    if value[:1] in ("[", "{"):  # a date range, `[low TO high]` or `{low TO high]`
+        low, high = value[1:-1].split(" TO ")
+        day = doc[field]
+        return (low == "*" or (day > low if value[0] == "{" else day >= low)) and (high == "*" or day <= high)
+    return fnmatch.fnmatchcase(doc[field], value)

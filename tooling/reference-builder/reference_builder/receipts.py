@@ -21,6 +21,8 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
     never guessed. Every drop and narrowing is counted in the build report."""
     audit = snap.audit.setdefault("relations", Counter())
     by_isin = {security.isin: key for key, security in snap.securities.items() if security.isin}
+    # A share whose issuer FIRDS leaves open (`reconcile`) agrees with a receipt under any LEI claimed for it.
+    claimed = {q.subject_id: {f"lei:{lei}" for lei in q.values} for q in snap.questions if q.question == "issuer_identity"}
     kept, asked, stated_targets = [], set(), {}
     for item in snap.relationships:
         if item.relation == "depositary_receipt_of":
@@ -34,11 +36,12 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
                 snap.flag(item.from_id, reason, item.to_id)
                 asked.add(item.from_id)
                 continue
-            receipt = snap.securities.get(item.from_id)
+            receipt, issuer = snap.securities.get(item.from_id), snap.securities[target].issuer_id
             if item.source == "esma_firds" and (not receipt or not receipt.issuer_id
-                                                or receipt.issuer_id != snap.securities[target].issuer_id):
+                                                or receipt.issuer_id not in ({issuer} if issuer else claimed.get(target, ()))):
                 # Field 5 on a receipt is the underlying issuer's LEI (ESMA Q&A 1503): field 26 decides only when the
-                # stated security is that issuer's. Otherwise (14 CDRs stating Thermo Fisher) it is a question.
+                # stated security is that issuer's, or its issuer is open with that LEI claimed for it (Nestlé's ADR and
+                # CDRs). Otherwise (14 CDRs stating Thermo Fisher) it is a question.
                 audit["firds_underlying_other_issuer"] += 1
                 asked.add(item.from_id)
                 stated_targets[item.from_id] = target

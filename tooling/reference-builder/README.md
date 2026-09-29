@@ -9,6 +9,7 @@ Python 3.11+ standard library only. The snapshot is one SQLite file.
 ```sh
 just reference-snapshot                      # default scope: every EU/EEA venue in FIRDS + US lines
 just reference-snapshot --mics XAMS,XPAR --no-sec
+just reference-snapshot --offline --cache <copied downloads>   # from a cache, no network
 python3 tooling/reference-builder/run.py --help
 ```
 
@@ -82,11 +83,14 @@ table under `writer_ignored`.
   where its venue decides it: a venue that quotes everything in one currency
   (`rules.SINGLE_CURRENCY_VENUES`: the German exchanges, Tradegate and Vienna
   in euros, the US exchanges and OTC Markets in dollars), and an OpenFIGI home
-  line, which takes its venue country's (`rules.COUNTRY_CURRENCY`: London GBP,
-  SIX CHF, Tokyo JPY) as both. Elsewhere it is unknown (IWDA on Amsterdam):
+  line, which takes its venue country's (`rules.COUNTRY_CURRENCY`: SIX CHF,
+  Tokyo JPY) as both. A home venue that quotes in a minor unit
+  (`rules.MINOR_UNIT_VENUES`: London GBX, Johannesburg ZAc, Tel Aviv ILA) keeps
+  the country's currency as key and decides no trading currency: the quote
+  carries its unit. Elsewhere it is unknown (IWDA on Amsterdam):
   labels, search rows and read checks then claim no currency, and the Desk
-  shows the quote's own. On the default-scope build 117,615 of 135,547 venue
-  lines have one. Bloomberg's slashes leave a home line's ticker (`BP/` is
+  shows the quote's own. On the default-scope build 116,519 of 135,547 venue
+  lines have one (1,096 London, Johannesburg and Tel Aviv home lines have none). Bloomberg's slashes leave a home line's ticker (`BP/` is
   `BP`, `RCI/B` is `RCI-B`; Hong Kong codes keep four digits).
 - **ETFs.** FIRDS `CE` instruments become `etf` securities. ETCs and ETNs are
   debt instruments in FIRDS and are not covered yet.
@@ -106,7 +110,17 @@ table under `writer_ignored`.
   registers that entity in the ISIN's country (a bank's or an exchange's own
   share; for a receipt, whose field 5 is the underlying issuer's LEI, the
   underlying's country), and otherwise the issuer is unknown and asked
-  (`issuer_identity`).
+  (`issuer_identity`). Field 5 on a receipt is its underlying's issuer (ESMA
+  Q&A 1503), so a receipt stating a share (field 26) under another LEI that
+  issues no share of its own and that GLEIF has not retired contradicts the
+  share's field 5: Nestlé S.A.'s
+  Toronto CDRs state the share FIRDS files under Nestlé Capital Markets, a
+  financing subsidiary. That share's issuer is unknown and asked too, the
+  receipts' LEI first among the candidates (`Claims.receipt_issuers`). A
+  receipt LEI that issues a share of its own (14 CDRs of other companies
+  stating Thermo Fisher) contradicts the receipt's field 26 instead, which is
+  the receipt's question; a retired LEI's claim (Merck Sharp & Dohme Corp. on
+  Merck & Co.) is stale.
 - **Primary venue (FIRDS securities, `reconcile.py`).** Field 8 names the EEA
   admissions the issuer requested; it decides only an EEA primary.
   - A request beside a line outside the EEA from another source (an OpenFIGI
@@ -175,7 +189,8 @@ table under `writer_ignored`.
   FIRDS receipt's stated underlying ISIN (field 26) is kept when an active
   security of the build carries it and that security's issuer is the
   receipt's (field 5 on a receipt is the underlying issuer's LEI, ESMA Q&A
-  1503). A stated security of another issuer (14 Canadian receipts stating
+  1503), or that issuer is asked with the receipt's LEI among the claimed
+  ones (Nestlé's ADR and CDRs). A stated security of another issuer (14 Canadian receipts stating
   Thermo Fisher) is asked, with it as the first candidate. FIRDS often names a superseded ISIN or one
   outside the scope; then, and when field 26 states none, the underlying is
   unknown and asked (`receipt_underlying`, the issuer's shares as candidates).
@@ -384,7 +399,8 @@ It prints counts and reference listing IDs only; keep its output out of commits.
 | Setting | Purpose |
 | --- | --- |
 | `sec_identity` in `${XDG_CONFIG_HOME:-~/.config}/pythia/settings.json` | The SEC plugin's configured contact, required for the SEC download: SEC fair-access rules require a name and email in the User-Agent. It is sent only to SEC and never written to the outputs. |
-| `--sec-file` | Use an already downloaded `company_tickers_exchange.json` instead. |
+| `--sec-file` | Use an already downloaded `company_tickers_exchange.json` instead. The rest still downloads, and the SEC fund file is skipped, so there are no US fund ETFs. |
+| `--offline` | Build from the download cache (`--cache`) only, whatever the age of its files: no request is sent, the ESMA file index is answered from the cached FIRDS and FITRS files, and OpenFIGI's micCode list from the cached jobs. Anything the build needs that is not cached (a GLEIF record, an OpenFIGI answer, a file) stops the build with its URL. Needs no SEC contact or OpenFIGI key. |
 | `OPENFIGI_API_KEY` | OpenFIGI key. Otherwise `openfigi_api_key` from `${XDG_CONFIG_HOME:-~/.config}/pythia/secrets.json`. Get one: it is free. A keyed first build takes about 40 minutes (about 230k mapping jobs); keyless rate limits (10 jobs per 2.5 s) stretch that to about 16 hours. Answers are cached, so later builds only send new jobs. The key is sent only in the OpenFIGI request header. |
 
 ## Outputs
@@ -399,8 +415,8 @@ reads only a package installed with `just reference-install`; development
 startup installs this one automatically.
 `.local/reference-builder/downloads/` (override with `--cache`) caches source
 files and API answers: OpenFIGI answers (in `openfigi-answers.sqlite3`) for 30
-days, GLEIF records and the SEC and MIC files for one day. `--sec-file` builds
-offline without the SEC fund file, and so without US fund ETFs.
+days, GLEIF records and the SEC and MIC files for one day; `--offline` uses
+them whatever their age.
 
 ## Rights
 

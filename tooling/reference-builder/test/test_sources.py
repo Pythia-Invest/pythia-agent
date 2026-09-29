@@ -7,7 +7,7 @@ from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 
-from reference_builder import config, firds, gleif, mic, sec
+from reference_builder import config, fetch, firds, gleif, mic, sec
 from reference_builder.fetch import Downloader
 from reference_builder.openfigi import OpenFigi
 from reference_builder.rules import display_name
@@ -121,6 +121,28 @@ class SecAndMicTest(unittest.TestCase):
             (Path(tmp) / "openfigi-answers.jsonl").write_text("\n".join(lines) + "\n")
             figi = OpenFigi(Path(tmp), "test", None, timedelta(days=30))
             self.assertEqual(figi.map([job]), [{"data": [2]}], "answered from the cache, without a request")
+
+    def test_an_offline_build_reads_its_cache_and_stops_at_anything_else(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp)
+            for name in ("FULINS_E_20260919_01of01.zip", "FULINS_E_20260926_01of02.zip", "FULINS_E_20260926_02of02.zip",
+                         "FULINS_C_20260926_01of01.zip", "FULECR_20260926_E_1of1.zip", "FULECR_20260926_C_1of1.zip"):
+                (cache / f"{name}.meta.json").write_text(json.dumps({"url": f"https://esma.example/{name}"}))
+            job = {"idType": "ID_ISIN", "idValue": "NL0010273215", "micCode": "XAMS"}
+            figi = OpenFigi(cache, "test", None, timedelta(days=30))
+            figi._db.execute("INSERT INTO answers VALUES (?, ?, ?)", (json.dumps(job, sort_keys=True), "2000-01-01T00:00:00Z", "{}"))
+            fetch.OFFLINE = cache
+            self.addCleanup(setattr, fetch, "OFFLINE", None)
+            full, _deltas = firds.firds_files("test", date(2026, 9, 29), False, ("ES",))
+            self.assertEqual([d["file_name"] for d in full], ["FULINS_E_20260926_01of02.zip", "FULINS_E_20260926_02of02.zip"])
+            self.assertEqual(full[0]["download_link"], "https://esma.example/FULINS_E_20260926_01of02.zip")
+            self.assertEqual([d["file_name"] for d in firds.firds_files("test", date(2026, 9, 20), False, ("ES",))[0]],
+                             ["FULINS_E_20260919_01of01.zip"])
+            self.assertEqual([d["file_name"] for d in firds.fitrs_files("test", date(2026, 9, 29), ("ES",))],
+                             ["FULECR_20260926_E_1of1.zip"])
+            self.assertEqual(figi.mic_codes(), {"XAMS"}, "the micCodes the cached jobs used")
+            with self.assertRaisesRegex(SystemExit, "offline build: https://api.gleif.org/api/v1/lei-records is needed"):
+                gleif.GleifClient(cache, "test", timedelta.max).fetch({"724500Y6DUVHQD6OXN27"})
 
     def test_mic_rows_map_segments_to_operating_mic(self):
         venues = mic.parse(MIC_CSV.encode())

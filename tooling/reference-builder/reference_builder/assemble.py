@@ -7,7 +7,7 @@ on hand-made rows in tests.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -110,7 +110,11 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     audit["scope_isins"] = len(scoped)
     claims, venues = inputs.claims(), Venues(inputs.venues)
     entities = gleif_fetch({r.issuer_lei for rs in scoped.values() for r in rs if r.issuer_lei})
-    issuers = {isin: issuer_lei(claims, venues, entities, isin) for isin in scoped}
+    # A receipt's claim under an LEI GLEIF retired (Merck Sharp & Dohme Corp. on Merck & Co.) is stale, no contradiction.
+    contested = {isin for isin, leis in claims.receipt_issuers.items()
+                 if any(lei in entities and not rules.retired(entities[lei].entity_status, entities[lei].registration_status)
+                        for lei in leis)}
+    issuers = {isin: issuer_lei(claims, venues, entities, isin, contested) for isin in scoped}
 
     plan = [(isin, seg, rec) for isin, rs in scoped.items() for seg, rec in sorted(_eu_listings(inputs, isin, rs).items())]
     answers = figi_map([_figi_job(inputs, isin, seg) for isin, seg, _ in plan])
@@ -155,14 +159,16 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     return entities
 
 
-def issuer_lei(claims: Claims, venues: Venues, entities: dict[str, GleifEntity], isin: str) -> str | None:
+def issuer_lei(claims: Claims, venues: Venues, entities: dict[str, GleifEntity], isin: str,
+               contested: Collection[str] = ()) -> str | None:
     """RTS 23 field 5 names the issuer or the trading venue operator. Its one LEI is the issuer unless ISO 10383
     lists it for a venue's operating entity; then it is the issuer only when GLEIF registers that entity in the
     ISIN's country (a bank's or exchange's own share; for a receipt, field 5 is the underlying issuer's LEI, so
-    the underlying's ISIN, ESMA Q&A 1503), and otherwise unknown, with a question."""
+    the underlying's ISIN, ESMA Q&A 1503), and otherwise unknown, with a question. A share its receipts claim for
+    another live issuer (`contested`, from `Claims.receipt_issuers`) is unknown too, with a question."""
     values = claims.isins.get(isin, {})
     leis = values.get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
-    lei = next(iter(leis)) if len(leis) == 1 else None
+    lei = next(iter(leis)) if len(leis) == 1 and isin not in contested else None
     if lei and venues.operated.get(lei):
         underlying = sorted(values.get(Meaning.UNDERLYING_ISIN, set()) - {isin})
         home = (underlying[0] if underlying and len(underlying) == 1 else isin)[:2]
@@ -230,7 +236,7 @@ def _security(snap, inputs, isin, records, listings, fanout, lei) -> None:
         listing = Listing(
             listing_id=f"{mic}:{ticker}", source="openfigi", row_class=security.kind, security_id=security.security_id,
             issuer_id=security.issuer_id, mic=mic, operating_mic=operating(inputs.venues, mic), country=isin[:2],
-            currency=currency, trading_currency=currency, name=row.get("name"),
+            currency=currency, trading_currency=None if mic in rules.MINOR_UNIT_VENUES else currency, name=row.get("name"),
         )
         _apply_figi(listing, row | {"ticker": ticker}, security.fisn)
         listing.status_reasons = ["home_line_from_openfigi"]

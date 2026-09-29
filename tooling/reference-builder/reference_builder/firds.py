@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from .claims import Claim, Meaning
-from .fetch import Downloader, log, request
+from .fetch import Downloader, cached_index, log, offline, request
 from .invariant_checks import WITHDRAWN
 from .model import FirdsRecord, Transparency
 from .schema import identity
@@ -66,12 +66,10 @@ METRICS = ("records_without_isin_or_venue", "termination_placeholder", "underlyi
 
 
 def _index(url: str, user_agent: str, filters: list[str], sort: str, rows: int = 200) -> list[dict]:
+    if offline():  # an offline build's index is its cache
+        return cached_index(filters, sort)
     params = [("q", "*"), ("wt", "json"), ("rows", str(rows)), ("sort", sort)] + [("fq", f) for f in filters]
     return request(f"{url}?{urllib.parse.urlencode(params)}", user_agent=user_agent).json()["response"]["docs"]
-
-
-def _day(value: str) -> str:
-    return value[:10]
 
 
 def file_types(cfi_prefixes: Iterable[str]) -> list[str]:
@@ -87,11 +85,11 @@ def firds_files(user_agent: str, as_of: date, deltas: bool, cfi_prefixes: Iterab
         docs = _index(FIRDS_INDEX, user_agent, [f"publication_date:[* TO {until}]", "file_type:FULINS", f"file_name:FULINS_{letter}_*"], "publication_date desc", 20)
         if not docs:
             raise SystemExit(f"ESMA FIRDS index returned no FULINS_{letter} file")
-        latest = _day(docs[0]["publication_date"])
-        full += sorted((d for d in docs if _day(d["publication_date"]) == latest), key=lambda d: d["file_name"])
+        latest = _day_of(docs[0]["publication_date"])
+        full += sorted((d for d in docs if _day_of(d["publication_date"]) == latest), key=lambda d: d["file_name"])
     if not deltas:
         return full, []
-    since = f"{min(_day(d['publication_date']) for d in full)}T23:59:59Z"
+    since = f"{min(_day_of(d['publication_date']) for d in full)}T23:59:59Z"
     delta = _index(FIRDS_INDEX, user_agent, [f"publication_date:{{{since} TO {until}]", "file_type:DLTINS"], "publication_date asc", 200)
     return full, sorted(delta, key=lambda d: d["file_name"])
 
@@ -102,9 +100,9 @@ def fitrs_files(user_agent: str, as_of: date, cfi_prefixes: Iterable[str]) -> li
     docs = _index(FITRS_INDEX, user_agent, [f"creation_date:[* TO {until}]", "file_name:FULECR_*"], "creation_date desc", 20)
     if not docs:
         return []
-    latest = _day(docs[0]["creation_date"])
+    latest = _day_of(docs[0]["creation_date"])
     wanted = "ER" + ("C" if "C" in file_types(cfi_prefixes) else "")
-    return [d for d in docs if _day(d["creation_date"]) == latest and re.search(rf"_[{wanted}]_", d["file_name"])]
+    return [d for d in docs if _day_of(d["creation_date"]) == latest and re.search(rf"_[{wanted}]_", d["file_name"])]
 
 
 def download(downloader: Downloader, source: str, doc: dict) -> str:

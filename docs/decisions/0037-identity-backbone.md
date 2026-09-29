@@ -86,13 +86,16 @@ carries two currencies (reference format 5). The key currency is part of its ID:
 FIRDS' notional currency (field 13) on a FIRDS line, stated by the source even
 where the line trades in another. The trading currency (`trading_currency`) is
 the quote currency, set only where the venue decides it (a venue that quotes
-everything in one currency, a home-exchange line); labels, search rows, agent
+everything in one currency, a home-exchange line, except on a home venue that
+quotes in a minor unit); labels, search rows, agent
 listing output and read checks use it alone and claim no currency when it is
 unknown, so the page shows the quote's own. Rejected: an unknown key currency
 (core's key and constraints need one: about 5,000 lines dropped or a new key
 rule) and the venue country's currency on every exchange (wrong for lines
-quoted in another, such as USD ETF lines in Amsterdam). Minor units (GBX) are a
-read-pipeline concern, not identity.
+quoted in another, such as USD ETF lines in Amsterdam). A home venue quoting
+in a minor unit (London GBX, Johannesburg ZAc, Tel Aviv ILA) decides no trading
+currency: the quote carries its unit, so the reference never labels a pence
+price GBP. Scaling minor units stays a read-pipeline concern, not identity.
 
 **Provider symbols are bindings, never subjects.** A binding is the existing
 market-data `provider_ref`, bound to one subject at the reference's native

@@ -57,6 +57,7 @@ class BuildConfig:
     gates: bool = True
     contact: str | None = None
     sec_file: Path | None = None
+    offline: bool = False
     openfigi_max_age_days: int = 30
     gleif_max_age_days: int = 1
     listing_file_max_age_days: int = 1
