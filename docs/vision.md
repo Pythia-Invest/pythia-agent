@@ -355,7 +355,7 @@ Today:
   plugins contribute data but not subjects;
 - reference sources are builder adapters that cannot be disabled, and the
   builder's evidence outranks a plugin's;
-- only bundled plugins bind, and only onto reference subjects;
+- only confirm-level plugins bind, and only onto reference subjects;
 - the build's open questions ship in the package's claims file, and none are
   queued on the device.
 
@@ -474,8 +474,8 @@ establishing facts that other sources also describe.
   level.** A plugin cannot raise it by labelling its claims.
 - **Trust attaches to a plugin's content, not its name.** Trust is tied to a
   signed or hashed release, so a different plugin that reuses an audited
-  plugin's name does not inherit it. Today trust still follows Pythia's list of
-  bundled plugin names; that changes in stage 0.
+  plugin's name does not inherit it. Today it follows a digest of the plugin's
+  files; signatures come with a published release.
 - **Trust levels limit what data can do, not what code can do.** Running
   untrusted community code safely also requires isolating plugins, which is
   planned before an open marketplace.

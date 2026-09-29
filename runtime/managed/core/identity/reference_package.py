@@ -5,14 +5,16 @@ A package is a directory holding `package.json` and the one SQLite file it names
 builder) and consumption (core) meet only here: core reads the package installed under
 `<store>/reference/`, never a builder's output folder. `<store>` is Pythia's store directory, `<data>/store`.
 
-Standard library only, with no package-relative imports, so the lifecycle can run it with Hermes's Python:
-`python -P reference_package.py install <package> --data-dir <store>` (also `status`, and `move --from <old dir>`).
+Standard library only (its sibling `trust.py` is loaded from its file), so the lifecycle can run it with Hermes's
+Python: `python -P reference_package.py install <package> --data-dir <store> [--display]` (also `status`, `move`).
+pythia-structure-ignore: one standalone script the lifecycle runs by path; a split would load more siblings by path.
 """
 from __future__ import annotations
 
 import argparse
 import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -22,6 +24,12 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+if __package__:
+    from . import trust
+else:  # run as a script (`python -P`): no package, so the sibling is loaded from its file
+    trust = importlib.util.module_from_spec(importlib.util.spec_from_file_location("trust", Path(__file__).with_name("trust.py")))
+    trust.__spec__.loader.exec_module(trust)
 
 FORMAT = "pythia-reference-package"
 FORMAT_VERSION = 5       # the one number core checks: package layout and the SQLite's release.schema_version
@@ -86,7 +94,7 @@ def status(data_dir: Path) -> dict:
     refused package or None."""
     root = reference_dir(data_dir)
     found, pointer = _installed(root), _pointer(root) or {}
-    installed = {**_summary(found[1]), "installed_at": pointer.get("installed_at"),
+    installed = {**_summary(found[1]), "installed_at": pointer.get("installed_at"), "trust": trust.package_level(found[1]),
                  "compatible": found[1]["format_version"] == FORMAT_VERSION} if found else None
     try:
         refused = json.loads((root / REFUSED_FILE).read_text(encoding="utf-8"))
@@ -241,8 +249,9 @@ def _sha256_file(path: Path) -> tuple[str, int]:
 
 # ---- installing -------------------------------------------------------------------------------------------------
 
-def install(package: Path, data_dir: Path) -> dict:
-    """Verify a package and make it the installed one with one atomic switch, then drop the one it replaced.
+def install(package: Path, data_dir: Path, level: str | None = None) -> dict:
+    """Verify a package, make it the installed one with one atomic switch, drop the one it replaced, and record the
+    user's trust `level` in it as a grant on its database's digest (`trust.grant_package`; the command line's).
 
     Installing the package that is already installed changes nothing. A package this core cannot read, or whose
     file does not match its checksum, raises PackageError, changes nothing and is recorded as the last refusal."""
@@ -253,6 +262,8 @@ def install(package: Path, data_dir: Path) -> dict:
         _write(root / REFUSED_FILE, {"at": _now(), "package": str(package), "message": str(error)}, make=True)
         raise
     (root / REFUSED_FILE).unlink(missing_ok=True)
+    if level:
+        trust.grant_package(read_manifest(package), level, changed=result["changed"])
     return {**result, **status(data_dir)}
 
 
@@ -378,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("package", nargs="?", type=Path, help="install: the package directory or its package.json")
     parser.add_argument("--data-dir", type=Path, required=True, help="Pythia's store directory, <data>/store")
     parser.add_argument("--from", dest="legacy", type=Path, help="move: the directory an earlier Pythia used")
+    parser.add_argument("--display", action="store_true", help="install: trust the package to display data, not confirm")
     args = parser.parse_args(argv)
     if args.command == "status":
         print(json.dumps(status(args.data_dir), indent=2))
@@ -388,7 +400,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "move" or args.package is None:
         parser.error("install needs the package directory; move needs --from")
     try:
-        result = install(args.package, args.data_dir)
+        result = install(args.package, args.data_dir, trust.DISPLAY if args.display else trust.CONFIRM)
     except PackageError as error:
         print(f"Reference package refused: {error}", file=sys.stderr)
         return 2

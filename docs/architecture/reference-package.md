@@ -76,6 +76,13 @@ name, so nothing is re-keyed. The installer:
    rename. Readers see either the old package or the new one.
 4. Drops the replaced package. Reinstalling the installed package changes
    nothing.
+5. Records the investor's trust in the package as a grant on
+   `sha256:<its database's sha256>` in `trust.json` in the Pythia config folder
+   ([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment of
+   2026-09-30): confirm, or display when `reference_package.py install` is run
+   with `--display`. Reinstalling the same package keeps the grant already
+   recorded. Core grants a package installed before grants existed confirm
+   once, on first use, and logs it.
 
 One package is installed at a time; there is no separate rollback. Going back
 to an older build is an ordinary install of that package, a release change
@@ -102,7 +109,8 @@ core does not read counts as no reference data. Loose files left in the old
 
 The `reference-status` operation (tool `pythia_reference_status`) reports the
 installed build, format, dates, sources with their as-of dates and licences,
-the deduplicated notices, and the last refused package with its reason. Desk
+the deduplicated notices, its trust level (`trust`, looked up by its digest
+like any contributor's), and the last refused package with its reason. Desk
 shows it under **Settings → Reference data**.
 
 ## Later: automated packages

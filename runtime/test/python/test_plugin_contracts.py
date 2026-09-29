@@ -124,12 +124,6 @@ class ShippedContracts(unittest.TestCase):
                           'pythia-xbrl-filings', 'pythia-yahoo-discovery'})
         self.assertEqual(standing['pythia-hyperliquid'], identity.SignOff.UNSIGNED)  # opt-in and display-only
         self.assertEqual(standing['pythia-nsm'], identity.SignOff.UNSIGNED)  # onboarding: docs/sources/nsm.md
-        self.assertEqual(set(standing), identity.BUNDLED)  # core knows every plugin Pythia ships
-
-    def test_a_plugin_pythia_does_not_bundle_cannot_vouch_for_itself(self):
-        sec = manifest('sec')
-        self.assertIs(identity.vouched(sec, 'pythia-sec').signoff, identity.SignOff.GRANDFATHERED)
-        self.assertTrue(identity.vouched(sec, 'community-sec').unaudited)
 
     def test_the_filings_kinds_parameters_are_cores_filing_kinds(self):
         for plugin in ('sec', 'nsm'):

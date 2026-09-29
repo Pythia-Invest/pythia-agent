@@ -5,7 +5,8 @@ root to Hermes. Earlier versions kept both in the core plugin's Hermes data dire
 moves them there once, under a lock, and never over anything: the identity store as a verified copy, after which
 the old file is renamed, never deleted; the reference by rename, or by a verified install across file systems
 (`reference_package.adopt`). Without the root, or while an earlier identity store cannot be moved, identity is
-unavailable for the process and writes nothing anywhere else.
+unavailable for the process and writes nothing anywhere else. The first use also grants an installed reference package
+that has no trust grant, once (`grant_installed`).
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ import uuid
 from contextlib import closing
 from pathlib import Path
 
-from . import reference_package
+from . import reference_package, trust
 
 logger = logging.getLogger(__name__)
 ROOT = "PYTHIA_DATA_ROOT"  # the per-stack data root the lifecycle passes to Hermes
@@ -79,7 +80,23 @@ def _open(legacy: Path, root: str) -> Path:
     directory = Path(root) / "store"
     directory.mkdir(mode=0o700, exist_ok=True)  # inside the root the lifecycle created, never in its place
     adopt_legacy(legacy, directory)
+    grant_installed(directory)
     return directory
+
+
+def grant_installed(store: Path) -> bool:
+    """Grant confirm to the installed reference package when no trust grant names its digest: installed before grants
+    existed, it was the user's own install (ADR 0042, amendment of 2026-09-30). True when it was granted now."""
+    try:  # without a config folder there is nowhere to record it
+        path = trust.local_file() and reference_package.current(store)
+        manifest = path and reference_package.read_manifest(path.parent)
+    except (OSError, ValueError):
+        return False
+    if not manifest or not trust.grant_package(manifest, trust.CONFIRM, changed=False):
+        return False
+    logger.info("Pythia store: granted confirm to the installed reference package %s, installed before trust grants "
+                "existed; set its level to display in %s to withdraw it", manifest["build_id"], trust.local_file())
+    return True
 
 
 def adopt_legacy(legacy: Path, store: Path) -> list[str]:

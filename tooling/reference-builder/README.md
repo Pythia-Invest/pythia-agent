@@ -74,9 +74,8 @@ source of the same kind decides alike (`test_decisions.py` renames every
 source and gets the same decisions). `check_names.py`, run by `just check`,
 fails when a builder module other than the named adapters and audits, or
 core's `identity/*.py`, compares a field named source, plugin or provider with
-a literal. Core's list of bundled plugins (`BUNDLED`) is still trust by name;
-it stays until trust follows a hashed release, later in roadmap stage 0. The
-rules are versioned (below).
+a literal. Core's plugin trust follows a digest of the plugin's files, never
+its name (`identity/trust.py`). The rules are versioned (below).
 
 - **Activity.** FIRDS rarely sets termination dates. A line is `inactive` when
   it is terminated, is a corporate-action line without an OpenFIGI line, or its

@@ -19,7 +19,7 @@ from .claims import (
 from .concepts import REGISTRY, Combine, Concept, ConceptSpec, FilingAuthority, Licence
 from .live_market import LiveMarketError, validate_live_market
 from .manifest import (
-    BUNDLED, CONTRACT_VERSION, MANIFEST_FILE, CatalogueMode, ConceptEntry, Coverage, Manifest, ManifestError,
+    CONTRACT_VERSION, MANIFEST_FILE, CatalogueMode, ConceptEntry, Coverage, Manifest, ManifestError,
     ManifestNeedsUpdate, SignOff, contract_version, validate_manifest, vouched,
 )
 from .model import (
