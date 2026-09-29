@@ -28,8 +28,8 @@ from .schemes import registered_kind
 from .resolution import QueueItem, Verdict, VerdictOutcome
 
 logger = logging.getLogger(__name__)
-SCHEMA_VERSION = "5"  # identity.sqlite3 metadata.schema_version (3: agent_confirmed; 4: open subject kinds; 5: open queue reasons)
-ADDED = "-- Added within schema 5"  # identity.sql: the idempotent statements every open applies
+SCHEMA_VERSION = "6"  # identity.sqlite3 schema_version (3: agent_confirmed; 4: open kinds; 5: open reasons; 6: device subjects)
+ADDED = "-- Added within schema 6"  # identity.sql: the idempotent statements every open applies
 REFERENCE_SCHEMA_VERSION = str(reference_package.FORMAT_VERSION)  # the reference SQLite's release.schema_version
 
 
@@ -82,7 +82,7 @@ class IdentityStore:
         self.path = directory / "identity.sqlite3"
         self.set_aside: str | None = None  # the file name an incompatible store was kept under, this process
         version = self._version() if self.path.exists() else SCHEMA_VERSION
-        if version in ("3", "4"):
+        if version in ("3", "4", "5"):
             try:
                 self._migrate(version)
                 version = SCHEMA_VERSION
@@ -114,9 +114,8 @@ class IdentityStore:
         setup = sqlite3.connect(staging)
         try:
             versioned, _marker, added = schema_sql(Store.IDENTITY).partition(ADDED)
-            setup.executescript(versioned)
+            setup.executescript(versioned + added.partition("\n")[2])
             fill(setup)
-            setup.executescript(added.partition("\n")[2])
             setup.execute("INSERT INTO metadata (key, value) VALUES ('schema_version', ?)"
                           " ON CONFLICT (key) DO UPDATE SET value = excluded.value", (SCHEMA_VERSION,))
             setup.commit()
@@ -129,20 +128,25 @@ class IdentityStore:
         staging.replace(self.path)
 
     def _migrate(self, version: str) -> None:
-        """v3 or v4 -> the current schema keeps every row: v4 dropped the level and relation-type CHECKs and named
-        the subject's kind `kind`; v5 drops the queue-reason CHECK (SQLite cannot alter a CHECK, so the tables are
-        copied into a fresh store that replaces the file). The old file is kept as
-        `identity.before-v5-<id>.sqlite3`. Processes share no lock: a second process that starts during the
-        migration fails its own copy and re-reads the migrated version."""
-        renamed = _V3_COLUMNS if version == "3" else {}
+        """v3, v4 or v5 -> the current schema keeps every row: v4 dropped the level and relation-type CHECKs and
+        named the subject's kind `kind`; v5 drops the queue-reason CHECK; v6 gives device subjects their label and
+        claims their subject and state (SQLite cannot alter a CHECK or a table's shape, so the tables are copied
+        into a fresh store that replaces the file, and a column the old one lacks takes its default). The old file
+        is kept as `identity.before-v<current>-<id>.sqlite3`. Processes share no lock: a second process that
+        starts during the migration fails its own copy and re-reads the migrated version."""
+        renamed = {**_V5_COLUMNS, **(_V3_COLUMNS if version == "3" else {})}
+        added = schema_sql(Store.IDENTITY).partition(ADDED)[2]
 
         def fill(setup: sqlite3.Connection) -> None:
             setup.execute("ATTACH DATABASE ? AS old", (str(self.path),))
             for (table,) in setup.execute("SELECT name FROM main.sqlite_master WHERE type = 'table'").fetchall():
-                columns = [row[1] for row in setup.execute(f"PRAGMA main.table_info({table})")]
-                source = [renamed.get((table, name), name) for name in columns]
-                setup.execute(f"INSERT INTO main.{table} ({','.join(columns)})"
-                              f" SELECT {','.join(source)} FROM old.{table}")
+                old = {row[1] for row in setup.execute(f"PRAGMA old.table_info({table})")}
+                if not old and f"CREATE TABLE IF NOT EXISTS {table} (" in added:
+                    continue  # added within a later schema: it starts empty (any other missing table fails the copy)
+                pairs = [(name, source) for name in (row[1] for row in setup.execute(f"PRAGMA main.table_info({table})"))
+                         if (source := renamed.get((table, name), name)) in old or not old]
+                setup.execute(f"INSERT INTO main.{table} ({','.join(name for name, _ in pairs)})"
+                              f" SELECT {','.join(source for _, source in pairs)} FROM old.{table}")
             setup.commit()
             setup.execute("DETACH DATABASE old")
         kept = self.path.with_name(f"identity.before-v{SCHEMA_VERSION}-{uuid.uuid4().hex[:8]}.sqlite3")
@@ -175,8 +179,12 @@ class IdentityStore:
 
     @contextmanager
     def transaction(self):
-        """One atomic write: a verdict, its effect and the item it settles land together or not at all."""
+        """One atomic write: a verdict, its effect and the item it settles land together or not at all. Nested, it
+        joins the transaction this thread has open."""
         with self._writing:
+            if self.db.in_transaction:  # under the lock, only this thread's own
+                yield
+                return
             self.db.execute("BEGIN IMMEDIATE")
             try:
                 yield
@@ -371,8 +379,10 @@ class IdentityStore:
              (claim_json.get("attributes") or {}).get("name"), text, "sha256:" + hashlib.sha256(text.encode()).hexdigest(), stamp, stamp))
 
 
-# v4 column -> the v3 expression that fills it.
+# v4 column -> the v3 expression that fills it; v6 column -> the v5 column that fills it (no v5 store has subjects).
 _V3_COLUMNS = {("subjects", "kind"): "level", ("bindings", "kind"): "level"}
+_V5_COLUMNS = {("subjects", "introduced_by"): "created_by", ("subjects", "first_seen"): "created_at",
+               ("subjects", "last_seen"): "created_at"}
 
 
 _ITEMS = ("SELECT q.*, v.resolver AS settled_by, v.relation AS settled_relation, v.chosen_id AS settled_choice"

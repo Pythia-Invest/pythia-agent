@@ -88,6 +88,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/build_questions.py",
   "identity/claims.py",
   "identity/conflicts.py",
+  "identity/device.py",
   "identity/evidence.py",
   "identity/filings.py",
   "identity/news.py",

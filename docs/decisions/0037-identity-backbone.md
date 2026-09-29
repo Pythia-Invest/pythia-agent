@@ -553,9 +553,11 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
   and the absence of competing evidence never increases it.
 
 Not built yet: subjects come only from the reference build and core's curated
-tables. This changes in roadmap stage 0 (ADR 0044's amendment "data any plugin can
-extend"). Questions for relevant instruments are built; see the amendment
-"questions on touch, answers as local overrides" below.
+tables. The store and reads for device subjects exist (amendment "device
+subjects" below); plugins introduce them once core ingests plugin records in
+roadmap stage 0 (ADR 0044's amendment "data any plugin can extend"). Questions
+for relevant instruments are built; see the amendment "questions on touch,
+answers as local overrides" below.
 
 ### Consequential failures (roadmap stage 0)
 
@@ -966,3 +968,95 @@ and stores working without a schema bump.
   writes them there, and a schema bump belongs to device subjects.
 - **Letting the user's answer beat unanimous proof:** a user who disagrees with
   every confirm-level contributor demotes one of them instead.
+
+## Amendment (2026-09-30): device subjects
+
+**Context.** [ADR 0044](0044-product-direction.md) A1 and A3 let any plugin
+introduce subjects that no reference build holds. The identity store had an
+unused `subjects` table, and pages, answers and the re-key read the reference
+alone. A subject outside it could not be stored, opened or chosen, and with no
+reference package installed every page said so.
+
+**Ruling.**
+
+- **Schema 6.** `identity.sqlite3` moves to schema 6 through the migration
+  chain from 5: every table, including those added within a schema such as
+  read checks, is copied into a fresh store, a column the old one lacks takes
+  its default, and the old file is kept as `identity.before-v6-<id>.sqlite3`.
+  Nothing is set aside. This is roadmap stage 0's only store bump.
+  - `subjects` is a device subject's durable label: its kind, its parent
+    (instruments only), name, attributes (the record's own descriptive fields),
+    status, the plugin that introduced it, and when it was first and last seen.
+  - `device_assertions` holds the identifiers a plugin's record states, indexed
+    by scheme and value. It is the join index and the evidence the subject's
+    page weighs. Only `self` values identify the subject, at the scheme's own
+    level.
+  - `claims` gains the subject a record joined or introduced, and how
+    (`joined`, `introduced`, `conflict`, `unmatched` or `not_seen`).
+  - `device_aliases` records a device subject's better key, and the metadata
+    `generation` counts changes to device subjects, so a cached read renews.
+- **Reads cover reference and device** (`identity/device.py`). An ID follows
+  the reference's aliases, then the device's. A subject is read from the
+  reference, else from the device store, in the same shape plus `sources`: the
+  plugins behind it, each `enabled`, `disabled` or `removed`. An instrument's
+  parents are its own device rows, else the reference's, so a line a plugin
+  introduces under a security the build holds carries that security's
+  identifiers. A device subject's page, a market's or protocol's included,
+  composes with no reference package installed.
+- **Trust.** A device assertion is the plugin's own statement
+  (`source_asserted`) and counts at its plugin's trust level while the plugin
+  is enabled (amendment "evidence counts by kind and trust level"). A disabled
+  or removed plugin's assertions count at display: shown with their source,
+  never proving or blocking.
+- **Disabled and removed plugins.** Their device subjects keep resolving by
+  ID. The page shows the label, the identifiers and each source's status, and
+  the plugin's sections say `disabled`. A subject is never unknown because its
+  source is off.
+- **Re-keys.** Lifecycle A re-points the device tables with the other rows: a
+  subject's row (merged into the current one where both exist), its children's
+  parent, its assertions under the evidence IDs their new subject gives them
+  (and rows that cite them follow), relations and placed claims. Core runs it
+  again after writing device aliases. A subject the device holds is never
+  flagged as vanished.
+- **Binding.** Only confirm level binds, onto reference or device subjects. A
+  display plugin binds only a subject it introduced itself (rule
+  `introduced@1`; [ADR 0042](0042-source-onboarding-standard.md), amendment
+  "binding by trust level"). The user's answer may choose a device subject.
+
+Not built yet: core's ingest of plugin records, which writes device subjects,
+joins records by identifier and places claims (roadmap stage 0, W3-ingest), and
+search over device subjects (W3-search). Until ingest lands, device evidence
+about a subject the reference holds is not merged into that subject's page.
+
+**Rationale.** One store keeps a device subject's label, identifiers, bindings
+and answers in one transaction, as the original ruling chose for claims.
+Reading the reference first keeps every existing page unchanged; falling back
+to the device store is the only new path. A label that outlives its plugin is
+what keeps saved references working. Counting a plugin's statements at its
+trust level, and at display while it is off, applies the evidence rule of the
+previous amendment unchanged.
+
+**Consequences.**
+
+- Older Pythia code that opens a schema 6 store sets it aside and starts with
+  empty bindings, answers and claims. The kept `identity.before-v6-<id>` file
+  restores them. Do not run an older build against a migrated store.
+- The migration now copies tables added within a schema. The v3 and v4 paths
+  never had any to copy; a v5 store's read checks would otherwise have been
+  lost.
+- A device subject that a later release holds under the same ID is read from
+  the reference; its device row keeps the label.
+
+**Rejected alternatives.**
+
+- **A separate file for device subjects, or one per plugin:** rejected in the
+  original ruling. Joins across claims, subjects and bindings would lose their
+  transaction.
+- **Writing device subjects into the reference file:** it is read-only between
+  builds and replaced by each release.
+- **Counting a disabled plugin's evidence at its trust level:** a disabled
+  plugin's rows are hidden, and its identifiers would still decide what a
+  subject is while its source is off.
+- **Keying a device subject's evidence by its plugin record alone:** cited
+  evidence would survive a re-key, but the typed assertion's evidence ID hashes
+  its subject, and one rule for both stores keeps rows citing evidence uniform.

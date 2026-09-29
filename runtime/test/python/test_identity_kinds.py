@@ -105,7 +105,7 @@ class StoreKindTest(Fixture):
                                                authority="source_asserted", evidence_ids=(), plugin="eodhd"))
         names = sorted(path.name for path in directory.iterdir())
         self.assertEqual((len(names), names[1]), (2, "identity.sqlite3"))
-        self.assertRegex(names[0], r"^identity\.before-v5-[0-9a-f]{8}\.sqlite3$")  # the v3 file, kept
+        self.assertRegex(names[0], rf"^identity\.before-v{store.SCHEMA_VERSION}-[0-9a-f]{{8}}\.sqlite3$")  # the v3 file, kept
 
     def test_a_v4_store_migrates_keeping_its_rows_and_then_accepts_a_new_queue_reason(self):
         directory = Path(self.tmp.name) / "v4"

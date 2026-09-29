@@ -354,9 +354,9 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     The answer names a native reference for the identifiers core sent (`sent`); an issuer's LEI or CIK confirms only an
     issuer. Rule `resolve_answer@1` binds it to the subject unless identifier evidence or the depositary-receipt guard
     contradicts it, or `bound_to` says the reference is already confirmed for another subject (a conflict, never a
-    re-point). Several references, or a record quoting a sent identifier as its underlying's, are a residual. A source
-    not yet signed off (ADR 0042) never confirms: a would-be binding is an `unaudited` residual citing its evidence.
-    """
+    re-point). Several references, or a record quoting a sent identifier as its underlying's, are a residual. A display-
+    level source (ADR 0042) confirms only a device subject it introduced; else a would-be binding is an `unaudited`
+    residual citing its evidence."""
     target, plugin = subject["ids"][level], info.manifest.plugin
     records = [claim for claim in batch.claims if isinstance(claim, RecordClaim) and claim.native_ref is not None
                and (scope := info.manifest.native_scope(claim.native_ref.native_scope)) is not None
@@ -386,7 +386,7 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     if confirms and other not in (None, target):
         return None, QueueItem(id=item.id, kind="conflict", reason="binding", subject_ids=(other, target),
                                evidence_ids=evidence_ids, **base), records
-    if confirms and info.manifest.unaudited:
+    if confirms and info.manifest.unaudited and subject.get("introduced_by") != plugin:
         return None, QueueItem(id=item.id, kind="residual", reason="unaudited", subject_ids=local,
                                evidence_ids=evidence_ids, **base), records
     if confirms:

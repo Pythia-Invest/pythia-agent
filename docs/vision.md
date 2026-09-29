@@ -353,9 +353,11 @@ A genuinely new kind is a rare addition to core. New subjects never are.
 Today:
 
 - subjects come only from the reference build and core's curated tables, and
-  plugins contribute data but not subjects;
+  plugins contribute data but not subjects: the store and pages for subjects
+  on the device exist, and plugins can add them once their ingest lands;
 - reference sources are builder adapters that cannot be disabled;
-- only confirm-level plugins bind, and only onto reference subjects;
+- only confirm-level plugins bind, onto reference or device subjects, and a
+  display plugin binds only a subject it introduced;
 - the build's open questions are queued only when an instrument is opened,
   watched or used by the agent, not yet when it is held or forecast.
 

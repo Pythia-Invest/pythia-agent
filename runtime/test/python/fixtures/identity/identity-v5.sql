@@ -16,21 +16,16 @@ CREATE TABLE metadata (
   value TEXT NOT NULL
 );
 
--- Device subjects (schema 6): subjects a plugin introduced that no reference build holds, keyed by their open
--- identifiers or by the provider reference that introduced them (`provisional`). The row is the durable label:
--- its name, kind and attributes stay when the plugin is disabled or removed, so a saved ID keeps resolving.
--- Their identifiers are in device_assertions, the provider records in claims (`device`). Re-pointed with the
--- other subject rows through reference and device aliases (`lifecycle.rekey`).
+-- Subjects no reference build knows yet: IDs derived from their open identifiers,
+-- or provisional IDs derived from the provider reference that introduced them.
+-- Descriptive provider fields stay in the plugin-tagged claims table below.
+-- Not re-pointed through id_aliases yet: nothing writes local subjects or relations.
 CREATE TABLE subjects (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,              -- the ID's first segment (schemes.Kind)
   parent_id TEXT,                  -- instrument kinds only: issuer of a security, security of a composite/listing
-  name TEXT,                       -- the label
-  attributes TEXT NOT NULL DEFAULT '{}',  -- JSON: the record's attributes (claims.RecordAttributes: kind, ticker, MICs, currency)
-  status TEXT NOT NULL DEFAULT 'active',  -- vocabulary.SubjectStatus
-  introduced_by TEXT NOT NULL,     -- the plugin whose record introduced it
-  first_seen TEXT NOT NULL,
-  last_seen TEXT NOT NULL,
+  created_by TEXT NOT NULL,        -- plugin id or 'agent'
+  created_at TEXT NOT NULL,
   CHECK (id LIKE kind || ':%')
 );
 
@@ -149,8 +144,6 @@ CREATE TABLE claims (
   claim_digest TEXT NOT NULL,      -- unchanged digest => no re-join
   first_seen TEXT NOT NULL,
   last_seen TEXT NOT NULL,         -- not seen in a complete scope != delisted; never unbinds by itself
-  subject_id TEXT,                 -- the subject the record joined or introduced; NULL until core ingests it
-  state TEXT,                      -- how it was placed (device.CLAIM_STATES); NULL until core ingests it
   PRIMARY KEY (plugin, native_scope, native_id)
 );
 
@@ -164,8 +157,7 @@ CREATE TABLE resolve_misses (
   PRIMARY KEY (subject_id, plugin)
 );
 
--- Added within schema 6 (additive and idempotent: every open applies what follows this line, a migration before
--- it copies rows).
+-- Added within schema 5 (additive and idempotent: every open applies what follows this line).
 -- Read checks (ADR 0037, rule read_check@1): what a source stated about itself when read for a subject (a claim
 -- about that subject), against the reference. A page label and evidence for the reference's rework, never a
 -- binding. Re-pointed through id_aliases with the other subject rows.
@@ -181,31 +173,4 @@ CREATE TABLE IF NOT EXISTS read_checks (
   checked_at TEXT NOT NULL,
   verified_at TEXT,                -- the last read that agreed on all it stated, from an audited source
   PRIMARY KEY (subject_id, provider, native_scope, native_id)
-);
-
--- A plugin's identifiers for device subjects (`device`): the join index by (scheme, value) and the evidence a
--- device subject's page weighs at the plugin's trust level. Only `self` values identify their subject (at the
--- scheme's own level); `underlying` and `unqualified` ones are kept for the join. A plugin's statements count as
--- `source_asserted`. The evidence ID hashes the assertion with its subject, so a re-key gives it a new one.
-CREATE TABLE IF NOT EXISTS device_assertions (
-  evidence_id TEXT PRIMARY KEY CHECK (evidence_id LIKE 'ev:%'),
-  subject_id TEXT NOT NULL,
-  scheme TEXT NOT NULL,
-  value TEXT NOT NULL,
-  role TEXT NOT NULL,              -- vocabulary.IdentifierRole
-  plugin TEXT NOT NULL,
-  native_scope TEXT NOT NULL,      -- the plugin's record that states it
-  native_id TEXT NOT NULL,
-  retrieved_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS device_assertions_value ON device_assertions (scheme, value);
-CREATE INDEX IF NOT EXISTS device_assertions_subject ON device_assertions (subject_id);
-
--- A device subject's earlier IDs: a better key re-keys it upward, never down. Followed after the reference's
--- id_aliases (`device.current_id`); `lifecycle.rekey` re-points the rows that name the old ID.
-CREATE TABLE IF NOT EXISTS device_aliases (
-  old_id TEXT PRIMARY KEY,
-  new_id TEXT NOT NULL,
-  at TEXT NOT NULL,
-  CHECK (old_id <> new_id)
 );

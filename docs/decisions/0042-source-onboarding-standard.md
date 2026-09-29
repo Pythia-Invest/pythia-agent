@@ -184,7 +184,8 @@ The code gate maps onto them without a new field: `unsigned` is display, and
   Enabling it is the opt-in; naming it is what puts it first.
 - **Confirm.** Unchanged: only a signed-off or grandfathered plugin creates or
   changes a binding. A display plugin's resolve answer that would bind stays
-  an `unaudited` residual for the investor.
+  an `unaudited` residual for the investor. (The amendment "binding by trust
+  level" adds device subjects and one display exception.)
 - **Suggest** (a plugin whose matches the investor confirms in one click) is
   not represented yet. It arrives with the first plugin that needs it, such as
   a user's own vendor addressed by `resolve`.
@@ -343,3 +344,43 @@ aside or moved.
 - Grants in `<data>/store`: the store holds data, and a user's choice about
   sources belongs with their settings.
 - Signatures: nothing is published yet (ADR 0039).
+
+## Amendment (2026-09-30): binding by trust level
+
+**Context.** A binding could only point at a reference subject: the user's
+answer was refused for any other target, and only a confirm-level plugin bound.
+The identity store now holds device subjects that plugins introduce
+([ADR 0037](0037-identity-backbone.md), amendment "device subjects"), and
+[ADR 0044](0044-product-direction.md) A4 lets a display plugin introduce
+subjects without confirming facts about shared ones.
+
+**Ruling.**
+
+- **Only confirm level binds** a plugin's record to a subject, a reference
+  subject or a device subject alike. A display plugin's records whose
+  identifiers agree are shown as labelled evidence. Its answer that would bind
+  stays an `unaudited` residual, raised only when its subject becomes relevant
+  (a resolve for an opened page), for the user to confirm or dismiss.
+- **The one display exception:** a plugin's own record binds the device
+  subject it introduced (rule `introduced@1`, `device.bind_introduced`), and
+  its resolve answer may bind that subject. A subject introduced by another
+  plugin, or held by the reference, is shared.
+- **The user's answer** may choose a reference or a device subject.
+
+**Rationale.** A subject that exists only through one plugin's records has no
+address without that plugin's own binding, and binding it establishes no fact
+another source describes. Binding a shared subject does, which needs confirm.
+
+**Consequences.**
+
+- Introducing a subject still confers no authority over facts about it: the
+  introducer's identifiers count at its own level, display included.
+- Core's ingest of plugin records (roadmap stage 0) writes the `introduced@1`
+  binding when a record introduces a subject.
+
+**Rejected alternatives.**
+
+- **Binding at any level:** a display plugin could attach its record to a
+  shared instrument without review.
+- **No display binding at all:** a display plugin's own pools or tokens would
+  have no address and no page data.
