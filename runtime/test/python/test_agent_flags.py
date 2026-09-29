@@ -99,6 +99,17 @@ class InstrumentFlagsTest(AgentToolFixture):
         before = self.flags(GSK_BEFORE)
         self.assertEqual((before["successor"], before["not_active"]), ({"succeeded_by": GSK}, {"security": "inactive"}))
 
+    def test_successor_while_the_old_isin_still_trades(self):
+        # During a transition both ISINs trade: the old page lists the new one among the company's instruments too.
+        with self.reference() as db:
+            db.execute("UPDATE securities SET status = 'active' WHERE id = ?", (GSK_BEFORE,))
+            db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, trading_currency,"
+                       " is_primary, status) VALUES (?, ?, 'XLON', 'XLON', 'GSKO', 'GBP', 'GBP', 1, 'active')",
+                       ("listing:isin:GB0009252882:XLON:GBP", GSK_BEFORE))
+        data = self.read(GSK_BEFORE)
+        self.assertIn(GSK, {item["id"] for item in data["other_securities"]})
+        self.assertEqual({flag["code"]: flag.get("detail") for flag in data["flags"]}["successor"], {"succeeded_by": GSK})
+
     def test_not_active_for_a_delisted_line(self):
         self.assertEqual(self.flags(US_STEEL)["not_active"], {"security": "inactive", "listing": "inactive"})
 

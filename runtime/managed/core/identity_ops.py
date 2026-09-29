@@ -232,10 +232,10 @@ class Identity:
         if subject["asset_class"] == "equity" and security:  # the instrument's lines, receipts folded in
             directory = search.directory(path, store.open_reference)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
-            # The company's other instruments; a share class listed there is not repeated under `related`.
+            # The company's other instruments; a share class listed there is not repeated under `related`, a successor is.
             view["other_securities"] = directory.other_instruments(security)
             others = {item["id"] for item in view["other_securities"]}
-            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item]
+            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item or item["type"] == flags.SUCCESSOR_OF]
         sections = page.compose(subject, installed(), **lookups)
         return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 
