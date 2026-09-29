@@ -1,6 +1,5 @@
 """The resolution queue: reading it, settling it by rule, and agent and user verdicts under the authority rule."""
 import contextvars
-import hashlib
 import importlib.util
 import json
 import sqlite3
@@ -13,7 +12,7 @@ from pathlib import Path
 from test_identity_contracts import PROVENANCE, identity
 from test_identity_page import ASML, LEI, Fixture, plugin, unsigned
 from test_reference_package import make_package
-from pythia_identity_fixture import build_questions, page, queue, reference_package, store  # noqa: E402
+from pythia_identity_fixture import page, queue, reference_package, store  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
 
@@ -172,32 +171,14 @@ class VerdictTest(QueueFixture):
 
 
 class BuildQuestionTest(QueueFixture):
-    """The reference build's own questions (its package's `claims`): imported once, answered without a provider."""
-
-    def test_build_questions_are_added_once_answered_as_suggestions_and_retired_with_their_release(self):
+    def test_an_open_reference_build_row_is_superseded_on_the_next_release(self):
+        # Build questions are curation questions (ADR 0044): an earlier core may have queued some; they leave Repairs.
         security = page.load_subject(self.ref, ASML)["ids"]["security"]
-        home = {"question": "home_market", "kind": "residual", "reason": "ambiguous", "subject_ids": [security],
-                "candidate_ids": [ASML]}
-        issuer = {"question": "issuer_identity", "kind": "conflict", "reason": "identifier", "subject_ids": [security],
-                  "evidence_ids": ["record:0123456789abcdef"], "scheme": "lei", "values": ["529900G3SW56SHYNPR95"]}
-        self.assertEqual(build_questions.import_build(self.identity, [home, issuer, {"kind": "bogus"}], NOW), 2)
-        self.assertEqual(build_questions.import_build(self.identity, [home, issuer], NOW), 0, "never asked twice")
-        listed = queue.listing(self.identity, self.ref, subject_id=None, kind=None, plugins={queue.BUILD}, limit=10,
-                               answered=False, notice=False)
-        texts = {item["reason"]: item["question"] for item in listed["items"]}
-        self.assertIn("529900G3SW56SHYNPR95", texts["identifier"])
-        item = next(item for item in listed["items"] if item["reason"] == "ambiguous")
-        with self.assertRaises(queue.Refused):
-            queue.submit(self.identity, self.ref, item_id=item["id"], resolver="agent", relation="same_listing",
-                         chosen_id="listing:isin:USN070592100:XNAS:USD", now=NOW, as_of=AS_OF)
-        agent = queue.submit(self.identity, self.ref, item_id=item["id"], resolver="agent", relation="same_listing",
-                             chosen_id=ASML, now=NOW, as_of=AS_OF)
-        self.assertEqual((agent["outcome"], agent["state"]), ("suggested", "open"), "suggest-only (R3)")
-        user = queue.submit(self.identity, self.ref, item_id=item["id"], resolver="user", relation="same_listing",
-                            chosen_id=ASML, now=NOW, as_of=AS_OF, user_turn="desk:identity-verdict:test")
-        self.assertEqual((user["outcome"], user["state"]), ("confirmed", "resolved"))
-        self.assertEqual(build_questions.retire_build(self.identity, NOW), 1, "the other question goes with its release")
-        self.assertEqual(build_questions.import_build(self.identity, [home], NOW), 0, "an answered question is not asked again")
+        self.identity.put_queue_item(identity.QueueItem(
+            id="ref-old", kind="residual", reason="ambiguous", subject_ids=(security,), candidate_ids=(ASML,),
+            evidence_ids=(), state="open", opened_at=NOW, plugins=(queue.BUILD,)))
+        self.assertEqual(queue.retire_build(self.identity, NOW), 1)
+        self.assertEqual(self.identity.queue_item("ref-old")["state"], "superseded")
 
 
 class StoreTest(QueueFixture):
@@ -290,32 +271,6 @@ class TransportTest(QueueFixture):
         self.assertEqual(waiting_outcome, "ok")
         self.assertEqual((user["authority"], user["outcome"], user["state"]), ("user_attested", "confirmed", "resolved"))
         self.assertEqual((listed["outcome"], listed["data"]["items"]), ("empty", []))
-        del core
-
-
-class BuildQuestionRoutingTest(QueueFixture):
-    def test_build_questions_surface_only_for_subjects_asked_about_never_in_bulk(self):
-        core = load_core()
-        from pythia_core_queue_fixture import identity_ops, queue_ops
-        security = page.load_subject(self.ref, ASML)["ids"]["security"]
-        out = make_package(Path(self.tmp.name) / "out", source=self.path)
-        data = json.dumps({"questions": [
-            {"kind": "residual", "reason": "ambiguous", "subject_ids": [security], "candidate_ids": [ASML]},
-            {"kind": "residual", "reason": "no_key", "subject_ids": ["security:isin:US0000000001"]}]}).encode()
-        (out / "questions-20260926.json").write_bytes(data)
-        manifest = json.loads((out / "package.json").read_text())
-        manifest["claims"] = {"file": "questions-20260926.json", "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
-        (out / "package.json").write_text(json.dumps(manifest))
-        reference_package.install(out, Path(self.tmp.name) / "core")
-        ops = identity_ops.Identity(types.SimpleNamespace(state=types.SimpleNamespace(data_dir=Path(self.tmp.name) / "core")))
-        with unittest.mock.patch.object(identity_ops, "installed", lambda: []):
-            before = json.loads(queue_ops.read_queue(ops, {}))["data"]
-            asked = json.loads(queue_ops.read_queue(ops, {"subject_id": ASML}))["data"]
-            after = json.loads(queue_ops.read_queue(ops, {}))["data"]
-        ops.store.db.close()
-        self.assertEqual(before["total"] if before else 0, 0, "installing puts nothing in Repairs")
-        self.assertEqual([item["subject_ids"] for item in asked["items"]], [[security]], "the listing's security")
-        self.assertEqual(after["total"], 1, "only the question the agent asked about")
         del core
 
 

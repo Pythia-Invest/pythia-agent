@@ -12,7 +12,8 @@
     not decide.
   - Stage 3: a stratified random sample of 100 rows is labelled against
     primary sources (below and [the sample](firds-signoff-sample.md)).
-  - Stage 4: the questions go to core's resolution queue, suggest-only.
+  - Stage 4: the questions ship in the package as curation questions,
+    answered centrally per ADR 0044, never in the investor's Repairs.
   - FIRDS was in use before the
     [onboarding standard](../architecture/source-onboarding.md), so it keeps its
     current role until it signs off.
@@ -168,9 +169,9 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
   | Primary | 10,863 from issuer-requested admissions (field 8); 189 more from the ISIN-country line (below) | 10,082 `home_market`: 10,032 with no request and no line outside the EEA, 19 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid |
   | Receipt underlying | 2,737 receipts link to the field 26 security of their own issuer | 902 `receipt_underlying` (58 because field 26 names another issuer's security), 10 `receipt_conflict` |
 
-  The SEC stage adds 168 name-only issuer questions (#73). None of the 11,776
-  goes to the Repairs queue in bulk: a question joins it only when the
-  investor opens or watches its instrument or the agent asks. A security
+  The SEC stage adds 168 name-only issuer questions (#73). All 11,776 are
+  curation questions in the package's `claims` file, answered centrally per
+  ADR 0044; none reaches the investor's Repairs queue. A security
   without a primary is priced on its line at the most liquid EU market (9,587
   lines), labelled so and never primary.
 
@@ -218,11 +219,10 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | The home market when field 8 does not decide it (`home_market`: 10,271 open) | Which listing is the issuer's home is a knowledge question; the evidence may be outside FIRDS | Not written | Not done | Suggest-only |
 | The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 859 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
 
-The questions reach core's resolution queue through the package's `claims`
-file. The agent may answer them provisionally and the user may override; an
-answer changes no reference data yet.
+The questions ship in the package's `claims` file as curation questions,
+answered centrally per ADR 0044, not by the investor or the investor's agent.
 
-Classes assigned to code or to Repairs instead:
+Classes assigned to code or to curation instead:
 
 - **Code:**
   - ISIN successions, from first-trade dates, admission counts and GLEIF
@@ -230,7 +230,7 @@ Classes assigned to code or to Repairs instead:
   - fund share classes, from the sub-fund LEI;
   - a receipt's underlying, from field 26 and `successor_of`;
   - the trading currency, from venue-specific evidence.
-- **Unknown, with a Repairs question:** the primary venue when no
+- **Unknown, with a curation question (answered centrally per ADR 0044):** the primary venue when no
   issuer-sought listing exists, or when an EEA request conflicts with a
   primary outside the EEA (`home_market`); the trading currency until a
   venue-specific source exists (`trading_currency`); a receipt with no usable
@@ -272,6 +272,6 @@ Decisions and limits:
   programme changed is an accepted limit, owned by lifecycle (`successor_of`).
 - **Open with an owner:** the `JBUL` field 8 pattern; the Crédit Agricole
   internaliser answering field 8 true; answers outside a question's
-  candidates (core queue).
-- **Judgement:** every question type stays suggest-only: the agent's answer is
-  recorded as a suggestion until each type has a question set and gold set.
+  candidates (the curator's back office, future work).
+- **Judgement:** every question type stays suggest-only until it has a
+  question set and gold set; answers come from the central curator (ADR 0044).

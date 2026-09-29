@@ -142,8 +142,7 @@ table under `writer_ignored`.
   SEC title normalises to exactly one active LEI issuer's name, that match is an
   open issuer-identity question with the LEI as its candidate
   (`issuer_identity_name_candidate`; the name-only join once linked Biofrontera
-  Inc. to Biofrontera AG). The questions are flags until the builder carries
-  questions to core's queue. Conflicts become flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
+  Inc. to Biofrontera AG), carried in the package's questions file. Conflicts become flags, never merges. When several CIKs link one LEI by identifier, one whose SEC
   title matches the LEI's names wins, then CIK order (FIRDS gives Lee
   Enterprises' ISIN Berkshire Hathaway's LEI); when none matches, none links
   (`lei_contested_unnamed`: FIRDS puts venue and data-vendor LEIs such as TP
@@ -196,17 +195,15 @@ primary and receipt underlying from these claims (rules above).
 
 Where the evidence does not decide, the value stays empty and the build asks a
 question, never storing a guess as fact. `questions-<date>.json` holds them in
-core subject IDs, and `package.json` names it under `claims`. Core copies it
-with the package but never puts the whole file on the resolution queue: a
-question joins the queue, once, only when the investor opens or watches its
-instrument or the agent asks about it (`queue_ops.surface`). There it is an
-issuer question as an `identifier` conflict, a home-market or name-only
-issuer question (#73's CIK→LEI name matches) as an `ambiguous` residual, a
-receipt question as a `no_key` residual, and a share stating an underlying as a
-`relation` conflict. The user's answer settles it; the agent's is recorded as a
-suggestion and leaves it open until each question type is calibrated. No
-answer changes reference data yet. A new release supersedes the previous
-build's open questions.
+core subject IDs (each with its question type, the resolution queue's `kind` and
+`reason`, candidates and evidence), and `package.json` names it under `claims`.
+These are curation questions about the world, answered centrally by a curator
+([ADR 0044](../../docs/decisions/0044-product-direction.md), "Where conflicts
+are resolved"), never by the investor: core installs and verifies the file with
+the package but queues none of it, so Repairs keeps only questions about the
+investor's own records (ADR 0037). The investor sees at most an unknown value.
+#73's name-only CIK→LEI matches are carried the same way
+(`issuer_identity_name_candidate`).
 
 `firds-<date>.json` beside the snapshot, written last, holds the drift
 fingerprint (below), the audit report and whether the build was good; the

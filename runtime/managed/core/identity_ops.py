@@ -26,7 +26,7 @@ from .identity import (
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import NO_REFERENCE, SUBJECT_ID
-from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, markets, page, reference_package, search, store
+from .identity import batch_from_json, batch_to_json, lifecycle, markets, page, queue, reference_package, search, store
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -103,7 +103,7 @@ class Identity:
                     ref.close()
                 if done:
                     logger.info("identity store carried to reference %(release)s: %(moved)d subject IDs re-keyed, %(rows)d rows re-pointed, %(vanished)d subjects vanished", done)  # noqa: E501
-                    build_questions.retire_build(self.store, store.now())
+                    queue.retire_build(self.store, store.now())
                 self._rekeyed = path
             except (sqlite3.Error, OSError, ValueError):
                 logger.warning("identity store could not be carried to %s", path.name, exc_info=True)
@@ -262,7 +262,6 @@ class Identity:
         """The store lookups page composition reads for a subject."""
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
-        queue_ops.surface(self, subject_ids)  # the investor opened it: the build's questions about it surface
         stored = {(row["subject_id"], row["provider"]): row
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
         lookups = {"stored": lambda target, provider: stored.get((target, provider)),

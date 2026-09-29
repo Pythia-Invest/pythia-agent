@@ -88,8 +88,9 @@ def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as
 
 def _isin_country_line(venues: Venues, isin: str, lines: list[Listing]) -> Listing | None:
     """A share's one live line on an exchange in its ISIN's country (the issuer's home: TotalEnergies on Euronext
-    Paris beside NYSE), skipping OTC, MTF and trading-only lines. None when there is none or several."""
-    found = [line for line in lines if line.status != "inactive" and line.country == isin[:2]
+    Paris beside NYSE), skipping OTC, MTF and trading-only lines and lines the package cannot write (an OpenFIGI
+    home line has no trading currency). None when there is none or several."""
+    found = [line for line in lines if line.status != "inactive" and line.country == isin[:2] and line.currency
              and line.operating_mic not in rules.TRADING_ONLY_VENUES and line.operating_mic != "OTCM"
              and (venues.venues.get(line.mic or "") is None or venues.venues[line.mic].category != "MLTF")]
     return found[0] if len({line.operating_mic for line in found}) == 1 and len(found) == 1 else None

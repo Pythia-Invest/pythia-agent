@@ -21,7 +21,7 @@ from .schemes import subject_kind, subject_level
 from .store import IdentityStore
 from .vocabulary import Authority, InstrumentKind, VerdictRelation
 
-BUILD = "reference"  # the reference build's own questions: `claims` in its package, no provider record
+BUILD = "reference"  # rows an earlier core queued from the reference build's questions (now curation, ADR 0044)
 AGENT_MODEL = "hermes-agent"
 PROMPT_VERSION = "pythia_identity_verdict@1"
 CORE = "pythia"
@@ -37,15 +37,6 @@ QUESTIONS = {
     "relation": "A typed relation contradicts the identifiers.",
     "guard": "A verdict would make a depositary receipt and its share the same instrument.",
 }
-# What the reference build could not decide from its sources (tooling/reference-builder, `reconcile`), by reason.
-BUILD_QUESTIONS = {
-    "identifier": "Who issued this security? FIRDS names {values}, the LEI of a trading-venue operator, as issuer "
-                  "or operator.",
-    "ambiguous": "Which line is this security's primary listing? The sources do not decide it.",
-    "no_key": "Which security does this depositary receipt represent? FIRDS names none the reference data holds.",
-    "relation": "FIRDS classes this security as a share, yet states {values} as its underlying: which is it?",
-    "issuer": "Is this SEC registrant the same company as the issuer its name matches? No identifier links them.",
-}
 
 
 class Refused(ValueError):
@@ -60,9 +51,7 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
     native = item["provider_ref"]
     reason = "bound" if item["reason"] == "binding" and len(item["subject_ids"]) > 1 else item["reason"]
     label = LABELS.get(native["provider"] if native else plugin, plugin)  # labels are keyed by provider
-    built = "issuer" if subject_kind(item["subject_ids"][0]) == "issuer" and reason == "ambiguous" else reason
-    question = BUILD_QUESTIONS[built].format(values=", ".join(item["values"])) if plugin == BUILD and not native \
-        else QUESTIONS[reason].format(label=label, ref=native["native_id"] if native else "")
+    question = QUESTIONS[reason].format(label=label, ref=native["native_id"] if native else "")
     answers = [{"relation": relation, "chosen_id": candidate} for candidate in item["candidate_ids"]
                for relation in (*(relation for relation, level in RELATION_LEVEL.items()
                                   if level == subject_kind(candidate)), "unrelated")]
@@ -134,8 +123,6 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     if view is None or not _answerable(row, user):
         raise Refused("This question is not open.")
     raw = _raw(store, row)
-    if raw is None and row["plugins"] == [BUILD]:
-        return _record_answer(store, view, row, resolver, relation, chosen_id, now, rationale, user_turn)
     if raw is None:  # identifier or relation conflicts without a provider record: no answer has an effect yet
         raise Refused("This question has no provider record to bind, so no answer can take effect.")
     item = _queue_item({**row, "state": "open"})
@@ -195,37 +182,13 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
             "message": message}
 
 
-def _record_answer(store: IdentityStore, view: dict, row: dict, resolver: ResolverKind, relation: str,
-                   chosen_id: str | None, now: str, rationale: str | None, user_turn: str | None) -> dict:
-    """An answer to a reference-build question, recorded as the resolver's verdict. It changes no reference data.
-    The user's answer settles the question. The agent's is a suggestion that leaves it open: the build's question
-    types have no calibrated question set yet, so model answers stay suggest-only (ADR 0042)."""
-    user = resolver is ResolverKind.USER
-    if chosen_id is not None and chosen_id not in row["candidate_ids"]:
-        raise Refused("Choose one of the question's candidates.")
-    authority = Authority.USER_ATTESTED if user else Authority.AGENT_CONFIRMED
-    try:
-        verdict = Verdict(item_id=row["id"], resolver=resolver, authority=authority, relation=relation,
-                          chosen_id=chosen_id,
-                          provenance={"plugin": CORE, "source": str(resolver), "adapter_version": "1", "retrieved_at": now},
-                          model=None if user else AGENT_MODEL, prompt_version=None if user else PROMPT_VERSION,
-                          input_digest=None if user else view["digest"], rationale=rationale, user_turn=user_turn)
-    except ValueError as error:
-        raise Refused(str(error)) from None
-    outcome = VerdictOutcome.SUGGESTED if not user else VerdictOutcome.AMBIGUOUS \
-        if verdict.relation is VerdictRelation.AMBIGUOUS else VerdictOutcome.CONFIRMED \
-        if chosen_id and verdict.relation is not VerdictRelation.UNRELATED else VerdictOutcome.NO_MATCH
-    state = {VerdictOutcome.CONFIRMED: "resolved", VerdictOutcome.NO_MATCH: "dismissed"}.get(outcome, row["state"])
+def retire_build(store: IdentityStore, now: str) -> int:
+    """Supersede open reference-build rows: the build's questions are curation questions, answered centrally (ADR
+    0044), never in the investor's Repairs (ADR 0037). Queues from before that decision may still hold some."""
     with store.transaction():
-        current = store.queue_item(row["id"])
-        if not _answerable(current, user) or current["state"] != row["state"]:
-            raise Refused("This question is not open.")
-        verdict_id = store.put_verdict(verdict, outcome)
-        if state != row["state"]:
-            store.settle(row["id"], state, verdict_id, current=current["state"])
-    return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
-            "message": ("Recorded" if user else "Kept as a suggestion; the question stays open") +
-            "; the reference data is unchanged."}
+        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ? AND state = 'open'",
+                         (now, json.dumps([BUILD])))
+        return store.db.execute("SELECT changes()").fetchone()[0]
 
 
 def _same_venue(record: RecordClaim, subjects: list[dict]) -> bool:
