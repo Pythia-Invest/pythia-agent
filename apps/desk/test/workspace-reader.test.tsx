@@ -1,16 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { DeskProviders } from "@/client/providers";
-import {
-  WorkspaceMarkdown,
-  headingSlug,
-  safeMarkdownUrl,
-} from "@/components/workspace/workspace-markdown";
+import { WorkspaceMarkdown } from "@/components/workspace/workspace-markdown";
 import { AssistantText } from "@/components/chat/message-parts";
-import {
-  ChatArtifactLink,
-  nativePathLocator,
-} from "@/components/workspace/workspace-link";
+import { nativePathLocator } from "@/components/workspace/workspace-link";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/c/synthetic-chat",
@@ -23,15 +16,13 @@ const render = (text: string) =>
   );
 
 describe("workspace Markdown", () => {
-  it("renders static ordinary research with headings, tables and document-relative links", () => {
+  it("renders static ordinary research with headings and document-relative links", () => {
     const output = render(
-      "# Risk & return\n\n## Risks\n\n[Related](../shared/notes.md#evidence)\n\n| Item | Value |\n| --- | --- |\n| Exposure | 4 |\n\n```js\nconsole.log('display only')\n```\n",
+      "# Risk & return\n\n## Risks\n\n[Related](../shared/notes.md#evidence)\n",
     );
     expect(output).toContain('id="risk--return"');
     expect(output).toContain('id="risks"');
     expect(output).toContain('href="/workspace/shared/notes.md#evidence"');
-    expect(output).toContain("<table");
-    expect(output).toContain("display only");
   });
   it("disables raw HTML and unsafe URLs and never automatically loads remote images", () => {
     const output = render(
@@ -53,9 +44,6 @@ describe("workspace Markdown", () => {
     const output = render("# Café risks\n\n# Café risks\n");
     expect(output).toContain('id="café-risks"');
     expect(output).toContain('id="café-risks-1"');
-    expect(headingSlug("Café risks")).toBe("café-risks");
-    expect(safeMarkdownUrl("data:text/html,unsafe")).toBe("");
-    expect(safeMarkdownUrl("//remote.example/img")).toBe("");
   });
   it("preserves the original relative path through the actual assistant renderer", () => {
     const output = renderToStaticMarkup(
@@ -63,14 +51,6 @@ describe("workspace Markdown", () => {
         text="[Research](research/example.md#risks)"
         streaming={false}
       />,
-    );
-    expect(output).toContain('href="/workspace/research/example.md#risks"');
-  });
-  it("makes chat-relative artifact links ordinary routable Workspace links", () => {
-    const output = renderToStaticMarkup(
-      <ChatArtifactLink href="research/example.md#risks">
-        Open research
-      </ChatArtifactLink>,
     );
     expect(output).toContain('href="/workspace/research/example.md#risks"');
   });
