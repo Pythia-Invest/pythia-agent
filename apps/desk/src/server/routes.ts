@@ -9,9 +9,11 @@ import {
 import { deskViewStore } from "./view-context/store";
 import { createWorkspaceRoutes } from "./workspace/routes";
 import { createTopBarRoutes } from "./top-bar-routes";
-import { createPluginInvokeRoutes } from "./plugin-invoke-routes";
 import { createWidgetRoutes } from "./widget-routes";
-import { createPluginReadRoutes } from "./plugin-read-routes";
+import {
+  createPluginInvokeRoutes,
+  createPluginReadRoutes,
+} from "./plugin-read-routes";
 import { createDataUpdateRoutes } from "./data-update-routes";
 import { createFinancialDataRoutes } from "./financial-data-routes";
 import { workspaceStore } from "./workspace/store";

@@ -59,50 +59,43 @@ test("shared and specialist operations use the authenticated profile route witho
   });
 });
 
-test("missing auth, external destinations and invalid operation paths fail before a request", async () => {
-  const fetcher = vi.fn();
-  vi.stubGlobal("fetch", fetcher);
-  for (const baseUrl of [
-    "https://external.invalid",
-    "http://127.0.0.1:8765/path",
-  ]) {
-    const call = createPluginTransport({
-      NODE_ENV: "test",
-      API_SERVER_KEY: "synthetic-gateway-key-123456789",
-      PYTHIA_HERMES_API_URL: baseUrl,
-    });
+const configured = {
+  NODE_ENV: "test",
+  API_SERVER_KEY: "synthetic-gateway-key-123456789",
+  PYTHIA_HERMES_API_URL: "http://127.0.0.1:8765",
+  PYTHIA_HERMES_PROFILE: "research",
+} as const;
+
+test.each([
+  [
+    "missing auth",
+    { API_SERVER_KEY: undefined },
+    "local",
+    "query",
+    /not configured yet/,
+  ],
+  [
+    "an external destination",
+    { PYTHIA_HERMES_API_URL: "http://external.invalid:8765" },
+    "local",
+    "query",
+    /loopback HTTP address/,
+  ],
+  ["a traversing plugin", {}, "../runs", "query", /invalid_plugin/],
+  ["an encoded plugin path", {}, "local%2Fruns", "query", /invalid_plugin/],
+  ["a nested plugin path", {}, "a/b/c", "query", /invalid_plugin/],
+  ["an empty plugin", {}, "", "query", /invalid_plugin/],
+  ["a traversing operation", {}, "local", "../runs", /invalid_operation/],
+  ["an empty operation", {}, "local", "", /invalid_operation/],
+])(
+  "%s fails before a request",
+  async (_label, change, plugin, operation, error) => {
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    const call = createPluginTransport({ ...configured, ...change });
     await expect(
-      call(
-        { plugin: "pythia-market-data", operation: "query", arguments: {} },
-        new AbortController().signal,
-      ),
-    ).rejects.toThrow();
-  }
-  const call = createPluginTransport({
-    NODE_ENV: "test",
-    API_SERVER_KEY: "synthetic-gateway-key-123456789",
-    PYTHIA_HERMES_API_URL: "http://127.0.0.1:8765",
-  });
-  for (const [plugin, operation] of [
-    ["../runs", "query"],
-    ["local%2Fruns", "query"],
-    ["a/b/c", "query"],
-    ["local", "../runs"],
-    ["", "query"],
-    ["local", ""],
-  ]) {
-    await expect(
-      call(
-        { plugin: plugin ?? "", operation: operation ?? "", arguments: {} },
-        new AbortController().signal,
-      ),
-    ).rejects.toThrow();
-  }
-  await expect(
-    createPluginTransport({ NODE_ENV: "test" })(
-      { plugin: "local", operation: "query", arguments: {} },
-      new AbortController().signal,
-    ),
-  ).rejects.toThrow();
-  expect(fetcher).not.toHaveBeenCalled();
-});
+      call({ plugin, operation, arguments: {} }, new AbortController().signal),
+    ).rejects.toThrow(error);
+    expect(fetcher).not.toHaveBeenCalled();
+  },
+);
