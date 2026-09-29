@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .invariant_checks import (
-    Build, currency_is_issue_country, primary_missing, questions_open, currency_single_currency_venue, currency_withdrawn, primary_floor_beside_xetra,
+    Build, currency_is_issue_country, primary_missing, questions_open, share_primary_silent, currency_single_currency_venue, currency_withdrawn, primary_floor_beside_xetra,
     primary_inactive, primary_more_than_one, primary_open_market_beside_us_exchange, ticker_currency_suffix,
     ticker_two_securities, us_share_without_us_line, venue_ticker_coverage)
 from .invariant_names import (
@@ -107,8 +107,13 @@ INVARIANTS: tuple[Invariant, ...] = (
     Invariant("primary_inactive", "error", "A live security's primary listing is inactive.", primary_inactive),
     Invariant("primary_missing", "error", "A live security has lines but no primary: its evidence did not decide one.",
               primary_missing, 15918, "home-market questions and SEC or OpenFIGI gaps (claims step 3)", headroom=0.02),
+    Invariant("share_primary_silent", "error",
+              "A live share has no primary, and not both a home-market question and a most-liquid line.",
+              share_primary_silent, 4943, "4,928 decided home lines the package cannot write (OpenFIGI gives no trading "
+              "currency; fixed by #46's home currencies), 3,800 of them priced on the most liquid EU line; 15 home-market "
+              "questions whose most liquid venue has no line", headroom=0.02),
     Invariant("questions_open", "error", "A question the build left open (the package's claims file).",
-              questions_open, 11776, "evidence that does not decide (claims step 3)", headroom=0.02),
+              questions_open, 11828, "evidence that does not decide (claims step 3)", headroom=0.02),
     Invariant("primary_open_market_beside_us_exchange", "error",
               "A security with a live NYSE/Nasdaq line has its primary on an EEA open-market segment.",
               primary_open_market_beside_us_exchange),

@@ -158,13 +158,14 @@ class PipelineTest(unittest.TestCase):
         line = self.snap.listings["XCBO:EXLT"]
         self.assertEqual((line.mic, line.operating_mic, line.is_primary), ("XCBO", "XCBO", True))
 
-    def test_an_eea_request_beside_a_line_outside_the_eea_leaves_the_share_to_its_isin_country(self):
-        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. The one line
-        # on an exchange in its ISIN's country (GB) is its home.
+    def test_an_eea_request_beside_a_line_outside_the_eea_is_asked_and_priced_on_the_most_liquid_line(self):
+        # Field 8 decides only an EEA primary: Shell sought Amsterdam, OpenFIGI shows its London line. That line has
+        # no trading currency, so the package cannot write it and the ISIN-country rule does not take it.
         shell = self.snap.securities[f"isin:{SHELL_ISIN}"]
-        self.assertEqual((shell.primary_mic, shell.primary_rule), ("XLON", "isin_country_line"))
-        self.assertTrue(self.snap.listings["XLON:SHEL"].is_primary)
-        self.assertNotIn(shell.security_id, {q.subject_id for q in self.snap.questions})
+        self.assertEqual((shell.primary_mic, shell.primary_rule), (None, "requested_in_eea_listed_outside"))
+        self.assertIn(shell.security_id, {q.subject_id for q in self.snap.questions if q.question == "home_market"})
+        self.assertTrue(self.snap.listings[f"XAMS:{SHELL_ISIN}"].most_liquid)
+        self.assertFalse(self.snap.listings[f"XAMS:{SHELL_ISIN}"].is_primary)
 
     def test_terminated_line_stays_with_its_validity_window(self):
         fund = self.snap.listings[f"XAMS:{FUND_ISIN}"]

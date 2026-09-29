@@ -185,6 +185,15 @@ def questions_open(build: Build) -> list[tuple]:
     return [(item.get("question"), (item.get("subject_ids") or [""])[0]) for item in found]
 
 
+def share_primary_silent(build: Build) -> list[tuple]:
+    """A live share with no primary, and not both a home-market question and a line marked most liquid: the
+    evidence's gap falls through unnoticed (a decided home line the package cannot write, for one)."""
+    asked = {row[1] for row in questions_open(build) if row[0] == "home_market"}
+    return [(build.securities[s]["name"], s) for s in build.by_security if build.live_security(s)
+            and build.securities[s]["kind"] == "ordinary" and build.by_security[s] and not _primaries(build, s)
+            and not (s in asked and any(line["most_liquid"] for line in build.by_security[s]))]
+
+
 def primary_open_market_beside_us_exchange(build: Build) -> list[tuple]:
     """A company with a live NYSE/Nasdaq line whose primary is an EEA open-market segment (Linde on Tradegate).
 

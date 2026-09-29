@@ -52,7 +52,8 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
         for other in lines[security.security_id]:
             other.is_primary = other is line
         security.primary_mic, security.primary_rule = (line.operating_mic if line else None), rule
-        if line is None:  # priced on FIRDS' most liquid EU market, never marked primary
+        if line is None or not line.currency:  # no primary the package can write (an OpenFIGI home line has no
+            # trading currency): priced on FIRDS' most liquid EU market, never marked primary
             relevant = claims.one(isin, Meaning.MOST_LIQUID_EU_MARKET)
             liquid = _on(lines[security.security_id], venues.op(relevant), relevant)
             if liquid:
