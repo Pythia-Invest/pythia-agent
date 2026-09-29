@@ -291,17 +291,21 @@ export async function fixture(
   // unseeded fallback for workspace documents rather than reading real files:
   // a foreign Origin makes Desk refuse the server-rendered snapshot. The browser
   // drops that header from a navigation, so fetch the page outside it.
-  await page.route(/^https?:\/\/[^/]+\/workspace(?:\/|\?|$)/, async (route) =>
-    route.fulfill({
-      response: await route.fetch({
+  // Next prefetches these pages, so a fetch can outlive the test's page.
+  await page.route(/^https?:\/\/[^/]+\/workspace(?:\/|\?|$)/, async (route) => {
+    const response = await route
+      .fetch({
         headers: {
           ...route.request().headers(),
           origin: "https://synthetic.invalid",
         },
         maxRedirects: 0,
-      }),
-    }),
-  );
+      })
+      .catch(() => null);
+    await (response ? route.fulfill({ response }) : route.abort()).catch(
+      () => {},
+    );
+  });
   await page.goto("/c/synthetic-chat");
   await expect(
     page.getByRole("textbox", { name: "Message Pythia" }),
