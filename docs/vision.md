@@ -321,8 +321,9 @@ fully usable.
 
 Today two levels exist, set by the plugin's sign-off status: an unsigned plugin
 is display (off until the user enables it, then merged into lists and shown
-side by side, labelled "not yet audited", but never core's default pick for a
-single-source view), and a signed-off or grandfathered one confirms. Suggest
+side by side, labelled "not yet audited"; for a single-source view it comes
+after every audited source, serving only if the user names it or nothing
+audited can), and a signed-off or grandfathered one confirms. Suggest
 arrives with the first plugin that needs it
 ([ADR 0042](decisions/0042-source-onboarding-standard.md)).
 

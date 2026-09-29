@@ -174,8 +174,9 @@ The code gate maps onto them without a new field: `unsigned` is display, and
   normal: under a combining concept (news, side-by-side values) it is one of
   the sources read, without being named in `source_order`. Its data is
   labelled with its source and "not yet audited". It stays off in fresh
-  profiles and is never core's default pick where one source serves, so its
-  opt-in is enabling it, and naming it is what puts it first.
+  profiles, and where one source serves it comes after every audited source:
+  it serves only if the investor names it or nothing audited can serve.
+  Enabling it is the opt-in; naming it is what puts it first.
 - **Confirm.** Unchanged: only a signed-off or grandfathered plugin creates or
   changes a binding. A display plugin's resolve answer that would bind stays
   an `unaudited` residual for the investor.

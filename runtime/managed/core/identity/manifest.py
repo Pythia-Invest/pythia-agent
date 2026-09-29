@@ -47,7 +47,7 @@ class SignOff(StrEnum):
     SIGNED_OFF = "signed_off"        # passed the four stages; its record says so
     GRANDFATHERED = "grandfathered"  # in use before the standard: keeps its role until its turn
     UNSIGNED = "unsigned"            # display: off in fresh profiles; once enabled it serves and merges, labelled,
-                                     # but is never core's default pick and never confirms identity
+                                     # after every audited source where one serves; never confirms identity
 
 
 @dataclass(frozen=True, slots=True)

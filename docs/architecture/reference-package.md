@@ -156,9 +156,11 @@ exceeds them by more than 2%):
   work adds.
 - "Also:" reads a source once, for the view only. Nothing remembers it per
   subject: a source the investor wants every time goes in `source_order`,
-  which puts it first for every concept it serves. A display (unsigned) source
-  where one source serves, such as NSM for UK filings beside filings.xbrl.org,
-  or an unsigned price source, is reached only this way.
+  which puts it first for every concept it serves. Where one source serves, a
+  display (unsigned) source comes after every audited one: it serves unnamed
+  only if nothing audited can (NSM for a UK issuer filings.xbrl.org does not
+  cover), and otherwise is an "Also:" link (NSM beside filings.xbrl.org).
 - Plugin trust levels have two of three levels in code: display and confirm
   ([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment).
-  Suggest arrives with the first plugin that needs it.
+  Suggest arrives with the first plugin that needs it; until then a user's
+  own vendor addressed by `resolve` needs the investor's confirm per subject.
