@@ -32,7 +32,7 @@ class SeedTest(unittest.TestCase):
         for asset in SEED["assets"]:
             with self.subTest(asset=asset["symbol"]):
                 for deployment in deployments(asset):
-                    # Canonical form (EVM lower case) within CAIP-19's length rules; a Sui coin type cannot pass.
+                    # Canonical form (EVM lower case, the Sui profile's encoding) within CAIP-19's length rules.
                     self.assertEqual(identity.normalize_identifier("caip19", deployment), deployment)
                     self.assertIn(deployment.split("/")[0], chains)
                     self.assertNotIn(deployment, seen, "a deployment belongs to one asset")
