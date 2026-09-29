@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  cn,
   Drawer,
   ResizableGroup,
   ResizablePanel,
@@ -95,8 +96,14 @@ export function ShellDock({
         className="max-[899px]:hidden min-[900px]:[[data-desk-dock-open=true]_&]:hidden"
         onOpen={() => onOpenChange(true)}
       />
-      {wide || mobileOpen ? null : (
-        <AgentDockButton onOpen={() => setMobileOpen(true)} />
+      {/* Server-rendered before the breakpoint is known, so the class keeps
+          it off a wide screen. It stays mounted, hidden, while its sheet is
+          open, so closing the sheet can return focus to it. */}
+      {wide ? null : (
+        <AgentDockButton
+          className={cn("min-[900px]:hidden", mobileOpen && "invisible")}
+          onOpen={() => setMobileOpen(true)}
+        />
       )}
       <Drawer.Root
         open={!wide && mobileOpen}

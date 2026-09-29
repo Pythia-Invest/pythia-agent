@@ -220,8 +220,9 @@ when its main conversation is not visible at the latest messages in the focused
 browser document. Reading a child agent, a different chat, older messages, or a
 hidden browser tab does not acknowledge the parent's answer. Opening the main
 conversation at the bottom or using Jump to latest clears its dot. A chat
-counts as read only while it is on screen: one kept mounted in a background
-dock tab or a closed sheet leaves its reply unread until it is shown. Only unread
+counts as read only while it is on screen and uncovered: one kept mounted in a
+background dock tab, a closed sheet, or under the phone chat list or file
+viewer leaves its reply unread until it is shown. Only unread
 session IDs are kept in browser session storage so a reload preserves them;
 no transcript, native session record, or read receipt is added.
 
@@ -318,8 +319,13 @@ Hermes owner and implied a capability it could not preserve. Pins and native
 session history remain the supported chat organization; a parallel project
 store was rejected.
 
-Phone navigation, sheets and the chat list use the shared modal Drawer for
-focus containment, Escape and restoration to their trigger. The dock uses shared Tabs for roving focus,
+Phone navigation and sheets use the shared modal Drawer for focus
+containment, Escape and restoration to their trigger. The chat list over the
+conversation behaves the same way without being a Drawer: focus moves into it,
+Escape closes it, focus returns to Show chats, and the conversation beneath is
+inert while it is open. Leaving the phone layout closes every phone layer.
+A phone dock shows one chat at a time, so New chat there returns to the unsent
+draft instead of stacking another one out of reach. The dock uses shared Tabs for roving focus,
 arrow activation and panel associations; these primitives retain the existing
 rail, chat-list and tab-strip appearance. Open chat IDs remain in the strip
 even when absent from the bounded session list; missing list metadata uses a

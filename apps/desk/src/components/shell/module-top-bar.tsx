@@ -26,9 +26,11 @@ type Context = Omit<TopBarContext, "transport">;
 type ShellContext = Context & { leading?: ReactNode };
 function SelectedTopBar({
   context,
+  leading,
   selection,
 }: {
   context: Context;
+  leading?: ReactNode;
   selection: TopBarSelection & { moduleUrl: string };
 }) {
   const api = useDeskApi();
@@ -52,7 +54,7 @@ function SelectedTopBar({
   }, [api]);
   const fallback = (retry?: () => void) => (
     <>
-      <TopBar {...context} />
+      <TopBar {...context} leading={leading} />
       <p role="status" className="px-4 text-error text-xs">
         Custom top bar could not be displayed. Using the default header.
       </p>
@@ -78,8 +80,17 @@ function SelectedTopBar({
       embedded
       fallback={fallback}
       onError={withdraw}
-      loadingFallback={<TopBar {...context} />}
-      data={{ ...context, transport }}
+      loadingFallback={<TopBar {...context} leading={leading} />}
+      data={{
+        ...context,
+        actions: (
+          <>
+            {leading}
+            {context.actions}
+          </>
+        ),
+        transport,
+      }}
       options={{}}
       settings={selection.settings}
       presentation={selection.renderer?.presentation}
@@ -102,15 +113,8 @@ export function ModuleTopBar({ leading, ...context }: ShellContext) {
           selection.renderer,
           selection.settings,
         ])}
-        context={{
-          ...context,
-          actions: (
-            <>
-              {leading}
-              {context.actions}
-            </>
-          ),
-        }}
+        context={context}
+        leading={leading}
         selection={{ ...selection, moduleUrl: selection.moduleUrl }}
       />
     );

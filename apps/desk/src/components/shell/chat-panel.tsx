@@ -2,7 +2,7 @@
 
 import { Button, cn, IconButton, SidebarNav, SidebarSection } from "@pythia/ui";
 import { ChevronsLeft, Pin, Search, SquarePen } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type Ref, useEffect, useMemo, useRef, useState } from "react";
 import type { HermesSession } from "@/server/types";
 import { ChatGroup, GroupLabel } from "./chat-group";
 import {
@@ -17,6 +17,8 @@ export type ChatListState = "loading" | "ready" | "unavailable";
 export interface ChatPanelProps {
   activeId: string | null;
   className?: string;
+  /** The list's root, for the phone layer that opens over the conversation. */
+  panelRef?: Ref<HTMLElement>;
   /** Shell-level query from the top bar, applied on top of the local filter. */
   globalQuery?: string;
   id?: string;
@@ -46,6 +48,7 @@ export interface ChatPanelProps {
 export function ChatPanel({
   activeId,
   className,
+  panelRef,
   globalQuery = "",
   id,
   onHide,
@@ -104,6 +107,7 @@ export function ChatPanel({
 
   return (
     <nav
+      ref={panelRef}
       aria-busy={loading || undefined}
       aria-label="Chats"
       className={cn(

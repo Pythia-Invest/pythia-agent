@@ -5,15 +5,19 @@ export function ChatIndicator({
   working = false,
   unread = false,
   idleIcon = false,
+  id,
 }: {
   working?: boolean;
   unread?: boolean;
   idleIcon?: boolean;
+  /** Lets a row whose name is its title describe itself by this status. */
+  id?: string;
 }) {
   if (working)
     return (
       <span
         data-slot="chat-indicator"
+        id={id}
         role="img"
         aria-label="Working"
         title="Working"
@@ -27,6 +31,7 @@ export function ChatIndicator({
     return (
       <span
         data-slot="chat-indicator"
+        id={id}
         role="img"
         aria-label="Unread reply"
         title="Unread reply"

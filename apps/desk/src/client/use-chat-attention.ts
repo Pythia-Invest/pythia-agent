@@ -25,9 +25,22 @@ export function useChatReading(
 ) {
   const { attention } = useDeskChats();
   useEffect(() => {
+    // Laid out, and not covered by a layer over it (the phone chat list, a
+    // full-screen file viewer): the chat itself is what sits at its centre.
     const shown = () => {
       const element = surface.current;
-      return Boolean(element?.isConnected && element.getClientRects().length);
+      if (!element?.isConnected || element.closest("[inert]")) return false;
+      const box = element.getBoundingClientRect();
+      const left = Math.max(box.left, 0);
+      const right = Math.min(box.right, window.innerWidth);
+      const top = Math.max(box.top, 0);
+      const bottom = Math.min(box.bottom, window.innerHeight);
+      if (right <= left || bottom <= top) return false;
+      const hit = document.elementFromPoint(
+        (left + right) / 2,
+        (top + bottom) / 2,
+      );
+      return Boolean(hit && element.contains(hit));
     };
     const visible = () =>
       enabled &&
@@ -37,8 +50,12 @@ export function useChatReading(
       document.hasFocus();
     const unregister = attention.reader(sessionId, visible);
     const acknowledge = () => attention.read(sessionId);
+    // Closing a layer is a click or a key; check again once it has gone.
+    const afterInput = () => requestAnimationFrame(acknowledge);
     window.addEventListener("focus", acknowledge);
     document.addEventListener("visibilitychange", acknowledge);
+    document.addEventListener("click", afterInput, true);
+    document.addEventListener("keyup", afterInput, true);
     // Showing a hidden chat again (switching back to its tab) reads it.
     const observer =
       typeof IntersectionObserver === "undefined" || !surface.current
@@ -50,6 +67,8 @@ export function useChatReading(
       observer?.disconnect();
       window.removeEventListener("focus", acknowledge);
       document.removeEventListener("visibilitychange", acknowledge);
+      document.removeEventListener("click", afterInput, true);
+      document.removeEventListener("keyup", afterInput, true);
     };
   }, [attention, sessionId, enabled, atLatest, surface]);
 }

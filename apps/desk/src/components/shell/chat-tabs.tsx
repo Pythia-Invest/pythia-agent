@@ -189,9 +189,13 @@ export function ChatTabs({
   const current = tabs.find((tab) => tab.id === activeId)?.title ?? "";
   return (
     <>
-      <h2 className="m-0 min-w-0 flex-1 self-center truncate px-4 font-medium text-body text-foreground min-[900px]:hidden">
-        {current}
-      </h2>
+      {current ? (
+        <h2 className="m-0 min-w-0 flex-1 self-center truncate px-4 font-medium text-body text-foreground min-[900px]:hidden">
+          {current}
+        </h2>
+      ) : (
+        <span className="flex-1 min-[900px]:hidden" />
+      )}
       <TabsList
         activateOnFocus
         aria-label={kind === "file" ? "Open files" : "Open chats"}

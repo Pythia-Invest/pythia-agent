@@ -47,6 +47,36 @@ test("shows work in the list and keeps an unseen reply until its chat is opened"
   expect(f.unexpected).toEqual([]);
 });
 
+test("on a phone, a reply that arrives under the open chat list stays unread", async ({
+  page,
+}) => {
+  test.skip(
+    (page.viewportSize()?.width ?? 0) >= 900,
+    "Only a phone lays the chat list over the conversation.",
+  );
+  const f = await fixture(page);
+  await send(page);
+  const chats = await showChats(page);
+  const row = chats.getByRole("link", {
+    name: "Synthetic chat review",
+    exact: true,
+  });
+  f.setHistory([
+    { id: "question", role: "user", content: "Check the synthetic example." },
+    { id: "reply", role: "assistant", content: "Reply under the list." },
+  ]);
+  await f.emit([{ event: "run.completed", output: "Reply under the list." }]);
+  await expect(row.getByRole("img", { name: "Unread reply" })).toBeVisible();
+  // Hiding the list shows the reply, which reads it.
+  await chats.getByRole("button", { name: "Hide chats", exact: true }).click();
+  await expect(
+    page.getByText("Reply under the list.", { exact: true }),
+  ).toBeVisible();
+  const again = await showChats(page);
+  await expect(again.getByRole("img", { name: "Unread reply" })).toHaveCount(0);
+  expect(f.unexpected).toEqual([]);
+});
+
 test("reading earlier messages leaves a new reply unread until Jump to latest", async ({
   page,
 }) => {

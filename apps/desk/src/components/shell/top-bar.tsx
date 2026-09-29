@@ -98,6 +98,11 @@ export function TopBar({
           onKeyDown={(event) => {
             if (event.key === "Escape" && open) cancel();
           }}
+          // An empty field folds away again once focus leaves it, so a
+          // shortcut used on a wide screen does not leave a phone bar open.
+          onBlur={() => {
+            if (!query) setExpanded(false);
+          }}
           placeholder="Search names, filings, chats"
           ref={inputRef}
           type="search"
