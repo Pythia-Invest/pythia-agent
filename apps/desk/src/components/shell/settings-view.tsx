@@ -58,7 +58,7 @@ const sections = [
     id: "repairs",
     label: "Repairs",
     description:
-      "Issues Pythia could not settle on its own. The agent normally fixes these.",
+      "Issues Pythia could not settle on its own. The agent may suggest an answer; it counts once you confirm it.",
   },
 ] as const;
 

@@ -6,6 +6,7 @@ import { useSubjectPages } from "@/client/market-queries";
 import { instrumentHref } from "@/components/instrument/instrument-href";
 import { useBindingSnapshot } from "@/components/widgets/bound-widget";
 import {
+  dayItem,
   loadingItem,
   subjectLabel,
   subjectName,
@@ -42,7 +43,7 @@ export function useSubjectDays(
     const at = quote?.row && settled ? next++ : -1;
     const row = at >= 0 ? snapshot?.data.rows[at] : undefined;
     const item = row
-      ? { ...row, id: subject }
+      ? dayItem(row, subject, quote?.source)
       : page?.error
         ? unavailableItem(
             subject,

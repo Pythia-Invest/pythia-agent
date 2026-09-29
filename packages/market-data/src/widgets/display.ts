@@ -238,12 +238,12 @@ export function financialInstrument(
               ? "current"
               : "unknown",
       ...(delay !== undefined && delay > 0 ? { delayMinutes: delay / 60 } : {}),
-      ...(change?.baseline.kind === "previous_close"
-        ? { period: "daily" as const }
-        : change?.baseline.kind === "rolling" &&
-            change.baseline.duration_seconds === 86400
-          ? { period: "24h" as const }
-          : {}),
+      // A change since the previous close is today's move, not a daily
+      // series; its basis stays on the change. A rolling window is a period.
+      ...(change?.baseline.kind === "rolling" &&
+      change.baseline.duration_seconds === 86400
+        ? { period: "24h" as const }
+        : {}),
     },
     statusLabel: !available
       ? "Price unavailable"
