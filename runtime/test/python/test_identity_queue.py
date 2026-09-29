@@ -13,7 +13,7 @@ from pathlib import Path
 from test_identity_contracts import PROVENANCE, identity
 from test_identity_page import ASML, LEI, Fixture, plugin, unsigned
 from test_reference_package import make_package
-from pythia_identity_fixture import page, queue, reference_package, store  # noqa: E402
+from pythia_identity_fixture import build_questions, page, queue, reference_package, store  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
 
@@ -180,8 +180,8 @@ class BuildQuestionTest(QueueFixture):
                 "candidate_ids": [ASML]}
         issuer = {"question": "issuer_identity", "kind": "conflict", "reason": "identifier", "subject_ids": [security],
                   "evidence_ids": ["record:0123456789abcdef"], "scheme": "lei", "values": ["529900G3SW56SHYNPR95"]}
-        self.assertEqual(queue.import_build(self.identity, [home, issuer, {"kind": "bogus"}], NOW), 2)
-        self.assertEqual(queue.import_build(self.identity, [home, issuer], NOW), 0, "never asked twice")
+        self.assertEqual(build_questions.import_build(self.identity, [home, issuer, {"kind": "bogus"}], NOW), 2)
+        self.assertEqual(build_questions.import_build(self.identity, [home, issuer], NOW), 0, "never asked twice")
         listed = queue.listing(self.identity, self.ref, subject_id=None, kind=None, plugins={queue.BUILD}, limit=10,
                                answered=False, notice=False)
         texts = {item["reason"]: item["question"] for item in listed["items"]}
@@ -196,8 +196,8 @@ class BuildQuestionTest(QueueFixture):
         user = queue.submit(self.identity, self.ref, item_id=item["id"], resolver="user", relation="same_listing",
                             chosen_id=ASML, now=NOW, as_of=AS_OF, user_turn="desk:identity-verdict:test")
         self.assertEqual((user["outcome"], user["state"]), ("confirmed", "resolved"))
-        self.assertEqual(queue.retire_build(self.identity, NOW), 1, "the other question goes with its release")
-        self.assertEqual(queue.import_build(self.identity, [home], NOW), 0, "an answered question is not asked again")
+        self.assertEqual(build_questions.retire_build(self.identity, NOW), 1, "the other question goes with its release")
+        self.assertEqual(build_questions.import_build(self.identity, [home], NOW), 0, "an answered question is not asked again")
 
 
 class StoreTest(QueueFixture):

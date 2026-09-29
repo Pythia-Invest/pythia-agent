@@ -13,7 +13,7 @@ from unittest import mock
 from reference_builder import assemble, firds, gleif, linking, manifest, mic, schema, sec, writer
 from reference_builder.assemble import Inputs
 from reference_builder.config import Scope
-from reference_builder.linking import link_receipts
+from reference_builder.receipts import link_receipts
 from reference_builder.model import Issuer, Listing, Relationship, SecFund, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
 

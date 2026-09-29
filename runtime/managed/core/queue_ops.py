@@ -14,7 +14,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from .identity import queue as questions
-from .identity import reference_package, schemes, store
+from .identity import build_questions, reference_package, schemes, store
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -71,7 +71,8 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = False) ->
     """Put the installed build's questions about these subjects on the queue (once each): the investor opened or
     watches them, or the agent asked. The build's other questions stay in its package, out of Repairs. With
     `family`, a listing or security also brings its security's and issuer's questions."""
-    path = store.reference_path(identity.data_dir)
+    data_dir = getattr(identity, "data_dir", None)
+    path = store.reference_path(data_dir) if data_dir is not None else None
     if path is None or not subject_ids:
         return
     if family:
@@ -92,7 +93,7 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = False) ->
     wanted = [item for subject in dict.fromkeys(subject_ids) for item in _BUILD_INDEX[key].get(subject, ())]
     if wanted:
         try:
-            questions.import_build(identity.store, wanted, store.now())
+            build_questions.import_build(identity.store, wanted, store.now())
         except (sqlite3.Error, OSError):
             logger.warning("reference build questions could not be surfaced", exc_info=True)
 

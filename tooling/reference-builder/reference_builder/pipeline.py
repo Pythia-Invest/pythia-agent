@@ -8,7 +8,8 @@ from collections import Counter
 from . import reconcile
 from .assemble import FigiMap, GleifFetch, Inputs, build_eu
 from .claims import Venues
-from .linking import build_sec, link_receipts
+from .linking import build_sec
+from .receipts import link_receipts
 from .model import Snapshot, Venue
 
 

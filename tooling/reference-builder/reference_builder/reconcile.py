@@ -9,7 +9,7 @@
   on `firds.FIELD8_VENUE_HABIT` segments decides nothing. With no request, a line outside the EEA decides as the
   SEC and OpenFIGI stages always have (to be onboarded next); with none, the relevant venue is only a liquidity
   measure, so the primary is unknown and asked.
-- Receipt underlying: field 26 (`linking.link_receipts`); a share that states one is asked as `receipt_conflict`.
+- Receipt underlying: field 26 (`receipts.link_receipts`); a share that states one is asked as `receipt_conflict`.
 """
 
 from __future__ import annotations

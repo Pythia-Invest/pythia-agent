@@ -289,7 +289,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     audit["securities_without_primary"] = sum(1 for key, security in snap.securities.items()
                                               if security.activity != "inactive" and key not in with_primary)
     for relation in snap.relationships:
-        # linking.link_receipts keeps only targets this build holds; anything else is skipped and counted below.
+        # receipts.link_receipts keeps only targets this build holds; anything else is skipped and counted below.
         source, target = ids.securities.get(relation.from_id), ids.securities.get(relation.to_id)
         try:
             item = identity.Relation(type=relation.relation, from_id=source, to_id=target, authority="snapshot",
