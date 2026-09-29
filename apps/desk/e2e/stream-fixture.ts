@@ -1,3 +1,4 @@
+import type { WorkPage, AgentPage } from "../src/work/types";
 import type { WorkspaceTurn } from "../src/workspace/references";
 import type { DeskViewPublication } from "../src/view-context/types";
 import { expect, type Page } from "@playwright/test";
@@ -14,6 +15,23 @@ export async function fixture(
   initialHistory: HermesMessage[] = [],
 ) {
   let history: HermesMessage[] = initialHistory;
+  let work: WorkPage = {
+    plans: [],
+    agents: [],
+    assignments: [],
+    offset: 0,
+    historyMore: false,
+    agentsMore: false,
+  };
+  let agentPage: AgentPage = {
+    assignment: "Verify source coverage",
+    messages: [],
+    ended: false,
+    offset: 0,
+    more: false,
+  };
+  const workPages = new Map<number, WorkPage>();
+  const agentPages = new Map<string, AgentPage>();
   let status: RunStatus = { run_id: "synthetic-run", status: "running" };
   let queueAvailable = true;
   let streamRequests = 0;
@@ -37,10 +55,34 @@ export async function fixture(
   const steers: string[] = [];
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (/^\/api\/sessions\/[^/]+\/work$/.test(path))
+      return route.fulfill({
+        json: new URL(route.request().url()).searchParams.has("child")
+          ? (agentPages.get(
+              new URL(route.request().url()).searchParams.get("child") ?? "",
+            ) ?? agentPage)
+          : (workPages.get(
+              Number(
+                new URL(route.request().url()).searchParams.get("offset") ?? 0,
+              ),
+            ) ?? work),
+      });
     if (path === "/api/browser-session")
       return route.fulfill({ json: { csrf_token: "synthetic" } });
+    if (path === "/api/desk/top-bar")
+      return route.fulfill({ json: { renderer: null, settings: {} } });
     if (path === "/api/capabilities")
       return route.fulfill({ json: { runSteer: true, modelOptions: true } });
+    if (path === "/api/update-status" && route.request().method() === "GET")
+      return route.fulfill({
+        json: {
+          status: "ready",
+          channel: "preview",
+          current_version: "Preview",
+          current_revision: "a".repeat(40),
+          apply_supported: false,
+        },
+      });
     if (path === "/api/models")
       return route.fulfill({
         json: {
@@ -281,6 +323,16 @@ export async function fixture(
     viewTerminations,
     selections,
     steers,
+    setWork: (next: WorkPage) => {
+      work = next;
+    },
+    setAgentPage: (next: AgentPage, childId?: string) => {
+      if (childId) agentPages.set(childId, next);
+      else agentPage = next;
+    },
+    setWorkPage: (next: WorkPage) => {
+      workPages.set(next.offset, next);
+    },
     setHistory: (messages: HermesMessage[]) => {
       history = messages;
     },

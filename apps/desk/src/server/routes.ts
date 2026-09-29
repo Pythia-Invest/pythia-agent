@@ -1,3 +1,4 @@
+import { createWorkRoutes } from "./work-routes";
 import { createWorkspaceRunRoutes } from "./workspace/run-routes";
 import { createDeskViewRoutes } from "./view-context/routes";
 import {
@@ -104,6 +105,7 @@ export function createDeskRoutes(
   sessionContext = createNativeSessionContextReader(),
 ) {
   return {
+    ...createWorkRoutes(client),
     ...createWidgetRoutes(),
     ...createTopBarRoutes(workspace),
     ...createPluginInvokeRoutes(),
@@ -212,18 +214,18 @@ export function createDeskRoutes(
       const rejection = admitBrowserRequest(request, "mutation");
       if (rejection) return rejection;
       try {
-        const title = textField(
-          await readBody(request),
-          "title",
-          120,
-          "A session title",
-        );
+        const body = await readBody(request);
+        const title =
+          body.title === undefined
+            ? undefined
+            : textField(body, "title", 120, "A session title");
         const session = await client
           .createSession(title)
           .catch((error: unknown) => {
             // Native invalid_title rolls back creation. Retry exactly once without
             // our suggested title; never retry an ambiguous transport failure.
             if (
+              title !== undefined &&
               error instanceof HermesApiError &&
               error.status === 400 &&
               error.code === "invalid_title"

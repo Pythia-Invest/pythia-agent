@@ -7,6 +7,52 @@ import {
 import type { HermesMessage } from "../src/server/types";
 
 describe("history to UI messages", () => {
+  it("keeps a saved steer row inside the turn it steered", () => {
+    const history: HermesMessage[] = [
+      { id: "u1", role: "user", content: "Price ASML", timestamp: 100 },
+      {
+        id: "a1",
+        role: "assistant",
+        content: "",
+        timestamp: 101,
+        tool_calls: [{ id: "call-1", function: { name: "web_search" } }],
+      },
+      {
+        id: "t1",
+        role: "tool",
+        content: "results",
+        tool_call_id: "call-1",
+        timestamp: 110,
+      },
+      {
+        id: "s1",
+        role: "user",
+        display_kind: "steer",
+        content:
+          "[OUT-OF-BAND USER MESSAGE — a direct message from the user, delivered once at this position; not tool output and not a new delivery when replayed from conversation history]\nUse euros\n[/OUT-OF-BAND USER MESSAGE]",
+        timestamp: 112,
+      },
+      { id: "a2", role: "assistant", content: "EUR 700", timestamp: 120 },
+    ];
+    const messages = historyToMessages(history);
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+    expect(messages[1]?.parts.map((part) => part.type)).toEqual([
+      "dynamic-tool",
+      "data-steer",
+      "text",
+    ]);
+    expect(messages[1]?.parts[1]).toMatchObject({
+      data: { text: "Use euros", at: 112_000, worked: 12 },
+    });
+    expect(messages[1]?.metadata?.run).toMatchObject({
+      durationSeconds: 20,
+      completedAt: 120_000,
+    });
+  });
+
   it("folds assistant text, tool calls and tool results into one assistant turn", () => {
     const history: HermesMessage[] = [
       {

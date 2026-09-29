@@ -86,7 +86,16 @@ test("user bubbles align right while replies and persistent actions share the le
   ]);
   const first = page.locator('[data-role="assistant"]').first();
   const actions = first.locator('[data-slot="answer-actions"]');
-  await expect(actions).toBeVisible();
+  // Only the latest answer keeps its actions on screen; earlier ones show
+  // them on hover or keyboard focus.
+  await expect(
+    page
+      .locator('[data-role="assistant"]')
+      .last()
+      .locator('[data-slot="answer-actions"]'),
+  ).toHaveCSS("opacity", "1");
+  await expect(actions).toHaveCSS("opacity", "0");
+  await actions.getByRole("button", { name: "Copy answer" }).focus();
   await expect(actions).toHaveCSS("opacity", "1");
   const bubble = await page.locator('[data-role="user"]').first().boundingBox();
   const reply = await first.boundingBox();
@@ -94,7 +103,8 @@ test("user bubbles align right while replies and persistent actions share the le
   if (!bubble || !reply || !bar) throw new Error("Transcript geometry missing");
   expect(bubble.x).toBeGreaterThan(reply.x);
   expect(bubble.x + bubble.width).toBeCloseTo(reply.x + reply.width, 0);
-  expect(bar.x).toBeGreaterThanOrEqual(reply.x);
+  // The icon row sits 5px out so its glyphs, not their hit areas, align.
+  expect(Math.abs(bar.x - reply.x)).toBeLessThanOrEqual(5);
   await expect(page.locator('[data-role="system"]')).toHaveCSS(
     "text-align",
     "start",

@@ -33,6 +33,12 @@ in chat and use ordinary Markdown links between files. Preserve uploaded chat
 originals; copy useful material into research when appropriate. Desk is a
 read-only viewer; agent/native or external edits can change files while viewed.
 
+Cite the web pages behind facts, figures and quotes. Right after the sentence
+or paragraph a page supports, add a Markdown link to it whose text is the
+publication's short name, such as [Example News](https://news.example.com/a);
+use consecutive links for several pages. Cite only URLs a tool returned. A link
+inside a sentence is for a page the reader should open, not a citation.
+
 When a current-turn view reference and pythia_desk_view are available, the tool
 can report that Desk tab's recent structured page/file context. It is not a live
 screen, arbitrary browser access or a document reader. If absent, unavailable or

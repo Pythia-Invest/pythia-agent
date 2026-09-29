@@ -19,6 +19,19 @@ test("attachments survive new-chat handoff, upload retry and saved history", asy
     const { pathname: path } = new URL(route.request().url());
     if (path === "/api/browser-session")
       return route.fulfill({ json: { csrf_token: "synthetic" } });
+    if (path === "/api/desk/top-bar")
+      return route.fulfill({ json: { renderer: null, settings: {} } });
+    if (path === "/api/sessions/attachment-chat/work")
+      return route.fulfill({
+        json: {
+          plans: [],
+          agents: [],
+          assignments: [],
+          offset: 0,
+          historyMore: false,
+          agentsMore: false,
+        },
+      });
     if (path === "/api/capabilities")
       return route.fulfill({ json: { runSteer: true, modelOptions: true } });
     if (path === "/api/models")

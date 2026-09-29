@@ -1,182 +1,251 @@
 import type { DynamicToolUIPart } from "ai";
+import { fileName, host, readableQuery, record, text } from "./tool-text";
 
 /**
- * Plain-language copy for Hermes tool calls. Every row inside the process
- * block reads as "what the agent did to what": a verb from the tool's kind
- * and a target from its arguments or Hermes's own preview text.
+ * Plain-language copy for Hermes tool calls. A reader should understand every
+ * visible line without knowing a tool name, a shell command or a file path:
+ * rows say what the agent did in ordinary words, and internal plumbing (tool
+ * catalogue lookups, skill loading, reading its own agents' logs) is not shown
+ * at all. Delegation and plans have their own presentation, so their calls
+ * never render as ordinary rows either.
  */
-export type ToolKind =
-  | "lookup"
-  | "skill"
-  | "explore"
-  | "edit"
-  | "run"
-  | "delegate"
-  | "memory"
-  | "plan"
-  | "other";
-
-const KIND_COPY: Record<ToolKind, { past: string; present: string }> = {
-  delegate: {
-    past: "Delegated",
-    present: "Delegating",
-  },
-  edit: { past: "Edited", present: "Editing" },
-  explore: {
-    past: "Explored",
-    present: "Exploring",
-  },
-  lookup: { past: "Looked up", present: "Looking up" },
-  memory: { past: "Saved", present: "Saving" },
-  other: { past: "Used", present: "Using" },
-  plan: { past: "Updated", present: "Updating" },
-  run: { past: "Ran", present: "Running" },
-  skill: { past: "Read", present: "Reading" },
-};
-
-const LOOKUP_TOOLS = new Set(["tool_search", "tool_describe"]);
-const SKILL_TOOLS = new Set(["skill_view", "skills_list", "skill_manage"]);
-const EDIT_TOOLS = new Set(["edit_file", "patch", "write_file"]);
-const RUN_TOOLS = new Set(["terminal", "execute_code"]);
-const EXPLORE_TOOLS = new Set([
-  "list_files",
-  "read_file",
-  "search_files",
-  "session_search",
-  "vision_analyze",
-  "web_extract",
-  "web_search",
-]);
-
-export function toolKind(toolName: string): ToolKind {
-  if (LOOKUP_TOOLS.has(toolName)) return "lookup";
-  if (SKILL_TOOLS.has(toolName)) return "skill";
-  if (EDIT_TOOLS.has(toolName)) return "edit";
-  if (RUN_TOOLS.has(toolName)) return "run";
-  if (toolName === "delegate_task") return "delegate";
-  if (toolName === "memory") return "memory";
-  if (toolName === "todo") return "plan";
-  if (
-    EXPLORE_TOOLS.has(toolName) ||
-    toolName.startsWith("browser_") ||
-    toolName.startsWith("pythia_")
-  ) {
-    return "explore";
-  }
-  return "other";
-}
-
 export type ToolView = {
   /** The tool that did the work, read through Hermes's bridge wrappers. */
   toolName: string;
   input: Record<string, unknown>;
-  kind: ToolKind;
 };
 
-export function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
+export type ToolCopy = {
+  /** Not a step a reader needs to follow. */
+  hidden: boolean;
+  /** Short present tense for the single live status line. */
+  status: string;
+  /** The activity row while the call runs. */
+  running: string;
+  /** The activity row once it finished. */
+  done: string;
+  /** The activity row when it failed. */
+  failed: string;
+};
 
 /**
  * Hermes reaches deferred plugin tools through `tool_call`, whose arguments
- * name the real tool. `tool_search` and `tool_describe` are the agent looking
- * the catalogue up, not the work itself, so they stay their own kind.
+ * name the real tool.
  */
 export function toolView(part: DynamicToolUIPart): ToolView {
   const input = record(part.input);
   if (part.toolName === "tool_call") {
-    const inner =
+    // Saved calls carry the inner tool's name; the live event only previews it.
+    const named =
       typeof input.name === "string"
         ? input.name
         : typeof input.tool === "string"
           ? input.tool
           : "";
-    if (inner) {
+    const previewed =
+      typeof input.preview === "string" && /^[\w.-]+$/u.test(input.preview)
+        ? input.preview
+        : "";
+    const inner = named || previewed;
+    if (previewed && !named) return { toolName: previewed, input: {} };
+    if (inner)
       return {
         toolName: inner,
         input: {
           ...record(input.arguments ?? input.input ?? input.args),
           ...(input.preview ? { preview: input.preview } : {}),
         },
-        kind: toolKind(inner),
       };
+  }
+  return { toolName: part.toolName, input };
+}
+
+const PLUMBING = new Set([
+  "tool_search",
+  "tool_describe",
+  "skill_view",
+  "skills_list",
+  "skill_manage",
+  "pythia_desk_view",
+  "delegate_task",
+  "todo",
+  "process",
+]);
+
+/** The subagent transcripts Hermes writes for the parent to read back. */
+function agentLog(path: string) {
+  const file = path.replace(/\s+L\d+(?:-\d+)?$/u, "");
+  return /(?:^|\/)task-\d+\.log$/u.test(file) || file.includes("/delegation/");
+}
+
+function copy(
+  status: string,
+  done: string,
+  failed: string,
+  running = status,
+): ToolCopy {
+  return { hidden: false, status, running, done, failed };
+}
+
+const HIDDEN: ToolCopy = {
+  hidden: true,
+  status: "Thinking",
+  running: "",
+  done: "",
+  failed: "",
+};
+
+export function toolCopy(view: ToolView): ToolCopy {
+  const { toolName, input } = view;
+  const preview = text(input, ["preview"]);
+  if (PLUMBING.has(toolName)) {
+    if (toolName === "delegate_task") {
+      // Saved calls name the action; the live event previews it as
+      // "<action> <subagent id>" (agent/display.py:build_tool_preview).
+      const action =
+        text(input, ["action"]) ||
+        (/^(list|steer|stop)(?: \S+)?$/u.exec(preview)?.[1] ?? "");
+      const status =
+        action === "list" || action === "status"
+          ? "Checking research agents"
+          : action === "stop"
+            ? "Stopping a research agent"
+            : action === "steer"
+              ? "Redirecting a research agent"
+              : "Starting research agents";
+      return { ...HIDDEN, status };
     }
+    if (toolName === "todo") return { ...HIDDEN, status: "Planning" };
+    return HIDDEN;
   }
-  return { toolName: part.toolName, input, kind: toolKind(part.toolName) };
-}
-
-/** "web_search" → "web search"; a label when no better target is known. */
-export function humanToolName(toolName: string) {
-  return toolName.replace(/^pythia_/u, "").replaceAll(/[_-]+/g, " ");
-}
-
-function firstString(record: Record<string, unknown>, keys: readonly string[]) {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
-}
-
-/** What the call acted on, from live preview text or stored arguments. */
-export function toolTarget(view: ToolView) {
-  const { input } = view;
-  const preview = firstString(input, ["preview"]);
-  if (preview) return preview;
-  const command = firstString(input, ["command", "code"]);
-  if (command) return command.split(/\r?\n/u)[0] ?? command;
-  const path = firstString(input, ["path", "file", "filepath", "file_path"]);
-  if (path) return path.split("/").filter(Boolean).at(-1) ?? path;
-  if (view.kind === "skill") return firstString(input, ["name"]);
-  if (view.kind === "delegate") {
-    const tasks = Array.isArray(input.tasks) ? input.tasks : [];
-    const goal = firstString(record(tasks[0]), ["goal", "task"]);
-    if (goal) return tasks.length > 1 ? `${tasks.length} tasks` : goal;
-  }
-  return firstString(input, [
-    "query",
-    "url",
-    "ticker",
-    "company",
-    "symbol",
-    "goal",
-    "target",
-  ]);
-}
-
-/** Row label: "Exploring ASML EUV" while pending, "Explored ASML EUV" after. */
-export function toolLabel(view: ToolView, pending: boolean) {
-  const copy = KIND_COPY[view.kind];
-  const verb = pending ? copy.present : copy.past;
-  if (view.kind === "plan") return `${verb} the plan`;
-  if (view.kind === "memory") return pending ? "Using memory" : "Used memory";
-  if (view.toolName === "skill_manage")
-    return pending ? "Managing a skill" : "Used skill management";
-  if (view.kind === "skill" && view.toolName === "skills_list")
-    return pending ? "Listing skills" : "Listed skills";
-  const target = toolTarget(view);
-  if (target) {
-    return view.kind === "skill"
-      ? `${verb} the ${target} skill`
-      : `${verb} ${target}`;
-  }
-  return `${verb} ${humanToolName(view.toolName)}`;
-}
-
-/**
- * A stored result whose body reports an error. Hermes history carries no
- * error flag, so a failed call would otherwise wear a check mark.
- */
-export function outputReportsFailure(output: unknown) {
-  if (typeof output !== "string") return false;
-  const text = output.trim();
-  if (!text.startsWith("{")) return false;
-  try {
-    const parsed = record(JSON.parse(text));
-    return Boolean(parsed.error) || parsed.status === "error";
-  } catch {
-    return false;
+  switch (toolName) {
+    case "web_search": {
+      const { terms, site } = readableQuery(text(input, ["query"]) || preview);
+      const subject = terms ? `“${terms}”` : site;
+      return copy(
+        "Searching the web",
+        subject ? `Searched the web for ${subject}` : "Searched the web",
+        "A web search didn't work",
+        subject ? `Searching the web for ${subject}` : "Searching the web",
+      );
+    }
+    case "web_extract":
+    case "browser_navigate": {
+      const source = Array.isArray(input.urls)
+        ? input.urls.join(" ")
+        : text(input, ["urls", "url"]) || preview;
+      const sites = [
+        ...new Set(
+          [...source.matchAll(/https?:\/\/[^\s'"\],]+/giu)].map((url) =>
+            host(url[0]),
+          ),
+        ),
+      ];
+      const pages = source.match(/https?:\/\//giu)?.length ?? 0;
+      const where =
+        sites.length === 1
+          ? pages > 1
+            ? `${pages} pages on ${sites[0]}`
+            : sites[0]
+          : sites.length === 2
+            ? `${sites[0]} and ${sites[1]}`
+            : sites.length
+              ? `${pages} pages`
+              : "";
+      return copy(
+        where ? `Reading ${where}` : "Reading a page",
+        where ? `Read ${where}` : "Read a page",
+        where ? `Couldn't open ${where}` : "Couldn't open the page",
+      );
+    }
+    case "terminal": {
+      // The exact command is one click away; the row only says what kind.
+      const python = /\bpython3?\b/u.test(text(input, ["command"]) || preview);
+      return python
+        ? copy(
+            "Running a Python script",
+            "Ran a Python script",
+            "A Python script didn't finish",
+          )
+        : copy("Running a command", "Ran a command", "A command didn't finish");
+    }
+    case "execute_code":
+      return copy(
+        "Running a Python script",
+        "Ran a Python script",
+        "A Python script didn't finish",
+      );
+    case "read_file": {
+      const path = text(input, ["path", "file", "filepath"]) || preview;
+      if (agentLog(path)) return HIDDEN;
+      const name = fileName(path);
+      return copy(
+        name ? `Reading ${name}` : "Reading a file",
+        name ? `Read ${name}` : "Read a file",
+        name ? `Couldn't read ${name}` : "Couldn't read a file",
+      );
+    }
+    case "write_file":
+    case "patch":
+    case "edit_file": {
+      const name = fileName(text(input, ["path", "file"]) || preview);
+      const verb = toolName === "write_file" ? "Wrote" : "Edited";
+      return copy(
+        name
+          ? `${verb === "Wrote" ? "Writing" : "Editing"} ${name}`
+          : "Saving a file",
+        name ? `${verb} ${name}` : `${verb} a file`,
+        name ? `Couldn't save ${name}` : "Couldn't save a file",
+      );
+    }
+    case "search_files":
+    case "list_files":
+      return copy(
+        "Looking through your workspace",
+        "Looked through your workspace",
+        "Couldn't search your workspace",
+      );
+    case "session_search":
+      return copy(
+        "Checking earlier conversations",
+        "Checked earlier conversations",
+        "Couldn't search earlier conversations",
+      );
+    case "memory":
+      return copy("Updating notes", "Updated notes", "Couldn't update notes");
+    case "vision_analyze":
+      return copy(
+        "Looking at an image",
+        "Looked at an image",
+        "Couldn't read the image",
+      );
+    case "clarify":
+      return copy("Asking you a question", "Asked you a question", "");
+    case "pythia_sec_company": {
+      const subject = text(input, ["ticker", "company", "symbol", "query"]);
+      return copy(
+        "Checking SEC filings",
+        subject ? `Checked SEC filings for ${subject}` : "Checked SEC filings",
+        "Couldn't reach SEC EDGAR",
+      );
+    }
+    case "pythia_eod_prices": {
+      const subject = text(input, ["ticker", "symbol", "tickers", "symbols"]);
+      return copy(
+        "Getting market prices",
+        subject ? `Got closing prices for ${subject}` : "Got closing prices",
+        subject ? `Couldn't get prices for ${subject}` : "Couldn't get prices",
+      );
+    }
+    default: {
+      if (toolName.startsWith("browser_"))
+        return copy(
+          "Using the browser",
+          "Used the browser",
+          "A browser step didn't work",
+        );
+      const name = toolName.replace(/^pythia_/u, "").replaceAll(/[_-]+/gu, " ");
+      return copy(`Using ${name}`, `Used ${name}`, `Couldn't use ${name}`);
+    }
   }
 }

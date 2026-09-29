@@ -68,6 +68,7 @@ export function mapHermesEvent(value: unknown): DeskRunEvent | null {
     "goal",
     "child_session_id",
     "subagent_id",
+    "parent_id",
     "model",
     "pending_steer",
     "code",
@@ -82,6 +83,7 @@ export function mapHermesEvent(value: unknown): DeskRunEvent | null {
   if (duration !== undefined) mapped.duration = duration;
   for (const field of [
     "task_count",
+    "depth",
     "task_index",
     "tool_count",
     "duration_seconds",

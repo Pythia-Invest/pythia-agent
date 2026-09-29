@@ -1,11 +1,41 @@
 import type { UIMessageChunk } from "ai";
 import type { DeskRunEvent } from "@/server/types";
 import type { DeskDataParts } from "./chat-message";
+import type { WorkAgent } from "@/work/types";
 
 type DeskChunk = UIMessageChunk<unknown, DeskDataParts>;
 
 /** Delegated task details attached to the parent native tool call. */
 export class RunDelegations {
+  readonly #agents = new Map<string, WorkAgent>();
+  /** Independent of the delegate tool's lifetime: background children outlive it. */
+  event(event: DeskRunEvent): DeskChunk[] {
+    const id = event.child_session_id ?? event.subagent_id;
+    if (!id) return [];
+    const previous = this.#agents.get(id);
+    const status: WorkAgent["status"] =
+      event.event === "subagent.start"
+        ? "running"
+        : event.status === "completed"
+          ? "completed"
+          : ["interrupted", "cancelled", "stopped"].includes(event.status ?? "")
+            ? "stopped"
+            : ["error", "failed", "timeout"].includes(event.status ?? "")
+              ? "failed"
+              : "ended";
+    const data: WorkAgent = {
+      ...previous,
+      id,
+      status,
+      goal: event.goal ?? previous?.goal ?? "Research agent",
+      ...(event.child_session_id ? { sessionId: event.child_session_id } : {}),
+      ...(event.parent_id ? { parentId: event.parent_id } : {}),
+      ...(event.model ? { model: event.model } : {}),
+      ...(event.summary ? { summary: event.summary } : {}),
+    };
+    this.#agents.set(id, data);
+    return [{ type: "data-agent", id: `agent:${id}`, data }];
+  }
   readonly #tasks = new Map<string, Array<Record<string, unknown>>>();
   start(event: DeskRunEvent, toolCallId: string): DeskChunk[] {
     const out: DeskChunk[] = [];
