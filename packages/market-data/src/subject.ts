@@ -15,8 +15,6 @@ import { INSTRUMENT_KINDS } from "./search";
 import { providerRefSchema } from "./widgets/contract";
 import { withheldFactSchema } from "./withheld";
 
-export type { WithheldFact } from "./withheld";
-
 /** Core plugin id; feature query keys start with the serving plugin (ADR 0036). */
 export const SUBJECT_PLUGIN = "pythia";
 
@@ -80,9 +78,7 @@ export const subjectSectionSchema = z.object({
    * underlying_identifier);
    * absent when the source found no match. */
   queued: text.nullish(),
-  /** The open question (Settings → Repairs) that holds this section back:
-   * a queued match, a record under review, or the issuer a company section
-   * waits for. */
+  /** The open question (queue item) that holds this section back. */
   question: text.nullish(),
   /** When a read of the serving address last agreed with the reference
    * (core's read check), or why it did not ("currency differs"); it still serves. */

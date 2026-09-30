@@ -1,11 +1,7 @@
 "use client";
 
 import { KIND_LABELS } from "@pythia/market-data/search-ui";
-import type {
-  SubjectListing,
-  SubjectPage,
-  WithheldFact,
-} from "@pythia/market-data/subject";
+import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
 import { Menu, Skeleton } from "@pythia/ui";
 import { Check, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -13,7 +9,12 @@ import type { CorrectFn } from "@/client/corrections";
 import { IdentifierCorrection } from "./identifier-correction";
 import { instrumentHref } from "./instrument-href";
 import { listingGroups, listingLabel, listingVenue } from "./listing-groups";
-import { OpenConflict, optionsNote, ReviewLink } from "./open-conflict";
+import {
+  OpenConflict,
+  optionsNote,
+  ReviewLink,
+  type WithheldFact,
+} from "./open-conflict";
 import { RelatedLinks } from "./related-links";
 
 const IDENTIFIERS = [

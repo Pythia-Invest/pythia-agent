@@ -6,7 +6,7 @@ import { Button, Skeleton } from "@pythia/ui";
 import { CircleSlash, Scale, SearchX, Settings2, Shapes } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSectionRead } from "@/client/instrument-queries";
-import { ReviewLink } from "./open-conflict";
+import { SectionConflict } from "./open-conflict";
 
 const STATUS_LABELS: Record<string, string> = {
   resolving: "finding match",
@@ -116,8 +116,7 @@ export function SectionPlaceholder({
       title: section.reason ?? "No source covers this",
       fallback: "",
     },
-    // Core's own answer when the reference leaves the issuer undecided: the
-    // header says why, so the card only says what it needs.
+    // Core's own answer when the issuer is undecided: the card says what it needs.
     not_addressable: {
       icon: <SearchX />,
       title: section.reason?.split(": ")[0] ?? "No source can address this",
@@ -164,15 +163,7 @@ export function SectionPlaceholder({
             {detail}
           </p>
         ) : null}
-        {/* A section an open question holds back links to its repair. */}
-        {section.question ? (
-          <p
-            data-slot="instrument-withheld"
-            className="mt-0.5 text-foreground-secondary text-xs"
-          >
-            Open data conflict · <ReviewLink question={section.question} />
-          </p>
-        ) : null}
+        <SectionConflict question={section.question} />
         {uncovered && section.skipped.length ? (
           <ul className="mt-0.5 text-foreground-secondary text-xs [overflow-wrap:anywhere]">
             {section.skipped.map((item) => (

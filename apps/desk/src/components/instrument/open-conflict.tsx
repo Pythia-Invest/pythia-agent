@@ -1,6 +1,9 @@
-import type { WithheldFact } from "@pythia/market-data/subject";
+import type { SubjectPage } from "@pythia/market-data/subject";
 import Link from "next/link";
 import { repairHref } from "@/components/repairs/repair-href";
+
+/** A fact the page holds back, as core names it (`SubjectPage.withheld`). */
+export type WithheldFact = SubjectPage["withheld"][number];
 
 /** The link to the repair that settles an open data conflict. */
 export function ReviewLink({ question }: { question: string }) {
@@ -39,4 +42,21 @@ export function OpenConflict({
       <ReviewLink question={held.question} />
     </p>
   );
+}
+
+/** The same, under a section's placeholder, when an open question holds the
+ * section back (`SubjectSection.question`). */
+export function SectionConflict({
+  question,
+}: {
+  question: string | null | undefined;
+}) {
+  return question ? (
+    <p
+      data-slot="instrument-withheld"
+      className="mt-0.5 text-foreground-secondary text-xs"
+    >
+      Open data conflict · <ReviewLink question={question} />
+    </p>
+  ) : null;
 }
