@@ -251,7 +251,18 @@ before the Hermes pin is bumped, and do not run older code in the same checkout
 afterwards
 ([ADR 0034](decisions/0034-core-and-optional-features.md), 2026-09-29
 amendment). The old `plugin-data/…/documents/` cache is left behind and can be
-deleted by hand. `just dev-init`,
+deleted by hand.
+
+**Do not run an older build on a stack a newer one has opened.** A build that
+includes device subjects migrates the stack's identity store to schema 6 the
+first time it opens it, keeping the old file as `identity.before-v6-<id>.sqlite3`.
+An older build that then opens the same stack (an older commit, or a branch not
+yet updated to include device subjects, in the same checkout) cannot read it: it
+keeps the store aside as `identity.v6-<id>.sqlite3` and starts empty, and Repairs
+reports a reset. Your bindings and answers are in that set-aside file. To
+restore them, stop the stack, move the fresh `identity.sqlite3` aside, rename
+`identity.v6-<id>.sqlite3` to `identity.sqlite3`, and start the newer build
+([ADR 0037](decisions/0037-identity-backbone.md), amendment "device subjects"). `just dev-init`,
 `just dev` and `just dev-refresh` install this checkout's
 `.local/reference-builder/out/` package when there is one; set
 `PYTHIA_DEV_REFERENCE_PACKAGE` to use another package directory. To install

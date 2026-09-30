@@ -353,11 +353,13 @@ A genuinely new kind is a rare addition to core. New subjects never are.
 Today:
 
 - subjects come only from the reference build and core's curated tables, and
-  plugins contribute data but not subjects;
+  plugins contribute data but not subjects: the store and pages for subjects
+  on the device exist, and plugins can add them once their ingest lands;
 - reference sources are builder adapters: a build can leave out any of them
   except the ISO 10383 venue codes and core's curated crypto table, and lists
   the ones it includes, but a device cannot yet remove an installed package;
-- only confirm-level plugins bind, and only onto reference subjects;
+- only confirm-level plugins bind, onto reference or device subjects, and a
+  display plugin binds only a subject it introduced;
 - the build's open questions are queued only when an instrument is opened,
   watched or used by the agent, not yet when it is held or forecast.
 
@@ -452,7 +454,11 @@ build. The approach that follows:
   (such as limited coverage, tradability or a corporate action) and the
   provenance, with the full evidence on request. The agent states which
   interpretation it used, and retrieves evidence or abstains rather than
-  relying on what it remembers.
+  relying on what it remembers. Built for instrument reads: `pythia_instrument`
+  gives the listing in use as the default, typed flags from a closed list and
+  each identifier's source and trust level, and the full evidence of a question
+  comes through `pythia_identity_questions`
+  ([the agent's tools](architecture/agent-tools.md)).
 - **Saved interpretations are suggestions.** An agent's answer to an identity
   question is a suggestion the user confirms. A saved interpretation keeps its
   evidence, scope and dependencies, and becomes stale when they change. Saving

@@ -12,7 +12,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
-from pythia_identity_fixture import lifecycle, page, store, subject as subjects  # noqa: E402
+from pythia_identity_fixture import device, lifecycle, page, store, subject as subjects  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
 # The columns that name a subject in each reference table: what a release re-keys.
@@ -83,13 +83,15 @@ class World:
                 load_reference(db, load(name))
         self.ref = store.open_reference(self.path, "confirm")  # a build the user trusts to confirm
         self.identity = store.IdentityStore(tmp / "core")
+        self.plugins: list[page.PluginInfo] = []  # the installed plugins, whose levels weigh device assertions
 
     def close(self) -> None:
         self.ref.close()
         self.identity.db.close()
 
     def subject(self, subject_id: str) -> dict:
-        return page.load_subject(self.ref, subject_id)
+        """The subject from the reference, else from the device store."""
+        return device.load_subject(self.ref, self.identity, subject_id, self.plugins)
 
     def lookups(self, subject: dict) -> dict:
         """The store lookups page composition reads for a subject, at each of its levels."""

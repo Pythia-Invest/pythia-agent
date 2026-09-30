@@ -22,16 +22,6 @@ const optionalText = z
   .nullish()
   .transform((value) => value || null);
 
-export const SECTION_STATUSES = [
-  "ready",
-  "resolving",
-  "needs_configuration",
-  "unresolved",
-  "conflict",
-  "disabled",
-] as const;
-export type SectionStatus = (typeof SECTION_STATUSES)[number];
-
 const pluginRequestSchema = z.object({
   plugin: text,
   operation: text,
@@ -139,6 +129,8 @@ export const relatedSubjectSchema = z.object({
 });
 export type RelatedSubject = z.infer<typeof relatedSubjectSchema>;
 
+const contestedValue = z.object({ value: text, sources: z.array(text) });
+
 export const subjectPageSchema = z.object({
   subject: z.object({
     id: text,
@@ -154,6 +146,9 @@ export const subjectPageSchema = z.object({
     description: optionalText,
   }),
   identifiers: z.record(z.string(), optionalText).default({}),
+  /** Identifiers whose confirm-level sources disagree, by scheme: core
+   * applies neither value, so each is listed with the sources stating it. */
+  contested: z.record(z.string(), z.array(contestedValue)).default({}),
   issuer: z
     .object({
       id: text,
@@ -183,8 +178,6 @@ export const subjectPageSchema = z.object({
     )
     .default([]),
   sections: z.array(subjectSectionSchema).default([]),
-  /** Open conflict/residual items; the Desk page does not show them. */
-  queue: z.array(z.unknown()).default([]),
 });
 export type SubjectPage = z.infer<typeof subjectPageSchema>;
 

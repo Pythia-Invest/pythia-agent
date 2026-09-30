@@ -82,7 +82,7 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
         "id": subject_id, "level": level, "ids": ids, **weighed, "trust": trust,
         "asset_class": security["asset_class"] if security else None,
         "kind": security["kind"] if security else None,
-        "listing": listing,
+        "security": security, "listing": listing,
         "view": {
             "subject": {"id": subject_id, "level": str(level), "name": name, "kind": security["kind"] if security else None,
                         "listing": listing["id"] if listing else None},

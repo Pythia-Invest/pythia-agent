@@ -1,12 +1,12 @@
 """Lifecycle A (ADR 0037): the device's identity state follows a new reference release's subject IDs.
 
-A release never rewrites a saved ID: it records each re-key in `id_aliases`. On first
-use of a release, `rekey` re-points every row of identity.sqlite3 that names a subject (bindings, queue
-items, verdicts, resolve misses, read checks)
-through that chain, once, in one transaction recorded against the release ID. An
-assertion a row cites moved with its subject, so the row cites it by the evidence ID the
-release gives it. A subject the release neither holds nor aliases is flagged; its rows
-are kept.
+A release never rewrites a saved ID: it records each re-key in `id_aliases`, and a device subject's better key is a
+`device_aliases` row (`device`). On first use of a release, `rekey` re-points every row of identity.sqlite3 that
+names a subject (bindings, queue items, verdicts, resolve misses, read checks, and the device subjects with their
+parents, assertions, relations and placed claims) through those chains, once, in one transaction recorded against
+the release ID; after writing device aliases, core runs it `again`. An assertion a row cites moved with its subject,
+so the row cites it by the evidence ID the release or the device gives it. A subject neither the release nor the
+device holds, nor either aliases, is flagged; its rows are kept.
 """
 from __future__ import annotations
 
@@ -15,8 +15,9 @@ import sqlite3
 from collections import defaultdict
 from dataclasses import replace
 
+from . import device
 from .model import ProviderRef
-from .subject import _assertion, current_id, load_subject
+from .subject import _assertion, load_subject
 from .resolution import question_key
 from .schemes import Level, subject_kind
 from .store import IdentityStore
@@ -37,8 +38,8 @@ def vanished(store: IdentityStore) -> list[str]:
 
 
 def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again: bool = False) -> dict | None:
-    """Re-point local rows to the IDs this release gives their subjects; None when it was already applied, unless
-    `again` (rows written meanwhile under an older release's IDs)."""
+    """Re-point local rows to the IDs this release and the device's aliases give their subjects; None when it was
+    already applied, unless `again` (rows written meanwhile under an older release's IDs, or new device aliases)."""
     db = store.db
     with store.transaction():
         if store.metadata(REKEYED) == release and not again:
@@ -48,18 +49,19 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again:
         queue = [dict(row, **{name: json.loads(row[name]) for name in ("subject_ids", "candidate_ids", "evidence_ids")})
                  for row in db.execute("SELECT * FROM queue")]
         # Subjects a reference release named when the row was written; a residual's subject is the device's own.
-        cited = {row["subject_id"] for row in bindings}
+        cited = {row["subject_id"] for row in bindings} | device.named(store)  # device parents may be the release's
         cited.update(value for (value,) in db.execute("SELECT chosen_id FROM verdicts WHERE chosen_id IS NOT NULL"))
         for item in queue:
             cited.update(item["candidate_ids"], item["subject_ids"] if item["kind"] == "conflict" else ())
         named = cited | {value for item in queue for value in item["subject_ids"]} | {
             value for (value,) in db.execute("SELECT subject_id FROM resolve_misses UNION SELECT subject_id FROM read_checks")}
-        moved = {old: new for old in named if (new := current_id(ref, old)) != old}
+        moved = {old: new for old in named if (new := device.current_id(ref, store, old)) != old}
         point = lambda ids: list(dict.fromkeys(moved.get(value, value) for value in ids))  # noqa: E731
 
         evidence = _moved_evidence(ref, [(row["subject_id"], row["evidence_ids"]) for row in bindings] + [
             (subject, item["evidence_ids"]) for item in queue for subject in item["subject_ids"] + item["candidate_ids"]],
             moved)
+        evidence.update(device.repoint(store, moved))
         retag = lambda ids: [evidence.get(value, value) for value in ids]  # noqa: E731
         changed = 0
         for row in bindings:
@@ -87,16 +89,16 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again:
         db.executemany("UPDATE OR REPLACE resolve_misses SET subject_id = ? WHERE subject_id = ?", pairs)
         db.executemany("UPDATE OR REPLACE read_checks SET subject_id = ? WHERE subject_id = ?", pairs)
         gone = sorted({current for current in (moved.get(subject, subject) for subject in cited)
-                       if not _held(ref, current)})
+                       if not _held(ref, store, current)})
         store.set_metadata(VANISHED, json.dumps(gone))
         store.set_metadata(REKEYED, release)
     return {"release": release, "moved": len(moved), "rows": changed, "vanished": len(gone)}
 
 
-def _held(ref: sqlite3.Connection, subject_id: str) -> bool:
-    """Whether the release holds this reference subject (it holds instruments only)."""
-    table = TABLES.get(subject_kind(subject_id))
-    return table is None or ref.execute(f"SELECT 1 FROM {table} WHERE id = ?", (subject_id,)).fetchone() is not None
+def _held(ref: sqlite3.Connection, store: IdentityStore, subject_id: str) -> bool:
+    """Whether the release (it holds instruments only) or the device store holds this subject."""
+    return subject_kind(subject_id) not in TABLES or device.subject_row(store, subject_id) is not None \
+        or device.in_reference(ref, subject_id)
 
 
 def _moved_evidence(ref: sqlite3.Connection, rows: list[tuple[str, list[str]]], moved: dict[str, str]) -> dict[str, str]:

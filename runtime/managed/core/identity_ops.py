@@ -20,14 +20,14 @@ from pathlib import Path
 from typing import Any
 
 from .identity import (
-    MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch, subject_kind,
-    validate_manifest, vouched,
+    INSTRUMENT_KINDS, MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch,
+    RelationType, subject_kind, validate_manifest, vouched,
 )
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
 from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import declared, subject as subjects, trust
+from .identity import declared, device, flags, trust
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -229,35 +229,35 @@ class Identity:
         view["other_securities"] = []
         if subject["level"] is not Kind.MARKET:  # the curated markets that are derivatives on it, as links
             view["related"] += markets.markets_on(markets.curated(), [value for value in subject["ids"].values() if value])
-        if subject["asset_class"] == "equity" and security:  # the instrument's lines, receipts folded in
+        if subject["asset_class"] == "equity" and security and path:  # the instrument's lines, receipts folded in
             directory = search.directory(path, store.open_reference)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
-            # The company's other instruments; a share class listed there is not repeated under `related`.
+            # The company's other instruments; a share class listed there is not repeated under `related`, a successor is.
             view["other_securities"] = directory.other_instruments(security)
             others = {item["id"] for item in view["other_securities"]}
-            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item]
+            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item or item["type"] == RelationType.SUCCESSOR_OF]
         sections = page.compose(subject, installed(), **lookups)
-        return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
+        return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
-        """The reference path and the subject from it, with the store lookups page composition reads."""
+        """The reference path and the subject with the store lookups pages read: a curated market (no reference needed), a
+        reference subject with the user's answers, else a device subject (`device`); a declared alias is followed."""
         aliases = declared.aliases(info.manifest for info in installed()) if ":provisional:" in subject_id else {}
-        if subject_kind(subject_id) in markets.CURATED_KINDS:  # a curated market subject needs no reference file
-            subject = markets.load_market(markets.curated(), aliases.get(subject_id, subject_id))
-            return (None, None, {}, UNKNOWN_SUBJECT) if subject is None else (None, subject, self._lookups(subject), None)
-        path, ref = self.reference()
-        if ref is None:
-            return None, None, {}, NO_REFERENCE
-        try:  # a provisional ID a confirm-level contract now addresses under its subject's key is that subject
-            subject_id = subjects.current_id(ref, subject_id, aliases) if aliases else subject_id
-            subject = build_questions.load_subject(ref, subject_id, None, self.store)
-            if subject is None:
-                return path, None, {}, UNKNOWN_SUBJECT
-            default = self._default_listing(path, subject)
+        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(
+            markets.curated(), aliases.get(subject_id, subject_id))
+        path, ref = (None, None) if curated else self.reference()
+        try:
+            subject_id = subject_id if curated else device.current_id(ref, self.store, subject_id, aliases)
+            subject = curated or ref and build_questions.load_subject(ref, subject_id, None, self.store)
+            default = subject and not curated and self._default_listing(path, subject)
             if default and default != (subject["listing"] or {"id": None})["id"]:
                 subject = build_questions.load_subject(ref, subject_id, default, self.store)
+            subject = subject or device.load(ref, self.store, subject_id, installed())
         finally:
-            ref.close()
+            if ref is not None:
+                ref.close()
+        if subject is None:  # an instrument with no reference installed may yet be in one
+            return path, None, {}, NO_REFERENCE if path is None and subject_kind(subject_id) in INSTRUMENT_KINDS else UNKNOWN_SUBJECT
         return path, subject, self._lookups(subject), None
 
     def _lookups(self, subject: dict) -> dict:
