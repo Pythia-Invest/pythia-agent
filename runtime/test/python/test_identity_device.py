@@ -107,6 +107,7 @@ class MigrationTest(DeviceWorld):
         self.assertEqual((migrated.set_aside, migrated.metadata("schema_version")), (None, "6"))
         self.assertEqual(after, before)  # nothing set aside, nothing lost
         self.assertEqual(sum(before.values()), 11)
+        self.assertEqual(migrated.select("SELECT COUNT(*) FROM corrections")[0][0], 0)  # added later: it starts empty
         kept = [path.name for path in directory.iterdir()
                 if path.name not in ("identity.sqlite3", reference_package.MOVE_LOCK)]
         self.assertRegex(" ".join(kept), r"^identity\.before-v6-[0-9a-f]{8}\.sqlite3$")  # the v5 file, kept
