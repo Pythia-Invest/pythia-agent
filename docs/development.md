@@ -146,6 +146,14 @@ different start time or command. `just dev`, `just dev-init`, `just stop` and
 and continue, without signalling anything. If any recorded process might still
 be running, or its identity cannot be read, the receipt stays authoritative.
 
+When the supervisor has provably exited but a recorded child still runs and
+holds a port (as when the owner died while its Hermes kept listening),
+`just stop` terminates each child whose live PID, start time and command match
+the receipt exactly, skips any recorded PID that is free or now belongs to
+another process, waits for the stack's ports to be released, then sets the
+receipt aside and reports what it stopped. It never signals a process it cannot
+match to the receipt, and never touches another worktree's stack.
+
 Desk source uses Next.js hot reload while `just dev` is running. There is no
 automatic watcher for managed Hermes, plugin, runner, or dependency source.
 After changing those inputs, run `just dev-refresh`. A running refresh briefly

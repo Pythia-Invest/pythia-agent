@@ -19,9 +19,6 @@ import { developmentPaths } from "../support/dev-stack";
 describe("development preparation admission", () => {
   it("serializes real development entrypoints and releases failed preparation", async () => {
     const paths = developmentPaths();
-    // Startup refuses a checkout without Desk before preparation.
-    mkdirSync(join(paths.repositoryRoot, "apps/desk"), { recursive: true });
-    writeFileSync(join(paths.repositoryRoot, "apps/desk/package.json"), "{}\n");
     const cacheMarker = join(paths.cacheRoot, "preserve-during-live-prep");
     mkdirSync(paths.cacheRoot, { recursive: true, mode: 0o700 });
     writeFileSync(cacheMarker, "preserve\n");
