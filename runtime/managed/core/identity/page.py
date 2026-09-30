@@ -198,7 +198,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
               "label": info.label,
               "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
               "binding_status": None, "verified_at": None, "unverified": None, "request": None, "alternatives": [],
-              "reason": None, "authorities": [str(item) for item in entry.authorities]}
+              "reason": None, "question": None, "authorities": [str(item) for item in entry.authorities]}
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
     # A curated subject outside the hierarchy (a market, index, pair or series) is addressed as itself; one with
@@ -227,13 +227,15 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         return {**answer, "status": "needs_configuration",
                 "reason": f"{info.label} needs configuration: add {missing['key']} to {missing['file']}"}
     if (conflict and not (row and row["status"] == "confirmed")) or (row and row["status"] == "conflicting"):
-        return {**answer, "status": "conflict", "reason": f"{info.label}'s record contradicts the reference; queued for review"}
+        return {**answer, "status": "conflict", "question": queued and queued["id"],
+                "reason": f"{info.label}'s record contradicts the reference; queued for review"}
     missed = misses.get((target, info.key))  # a miss is recorded at the level the plugin addresses
     if wants_resolve and (queued or missed):
         reason = missed or (f"{info.label}'s answer is queued for review: "
                             f"{QUEUED.get(queued['reason'], queued['reason'].replace('_', ' '))}")
         # `queued`: a match held for review (ADR 0042 sign-off, several matches), not "no match"
-        return {**answer, "status": "unresolved", "reason": reason, **({"queued": queued["reason"]} if queued else {})}
+        return {**answer, "status": "unresolved", "reason": reason,
+                **({"queued": queued["reason"], "question": queued["id"]} if queued else {})}
     if wants_resolve:
         return {**answer, "status": "resolving", "reason": f"Looking up in {info.label}"}
     if row and via is Level.LISTING and listing and listing["status"] == "inactive" and row["native_scope"] not in SINGLE_VALUED:

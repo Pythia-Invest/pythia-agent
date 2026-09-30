@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { page_, primary } from "./instrument-fixture";
 import { useSyntheticDesk } from "./synthetic-desk";
 
 useSyntheticDesk();
@@ -279,4 +280,71 @@ test("repairs never read an unreadable queue as nothing to do", async ({
     page.locator('[data-slot="repairs"]').getByRole("alert"),
   ).toContainText("The identity store could not be read.");
   await expect(page.getByText("Nothing needs attention.")).toHaveCount(0);
+});
+
+test("an instrument page shows an open data conflict in place of the company and links to its repair", async ({
+  page,
+}) => {
+  await serveQueue(page, {
+    outcome: "ok",
+    data: {
+      items: [
+        question("q-other"),
+        question("q-issuer", { reason: "identifier" }),
+      ],
+      total: 2,
+      settled: [],
+    },
+  });
+  const held = { fact: "issuer", question: "q-issuer", options: 2 };
+  await page.route("**/api/data/read", (route) => {
+    if (route.request().postDataJSON().operation !== "identity-subject")
+      return route.fallback();
+    const view = page_(primary);
+    return route.fulfill({
+      json: {
+        schema_version: 1,
+        data: {
+          ...view,
+          issuer: null,
+          withheld: [held],
+          sections: [
+            {
+              section: "profile",
+              plugin: "pythia",
+              label: "Pythia",
+              status: "not_addressable",
+              reason: "Needs the issuer: the data doesn't settle who issued it",
+              question: held.question,
+              alternatives: [],
+            },
+          ],
+        },
+      },
+    });
+  });
+  await page.route("**/api/plugins/pythia-market-data/widgets", (route) =>
+    route.fulfill({ json: { version: 1, widgets: [], assets: [] } }),
+  );
+  await page.goto(`/instrument/${encodeURIComponent(primary)}`);
+  const header = page.locator('[data-slot="instrument-header"]');
+  await expect(header.locator('[data-fact="issuer"]')).toHaveText(
+    "Company: open data conflict (2 options) · Review",
+  );
+  // The profile card says the same, rather than vanishing.
+  const card = page.getByRole("region", { name: "Profile" });
+  await expect(card.getByText("Needs the issuer")).toBeVisible();
+  await expect(card.getByRole("link", { name: "Review" })).toHaveAttribute(
+    "href",
+    "/settings/repairs?question=q-issuer",
+  );
+
+  await header.getByRole("link", { name: "Review" }).click();
+  await expect(page).toHaveURL(/\/settings\/repairs\?question=q-issuer$/u);
+  // Only that row opens, scrolled into view.
+  const rows = page.locator('[data-slot="data-table-row"]');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toHaveAttribute("data-expanded", "true");
+  await expect(rows.nth(0)).not.toHaveAttribute("data-expanded", "true");
+  await expect(rows.nth(1)).toBeInViewport();
 });

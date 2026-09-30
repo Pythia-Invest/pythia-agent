@@ -393,7 +393,10 @@ central curator exists.
   contradicting itself), are asked when an instrument is opened, watched or
   used by the agent, and the user's answer is a local override
   ([ADR 0037](0037-identity-backbone.md), amendments "questions on touch" and
-  "questions and overrides for plugin-introduced subjects").
+  "questions and overrides for plugin-introduced subjects"). While a question
+  is open, the page shows an open data conflict linked to its repair where the
+  fact it holds back would be, never a blank (amendment "open data conflicts on
+  the page").
 - **Reference sources are builder adapters.** A build can leave out any of
   them (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
   sources it includes; only the ISO 10383 venue codes and core's curated

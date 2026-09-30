@@ -1,12 +1,17 @@
 "use client";
 
 import { KIND_LABELS } from "@pythia/market-data/search-ui";
-import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
+import type {
+  SubjectListing,
+  SubjectPage,
+  WithheldFact,
+} from "@pythia/market-data/subject";
 import { Menu, Skeleton } from "@pythia/ui";
 import { Check, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { instrumentHref } from "./instrument-href";
 import { listingGroups, listingLabel, listingVenue } from "./listing-groups";
+import { OpenConflict, optionsNote, ReviewLink } from "./open-conflict";
 import { RelatedLinks } from "./related-links";
 
 const IDENTIFIERS = [
@@ -17,6 +22,13 @@ const IDENTIFIERS = [
   ["caip19", "CAIP-19"],
 ] as const;
 const CRYPTO_KINDS = new Set(["coin", "token"]);
+/** Facts besides identifiers that an open question can hold back, as the
+ * header names them. The issuer has its own line. */
+const WITHHELD_LABELS = {
+  security: "Security",
+  underlying: "Underlying share",
+  kind: "Share or receipt",
+} as const;
 
 /** The listing whose price the composition shows: its own subject when it
  * is a listing, else the one core priced it through. */
@@ -46,8 +58,12 @@ export function InstrumentHeader({
       (key === "isin" ? page.security?.isin : undefined) ??
       (key === "lei" || key === "cik" ? page.issuer?.[key] : undefined);
     const contested = page.contested[key] ?? [];
-    return value || contested.length ? [{ key, label, value, contested }] : [];
+    const held = page.withheld.find((item) => item.fact === key);
+    return value || contested.length || held
+      ? [{ key, label, value, contested, held }]
+      : [];
   });
+  const heldIssuer = page.withheld.find((item) => item.fact === "issuer");
   const issuer =
     page.issuer && page.issuer.name !== page.subject.name
       ? page.issuer.name
@@ -81,23 +97,42 @@ export function InstrumentHeader({
       <SourceLine page={page} />
       {issuer ? (
         <p className="text-foreground-secondary text-xs">Issued by {issuer}</p>
+      ) : heldIssuer ? (
+        <OpenConflict label="Company" held={heldIssuer} />
       ) : issuerUnknown ? (
         <p className="text-foreground-secondary text-xs">
           Issuer unknown: the reference data doesn't settle which company issued
           this
         </p>
       ) : null}
+      {page.withheld.map((held) =>
+        held.fact in WITHHELD_LABELS ? (
+          <OpenConflict
+            key={held.fact}
+            label={WITHHELD_LABELS[held.fact as keyof typeof WITHHELD_LABELS]}
+            held={held}
+          />
+        ) : null,
+      )}
       <RelatedLinks related={page.related} />
       {identifiers.length ? (
         <dl
           data-slot="instrument-identifiers"
           className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
         >
-          {identifiers.map(({ key, label, value, contested }) => (
+          {identifiers.map(({ key, label, value, contested, held }) => (
             <div key={key} className="flex min-w-0 max-w-full gap-1.5">
               <dt className="text-foreground-secondary">{label}</dt>
               {contested.length ? (
-                <ContestedValues values={contested} />
+                <ContestedValues values={contested} held={held} />
+              ) : !value && held ? (
+                <dd
+                  data-slot="instrument-identifier-contested"
+                  className="text-foreground-secondary"
+                >
+                  open data conflict{optionsNote(held)} ·{" "}
+                  <ReviewLink question={held.question} />
+                </dd>
               ) : (
                 <dd
                   title={value ?? undefined}
@@ -140,11 +175,14 @@ export function SourceLine({ page }: { page: SubjectPage }) {
 }
 
 /** An identifier whose sources disagree: core applies neither
- * value, so each is shown with the sources stating it, never a blank. */
+ * value, so each is shown with the sources stating it, never a blank, and
+ * links to the open question that settles it. */
 function ContestedValues({
   values,
+  held,
 }: {
   values: SubjectPage["contested"][string];
+  held: WithheldFact | undefined;
 }) {
   return (
     <dd
@@ -165,6 +203,11 @@ function ContestedValues({
         </span>
       ))}
       <span className="text-foreground-secondary">sources disagree</span>
+      {held ? (
+        <span className="text-foreground-secondary">
+          · <ReviewLink question={held.question} />
+        </span>
+      ) : null}
     </dd>
   );
 }

@@ -10,7 +10,12 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { useLocalTime } from "@/client/local-time";
-import { type Repair, type RepairStatus, useRepairs } from "@/client/repairs";
+import {
+  identityRepairId,
+  type Repair,
+  type RepairStatus,
+  useRepairs,
+} from "@/client/repairs";
 import { instrumentHref } from "@/components/instrument/instrument-href";
 import { useIdentityKind } from "./identity-kind";
 import type { RepairAction, RepairKind } from "./kinds";
@@ -26,9 +31,10 @@ const STATUS_OPTIONS = (Object.keys(STATUS) as RepairStatus[]).map((value) => ({
 }));
 
 /** Settings → Data → Repairs: what Pythia could not settle on its own, in the
- * back-office table. Rules fix most; the agent only suggests; the user
+ * back-office table. `question` (from `?question=`, see `repairHref`) opens that
+ * issue's row. Rules fix most; the agent only suggests; the user
  * confirms or answers, and never has to. The Status filter shows settled issues too. */
-export function RepairsView() {
+export function RepairsView({ question }: { question?: string | undefined }) {
   const repairs = useRepairs();
   const time = useLocalTime();
   const kinds: Record<string, RepairKind> = {
@@ -107,6 +113,7 @@ export function RepairsView() {
           label="Repairs"
           rows={rows}
           rowKey={(repair) => repair.id}
+          {...(question ? { reveal: identityRepairId(question) } : {})}
           rowLabel={(repair) =>
             `${repair.title}, ${repair.subject?.name ?? repair.plugin ?? repair.id}`
           }

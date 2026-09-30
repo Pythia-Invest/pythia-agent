@@ -6,6 +6,7 @@ import { Button, Skeleton } from "@pythia/ui";
 import { CircleSlash, Scale, SearchX, Settings2, Shapes } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSectionRead } from "@/client/instrument-queries";
+import { ReviewLink } from "./open-conflict";
 
 const STATUS_LABELS: Record<string, string> = {
   resolving: "finding match",
@@ -82,7 +83,7 @@ export function SectionPlaceholder({
       ? {
           icon: <Scale />,
           title: `${section.label} match awaits review`,
-          fallback: "Review it in Repairs.",
+          fallback: section.question ? "" : "Review it in Repairs.",
         }
       : {
           icon: <SearchX />,
@@ -161,6 +162,15 @@ export function SectionPlaceholder({
         {detail ? (
           <p className="mt-0.5 text-foreground-secondary text-xs [overflow-wrap:anywhere]">
             {detail}
+          </p>
+        ) : null}
+        {/* A section an open question holds back links to its repair. */}
+        {section.question ? (
+          <p
+            data-slot="instrument-withheld"
+            className="mt-0.5 text-foreground-secondary text-xs"
+          >
+            Open data conflict · <ReviewLink question={section.question} />
           </p>
         ) : null}
         {uncovered && section.skipped.length ? (
