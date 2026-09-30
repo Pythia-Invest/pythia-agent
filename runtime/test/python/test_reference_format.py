@@ -5,16 +5,16 @@ import types
 import unittest
 from unittest import mock
 
-from test_identity_trust import TrustCase, identity_ops, reference_package, trust
+from test_identity_installed import PluginCase, identity_ops, reference_package
 from test_reference_package import make_package
-from pythia_core_queue_fixture import queue_ops  # noqa: E402  (the core test_identity_trust loaded)
+from pythia_core_queue_fixture import queue_ops  # noqa: E402  (the core test_identity_installed loaded)
 
 
-class OlderFormatTest(TrustCase):
+class OlderFormatTest(PluginCase):
     def test_status_search_pages_and_repairs_say_an_older_package_must_be_rebuilt(self):
         data, older = self.root / "data", reference_package.FORMAT_VERSION - 1
         with mock.patch.object(reference_package, "FORMAT_VERSION", older):  # installed by the Pythia before this one
-            reference_package.install(make_package(self.root / "package", format_version=older), data, trust.CONFIRM)
+            reference_package.install(make_package(self.root / "package", format_version=older), data)
         ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=data)
         self.enterContext(mock.patch.object(identity_ops, "installed", list))  # no plugins: pages read the store alone
         self.addCleanup(lambda: ops._store and ops._store.db.close())
@@ -37,7 +37,7 @@ class OlderFormatTest(TrustCase):
         self.addCleanup(lambda: ops._store and ops._store.db.close())
         self.assertEqual(json.loads(ops.search({"query": "ASML"}))["issues"][0]["message"], queue_ops.NO_REFERENCE)
         with mock.patch.object(reference_package, "FORMAT_VERSION", newer):  # installed by a later Pythia
-            reference_package.install(make_package(self.root / "package", format_version=newer), data, trust.CONFIRM)
+            reference_package.install(make_package(self.root / "package", format_version=newer), data)
         self.assertIn("Update Pythia to read it.", json.loads(ops.search({"query": "ASML"}))["issues"][0]["message"])
 
 

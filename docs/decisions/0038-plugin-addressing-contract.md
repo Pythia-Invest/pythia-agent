@@ -411,3 +411,17 @@ Rejected alternatives:
 - **A plugin-side emitter that finds core:** couples plugins to the harness's
   plugin table, which stage 0 removes.
 - **Syncing on enable, or on a schedule:** a provider call nobody asked for.
+
+## Amendment (2026-09-30): no trust levels
+
+[ADR 0044](0044-product-direction.md)'s amendment of the same day removes plugin
+trust levels. In the amendments above:
+
+- A declared address (`addressing.subjects`) is always `confirmed`, and the
+  plugin's provisional ID for that reference always aliases the subject, so the
+  perp's address is `confirmed` although Hyperliquid ships unsigned. The
+  contract's `signoff` and the digest of its files change nothing.
+- A relation or claim counts like any enabled plugin's, and a renamed copy of a
+  plugin serves the same subjects under the same rule.
+- "What claims can establish by claim type and trust level, with trust attached
+  to a signed or hashed release" is replaced by claim type alone, with no level.

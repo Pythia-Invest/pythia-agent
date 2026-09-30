@@ -167,13 +167,6 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual([item["provider_ref"]["provider"] for item in self.backend.series(SUBJECT, CRITERIA)["data"]],
                          ["ibkr", "synthetic_other"])
 
-    def test_a_read_from_a_source_not_yet_audited_says_so(self):
-        self.assertNotIn("unaudited_source", [issue["code"] for issue in run_read(self.backend)["issues"]])
-        self.sources.unaudited = ["ibkr"]  # ADR 0042: core names the sources that have not signed off
-        result = run_read(self.sources.backend(self.directory.name))
-        self.assertEqual(result["provenance"]["provider"], "ibkr")
-        self.assertIn("unaudited_source", [issue["code"] for issue in result["issues"]])
-
     def test_source_cache_policy_bypasses_existing_hits_and_publication(self):
         run_read(self.backend)
         self.assertEqual(len(self.price_calls()), 1)

@@ -460,26 +460,27 @@ class CoreReadsTest(Reference):
 
     def test_single_values_take_every_eligible_source_side_by_side(self):
         entries = [{"plugin": "a", "provider": "a", "status": "ready"}, {"plugin": "b", "provider": "b", "status": "ready"},
-                   {"plugin": "u", "provider": "u", "status": "ready", "unaudited": True},
+                   {"plugin": "u", "provider": "u", "status": "ready"},
                    {"plugin": "d", "provider": "d", "status": "disabled"}]
         chosen, alternatives, skipped = identity.concepts.select(entries, combine=identity.Combine.SIDE_BY_SIDE)
         self.assertEqual(([e["plugin"] for e, _ in chosen], [e["plugin"] for e in alternatives],
                           [e["plugin"] for e in skipped]), (["a", "b", "u"], [], ["d"]))
 
-    def test_an_enabled_unaudited_source_merges_labelled_without_being_named(self):
-        # ADR 0044 ruling 10: a display source serves once enabled; it needs no place in the investor's order.
+    def test_an_enabled_source_merges_like_any_other_whatever_its_contract_declares(self):
+        # ADR 0044, amendment of 2026-09-30: no plugin is ranked or labelled for its sign-off, and none needs a place
+        # in the investor's order.
         plugins = [provider("pythia-yahoo-discovery", "yahoo"), provider("acme", "acme", signoff="unsigned")]
         answers = {"yahoo_news": news(("A", "https://example.com/a", "2026-09-27T08:00:00Z")),
                    "acme_news": news(("B", "https://example.com/b", "2026-09-27T09:00:00Z"))}
         body = self.read(answers, plugins=lambda: plugins, handler="news")
-        self.assertEqual([(item["plugin"], item.get("unaudited")) for item in body["data"]["news"]],
-                         [("acme", True), ("pythia-yahoo-discovery", None)])
+        self.assertEqual([(item["plugin"], "unaudited" in item) for item in body["data"]["news"]],
+                         [("acme", False), ("pythia-yahoo-discovery", False)])
         self.assertEqual(body["data"]["alternatives"], [])
 
 
 def provider(plugin, name, concept="news", operations=None, signoff="grandfathered"):
     """A plugin that serves one issuer-level concept through a listing symbol (Amsterdam: `.AS`), built with the
-    loaded core's own identity modules, since core compares levels by identity."""
+    loaded core's own identity modules, since core compares enums by identity."""
     from pythia_core_queue_fixture.identity import page, validate_manifest
     operations = operations or {"list": "news"}
     document = {"contract_version": 1, "plugin": plugin, "provider": name, "rights": RIGHTS,

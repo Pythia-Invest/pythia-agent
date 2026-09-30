@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Badge, Button } from "@pythia/ui";
+import { Alert, Button } from "@pythia/ui";
 import {
   type DataSource,
   type SyncSummary,
@@ -8,13 +8,6 @@ import {
   useSyncSource,
 } from "@/client/data-sources";
 import { ListRow, RowsSkeleton } from "./primitives";
-
-/** Trust levels in the investor's words (ADR 0044 A4): display data is shown
- * with its source; a confirm-level plugin also establishes identity facts. */
-const LEVELS = {
-  confirm: "Confirms identity",
-  display: "Display only",
-} as const;
 
 function count(value: number, one: string, many: string) {
   return `${value} ${value === 1 ? one : many}`;
@@ -51,12 +44,7 @@ function DataSourceRow({ source }: { source: DataSource }) {
   const sync = useSyncSource();
   return (
     <ListRow
-      title={
-        <span className="flex flex-wrap items-center gap-2">
-          {source.label}
-          <Badge>{LEVELS[source.level]}</Badge>
-        </span>
-      }
+      title={source.label}
       description={
         <>
           {effectLine(source)} To disable it, switch it off under Capabilities,
@@ -99,8 +87,8 @@ function DataSourceRow({ source }: { source: DataSource }) {
 }
 
 /** The enabled plugins that read a catalogue or look identifiers up: each
- * with its trust level, what disabling it would take away and, for a
- * catalogue, a way to read it now. Hermes enables and disables them. */
+ * with what disabling it would take away and, for a catalogue, a way to read
+ * it now. Hermes enables and disables them. */
 export function DataSourceSettings() {
   const query = useDataSources();
   return (

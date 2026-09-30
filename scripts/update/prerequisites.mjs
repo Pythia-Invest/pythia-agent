@@ -3,20 +3,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { coreFilesPresent } from "../dev/files.mjs";
+import { MANAGED_CORE_FILES } from "../dev/files.mjs";
 import { assertManagedPluginCopy } from "../dev/plugin-copy.mjs";
 import { assertWorkspaceTransitionReady } from "./workspace-transition-state.mjs";
 
 try {
   const paths = JSON.parse(readFileSync(0, "utf8"));
   assertWorkspaceTransitionReady(paths);
-  const core = fileURLToPath(
-    new URL("../../runtime/managed/core/", import.meta.url),
-  );
   assertManagedPluginCopy(
-    core,
+    fileURLToPath(new URL("../../runtime/managed/core/", import.meta.url)),
     join(paths.profileRoot, "plugins", "pythia"),
-    coreFilesPresent(core),
+    MANAGED_CORE_FILES,
   );
 } catch (error) {
   console.error(

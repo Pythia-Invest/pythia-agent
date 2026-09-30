@@ -32,10 +32,6 @@ function fsyncDirectory(path) {
   }
 }
 
-// Pythia's release trust grants: generated into the checkout by release-grants.mjs
-// before core is copied, never committed (ADR 0042, amendment of 2026-09-30).
-export const RELEASE_GRANTS = "identity/trust.json";
-
 export const MANAGED_CORE_FILES = Object.freeze([
   "__init__.py",
   "plugin.yaml",
@@ -91,6 +87,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/claims.py",
   "identity/conflicts.py",
   "identity/device.py",
+  "identity/device_parents.py",
   "identity/evidence.py",
   "identity/flags.py",
   "identity/ingest.py",
@@ -118,27 +115,12 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/store.py",
   "identity/stub.py",
   "identity/subject.py",
-  "identity/trust.py",
-  RELEASE_GRANTS,
   "identity/vocabulary.py",
   "identity/sql/identity.sql",
   "identity/sql/reference.sql",
   "identity/canonical_assets.json",
   "identity/markets.json",
 ]);
-
-/**
- * The core files a read-only ownership check can compare in `source`. A
- * committed release tree, or a checkout that has not been prepared, has no
- * release grants yet: preparation generates them before it copies core, so a
- * check that runs first compares the files that exist. Copies still need the
- * whole list.
- */
-export function coreFilesPresent(source) {
-  return MANAGED_CORE_FILES.filter(
-    (name) => name !== RELEASE_GRANTS || existsSync(join(source, name)),
-  );
-}
 
 export function ensurePrivateDirectory(path) {
   if (!existsSync(path)) {

@@ -3,12 +3,12 @@
 [Source onboarding](../architecture/source-onboarding.md) defines the stages
 ([ADR 0042](../decisions/0042-source-onboarding-standard.md)).
 
-- **Status:** display-level plugin ([ADR 0044](../decisions/0044-product-direction.md),
-  ruling 10): it shows disclosures with their source and never confirms
-  identity, so it needs declared coverage and terms, not sign-off. Stages 1 to 3
-  below were measured anyway and stay as its evidence. Until the code gate
-  adopts trust levels it ships `signoff: unsigned` and installed disabled: off
-  in fresh profiles and labelled "not yet audited".
+- **Status:** not signed off; ships opt-in. It shows disclosures with their
+  source and claims only an issuer's LEI and a name, so Pythia has not audited
+  it beyond the measurements below, which stay as its evidence. It ships
+  `signoff: unsigned` (Pythia's own record; no code reads it, [ADR
+  0044](../decisions/0044-product-direction.md), amendment of 2026-09-30) and
+  installed disabled: off in fresh profiles as a product default.
 - **Owner:** `runtime/managed/plugins/nsm/` (`records.py` parses and counts
   drift; `__init__.py` reads, caches and raises the alarms).
 - **Scope:** the NSM search `POST https://api.data.fca.org.uk/search?index=nsm-search`,
@@ -94,8 +94,7 @@ prospectus; class `2.2` event; any other code `other`.
   filer and appears under each.
 - [x] An empty answer is an empty list; only a previously non-empty issuer
   turning empty is an alarm.
-- [x] Resolve claims only the requested LEI (echoed) and a name; core's gate
-  makes it an unaudited residual.
+- [x] Resolve claims only the requested LEI (echoed) and a name.
 - [x] Unexpected input is counted, never coerced; rows that cannot be read
   safely are left out and reported.
 - [x] A structural break fails the read (`invalid_response` or
@@ -207,9 +206,8 @@ Classes assigned to code or to Repairs instead:
 
 ## Sign-off
 
-Not required: the plugin is display-level under ADR 0044 (ruling 10). Sign-off
-would be needed only if it were to suggest or confirm identity; the open items
-then are the event gap and kind precision resting on 14 labels.
+Not done: the plugin ships unsigned and opt-in. The open items before sign-off
+are the event gap and kind precision resting on 14 labels.
 
 Open items accepted: the endpoint is undocumented and may be withdrawn
 (founder ruling C2); the empty-issuer alarm is per session.

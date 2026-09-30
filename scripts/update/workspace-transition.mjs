@@ -7,12 +7,7 @@ import {
   ensurePrivateDirectory,
 } from "../install/files.mjs";
 import { assertManagedPluginCopy } from "../dev/plugin-copy.mjs";
-import {
-  coreFilesPresent,
-  MANAGED_CORE_FILES,
-  refreshManagedPlugin,
-} from "../dev/files.mjs";
-import { writeReleaseGrants } from "../dev/release-grants.mjs";
+import { MANAGED_CORE_FILES, refreshManagedPlugin } from "../dev/files.mjs";
 import {
   VERSION,
   SEEDS,
@@ -69,7 +64,7 @@ export function applyWorkspaceTransition(paths, options = {}) {
   assertManagedPluginCopy(
     paths.managedCore,
     join(paths.profileRoot, "plugins", "pythia"),
-    coreFilesPresent(paths.managedCore),
+    MANAGED_CORE_FILES,
   );
   if (!state) {
     regular(join(paths.legacyPython, ".venv", "bin", "basic-memory"));
@@ -175,7 +170,6 @@ export function applyWorkspaceTransition(paths, options = {}) {
     options.afterCopy?.(file);
   }
   verifyCopies(paths, state);
-  (options.releaseGrants ?? writeReleaseGrants)(paths); // core's copy carries them
   const pluginCopy = refreshManagedPlugin(
     paths.managedCore,
     join(paths.profileRoot, "plugins", "pythia"),

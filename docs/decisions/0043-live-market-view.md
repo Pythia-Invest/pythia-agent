@@ -125,3 +125,10 @@ rules out.
 This supersedes "the native reference of each plugin that serves it" and
 "core's curated table supplies the reference" above. Adding a perp is one
 entry in `markets.json` plus one in the serving plugin's contract.
+
+## Note (2026-09-30): no trust levels
+
+Hyperliquid's perp address is `confirmed`, not `derived`: a declared address no
+longer depends on the plugin's files being granted confirm, and the plugin still
+ships off by default and unsigned ([ADR 0044](0044-product-direction.md),
+amendment of 2026-09-30).

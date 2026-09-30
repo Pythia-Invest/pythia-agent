@@ -12,7 +12,6 @@ from typing import Any, Iterable
 from . import device, evidence as weighing
 from .schemes import subject_kind
 from .store import IdentityStore
-from .trust import DISPLAY
 from .vocabulary import IdentifierRole
 
 SHOWN = ("isin", "lei", "cik", "figi", "caip19")  # the identifiers a page's header shows
@@ -20,12 +19,11 @@ SHOWN = ("isin", "lei", "cik", "figi", "caip19")  # the identifiers a page's hea
 
 def view(store: IdentityStore, subject_id: str, plugins: Iterable, issue: str) -> dict[str, Any]:
     """The stub's page: named by the latest record a plugin placed on it, else by its ID, with `issue` as its line of
-    context. Its identifiers are the values the device's `self` statements agree on, each at its plugin's level
-    (`device.levels`); a contested one shows none."""
-    granted = device.levels(plugins)
+    context. Its identifiers are the values the device's `self` statements agree on; a contested one shows none."""
+    active = device.enabled(plugins)
     named = store.select("SELECT name FROM claims WHERE subject_id = ? AND name IS NOT NULL AND state <> 'conflict'"
                          " ORDER BY last_seen DESC LIMIT 1", (subject_id,))
-    values = weighing.weigh_each((device._assertion(row), granted.get(row["plugin"], DISPLAY))
+    values = weighing.weigh_each((device._assertion(row), row["plugin"] in active)
                                  for row in device.assertions(store, [subject_id])
                                  if row["role"] == IdentifierRole.SELF)["values"]
     return {"subject": {"id": subject_id, "level": subject_kind(subject_id), "name": named[0][0] if named else subject_id,

@@ -18,11 +18,10 @@ concepts ([ADR 0040](../../../../docs/decisions/0040-data-concepts-and-agent-too
 - `news`: every disclosure is a regulatory announcement, merged into core's news
   feed with the other news sources.
 
-It is keyless and display-level ([ADR 0044](../../../../docs/decisions/0044-product-direction.md),
-ruling 10): it shows disclosures with their source and never confirms identity.
-Until the code gate adopts trust levels it ships `signoff: unsigned`
-([ADR 0042](../../../../docs/decisions/0042-source-onboarding-standard.md)) and
-installed disabled: off in fresh profiles and labelled "not yet audited".
+It is keyless. It ships `signoff: unsigned`, Pythia's own record that it has not
+audited the source ([ADR 0042](../../../../docs/decisions/0042-source-onboarding-standard.md);
+the field changes nothing in code), and installed disabled: off in fresh profiles
+as a product default. Once enabled it is a source like any other.
 Its source record is [docs/sources/nsm.md](../../../../docs/sources/nsm.md).
 
 ## Operations

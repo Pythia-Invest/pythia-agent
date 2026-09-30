@@ -163,7 +163,7 @@ class TickerReuseTest(FailureTest):
         later = self.world.release("reference-20261001", drop=[US_STEEL])
         done = self.world.rekey(later)
         self.assertEqual(done["vanished"], 1)
-        with closing(store.open_reference(later, "confirm")) as dropped:
+        with closing(store.open_reference(later)) as dropped:
             self.assertIsNone(device.load_subject(dropped, self.world.identity, US_STEEL, []))
         self.assertEqual(self.world.identity.bound_subject(ref), US_STEEL)
 

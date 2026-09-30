@@ -10,7 +10,7 @@ import unittest.mock
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity
-from test_identity_page import ASML, CONTRACTS, LEI, Fixture, plugin, unsigned
+from test_identity_page import ASML, CONTRACTS, LEI, Fixture, plugin
 from test_reference_package import make_package
 from pythia_identity_fixture import page, queue, reference_package, store  # noqa: E402
 
@@ -52,25 +52,6 @@ class QueueFixture(Fixture):
 
 
 class VerdictTest(QueueFixture):
-    def test_a_match_from_a_source_not_yet_audited_waits_for_the_user(self):
-        # ADR 0042: the record's ISIN matches, which would bind for an audited source.
-        item = self.ask(answer(("isin", "NL0010273215")), eodhd=unsigned("eodhd"))
-        view = queue.inspect(self.identity, self.ref, item.id)
-        self.assertEqual((item.kind, item.reason, item.candidate_ids), ("residual", "unaudited", (ASML,)))
-        self.assertTrue(item.evidence_ids)
-        self.assertEqual(view["question"], "EODHD is not yet audited; its record ASML.AS matches the reference identifiers.")
-        agent = self.submit(item, "agent")
-        self.assertEqual(agent["outcome"], "suggested")  # the agent's answer is not review
-        self.assertIsNone(self.identity.binding_for(item.provider_ref))
-        # The open question carries the suggestion, so Repairs shows it for the user to confirm.
-        [listed] = queue.listing(self.identity, self.ref, subject_id=ASML, kind=None, plugins=None, limit=20,
-                                 notice=False)["items"]
-        self.assertEqual((listed["state"], listed["agent_answer"]),
-                         ("open", {"by": "agent", "relation": "same_listing", "chosen_id": ASML}))
-        user = self.submit(item, "user", user_turn="desk:identity-verdict:test")
-        self.assertEqual(user["outcome"], "confirmed")
-        self.assertEqual(self.identity.binding_for(item.provider_ref)["subject_id"], ASML)
-
     def test_no_verdict_confirms_against_identifier_proof(self):
         item = self.ask(answer(("isin", "USN070592100")))  # EODHD's record names the NASDAQ receipt's ISIN
         self.assertEqual(item.kind, "conflict")

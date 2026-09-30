@@ -17,10 +17,8 @@ from collections import ChainMap
 from typing import Any, Iterable, Mapping
 
 from . import ranking, relations
-from .evidence import level
 from .model import fold_roots
 from .ranking import logrank, norm, tnorm
-from .trust import CONFIRM
 from .vocabulary import ISSUER_INTERESTS
 
 logger = logging.getLogger(__name__)
@@ -31,10 +29,9 @@ DOC = """CREATE TABLE doc (
   id INTEGER PRIMARY KEY, listing TEXT, security TEXT, issuer TEXT, grp TEXT, kind TEXT, crypto INTEGER,
   ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
   venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
-  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER, liq INTEGER, trust INTEGER, source TEXT,
-  line TEXT)"""
+  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER, liq INTEGER, source TEXT, line TEXT)"""
 DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind reg liq trust source line").split()
+               "currency prim home otc deriv fund dr fus size inst ikind reg liq source line").split()
 LINE = ("SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.trading_currency, l.chain,"
         " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank, l.most_liquid FROM {} JOIN securities s"
         " ON s.id = l.security_id WHERE l.status <> 'inactive' AND s.status <> 'inactive'")
@@ -49,7 +46,7 @@ HELD = {"listing": "SELECT value FROM json_each(?)",
 
 class Index:
     """The index of one reference file (an empty one when none is installed): the reference's lines, built once, and
-    what the device adds laid over them (`renew`). A fold relation a confirm-level plugin contests (`contested`,
+    what the device adds laid over them (`renew`). A fold relation an enabled plugin contests (`contested`,
     `relations`) folds nothing."""
 
     def __init__(self, reference: sqlite3.Connection, contested: frozenset = frozenset()):
@@ -87,7 +84,6 @@ class Index:
                                      if not relations.contests(tuple(edge), contested))
         if odd:  # the builder's report and the reference audit list them
             logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
-        self.package = int(level(ref) == CONFIRM)
         docs = self._docs(ref, list(ref.execute(JOIN)), None)
         self.kinds = {doc["security"]: doc["kind"] for doc in docs}
         self.issuers_of = {doc["security"]: doc["issuer"] for doc in docs}
@@ -114,7 +110,7 @@ class Index:
         ids = many(f"SELECT subject_id, scheme || ':' || value FROM assertions WHERE {'+' if device else ''}scheme IN"
                    f" {SEARCHED}", "subject_id")
         names = many("SELECT subject_id, name FROM names WHERE true", "subject_id")
-        lines, tickers, trust = (device.lines, device.tickers, device.package) if device else ({}, {}, self.package)
+        lines, tickers = (device.lines, device.tickers) if device else ({}, {})
         if device:  # the device's issuers and names add to the reference's; its identifiers replace them
             issuers |= device.issuers
             ids |= device.ids
@@ -155,7 +151,7 @@ class Index:
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
                 int(foreign_us), logrank(rank) if own is None else own["size"],
                 security, kind, int(mic in self.regulated or op in self.regulated & set(US_LISTED)), int(bool(liquid)),
-                trust if own is None else own["trust"], own and own["source"], listing))))
+                own and own["source"], listing))))
         return docs
 
     def _fold(self, docs: list[dict]) -> None:
@@ -204,10 +200,6 @@ class Index:
             laid = {row[line]: tuple(row) for row in db.execute(  # what the device laid before, by line
                 "SELECT * FROM doc WHERE id > ? OR id IN (SELECT value FROM json_each(?))",
                 (self.base, json.dumps(list(self.shadowed))))}
-            if device.package != self.package:  # the package's trust changed: its lines' tie-break follows
-                db.execute("UPDATE doc SET trust = ? WHERE id <= ?", (device.package, self.base))
-                self.shadowed = {id: (*row[:-3], device.package, *row[-2:]) for id, row in self.shadowed.items()}
-                self.package = device.package
             held = dict(db.execute("SELECT line, id FROM doc WHERE id <= ? AND line IN (SELECT value FROM json_each(?))",
                                    (self.base, json.dumps([doc["line"] for doc in docs]))))
             fresh = max([self.base, *(row[0] for row in laid.values())]) + 1

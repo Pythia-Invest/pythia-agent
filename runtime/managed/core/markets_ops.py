@@ -150,7 +150,7 @@ class MarketReads:
             status = ("disabled" if not info.enabled else "needs_configuration" if info.missing else
                       "unavailable" if tool is None or (eligible is not None and tool not in eligible) else "ready")
             entries.append({"plugin": info.key, "provider": info.manifest.provider, "label": info.label,
-                            "status": status, "tool": tool, "unaudited": info.manifest.unaudited})
+                            "status": status, "tool": tool})
         order = ranked(entries, self.identity.order(), REGISTRY[Concept.MARKET_MOVERS].default_order)
         chosen, alternatives, skipped = select(order)
         data = {"list": name, "market": None, "universe": None, "source": None, "retrieved_at": None, "rows": [],

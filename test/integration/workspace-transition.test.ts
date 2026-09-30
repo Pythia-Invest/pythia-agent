@@ -1,4 +1,8 @@
-import { fixture, roots } from "../support/workspace-transition-fixture";
+import {
+  fixture,
+  roots,
+  type ProfilePreview,
+} from "../support/workspace-transition-fixture.js";
 import { workspaceTransitionChat } from "../../scripts/update/workspace-transition-chat.mjs";
 import { applyUpdate } from "../../scripts/update/apply-operation.mjs";
 import {
@@ -32,12 +36,13 @@ describe("explicit workspace storage transition", () => {
     const result = previewWorkspaceTransition(f.paths, {
       nativeConfig: f.nativeConfig,
       pluginDoctor: () => undefined,
-    });
+    }) as ProfilePreview;
     expect(result.binding).toBe("owned-enabled");
     expect(
       result.seeds.every(
-        (seed: { before: string; after: string }) =>
-          seed.before.startsWith("Customized") && seed.after.startsWith("New"),
+        (seed) =>
+          (seed.before ?? "").startsWith("Customized") &&
+          seed.after.startsWith("New"),
       ),
     ).toBe(true);
     expect(
@@ -132,7 +137,6 @@ describe("explicit workspace storage transition", () => {
       applyWorkspaceTransition(f.paths, {
         nativeConfig: f.nativeConfig,
         pluginDoctor: () => undefined,
-        releaseGrants: () => undefined,
       }).stagedAt,
     ).toBe(staged.stagedAt);
   });
@@ -196,7 +200,10 @@ describe("explicit workspace storage transition", () => {
       nativeConfig: f.nativeConfig,
       inspectLegacyService: () => ({ owned: true }),
     };
-    const preview = previewWorkspaceTransition(installed, options);
+    const preview = previewWorkspaceTransition(
+      installed,
+      options,
+    ) as ProfilePreview;
     expect(preview.plugin.safe).toBe(true);
     let launched = false;
     expect(() =>
@@ -217,7 +224,6 @@ describe("explicit workspace storage transition", () => {
         "profile/SOUL.md",
       ],
       pluginDoctor: () => undefined,
-      releaseGrants: () => undefined,
     });
     expect(staged.phase).toBe("staged");
     expect(readFileSync(join(f.paths.configRoot, "secrets.json"))).toEqual(
@@ -255,7 +261,7 @@ describe("explicit workspace storage transition", () => {
     const config = readFileSync(join(f.paths.profileRoot, "config.yaml"));
     const preview = previewWorkspaceTransition(f.paths, {
       nativeConfig: f.nativeConfig,
-    });
+    }) as ProfilePreview;
     expect(preview.plugin.safe).toBe(false);
     expect(() => applyWorkspaceTransition(f.paths, f.options())).toThrow(
       `ownership is unrecognized at ${plugin}`,
@@ -320,7 +326,6 @@ describe("explicit workspace storage transition", () => {
       applyWorkspaceTransition(f.paths, {
         nativeConfig: f.nativeConfig,
         pluginDoctor: () => undefined,
-        releaseGrants: () => undefined,
         afterConfig() {
           throw new Error("config interruption");
         },
@@ -329,7 +334,6 @@ describe("explicit workspace storage transition", () => {
     const staged = applyWorkspaceTransition(f.paths, {
       nativeConfig: f.nativeConfig,
       pluginDoctor: () => undefined,
-      releaseGrants: () => undefined,
     });
     expect(staged.phase).toBe("staged");
     expect(readFileSync(join(staged.backupRoot, "config.yaml"), "utf8")).toBe(

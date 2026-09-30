@@ -1,6 +1,5 @@
 import {
   copyFileSync,
-  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -16,7 +15,6 @@ import { afterEach, expect, it } from "vitest";
 import {
   MANAGED_CORE_FILES,
   PLUGIN_COPY_RECEIPT,
-  RELEASE_GRANTS,
   refreshManagedPlugin,
 } from "../../scripts/dev/files.mjs";
 import { inspectManagedPluginCopy } from "../../scripts/dev/plugin-copy.mjs";
@@ -46,18 +44,7 @@ function fixture() {
 }
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
-const checkoutCore = join(repositoryRoot, "runtime/managed/core");
-// Preparation generates core's release grants before it copies core, and a
-// checkout has none until then; a stand-in makes the payload complete.
-function preparedCore(root: string) {
-  const prepared = join(root, "core");
-  cpSync(checkoutCore, prepared, {
-    recursive: true,
-    filter: (path) => !path.includes("__pycache__"),
-  });
-  put(join(prepared, RELEASE_GRANTS), "{}\n");
-  return prepared;
-}
+const core = join(repositoryRoot, "runtime/managed/core");
 // The two-file core plugin as shipped at 562dfc9, before copy receipts.
 function shippedCopy(root: string, label: string) {
   const destination = join(root, label, "plugins/pythia");
@@ -72,7 +59,6 @@ function shippedCopy(root: string, label: string) {
 
 it("adopts the shipped unreceipted release, ignores its bytecode, and rejects an edited copy", () => {
   const { root } = fixture();
-  const core = preparedCore(root);
   const destination = shippedCopy(root, "shipped");
   put(
     join(destination, "__pycache__/__init__.cpython-314.pyc"),

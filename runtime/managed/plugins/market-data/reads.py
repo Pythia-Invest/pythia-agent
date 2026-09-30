@@ -198,9 +198,6 @@ def prepare_read(backend, request, criteria, descriptor=None, *, use_cache=True,
             return read_failure(request, "invalid_response", alternatives=alternatives, provider=provider, selected=selected)
     result = copy.deepcopy(result)
     result["issues"] += source_issues  # an unverified source is labelled on the result it served
-    if preferred and provider in backend.route(request["view"]["subject"])["unaudited"]:
-        result["issues"].append({"code": "unaudited_source", "severity": "warning",
-                                 "message": f"{provider} is not yet audited: Pythia has not checked this source's data."})
     if result["outcome"] == "error":
         result["issues"].append({"code": "selected_source", "severity": "warning",
                                  "message": f"Selected source: {provider}. Requested series: {selected['id']}. Alternatives require a separate read."})

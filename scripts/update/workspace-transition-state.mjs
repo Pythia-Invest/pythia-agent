@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { readJsonIfPresent } from "../install/files.mjs";
-import { coreFilesPresent } from "../dev/files.mjs";
+import { MANAGED_CORE_FILES } from "../dev/files.mjs";
 import { inspectManagedPluginCopy } from "../dev/plugin-copy.mjs";
 import { assertLegacyBasicMemoryOwned } from "../install/systemd.mjs";
 export const VERSION = 1;
@@ -263,7 +263,7 @@ export function previewWorkspaceTransition(paths, options = {}) {
   const plugin = inspectManagedPluginCopy(
     paths.managedCore,
     join(paths.profileRoot, "plugins", "pythia"),
-    coreFilesPresent(paths.managedCore),
+    MANAGED_CORE_FILES,
   );
   const expected = digest(JSON.stringify({ configHash, seeds, files, plugin }));
   return {

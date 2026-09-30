@@ -60,10 +60,10 @@ decide how much autonomy they earn.
    and ledgers stay on the investor's own machine. Pythia's services never see
    what an investor researches.
 6. **Extend on equal terms; maintain good defaults.** Confidence in an
-   assertion comes from the kind of evidence and the plugin's trust level,
-   never from its name, from being bundled, or from arriving as a prebuilt
-   package. Pythia's maintained defaults work out of the box and can be
-   replaced or supplemented.
+   assertion comes from the kind of evidence, never from a plugin's name, from
+   being bundled, or from arriving as a prebuilt package. Installing a plugin
+   means trusting it, so every enabled plugin is equal. Pythia's maintained
+   defaults work out of the box and can be replaced or supplemented.
 7. **Extend without forking.** Everything a builder customises is a file or a
    plugin. The core stays upstream and keeps updating.
 8. **Provider-neutral and free-first.** Pythia works with free and open sources
@@ -317,11 +317,11 @@ A genuinely new kind is a rare addition to core. New subjects never are.
   listed security.
 - **Introducing a subject confers no authority over it.** Facts about any
   subject, including one a plugin introduced, are weighed by the kind of
-  evidence and the plugin's trust level: for example, which company a ticker
-  belongs to, which share a depositary receipt represents, or which asset a
-  pool holds. The absence of competing evidence never increases a plugin's
-  authority, so disabling one plugin does not make another the authority over
-  its instruments.
+  evidence: for example, which company a ticker belongs to, which share a
+  depositary receipt represents, or which asset a pool holds. Different
+  plugins that disagree contest the fact, whoever they are. The absence of
+  competing evidence never increases a plugin's authority, so disabling one
+  plugin does not make another the authority over its instruments.
 - **Links are made by identifier agreement at the right scope.** An identifier
   links records only at the level it identifies: an ISIN or share-class FIGI
   links securities, an LEI links issuers. A shared issuer never makes two
@@ -363,8 +363,9 @@ Today:
 - reference sources are builder adapters: a build can leave out any of them
   except the ISO 10383 venue codes and core's curated crypto table, and lists
   the ones it includes, and a device can remove its installed package;
-- only confirm-level plugins bind, onto reference or device subjects, and a
-  display plugin binds only a subject it introduced;
+- every enabled plugin is equal: any of them binds, onto reference or device
+  subjects, and two that disagree on a single-valued fact leave it contested,
+  with the user's answer deciding it on their device;
 - questions are queued only when an instrument is opened, watched or used by
   the agent, not yet when it is held or forecast.
 
@@ -416,7 +417,7 @@ build. The approach that follows:
 | Source errors | A register field naming the wrong company | Rules that name kinds of evidence, never sources: for example, a company's own regulatory filing outweighs a trading venue's report of its issuer | Nothing to do; a contradicted link is marked |
 | Corporate actions | A share consolidation that changes an ISIN | Lifecycle data: successors, ratios and effective dates | Old references keep resolving through successor links |
 | Listing choice | Which of two exchanges a dual-listed company counts as primary | A preference or documented default; pinned where a decision depends on it | The listing in use, with the alternatives |
-| Subjects only one plugin describes | DeFi pools and protocols; a vendor's proprietary indices | The plugin's claims count at its trust level, labelled with their source; the absence of other plugins does not raise them. Links to shared subjects are made by identifier agreement | New subjects appear with the plugin's label |
+| Subjects only one plugin describes | DeFi pools and protocols; a vendor's proprietary indices | The plugin's claims count like any enabled plugin's, labelled with their source; the absence of other plugins does not raise them. Links to shared subjects are made by identifier agreement | New subjects appear with the plugin's label |
 | Vendor symbols | Mapping a vendor's ticker to a listing | Automatic matching by open identifiers when the plugin connects | A summary of what matched, and what stays available only from that vendor |
 | The user's own unmatched records | A broker position or wallet token that no source identifies | On the user's machine, only when it matters. An agent proposes a match and the user confirms | The record appears immediately, labelled "not matched", with a suggestion |
 | Values that differ | Two vendors reporting different revenue | Never merged: single values are shown side by side, lists are merged without duplicates, and a price view uses one source ([ADR 0040](decisions/0040-data-concepts-and-agent-tools.md)) | Labelled rows |
@@ -436,7 +437,7 @@ build. The approach that follows:
   per fix. Only identifiers and reasoning are sent, never positions or
   holdings.
 - **When a user's own vendor disagrees with other evidence,** the rules decide
-  by evidence kind and trust level. Where they do not, the link stays
+  by evidence kind. Where they do not, the link stays
   unresolved, the disagreement is shown, and a local override makes the user's
   choice win on their installation.
 
@@ -460,7 +461,7 @@ build. The approach that follows:
   interpretation it used, and retrieves evidence or abstains rather than
   relying on what it remembers. Built for instrument reads: `pythia_instrument`
   gives the listing in use as the default, typed flags from a closed list and
-  each identifier's source and trust level, and the full evidence of a question
+  each identifier's source, and the full evidence of a question
   comes through `pythia_identity_questions`
   ([the agent's tools](architecture/agent-tools.md)).
 - **Saved interpretations are suggestions.** An agent's answer to an identity
@@ -470,42 +471,35 @@ build. The approach that follows:
   consequential operation depends on its evidence and that operation's
   requirements, not on which model produced it.
 
-### Plugin trust levels
+### Installing a plugin means trusting it
 
-| Level | May | Requires |
-| --- | --- | --- |
-| Display | Provide data that is shown with its source, and introduce subjects under open or native identifiers | Declared coverage and terms, and the identifier scheme of any subjects it introduces |
-| Suggest identity | Propose facts about shared subjects for review | Documented field semantics |
-| Confirm identity | Establish facts about shared subjects without review | The full [source onboarding](architecture/source-onboarding.md) audit and sign-off |
+There are no trust levels. A user who installs and enables a plugin, say one
+for Japanese stocks, trusts it, and every enabled plugin is equal: it can
+introduce subjects, contribute evidence, bind and alias, and its evidence
+counts like any other's ([ADR 0044](decisions/0044-product-direction.md),
+amendment of 2026-09-30).
 
-Adding subjects and data needs no audit, so community plugins are cheap to
-write and a user's own paid data is fully usable. The audit is reserved for
-establishing facts that other sources also describe.
-
-- **What a plugin's claims can establish is bounded by claim type and trust
-  level.** A plugin cannot raise it by labelling its claims.
-- **Trust attaches to a plugin's content, not its name.** Trust is tied to a
-  signed or hashed release, so a different plugin that reuses an audited
-  plugin's name does not inherit it. Today it follows a digest of the plugin's
-  files; signatures come with a published release.
-- **Trust levels limit what data can do, not what code can do.** Running
-  untrusted community code safely also requires isolating plugins, which is
-  planned before an open marketplace.
-
-Today two levels exist, set by a grant on the digest of the plugin's files:
-Pythia generates grants for its own plugins from their sign-off, and a user's
-own grant may confirm or demote any plugin. A plugin without a confirm grant
-is display (off until the user enables it, then merged into lists and shown
-side by side, labelled "not yet audited"; for a single-source view it comes
-after every audited source, serving only if the user names it or nothing
-audited can), and one with a confirm grant confirms. Suggest
-arrives with the first plugin that needs it
-([ADR 0042](decisions/0042-source-onboarding-standard.md)).
+- **What keeps data honest is conflict, not rank.** Evidence from different
+  plugins or sources that disagrees on a single-valued fact leaves the fact
+  contested: both values are kept, neither is applied, and a question is asked
+  when the subject is touched. The user's answer is a local override and wins.
+- **The remedies are the user's.** Disable the plugin, or answer the question
+  a conflict raises, which overrides the data on the user's device; pages name
+  each identifier's source. A plugin that is wrong and uncontradicted is
+  believed until one of those.
+- **Defaults are a product choice, not a level.** Plugins that Pythia has not
+  audited (DeFiLlama, Hyperliquid and the FCA National Storage Mechanism) ship
+  off, and turning one on is the opt-in. A plugin contract's `signoff` field
+  records Pythia's own audit under the
+  [source onboarding](architecture/source-onboarding.md) standard; no code
+  reads it.
+- **Nothing limits what a plugin's code can do.** Running untrusted community
+  code safely requires isolating plugins, which is planned before an open
+  marketplace.
 
 ### Connecting a plugin
 
-1. **Install or enable the plugin.** Its card shows its trust level and its
-   provider's terms.
+1. **Install or enable the plugin.** Its card shows its provider's terms.
 2. **Add a credential.** The connection check shows what the plan allows, how
    much of the vendor's universe matched existing subjects, and which new
    subjects the plugin adds.

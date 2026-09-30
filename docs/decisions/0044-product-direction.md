@@ -305,7 +305,10 @@ question on every installation.
    - **Paused until a strategy universe reaches a gap or a second user
      arrives:** new reference sources and further source audits.
 
-**A4.** **Plugin trust levels** (replaces ruling 10). There are three levels:
+**A4.** **Plugin trust levels** (replaces ruling 10). *Superseded on
+   2026-09-30: installing a plugin means trusting it, and there are no levels
+   ([amendment below](#amendment-2026-09-30-installing-a-plugin-means-trusting-it)).
+   Only the last bullet, code isolation, stands.* There are three levels:
    display, suggest identity and confirm identity.
    - **Display** covers showing data with its source and introducing subjects
      under open or native identifiers. It needs declared coverage and terms,
@@ -376,16 +379,16 @@ central curator exists.
 - **Disabling a plugin is Hermes's command.** Settings → Data → Data sources shows
   first which subjects only that plugin supplies and which saved watchlist and
   card entries name them.
-- **Trust follows a digest of each plugin's files, never its name.** Pythia's
-  release grants confirm its signed-off and grandfathered plugins, and the
-  user's own grants may confirm another or demote one (ADR 0042, amendment of
-  2026-09-30). Only a confirm-level plugin binds, onto reference or device
-  subjects; a display plugin binds only a subject it introduced (ADR 0042,
-  amendment "binding by trust level").
-- **Questions on touch.** The build's open questions and a confirm-level
-  plugin's conflicts are asked when an instrument is opened, watched or used
-  by the agent, and the user's answer is a local override
-  ([ADR 0037](0037-identity-backbone.md), amendment "questions on touch").
+- **Installing a plugin means trusting it.** There are no trust levels: every
+  enabled plugin is equal, binds onto reference or device subjects, and
+  contributes evidence that counts like the package's (amendment of
+  2026-09-30 below).
+- **Questions on touch.** The build's open questions, and the conflicts between
+  plugins' evidence (a plugin-introduced subject's included, and one plugin
+  contradicting itself), are asked when an instrument is opened, watched or
+  used by the agent, and the user's answer is a local override
+  ([ADR 0037](0037-identity-backbone.md), amendments "questions on touch" and
+  "questions and overrides for plugin-introduced subjects").
 - **Reference sources are builder adapters.** A build can leave out any of
   them (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
   sources it includes; only the ISO 10383 venue codes and core's curated
@@ -404,13 +407,8 @@ Still open:
 
 - Holdings, forecasts and operations join as question triggers in stage 1.
 - The reference sources' direct and prebuilt forms, and the exact
-  evidence-weighing rules, stay open (A8). The defaults name kinds of evidence
-  and trust levels.
-- Two trust levels exist, display and confirm. Suggest identity arrives with
-  the first plugin that needs it, and trust follows a digest, not yet a signed
-  release.
-- A contested fact about a subject only the device holds is shown and
-  flagged, not asked. A user cannot yet alias a provisional coin.
+  evidence-weighing rules, stay open (A8). The defaults name kinds of evidence.
+- A user cannot yet alias a provisional coin.
 - The effect of disabling a plugin counts coverage (the subjects only it
   supplies), not the identifiers a subject other sources also supply would
   lose.
@@ -495,3 +493,108 @@ mode waits for A8.
 **Rejected alternatives.** A bulk catalogue over the reference's ISINs (a
 direct form of a reference source, open under A8), and EODHD as the overlapping
 source (paid, and its ISINs are `unqualified`, so nothing joins by ISIN).
+
+## Amendment (2026-09-30): installing a plugin means trusting it
+
+### Context
+
+Stage 0 built A4's trust levels: display and confirm, looked up by a digest of
+a plugin's files. Pythia's release grants were generated when the payload was
+assembled, the user could grant or demote any plugin locally, the reference
+package was granted on its own digest, only a confirm-level plugin could bind,
+and a plugin below confirm was labelled "not yet audited" and its would-be
+binding became an `unaudited` question. The founder ruled on 2026-09-30: "IF
+you install 'Japan stocks' that means that you trust it… remove that
+distinction." The user chose the plugin; Pythia asking them to trust it a
+second time, by a digest they cannot judge, adds friction and no safety.
+
+### Ruling
+
+- **Every enabled plugin is equal.** It can introduce subjects under its
+  contract's key schemes, contribute evidence, bind its records to a reference
+  or device subject, and alias its provisional IDs. Its evidence counts like
+  any other's, including the reference package's. The reference package is
+  just another source.
+- **This supersedes** A4's three levels and its sentence "trust attaches to a
+  signed or hashed release", and the parts of A2 and A3 that weigh evidence by
+  "trust level": evidence is weighed by its kind. Gone with them are the
+  plugin-file digest, Pythia's release grants and the user's local grants, the
+  package grant, the `vouched` contract, the "not yet audited" label, the
+  `unaudited` residual, ADR 0042's "binding by trust level" and the Settings
+  labels "Confirms identity" and "Display only".
+- **Conflicts stay.** Evidence from different plugins or sources that
+  disagrees on a single-valued fact leaves it contested: every value is kept,
+  none is applied, and a question is asked when the subject is touched. The
+  user's answer is a local override and wins, refused only by unanimous
+  identifier proof. One source's several values (A2) are no conflict.
+- **A plugin that is off or removed** keeps its subjects' labels and
+  identifiers on the device, shown with their source, but what it stated does
+  not prove, block or contest while it is off. That follows from disabling,
+  not from a level.
+- **Default enablement is a product default.** DeFiLlama, Hyperliquid and the
+  FCA NSM plugin stay off in fresh profiles, and enabling one is the opt-in.
+- **`signoff` in a plugin's contract** stays as a record of Pythia's own audit
+  under [ADR 0042](0042-source-onboarding-standard.md), which stays Pythia's
+  quality process for the defaults it ships. No code reads it.
+- **Source selection** keeps [ADR 0040](0040-data-concepts-and-agent-tools.md)'s
+  one order (the investor's, then core's default order, then by plugin ID),
+  without the rule that an unsigned source is never core's own pick: any
+  enabled plugin can be picked by the default order.
+- **Code isolation** (A4's last bullet) still stands: isolating plugin code is
+  required before an open marketplace.
+
+### Rationale
+
+- Installing is the decision. A plugin the user did not want is not installed;
+  one they did want should work on equal terms, as the vision says.
+- The levels were a second, hidden decision. Confirm or display by digest
+  meant a user who edited a plugin's file, or updated it, lost its binding
+  powers until a new grant was recorded, and had no way to read the digest.
+- What protects the data is conflict, not rank: a wrong value that another
+  source contradicts is contested rather than applied. The other remedies are
+  the user's (disable the plugin, answer the question).
+- It removes a generator run at every assembly, a generated file in core's
+  payload, a local grants file in the config folder, a parity test between
+  assembly and runtime, and a separate rule for display plugins in ingest,
+  evidence, relations, search and binding.
+
+### Consequences
+
+- **There is no protection against a buggy or malicious plugin** other than
+  disabling it, correcting its data, or conflicts being raised. A plugin that
+  states a wrong value no other source contradicts is believed. Code isolation
+  stays required before an open marketplace.
+- Two plugins that send the same records under different names, whatever
+  sign-off each declares, give the same subjects, evidence, pages and search
+  results.
+- An existing `trust.json` in the Pythia config folder is ignored, and core
+  no longer writes or reads one. `reference_package install` takes no
+  `--display` and needs no config folder.
+- A disagreement between two plugins that an earlier version ranked by level
+  is now a contested fact and a question on touch. Two plugins that name
+  different parents for one device line leave the line without a parent
+  (neither wins), and another plugin's line on the same exchange counts as a
+  second line there, so a currency-less record that would have joined the
+  exchange's one line stays unmatched.
+- Evidence Pythia cannot rank stays unranked: the exact weighing rules remain
+  open (A8).
+- The remedies the founder named, an explanation of where a value comes from,
+  an on/off switch per plugin in Settings, and user corrections to the
+  catalogue, are separate changes; none of them is part of this one.
+- Earlier amendments' text on levels is superseded where it conflicts: ADR 0037
+  ("evidence counts by kind and trust level", "binding", the search tie-break),
+  ADR 0038 (a declared address `confirmed` only at confirm level), ADR 0040
+  ("Unaudited sources") and ADR 0042 (its three trust amendments).
+
+### Rejected alternatives
+
+- **Hash-bound levels (A4 as built).** They tie trust to reviewed content, but
+  the user never reviews the content, every update changes the hash, and
+  Pythia's own grants needed generating and guarding. The protection they gave
+  was against a plugin under a trusted name, a risk a user who installs
+  plugins by choice already carries.
+- **Levels by origin** (shipped, community, the user's own). They are
+  authority by origin again, which A1 rules out.
+- **A single "verified" badge** kept for Pythia's audited plugins. It would
+  make every unbadged plugin second class in the interface while changing no
+  behaviour.

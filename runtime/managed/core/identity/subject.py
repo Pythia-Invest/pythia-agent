@@ -15,7 +15,7 @@ from .vocabulary import RELATIONS, Grouping
 
 def current_id(ref: sqlite3.Connection, subject_id: str, declared: Mapping[str, str] = {}) -> str:
     """The ID this reference gives a subject: `id_aliases` followed to its end, each step also through `declared`, the
-    provisional IDs confirm-level contracts alias to the subjects they address (`declared.aliases`). A cycle is a
+    provisional IDs contracts alias to the subjects they address (`declared.aliases`). A cycle is a
     defect: its IDs stay as they are."""
     def step(old: str) -> str | None:
         row = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (old,)).fetchone()
@@ -37,8 +37,7 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     An ID the reference no longer holds (an older key rule, a re-key, another build path)
     resolves through `id_aliases` (ADR 0037); the result carries the current ID.
 
-    Its assertions count at the package's trust level (`evidence.weigh`): `evidence` proves and blocks only at
-    confirm, `shown` is display-level, and a contested scheme has no value.
+    Its assertions all count (`evidence.weigh`); a contested scheme has no value.
     """
     if subject_kind(subject_id) not in INSTRUMENT_KINDS:
         return None
@@ -69,8 +68,7 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     subjects = [value for value in ids.values() if value]
     rows = ref.execute(f"SELECT * FROM assertions WHERE subject_id IN ({','.join('?' * len(subjects))}) ORDER BY rowid",
                        subjects).fetchall()  # stored order: one source's several values keep their first
-    trust = weighing.level(ref)
-    weighed = weighing.weigh((_assertion(row) for row in rows), trust)
+    weighed = weighing.weigh(_assertion(row) for row in rows)
     if listing is not None and listing["status"] == "inactive":  # a delisted line's ticker may name another company
         weighed["values"].pop("ticker_mic", None)
     venues = {row["mic"]: row["name"] for row in ref.execute("SELECT mic, name FROM venues")}
@@ -79,7 +77,7 @@ def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | Non
     name = (issuer["name"] if issuer and (security is None or security["asset_class"] != "crypto") else None) or (
         security["name"] if security else subject_id)
     subject = {
-        "id": subject_id, "level": level, "ids": ids, **weighed, "trust": trust,
+        "id": subject_id, "level": level, "ids": ids, **weighed,
         "asset_class": security["asset_class"] if security else None,
         "kind": security["kind"] if security else None,
         "security": security, "listing": listing,
