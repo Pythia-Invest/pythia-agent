@@ -386,7 +386,9 @@ version 1):
   relation claim may name the plugin's own declared references
   ([ADR 0038](../decisions/0038-plugin-addressing-contract.md), amendment
   "contract version 2"). While the plugin is enabled, its subjects appear in
-  search with its label and rank like any other; a record's `rank` signals in
+  search with its label (core's name for its provider, `LABELS` in
+  `identity/page.py`, else the provider id, so a bundled plugin adds its entry)
+  and rank like any other; a record's `rank` signals in
   US dollars (keys ending `_usd`, such as `market_cap_usd` or `tvl_usd`) set
   their notability. A line under a known security takes the security's kind.
   A Desk search for an identifier that its `resolve` takes offers "Look up in"
