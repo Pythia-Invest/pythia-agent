@@ -124,6 +124,9 @@ class Context:
     def register_platform_handler(self, *_args):
         pass
 
+    def register_skill(self, *_args, **_kwargs):
+        pass
+
     def on_unload(self, *_args):
         pass
 

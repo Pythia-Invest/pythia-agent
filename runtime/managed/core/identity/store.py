@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
-from . import Store, reference_package, schema_sql
+from . import Store, add_columns, reference_package, schema_sql
 from .model import Binding, ProviderRef
 from .schemes import registered_kind
 from .resolution import QueueItem, Verdict, VerdictOutcome
@@ -92,6 +92,7 @@ class IdentityStore:
             self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
             self.db.row_factory = sqlite3.Row
             self.db.executescript(schema_sql(Store.IDENTITY).partition(ADDED)[2].partition("\n")[2])  # added in version
+            add_columns(self.db, Store.IDENTITY)
         self._writing, self._depth = threading.RLock(), 0  # one connection serves every thread, one user at a time
 
     def _create(self, fill) -> None:
@@ -199,15 +200,16 @@ class IdentityStore:
         registered_kind(binding.subject_id)  # the store keeps registered kinds and key schemes only
         self.db.execute(
             "INSERT INTO bindings (id, plugin, provider, native_id, native_scope, subject_id, kind, status, authority,"
-            " rule_id, evidence_ids, valid_from, valid_to, verified_at, verdict_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " rule_id, evidence_ids, valid_from, valid_to, verified_at, verdict_id, decided_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT (provider, native_scope, native_id) DO UPDATE SET plugin=excluded.plugin,"
             " subject_id=excluded.subject_id, kind=excluded.kind, status=excluded.status,"
-            " authority=excluded.authority, rule_id=excluded.rule_id, evidence_ids=excluded.evidence_ids,"
-            " verified_at=excluded.verified_at, verdict_id=excluded.verdict_id WHERE bindings.subject_id = excluded.subject_id"
-            " OR bindings.status = 'rejected'",
+            " authority=excluded.authority, rule_id=excluded.rule_id, evidence_ids=excluded.evidence_ids, verified_at=excluded.verified_at,"
+            " verdict_id=excluded.verdict_id, decided_at=CASE WHEN (bindings.subject_id, bindings.status, bindings.authority) ="
+            " (excluded.subject_id, excluded.status, excluded.authority) THEN bindings.decided_at ELSE excluded.decided_at END"
+            " WHERE bindings.subject_id = excluded.subject_id OR bindings.status = 'rejected'",
             (uuid.uuid4().hex, binding.plugin, ref.provider, ref.native_id, ref.native_scope, binding.subject_id,
              binding.kind, binding.status, binding.authority, binding.rule_id, json.dumps(list(binding.evidence_ids)),
-             binding.validity.valid_from, binding.validity.valid_to, now(), verdict_id))
+             binding.validity.valid_from, binding.validity.valid_to, (stamp := now()), verdict_id, stamp))
         return self.db.execute("SELECT changes()").fetchone()[0] == 1
 
     @_locked
@@ -370,8 +372,6 @@ class IdentityStore:
 _V3_COLUMNS = {("subjects", "kind"): "level", ("bindings", "kind"): "level"}
 _V5_COLUMNS = {("subjects", "introduced_by"): "created_by", ("subjects", "first_seen"): "created_at",
                ("subjects", "last_seen"): "created_at"}
-
-
 _ITEMS = ("SELECT q.*, v.resolver AS settled_by, v.relation AS settled_relation, v.chosen_id AS settled_choice"
           " FROM queue q LEFT JOIN verdicts v ON v.id = q.resolved_by")
 

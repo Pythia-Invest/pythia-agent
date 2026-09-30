@@ -20,6 +20,7 @@ class RegistryContractContext:
         self.sections = []
         self.tools = {}
         self.platform_handlers = []
+        self.skills = {}
         self.unloads = []
 
     def on_unload(self, callback):
@@ -27,6 +28,9 @@ class RegistryContractContext:
 
     def register_platform_handler(self, *args):
         self.platform_handlers.append(args)
+
+    def register_skill(self, name, path, **options):
+        self.skills[name] = (path, options)
 
     def register_system_prompt_section(self, *args, **kwargs):
         self.sections.append((args, kwargs))
@@ -48,6 +52,8 @@ class CoreTest(unittest.TestCase):
         self.assertEqual(result['reason'], 'invalid_reference')
         self.assertTrue(any(name == 'api_server' for name, _ in context.platform_handlers))
         self.assertTrue(context.sections)
+        skill = context.skills['identity-data'][0]  # the skill `pythia_instrument` points to, with its queries
+        self.assertTrue(skill.is_file() and (skill.parent / 'references/queries.md').is_file())
 
     def test_operating_section_fits_its_budget_on_every_platform(self):
         # Hermes skips, not truncates, a section longer than max_chars (hermes_cli/plugins.py

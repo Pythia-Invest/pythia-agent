@@ -262,7 +262,10 @@ keeps the store aside as `identity.v6-<id>.sqlite3` and starts empty, and Repair
 reports a reset. Your bindings and answers are in that set-aside file. To
 restore them, stop the stack, move the fresh `identity.sqlite3` aside, rename
 `identity.v6-<id>.sqlite3` to `identity.sqlite3`, and start the newer build
-([ADR 0037](decisions/0037-identity-backbone.md), amendment "device subjects"). `just dev-init`,
+([ADR 0037](decisions/0037-identity-backbone.md), amendment "device subjects"). A column added
+within schema 6 is nullable and added when core opens the store, so it does not make an older build
+set the store aside. To read the stores directly, see [identity data](architecture/identity-data.md).
+`just dev-init`,
 `just dev` and `just dev-refresh` install this checkout's
 `.local/reference-builder/out/` package when there is one; set
 `PYTHIA_DEV_REFERENCE_PACKAGE` to use another package directory. To install

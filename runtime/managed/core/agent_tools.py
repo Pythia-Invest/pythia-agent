@@ -52,7 +52,8 @@ INSTRUMENT = {
                    "one investment: identifiers (ISIN, LEI, CIK, FIGI) and their sources, issuer, its listings and "
                    "related instruments, flags for what is uncertain, and which source serves each concept (quote, "
                    "chart, profile, filings) or why none does. Use it to pick a listing, find an issuer's LEI or CIK, "
-                   "or see which sources are connected. Local only.",
+                   "or see which sources are connected. To trace where a stored fact comes from, read the "
+                   "pythia:identity-data skill. Local only.",
     "parameters": {"type": "object", "properties": {"subject_id": SUBJECT},
                    "required": ["subject_id"], "additionalProperties": False},
 }
