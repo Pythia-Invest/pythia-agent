@@ -100,15 +100,14 @@ carries:
 **Behaviour.** The adapter never picks a winner and never reads another source.
 It records an empty answer as absence, not as a negative fact.
 
-**Authority.** Only a value read directly from a source field carries
-`snapshot` authority, which core reads as `source_asserted`: the kind of
-evidence, counted at the package's trust level, never above another
-contributor's (ADR 0037, amendment of 2026-09-30). Every derived value carries
-its own:
+**Authority.** Only a value read directly from a source field is
+`source_asserted`: the kind of evidence, counted at the package's trust level,
+never above another contributor's (ADR 0037, amendments of 2026-09-30). Every
+derived value carries its own:
 
 - a rule output is `rule_confirmed`, with its `rule_id`;
-- a venue default must not use `curated` or `snapshot`: until core has a
-  default authority, write it as an unconfirmed attribute or leave it out;
+- a venue default is no source's statement: until core has a default
+  authority, write it as an unconfirmed attribute or leave it out;
 - a judge answer is `model_*`.
 
 A derived value must never gain T0 authority over a provider's identifier.

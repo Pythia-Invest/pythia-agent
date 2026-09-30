@@ -350,7 +350,7 @@ class SubjectOperationTest(QueueFixture):
             db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency) VALUES"
                        " ('listing:isin:NL0000000C07:XAMS:EUR', ?, 'XAMS', 'XAMS', 'ASMLC', 'EUR')", (other,))
             db.execute("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
-                       " retrieved_at) VALUES ('ev:class', 'share_class_of', ?, 'security:isin:NL0010273215', 'curated',"
+                       " retrieved_at) VALUES ('ev:class', 'share_class_of', ?, 'security:isin:NL0010273215', 'source_asserted',"
                        " 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')", (other,))
         reference_package.install(make_package(Path(self.tmp.name) / "out", source=path), Path(self.tmp.name) / "core")
         ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.tmp.name) / "core")

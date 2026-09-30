@@ -21,7 +21,7 @@ from .page import LABELS, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_su
 from .resolution import RELATION_LEVEL, QueueItem, ResolverKind, Verdict, VerdictOutcome, decide
 from .schemes import Level, subject_kind, subject_level
 from .store import IdentityStore
-from .vocabulary import Authority, InstrumentKind, VerdictRelation, stored_authority
+from .vocabulary import Authority, InstrumentKind, VerdictRelation
 
 AGENT_MODEL = "hermes-agent"
 PROMPT_VERSION = "pythia_identity_verdict@1"
@@ -296,8 +296,8 @@ def _evidence(ref: sqlite3.Connection, cited: list[str]) -> list[dict]:
     """The reference assertions an item cites, each with its source and the kind of evidence it is."""
     rows = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({','.join('?' * len(cited))})", cited).fetchall() \
         if cited else []
-    return [{**{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "source", "retrieved_at")},
-             "authority": str(stored_authority(row["authority"], row["source_record"]))} for row in rows]
+    return [{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "source", "retrieved_at", "authority")}
+            for row in rows]
 
 
 def _raw(store: IdentityStore, item: dict) -> dict | None:

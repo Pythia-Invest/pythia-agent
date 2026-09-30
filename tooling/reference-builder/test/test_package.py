@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import manifest, schema, writer
+from reference_builder import drift, manifest, schema, writer
 from reference_builder.pipeline import build_snapshot
 
 from .fixtures import FakeOpenFigi
@@ -59,24 +59,33 @@ class PackageTest(unittest.TestCase):
         self.assertTrue(installer.current(data).is_file())
 
 
-    def test_first_read_of_a_new_format_package_carries_provisional_coins_to_their_curated_ids(self):
+    def test_first_read_carries_a_provisional_coin_through_a_confirm_level_contract_not_the_package(self):
+        """The package names no provider, so none of its aliases is a coin plugin's provisional ID; the coin plugin's
+        own declaration carries a row saved under one to the curated asset on the release's first read (Lifecycle A),
+        and only at confirm (ADR 0044 A3)."""
         identity, store = schema.identity, importlib.import_module("pythia_core_identity.store")
         lifecycle = importlib.import_module("pythia_core_identity.lifecycle")
+        declared = importlib.import_module("pythia_core_identity.declared")
         data = Path(self.tmp.name) / "core"
         local = store.IdentityStore(data)  # a binding made before USDC was curated, on its provisional ID
         old = identity.provisional_id("security", "coingecko", "coin", "usd-coin")
         local.put_binding(identity.Binding(
             provider_ref=identity.ProviderRef("coingecko", "usd-coin", "coin"), subject_id=old, status="confirmed",
             authority="user_attested", evidence_ids=("ev:" + "0" * 64,), plugin="pythia-coingecko"))
-        self.assertEqual(self.build()["format_version"], 5)
+        self.assertEqual(self.build()["format_version"], installer.FORMAT_VERSION)
         installer.install(self.out, data)
         path = store.reference_path(data)  # what core's first read does (identity_ops.Identity.reference_path)
+        contract = identity.validate_manifest(json.loads((drift.PLUGINS / "coingecko" / "contract.json").read_text()))
         with contextlib.closing(store.open_reference(path)) as ref:
-            done = lifecycle.rekey(local, ref, installer.release_key(path))
+            self.assertIsNone(ref.execute("SELECT old_id FROM id_aliases WHERE old_id LIKE 'security:provisional:%'"
+                                          " AND old_id NOT LIKE '%:esma_firds:%'").fetchone())
+            for level, moved in (("display", 0), ("confirm", 1)):
+                with self.subTest(level=level):
+                    done = lifecycle.rekey(local, ref, installer.release_key(path), again=True,
+                                           declared=lambda: declared.aliases([identity.vouched(contract, level)]))
+                    self.assertEqual(done["moved"], moved)
         usdc = "security:caip19:eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
-        self.assertEqual((done["moved"], done["vanished"]), (1, 0))
-        self.assertEqual([row["provider"] for row in local.bindings([usdc])], ["coingecko"])
-        self.assertEqual(local.bindings([old]), [])
+        self.assertEqual(([row["provider"] for row in local.bindings([usdc])], local.bindings([old])), (["coingecko"], []))
 
     def test_a_build_with_a_failed_canary_is_not_a_package(self):
         self.build()

@@ -25,7 +25,7 @@ from .identity import (
 )
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
-from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
+from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
 from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
 from .identity import declared, device, flags, trust
 
@@ -99,7 +99,8 @@ class Identity:
             try:
                 ref = store.open_reference(path)
                 try:
-                    done = lifecycle.rekey(self.store, ref, reference_package.release_key(path), again=again)
+                    done = lifecycle.rekey(self.store, ref, reference_package.release_key(path), again=again,
+                                           declared=lambda: declared.aliases(info.manifest for info in installed()))
                 finally:
                     ref.close()
                 if done:
@@ -122,9 +123,8 @@ class Identity:
         group = str(arguments.get("group") or "").strip()[:256]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
-            path = self.reference_path()
-            if path is None:
-                return _envelope("empty", empty, issue=NO_REFERENCE)
+            if (path := self.reference_path()) is None:
+                return _envelope("empty", empty, issue=no_reference(self.data_dir))
             directory = search.directory(path, store.open_reference)
             kinds = arguments.get("kinds")
             data = (directory.group(group, kinds=kinds) if group
@@ -137,7 +137,8 @@ class Identity:
 
     def reference_status(self, _arguments: dict, **_context: Any) -> str:
         data = {**reference_package.status(self.data_dir), "both_present": location.both_present(self.data_dir)}
-        return _envelope("ok", data) if data["installed"] else _envelope("empty", data, issue=NO_REFERENCE)
+        installed = data["installed"]  # one this Pythia cannot read says so and what to do (`problem`)
+        return _envelope("ok" if installed else "empty", data, issue=installed["problem"] if installed else NO_REFERENCE)
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -155,8 +156,8 @@ class Identity:
             path, subject, _lookups, issue = self._load(subject_id)
         except (ValueError, sqlite3.Error, OSError):
             path, subject, issue = None, None, None
-        if issue == NO_REFERENCE:
-            return _envelope("empty", None, issue=NO_REFERENCE)
+        if issue and issue != UNKNOWN_SUBJECT:  # no reference data this Pythia can read
+            return _envelope("empty", None, issue=issue)
         info = next((item for item in installed() if wanted in (item.key, item.manifest.plugin)), None)
         if subject is None or info is None or info.manifest.resolve is None:
             return _envelope("empty", None, issue="Unknown subject or no resolving plugin.")
@@ -257,7 +258,7 @@ class Identity:
             if ref is not None:
                 ref.close()
         if subject is None:  # an instrument with no reference installed may yet be in one
-            return path, None, {}, NO_REFERENCE if path is None and subject_kind(subject_id) in INSTRUMENT_KINDS else UNKNOWN_SUBJECT
+            return path, None, {}, no_reference(self.data_dir) if path is None and subject_kind(subject_id) in INSTRUMENT_KINDS else UNKNOWN_SUBJECT
         return path, subject, self._lookups(subject), None
 
     def _lookups(self, subject: dict) -> dict:
@@ -315,7 +316,6 @@ class Identity:
         now = store.now()
         for claim in batch_to_json(batch)["claims"]:
             self.store.put_claim(batch.plugin, batch.provider, claim)
-
         for level in sorted(levels, key=lambda item: item != Level.LISTING):
             binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now,
                                                          bound_to=self.store.bound_subject)

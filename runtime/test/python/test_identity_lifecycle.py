@@ -201,7 +201,7 @@ class ScaleTest(QueueFixture):
             db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, currency) VALUES"
                            " (?, ?, 'XAMS', 'XAMS', 'EUR')", [(row[1], f"security:figi:{row[1][13:]}") for row in rows])
             db.executemany("INSERT INTO assertions (evidence_id, subject_id, level, scheme, value, authority, source,"
-                           " plugin, adapter_version, retrieved_at) VALUES (?, ?, 'listing', 'ticker_mic', ?, 'snapshot',"
+                           " plugin, adapter_version, retrieved_at) VALUES (?, ?, 'listing', 'ticker_mic', ?, 'source_asserted',"
                            " 'fixture', 'fixture', '1', ?)", [(*row, NOW) for row in rows])
             db.executemany("INSERT INTO id_aliases (old_id, new_id, release) VALUES (?, ?, ?)", aliases)
         with self.identity.transaction():

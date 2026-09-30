@@ -21,8 +21,9 @@ import urllib.parse
 
 from .config import USER_AGENT, load_coinmarketcap_key
 from .fetch import HttpError, request
-from .schema import CORE, PLUGINS
+from .schema import CORE
 
+PLUGINS = CORE.parents[1] / "plugins"  # each coin plugin's contract declares its coin ids and chain ids
 PROVIDERS = ("coingecko", "coinmarketcap")
 
 

@@ -287,6 +287,15 @@ export function ReferenceSettings() {
           {refused.at ? ` (${time(refused.at, "compact")})` : ""}
         </Alert>
       ) : null}
+      {reference?.problem ? (
+        <Alert
+          className="wrap-anywhere mb-2"
+          tone="warning"
+          title="This Pythia cannot read the installed reference package."
+        >
+          {reference.problem}
+        </Alert>
+      ) : null}
       {earlier ? (
         <Alert
           className="wrap-anywhere mb-2"

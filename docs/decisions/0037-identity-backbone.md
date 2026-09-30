@@ -134,8 +134,8 @@ the amendment "evidence counts by kind and trust level").
 
 | Tier | Authorities | Confirms? |
 | --- | --- | --- |
-| T0 identifier | `source_asserted`: a source's own record, a reference package's or a plugin's alike | Yes, at confirm level |
-| T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`) | Yes |
+| T0 identifier | `source_asserted`: a source's own record, a reference package's or a plugin's alike. The reference builder writes every value it reads from a source so, and core's curated crypto table as source `pythia` | Yes, at confirm level |
+| T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`; the builder's `receipt_issuer_share@1` edges) | Yes |
 | T3 model verdict | `model_confirmed` at or above the threshold; `model_suggested` below | Only `model_confirmed` |
 | T3 agent answer | `agent_confirmed` (the Hermes agent) | No: it suggests (see the 2026-09-29 amendment) |
 | T4 attestation | `user_attested` | Yes |
@@ -1183,3 +1183,94 @@ previous amendment unchanged.
 - **Keying a device subject's evidence by its plugin record alone:** cited
   evidence would survive a re-key, but the typed assertion's evidence ID hashes
   its subject, and one rule for both stores keeps rows citing evidence uniform.
+
+## Amendment (2026-09-30): package format 6 states kinds and names no provider
+
+**Context.** The evidence amendment above made authorities kinds, but the
+builder still wrote `snapshot` and `curated`, and core mapped them on read. The
+coin-ids amendment moved coin ids into the coin plugins' contracts, but the
+package still carried `canonical_assets`, `provider_chains` and 68 aliases
+from the plugins' provisional coin IDs, which the builder copied from those
+contracts; Lifecycle A followed only the package's aliases when it re-pointed
+saved rows.
+
+**Ruling.**
+
+- **The package writes kinds only** (reference format 6, builder rules version
+  4). A value read from a source is `source_asserted`. A value a builder
+  rule derives is `rule_confirmed`, its rule in `source_record`:
+  - a relation the receipt rule derives (`receipt_issuer_share@1`); one a
+    source states (FIRDS field 26) is `source_asserted`;
+  - a CIK the build joins to a LEI issuer across sources' identifiers
+    (`isin_exch_us`, `share_class_figi`), versioned by the builder's rules
+    version. GLEIF's EDGAR registration states the CIK itself, and a CIK-only
+    issuer's CIK is SEC's own: both `source_asserted`. `source` and
+    `source_record` are unchanged, so each assertion keeps its evidence ID and
+    saved SEC bindings keep citing it.
+
+  Core's curated crypto rows are Pythia's own list:
+  `source_asserted` from source `pythia`, rule `canonical_assets@1` in
+  `source_record` (ADR 0044, A7). `reference.sql` admits only kinds on
+  assertions and relations.
+- **Core reads format 6 only.** The read-time mapping of `snapshot` and
+  `curated` (`stored_authority`) is removed. An installed older package serves
+  no data, and `reference-status`, search, pages and Repairs say it is too old
+  for this Pythia and must be rebuilt, never "no reference data".
+- **The package names no provider.** `canonical_assets`, `provider_chains` and
+  the provisional-coin aliases are gone. Lifecycle A re-points a saved row
+  through confirm-level contracts' declared aliases (`declared.aliases`) as
+  well as the package's, reading the installed contracts only when a saved row
+  names a provisional ID. A row saved under
+  `security:provisional:coingecko:coin:usd-coin` moves to USDC's key on the
+  release's first read when CoinGecko is confirm-level, and stays put under a
+  display-level declaration.
+
+**Rationale.** A package that writes where a value came from invites trust by
+origin, and mapping on read kept two readings alive. Provider ids in a Pythia
+artefact are authority by name (ADR 0044, A3, A4); the contracts already say
+the same thing at the declaring plugin's trust. Carrying saved rows through the
+contracts is a guarantee in code, where a one-off dry run would prove only one
+store.
+
+**Consequences.**
+
+- Every device rebuilds its package. On the 2026-09-28 downloads the format-6
+  build differs from the format-5 one only in its authority values, its
+  version fields, the two provider tables (68 and 16 rows) and the 68 coin
+  aliases. Assertions: 317,545 `source_asserted` and 4,152 `rule_confirmed`
+  joined CIKs (2,704 `isin_exch_us`, 1,448 `share_class_figi`); relations:
+  2,756 `source_asserted` and 198 `rule_confirmed`. Every evidence ID is
+  unchanged. Questions (1,698) and the truth set (3,034 of 3,115) are
+  unchanged.
+- A joined CIK no longer proves or blocks a match (only T0 identifier evidence
+  does): a derived link stops vetoing a source's statement. On the same build
+  this changes no truth-set check, no issuer question and no binding: the 13
+  links that GLEIF records with an EDGAR CIK all agree with it.
+- A saved provisional coin ID whose plugin is not confirm-level when a release
+  is first read keeps its row on that ID. The subject resolves on reads once
+  the plugin is; its saved rows move on the next release's first read.
+
+Superseded in the evidence amendment: "Core reads an older package's values as
+kinds (`vocabulary.stored_authority`)", "the package format do not change for
+this" and "Mapping old values on read keeps installed packages and stores
+working". Superseded in the coin-ids amendment: "Lifecycle A still follows only
+the package's aliases when it re-points stored rows" and "Until the reference
+format drops them, the builder still fills the package's provider tables and
+coin aliases". Superseded in the device-subjects amendment: "on reads" in "else
+on reads a confirm-level contract's declared alias". Superseded in [ADR 0038](0038-plugin-addressing-contract.md),
+amendment "contract version 2": "Lifecycle A still follows only the package's
+aliases when it re-points stored rows", "the drift check and the reference
+build do" (only the drift check reads `chain_codes`) and "The reference package
+keeps its `canonical_assets` and `provider_chains` tables and the
+provisional-coin aliases until its next format". In [ADR 0042](0042-source-onboarding-standard.md),
+"Authority follows derivation": a value read directly from a source field is
+`source_asserted`, no longer `snapshot`.
+
+**Rejected alternatives.**
+
+- **Keeping the read-time mapping for older packages:** core reads no older
+  package, so it would be dead code and a second reading of the same rows.
+- **A dry run showing no saved row holds a provisional coin ID:** it proves one
+  store, not every device.
+- **Keeping the provider tables for the drift check:** `just
+  canonical-assets-drift` reads the contracts.

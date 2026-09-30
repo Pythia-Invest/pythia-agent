@@ -28,9 +28,9 @@ EXTRA = {  # added to the ASML reference: the registrant, a venue operator, and 
                 {"id": OPERATOR_ISSUER, "name": "Venue Operator N.V.", "country": "NL"}],
     "securities": [{"id": NOTE, "name": "Internalised Note", "asset_class": "equity", "kind": "other"}],
     "listings": [{"id": INTERNALISED, "security_id": NOTE, "mic": "SIXX", "operating_mic": "SIXX", "currency": "EUR"}],
-    "assertions": [{"subject_id": REGISTRANT, "scheme": "cik", "value": "1234567", "authority": "snapshot",
+    "assertions": [{"subject_id": REGISTRANT, "scheme": "cik", "value": "1234567", "authority": "source_asserted",
                     "provenance": PROVENANCE},
-                   {"subject_id": OPERATOR_ISSUER, "scheme": "lei", "value": OPERATOR, "authority": "snapshot",
+                   {"subject_id": OPERATOR_ISSUER, "scheme": "lei", "value": OPERATOR, "authority": "source_asserted",
                     "provenance": {**PROVENANCE, "plugin": "gleif", "source": "gleif"}}],
 }
 

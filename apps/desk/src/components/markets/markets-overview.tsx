@@ -45,6 +45,8 @@ function Card({
  * to do; undefined while unknown or when compatible data is installed. */
 export function referenceNote(status: ReferenceStatus | null | undefined) {
   if (status === undefined || status?.installed?.compatible) return undefined;
+  if (status?.installed?.problem)
+    return `${status.installed.problem} Until then some subjects cannot be shown.`;
   const install =
     "Install a reference package this Pythia reads (just reference-install <package>; Settings › Reference data shows what is installed), then Retry.";
   const cause = status?.installed

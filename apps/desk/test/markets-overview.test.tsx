@@ -105,6 +105,7 @@ describe("a subject that cannot be read", () => {
       built_at: "2026-09-26T20:38:00Z",
       format_version: 2,
       installed_at: null,
+      problem: null,
       sources: [],
       notices: [],
     };
@@ -116,6 +117,14 @@ describe("a subject that cannot be read", () => {
     });
     expect(incompatible).toMatch(/reference-20260926 is not compatible/);
     expect(incompatible).toContain("just reference-install");
+    // Core says why and what to do: an older package is rebuilt.
+    const problem =
+      "Reference package reference-20260926 is format 2, too old for this Pythia, which reads format 6. Rebuild it.";
+    expect(
+      referenceNote({
+        installed: { ...installed, compatible: false, problem },
+      }),
+    ).toBe(`${problem} Until then some subjects cannot be shown.`);
     const html = renderToStaticMarkup(
       <ReadFailure
         days={[day(bitcoin, { loading: false, failed: true })]}

@@ -25,17 +25,16 @@ RECORD = {"level": "listing", "provenance": PROVENANCE, "attributes": {"name": "
 
 
 def add(path, subject, scheme, value, source, authority="source_asserted"):
-    """One more assertion in the reference at `path`, stored as a package writes it (a format-5 marker included)."""
-    item = identity.IdentifierAssertion(subject_id=subject, scheme=scheme, value=value,
-                                        authority=identity.stored_authority(authority),
+    """One more assertion in the reference at `path`, stored as a package writes it."""
+    item = identity.IdentifierAssertion(subject_id=subject, scheme=scheme, value=value, authority=authority,
                                         provenance={**PROVENANCE, "plugin": source, "source": source})
     with contextlib.closing(sqlite3.connect(path)) as db, db:
-        insert(db, "assertions", {**assertion_row(item), "authority": authority})
+        insert(db, "assertions", assertion_row(item))
 
 
 class ContestedTest(QueueFixture):
     def test_two_confirm_level_isins_that_disagree_block_both_answers_and_mark_the_fact_contested(self):
-        add(self.path, SECURITY, "isin", B, "vendor")  # beside the build's own ISIN, with its `snapshot` marker
+        add(self.path, SECURITY, "isin", B, "vendor")  # beside the build's own ISIN
         subject = page.load_subject(self.ref, ASML)
         self.assertEqual(subject["view"]["contested"], {"isin": [{"value": B, "sources": ["vendor"]},
                                                                  {"value": A, "sources": ["GLEIF"]}]})
@@ -95,7 +94,7 @@ class ContestedTest(QueueFixture):
         self.assertEqual(refused["outcome"], "no_match", "display evidence naming the instrument proves nothing")
 
     def test_the_same_evidence_under_other_contributors_decides_identically(self):
-        """Who states a value, and whether it came with an older package's `snapshot` marker, changes nothing."""
+        """Who states a value changes nothing: the reference build's source and a vendor decide alike."""
         def decide(first, second):
             with contextlib.closing(sqlite3.connect(self.path)) as db, db:
                 db.execute("DELETE FROM assertions WHERE subject_id = ? AND scheme = 'isin'", (SECURITY,))
@@ -112,7 +111,7 @@ class ContestedTest(QueueFixture):
                          for scheme, found in subject["view"].get("contested", {}).items()}
             return contested, subject["values"].get("isin"), outcomes
 
-        build, vendor = ("esma_firds", "snapshot"), ("vendor", "source_asserted")
+        build, vendor = ("esma_firds", "source_asserted"), ("vendor", "source_asserted")
         decided = decide(build, vendor)
         self.assertEqual(decided, ({"isin": sorted([A, B])}, None, [(None, ("conflict", "binding"))] * 2))
         self.assertEqual(decide(vendor, build), decided)
@@ -181,7 +180,7 @@ class AnswerTest(BuildQuestionFixture):
         self.page(NASDAQ)
         self.assertEqual(self.open(), [], "a release silent on the underlying contradicts nothing")
         stated = [("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
-                   " retrieved_at) VALUES ('ev:receipt', 'depositary_receipt_of', ?, ?, 'snapshot', 'esma_firds',"
+                   " retrieved_at) VALUES ('ev:receipt', 'depositary_receipt_of', ?, ?, 'source_asserted', 'esma_firds',"
                    " 'esma_firds', '1', ?)", (RECEIPT, NOTE, NOW))]
         self.install([], self.world("second", sql=stated), "reference-20260927")
         self.page(ASML)  # the share's page shows the answer too, so touching it is relevant

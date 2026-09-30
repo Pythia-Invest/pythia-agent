@@ -43,7 +43,7 @@ class SearchTest(Fixture):
                            " VALUES (?, ?, ?, ?3, ?, ?, ?)", listings)
             db.execute("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
                        " retrieved_at) VALUES ('ev:shel', 'depositary_receipt_of', 'security:figi:BBG0147BN6H1',"
-                       " 'security:isin:GB00BP6MXD84', 'snapshot', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')")
+                       " 'security:isin:GB00BP6MXD84', 'source_asserted', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')")
         self.directory = search.Directory(self.ref)
 
     def rows(self, query, **options):
@@ -264,7 +264,7 @@ class SearchTest(Fixture):
                                ("listing:toyota-adr", "security:toyota-adr", "XNYS", "TM", "USD", 1)])
             db.executemany("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin,"
                            " adapter_version, retrieved_at) VALUES ('ev:' || ?1, 'depositary_receipt_of', ?1, ?2,"
-                           " 'snapshot', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')",
+                           " 'source_asserted', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')",
                            [("security:shell-cdr", "security:isin:GB00BP6MXD84"),
                             ("security:tencent-sdr", "security:tencent"), ("security:toyota-adr", "security:toyota")])
         directory = search.Directory(self.ref)

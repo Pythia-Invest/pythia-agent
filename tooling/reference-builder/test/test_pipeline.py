@@ -191,12 +191,13 @@ class PipelineTest(unittest.TestCase):
                                   (f"listing:isin:{ASML_ISIN}:XAMS:EUR",)).fetchone()
                 receipts = db.execute("select count(*) from relations where type='depositary_receipt_of'"
                                       " and to_id=?", (f"security:isin:{ASML_ISIN}",)).fetchone()
-                btc = db.execute("select native_id from canonical_assets where provider='coinmarketcap' and caip19 like 'bip122:%/slip44:0'").fetchone()
+                btc = db.execute("select source, source_record, authority from assertions where scheme='caip19'"
+                                 " and value like 'bip122:%/slip44:0'").fetchone()
             self.assertEqual(asml, (f"security:isin:{ASML_ISIN}", 1))
             self.assertEqual(venues, {"XAMS", "XLON", "XNAS", "XNYS", "OTCM", "XCBO"})
-            self.assertEqual(cik, ("share_class_figi", "snapshot"))
+            self.assertEqual(cik, ("share_class_figi", "rule_confirmed"))  # the build joins it to ASML's LEI
             self.assertEqual({s["source"]: s["licence"] for s in json.loads(release["sources"])}, {"esma_firds": "x", "openfigi": "y"})
-            self.assertEqual(btc, ("1",))
+            self.assertEqual(btc, ("pythia", "canonical_assets@1", "source_asserted"))  # Pythia's own list
             self.assertEqual(receipts, (1,))
             self.assertGreater(counts["assertions"], counts["listings"])
             written = counts["listings"] + self.snap.audit["writer_ignored"].get("listings", 0)
