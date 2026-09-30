@@ -51,6 +51,9 @@ KEY_SCHEMES: dict[Kind, frozenset[str]] = {
     Kind.COMPOSITE: frozenset({"isin", "figi", "provisional"}),
     Kind.LISTING: frozenset({"isin", "figi", "caip19", "cgs_isin", "provisional"}),
     **{kind: _OTHER_KEYS for kind in Kind if kind not in INSTRUMENT_KINDS},
+    # Experiment (docs/architecture/identity-data.md, "Sui identifiers"): open keys for Sui DeFi subjects.
+    Kind.PROTOCOL: _OTHER_KEYS | {"sui_package"},
+    Kind.MARKET: _OTHER_KEYS | {"sui_object"},
 }
 
 
@@ -65,6 +68,9 @@ class Scheme(StrEnum):
     FIGI = "figi"
     TICKER_MIC = "ticker_mic"
     CAIP19 = "caip19"
+    # Open identifiers of a kind outside the instrument hierarchy (OPEN_KIND): the subject's own key.
+    SUI_PACKAGE = "sui_package"  # a Sui protocol's original package ID
+    SUI_OBJECT = "sui_object"    # a Sui object ID: a pool, reserve, order book or vault
 
 
 # Each scheme identifies exactly one level. An ISIN is never a listing key and an
@@ -79,6 +85,10 @@ SCHEME_LEVEL: dict[Scheme, Level] = {
     Scheme.TICKER_MIC: Level.LISTING,
     Scheme.CAIP19: Level.LISTING,
 }
+
+# The schemes that key a kind outside the hierarchy. They have no instrument level: a record of that kind states them
+# for itself, and the subject they name is `<kind>:<scheme>:<value>`.
+OPEN_KIND: dict[Scheme, Kind] = {Scheme.SUI_PACKAGE: Kind.PROTOCOL, Scheme.SUI_OBJECT: Kind.MARKET}
 
 # Schemes with one current value per subject: two different values valid at the same
 # time contradict each other. A ticker is an attribute (reused, renamed) and never does.
@@ -113,6 +123,9 @@ _PATTERNS = {
     # CAIP-19: chain_id "/" asset_namespace ":" asset_reference [ "/" token_id ]
     Scheme.CAIP19: re.compile(
         r"^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}/[-a-z0-9]{3,8}:[-.%a-zA-Z0-9]{1,128}(/[-.%a-zA-Z0-9]{1,78})?\Z"),
+    # A Sui object or package ID in canonical form: 0x and 64 lowercase hex digits (`normalize_identifier` pads and lowers).
+    Scheme.SUI_PACKAGE: re.compile(r"^0x[0-9a-f]{64}\Z"),
+    Scheme.SUI_OBJECT: re.compile(r"^0x[0-9a-f]{64}\Z"),
 }
 
 
@@ -181,7 +194,8 @@ def _sui(value: str) -> str:
 def normalize_identifier(scheme: Scheme | str, value: str) -> str:
     """Return the canonical form of `value` or raise IdentifierError.
 
-    CIKs are zero-padded to ten digits (SEC form). EVM (eip155) asset references
+    CIKs are zero-padded to ten digits (SEC form). A Sui package or object ID is lower-cased and padded to 64 hex digits.
+    EVM (eip155) asset references
     are hex addresses and are lower-cased, so a checksummed and a plain address
     name one token. Sui references follow the Pythia-local profile (`_sui`): a raw
     coin type such as `sui:mainnet/coin:0x2::sui::SUI` is accepted and canonicalised,
@@ -198,6 +212,10 @@ def normalize_identifier(scheme: Scheme | str, value: str) -> str:
         value = value.lower()
     if scheme is Scheme.CAIP19 and value.startswith("sui:"):
         value = _sui(value)
+    if scheme in OPEN_KIND:  # a Sui address: short forms are padded, hex is lower-cased
+        head, digits = value[:2].lower(), value[2:]
+        if head == "0x" and 0 < len(digits) <= 64 and all(char in string.hexdigits for char in digits):
+            value = f"0x{digits.lower():0>64}"
     if not _PATTERNS[scheme].match(value):
         raise IdentifierError(f"{scheme}: malformed value")
     if scheme is Scheme.CIK and int(value) == 0:

@@ -107,7 +107,7 @@ class ClaimShapeTest(unittest.TestCase):
         identity.check_batch(batch, identity.validate_manifest(POOLS))
         self.assertIs(batch.claims[0].level, identity.Kind.MARKET)
         for claim, error in (({"level": "market", "native_ref": POOL,
-                               "identifiers": [{"scheme": "caip19", "value": SUI_USDC}]}, "native ref alone"),
+                               "identifiers": [{"scheme": "caip19", "value": SUI_USDC}]}, "only its own open identifier"),
                              ({"level": "widget", "identifiers": [], "native_ref": POOL}, "widget")):
             with self.subTest(error=error), self.assertRaisesRegex(identity.ClaimError, error):
                 self.batch(claim)

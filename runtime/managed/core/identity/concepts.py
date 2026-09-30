@@ -141,7 +141,9 @@ HISTORY = {"history_days": whole(1, 36600)}
 LIVE = {"book": one_of("top", "snapshot"), "book_levels": whole(1, 100), "trades": flag, "trade_side": flag,
         "scope": one_of("venue", "consolidated"), "venue": matching(SHORT), "context": some_of(*LIVE_CONTEXT),
         "line": one_of("last_trade", "mid", "mark")}
-BASIS = {"basis": some_of("as_reported", "standardized")}
+# `on_chain`: figures read from the chain itself (a protocol's TVL or a reserve's supply), neither a company's report
+# nor a provider's standardisation.
+BASIS = {"basis": some_of("as_reported", "standardized", "on_chain")}
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,8 +166,10 @@ REGISTRY: dict[Concept, ConceptSpec] = {
                                  default_order=("gleif",)),
     Concept.FILINGS: ConceptSpec(operations={"list": {}, "read": {}}, levels=frozenset({Level.ISSUER}),
                                  default_order=("xbrl-filings", "sec"), combine=Combine.PER_AUTHORITY),
+    # Experiment: `protocol` and `market` kinds (a DeFi protocol's TVL, a reserve's supplied and borrowed) serve `metrics`
+    # through the same side-by-side rule; each source states its own definition beside a figure, never blended.
     Concept.FUNDAMENTALS: ConceptSpec(operations={"statements": BASIS, "metrics": BASIS}, levels=frozenset({Level.ISSUER}),
-                                      combine=Combine.SIDE_BY_SIDE),
+                                      kinds=frozenset({Kind.PROTOCOL, Kind.MARKET}), combine=Combine.SIDE_BY_SIDE),
     Concept.ESTIMATES: ConceptSpec(operations={"consensus": {}, "targets": {}}, levels=frozenset({Level.ISSUER}),
                                    default_order=("yahoo", "eodhd"), combine=Combine.SIDE_BY_SIDE),
     Concept.NEWS: ConceptSpec(operations={"list": {}}, levels=frozenset({Level.ISSUER, Level.SECURITY}),

@@ -14,7 +14,7 @@ from typing import Any, Iterable, Mapping
 from . import device
 from .claims import IdentifierValue, RecordAttributes, RecordClaim
 from .model import ProviderRef
-from .schemes import SCHEME_LEVEL, Level, Scheme, subject_id, subject_kind
+from .schemes import OPEN_KIND, SCHEME_LEVEL, Kind, Level, Scheme, subject_id, subject_kind
 from .vocabulary import IdentifierRole
 
 # The schemes each level joins by, in order: a listing's ISIN only with its operating MIC and currency (`lines`).
@@ -41,9 +41,13 @@ class Joins:
                     else self.holders(scheme, own[scheme], level)
         return list(dict.fromkeys(found))
 
-    def holders(self, scheme: Scheme, value: str, level: Level, *, settled: bool = False) -> list[str]:
+    def holders(self, scheme: Scheme, value: str, level: Level | Kind, *, settled: bool = False) -> list[str]:
         """The subjects at `level` an identifier names; `settled` leaves out what a record placed as a `conflict`
-        states, which contests the subject it sits beside and names no other."""
+        states, which contests the subject it sits beside and names no other. An open identifier of a kind outside the
+        hierarchy names the subject it keys, where one is held."""
+        if scheme in OPEN_KIND:
+            key = f"{OPEN_KIND[scheme]}:{scheme}:{value}"
+            return [device.current_id(self.ref, self.store, key)] if self.held(key) else []
         found = [row[0] for row in self.ref.execute("SELECT subject_id FROM assertions WHERE scheme = ? AND value = ?"
                                                     " ORDER BY subject_id", (str(scheme), value))] if self.ref else []
         found += [row[0] for row in self.store.select(

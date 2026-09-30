@@ -13,6 +13,7 @@ from .connector import process as _process, wire as _wire
 from .operations import declare_operation
 from .specialist import register_read_command
 from .widgets import register_widget_presentation
+from ..identity import schemes as _schemes
 from ..identity.concepts import FilingKind
 
 API_VERSION = 1
@@ -22,7 +23,7 @@ __all__ = [
     'access', 'admission', 'configuration', 'request_context', 'subscription',
     'declare_operation', 'register_read_command', 'register_agent_tool', 'register_widget_presentation',
     'price_sources', 'check_read', 'read_document', 'validate_live_market',
-    'connector', 'wire', 'process', 'FilingKind',
+    'connector', 'wire', 'process', 'identifiers', 'FilingKind',
     'dispatch', 'tool_schemas', 'interrupted', 'session', 'session_platform',
 ]
 
@@ -56,6 +57,10 @@ connector = _Module(_connector, 'NativeBatch', 'ReadCache', 'ReadCancelled', 'Re
 wire = _Module(_wire, 'CRITERIA', 'WireError', 'parameter_schema', 'require', 'validate', 'validate_parameters',
                'validate_read_result')
 process = _Module(_process, 'WorkerError', 'run_worker')  # the default worker transport for WorkerReads
+# Core's identifier forms, so a plugin states an identifier exactly as core joins on it (a Sui coin type as CAIP-19, a Sui
+# package or object ID in 64-digit lowercase form): `normalize_identifier(scheme, value)` returns the canonical value or
+# raises `IdentifierError`.
+identifiers = _Module(_schemes, 'IdentifierError', 'normalize_identifier')
 
 
 def require(version):
