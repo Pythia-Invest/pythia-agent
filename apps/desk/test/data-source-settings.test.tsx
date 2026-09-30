@@ -313,17 +313,17 @@ it("counts the identifiers a source states on subjects that stay beside the subj
     stated: { count: 2, subjects: 1 },
   });
   expect(effectLine(figi)).toBe(
-    "Turning this off hides 1 subject and removes the 2 identifiers it states on 1 other subject; no saved item will show as paused.",
+    "Turning this off hides 1 subject and the 2 identifiers it states on 1 other subject; no saved item will show as paused.",
   );
   expect(effectLine({ ...figi, paused: true })).toBe(
-    "1 subject only it supplies is hidden, the 2 identifiers it states on 1 other subject are removed, and no saved item is affected.",
+    "1 subject only it supplies is hidden, as are the 2 identifiers it states on 1 other subject, and no saved item is affected.",
   );
   const onlyStated = { ...figi, sole: { count: 0, sample: [] } };
   expect(effectLine(onlyStated)).toBe(
-    "Turning this off hides no subject, but removes the 2 identifiers it states on 1 other subject.",
+    "Turning this off hides the 2 identifiers it states on 1 other subject; no subject on this device comes only from it.",
   );
   expect(effectLine({ ...onlyStated, paused: true })).toBe(
-    "No subject is hidden, but the 2 identifiers it states on 1 other subject are removed.",
+    "The 2 identifiers it states on 1 other subject are hidden; no subject on this device comes only from it.",
   );
   // A row from a core that does not report `stated` reads as none.
   expect(

@@ -34,7 +34,7 @@ function served(serves: string[]) {
 /** What turning a source off hides, shown beside its switch before it is
  * turned off (ADR 0044 A3), and once it is off what stays hidden: the
  * subjects only it supplies leave search and data, the identifiers it states
- * on subjects that stay (a line's FIGI, say) are removed, saved entries keep
+ * on subjects that stay (a line's FIGI, say) are hidden too, saved entries keep
  * their names, shown as paused, and the prices, filings or news it serves come
  * from other sources where configured. */
 export function effectLine({
@@ -49,11 +49,12 @@ export function effectLine({
   const facts = stated.count
     ? `${count(stated.count, "identifier", "identifiers")} it states on ${count(stated.subjects, "other subject", "other subjects")}`
     : "";
+  const be = stated.count === 1 ? "is" : "are";
   if (!sole.count) {
     if (facts) {
       const removed = paused
-        ? `No subject is hidden, but the ${facts} ${stated.count === 1 ? "is" : "are"} removed.`
-        : `Turning this off hides no subject, but removes the ${facts}.`;
+        ? `The ${facts} ${be} hidden; no subject on this device comes only from it.`
+        : `Turning this off hides the ${facts}; no subject on this device comes only from it.`;
       if (!data) return removed;
       return `${removed} ${
         paused ? `It is not used for ${data} now` : `It also stops its ${data}`
@@ -73,15 +74,13 @@ export function effectLine({
   const items = count(saved.count, "saved item", "saved items");
   const hidden = paused
     ? `${subjects} only it supplies ${sole.count === 1 ? "is" : "are"} hidden${
-        facts
-          ? `, the ${facts} ${stated.count === 1 ? "is" : "are"} removed`
-          : ""
+        facts ? `, as ${be} the ${facts}` : ""
       }, and ${
         saved.count
           ? `${items} ${saved.count === 1 ? "shows" : "show"} as paused (${names}${more})`
           : "no saved item is affected"
       }.`
-    : `Turning this off hides ${subjects}${facts ? ` and removes the ${facts}` : ""}; ${
+    : `Turning this off hides ${subjects}${facts ? ` and the ${facts}` : ""}; ${
         saved.count
           ? `${items} will show as paused (${names}${more})`
           : "no saved item will show as paused"

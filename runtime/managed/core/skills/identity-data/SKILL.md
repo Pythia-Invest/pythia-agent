@@ -28,11 +28,13 @@ its record, when, and the rule or answer behind a decision:
   its `package.json` point to: open identifiers, listings, securities, issuers.
 
 A question about what a source or plugin stated ("which facts about Toyota come
-from OpenFIGI?") always needs both stores: the reference package holds what the
-build read from that source, and the device store holds what the plugin stated
-since, the lines it introduced and the identifiers it states on the package's own
-subjects. Reading one store alone gives half the answer. Run the `plugin-facts`
-query, which reads both, and say which store each fact came from.
+from OpenFIGI?") needs both stores: the reference package holds what the build
+read from that source, and the device store holds what the plugin stated since,
+including the lines it introduced and the identifiers it states on the package's
+own subjects. Run the `plugin-facts` query, which reads both. It takes the
+plugin's contract name for the device (`:plugin`, `pythia-openfigi`) and its
+provider for the package (`:source`, `openfigi`); say which store each fact came
+from.
 
 Load `references/queries.md` with `skill_view` (name `pythia:identity-data`,
 `file_path` `references/queries.md`). It has the snippet that opens both files
