@@ -1407,8 +1407,9 @@ saved ID means the absence of competing evidence never raises authority (A3).
   not yet asked: questions are asked about reference subjects.
 - The identity store gains lookup indexes (a record's statements, relations by
   end, children, the records on a subject) in its additive section, with no
-  schema bump. A re-sync of DeFiLlama's full catalogue (17,402 pools, 23
-  pages) takes about 1 second instead of 24.
+  schema bump. DeFiLlama's full catalogue (23 pages; 17,402 relations) syncs
+  in about 4 seconds instead of 17, and an unchanged re-sync in about 1 instead
+  of 24.
 - Plugin authors: a record's currency is compared as stated, so a GBX record
   never joins the GBP line by ISIN, exchange and currency (its FIGI still
   joins), and a receipt's line names the share's ISIN as `underlying`, never
