@@ -72,6 +72,10 @@ qualify:
 qualify-tests:
     pnpm run test:qualification
 
+# Fetch the pinned, verified Hermes archive into the qualification archive cache.
+qualify-archive directory:
+    node tooling/qualification/fetch-hermes-archive.mjs "{{directory}}"
+
 # Assembled cross-workspace qualification (after a build).
 qualify-assembled:
     pnpm run test:qualification:assembled

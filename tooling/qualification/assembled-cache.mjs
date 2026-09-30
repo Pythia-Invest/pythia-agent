@@ -64,9 +64,11 @@ export function pinnedHermesArchive(repository = REPOSITORY) {
   const hermes = JSON.parse(
     readFileSync(join(resolve(repository), "runtime/versions.json"), "utf8"),
   ).dependencies.hermes_agent;
+  const tarball = artifact(hermes, "github-tag-source-tarball");
   return {
     name: `hermes-${hermes.commit}.tar.gz`,
-    sha256: artifact(hermes, "github-tag-source-tarball").sha256,
+    sha256: tarball.sha256,
+    url: tarball.url,
   };
 }
 
