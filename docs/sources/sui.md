@@ -2,8 +2,10 @@
 
 [Source onboarding](../architecture/source-onboarding.md) defines the stages
 ([ADR 0042](../decisions/0042-source-onboarding-standard.md)). This is slice E2 of
-the Sui experiment on branch `exp-sui` (not a decided design; see
+the Sui experiment (not a decided design; see
 `docs/architecture/identity-data.md`).
+
+**Status: in development (experimental). Disabled by default; not signed off; kept for future reference.** See [ADR 0048](../decisions/0048-sui-defi-experiment.md), which is also the reference for integrating a crypto source.
 
 - **Status:** not signed off; ships opt-in. The plugin is installed disabled and
   enabling it is the investor's opt-in. It introduces the protocols, tokens and
@@ -16,7 +18,7 @@ the Sui experiment on branch `exp-sui` (not a decided design; see
   keyless, as the bulk catalogue scopes `protocols` (10), `tokens` and `markets`,
   and the read `metrics` (a DeepBook pool's governance parameters). Suilend,
   Scallop, NAVI, Cetus, Bluefin, Turbos and Momentum markets, positions, prices and
-  history are out of scope: their markets come from their own APIs (slice E3).
+  history are out of scope: their markets come from their own APIs (the Cetus, DeepBook and Suilend plugins, which stay on branch `exp-sui`).
 - **Measured on:** 2026-09-30, one machine, keyless. One full sync: 77 requests in
   6 pages, 19 s (a first run took about 40 s: cold lookups on the endpoint took 5
   to 16 s and were retried). It stated 10 protocols, 99 tokens (8 Wormhole wrapped,

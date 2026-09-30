@@ -1,11 +1,13 @@
 # Sui chain connector (experiment)
 
+> **Status: in development (experimental). Disabled by default; not signed off; kept for future reference.** See [ADR 0048](../../../../docs/decisions/0048-sui-defi-experiment.md), which is also the reference for integrating a crypto source.
+
 Native `pythia-sui` adds Sui DeFi to Pythia as subjects, read straight from the
 chain: protocols, tokens and the markets of protocols that have no API. It needs
 no key and has no worker process. It depends on Pythia core alone and reads
-through core's connector toolkit. It is slice E2 of the Sui experiment on branch
-`exp-sui` (structure X: one plugin reads the chain for every protocol); the
-experiment's design is in `docs/architecture/identity-data.md`.
+through core's connector toolkit. It is slice E2 of the Sui experiment (structure X: one plugin reads the chain for every protocol); the
+experiment's design is in `docs/architecture/identity-data.md`. The Cetus, DeepBook and Suilend API plugins of
+the same experiment (structure Y) are not in this tree; they stay on branch `exp-sui`.
 
 ## Opt-in
 

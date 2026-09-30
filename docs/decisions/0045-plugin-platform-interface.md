@@ -44,7 +44,7 @@ reach core.
   - the modules `access`, `admission`, `configuration`, `request_context` and
     `subscription`;
   - the connector toolkit: the modules `connector`, `wire` and `process`;
-  - `identifiers`, core's identifier forms (added for the Sui experiment);
+  - `identifiers`, core's identifier forms (added for the Sui experiment, [ADR 0048](0048-sui-defi-experiment.md));
   - for a plugin that coordinates other plugins' reads (market-data), five
     wrappers of Hermes's public API: `tool_schemas`, `dispatch`, `interrupted`,
     `session` and `session_platform`.

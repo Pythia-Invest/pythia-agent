@@ -64,7 +64,7 @@ Subject IDs are `<kind>:<key scheme>:<key>` (`listing:isin:<ISIN>:<MIC>:<currenc
 saved ID can be older than the data: `id_aliases` (reference) and
 `device_aliases` (identity) say what it is now.
 
-**Experiment (Sui, branch `exp-sui`; not a decided design).** Two open key schemes
+**Experimental, in development (Sui; not a decided design, [ADR 0048](../decisions/0048-sui-defi-experiment.md)).** Two open key schemes
 key subjects that are not instruments: `market:sui_object:<id>` (a pool, reserve,
 order book or vault) and `protocol:sui_package:<id>` (a protocol's original
 package), each `0x` and 64 lowercase hex digits (shorter or upper-case input is
@@ -81,7 +81,7 @@ rows, so each source states its own definition, source and as-of beside a figure
 
 The `pythia-sui` plugin (slice E2) is the first source of these keys: it states ten protocols by
 original package, tokens by CAIP-19 with bridge provenance, and the DeepBook, AlphaLend and Bucket
-markets by object with their roles, read from Sui's GraphQL ([source record](../sources/sui.md)).
+markets by object with their roles, read from Sui's GraphQL ([source record](../sources/sui.md)). `pythia-navi` states the same keys for its reserves and protocol, so the two sources join by key; DeFiLlama states neither and stays separate. Both ship disabled.
 
 ### The reference file
 

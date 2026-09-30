@@ -1,5 +1,7 @@
 # NAVI catalogue connector
 
+> **Status: in development (experimental). Disabled by default; not signed off; kept for future reference.** This applies to NAVI's on-chain key statements (`sui_object`, `sui_package`); the catalogue is the older, separate part. See [ADR 0048](../../../../docs/decisions/0048-sui-defi-experiment.md).
+
 Native `pythia-navi` adds NAVI Protocol's lending reserves on Sui to Pythia as
 subjects, with links to the Sui coin types they hold. It needs no key and has
 no worker process. It depends on Pythia core alone and reads through core's
@@ -50,7 +52,7 @@ not a published quota.
 | The Sui coin type a reserve holds | `listing` (a token deployment) | `listing:caip19:sui:mainnet/coin:<type>`, or `…/slip44:784` for SUI |
 
 - A reserve is keyed by the object id of its `Pool<T>`, `contract.pool`, as the open
-  `sui_object` key (Sui experiment, branch `exp-sui`): any source stating the same
+  `sui_object` key (experimental, in development; [ADR 0048](../../../../docs/decisions/0048-sui-defi-experiment.md)): any source stating the same
   object joins it, and a subject NAVI introduced earlier under its native reference
   moves up to the key. The protocol likewise states `sui_package`. The
   object's own type names its coin, so the pair verifies on chain without NAVI.

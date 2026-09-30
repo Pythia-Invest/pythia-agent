@@ -110,6 +110,48 @@ class JoinTest(IngestTest):
         self.assertEqual(self.placed(info, "reserve-1"), (f"market:sui_object:{POOL}", "conflict"))
 
 
+class WaitingMarketTest(IngestTest):
+    """A relation whose end is a `sui_object` market no plugin has introduced yet waits and places when it arrives, so
+    the result is the same whichever plugin syncs first (the order amendment of ADR 0037, with the open keys)."""
+
+    def pages(self):
+        links, pools = source("links"), source("pools")
+        edge = relation(links, "market_asset", {"scheme": "sui_object", "value": POOL},
+                        {"scheme": "caip19", "value": SUI_USDC})
+        return {"links": (links, [edge]),
+                "pools": (pools, [record(pools, "usdc", ("caip19", SUI_USDC), level="listing", scope="coin",
+                                         name="USDC", asset_class="crypto"),
+                                  record(pools, "pool", ("sui_object", "0x" + "CD" * 32), level="market", scope="pool",
+                                         name="SUI / USDC")])}
+
+    def edges(self, world):
+        return [tuple(row) for row in world.identity.select("SELECT type, from_id, to_id, plugin FROM relations")]
+
+    def test_the_edge_places_in_either_order_and_leaves_nothing_waiting(self):
+        expected = [("market_asset", f"market:sui_object:{POOL}", f"listing:caip19:{SUI_USDC.replace('::', '%3A%3A')}", "links")]
+        for order in (("links", "pools"), ("pools", "links")):
+            with self.subTest(order=order):
+                world = self.fresh()
+                pages = self.pages()
+                for name in order:
+                    self.ingest(pages[name][0], *pages[name][1], world=world)
+                self.assertEqual(self.edges(world), expected)
+                self.assertEqual(world.identity.select("SELECT 1 FROM pending_relations"), [])
+                self.assertEqual(self.placed(pages["pools"][0], "pool", world), (f"market:sui_object:{POOL}", "introduced"))
+
+    def test_the_edge_waits_while_no_plugin_names_the_object(self):
+        world = self.fresh()
+        links, claims = self.pages()["links"]
+        done = self.ingest(links, *claims, world=world)
+        self.assertEqual((done["unmatched"], self.edges(world)), (1, []))
+        self.assertEqual(len(world.identity.select("SELECT DISTINCT relation FROM pending_relations")), 1)
+        pools, others = self.pages()["pools"]
+        self.ingest(pools, *others[:1], world=world)  # the token alone names one end, not the market's
+        self.assertEqual(self.edges(world), [])
+        self.ingest(pools, *others, world=world)
+        self.assertEqual(len(self.edges(world)), 1)
+
+
 class RoleTest(IngestTest):
     def setUp(self):
         super().setUp()

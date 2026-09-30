@@ -37,6 +37,7 @@ from typing import Any, Iterable, Mapping
 
 from . import device, lifecycle, naming, pending, relations
 from .joins import Joins
+from .recordkeys import better as _better, claim_ref, ids as _ids, tag as _tag
 from .claims import BatchOrigin, ClaimBatch, IdentifierValue, RecordAttributes, RecordClaim, RelationClaim, batch_to_json, check_batch
 from .declared import NATIVE
 from .model import ProviderRef
@@ -49,8 +50,6 @@ from .vocabulary import IdentifierRole
 COUNTS = ("joined", "introduced", "conflicts", "unmatched", "rejected", "not_seen")
 PLACED = ("joined", "introduced", "conflict", "unmatched")  # the states a record keeps until it changes
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
-RANK = ("isin", "lei", "figi", "cik", "caip19", "cgs_isin", "pythia", "provisional")  # key schemes, best first
-RECORD = "#record"  # the scope of a record kept by digest: no contract can declare it (a native scope is a namespace)
 
 
 def ingest(store: IdentityStore, ref, info, batch: ClaimBatch, *, plugins: Iterable = (), now: str | None = None,
@@ -381,31 +380,8 @@ class _Ingest:
         self.changed = self.changed or bool(gone)
 
 
-def claim_ref(provider: str, claim: RecordClaim) -> ProviderRef:
-    """The key a record is kept under: its native reference, else a digest of its level and identifiers, so a renamed
-    record keeps its row and a record naming other identifiers is another."""
-    if claim.native_ref is not None:
-        return claim.native_ref
-    stated = json.dumps([str(claim.level), sorted((str(item.scheme), item.value, str(item.role))
-                                                  for item in claim.identifiers)])
-    return ProviderRef(provider, "sha256:" + hashlib.sha256(stated.encode()).hexdigest(), RECORD)
-
-
 def _order(pair: tuple[RecordClaim, dict]) -> tuple:
     """Records in an order their arrival never changes: by level from the issuer down, then by native reference."""
     claim, raw = pair
     native = (claim.native_ref.native_scope, claim.native_ref.native_id) if claim.native_ref else ("", "")
     return DEPTH.get(claim.level, len(DEPTH)), *native, json.dumps(raw, sort_keys=True)
-
-
-def _ids(record: dict) -> list[str]:
-    return sorted(json.dumps(item, sort_keys=True) for item in record.get("identifiers", []))
-
-
-def _tag(key: str) -> str:
-    return key.split(":", 2)[1]
-
-
-def _better(key: str, current: str) -> bool:
-    """Whether `key` ranks above the key scheme of `current` (subject_key@2's precedence)."""
-    return RANK.index(_tag(key)) < RANK.index(_tag(current)) if _tag(key) in RANK and _tag(current) in RANK else False

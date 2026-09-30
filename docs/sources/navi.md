@@ -3,6 +3,8 @@
 [Source onboarding](../architecture/source-onboarding.md) defines the stages
 ([ADR 0042](../decisions/0042-source-onboarding-standard.md)).
 
+**Status: in development (experimental). Disabled by default; not signed off; kept for future reference.** This applies to NAVI's on-chain key statements (`sui_object` and `sui_package`); the catalogue read is the older, separate part. See [ADR 0048](../decisions/0048-sui-defi-experiment.md).
+
 - **Status:** not signed off; ships opt-in. The plugin is installed disabled
   (a product default), and enabling it is the investor's opt-in; once enabled
   it is a source like any other. It introduces subjects only it describes (its
@@ -32,7 +34,7 @@
   there (33 DeFiLlama's, SUI and native USDC core's curated ones) and 3 were
   introduced (AUSD, eACRED, YBTC.B). The pools and protocols of the two sources
   stayed separate.
-- **Sui experiment (branch `exp-sui`):** reserves state their Pool object id as
+- **Sui experiment (in development):** reserves state their Pool object id as
   `sui_object` and the protocol states the original package of `lending_core`
   (`0xd899cf7d…81ca`) as `sui_package`, so their subjects are
   `market:sui_object:<id>` and `protocol:sui_package:<id>`. The display names of
