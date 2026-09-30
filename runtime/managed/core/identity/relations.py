@@ -33,7 +33,8 @@ def keep(store, ref: sqlite3.Connection | None, plugin: str, claim, start: str, 
     row = {"type": str(relation.type), "from_id": start, "to_id": end, "ratio": relation.ratio,
            "valid_from": relation.validity.valid_from, "valid_to": relation.validity.valid_to,
            "authority": str(relation.authority), "source": relation.provenance.source, "plugin": plugin,
-           "retrieved_at": relation.provenance.retrieved_at}
+           "retrieved_at": relation.provenance.retrieved_at, "source_record": relation.provenance.source_record,
+           "source_version": relation.provenance.source_version, "adapter_version": relation.provenance.adapter_version}
     db = store.db
     before, one = db.total_changes, relation.type in ONE_TARGET
     if one:

@@ -1681,3 +1681,76 @@ subjects, so what it predicts is what happens.
   calls a provider, so it stays an explicit, single-plugin action.
 - **Deleting a disabled plugin's rows, or answering its subjects as unknown:**
   a saved reference would then point at nothing, or at another subject later.
+
+## Amendment (2026-09-30): the stores carry their provenance and explain themselves
+
+**Context.** The founder asked for debug controls: why an instrument shows the
+wrong price, and where a fact comes from. A "Where does this come from?" panel
+on the instrument page, backed by a core read that recomposes each identifier,
+link and data section, was designed first and set aside. What is needed is
+data modelled so that the investor and the agent can read the raw stores and
+find the answer themselves. An audit of what the two stores record for every
+fact that can change what a subject shows found the model almost complete:
+assertions, bindings, questions and answers name their source, record, time and
+rule. It found two dropped items, and explanations that are computed or implicit.
+
+**Ruling.**
+
+- **Every stored fact names who stated it, which record, when, and the rule or
+  answer behind a decision.** [Identity data](../architecture/identity-data.md)
+  lists where each table keeps them.
+- **Plugin relations keep `source_record`, `source_version` and
+  `adapter_version`,** as the reference's relations do; core ingest had dropped
+  them. **A binding keeps `decided_at`,** when core decided its current subject,
+  status and kind of evidence, because `verified_at` is overwritten by every
+  later write and agreeing read check. The columns are nullable and are added
+  to an existing store when core opens it, inside schema 6, so a build from
+  before them still reads the store; older rows have NULL, not a guess.
+- **Each table and column of both stores is explained by a comment inside its
+  `CREATE` statement,** which SQLite keeps in `sqlite_master`. The store
+  explains itself, and a reference package built from now on carries the
+  comments. No table is added to hold derived answers.
+- **The investor and the agent read the stores read-only.** One page,
+  `docs/architecture/identity-data.md`, says where the files are, what each
+  table means and answers the usual questions with queries: which source a
+  price comes from and why, who says an identifier belongs to a subject, why a
+  listing sits under a security, what a plugin added, and which answers apply.
+  A test runs every query against a fixture device, so the page cannot go
+  stale silently.
+- **The agent reaches it through a skill, not a tool.** Core registers
+  `pythia:identity-data`, which says where the stores are and how to open them
+  read-only with the agent's own code or terminal tools, and
+  `pythia_instrument` points to it. The tool list gains nothing.
+
+**Rationale.** A panel and a read that recompute an answer are a second place
+that must agree with page composition and drift from it; the stores carry the
+same evidence for the investor, the agent and any later tool. Keeping
+provenance in the rows also means the answer survives a plugin being disabled
+or removed.
+
+**Consequences.**
+
+- **What stays implicit is written down.** Which source serves now is computed
+  on every read from the order, the plugins' state and coverage, and a derived
+  address from the ticker, the venue and the contract; `pythia_instrument` gives
+  the result and the files named in the page give its inputs. The reference's
+  structural links and attributes (a security's issuer, a listing's primary
+  flag and trading currency) carry no source per field, and `source_record` is
+  set for a named link or rule, not for a value read as it stands. Recording
+  them is a reference-format change that needs a rebuilt package, and no
+  package has made it; `source_record` is part of an evidence ID, so
+  filling it in on existing rows would also change every ID that questions and
+  bindings cite.
+- A table or column added later needs its row in the page and its comment in
+  the SQL; the test fails until it has both.
+
+**Rejected alternatives.**
+
+- **A Desk panel and an `identity-explain` operation:** the recomposition
+  duplicates page logic, and it would reach the agent only through a new
+  model-visible tool, which the tool budget has no room for.
+- **A table of computed explanations:** it would go stale against the
+  evidence it summarizes.
+- **Recording the basis of every reference link now:** a format change for
+  every installed package, for links the identifier rows and questions already
+  explain in most cases.

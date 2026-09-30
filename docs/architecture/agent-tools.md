@@ -55,6 +55,14 @@ only from what composing the page already loads:
 | `not_active` | The security or the listing in use is inactive or of unknown status | which, with its status |
 | `trading_currency_unknown` | The listing in use has no decided trading currency | that this is a coverage gap: no source Pythia holds states it, and the venue does not fix one |
 
+To trace where a stored fact comes from (which source states an identifier,
+why a price uses one source, what a plugin added), the agent reads the identity
+stores read-only with its own code or terminal tools. Core registers the skill
+`pythia:identity-data` for that, and `pythia_instrument`'s description points
+to it; there is no provenance tool
+([identity data](identity-data.md), [ADR 0037](../decisions/0037-identity-backbone.md),
+amendment "the stores carry their provenance").
+
 The full evidence of a question comes through `pythia_identity_questions`.
 Tradability and coverage flags (no exchange line, no line in the home
 country) wait for venue coverage that can support them. Derived from the

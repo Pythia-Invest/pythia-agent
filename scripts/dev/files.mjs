@@ -56,6 +56,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "markets_ops.py",
   "native_ops.py",
   "operating.py",
+  "skills/identity-data/SKILL.md",
   "platform/__init__.py",
   "platform/access.py",
   "platform/admission.py",

@@ -1,6 +1,7 @@
 """Pythia host support registered through the native Hermes extension point."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from .desk_view import SCHEMA as DESK_VIEW_SCHEMA, desk_view
@@ -36,6 +37,12 @@ def register(ctx: Any) -> None:
         schema=DESK_VIEW_SCHEMA,
         handler=desk_view,
         description="Current Pythia Desk page and observable selection",
+    )
+    ctx.register_skill(
+        "identity-data",
+        Path(__file__).parent / "skills/identity-data/SKILL.md",
+        description="Trace where an identifier, link, price source or answer comes from by reading Pythia's identity stores read-only.",
+        frontmatter={"platforms": ["linux", "macos"]},
     )
     ctx.register_system_prompt_section(
         "pythia.operating",
