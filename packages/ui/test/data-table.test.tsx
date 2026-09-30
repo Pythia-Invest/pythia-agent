@@ -46,6 +46,22 @@ describe("back-office data table semantics", () => {
     expect(html).not.toContain("SYN-1");
   });
 
+  it("starts the revealed row expanded and no other", () => {
+    const two = [...rows, { id: "t-2", type: "Other check", status: "Open" }];
+    const html = renderToStaticMarkup(
+      <DataTable
+        columns={columns}
+        context={(row) => [{ label: "Reference", value: `ref ${row.id}` }]}
+        label="Synthetic tasks"
+        reveal="t-2"
+        rowKey={(row) => row.id}
+        rows={two}
+      />,
+    );
+    expect(html).toContain("ref t-2");
+    expect(html).not.toContain("ref t-1");
+  });
+
   it("says so when no row is left", () => {
     const html = renderToStaticMarkup(
       <DataTable

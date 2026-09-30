@@ -29,19 +29,37 @@ The answer is one listing claim per FIGI line, never a pick:
 - the ISIN at security scope, role `self`: OpenFIGI maps that ISIN to the line.
   A line OpenFIGI files under another share class keeps its own share-class
   FIGI, so core's join sees the disagreement instead of a silent merge;
-- the exchange code (`provider_venue`) and, only through the contract's
-  `venue_codes`, the operating MIC. An unmapped code leaves the line keyed by
-  its FIGI with no MIC, so no price source can address it;
+- the exchange code (`provider_venue`) and, only for an order book, the operating
+  MIC through the contract's `venue_codes`. Any other line has no MIC, so no
+  price source can address it, and carries `venue_note`, the reason in words;
 - the name, `asset_class: equity` where the market sector is Equity, and the
   ticker as evidence. A ticker never keys a line, and one outside core's ticker
   grammar (`BRK/B`) is left out.
 
-A composite line is not a venue line and is left out: a FIGI other lines name
-as their composite FIGI, on a code that maps to no venue, such as the JP, GR and
-US country composites or EO, the OTC composite. Its FIGI reaches core as each
-venue line's composite FIGI. AU is Australia's composite code, but the contract
-maps it to the ASX (XASX), as the reference builder's home-exchange table does,
-so an AU line stays as the ASX line.
+No line is dropped, whatever its code (the founder's ruling: dropping data is
+almost never right). `vocabulary.json`, next to the contract, says what every
+exchange code is, and `venue_codes` holds only its `exchange` codes (the two are
+tested to agree). A line's code is one of:
+
+- `exchange`: a public order book; it gets its operating MIC;
+- `second_book`: a second code on an operating MIC whose main code has the line
+  (Munich's gettex GZ beside GM);
+- `rfq`: a request-for-quote MTF (B2, B4, T2, WT), not an order book;
+- `us_unlisted_trading`: a US exchange line OpenFIGI gives every US security;
+  the listing comes from SEC, so it is not mapped (PQ, OTC Markets, is);
+- `trade_report`: an APA or off-exchange publication (XV, XX, E1, UV);
+- `dark`: a dark or block venue (Liquidnet, Posit);
+- `composite`: a country composite or EO, the OTC composite. A composite is a
+  line like any other, with its FIGI and no MIC. AU is Australia's composite;
+  the ASX line is AT (XASX);
+- `unknown`: no MIC resolved it, or a string that is no code.
+
+A code absent from the file is "not in the vocabulary". Core leaves a line with
+no MIC `unmatched`, so it is parked but understood; read why with the "why was
+this record not placed?" query of the [identity data](../../../../docs/architecture/identity-data.md)
+guide. To add or reclassify a code, edit `vocabulary.json` and, for an
+`exchange` code, `contract.json`; the source record has the method and the
+judgement calls.
 
 ## The agent's jobs
 

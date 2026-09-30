@@ -112,6 +112,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "definition.py",
       "client.py",
       "mapping.py",
+      "vocabulary.json",
     ]),
   }),
   Object.freeze({

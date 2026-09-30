@@ -10,7 +10,12 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { useLocalTime } from "@/client/local-time";
-import { type Repair, type RepairStatus, useRepairs } from "@/client/repairs";
+import {
+  identityRepairId,
+  type Repair,
+  type RepairStatus,
+  useRepairs,
+} from "@/client/repairs";
 import { instrumentHref } from "@/components/instrument/instrument-href";
 import { useCorrectionKind } from "./correction-kind";
 import { useIdentityKind } from "./identity-kind";
@@ -27,9 +32,10 @@ const STATUS_OPTIONS = (Object.keys(STATUS) as RepairStatus[]).map((value) => ({
 }));
 
 /** Settings → Data → Repairs: what Pythia could not settle on its own, in the
- * back-office table. Rules fix most; the agent only suggests; the user
+ * back-office table. `question` (from `?question=`, see `repairHref`) opens that
+ * issue's row. Rules fix most; the agent only suggests; the user
  * confirms or answers, and never has to. The Status filter shows settled issues too. */
-export function RepairsView() {
+export function RepairsView({ question }: { question?: string | undefined }) {
   const repairs = useRepairs();
   const time = useLocalTime();
   const kinds: Record<string, RepairKind> = {
@@ -37,7 +43,8 @@ export function RepairsView() {
     correction: useCorrectionKind() as RepairKind,
   };
   const [query, setQuery] = useState("");
-  const [statuses, setStatuses] = useState<string[]>(["open"]);
+  // A link to one question shows it whatever its state.
+  const [statuses, setStatuses] = useState<string[]>(question ? [] : ["open"]);
   const [types, setTypes] = useState<string[]>([]);
   const [pending, setPending] = useState<{
     action: RepairAction;
@@ -52,6 +59,17 @@ export function RepairsView() {
       (!types.length || types.includes(repair.kind)) &&
       (!needle || repair.search.includes(needle)),
   );
+  // A link can outlive its question: answered, superseded by a new release, or
+  // past the queue read's cap.
+  const linked = repairs.all.find(
+    (repair) => question && repair.id === identityRepairId(question),
+  );
+  const gone =
+    !question || repairs.isPending || repairs.error || linked?.status === "open"
+      ? null
+      : linked
+        ? `This question is no longer open (answered on ${time(linked.resolved ?? linked.created, "compact")}).`
+        : "This question is not in the list: it may be answered or replaced.";
   const confirm = async (note: string) => {
     if (!pending) return;
     setPending({ ...pending, busy: true, error: null });
@@ -87,6 +105,14 @@ export function RepairsView() {
             may suggest an answer, which counts once you confirm it.
           </p>
         </div>
+        {gone ? (
+          <p
+            role="status"
+            className="m-0 rounded-control border border-border px-3 py-2 text-body text-foreground"
+          >
+            {gone}
+          </p>
+        ) : null}
         {repairs.notice || message ? (
           <p
             role="status"
@@ -109,6 +135,7 @@ export function RepairsView() {
           label="Repairs"
           rows={rows}
           rowKey={(repair) => repair.id}
+          {...(question ? { reveal: identityRepairId(question) } : {})}
           rowLabel={(repair) =>
             `${repair.title}, ${repair.subject?.name ?? repair.plugin ?? repair.id}`
           }

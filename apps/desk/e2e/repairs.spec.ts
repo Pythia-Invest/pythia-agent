@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { page_, primary } from "./instrument-fixture";
 import { useSyntheticDesk } from "./synthetic-desk";
 
 useSyntheticDesk();
@@ -281,6 +282,73 @@ test("repairs never read an unreadable queue as nothing to do", async ({
   await expect(page.getByText("Nothing needs attention.")).toHaveCount(0);
 });
 
+test("an instrument page shows an open data conflict in place of the company and links to its repair", async ({
+  page,
+}) => {
+  await serveQueue(page, {
+    outcome: "ok",
+    data: {
+      items: [
+        question("q-other"),
+        question("q-issuer", { reason: "identifier" }),
+      ],
+      total: 2,
+      settled: [],
+    },
+  });
+  const held = { fact: "issuer", question: "q-issuer", options: 2 };
+  await page.route("**/api/data/read", (route) => {
+    if (route.request().postDataJSON().operation !== "identity-subject")
+      return route.fallback();
+    const view = page_(primary);
+    return route.fulfill({
+      json: {
+        schema_version: 1,
+        data: {
+          ...view,
+          issuer: null,
+          withheld: [held],
+          sections: [
+            {
+              section: "profile",
+              plugin: "pythia",
+              label: "Pythia",
+              status: "not_addressable",
+              reason: "Needs the issuer: the data doesn't settle who issued it",
+              question: held.question,
+              alternatives: [],
+            },
+          ],
+        },
+      },
+    });
+  });
+  await page.route("**/api/plugins/pythia-market-data/widgets", (route) =>
+    route.fulfill({ json: { version: 1, widgets: [], assets: [] } }),
+  );
+  await page.goto(`/instrument/${encodeURIComponent(primary)}`);
+  const header = page.locator('[data-slot="instrument-header"]');
+  await expect(header.locator('[data-fact="issuer"]')).toHaveText(
+    "Company: open data conflict (2 options) · Review",
+  );
+  // The profile card says the same, rather than vanishing.
+  const card = page.getByRole("region", { name: "Profile" });
+  await expect(card.getByText("Needs the issuer")).toBeVisible();
+  await expect(card.getByRole("link", { name: "Review" })).toHaveAttribute(
+    "href",
+    "/settings/repairs?question=q-issuer",
+  );
+
+  await header.getByRole("link", { name: "Review" }).click();
+  await expect(page).toHaveURL(/\/settings\/repairs\?question=q-issuer$/u);
+  // Only that row opens, scrolled into view.
+  const rows = page.locator('[data-slot="data-table-row"]');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toHaveAttribute("data-expanded", "true");
+  await expect(rows.nth(0)).not.toHaveAttribute("data-expanded", "true");
+  await expect(rows.nth(1)).toBeInViewport();
+});
+
 test("repairs list the agent's correction proposals to confirm or decline, and the investor's own to undo", async ({
   page,
 }) => {
@@ -384,4 +452,35 @@ test("repairs list the agent's correction proposals to confirm or decline, and t
       { action: "confirm", id: "c-proposal", note: "Checked the filing." },
       { action: "undo", id: "c-pin" },
     ]);
+});
+
+test("a link to a question that is no longer open still shows it, and says so", async ({
+  page,
+}) => {
+  await serveQueue(page, {
+    outcome: "ok",
+    data: {
+      items: [question("q-open")],
+      total: 1,
+      settled: [
+        question("q-done", {
+          state: "resolved",
+          settled_by: "user",
+          updated_at: "2026-09-26T11:00:00Z",
+        }),
+      ],
+    },
+  });
+  await page.goto("/settings/repairs?question=q-done");
+  await expect(
+    page.locator('[data-slot="repairs"]').getByRole("status"),
+  ).toContainText("This question is no longer open (answered on");
+  const done = page.locator('[data-slot="data-table-row"][data-expanded]');
+  await expect(done).toHaveCount(1);
+  await expect(done).toContainText("Resolved");
+
+  await page.goto("/settings/repairs?question=q-gone");
+  await expect(
+    page.locator('[data-slot="repairs"]').getByRole("status"),
+  ).toContainText("This question is not in the list");
 });

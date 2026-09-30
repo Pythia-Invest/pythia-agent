@@ -6,6 +6,7 @@ import { Button, Skeleton } from "@pythia/ui";
 import { CircleSlash, Scale, SearchX, Settings2, Shapes } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSectionRead } from "@/client/instrument-queries";
+import { SectionConflict } from "./open-conflict";
 
 const STATUS_LABELS: Record<string, string> = {
   resolving: "finding match",
@@ -82,7 +83,7 @@ export function SectionPlaceholder({
       ? {
           icon: <Scale />,
           title: `${section.label} match awaits review`,
-          fallback: "Review it in Repairs.",
+          fallback: section.question ? "" : "Review it in Repairs.",
         }
       : {
           icon: <SearchX />,
@@ -115,8 +116,7 @@ export function SectionPlaceholder({
       title: section.reason ?? "No source covers this",
       fallback: "",
     },
-    // Core's own answer when the reference leaves the issuer undecided: the
-    // header says why, so the card only says what it needs.
+    // Core's own answer when the issuer is undecided: the card says what it needs.
     not_addressable: {
       icon: <SearchX />,
       title: section.reason?.split(": ")[0] ?? "No source can address this",
@@ -163,6 +163,7 @@ export function SectionPlaceholder({
             {detail}
           </p>
         ) : null}
+        <SectionConflict question={section.question} />
         {uncovered && section.skipped.length ? (
           <ul className="mt-0.5 text-foreground-secondary text-xs [overflow-wrap:anywhere]">
             {section.skipped.map((item) => (
