@@ -269,8 +269,8 @@ def named(store: IdentityStore) -> set[str]:
 def repoint(store: IdentityStore, moved: Mapping[str, str]) -> dict[str, str]:
     """Re-point the device tables through `moved` (an old ID to the current one), inside the caller's transaction: a
     subject's row (merged into the current one's where both exist), its children's parent, its assertions (each
-    under the evidence ID its new subject gives it), relations (likewise) and placed claims. Returns each moved assertion's old
-    evidence ID with its new one, and bumps the generation when a row changed."""
+    under the evidence ID its new subject gives it), relations (likewise) and placed claims. Returns each moved
+    assertion's old evidence ID with its new one, and bumps the generation when a row changed."""
     db, evidence = store.db, {}
     before = db.total_changes
     for old, new in moved.items():
