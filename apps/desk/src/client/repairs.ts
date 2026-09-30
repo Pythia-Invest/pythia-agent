@@ -1,13 +1,15 @@
 "use client";
+import { type Correction, useCorrections } from "./corrections";
 import { type IdentityQuestion, useIdentityQuestions } from "./identity-queue";
 
 /*
  * Repairs (modelled on Home Assistant's): issues Pythia could not settle on
  * its own. Rules fix most of them, so the page sits under
  * Settings. An issue is generic; its `kind` picks the renderer of its context
- * and actions. Today the only source is core's identity queue; another kind
- * (a plugin needing configuration, a data package update, a broken binding)
- * adds a source here and a renderer beside the page.
+ * and actions. Today the sources are core's identity queue and the catalogue
+ * corrections (the agent's proposals to confirm, the investor's own to undo);
+ * another kind (a plugin needing configuration, a data package update, a
+ * broken binding) adds a source here and a renderer beside the page.
  */
 
 export type RepairStatus = "open" | "resolved" | "dismissed";
@@ -33,6 +35,7 @@ export interface Repair<Data = unknown> {
 }
 
 export type IdentityRepair = Repair<IdentityQuestion>;
+export type CorrectionRepair = Repair<Correction>;
 
 const IDENTITY_TITLES: Record<string, string> = {
   residual: "Record not matched",
@@ -105,20 +108,89 @@ export function identityRepair(item: IdentityQuestion): IdentityRepair {
   };
 }
 
+const SCHEME_NAMES: Record<string, string> = {
+  isin: "ISIN",
+  lei: "LEI",
+  cik: "CIK",
+  figi: "FIGI",
+  share_class_figi: "share-class FIGI",
+  composite_figi: "composite FIGI",
+  caip19: "CAIP-19",
+};
+
+/** What a correction does, as a verb phrase: "set the ISIN of X to Y". */
+export function correctionWhat(item: Correction) {
+  const name = item.name ?? item.subject_id;
+  if (item.kind === "price_source")
+    return `use ${item.label ?? item.value} as the price source of ${name}`;
+  const scheme = SCHEME_NAMES[item.scheme ?? ""] ?? item.scheme ?? "identifier";
+  return item.value
+    ? `set the ${scheme} of ${name} to ${item.value}`
+    : `remove the ${scheme} of ${name}`;
+}
+
+/** The agent's proposal in two or three words, for the status badge. */
+function proposalWords(item: Correction) {
+  if (item.kind === "price_source") return `use ${item.label ?? item.value}`;
+  const scheme = SCHEME_NAMES[item.scheme ?? ""] ?? "identifier";
+  return item.value ? `set ${scheme}` : `remove ${scheme}`;
+}
+
+/** A correction as an issue: the agent's proposal is open until the investor
+ * confirms or declines it, an applied correction is resolved (undoable), and
+ * one undone, declined or replaced is dismissed. */
+export function correctionRepair(item: Correction): CorrectionRepair {
+  const status: RepairStatus =
+    item.state === "proposed"
+      ? "open"
+      : item.state === "active"
+        ? "resolved"
+        : "dismissed";
+  const what = correctionWhat(item);
+  return {
+    id: `correction:${item.id}`,
+    kind: "correction",
+    title:
+      item.kind === "price_source" ? "Price source" : "Identifier correction",
+    description:
+      status === "open"
+        ? `The agent proposes to ${what}. Nothing changes until you confirm it.`
+        : status === "resolved"
+          ? `You chose to ${what}.`
+          : `Undone, declined or replaced: ${what}.`,
+    subject: { id: item.subject_id, name: item.name },
+    plugin: item.label,
+    created: item.created_at,
+    resolved: status === "open" ? null : (item.ended_at ?? item.decided_at),
+    status,
+    agentAnswer: status === "open" ? proposalWords(item) : null,
+    search: [what, item.note, item.value, item.label]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase(),
+    data: item,
+  };
+}
+
 /** Every issue the sources report, open or settled; the page filters them. */
 export function useRepairs() {
   const identity = useIdentityQuestions();
+  const corrections = useCorrections();
   const data = identity.data;
-  const all = [...(data?.items ?? []), ...(data?.settled ?? [])].map(
-    identityRepair,
-  );
+  const all: Repair[] = [
+    ...[...(data?.items ?? []), ...(data?.settled ?? [])].map(identityRepair),
+    ...(corrections.data ?? []).map(correctionRepair),
+  ];
   return {
     all,
     open: all.filter((repair) => repair.status === "open"),
     notice: data?.notice ?? null,
-    isPending: identity.isPending,
-    isFetching: identity.isFetching,
-    error: identity.error,
-    refetch: () => void identity.refetch(),
+    isPending: identity.isPending || corrections.isPending,
+    isFetching: identity.isFetching || corrections.isFetching,
+    error: identity.error ?? corrections.error,
+    refetch: () => {
+      void identity.refetch();
+      void corrections.refetch();
+    },
   };
 }

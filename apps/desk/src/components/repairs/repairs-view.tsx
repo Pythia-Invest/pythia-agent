@@ -17,6 +17,7 @@ import {
   useRepairs,
 } from "@/client/repairs";
 import { instrumentHref } from "@/components/instrument/instrument-href";
+import { useCorrectionKind } from "./correction-kind";
 import { useIdentityKind } from "./identity-kind";
 import type { RepairAction, RepairKind } from "./kinds";
 
@@ -39,6 +40,7 @@ export function RepairsView({ question }: { question?: string | undefined }) {
   const time = useLocalTime();
   const kinds: Record<string, RepairKind> = {
     identity: useIdentityKind() as RepairKind,
+    correction: useCorrectionKind() as RepairKind,
   };
   const [query, setQuery] = useState("");
   const [statuses, setStatuses] = useState<string[]>(["open"]);

@@ -397,6 +397,14 @@ central curator exists.
   is open, the page shows an open data conflict linked to its repair where the
   fact it holds back would be, never a blank (amendment "open data conflicts on
   the page").
+- **The investor can correct the catalogue.** From an instrument's page they
+  set or remove an identifier and pin the source that prices a line or
+  security; the agent can only propose the same, and the investor confirms it
+  in Repairs. A correction applies on every read above the reference, the
+  plugins and the investor's answers, is undone from the page or Repairs, and
+  follows a re-key (amendment "user catalogue corrections" below). Moving a
+  listing to another security and ignoring one plugin's record are the next
+  part of the same change and are not read yet.
 - **Reference sources are builder adapters.** A build can leave out any of
   them (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
   sources it includes; only the ISO 10383 venue codes and core's curated
@@ -606,3 +614,89 @@ second time, by a digest they cannot judge, adds friction and no safety.
 - **A single "verified" badge** kept for Pythia's audited plugins. It would
   make every unbadged plugin second class in the interface while changing no
   behaviour.
+
+## Amendment (2026-09-30): user catalogue corrections
+
+### Context
+
+The founder's ruling that installing a plugin means trusting it (the amendment
+above) named the remedies for a plugin that is wrong: an explanation of where a
+value comes from, an on/off switch per plugin, and "manual overwrites to the
+catalog in case there are issues with plugins but you want to keep using them".
+The explanation became the stores' own provenance and the `pythia:identity-data`
+skill, and the switch became the pause in Settings. The investor's answer to a
+question is already a local override, but it exists only where a source is
+contested or a build asked; it cannot say "this ISIN is wrong", "this source
+should price this line", or remove a value nobody contests.
+
+### Ruling
+
+- **A correction is a local override the investor makes on purpose, at the top
+  of the precedence.** It applies on every read above the reference, every
+  plugin and the investor's answers to questions, and it changes no ingested
+  row, so a sync cannot revive what it overrode.
+- **Two kinds are built now.** An `identifier` correction sets one scheme of a
+  subject, at the level the scheme identifies, or removes it. A `price_source`
+  correction pins a plugin as the source of a line's or security's quote, chart
+  and live price; a failing pinned source falls through to the next and the
+  page says so. The kinds `parent` (move a listing to another security) and
+  `detach` (ignore one plugin record's statements about a subject) are
+  reserved in the schema and refused until they are read.
+- **Only the investor makes one apply.** The Desk writes it `active` with the
+  user's turn, and the table refuses an `active` row without one. The agent's
+  call writes a `proposed` row that applies to nothing (A2's rule that an
+  agent's answer changes nothing until the user confirms). Confirm, decline and
+  undo are Desk operations; the agent has no tool for them.
+- **Corrections are their own table, `corrections`, in the identity store.**
+  The question machinery (`queue`, `verdicts`) cannot carry them: a verdict
+  needs a question, refuses an answer that unanimous identifier evidence
+  contradicts (a correction exists for exactly that case), and has no relation
+  for set, remove or pin. The conventions are reused: `user_attested`
+  authority, a `user_turn`, rows kept as history, and the store's `generation`,
+  which every write and undo bumps so search renews.
+- **One active row per fact.** A newer correction replaces the older (it stays
+  as `undone`, cited in `replaces`). A re-key of a subject re-points its
+  corrections, and where two now state one fact the newest stays.
+- **The surfaces stay small.** The identifier is edited in place in the
+  instrument header (an empty value removes it), "Always use" sits beside
+  "Back" on a price section's sources line, "Corrected by you · Undo" marks the
+  corrected item and the settled rows of Settings → Repairs, and the agent's
+  proposals are Repairs rows. There is no explanation panel.
+
+### Rationale
+
+- A correction marks a plugin or source issue worth investigating. Each one stays
+  visible in the raw data so it can be reviewed and retired once the plugin is
+  fixed.
+- The founder asked for a way to keep using a plugin that is wrong in a few
+  places, without waiting for it to be fixed and without disabling it.
+- Overriding on read, never in the ingested rows, keeps the evidence intact and
+  makes undo exact: the data reads as before.
+- Letting the agent only propose keeps A2's boundary: a correction changes what
+  the investor sees and what price they read, so they decide.
+
+### Consequences
+
+- A corrected identifier does not change the evidence a plugin's resolve is
+  checked against, so a plugin that resolves by the corrected value can still
+  be refused by the source evidence it contradicts, as it is for an answer to a
+  question. A corrected FIGI does change the address core derives from it.
+- A pin applies to the subject it names and, for a security, to its lines; a pin
+  on a line beats one on its security. A pin on a plugin that is later
+  uninstalled applies to nothing.
+- The store schema stays at 6: an older store gains the table when it is next
+  opened, and an older Pythia ignores it.
+- The effect of `parent` and `detach` on search and pages is part of the
+  follow-up change and is not designed here.
+
+### Rejected alternatives
+
+- **Reusing questions and verdicts.** Only "set an identifier" fits, through a
+  chosen candidate, and it is refused where the evidence is unanimous.
+- **Editing the ingested rows.** A sync would revive the old value, and undo
+  would have nothing to restore.
+- **Letting the agent write an active correction** on the user's confirmation in
+  chat. A chat turn is not a Desk action the store can check, and A2 already
+  names Repairs as the place a suggestion becomes the user's.
+- **Trust levels for who may correct** (removed above), and an explanation panel
+  (the founder asked for well-modelled data instead).

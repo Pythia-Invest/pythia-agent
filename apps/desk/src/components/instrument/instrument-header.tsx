@@ -9,6 +9,8 @@ import type {
 import { Menu, Skeleton } from "@pythia/ui";
 import { Check, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import type { CorrectFn } from "@/client/corrections";
+import { IdentifierCorrection } from "./identifier-correction";
 import { instrumentHref } from "./instrument-href";
 import { listingGroups, listingLabel, listingVenue } from "./listing-groups";
 import { OpenConflict, optionsNote, ReviewLink } from "./open-conflict";
@@ -41,15 +43,30 @@ function currentListing(page: SubjectPage): SubjectListing | undefined {
   );
 }
 
+/** The subject an identifier's scheme identifies, where the investor's
+ * correction of it is recorded: the security for an ISIN, the issuer for an
+ * LEI or CIK, the priced listing for a FIGI or CAIP-19. */
+function correctionSubject(page: SubjectPage, key: string) {
+  if (key === "isin") return page.security?.id ?? null;
+  if (key === "lei" || key === "cik") return page.issuer?.id ?? null;
+  return (
+    page.subject.listing ??
+    (page.subject.level === "listing" ? page.subject.id : null)
+  );
+}
+
 /** The page is the instrument; `subjectId` is its route subject and `page`
  * its composition, so the kind badge, name and identifiers stay the
- * instrument's while the selector follows the chosen listing. */
+ * instrument's while the selector follows the chosen listing. With
+ * `onCorrect`, each identifier can be corrected in place. */
 export function InstrumentHeader({
   page,
   subjectId,
+  onCorrect,
 }: {
   page: SubjectPage;
   subjectId: string;
+  onCorrect?: CorrectFn | undefined;
 }) {
   const ids = page.identifiers;
   const identifiers = IDENTIFIERS.flatMap(([key, label]) => {
@@ -59,8 +76,17 @@ export function InstrumentHeader({
       (key === "lei" || key === "cik" ? page.issuer?.[key] : undefined);
     const contested = page.contested[key] ?? [];
     const held = page.withheld.find((item) => item.fact === key);
-    return value || contested.length || held
-      ? [{ key, label, value, contested, held }]
+    // The investor's correction of this identifier, which a removal leaves
+    // without a value to show.
+    const corrected =
+      page.corrections.find(
+        (item) =>
+          item.kind === "identifier" &&
+          item.state === "active" &&
+          item.scheme === key,
+      ) ?? null;
+    return value || contested.length || held || corrected
+      ? [{ key, label, value, contested, held, corrected }]
       : [];
   });
   const heldIssuer = page.withheld.find((item) => item.fact === "issuer");
@@ -120,29 +146,44 @@ export function InstrumentHeader({
           data-slot="instrument-identifiers"
           className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
         >
-          {identifiers.map(({ key, label, value, contested, held }) => (
-            <div key={key} className="flex min-w-0 max-w-full gap-1.5">
-              <dt className="text-foreground-secondary">{label}</dt>
-              {contested.length ? (
-                <ContestedValues values={contested} held={held} />
-              ) : !value && held ? (
-                <dd
-                  data-slot="instrument-identifier-contested"
-                  className="text-foreground-secondary"
-                >
-                  open data conflict{optionsNote(held)} ·{" "}
-                  <ReviewLink question={held.question} />
-                </dd>
-              ) : (
-                <dd
-                  title={value ?? undefined}
-                  className="truncate font-mono text-foreground tabular-nums"
-                >
-                  {value}
-                </dd>
-              )}
-            </div>
-          ))}
+          {identifiers.map(
+            ({ key, label, value, contested, held, corrected }) => (
+              <div
+                key={key}
+                className="flex min-w-0 max-w-full flex-wrap gap-x-1.5 gap-y-1"
+              >
+                <dt className="text-foreground-secondary">{label}</dt>
+                {contested.length ? (
+                  <ContestedValues values={contested} held={held} />
+                ) : value ? (
+                  <dd
+                    title={value}
+                    className="truncate font-mono text-foreground tabular-nums"
+                  >
+                    {value}
+                  </dd>
+                ) : held ? (
+                  <dd
+                    data-slot="instrument-identifier-contested"
+                    className="text-foreground-secondary"
+                  >
+                    open data conflict{optionsNote(held)} ·{" "}
+                    <ReviewLink question={held.question} />
+                  </dd>
+                ) : (
+                  <dd className="text-foreground-secondary">none</dd>
+                )}
+                <IdentifierCorrection
+                  label={label}
+                  scheme={key}
+                  value={value}
+                  subjectId={correctionSubject(page, key)}
+                  corrected={corrected}
+                  onCorrect={onCorrect}
+                />
+              </div>
+            ),
+          )}
         </dl>
       ) : null}
     </header>

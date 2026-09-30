@@ -14,7 +14,7 @@ from pathlib import Path
 from identity_world import AS_OF, NOW, World, record, vendor
 from test_identity_contracts import PROVENANCE, identity
 from test_reference_package import make_package
-from pythia_identity_fixture import device, page, queue, reference_package, relations, store  # noqa: E402
+from pythia_identity_fixture import corrections, device, page, queue, reference_package, relations, store  # noqa: E402
 
 DOC = Path(__file__).parents[3] / "docs/architecture/identity-data.md"
 AGENT = Path(__file__).parents[2] / "managed/core/skills/identity-data/references/queries.md"  # what the skill ships
@@ -78,6 +78,11 @@ class DocFixture(unittest.TestCase):
                                    relation="same_listing", chosen_id=TOYOTA, now=NOW, as_of=AS_OF,
                                    user_turn="desk:identity-verdict:test")
         self.world.ingest(self.tidepool, *self.pool_records(), scope="pools", complete=True)
+        for kind, subject, scheme, value, turn, at in (  # the investor's fix, and the agent's proposal waiting for them
+                ("identifier", "security:isin:JP3633400001", "isin", "US0378331005", "desk:identity-correction:test", NOW),
+                ("price_source", TOYOTA, None, "vendor", None, "2026-09-26T11:00:00Z")):
+            corrections.put(self.world.identity, {"kind": kind, "subject_id": subject, "scheme": scheme, "value": value},
+                            now=at, user_turn=turn, note="a wrong ISIN" if scheme else None)
         device.put_alias(self.world.identity, OLD_ID, TOYOTA, NOW)
         self.root = self.tmp / "root"
         (self.root / "store").mkdir(parents=True)
@@ -182,6 +187,14 @@ class ExampleTest(DocFixture):
                          ("resolved", "same_listing", TOYOTA, "desk:identity-verdict:test"))
         self.assertEqual(self.answer["outcome"], "confirmed")
         self.assertEqual([row["id"] for row in found["open-questions"]], [self.open.id])
+
+    def test_the_corrections_of_the_family_are_listed_and_only_the_active_one_applies(self):
+        rows = self.run_examples()["corrections"]
+        self.assertEqual([(row["kind"], row["subject_id"], row["value"], row["state"], row["proposed_by"])
+                          for row in rows],
+                         [("identifier", "security:isin:JP3633400001", "US0378331005", "active", None),
+                          ("price_source", TOYOTA, "vendor", "proposed", "agent")])
+        self.assertTrue(rows[0]["decided_at"] and rows[1]["decided_at"] is None)
 
     def test_a_plugins_relation_keeps_where_it_was_stated(self):
         found = self.run_examples()

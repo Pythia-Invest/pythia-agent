@@ -230,6 +230,32 @@ CREATE TABLE IF NOT EXISTS device_aliases (  -- a device subject's earlier ID an
   CHECK (old_id <> new_id)
 );
 
+-- The investor's own corrections to the catalogue (ADR 0044, amendment "user catalogue corrections"): a local override
+-- applied on every read above the reference, the plugins and the user's answers to questions. No ingested row is
+-- changed, so a sync cannot revive what one overrode. Only the Desk makes one `active`; the agent can only propose.
+-- A row is never deleted: an undone, declined or replaced one stays as history. `kind` is validated by
+-- identity/corrections.py (identifier and price_source are read; parent and detach are reserved).
+CREATE TABLE IF NOT EXISTS corrections (  -- the investor's fixes to the catalogue, and the agent's proposals waiting for them
+  id TEXT PRIMARY KEY,             -- a random row id
+  kind TEXT NOT NULL,              -- identifier: set or remove one scheme of a subject; price_source: pin a plugin as its price source; parent, detach: reserved
+  subject_id TEXT NOT NULL,        -- the subject it is about, at the level the scheme identifies (a pin: a listing or a security, covering its lines); follows a re-key
+  scheme TEXT,                     -- identifier: which scheme (schemes.Scheme); NULL for the other kinds
+  value TEXT,                      -- identifier: the new value, NULL to remove it; price_source: the plugin's contract name; parent: the security a listing moves to
+  plugin TEXT,                     -- detach only: the plugin whose record is ignored; with the next two, the `claims` key of that record
+  native_scope TEXT,               -- detach only
+  native_id TEXT,                  -- detach only
+  state TEXT NOT NULL CHECK (state IN ('proposed', 'active', 'undone')),  -- proposed: the agent's, applies to nothing; active: applies; undone: undone, declined or replaced
+  proposed_by TEXT,                -- 'agent' for a proposal; NULL for one the investor made in Desk
+  note TEXT,                       -- why, as the investor or the agent gave it
+  created_at TEXT NOT NULL,        -- when it was written
+  decided_at TEXT,                 -- when the investor made, confirmed or declined it
+  ended_at TEXT,                   -- when it was undone, declined or replaced
+  user_turn TEXT,                  -- the Desk action behind it; an agent cannot supply one, so it cannot make a row active
+  replaces TEXT REFERENCES corrections(id),  -- the active correction of the same fact this one took the place of
+  CHECK (state <> 'active' OR user_turn IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS corrections_subject ON corrections (subject_id, state);
+
 -- The `unaudited` residual is gone (ADR 0044, amendment of 2026-09-30: installing a plugin means trusting it). One an
 -- earlier Pythia queued stays in the history under a reason this core reads, and is no longer open.
 UPDATE queue SET reason = 'no_key', state = CASE WHEN state = 'open' THEN 'superseded' ELSE state END

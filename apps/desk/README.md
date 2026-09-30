@@ -292,14 +292,25 @@ Rules and the agent normally fix them, so the Data section of Settings is marked
 only while issues are open. The page uses the back-office `DataTable` and
 `ActionDialog` from `@pythia/ui`. An issue is generic (kind, title, description,
 subject, plugin, times, status); a kind (`components/repairs/`) only supplies a
-row's context and actions. Today the only kind is an identity question from
+row's context and actions. Two kinds exist. An identity question from
 core's `identity-queue`: its context shows the provider's record beside the
 instrument and the evidence. "Match" (one per candidate) and "Not a match"
 send `identity-verdict` with an optional note; an agent's suggestion, whose
 badge reads "Agent suggests: match" (or "depositary receipt", "not a match"),
 adds "Confirm", which sends it as the user's answer through the same short
-dialog. Answered and settled questions are shown through the
-Status filter.
+dialog. A catalogue correction from core's `identity-corrections`: the agent's
+proposal (badge "Agent suggests: set ISIN") is open until "Confirm" or
+"Decline" sends `identity-correction`, and an applied correction is Resolved
+with "Undo". Answered and settled questions and corrections are shown through
+the Status filter.
+
+The investor corrects the catalogue from the instrument page itself: an
+identifier in the header has an Edit link that opens an inline input (Enter
+saves, Escape cancels, an empty value removes the identifier) and sends
+`identity-correction`; a price section's "Always use" beside "Back" pins the
+source picked for this view. A corrected item says "Corrected by you" with an
+Undo. Core refuses a value that is malformed for its scheme and Desk shows its
+reason in place.
 
 `/instrument/[subject]` is one instrument's page (URL-encoded subject id,
 normally the instrument's security); `?listing=` names the listing whose quote

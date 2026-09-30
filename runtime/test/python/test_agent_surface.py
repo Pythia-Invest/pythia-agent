@@ -107,7 +107,7 @@ class DeliveredViewTest(unittest.TestCase):
         sizes = {schema["name"]: len(json.dumps(schema, separators=(",", ":"))) for schema in schemas}
         for name, size in sizes.items():
             self.assertLessEqual(size, 2000, name)
-        self.assertLessEqual(sum(sizes.values()), 17000)  # about 4,250 tokens by Hermes's chars/4
+        self.assertLessEqual(sum(sizes.values()), 17700)  # about 4,425 tokens by Hermes's chars/4 (correction proposal: 746)
         for schema in schemas:
             self.assertLessEqual(len(schema["description"]), 700, schema["name"])
             self.assertNotIn("$comment", json.dumps(schema), schema["name"])

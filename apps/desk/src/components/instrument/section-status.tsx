@@ -187,16 +187,26 @@ export function SectionPlaceholder({
 
 /** The quiet source line under a section: the source (or the sources
  * combined), "Also:" alternatives that read another source once, and an amber
- * reason only when a source ranked ahead of this one was passed over. */
+ * reason only when a source ranked ahead of this one was passed over. A source
+ * picked for this view can be kept for good ("Always use"), and a price source
+ * the investor pinned says so, with an Undo. */
 export function SourcesLine({
   section,
   chosen,
   onUse,
+  onAlways,
+  pinned,
+  onUnpin,
 }: {
   section: SubjectSection;
   /** The source the investor picked for this view, if not core's choice. */
   chosen?: string | null | undefined;
   onUse?: ((plugin: string | null) => void) | undefined;
+  /** Pins the picked source as this subject's price source. */
+  onAlways?: ((plugin: string) => void) | undefined;
+  /** The investor pinned a source for this subject. */
+  pinned?: boolean | undefined;
+  onUnpin?: (() => void) | undefined;
 }) {
   const sources = section.sources?.length
     ? section.sources
@@ -247,7 +257,37 @@ export function SourcesLine({
             >
               Back
             </button>
+            {onAlways ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  title={`Use ${sources[0]?.source} for this price from now on`}
+                  onClick={() => onAlways(chosen)}
+                  className="underline underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+                >
+                  Always use
+                </button>
+              </>
+            ) : null}
           </>
+        ) : null}
+        {pinned && !chosen ? (
+          <span data-slot="instrument-source-pinned">
+            · Corrected by you
+            {onUnpin ? (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={onUnpin}
+                  className="underline underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+                >
+                  Undo
+                </button>
+              </>
+            ) : null}
+          </span>
         ) : null}
         {section.alternatives.length && !chosen ? (
           <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1">

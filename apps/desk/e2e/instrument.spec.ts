@@ -446,3 +446,86 @@ test("a chosen listing that cannot be read fails in its price card only", async 
     page.getByText("This instrument could not be opened."),
   ).toHaveCount(0);
 });
+
+test("the investor corrects an identifier in the header, is told core's reason, and undoes it", async ({
+  page,
+}) => {
+  const { release } = await routeIdentity(page);
+  const writes: unknown[] = [];
+  let corrected = false;
+  await page.route(/\/api\/data\/(read|invoke)$/u, (route) => {
+    const body = route.request().postDataJSON();
+    if (body.operation === "identity-subject" && corrected) {
+      const view = page_(body.arguments.subject_id);
+      return route.fulfill({
+        json: {
+          schema_version: 1,
+          data: {
+            ...view,
+            identifiers: { ...view.identifiers, isin: "XS0000000017" },
+            security: { ...view.security, isin: "XS0000000017" },
+            corrections: [
+              {
+                id: "c1",
+                kind: "identifier",
+                subject_id: security,
+                scheme: "isin",
+                value: "XS0000000017",
+                state: "active",
+              },
+            ],
+          },
+        },
+      });
+    }
+    if (body.operation !== "identity-correction") return route.fallback();
+    writes.push(body.arguments);
+    if (body.arguments.value === "nope")
+      return route.fulfill({
+        json: {
+          schema_version: 1,
+          outcome: "ok",
+          data: { outcome: "refused", message: "isin: malformed value" },
+        },
+      });
+    corrected = body.arguments.action !== "undo";
+    return route.fulfill({
+      json: {
+        schema_version: 1,
+        outcome: "ok",
+        data: { outcome: "set", message: "Saved." },
+      },
+    });
+  });
+  await page.goto(`/instrument/${encodeURIComponent(primary)}`);
+  const identifiers = page.locator('[data-slot="instrument-identifiers"]');
+  await expect(identifiers).toContainText("XS0000000001");
+  await identifiers.getByRole("button", { name: "Edit ISIN" }).click();
+  const input = identifiers.getByRole("textbox", { name: /^ISIN/u });
+  await expect(input).toBeFocused();
+  await input.fill("nope");
+  await input.press("Enter"); // the keyboard saves
+  await expect(identifiers.getByRole("alert")).toHaveText(
+    "isin: malformed value",
+  );
+  await input.fill("xs0000000017");
+  await identifiers.getByRole("button", { name: "Save" }).click();
+  await expect(identifiers).toContainText("XS0000000017");
+  await expect(identifiers).toContainText("Corrected by you");
+  expect(writes).toEqual([
+    { kind: "identifier", subject_id: security, scheme: "isin", value: "nope" },
+    {
+      kind: "identifier",
+      subject_id: security,
+      scheme: "isin",
+      value: "xs0000000017",
+    },
+  ]);
+  await identifiers
+    .getByRole("button", { name: "Undo the correction of ISIN" })
+    .click();
+  await expect(identifiers).not.toContainText("Corrected by you");
+  await expect(identifiers).toContainText("XS0000000001");
+  expect(writes.at(-1)).toEqual({ action: "undo", id: "c1" });
+  release();
+});

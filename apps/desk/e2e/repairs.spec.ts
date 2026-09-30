@@ -348,3 +348,108 @@ test("an instrument page shows an open data conflict in place of the company and
   await expect(rows.nth(0)).not.toHaveAttribute("data-expanded", "true");
   await expect(rows.nth(1)).toBeInViewport();
 });
+
+test("repairs list the agent's correction proposals to confirm or decline, and the investor's own to undo", async ({
+  page,
+}) => {
+  const item = (id: string, fields: Record<string, unknown>) => ({
+    id,
+    kind: "identifier",
+    subject_id: SECURITY,
+    scheme: "isin",
+    value: "XS0000000017",
+    state: "proposed",
+    proposed_by: "agent",
+    note: "The filing gives this ISIN.",
+    created_at: "2026-09-30T10:00:00Z",
+    name: "Synthetic Holding N.V.",
+    ...fields,
+  });
+  const writes: unknown[] = [];
+  await page.route("**/api/data/read", (route) =>
+    route.request().postDataJSON().operation === "identity-corrections"
+      ? route.fulfill({
+          json: {
+            schema_version: 1,
+            outcome: "ok",
+            data: {
+              items: [
+                item("c-proposal", {}),
+                item("c-pin", {
+                  kind: "price_source",
+                  scheme: null,
+                  value: "yahoo",
+                  label: "Yahoo Finance",
+                  proposed_by: null,
+                  note: null,
+                  state: "active",
+                  decided_at: "2026-09-30T11:00:00Z",
+                }),
+                item("c-declined", {
+                  value: null,
+                  state: "undone",
+                  ended_at: "2026-09-30T12:00:00Z",
+                }),
+              ],
+            },
+          },
+        })
+      : route.fallback(),
+  );
+  await page.route("**/api/data/invoke", (route) => {
+    const body = route.request().postDataJSON();
+    if (body.operation !== "identity-correction") return route.fallback();
+    writes.push(body.arguments);
+    return route.fulfill({
+      json: {
+        schema_version: 1,
+        outcome: "ok",
+        data: { outcome: "confirmed", message: "Confirmed: applied." },
+      },
+    });
+  });
+  await page.goto("/settings/repairs");
+  const table = page.getByRole("table", { name: "Repairs" });
+  const rows = table.locator('[data-slot="data-table-row"]');
+  await expect(rows).toHaveCount(1); // the open proposal; the rest are settled
+  await expect(rows.first()).toContainText("Agent suggests: set ISIN");
+  await rows.first().getByRole("button", { name: "Show context" }).click();
+  await expect(table.locator('[data-slot="data-table-context"]')).toContainText(
+    "The agent, as a proposal",
+  );
+  await rows.first().getByRole("button", { name: "Confirm" }).click();
+  const dialog = page.getByRole("dialog", { name: "Apply correction" });
+  await expect(dialog).toContainText(
+    "Set the ISIN of Synthetic Holding N.V. to XS0000000017.",
+  );
+  await dialog.getByRole("textbox").fill("Checked the filing.");
+  await dialog.getByRole("button", { name: "Apply correction" }).click();
+  await expect(
+    page.locator('[data-slot="repairs"]').getByRole("status"),
+  ).toContainText("Confirmed: applied.");
+
+  await page.getByRole("button", { name: /^Status/u }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Resolved" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Dismissed" }).click();
+  await page.keyboard.press("Escape");
+  await expect(rows).toHaveCount(3);
+  const settled = rows.filter({ hasText: "Price source" });
+  await expect(settled).toContainText("Yahoo Finance");
+  await settled.getByRole("button", { name: "Undo" }).click();
+  await page
+    .getByRole("dialog", { name: "Undo correction" })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  // A correction already undone has no action left.
+  await expect(
+    rows
+      .filter({ hasText: "Dismissed" })
+      .getByRole("button", { name: /^(Confirm|Undo|Decline)$/u }),
+  ).toHaveCount(0);
+  await expect
+    .poll(() => writes)
+    .toEqual([
+      { action: "confirm", id: "c-proposal", note: "Checked the filing." },
+      { action: "undo", id: "c-pin" },
+    ]);
+});
