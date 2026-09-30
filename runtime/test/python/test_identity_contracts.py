@@ -376,6 +376,16 @@ class ClaimTest(unittest.TestCase):
         self.assertEqual(identity.batch_from_json(wire), batch)
         self.assertEqual(wire["claims"][0]["identifiers"][0], {"scheme": "isin", "value": "NL0010273215", "role": "self"})
 
+    def test_aliases_are_a_short_list_of_names_and_survive_the_wire_form(self):
+        batch = self.batch(self.record(attributes={"name": "ASML", "aliases": ["ASML Holding", "Veldhoven"]}))
+        wire = json.loads(json.dumps(identity.batch_to_json(batch)))
+        self.assertEqual(wire["claims"][0]["attributes"]["aliases"], ["ASML Holding", "Veldhoven"])
+        self.assertEqual(identity.batch_from_json(wire).claims[0].attributes.aliases, ("ASML Holding", "Veldhoven"))
+        for refused in ("ASML", {"ASML": 1}, [""], [None], [7], ["x" * 513], ["name"] * 33):
+            wire["claims"][0]["attributes"]["aliases"] = refused
+            with self.subTest(aliases=str(refused)[:20]), self.assertRaisesRegex(identity.ClaimError, r"^claims\[0\].*aliases"):
+                identity.batch_from_json(wire)
+
     def test_a_malformed_wire_batch_names_the_bad_claim(self):
         wire = identity.batch_to_json(self.batch(self.record()))
         wire["claims"][0]["identifiers"][0]["value"] = "NL0010273216"

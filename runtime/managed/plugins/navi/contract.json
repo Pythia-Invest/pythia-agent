@@ -1,0 +1,57 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-navi",
+  "provider": "navi",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "reserve",
+        "level": "market",
+        "asset_classes": [
+          "crypto"
+        ]
+      },
+      {
+        "native_scope": "protocol",
+        "level": "protocol"
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "caip19"
+      ]
+    }
+  },
+  "introduces": {
+    "market": [
+      "native"
+    ],
+    "protocol": [
+      "native"
+    ],
+    "listing": [
+      "caip19"
+    ]
+  },
+  "catalogue": {
+    "mode": "bulk",
+    "operation": "catalogue",
+    "scopes": [
+      "protocols",
+      "reserves"
+    ]
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "unlimited",
+    "hostable": false,
+    "attribution": {
+      "text": "Data from NAVI Protocol",
+      "url": "https://naviprotocol.io"
+    }
+  },
+  "signoff": {
+    "status": "unsigned",
+    "record": "docs/sources/navi.md"
+  }
+}

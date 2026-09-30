@@ -418,6 +418,12 @@ central curator exists.
   ([ADR 0037](0037-identity-backbone.md), amendment "ingest"). Core's curated
   table stays the maintained default supplier of those claims, through the
   reference build.
+- **DeFi sources share tokens, not pools.** DeFiLlama and NAVI (the Sui lending
+  protocol) each introduce their own pools or reserves and protocol, and both
+  name the coin types they hold by CAIP-19, so a token both state is one
+  subject. Their pools, reserves and protocols stay separate subjects, adjacent
+  on the token's page: no plugin states an identifier at that scope, and a
+  bridge between them is a founder decision ([ADR 0038](0038-plugin-addressing-contract.md)).
 
 Still open:
 
@@ -593,8 +599,8 @@ second time, by a digest they cannot judge, adds friction and no safety.
   identifiers on the device, shown with their source, but what it stated does
   not prove, block or contest while it is off. That follows from disabling,
   not from a level.
-- **Default enablement is a product default.** DeFiLlama, Hyperliquid and the
-  FCA NSM plugin stay off in fresh profiles, and enabling one is the opt-in.
+- **Default enablement is a product default.** DeFiLlama, NAVI, Hyperliquid and
+  the FCA NSM plugin stay off in fresh profiles, and enabling one is the opt-in.
 - **`signoff` in a plugin's contract** stays as a record of Pythia's own audit
   under [ADR 0042](0042-source-onboarding-standard.md), which stays Pythia's
   quality process for the defaults it ships. No code reads it.

@@ -278,6 +278,20 @@ beside native scopes at `market` and `protocol`. Its protocol scope uses
 DefiLlama's protocol id rather than its slug, because a rename changes the slug
 ([source record](../sources/defillama.md)).
 
+The NAVI plugin declares the same shape (`market` scope `reserve`, `protocol`,
+`listing` by CAIP-19). It keys each lending reserve by the object id of its
+`Pool<T>`, states one protocol, `navi-lending`, and names each reserve's coin
+by CAIP-19 ([source record](../sources/navi.md)). A coin type is the one
+identifier two DeFi sources share, so tokens join across them while pools and
+protocols do not: DefiLlama states no on-chain address for either, and `market`
+and `protocol` take no open identifier. A NAVI reserve and a DefiLlama pool for
+one coin stay two subjects, adjacent on the token's page, and the two "NAVI
+Lending" protocols stay two. Nothing fuses them by name, symbol or "same
+protocol and coin", which would be wrong where a coin has up to nine reserves.
+Fusing them takes a deliberate bridge, either `protocol` as a curated kind or a
+core rule over markets that share a joined protocol and one coin; that is the
+founder's decision and is not built.
+
 - **`addressing.subjects`** maps a subject core keys, by an open identifier
   or a Pythia key, to the plugin's own reference for it. The native scope must
   be one the contract declares at the subject's kind; a provisional ID is not

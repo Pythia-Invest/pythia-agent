@@ -466,7 +466,7 @@ Core never asks who a plugin is or which files it holds.
   what it stated no longer proves, blocks or contests while it is off.
 - **`signoff` in `contract.json`** is Pythia's record of its audit, for readers.
   No code reads it. A plugin that is off in fresh profiles (DeFiLlama,
-  Hyperliquid, NSM) is a product default, not a level.
+  NAVI, Hyperliquid, NSM) is a product default, not a level.
 - **There is no protection from a buggy or malicious plugin** other than
   disabling it or answering the conflicts it raises. The user trusts what they
   install. Isolating plugin code stays required before an open marketplace.

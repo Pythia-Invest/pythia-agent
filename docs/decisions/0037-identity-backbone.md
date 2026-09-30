@@ -1507,14 +1507,15 @@ nothing showed what search and saved references do without one.
   regroups it.
 - **Enabled plugins' evidence adds to the reference's lines.** A plugin's
   ticker fills a line that has none (a FIRDS line becomes findable) and its
-  other tickers are search names, as are the names its placed records give
-  (never those of a record kept as a conflict). Its identifiers are weighed
-  with the package's, each at its contributor's trust level (amendment
-  "evidence counts by kind and trust level"): a contested identifier indexes
-  neither value, so search never presents one as a fact, and a display-level
-  plugin's other value never displaces the package's. The line stays findable
-  by its name and ticker. A contest inside the package alone still indexes one
-  value, as before.
+  other tickers are search names, as are the names and aliases its placed
+  records give (`RecordAttributes.aliases`: other names for the subject, such
+  as a product's own label; never those of a record kept as a conflict). Its
+  identifiers are weighed with the package's, each at its contributor's trust
+  level (amendment "evidence counts by kind and trust level"): a contested
+  identifier indexes neither value, so search never presents one as a fact, and
+  a display-level plugin's other value never displaces the package's. The line
+  stays findable by its name and ticker. A contest inside the package alone
+  still indexes one value, as before.
 - **One ranking for every line.** Every line is built by one function in the
   shape of the reference's listing join and scored by the same code. A plugin
   record's rank signals (its `*_usd` amounts: market cap, total value locked)
