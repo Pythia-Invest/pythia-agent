@@ -594,7 +594,8 @@ second time, by a digest they cannot judge, adds friction and no safety.
   disagrees on a single-valued fact leaves it contested: every value is kept,
   none is applied, and a question is asked when the subject is touched. The
   user's answer is a local override and wins, refused only by unanimous
-  identifier proof. One source's several values (A2) are no conflict.
+  identifier proof. One source's several values (A2) are no conflict, nor are
+  several sources stating the identical values.
 - **A plugin that is off or removed** keeps its subjects' labels and
   identifiers on the device, shown with their source, but what it stated does
   not prove, block or contest while it is off. That follows from disabling,

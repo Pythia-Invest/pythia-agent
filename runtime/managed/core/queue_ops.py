@@ -19,7 +19,9 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from .identity import queue as questions
-from .identity import build_questions, conflicts, location, reference_package, schemes, search_device, store
+from .identity import (
+    build_questions, conflicts, location, receipt_issuer, reference_package, schemes, search_device, store,
+)
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -86,10 +88,14 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> 
             wanted = [value for subject in subject_ids for value in questions.family(identity.store, ref, subject)] \
                 if family else list(subject_ids)
             raised = conflicts.raised(ref, identity.store, subject_ids, installed())  # plugins' conflicts too
+            now = store.now()
+            built = receipt_issuer.unasked(
+                identity.store, build_questions.about(path, wanted), now,
+                lambda subject: build_questions.load_subject(ref, subject, None, identity.store, installed())
+            ) if path else []  # a receipt's issuer is its underlying's
         finally:
             ref.close()
-        built = build_questions.about(path, wanted) if path else []
-        return build_questions.import_build(identity.store, [*built, *raised], store.now())
+        return build_questions.import_build(identity.store, [*built, *raised], now)
     except (sqlite3.Error, OSError):
         logger.warning("reference build questions could not be queued", exc_info=True)
         return 0

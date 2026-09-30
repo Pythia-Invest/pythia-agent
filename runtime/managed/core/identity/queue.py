@@ -13,7 +13,7 @@ import json
 import sqlite3
 from typing import Any, Iterable, Mapping
 
-from . import build_questions, device, device_parents
+from . import build_questions, device, device_parents, receipt_issuer
 from .build_questions import BUILD
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
@@ -202,6 +202,8 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
             store.settle(item_id, state, verdict_id)
         if built and outcome is VerdictOutcome.CONFIRMED:
             build_questions.replace_answer(store, row, verdict.relation, now)
+            receipt_issuer.withdraw(store, ref, {"relation": str(verdict.relation), "subject": row["subject_ids"][0]}, now,
+                                    lambda found: build_questions.load_subject(ref, found, None, store, plugins))
     return {"outcome": str(outcome), "state": state, "verdict_id": verdict_id, "authority": str(authority),
             "message": message}
 

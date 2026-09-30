@@ -15,7 +15,8 @@ An answer takes the question's one relation. The agent's answer is a suggestion 
 The user's answer resolves it with a `user_attested` verdict, unless unanimous identifier evidence contradicts it
 (`queue.submit`). That resolved row is the local override every read applies (`load_subject`): an
 issuer answer gives the security that issuer, a receipt answer adds a `related` entry, and an answer to a contested
-identifier gives the subject that value. It stays applied until the user reopens the question (`reopen`) or answers a
+identifier gives the subject that value. A receipt has the issuer the user chose for its settled underlying, unless
+they answered its own (`receipt_issuer`). It stays applied until the user reopens the question (`reopen`) or answers a
 later conflict about the same fact (`replace_answer`). The user's direct corrections (`corrections`) are applied last,
 above these answers.
 """
@@ -30,7 +31,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from . import corrections, device, device_parents, reference_package
+from . import corrections, device, device_parents, receipt_issuer, reference_package
 from . import evidence as weighing
 from .claims import IdentifierValue
 from .resolution import QueueItem
@@ -220,6 +221,7 @@ def answered(ref: sqlite3.Connection | None, store, subject: dict[str, Any], *, 
     subject only the device holds, which `load_device` read under the parents the user chose."""
     subject["contradicted"] = []
     ids = [value for value in subject["ids"].values() if value]
+    explicit = False  # the user answered who issued this security itself
     rows = store.select(
         "SELECT q.reason, q.subject_ids, q.scheme, q.contested_values, v.id, v.relation, v.chosen_id FROM queue q"
         " JOIN verdicts v ON v.id = q.resolved_by WHERE json_extract(q.plugins, '$[0]') = ? AND q.provider_ref IS NULL"
@@ -232,6 +234,7 @@ def answered(ref: sqlite3.Connection | None, store, subject: dict[str, Any], *, 
         question = json.loads(questions)[0]
         answer = {"question": question, "reason": reason, "scheme": scheme, "verdict": verdict, "chosen": chosen}
         if ref is not None and relation == VerdictRelation.SAME_ISSUER:
+            explicit = explicit or question == subject["ids"].get(Level.SECURITY)
             _issuer(ref, subject, answer)
         elif ref is not None and relation == VerdictRelation.DEPOSITARY_RECEIPT_OF:
             _receipt(ref, subject, answer)
@@ -240,6 +243,8 @@ def answered(ref: sqlite3.Connection | None, store, subject: dict[str, Any], *, 
             _value(subject, answer, json.loads(values))
         elif held and device_parents.level(shape):
             device_parents.apply(subject, answer, json.loads(values))
+    if ref is not None and not explicit and (inherited := receipt_issuer.answer(ref, store, subject)):
+        _issuer(ref, subject, inherited)
     corrections.apply(store, subject)  # the investor's own corrections have the last word (`corrections`)
     weighing.show(subject)
     return subject
@@ -316,7 +321,8 @@ def _issuer(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:
         return
     drop, own = frozenset(), {}
     if question == ids[Level.SECURITY]:
-        _contradicted(subject, answer, ids[Level.ISSUER])  # the issuer the release names for the security, if any
+        if "inherited" not in answer:  # a receipt's own issuer differing from its underlying's is what inheriting fixes
+            _contradicted(subject, answer, ids[Level.ISSUER])  # the issuer the release names for the security, if any
         other, drop = chosen, frozenset({Level.ISSUER})
     elif question == ids[Level.ISSUER]:
         other, own = chosen, {scheme: subject["values"].get(scheme) for scheme in ("lei", "cik")}
@@ -341,7 +347,9 @@ def _issuer(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:
     for item in sorted([*subject["evidence"], *subject["shown"]], key=lambda item: item.subject_id != chosen):
         if SCHEME_LEVEL[item.scheme] is Level.ISSUER:  # the user's answer: the chosen issuer's identifiers first
             values.setdefault(item.scheme, item.value)
-    subject["view"]["issuer"] = {"id": chosen, "name": row["name"], "authority": str(Authority.USER_ATTESTED)}
+    subject["view"]["issuer"] = {"id": chosen, "name": row["name"], "authority": str(Authority.USER_ATTESTED),
+                                 **({"inherited_from": {"security": answer["inherited"], "verdict": answer["verdict"]}}
+                                    if "inherited" in answer else {})}
 
 
 def _value(subject: dict, answer: dict, values: list[str]) -> None:
@@ -372,6 +380,8 @@ def _receipt(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:
                                             (str(VerdictRelation.DEPOSITARY_RECEIPT_OF), question))]
     _contradicted(subject, answer, None if chosen in stated else next(iter(stated), None))
     other, direction = (chosen, "to") if security == question else (question, "from")
+    if security == question:
+        subject["underlying"] = chosen  # the user's answer settles which share it represents (`_inherit`)
     name = ref.execute("SELECT name FROM securities WHERE id = ?", (other,)).fetchone()
     subject["view"]["related"].append({"id": other, "type": str(VerdictRelation.DEPOSITARY_RECEIPT_OF),
                                        "direction": direction, "kind": subject_kind(other),

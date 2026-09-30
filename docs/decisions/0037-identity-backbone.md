@@ -1948,6 +1948,61 @@ immediate.
   switch tells the agent what to do, without the tool list changing in the
   middle of a conversation.
 
+## Amendment (2026-09-30): identical value sets are no contest, and a receipt has its underlying's issuer
+
+**Context.** Two rules turned out wrong on the founder's device (the conflict
+root-cause review). `evidence.disagree` counted (plugin, source) pairs, so two
+contributors that state the identical set of values contested it: the package
+(`openfigi`) and `pythia-openfigi` both state BBG000BK4828 and BBG000THYRF7 for
+`composite:isin:JP3633400001:DE`. Up to 10,288 composites, every one OpenFIGI
+gives two FIGIs, would contest as soon as a second source states them. And the
+Nestlé ADR's issuer question was open although the user had already answered
+the ordinary share it represents (CH0038863350, Nestlé S.A.); FIRDS fills a
+receipt's field 5 with the venue's or a programme operator's LEI when the
+issuer did not request admission, and ESMA Q&A 1503 says a receipt's issuer is
+its underlying's.
+
+**Ruling.**
+
+- **Contested means different sources state different sets of values.** Each
+  source's values for the scheme are compared as a set. Identical sets never
+  contest, and one source's several values still contest nothing (the ruling
+  of "evidence counts by kind and trust level", unchanged). Sets that differ at
+  all contest, a subset included: the model has one cardinality for every scheme
+  but `ticker_mic` (`SINGLE_VALUED`), so a source that leaves out another's
+  second value cannot be told from one that denies it (a set-valued exception
+  for `composite_figi` belongs with the first second source that states only
+  one of OpenFIGI's two), and a false contest costs one shown row where a
+  false agreement would pick a value silently. A self-contradiction of one
+  source stays a separate question (`conflicts.restated`). `values` takes the
+  first value, as before.
+- **A receipt inherits the answered issuer of its underlying.** Where the user
+  answered who issued the underlying share, a receipt that represents it has
+  that issuer: the page and filings route to it, the receipt's own question is
+  not queued, and one already open is superseded when the user answers the
+  underlying (or, for an answer given earlier, at the next touch). The
+  receipt's `issuer` carries `inherited_from` (the share and the user's
+  verdict), so it shows in the raw data, and no `binding` question is raised
+  for the release's differing issuer. It applies only where the underlying is
+  settled: the user answered it, or a source states it (a `source_asserted`
+  relation, never the builder's issuer rule, which derives it from the issuer)
+  and no enabled plugin contradicts it. The user's answer about the receipt's
+  own issuer always wins, "none of these" included, and reopening the share's
+  answer ends the inheritance on the next read, when the receipt's question is
+  asked again.
+
+**Rejected alternatives.**
+
+- **Contested only when the sources share no value:** it would hide a real
+  disagreement over a second value, and it would make the unanimity the user's
+  answer is checked against mean "some source states it".
+- **Writing a resolved question for the receipt:** a second answer to undo, and
+  it would hold the share's answer twice. The inheritance is computed on read
+  from the one answer.
+- **Inheriting through the builder's issuer rule relation:** that relation is
+  derived from the receipt's own issuer, so the inheritance would be circular.
+
+
 ## Amendment (2026-09-30): open data conflicts on the page
 
 **Context.** The page leaves a fact out while a question about it is open: the
