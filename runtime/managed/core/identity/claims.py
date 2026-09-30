@@ -61,6 +61,7 @@ class RecordAttributes:
     mic: str | None = None
     operating_mic: str | None = None
     provider_venue: str | None = None  # the provider's own exchange code, kept for its MIC crosswalk
+    venue_note: str | None = None  # why provider_venue names no operating MIC ("venue code XV is a trade report ..."); the plugin's own words
     currency: str | None = None
     country: str | None = None
     asset_class: AssetClass | None = None
