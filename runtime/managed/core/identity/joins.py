@@ -119,10 +119,11 @@ class Joins:
 
     def settled_parent(self, subject: str, introducer: str) -> str | None:
         """A device subject's parent from the records placed on it: the one those at the highest trust level among the
-        ones naming a parent agree on, never counting a level below its introducer's; none where they disagree. A
-        record kept as a conflict whose own earlier statement named the current parent (a conflict keeps it) still
-        names that parent, so a source contradicting itself never re-parents the subject, sync after sync, until it
-        states the parent's value again."""
+        ones naming a parent agree on, never counting a level below its introducer's; none where they disagree, and
+        the parent it has where none names one (a record that leaves an identifier out moves nothing). A record kept
+        as a conflict whose own earlier statement named the current parent (a conflict keeps it) still names that
+        parent, so a source contradicting itself never re-parents the subject, sync after sync, until it states the
+        parent's value again."""
         up, floor = device.PARENT[Level(subject_kind(subject))], self.granted.get(introducer, DISPLAY)
         current = (device.subject_row(self.store, subject) or {}).get("parent_id")
         named: dict[str, set[str]] = {}
@@ -143,7 +144,9 @@ class Joins:
                 parent, contested = current, False  # it contradicts its own earlier statement, kept on the parent
             if parent or contested:
                 named.setdefault(level, set()).add("" if contested else parent)  # "": a contest
-        top = named.get(CONFIRM) or named.get(DISPLAY) or set()
+        top = named.get(CONFIRM) or named.get(DISPLAY)
+        if not top:
+            return current
         return next(iter(top)) if len(top) == 1 and "" not in top else None
 
     def _echoes(self, plugin: str) -> Any:
