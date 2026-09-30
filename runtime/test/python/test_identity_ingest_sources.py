@@ -170,6 +170,22 @@ class OpenFigiTest(IngestTest):
         self.assertEqual(frankfurt["view"]["contributors"][0]["plugin"], "pythia-openfigi")
         self.assertNoQuestions()
 
+    def test_a_line_that_is_no_order_book_is_kept_unplaced_with_its_reason_in_the_stored_claim(self):
+        lines = {"BBG000TYHNX8": ("XV", "TOMEUR"), "BBG000TYHNV0": ("GZ", None), "BBG000TYMNX2": ("GR", "TOM"),
+                 "BBG000TYSWX6": ("ER", "TOMUSD")}
+        done = self.answer(*((figi, code, ticker) for figi, (code, ticker) in lines.items()))
+        self.assertEqual(done["introduced"], 0)
+        self.assertEqual(self.world.identity.select("SELECT id FROM subjects"), [])
+        rows = self.world.identity.select(
+            "SELECT native_id, state, json_extract(claim, '$.attributes.provider_venue'),"
+            " json_extract(claim, '$.attributes.venue_note') FROM claims WHERE plugin = 'pythia-openfigi'")
+        self.assertEqual(sorted(tuple(row) for row in rows), [
+            ("BBG000TYHNV0", "unmatched", "GZ", "venue code GZ is a second book on XMUN (Boerse Muenchen - Gettex - Freiverkehr); GM is the line there"),
+            ("BBG000TYHNX8", "unmatched", "XV", "venue code XV is a trade report (Cboe Europe BOTC), not an order book"),
+            ("BBG000TYMNX2", "unmatched", "GR", "venue code GR is the DE composite, not a venue"),
+            ("BBG000TYSWX6", "unmatched", "ER", "venue code ER is unknown: no MIC resolved it through OpenFIGI's micCode filter")])
+        self.assertNoQuestions()
+
     def test_an_answer_with_two_lines_on_one_exchange_or_another_ticker_there_joins_no_line(self):
         # Two Frankfurt lines in the answer (say USD and EUR) and one in the build: which one is it? Neither joins.
         self.answer(("BBG000TYFRN2", "GF", "TOMUSD"), ("BBG000TYHNX8", "GF", "TOM"))

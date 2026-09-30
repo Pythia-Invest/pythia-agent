@@ -499,6 +499,44 @@ mode waits for A8.
 direct form of a reference source, open under A8), and EODHD as the overlapping
 source (paid, and its ISINs are `unqualified`, so nothing joins by ISIN).
 
+### Note (2026-09-30): OpenFIGI's exchange codes are a vocabulary
+
+**Context.** The note above let an exchange code become an operating MIC only
+through the contract's `venue_codes`, and the plugin left out the composite
+lines and mapped about fifty codes. One-time research with OpenFIGI's own
+`micCode` filter (297 requests) showed most of the 285 codes seen: order books,
+second books on an operating MIC, trade reports, dark venues, composites, and 41
+it could not resolve. Toyota's 143 lines are mostly not order books.
+
+**Ruling.** The founder ruled: "Dropping data is almost never what you want."
+Keep every record, learn the vocabulary, and filter visibility later,
+downstream. Lines are for real public order books only. The plugin holds the
+vocabulary (`vocabulary.json`, [source record](../sources/openfigi.md)) and gives
+each code a kind: `exchange`, `second_book`, `trade_report`, `dark`, `composite`
+or `unknown`. Only `exchange` codes are in `venue_codes` and so become lines.
+Every other line is still emitted as a claim carrying `provider_venue`, parked
+(`unmatched`) without an operating MIC, and a new claim attribute, `venue_note`,
+says why in words (a trade report, a second book, not in the vocabulary). AU is
+Australia's composite and the ASX line is AT.
+
+**Rationale.** A line without an operating MIC is harmless and the reason is
+evidence; a dropped line is gone. The classification is the plugin's knowledge of
+Bloomberg's codes, so it lives in the plugin, and core changed only by one
+optional attribute that every plugin may use. The reason sits in the claim as
+stored, readable by SQL, rather than in a new column every plugin would share.
+
+**Consequences.** The contract's `venue_codes` grows from 47 to 123 codes, all
+order books, and OpenFIGI adds venue lines it used to park (including the US
+exchange codes, whose unlisted trading the earlier reading refused to show as
+listings; a later filter separates listing venues). A code the vocabulary lacks
+is kept and says so.
+
+**Rejected alternatives.** Dropping trade-report and composite lines from the
+answer (loses data); mapping every resolved code to its operating MIC (several
+lines of one security on one MIC, and trade reports shown as order books); a new
+nullable column on `claims` for the reason (a core schema addition beside a claim
+attribute that already travels with the record).
+
 ## Amendment (2026-09-30): installing a plugin means trusting it
 
 ### Context

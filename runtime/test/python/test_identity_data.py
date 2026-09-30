@@ -19,6 +19,7 @@ from pythia_identity_fixture import device, page, queue, reference_package, rela
 DOC = Path(__file__).parents[3] / "docs/architecture/identity-data.md"
 AGENT = Path(__file__).parents[2] / "managed/core/skills/identity-data/references/queries.md"  # what the skill ships
 TOYOTA, TOYOTA_ISIN = "listing:isin:JP3633400001:XJPX:JPY", "JP3633400001"
+REASON = "venue code XV is a trade report (Cboe Europe BOTC), not an order book"
 POOL_ID = "00000002-0000-4000-8000-000000000000"
 POOL = f"market:provisional:tidepool:pool:{POOL_ID}"
 OLD_ID = identity.provisional_id("listing", "vendor", "line", "OLD1")
@@ -70,6 +71,9 @@ class DocFixture(unittest.TestCase):
         self.world.plugins = [pricing, other, *underlying, self.tidepool]
         self.world.resolve(pricing, TOYOTA, record(pricing, "7203.T", ("isin", TOYOTA_ISIN)))
         self.world.ingest(other, record(other, "TM", ("figi", "BBG000TYTKY0"), ("isin", "US0378331005")))  # contests the ISIN
+        self.unplaced = record(pricing, "7203.XV", ("figi", "BBG000TYHNX8"), ("isin", TOYOTA_ISIN))  # no line to put it on
+        self.unplaced["attributes"] = {"provider_venue": "XV", "venue_note": REASON}
+        self.world.ingest(pricing, self.unplaced)
         _binding, answered = self.world.resolve(underlying[0], TOYOTA, record(underlying[0], "TM-A", (
             "isin", TOYOTA_ISIN, "underlying")))
         _binding, self.open = self.world.resolve(underlying[1], TOYOTA, record(underlying[1], "TM-B", (
@@ -174,6 +178,12 @@ class ExampleTest(DocFixture):
             with self.subTest(language=language):
                 self.assertTrue(examples(language))
                 self.assertEqual(examples(language, AGENT), examples(language))
+
+    def test_a_record_core_could_not_place_says_why_in_the_words_its_plugin_gave(self):
+        rows = {row["native_id"]: row for row in self.run_examples()["unplaced-records"]}
+        # The plugin's own words where it gave them; the pricing answer that only bound its line gave none.
+        self.assertEqual({key: (row["state"], row["venue_code"], row["why_not_placed"]) for key, row in rows.items()},
+                         {"7203.XV": ("unmatched", "XV", REASON), "7203.T": ("unmatched", None, None)})
 
     def test_the_users_answer_is_listed_and_the_other_question_is_still_open(self):
         found = self.run_examples()
