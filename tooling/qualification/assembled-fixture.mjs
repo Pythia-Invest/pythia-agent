@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import { assertHermesRuntimePath } from "../../scripts/dev/runtime.mjs";
 import {
@@ -28,6 +28,7 @@ import {
   git,
   qualificationRoot,
   sha256,
+  pinnedHermesArchive,
   verifyQualificationCache,
 } from "./assembled-cache.mjs";
 
@@ -119,6 +120,16 @@ export function prepareAssembledFixture(rootValue, options = {}) {
       const environment = stackEnvironment(root, worktree, configHome, cache);
       const paths = resolveStackPaths({ environment });
       assertHermesRuntimePath(paths);
+      const archive = options.archiveCache
+        ? join(options.archiveCache, pinnedHermesArchive(repository).name)
+        : null;
+      if (!cache && archive && existsSync(archive)) {
+        // A previous run's verified download; dev-init verifies it again.
+        if (sha256(archive) === pinnedHermesArchive(repository).sha256) {
+          mkdirSync(paths.fetchCache, { recursive: true, mode: 0o700 });
+          copyFileSync(archive, join(paths.fetchCache, basename(archive)));
+        }
+      }
       if (cache) {
         mkdirSync(paths.fetchCache, { recursive: true, mode: 0o700 });
         const stagedArchive = join(
