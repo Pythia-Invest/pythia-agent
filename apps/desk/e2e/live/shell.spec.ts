@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { openDesk } from "./open-desk";
+import { openDesk, showChats } from "./open-desk";
 
 /**
  * Shell smoke: the navigation rail, the chat list, theme, routing, and the
@@ -72,7 +72,7 @@ test("filters the chat list and restores it when the query is cleared", async ({
   page,
 }) => {
   await openDesk(page);
-  await openNavigation(page);
+  await showChats(page);
   const links = await chatLinks(page);
   const total = await links.count();
   test.skip(total === 0, "This Hermes profile has no chats yet.");
@@ -175,7 +175,7 @@ test("names the open conversation above the thread", async ({ page }) => {
 
 test("opens a chat at its own route and marks it current", async ({ page }) => {
   await openDesk(page);
-  await openNavigation(page);
+  await showChats(page);
   const links = await chatLinks(page);
   test.skip(
     (await links.count()) === 0,
@@ -185,7 +185,7 @@ test("opens a chat at its own route and marks it current", async ({ page }) => {
   const href = await first.getAttribute("href");
   await first.click();
   await expect(page).toHaveURL(new RegExp(`${href}$`));
-  await openNavigation(page);
+  await showChats(page);
   await expect(
     page
       .getByRole("navigation", { name: "Chats" })
@@ -194,23 +194,28 @@ test("opens a chat at its own route and marks it current", async ({ page }) => {
 });
 
 for (const [name, trigger] of [
-  ["New chat", (page: Page) => page.getByRole("button", { name: "New chat" })],
+  [
+    "New chat",
+    async (page: Page) => page.getByRole("button", { name: "New chat" }),
+  ],
   [
     "The Pythia wordmark",
-    (page: Page) => page.getByRole("link", { name: "Pythia home" }),
+    async (page: Page) => {
+      await openNavigation(page);
+      return page.getByRole("link", { name: "Pythia home" });
+    },
   ],
 ] as const) {
   test(`${name} returns to the root route and focuses the composer`, async ({
     page,
   }) => {
     await openDesk(page);
-    await openNavigation(page);
+    await showChats(page);
     const links = await chatLinks(page);
     test.skip((await links.count()) === 0, "No chats to navigate away from.");
     await links.first().click();
     await page.waitForURL(/\/c\//);
-    await openNavigation(page);
-    await trigger(page).click();
+    await (await trigger(page)).click();
     await expect(page).toHaveURL(/\/$/);
     await expect(
       page.getByRole("textbox", { name: "Message Pythia" }),

@@ -11,3 +11,9 @@ export async function openDesk(page: Page) {
   await page.goto("/");
   expect((await sessions).ok()).toBe(true);
 }
+
+/** Phones keep the chat list in its own sheet, opened from the chat header. */
+export async function showChats(page: Page) {
+  if ((page.viewportSize()?.width ?? 1280) >= 900) return;
+  await page.getByRole("button", { name: "Show chats" }).click();
+}
