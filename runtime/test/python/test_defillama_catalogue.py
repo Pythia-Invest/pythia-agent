@@ -241,6 +241,38 @@ class Catalogue(unittest.TestCase):
         labels = {claim.identifiers[0].value: claim.attributes.name for claim in records(found) if claim.level == 'listing'}
         self.assertEqual(labels, {catalogue.sui_caip19(tether): 'USDT', catalogue.sui_caip19(wrapped): 'WUSDC'})
 
+    def test_a_cetus_fee_tier_written_a_hundred_times_too_large_is_corrected_and_the_original_kept(self):
+        protocols = [*PROTOCOLS, {'id': '9010', 'name': 'Cetus CLMM', 'slug': 'cetus-clmm', 'chains': ['Sui']},
+                     {'id': '9011', 'name': 'Bluefin Spot', 'slug': 'bluefin-spot', 'chains': ['Sui']}]
+        tokens = [NATIVE_USDC, SUI_LONG]
+
+        def names(rows):
+            found = claims('pools', protocols=protocols, pools={'status': 'success', 'data': rows})
+            return {claim.native_ref.native_id: claim.attributes for claim in records(found) if claim.level == 'market'}
+        seen = names([pool(20, 'cetus-clmm', 'USDC-SUI', tokens, meta='25%'),
+                      pool(21, 'cetus-clmm', 'USDC-SUI', tokens, meta='100%'),
+                      pool(22, 'cetus-clmm', 'USDC-SUI', tokens, meta='0.1%'),
+                      pool(23, 'cetus-clmm', 'USDC-SUI', tokens),
+                      pool(24, 'bluefin-spot', 'SUI-USDC', tokens, meta='0.25%'),
+                      pool(25, 'bluefin-spot', 'SUI-USDC', tokens, meta='1%')])
+        self.assertEqual({uuid(seed): seen[uuid(seed)].name for seed in (20, 21, 22, 23, 24, 25)},
+                         {uuid(20): 'Cetus CLMM USDC-SUI (0.25%)', uuid(21): 'Cetus CLMM USDC-SUI (1%)',
+                          uuid(22): 'Cetus CLMM USDC-SUI (0.001%)', uuid(23): 'Cetus CLMM USDC-SUI',
+                          uuid(24): 'Bluefin Spot SUI-USDC (0.25%)', uuid(25): 'Bluefin Spot SUI-USDC (1%)'})
+        [fix] = seen[uuid(20)].source_corrections  # the source's own text stays readable beside the corrected name
+        self.assertEqual((fix.field, fix.original), ('name', 'Cetus CLMM USDC-SUI (25%)'))
+        self.assertIn('times 100', fix.reason)
+        self.assertEqual([seen[uuid(seed)].source_corrections for seed in (23, 24, 25)], [(), (), ()])
+
+    def test_a_cetus_label_the_source_has_fixed_passes_through(self):
+        protocols = [*PROTOCOLS, {'id': '9010', 'name': 'Cetus CLMM', 'slug': 'cetus-clmm', 'chains': ['Sui']}]
+        rows = [pool(30, 'cetus-clmm', 'USDC-SUI', [NATIVE_USDC, SUI_LONG], meta='0.25%'),
+                pool(31, 'cetus-clmm', 'USDC-SUI', [NATIVE_USDC, SUI_LONG], meta='1%')]
+        found = claims('pools', protocols=protocols, pools={'status': 'success', 'data': rows})
+        self.assertEqual([(claim.attributes.name, claim.attributes.source_corrections) for claim in records(found)
+                          if claim.level == 'market'],
+                         [('Cetus CLMM USDC-SUI (0.25%)', ()), ('Cetus CLMM USDC-SUI (1%)', ())])
+
     def test_one_sync_reads_each_directory_once(self):
         read, transport = reader()
         with patch.object(catalogue, 'PAGE_CLAIMS', 4):

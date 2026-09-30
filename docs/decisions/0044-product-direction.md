@@ -382,7 +382,11 @@ central curator exists.
   and updates, and its page names its source and says whether that source is
   off or no longer offers it ([ADR 0037](0037-identity-backbone.md),
   amendments "device subjects", "ingest", "search over reference and device"
-  and "saved references through a plugin's lifecycle").
+  and "saved references through a plugin's lifecycle"). Which plugin syncs
+  first changes nothing that is stored or shown except `introduced_by`: a
+  relation waits for a token a later plugin introduces, and a subject's name
+  follows the investor's `source_order`, else plugin id (amendment "ingest
+  results do not depend on which plugin syncs first").
 - **Sources are read only when asked.** A catalogue is read from Settings →
   Data sources ("Sync now"), and one identifier is looked up in a plugin that
   takes it, from the form on that plugin's row there. Search calls no plugin

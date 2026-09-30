@@ -407,7 +407,11 @@ version 1):
   every record, and a record with no native reference (a token named only by
   CAIP-19) is kept by its identifiers
   ([ADR 0038](../decisions/0038-plugin-addressing-contract.md), amendment
-  "core dispatches catalogue and resolve").
+  "core dispatches catalogue and resolve"). Plugins may sync in any order: a
+  relation whose end no subject names yet (a market that points at a token
+  another plugin introduces) waits and is placed when one does, and a subject
+  several plugins state is named by the one first in the investor's
+  `source_order`, else by plugin id, never by who arrived first.
 - A record's `currency` is the one the line trades in as the source states it,
   and core compares it as stated: a GBX record never joins the GBP line by ISIN,
   exchange and currency, so name such a line by its FIGI as well. A record

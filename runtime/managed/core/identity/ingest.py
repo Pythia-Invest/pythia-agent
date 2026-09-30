@@ -21,7 +21,9 @@ A plugin returns claim batches from the operations core dispatches (a catalogue 
   (a canonical CAIP-19 for a provisional coin), writes a device alias and re-points the rows. Two open keys never merge.
 
 No queue row is written. A record left unmatched or conflicting is placed again once the release or the plugin's
-contract changed; a conflict stays one until the identifiers it states change. A record is kept under its native
+contract changed; a conflict stays one until the identifiers it states change. A relation with an end no subject names
+yet waits (`pending`) and is placed when a batch introduces or joins that subject, so no result depends on which plugin
+syncs first; a subject's display name follows the investor's `source_order` (`naming`), not who introduced it. A record is kept under its native
 reference, or one without (a DeFi token named only by CAIP-19) under a digest of its level and identifiers. An unchanged
 record writes nothing; a `complete` scope's last page marks what no page carried `not_seen`, keeping subjects and bindings.
 """
@@ -33,7 +35,7 @@ from collections import Counter
 from dataclasses import asdict
 from typing import Any, Iterable, Mapping
 
-from . import device, lifecycle, relations
+from . import device, lifecycle, naming, pending, relations
 from .joins import Joins
 from .claims import BatchOrigin, ClaimBatch, IdentifierValue, RecordAttributes, RecordClaim, RelationClaim, batch_to_json, check_batch
 from .declared import NATIVE
@@ -52,22 +54,23 @@ RECORD = "#record"  # the scope of a record kept by digest: no contract can decl
 
 
 def ingest(store: IdentityStore, ref, info, batch: ClaimBatch, *, plugins: Iterable = (), now: str | None = None,
-           seen: Iterable[tuple[str, str]] = ()) -> dict[str, Any]:
+           seen: Iterable[tuple[str, str]] = (), order: tuple[str, ...] = ()) -> dict[str, Any]:
     """Place one plugin's batch in one transaction. `ref` is the installed reference (None without one), `plugins` the
-    installed plugins whose evidence counts alongside the batch's own, and `seen` the records earlier pages of the
-    same scope carried. Returns how many records and relations had each outcome, and the subjects placed. Raises
-    `ClaimError` for a batch that breaks its contract."""
+    installed plugins whose evidence counts alongside the batch's own, `seen` the records earlier pages of the
+    same scope carried, and `order` the investor's `source_order` (it picks a subject's display name). Returns how
+    many records and relations had each outcome, and the subjects placed. Raises `ClaimError` for a batch that breaks its contract."""
     check_batch(batch, info.manifest)
-    run = _Ingest(store, ref, info, batch, list(plugins), now or stamp())
+    run = _Ingest(store, ref, info, batch, list(plugins), now or stamp(), order)
     wire = batch_to_json(batch)["claims"]
     records = sorted(((claim, raw) for claim, raw in zip(batch.claims, wire) if isinstance(claim, RecordClaim)),
                      key=_order)  # issuers first, so a record finds the parents its batch introduces, in any order
     with store.transaction():
         for claim, raw in records:
             run.record(claim, raw)
-        for claim in batch.claims:
+        for claim, raw in zip(batch.claims, wire):
             if isinstance(claim, RelationClaim):
-                run.relation(claim)
+                run.relation(claim, raw)
+        run.retry()  # relations of any plugin whose missing end this batch's subjects now name
         if batch.complete:
             run.not_seen(set(seen))
         if run.changed:
@@ -78,8 +81,8 @@ def ingest(store: IdentityStore, ref, info, batch: ClaimBatch, *, plugins: Itera
 
 
 class _Ingest:
-    def __init__(self, store: IdentityStore, ref, info, batch: ClaimBatch, plugins: list, now: str):
-        self.store, self.ref, self.manifest, self.batch, self.now = store, ref, info.manifest, batch, now
+    def __init__(self, store: IdentityStore, ref, info, batch: ClaimBatch, plugins: list, now: str, order: tuple = ()):
+        self.store, self.ref, self.manifest, self.batch, self.now, self.order = store, ref, info.manifest, batch, now, order
         self.plugin, self.plugins = info.manifest.plugin, [*plugins, info]
         self.joins = Joins(ref, store, device.enabled(self.plugins), self.plugin, self.plugins)
         resolve = info.manifest.resolve
@@ -91,6 +94,7 @@ class _Ingest:
                               and (own := self._own(claim)))  # the answer's lines per ISIN and exchange
         self.counts = dict.fromkeys(COUNTS, 0)
         self.subjects: list[str] = []
+        self.arrived: set[str] = set()  # what the records placed in this batch answer, for relations waiting on an end
         self.changed = False
 
     # ---- records ---------------------------------------------------------------------------------------------------
@@ -114,6 +118,11 @@ class _Ingest:
             state, subject = self._place(claim, native, before["subject_id"] if before is not None else None, kept)
             device.place_claim(self.store, self.plugin, native, subject, state)
             row = device.subject_row(self.store, subject) if subject else None
+            if state in ("joined", "introduced", "conflict"):
+                self.arrived |= pending.record_names(self.plugin, ((str(item.scheme), item.value) for item in self._stated(claim)),
+                                                     {"native_scope": native.native_scope, "native_id": native.native_id})
+            if row is not None and state in ("joined", "introduced") and not self._in_reference(subject):
+                self._name(subject)  # whoever introduced it, the name follows the investor's source order
             if row is not None and row["kind"] in device.PARENT and not self._in_reference(subject):  # its parent, settled
                 self.store.db.execute("UPDATE subjects SET parent_id = ? WHERE id = ?",
                                       (self.joins.settled_parent(subject), subject))
@@ -212,7 +221,7 @@ class _Ingest:
     def _native(self, claim: RecordClaim) -> tuple[str, str | None]:
         """A market's or protocol's record: the subject the contract addresses by its reference, else the one its
         reference keys, introduced where `native` is declared for the kind."""
-        declared = self._declared(claim.native_ref)
+        declared = self.joins.declared(claim.native_ref, self.manifest)
         if declared:
             return "joined", declared
         native = claim.native_ref
@@ -301,6 +310,11 @@ class _Ingest:
         device.put_subject(self.store, subject, plugin=self.plugin, name=name[:512] if name else None,
                            parent_id=parent, attributes=attributes, status=status, seen=self.now)
 
+    def _name(self, subject: str) -> None:
+        name = naming.display_name(self.store, subject, self.plugins, self.order, self.joins.counts)
+        if name:
+            self.store.db.execute("UPDATE subjects SET name = ? WHERE id = ? AND name IS NOT ?", (name, subject, name))
+
     def _alias(self, old: str, new: str) -> None:
         device.put_alias(self.store, old, new, self.now)
         lifecycle.rekey(self.store, self.ref, self.store.metadata(lifecycle.REKEYED) or "", again=True)
@@ -315,35 +329,25 @@ class _Ingest:
         return subject_id(level, own, operating_mic=attributes.operating_mic, currency=attributes.currency,
                           country=attributes.country) if level in INSTRUMENT_KINDS else None
 
-    def _declared(self, native: ProviderRef) -> str | None:
-        """The subject the plugin's contract addresses by this reference (`addressing.subjects`)."""
-        return next((subject for subject, item in self.manifest.subjects.items()
-                     if (item.native_scope, item.native_id) == (native.native_scope, native.native_id)), None)
-
     def _count(self, state: str, subject: str | None) -> None:
         self.counts["conflicts" if state == "conflict" else state] += 1
         self.subjects += [subject] if subject else []
 
     # ---- relations and the end of a scope --------------------------------------------------------------------------
 
-    def relation(self, claim: RelationClaim) -> None:
-        """Keep a plugin relation between the subjects its ends name (`relations.keep`)."""
-        start, end = self._end(claim.from_key), self._end(claim.to_key)
-        outcome, wrote = relations.keep(self.store, self.ref, self.plugin, claim, start, end) \
-            if start and end and start != end else ("unmatched", False)
+    def relation(self, claim: RelationClaim, raw: dict) -> None:
+        """Keep a plugin relation between the subjects its ends name; one with an end that names none yet waits for
+        it (`pending.place`)."""
+        outcome, wrote = pending.place(self.store, self.ref, self.joins, self.manifest, claim, raw)
         self.changed = self.changed or wrote
         self.counts[outcome] += 1
 
-    def _end(self, key: IdentifierValue | ProviderRef) -> str | None:
-        """The subject a relation end names: the one its plugin's record was placed on (or the contract addresses by
-        that reference), or the one subject a global identifier names."""
-        if isinstance(key, ProviderRef):
-            rows = self.store.select("SELECT subject_id FROM claims WHERE plugin = ? AND native_scope = ? AND native_id = ?"
-                                     " AND state IN ('joined', 'introduced')", (self.plugin, key.native_scope, key.native_id))
-            found = rows[0][0] if rows else self._declared(key)
-            return device.current_id(self.ref, self.store, found) if found else None
-        named = self.joins.holders(key.scheme, key.value, key.level)
-        return named[0] if len(named) == 1 else None
+    def retry(self) -> None:
+        """Place the waiting relations (any plugin's) whose end a subject of this batch now names: one indexed query."""
+        for plugin, raw in pending.due(self.store, self.arrived) if self.arrived else ():
+            manifest = next((info.manifest for info in self.plugins if info.manifest.plugin == plugin), None)
+            if manifest is not None:
+                self.changed = pending.place(self.store, self.ref, self.joins, manifest, RelationClaim(**raw), raw)[1] or self.changed
 
     def not_seen(self, seen: set[tuple[str, str]]) -> None:
         """The scope's last page: its records no page carried are no longer offered. Their subjects and bindings stay."""

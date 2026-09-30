@@ -103,9 +103,10 @@ one is not a row.
 | `metadata` | Facts about the store itself (schema version, the release last settled against) |
 | `claims` | Each provider record a plugin emitted, as emitted, and where core placed it (`state`, `subject_id`) |
 | `device_assertions` | The identifiers those records state for a subject |
-| `subjects` | Subjects a plugin introduced that the reference lacks: label, kind, `parent_id`, `introduced_by` |
+| `subjects` | Subjects a plugin introduced that the reference lacks: label, kind, `parent_id`, `introduced_by` (who arrived first; the label comes from the enabled plugin first in `source_order`, else by plugin id) |
 | `device_aliases` | A device subject's earlier ID and its better key |
 | `relations` | Typed edges a plugin stated (a pool `part_of` its protocol) |
+| `pending_relations` | Relation claims waiting for an end no subject names yet (a market that points at a token another plugin has not introduced); placed into `relations` when one does, and gone once placed |
 | `bindings` | Which subject a plugin's own reference (a symbol, a FIGI, a pool ID) belongs to; only confirmed rows route reads |
 | `queue` | Questions the data leaves open: a record core could not place, or contradicting evidence |
 | `verdicts` | Every answer to a question, the user's included; a user's resolved answer is the local override |

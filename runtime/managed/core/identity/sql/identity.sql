@@ -260,3 +260,16 @@ CREATE INDEX IF NOT EXISTS corrections_subject ON corrections (subject_id, state
 -- earlier Pythia queued stays in the history under a reason this core reads, and is no longer open.
 UPDATE queue SET reason = 'no_key', state = CASE WHEN state = 'open' THEN 'superseded' ELSE state END
   WHERE reason = 'unaudited';
+
+-- Relation claims whose end no subject answers yet (`pending`): a link-only plugin that synced before the plugins that
+-- introduce its tokens. Kept as the plugin emitted them and placed, into `relations`, when a later batch introduces or
+-- joins a subject the end names, so the edges do not depend on which plugin syncs first. A claim waits under one row
+-- per unplaced end.
+CREATE TABLE IF NOT EXISTS pending_relations (  -- relation claims waiting for an end to name a subject
+  plugin TEXT NOT NULL,            -- who stated it
+  relation TEXT NOT NULL,          -- digest of its type, ends, validity start and source: the claim apart from when it was read
+  waits_for TEXT NOT NULL,         -- an end no subject answers yet: 'scheme:value' for an identifier, 'ref:<plugin>:<scope>:<id>' for the plugin's own record
+  claim TEXT NOT NULL,             -- the RelationClaim as emitted (claims.batch_to_json form), its latest statement
+  PRIMARY KEY (plugin, relation, waits_for)
+);
+CREATE INDEX IF NOT EXISTS pending_relations_waits ON pending_relations (waits_for);
