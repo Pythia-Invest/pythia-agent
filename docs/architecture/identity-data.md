@@ -102,11 +102,18 @@ on the first bad row (none of its figures are shown) and stamps each accepted ro
 with `source` (`plugin`, `provider`, `label`). A plugin that serves metrics is
 found for a protocol or market subject as it is for an issuer (the financials
 section now also resolves through `metrics`), and a concept entry serves only
-the kind it declares (`not_covering` for another). Gaps: a concept entry has one
+the kind it declares. Gaps: a concept entry has one
 `level`, so a plugin with protocol and market metrics (a DEX API) cannot yet
 declare both; DeFiLlama's protocol joins no `sui_package` protocol, so its rows
 live on its own protocol subject; nothing reads metrics history, and no Desk
 section shows them.
+
+Four protocol-API plugins use them: `pythia-navi` (reserves by `sui_object`, the protocol by `sui_package`),
+`pythia-cetus` (pools over US$1,000 of liquidity, base and quote roles),
+`pythia-deepbook` (order books, base and quote roles) and `pythia-suilend` (a
+market is the subject, since the API names no reserve object; its coins carry
+the role `supply`). Each ships off and states keys only for what its API names;
+see their [source records](../sources/cetus.md).
 
 ### The reference file
 

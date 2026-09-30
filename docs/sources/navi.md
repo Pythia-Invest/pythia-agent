@@ -33,6 +33,11 @@
   there (33 DeFiLlama's, SUI and native USDC core's curated ones) and 3 were
   introduced (AUSD, eACRED, YBTC.B). The pools and protocols of the two sources
   stayed separate.
+- **Sui experiment (branch `exp-sui`):** reserves state their Pool object id as
+  `sui_object` and the protocol states the original package of `lending_core`
+  (`0xd899cf7d…81ca`) as `sui_package`, so their subjects are
+  `market:sui_object:<id>` and `protocol:sui_package:<id>`. The display names of
+  the markets follow `/api/navi/markets`. The measurements here predate both.
 - **Changes to other sources' adapters:** none. The plugin reads no other
   source: its tokens join DeFiLlama's because both name a coin type, not
   because either looks at the other.
@@ -58,7 +63,7 @@ API is authoritative.
 
 | Field | Official definition | Pythia meaning | Measured behaviour | Read |
 | --- | --- | --- | --- | --- |
-| `contract.pool` | Object id of the reserve's `Pool<T>` (SDK `Pool.contract`) | Native reference, scope `reserve`: the reserve's ID | A 66-character lowercase id for all 62 reserves, all distinct; the object's type names the coin | Yes |
+| `contract.pool` | Object id of the reserve's `Pool<T>` (SDK `Pool.contract`) | Native reference, scope `reserve`, and the `sui_object` key: the reserve's ID | A 66-character lowercase id for all 62 reserves, all distinct; the object's type names the coin | Yes |
 | `suiCoinType` | The coin type, as a full Sui type | The coin the reserve holds: `market_asset` link, a `listing` keyed by CAIP-19 | Always `0x` plus the address. `coinType` is the same without `0x` and not zero-padded, so core's pattern would refuse it: never read | Yes |
 | `market` | The market key (SDK `MARKETS`) | Which reserves a setting takes; part of the name through the SDK's display name | 11 keys; `main` has 35 reserves, `ember` 3, `rwa` 3, `sui-eco` 7, the seven pair markets 2 each | Yes |
 | `token.symbol` | The token's symbol | The token's label; part of the reserve's name | Drifts: `vSUI` here, `VSUI` at DeFiLlama; `wBTC`/`WBTC` for three different coins in one market. A symbol never identifies | Yes |
@@ -109,8 +114,8 @@ data, not identity, and wait for stage 1.
 | Every coin type has a CAIP-19 key | 38 of 38 | `unkeyed_coin_type` warning; the reserve is kept without a token link |
 | Every requested market returns a reserve | 11 of 11 | `empty_market` warning naming the markets |
 
-There is no alarm for a market NAVI launches later: NAVI publishes no list of
-markets, so the plugin carries the SDK's 11 keys. The setting `navi_markets`
+There is no alarm for a market NAVI launches later: the plugin carries the SDK's
+11 keys and does not read `/api/navi/markets`, which lists them. The setting `navi_markets`
 replaces that default, as `defillama_chains` does its own, so the investor lists
 all 11 keys and the new one; until then its reserves are not in the catalogue.
 
@@ -118,8 +123,8 @@ all 11 keys and the new one; until then its reserves are not in the catalogue.
 
 | Subject | ID | Why |
 | --- | --- | --- |
-| Protocol | `protocol:provisional:navi:protocol:navi-lending` | One record, keyed by a constant: NAVI publishes no protocol id. NAVI Prime, Volo and the vaults are not modelled |
-| Reserve | `market:provisional:navi:reserve:<Pool object id>` | A permanent on-chain object that is globally unique (62 of 62) and verifiable without NAVI. `uniqueId` is readable and is the SDK's address, but its permanence rests on NAVI; a coin has up to nine reserves, so the coin type alone is no key |
+| Protocol | `protocol:sui_package:0xd899cf7d…81ca` (native `navi-lending`) | The original package of `lending_core` (26 versions), constant across upgrades; NAVI publishes no protocol id. NAVI Prime, Volo and the vaults are not modelled |
+| Reserve | `market:sui_object:<Pool object id>` | A permanent on-chain object that is globally unique (62 of 62) and verifiable without NAVI. `uniqueId` is readable and is the SDK's address, but its permanence rests on NAVI; a coin has up to nine reserves, so the coin type alone is no key |
 | Sui token deployment | `listing:caip19:sui:mainnet/coin:<type>`, SUI as `…/slip44:784` | An on-chain coin type is portable: DeFiLlama naming it reaches the same subject, and core's curated SUI and native USDC listings are reached this way |
 
 NAVI and DeFiLlama join at the token only. DeFiLlama states no on-chain
@@ -158,8 +163,9 @@ Open items accepted for the first version:
 
 - NAVI publishes no data terms for its open API; opt-in and local only. Open:
   ask NAVI whether the API may be used by a desktop app before sign-off.
-- No list of markets is published: a new market needs its key listed in
-  `navi_markets` beside the others, which the setting replaces rather than extends.
+- A new market needs its key listed in `navi_markets` beside the others, which the
+  setting replaces rather than extends; `/api/navi/markets` would list them, and
+  is not read.
 - Reserves are not fused with DeFiLlama's pools, and the two NAVI Lending
   protocols stay separate (a founder decision).
 - An on-chain check that each Pool object's type matches its coin (three

@@ -293,6 +293,12 @@ Fusing them takes a deliberate bridge, either `protocol` as a curated kind or a
 core rule over markets that share a joined protocol and one coin; that is the
 founder's decision and is not built.
 
+*Experiment note (branch `exp-sui`, not decided).* There the NAVI reserve and
+protocol also state `sui_object` and `sui_package`, open keys any Sui source may
+state, so a pool or protocol two plugins name by the same object or package is one
+subject; DefiLlama still states neither, so the paragraph above holds for it
+([identity data](../architecture/identity-data.md)).
+
 - **`addressing.subjects`** maps a subject core keys, by an open identifier
   or a Pythia key, to the plugin's own reference for it. The native scope must
   be one the contract declares at the subject's kind; a provisional ID is not

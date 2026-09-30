@@ -1,11 +1,11 @@
 {
   "contract_version": 2,
-  "plugin": "pythia-navi",
-  "provider": "navi",
+  "plugin": "pythia-deepbook",
+  "provider": "deepbook",
   "addressing": {
     "native": [
       {
-        "native_scope": "reserve",
+        "native_scope": "pool",
         "level": "market",
         "asset_classes": [
           "crypto"
@@ -35,33 +35,12 @@
       "caip19"
     ]
   },
-  "concepts": {
-    "fundamentals": {
-      "level": "market",
-      "via": "market",
-      "operations": {
-        "metrics": "metrics"
-      },
-      "qualities": {
-        "metrics": {
-          "basis": [
-            "as_reported"
-          ]
-        }
-      },
-      "coverage": {
-        "asset_classes": [
-          "crypto"
-        ]
-      }
-    }
-  },
   "catalogue": {
     "mode": "bulk",
     "operation": "catalogue",
     "scopes": [
       "protocols",
-      "reserves"
+      "pools"
     ]
   },
   "rights": {
@@ -69,12 +48,12 @@
     "cache": "unlimited",
     "hostable": false,
     "attribution": {
-      "text": "Data from NAVI Protocol",
-      "url": "https://naviprotocol.io"
+      "text": "Data from Mysten Labs' DeepBook indexer",
+      "url": "https://docs.sui.io/standards/deepbookv3-indexer"
     }
   },
   "signoff": {
     "status": "unsigned",
-    "record": "docs/sources/navi.md"
+    "record": "docs/sources/deepbook.md"
   }
 }
