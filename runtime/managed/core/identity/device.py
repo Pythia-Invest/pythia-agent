@@ -91,6 +91,12 @@ def put_assertion(store: IdentityStore, subject_id: str, scheme: str, value: str
     return row["evidence_id"]
 
 
+def drop_assertions(store: IdentityStore, plugin: str, ref: ProviderRef, subject_id: str) -> None:
+    """Drop what a record stated, except the identifier its subject's own ID spells out: no omission drops that."""
+    store.db.execute("DELETE FROM device_assertions WHERE plugin = ? AND native_scope = ? AND native_id = ? AND"
+                     " instr(?, ':' || value) = 0", (plugin, ref.native_scope, ref.native_id, subject_id))
+
+
 def assertions(store: IdentityStore, subject_ids: Iterable[str]) -> list[dict[str, Any]]:
     """The device assertions about these subjects, by evidence ID."""
     return [dict(row) for row in store.select(

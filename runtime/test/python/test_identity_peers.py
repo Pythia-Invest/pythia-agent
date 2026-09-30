@@ -299,6 +299,34 @@ class SavedReferenceTest(PeersFixture):
         self.assertEqual((self.source(SAP_BY_FIGI), self.sections(SAP_BY_FIGI)),
                          (("meridian", "enabled", NOW), {"quote": "ready"}))
 
+    def test_leaving_out_the_isin_its_lines_id_spells_never_lets_a_later_record_move_the_line(self):
+        key = self.meridian()
+        self.sync(key)  # SAP's line, keyed by its FIGI and saved so
+
+        def state(*identifiers):
+            self.pages[("meridian", "lines")][1] = line("SAP.DE", *identifiers, ticker="SAP")
+            self.sync(key)
+            return self.placed("SAP.DE"), self.page(SAP_BY_FIGI)["security"]["id"]
+        sap = (("figi", SAP_FIGI), ("isin", SAP_ISIN))
+        self.assertEqual(state(*sap), ((SAP_BY_ISIN, "introduced"), SAP))
+        # Leaving the ISIN out moves nothing; GSK's after that is a conflict, sync after sync, with the line under SAP.
+        self.assertEqual(state(("figi", SAP_FIGI)), ((SAP_BY_ISIN, "introduced"), SAP))
+        for again in range(2):
+            with self.subTest(sync=again):
+                self.assertEqual(state(("figi", SAP_FIGI), ("isin", "GB00BN7SWP63")), ((SAP_BY_ISIN, "conflict"), SAP))
+        self.assertEqual(state(*sap), ((SAP_BY_ISIN, "introduced"), SAP))  # restating SAP's ISIN clears the conflict
+
+    def test_leaving_out_the_figi_its_lines_id_spells_never_lets_a_later_record_take_another(self):
+        key = self.meridian()
+        self.sync(key)
+        for identifiers, expected in (((), "introduced"), ((("figi", OTHER_FIGI),), "conflict"),
+                                      ((("figi", OTHER_FIGI),), "conflict"), ((("figi", SAP_FIGI),), "introduced")):
+            with self.subTest(identifiers=identifiers):
+                self.pages[("meridian", "lines")][1] = line("SAP.DE", *identifiers, ticker="SAP")
+                self.sync(key)
+                self.assertEqual((self.placed("SAP.DE"), self.page(SAP_BY_FIGI)["identifiers"]["figi"]),
+                                 ((SAP_BY_FIGI, expected), SAP_FIGI))
+
     def test_a_saved_pool_keeps_its_label_while_its_plugin_is_off_and_through_its_updates(self):
         key = self.tidepool()
         self.sync(key)

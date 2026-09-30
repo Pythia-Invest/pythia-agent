@@ -1334,7 +1334,9 @@ through it.
   parent (a conflict keeps that statement) still names that parent, so a
   source contradicting itself (a line's record that now states another
   company's ISIN) never re-parents the subject: it keeps its parent, never
-  that company's, for as long as the conflict lasts.
+  that company's, for as long as the conflict lasts. Where no record names a
+  parent (a record that leaves its identifiers out) the subject keeps the
+  parent it has: an omission moves nothing.
 - **Evidence.** A joined record's identifiers, and a listing's ticker at its
   operating MIC, become device evidence on the subject and its parents, counted
   at the plugin's trust level (amendment "evidence counts by kind and trust
@@ -1343,7 +1345,10 @@ through it.
   display-level one is shown with its source, and the page lists each plugin
   behind the subject with what it states (`contributors`). An identifier the
   page shows names the plugin that stated it. A record changed by its plugin
-  replaces its earlier statements; a conflicting one's are kept beside them. A
+  replaces its earlier statements, except the identifier the subject's own ID
+  spells out (`listing:isin:DE0007164600:XETR:EUR` spells its ISIN), which an
+  omission never drops, so at confirm level it still contests a later record's
+  other ISIN (or FIGI); a conflicting one's are kept beside them. A
   parent's identifier goes onto the subject's parent where it names that
   parent, or where the subject is the reference's, whose parent the package
   gave (a differing value then contests the package's); else onto the one
@@ -1628,12 +1633,12 @@ a plugin would take away.
   stub, no row deleted), re-enabling (its data back with no sync), a renamed
   record (same ID), a better identifier (the old ID aliases), a contradicting
   identifier (a conflict, sync after sync, with the ID and security unchanged
-  until the source states the kept value again) and a record the source stops
-  offering. Every sync of the fixture is a new retrieval, so each re-places
-  every record. Search finds the introduced subjects, and a disabled
-  plugin's leave it. The same payload installed as a managed default or as a community
-  plugin, under one grant on its digest, gives identical IDs, rows, statuses
-  and conflicts.
+  until the source states the kept value again, also when the source left that
+  identifier out in between) and a record the source stops offering. Every
+  sync of the fixture is a new retrieval, so each re-places every record.
+  Search finds the introduced subjects, and a disabled plugin's leave it. The
+  same payload installed as a managed default or as a community plugin, under
+  one grant on its digest, gives identical IDs, rows, statuses and conflicts.
 
 **Rationale.** A saved reference is only useful if its page says why its data
 is missing; the label outliving its plugin is what makes that possible, and

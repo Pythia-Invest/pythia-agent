@@ -272,13 +272,13 @@ class _Ingest:
 
     def _evidence(self, claim: RecordClaim, native: ProviderRef, subject: dict | None, *, keep: bool) -> None:
         """Write what the record states as device evidence on the subjects it identifies. A joined or introduced
-        record's replaces its earlier statements; a conflicting one's is kept beside them and everyone else's. A
-        parent's value goes onto the subject's parent where it names that parent, or where the subject is the
-        reference's (its parent the package gave, so a differing value contests the package's); else onto the one
-        subject it names. A device subject's parent, whoever chose it, never takes a value that does not name it."""
+        record's replaces its earlier statements but the identifier its subject's own ID spells out, which an omission
+        keeps; a conflicting one's is kept beside them and everyone else's. A parent's value goes onto the subject's
+        parent where it names that parent, or where the subject is the reference's (its parent the package gave, so a
+        differing value contests the package's); else onto the one subject it names. A device subject's parent,
+        whoever chose it, never takes a value that does not name it."""
         if not keep:
-            self.store.db.execute("DELETE FROM device_assertions WHERE plugin = ? AND native_scope = ? AND native_id = ?",
-                                  (self.plugin, native.native_scope, native.native_id))
+            device.drop_assertions(self.store, self.plugin, native, subject["id"] if subject else "")
         ids = subject["ids"] if subject else {}
         packaged = subject is not None and self._in_reference(subject["id"])  # the package gave its parents
         for item in self._stated(claim):
