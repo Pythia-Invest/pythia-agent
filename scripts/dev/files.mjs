@@ -118,6 +118,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/stub.py",
   "identity/subject.py",
   "identity/vocabulary.py",
+  "identity/withheld.py",
   "identity/sql/identity.sql",
   "identity/sql/reference.sql",
   "identity/canonical_assets.json",
