@@ -378,6 +378,9 @@ Today:
 - the investor can correct the catalogue from an instrument's page, setting or
   removing an identifier or pinning the source that prices it; the correction
   applies above every source until undone, and the agent can only propose one;
+- a plugin or a builder adapter can state a known error in its own source as a
+  labelled source correction, with the source's original kept beside it; it
+  fixes that source's data and no other's;
 - the stores record who stated each identifier, binding, relation and answer,
   and the `pythia:identity-data` skill teaches the agent to read them with SQL,
   so there is no explanation panel;

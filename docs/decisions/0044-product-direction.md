@@ -415,6 +415,14 @@ central curator exists.
   delisted" toggle in the search panel hides them. Its page still gets no live
   price through the ticker. A security none of whose lines has a ticker is
   found too, as one row marked "No ticker" (amendment of 2026-09-30 below).
+- **A source corrects its own errors, labelled.** A plugin or a builder adapter
+  states a known error in its own source as a source correction: the field, the
+  source's original text and the reason, with the corrected value stated once in
+  the record and the original kept beside it, applied only while the source still
+  states the original. It keeps the source's own authority and is not the
+  investor's catalogue correction. The first entry retracts the issuer FIRDS
+  states on Concord Medical's ADR; the SEC state-code mis-keys wait for an emitter
+  of incorporation (amendment "a source adapter corrects its own source").
 - **A source switches off at once, from Settings.** Settings → Data → Data sources
   has a switch per source that pauses it: a paused plugin counts as disabled
   for data, with no restart, and its subjects and saved references keep
@@ -1112,7 +1120,8 @@ third-party plugin's own maintainer.
 
 ### Status
 
-Decided; the plugin source-correction mechanism is being built; the verdict
+Decided; the plugin source-correction mechanism is built (amendment "a source
+adapter corrects its own source" below); the verdict
 ledger, thresholds and procedures are deferred until the first question type
 runs (their shape depends on its measurement). Open conflicts stay open
 questions. The platform works with them: facts held back show an open-conflict
@@ -1130,8 +1139,8 @@ What building the rest needs:
   can settle what it can.
 
 Only one piece of J1, a plugin's labelled source correction of its own
-source, is being built ahead of any question type, because it does not depend on a
-measurement. The mechanism gets its own amendment when it lands. The ledger
+source, was built ahead of any question type, because it does not depend on a
+measurement; it has its own amendment below. The ledger
 fields and the per-type threshold are deferred on
 purpose: a threshold is set from a gold-set measurement, and what a verdict
 must record is learned from the first type that runs. Until a type has a
@@ -1171,7 +1180,7 @@ raise them; none blocks the foundations):
   jurisdiction field disagrees with GLEIF and looks like a keying error
   (Theravance's code says California although its address is in the Cayman
   Islands, as GLEIF's is). Whether the SEC plugin states these as labelled source corrections (J1)
-  is undecided.
+  is undecided; the SEC record lists them as awaiting an emitter of incorporation.
 
 ### Rejected alternatives
 
@@ -1197,6 +1206,7 @@ raise them; none blocks the foundations):
 - **Keeping every agent answer a suggestion (A2 as written).** It leaves
   each investor clicking through every open conflict, which is the curator's
   work that the amendment "data any plugin can extend" rejected.
+
 ## Amendment (2026-09-30): a source adapter corrects its own source
 
 ### Context
