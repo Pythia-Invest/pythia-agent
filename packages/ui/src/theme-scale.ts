@@ -8,7 +8,15 @@
  * the `@theme` block in step; add the name in both places when adding a token.
  */
 export const themeScale = {
-  animate: ["spin-slow", "shimmer"],
+  animate: [
+    "spin-slow",
+    "shimmer",
+    "text-shimmer",
+    "enter",
+    "fade",
+    "pop",
+    "breathe",
+  ],
   container: ["measure"],
   ease: ["standard"],
   font: ["reading"],

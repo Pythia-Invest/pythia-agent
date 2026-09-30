@@ -25,7 +25,7 @@ const STATUS_OPTIONS = (Object.keys(STATUS) as RepairStatus[]).map((value) => ({
   label: STATUS[value].label,
 }));
 
-/** Settings → Repairs: what Pythia could not settle on its own, in the
+/** Settings → Data → Repairs: what Pythia could not settle on its own, in the
  * back-office table. Rules fix most; the agent only suggests; the user
  * confirms or answers, and never has to. The Status filter shows settled issues too. */
 export function RepairsView() {

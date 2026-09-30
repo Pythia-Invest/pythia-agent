@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AssistantMessage } from "@/components/chat/assistant-message";
-import { ProcessStepView } from "@/components/chat/process-steps";
 import type { DeskUIMessage } from "@/client/chat-message";
 
 function render(message: DeskUIMessage, streaming: boolean) {
@@ -23,13 +22,13 @@ describe("thinking state", () => {
     // Hermes streams no private reasoning, so between the prompt and the first
     // token this row is the only thing saying work is happening.
     const markup = render(empty, true);
-    expect(markup).toContain('data-slot="process-block"');
+    expect(markup).toContain('data-slot="turn-activity"');
     expect(markup).toContain('data-state="live"');
     expect(markup).toContain("Thinking");
-    expect(markup).toContain('role="status"');
+    expect(markup).toContain('aria-live="polite"');
   });
 
-  it("gives way once the answer starts arriving", () => {
+  it("gives way to the answer when a reply did no visible work", () => {
     const markup = render(
       {
         id: "m1",
@@ -38,19 +37,19 @@ describe("thinking state", () => {
       },
       true,
     );
-    expect(markup).toContain("Cover is 1.08×");
-    expect(markup).not.toContain('data-state="live"');
+    // Streaming words are wrapped for their fade-in; compare visible text.
+    expect(markup.replaceAll(/<[^>]+>/gu, "")).toContain("Cover is 1.08×");
+    expect(markup).not.toContain('data-slot="turn-activity"');
   });
 
   it("shows nothing at all for a settled turn with no recorded work", () => {
-    expect(render(empty, false)).not.toContain('data-slot="process-block"');
+    expect(render(empty, false)).not.toContain('data-slot="turn-activity"');
   });
 });
 
 describe("how long it took", () => {
   it("keeps the turn's duration on the settled disclosure", () => {
-    // The live timer stops when the run does; the number it reached is what
-    // the reader wants afterwards, so Hermes' own measure replaces it.
+    // Completed duration comes from Hermes, not a browser stopwatch.
     const markup = render(
       {
         id: "m1",
@@ -62,37 +61,13 @@ describe("how long it took", () => {
             toolCallId: "t1",
             toolName: "web_search",
             state: "output-available",
-            input: {},
+            input: { query: "coverage ratio" },
             output: "ok",
           },
         ],
       },
       false,
     );
-    expect(markup).toContain("1 step");
-    expect(markup).toContain("12s");
-  });
-
-  it("reads a tool's own duration back from where the SDK files it", () => {
-    // Completed tools land under resultProviderMetadata, not the call one.
-    const markup = renderToStaticMarkup(
-      <ProcessStepView
-        runActive={false}
-        step={{
-          kind: "tool",
-          key: "t1",
-          part: {
-            type: "dynamic-tool",
-            toolCallId: "t1",
-            toolName: "web_search",
-            state: "output-available",
-            input: {},
-            output: "ok",
-            resultProviderMetadata: { pythia: { durationSeconds: 3 } },
-          },
-        }}
-      />,
-    );
-    expect(markup).toContain("3s");
+    expect(markup).toContain("Worked for 12s");
   });
 });

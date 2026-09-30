@@ -329,6 +329,27 @@ export function managedPluginCopies(paths, payloads = MANAGED_PLUGINS) {
     }));
 }
 
+/**
+ * @typedef {object} ManagedPlugin
+ * @property {string} name
+ * @property {boolean} install
+ * @property {boolean} enabledByDefault
+ * @property {boolean} doctor
+ * @property {string} source
+ * @property {readonly string[]} files
+ * @property {readonly string[]} [workers]
+ */
+
+/**
+ * @param {any} paths
+ * @param {string} apiKey
+ * @param {{
+ *   freshProfile?: boolean,
+ *   execute?: (paths: any, args: string[], apiKey: string) => unknown,
+ *   payloads?: readonly ManagedPlugin[],
+ *   report?: (message: string) => void,
+ * }} [options]
+ */
 export function refreshManagedPlugins(
   paths,
   apiKey,

@@ -56,3 +56,20 @@ The explicit boundary makes source activation predictable and keeps a settings-
 only Hermes restart small. Automatic source watchers, restarting only the copied
 plugin consumer while shared dependencies change, systemd-backed development,
 and a new worktree manager were rejected as unnecessary lifecycle machinery.
+
+An empty development profile inherits the selected custom-provider definition
+alongside the shared model choice. Copying only `model.provider` left new
+profiles naming a provider that their native inventory could not resolve.
+The selected definition's supported non-secret fields are written and read
+back through Hermes before model selection; existing profile choices win.
+Both native keyed and legacy-list definitions are accepted, with legacy rows
+translated as Hermes translates them. Settings under a built-in provider's
+`providers.<id>` block are not a definition and are not copied. Hermes returns
+`${VAR}` references already expanded, so templated fields are copied with their
+current values; reading unexpanded configuration would mean Pythia parsing
+Hermes's file itself, which was not adopted. Unsupported fields require
+explicit native profile setup. General root-config synchronization and copying
+`.env`, inline keys or auth stores were rejected because they would broaden
+credential custody and overwrite profile ownership. Model selection and
+credential readiness remain separate, including the pinned discovery/pool
+limitation documented in [development](../development.md).

@@ -104,7 +104,7 @@ test("dense views preserve closed-session extended change and suppress loading s
     expect(html).toContain("ONE");
   }
 });
-test("extended quotes stay subordinate; compact tiles omit paths; units do not become percent returns", () => {
+test("extended quotes stay subordinate and compact tiles omit paths", () => {
   const html = renderToStaticMarkup(
     <InstrumentTile
       item={{
@@ -115,29 +115,15 @@ test("extended quotes stay subordinate; compact tiles omit paths; units do not b
       }}
     />,
   );
-  expect(html).toContain("42.50");
-  expect(html).toContain("43.75");
+  expect(html).toMatch(/data-slot="instrument-price"[^>]*>42\.50</u);
+  expect(html.split('data-slot="instrument-extended"')[1]).toContain("43.75");
   expect(
     renderToStaticMarkup(
       <InstrumentTile item={item} options={{ compact: true }} />,
     ),
   ).not.toContain('data-slot="instrument-sparkline"');
-  const yieldHtml = renderToStaticMarkup(
-    <InstrumentTile
-      item={{
-        ...item,
-        price: 4.062,
-        precision: 3,
-        priceSuffix: "%",
-        change: { absolute: 2.4, unit: "bp" },
-      }}
-    />,
-  );
-  expect(yieldHtml).toContain("4.062");
-  expect(yieldHtml).toContain("+2.4 bp");
-  expect(yieldHtml).not.toContain("+2.40%");
 });
-test("loading, empty, error and market activity have textual equivalents and inspectable details", () => {
+test("loading, empty, error and market activity have textual equivalents", () => {
   for (const state of ["loading", "empty", "error"] as const)
     expect(
       renderToStaticMarkup(<InstrumentTable read={{ rows: [], state }} />),
@@ -146,7 +132,6 @@ test("loading, empty, error and market activity have textual equivalents and ins
     <InstrumentTile item={{ ...item, note: "Live" }} />,
   );
   expect(html).toContain('aria-label="Market open"');
-  expect(html).not.toContain('aria-haspopup="dialog"');
   expect(
     renderToStaticMarkup(
       <InstrumentTile

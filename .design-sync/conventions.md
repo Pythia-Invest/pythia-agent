@@ -34,7 +34,7 @@ the signal that something has gone wrong. Real names, all of them usable as
 
 | Family | Names |
 | --- | --- |
-| Surfaces | `canvas`, `raised`, `subtle`, `overlay`, `container`, `atmosphere` |
+| Surfaces | `canvas`, `raised`, `subtle`, `overlay`, `container`, `atmosphere`, `scrim` (modal backdrop, normally `bg-scrim/45`) |
 | Text | `foreground`, `foreground-secondary`, `foreground-disabled` |
 | Lines & interaction | `border`, `border-strong`, `interaction-hover`, `interaction-active`, `ring` |
 | Primary action | `primary`, `primary-foreground` |
@@ -44,13 +44,14 @@ the signal that something has gone wrong. Real names, all of them usable as
 | Analytical impact | `impact-favorable`, `impact-unfavorable`, `impact-neutral`, `impact-unresolved` |
 | Evidence freshness | `freshness-current`, `freshness-delayed`, `freshness-stale`, `freshness-unknown` |
 | Claim ownership | `epistemic-fact`, `epistemic-machine`, `epistemic-human`, `epistemic-unknown` |
-| Pythia signal | `signal`, `signal-foreground`, `signal-atmosphere` |
+| Pythia signal | `signal`, `signal-foreground`, `signal-atmosphere`; also the one small "Pythia is working" dot, always beside a text status |
 
 Geometry and type use named steps too: `rounded-control`, `rounded-container`,
 `rounded-pill`; `h-control`, `px-gutter`, `gap-section`, `gap-group`,
 `max-w-measure`; `text-body`, `text-reading`, `text-display`, `leading-tight`,
 `leading-ui`, `leading-reading`; `shadow-popup`, `shadow-overlay`; `ring-ring`;
-`font-sans` for interface chrome and `font-reading` for long-form prose.
+`font-sans` for interface chrome and what the person types; `font-reading` (IBM
+Plex Serif) only for Pythia's answer prose.
 
 Numeric Tailwind scales still work where the system has no named step —
 `gap-3`, `p-4`, `text-sm`. Reach for the named step when one exists.
@@ -114,3 +115,8 @@ not put the brand mark in a design; use a text wordmark placeholder instead.
   </Stack>
 </Card>
 ```
+
+Anchored menus/popovers use `shadow-popup`; dialogs/drawers use `shadow-overlay`.
+Both elevation roles cast dark shadows in either theme, never a light glow.
+Motion uses `animate-{spin-slow,shimmer,text-shimmer,enter,fade,pop,breathe}`,
+always with `motion-safe:` or `motion-reduce:animate-none`.

@@ -20,7 +20,7 @@ import {
   copyPrivateFile,
   readJson,
 } from "../../scripts/install/files.mjs";
-import { resolveInstallPaths } from "../../scripts/install/paths.mjs";
+import { resolveCheckoutInstallPaths } from "../support/install-paths.js";
 import { installUnits, renderUnits } from "../../scripts/install/systemd.mjs";
 import { applyUpdate, recoverUpdate } from "../../scripts/update/apply.mjs";
 import { applyMigrations } from "../../scripts/update/migrations.mjs";
@@ -28,9 +28,15 @@ import {
   cleanupReleaseFixtures,
   createSnapshotFixture,
   git,
-} from "../support/release-snapshot";
+} from "../support/release-snapshot.js";
 
 afterEach(cleanupReleaseFixtures);
+
+// The recovery path a test resumes; recoverUpdate may also return an applied update.
+type Recovered = Extract<
+  Awaited<ReturnType<typeof recoverUpdate>>,
+  { recovered: boolean }
+>;
 
 function file(path: string, content: string) {
   mkdirSync(join(path, ".."), { recursive: true, mode: 0o700 });
@@ -71,7 +77,7 @@ function installedFixture() {
     PYTHIA_INSTALL_STATE_HOME: join(release.root, "state"),
     PYTHIA_INSTALL_SYSTEMD_HOME: join(release.root, "units"),
   };
-  const paths = resolveInstallPaths(environment);
+  const paths = resolveCheckoutInstallPaths(environment);
   for (const path of [
     paths.configRoot,
     paths.stateRoot,
@@ -310,11 +316,11 @@ describe("signed A-to-B state preservation", () => {
         expect(hashTree(fixture.paths.unitRoot)).not.toBe(fixture.unitBefore);
       }
 
-      const recovered = await recoverUpdate(fixture.paths, {
+      const recovered = (await recoverUpdate(fixture.paths, {
         stop: async () => undefined,
         completeCandidate: fixture.completeCandidate,
         startAndVerify: async () => undefined,
-      });
+      })) as Recovered;
       expect(recovered.receipt).toMatchObject({
         phase: "complete",
         services: "running",

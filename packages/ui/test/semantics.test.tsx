@@ -116,46 +116,45 @@ describe("research and finance semantics", () => {
   });
 
   it("preserves supplied financial context and direction without inference", () => {
-    const directions = [
-      ["up", "−2.0%", "Compared with synthetic baseline"],
-      ["down", "+1.0%", "Compared with synthetic baseline"],
-      ["unchanged", "7.0%", "No supplied change"],
-    ] as const satisfies readonly (readonly [
-      MarketDirectionKind,
-      string,
-      string,
-    ])[];
-    const html = renderToStaticMarkup(
-      <div>
-        <FinancialValue {...valueExample} />
-        {directions.map(([direction, value, context]) => (
-          <MarketDirection
-            context={context}
-            direction={direction}
-            key={direction}
-            value={value}
-          />
-        ))}
-      </div>,
+    const financial = renderToStaticMarkup(
+      <FinancialValue {...valueExample} />,
     );
-
     for (const text of [
       "84.2",
       "synthetic index points",
       "FY 2027 estimate",
       "Illustrative adjusted basis",
       "Delayed",
-      "Up",
-      "Down",
-      "Unchanged",
-      "−2.0%",
-      "+1.0%",
-      "7.0%",
     ]) {
-      expect(html).toContain(text);
+      expect(financial).toContain(text);
     }
-    expect(html).toContain("Down");
-    expect(html).toContain("+1.0%");
+
+    const directions = [
+      ["up", "Up", "−2.0%", "Compared with synthetic baseline"],
+      ["down", "Down", "+1.0%", "Compared with synthetic baseline"],
+      ["unchanged", "Unchanged", "7.0%", "No supplied change"],
+    ] as const satisfies readonly (readonly [
+      MarketDirectionKind,
+      string,
+      string,
+      string,
+    ])[];
+    for (const [direction, label, value, context] of directions) {
+      const text = renderToStaticMarkup(
+        <MarketDirection
+          context={context}
+          direction={direction}
+          value={value}
+        />,
+      ).replace(/<[^>]+>/gu, " ");
+      const others = directions.filter(([, other]) => other !== label);
+      expect(text).toContain(` ${label} `);
+      expect(text).toContain(value);
+      expect(text).toContain(context);
+      for (const [, other] of others) {
+        expect(text).not.toContain(` ${other} `);
+      }
+    }
   });
 
   it("labels Pythia signals and warnings as distinct meanings", () => {

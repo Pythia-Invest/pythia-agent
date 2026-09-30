@@ -397,7 +397,7 @@ version 1):
 - A bulk `catalogue` operation takes `{"scope", "cursor"}` and answers
   `{"data": <ClaimBatch>, "next_cursor"}`, the last page of a scope `complete`
   with no cursor. Core reads it through `identity-sync`, a Desk operation with
-  no scheduler (Settings → Data sources, "Sync now"), scope by scope in the
+  no scheduler (Settings → Data → Data sources, "Sync now"), scope by scope in the
   order the contract lists them, so a
   scope may name what an earlier one introduced. Core joins or introduces
   every record, and a record with no native reference (a token named only by

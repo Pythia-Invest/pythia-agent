@@ -114,8 +114,9 @@ class DeliveredViewTest(unittest.TestCase):
             # Tool Search lists a deferred tool by its first sentence, clipped past 60 characters (tools/tool_search.py).
             first = re.split(r"(?<=[.!?])\s", " ".join(schema["description"].split()), maxsplit=1)[0]
             self.assertLessEqual(len(first), 60, schema["name"])
-        section = operating.operating_context({"platform": "api_server"})
-        # Its size against the registered max_chars is test_core's check.
+        desk = {"platform": "api_server"}
+        section = operating.operating_context(desk) + operating.routing_context(desk)
+        # Their sizes against the registered max_chars are test_core's check.
         named = set(re.findall(r"\bpythia_\w+", section))
         self.assertLessEqual(named, set(sizes), "the operating section names a tool the model does not get")
         prefixes = set(re.findall(r"\b([a-z]+_)(?=[,)])", section))

@@ -1,0 +1,70 @@
+name: Nightly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * *"
+  push:
+    branches: [main]
+
+# Each main commit and each night keeps its own verdict.
+concurrency:
+  group: nightly-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  qualification:
+    name: Broad qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          python: "true"
+      # The verified Hermes archive, kept between runs so qualification does
+      # not depend on an unauthenticated download (rate-limited on 2026-09-30).
+      - id: archive
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/qualification-archives
+          key: hermes-archive-${{ hashFiles('runtime/versions.json') }}
+      # The pinned URL is GitHub's API: authenticate so shared runner IPs
+      # are not rate-limited. The pinned sha256 is still verified.
+      - if: steps.archive.outputs.cache-hit != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: just qualify-archive .local/qualification-archives
+      - id: build
+        run: pnpm run build
+      - run: just qualify-tests
+      # Runs even when a qualification test fails, so one red file cannot
+      # hide the assembled run.
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          PYTHIA_QUALIFICATION_ARCHIVE_CACHE: ${{ github.workspace }}/.local/qualification-archives
+        run: just qualify-assembled
+      - if: ${{ !cancelled() && steps.archive.outputs.cache-hit != 'true' && hashFiles('.local/qualification-archives/*') != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/qualification-archives
+          key: hermes-archive-${{ hashFiles('runtime/versions.json') }}
+
+  audit:
+    name: Full dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: just audit-all

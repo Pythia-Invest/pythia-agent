@@ -17,6 +17,7 @@ const rootFiles = [
   "pnpm-workspace.yaml",
   "tsconfig.base.json",
   "tsconfig.json",
+  "tsconfig.test.json",
   "turbo.json",
   "vitest.root.config.mts",
 ];

@@ -72,7 +72,7 @@ export class HermesChatTransport implements ChatTransport<DeskUIMessage> {
   readonly #options: HermesChatTransportOptions;
   readonly #activeRuns = new Map<string, string>();
   readonly #creating = new Map<string, Promise<DeskRunStart>>();
-  readonly #pendingSteers = new Map<string, string[]>();
+  readonly #pendingSteers = new Map<string, { id: string; text: string }[]>();
 
   constructor(api: DeskApi, options: HermesChatTransportOptions = {}) {
     this.#api = api;
@@ -83,15 +83,24 @@ export class HermesChatTransport implements ChatTransport<DeskUIMessage> {
     return this.#activeRuns.get(sessionId) ?? storedRun(sessionId);
   }
 
-  async steer(sessionId: string, input: string, context?: WorkspaceContext) {
+  /** `id` names the message the reader already sees for this guidance. */
+  async steer(
+    sessionId: string,
+    input: string,
+    context?: WorkspaceContext,
+    id = crypto.randomUUID(),
+  ) {
     const runId = this.activeRun(sessionId);
     if (!runId) throw new Error("This reply is no longer accepting guidance.");
     const pending = this.#pendingSteers.get(runId) ?? [];
-    const display = hasWorkspaceContext(context)
-      ? `${input}
+    const display = {
+      id,
+      text: hasWorkspaceContext(context)
+        ? `${input}
 
 ${REFERENCE_MARKER} ${JSON.stringify({ references: context?.references ?? [] })}`
-      : input;
+        : input,
+    };
     pending.push(display);
     this.#pendingSteers.set(runId, pending);
     try {
@@ -247,12 +256,10 @@ ${REFERENCE_MARKER} ${JSON.stringify({ references: context?.references ?? [] })}
                 if (event.event === "stream.disconnected") break;
                 if (event.event === "approval.request")
                   lastApproval = JSON.stringify(event);
-                const text =
-                  event.event === "run.steered"
-                    ? pendingSteers.get(runId)?.shift()
-                    : undefined;
                 push(
-                  mapper.map(text === undefined ? event : { ...event, text }),
+                  event.event === "run.steered"
+                    ? mapper.steered(event, pendingSteers.get(runId)?.shift())
+                    : mapper.map(event),
                 );
                 if (mapper.terminal) {
                   settled = true;

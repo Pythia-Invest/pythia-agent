@@ -201,7 +201,7 @@ reference build changed. It runs inside write operations only, with no
 scheduler, and nothing triggers the agent: it works the queue when asked. While
 a plugin has an open conflict for a subject, its section shows the conflict and
 a ready plugin serves the section instead. The instrument page shows no queue
-note; the Desk lists issues on one generic page, Settings → Repairs (modelled on
+note; the Desk lists issues on one generic page, Settings → Data → Repairs (modelled on
 Home Assistant's Repairs), outside the main navigation and counted in Settings
 only while issues are open. It uses the back-office table (docs/design.md): each
 question is a row (kind, instrument, provider, status, created, resolved) whose
@@ -1650,7 +1650,7 @@ a plugin would take away.
   a short sample. Without `plugin` it answers every enabled plugin that
   declares a bulk catalogue or a resolve, with its trust level. It is a Desk
   operation; the agent's tool list has no room for it.
-- **Settings → Data sources** lists those plugins, each with its trust level,
+- **Settings → Data → Data sources** lists those plugins, each with its trust level,
   that effect beside the `hermes plugins disable` command, and, for a bulk
   catalogue, a "Sync now" control that runs `identity-sync` and shows what it
   joined, introduced, found in conflict and left unmatched. Enabling and
@@ -1865,7 +1865,7 @@ stands.
 - **Search:** nothing breaks a tie by trust, and the directory's key is the
   store's generation and the enabled plugins.
 - **Read checks** no longer label a read "source not audited", and
-  `identity-plugin-effect` and Settings → Data sources show no level.
+  `identity-plugin-effect` and Settings → Data → Data sources show no level.
 - **The peers test** installs one payload under two names and two declared
   sign-offs, not under one grant, and expects identical IDs, rows, statuses,
   conflicts and effects.
@@ -1874,13 +1874,13 @@ stands.
 
 **Context.** The founder asked for an easy way to switch a plugin off again.
 Until now the only way was Hermes's own command, `hermes plugins disable`,
-which Settings → Data sources printed beside each source and which needs a
+which Settings → Data → Data sources printed beside each source and which needs a
 Hermes restart to take hold. A source that returns wrong data, or that an
 investor simply stops trusting, should be one click away from off and from on.
 
 **Ruling.**
 
-- **A source can be paused, from Settings → Data sources.** A switch beside
+- **A source can be paused, from Settings → Data → Data sources.** A switch beside
   each source keeps the plugin's key in `pythia_paused_plugins` in
   `settings.json` in the Pythia config folder. Desk's settings service writes
   it; core reads it on every use, and no plugin can declare or read the field.

@@ -61,9 +61,65 @@ that unwraps serialization and relay prefixes from Hermes's message, identifies
 the selected provider/model and HTTP status when available, and offers Retry.
 Desk does not classify the cause or replace it with its own guidance.
 
+Each assistant turn opens with one quiet line: while Pythia works it says what
+is happening now ("Reading report.md"), beside a small amber dot; once the
+answer begins it settles to "Worked for 42s". Prose streams in a stable answer
+area from its first token. Nothing opens by itself; choosing the line opens the
+turn's record inline, with commentary, plain-language tool rows and their
+details, approvals, the latest plan and the turn's research agents. While the
+run is live, the plan and agents sit directly under the line. The line settling
+does not claim completion: resumed tools bring it back without opening the
+record.
+Choosing an agent shows its conversation in the main chat area, with Back to
+chat and the agent's state; "and N more" opens the Research agents directory,
+whose search, status filter, list position and pagination persist across
+selections. Parent replies continue in the background; returning restores the
+draft and reading position. Search matches loaded titles, task text and IDs.
+Rows lead with the task's first sentence and a short native identifier, and
+every row has a labelled status icon. The list renders 25 matches per page and
+shows when more summaries may remain unloaded. Status unknown stays separate
+from finished. The child view reuses the main transcript's turns, activity,
+Markdown answers and scroll handling. Only the selected child transcript is
+loaded, and recent summary polling does not rescan older pages. A cleared plan
+disappears until a new nonempty plan is recorded. The opening bubble is
+labelled Task; its Background it was given disclosure shows the parent-supplied
+delegation context when the assignment can be uniquely matched; it is not a
+generated summary or private reasoning. The child view refreshes saved
+messages while completion is unconfirmed, without child token streaming or a
+composer. These
+are read-only projections; see [ADR 0016](../../docs/decisions/0016-native-work-visibility.md)
+for refresh, pagination, and native API limitations. No raw tool result viewer,
+inferred plan, child steering, or model-formatting override is added.
+
 The conversation loads the latest native history first and can prepend older
 pages without moving the reader. Completed answers offer copy controls, retain
 explicit source links. Native token usage remains in message metadata.
+
+Even a small upward scroll pauses following streamed text. Reach the actual
+bottom again or use **Jump to latest** to resume. New chats leave their title
+unset so Hermes can derive and improve it; explicit renames remain user-owned.
+Automatic improvement depends on native auxiliary model availability.
+
+After completion, Desk reads up to ten native pages of 100 rows to recover
+tool arguments/results and the submitted turn boundary, including when later
+background work has appended another answer. It never declares an unconfirmed
+tool successful or calls missing UI evidence a native failure. If enrichment
+cannot match or its read fails, the streamed answer stays visible and the
+browser console emits `Pythia completed-history reconciliation incomplete` or
+`Pythia completed-history read failed`, with session/message IDs only.
+
+For developer diagnosis, correlate that session ID and time with native
+`GET /api/sessions/{id}/messages?limit=100&offset=0&order=latest` (page backward
+until the relevant user boundary) and Hermes gateway logs. Compare tool-call
+IDs with result IDs; a result row may itself contain an error, and delegated
+child sessions need separate inspection. The native profile `state.db` can be
+opened read-only when API projection is insufficient. Keep transcripts and
+provider error bodies in ignored private working records, never test fixtures
+or public logs. There is no secondary telemetry store. Desk renders Markdown
+when present in the model's text without adding formatting instructions or
+overriding Hermes's native platform hint; see the
+[Hermes contract](../../runtime/contracts/hermes.md). Existing profile settings
+and already-generated answers are preserved.
 
 Files and images can be selected with the paperclip, pasted or dropped into the
 composer. Uploads show compact cards with removal and retry; sent images open a
@@ -113,12 +169,52 @@ For optional HTTPS access through native Tailscale Serve, see
 [hosting](../../docs/hosting.md). Host and account are operator configuration,
 not repository defaults. Tailscale is never required for local access.
 
+Settings follows Hermes Desktop's Settings ([ADR 0008](../../docs/decisions/0008-desk-client-conventions.md#settings-2026-09-hermes-desktops-structure),
+[notices](NOTICE.md)). It fills the window over the current page, which keeps
+running underneath. The sidebar holds Back, search and a section tree (Model,
+Chat, Appearance, Workspace, Safety, Memory & Context, Data, Advanced;
+Providers; About); the open section lists its pages, and a dot marks one
+that needs you. Pages show a breadcrumb and rows with the control on the
+right. Every setting, Hermes's or Pythia's, is a field in the same schema and
+renders through `components/settings/config-field.tsx`: Hermes fields come
+from its config schema (which fields each page shows is
+`src/settings/hermes-pages.ts`), Pythia's are declared in
+`components/settings/use-pythia-fields.ts`. Values save themselves a moment
+after they change; credentials show a stand-in and edit in place with Save
+and Remove. Providers covers subscription sign-ins, API keys and custom
+endpoints. Skills, tools, MCP connectors and plugins are on the Capabilities
+page (`/capabilities`). `settings=<section>/<page>` opens Settings on any
+page; older section names and `/settings?section=` redirect.
+
+Desk's server reads and writes Hermes's settings through Hermes's own settings
+server (`hermes serve`, loopback only, its own bearer), never from the browser;
+`server/hermes-settings-shape.ts` keeps credentials, local paths and
+Pythia-owned config out of what the browser sees and can change
+([ADR 0021](../../docs/decisions/0021-hermes-settings-server.md)).
+
+About shows the version and update status: Check now, Update now for an
+available installed-device build, progress through the restart, and **Reload
+Desk** once the selected build is active. Desk checks once a day while open;
+an entry in the navigation footer appears only when an update is ready,
+installing or needs a reload. Dirty source is preserved and refused;
+development cannot apply installed updates. See [ADR 0017](../../docs/decisions/0017-updates-from-desk.md)
+for the update, reconnection and host recovery boundaries.
+
 Device settings keep the two native Hermes controls separate: skills change
 the profile's global `skills.disabled` list, while Desk tools change only the
 `api_server` platform. Desk runs the pinned Hermes command under one external
 mutation lock, asks the lifecycle owner to restart Hermes, and reports success
 only after the authenticated native API shows the requested state. It does not
 infer mismatches or modify another platform.
+
+Settings › Updates shows the version and update status: Check now, Update
+now for an available installed-device build, progress through the restart,
+and **Reload Desk** once the selected build is active. Desk checks once a day
+while open; an entry in the navigation footer appears only when an update is
+ready, installing or needs a reload, and opens the same controls. Dirty source
+is preserved and refused; development cannot apply installed updates. See
+[ADR 0017](../../docs/decisions/0017-updates-from-desk.md) for the update,
+reconnection and host recovery boundaries.
 
 Provider setup belongs to the respective connector. Core no longer exposes
 the original SEC identity and EODHD token controls or their write routes.
@@ -157,8 +253,8 @@ ordinary web links remain underlined. Tables in the file reader expand to their
 full height, with horizontal scrolling when wider than the available space.
 The companion uses file tabs for names and closing files, above one compact
 path toolbar with reference and download actions. Closing the last tab closes
-the panel; there is no separate toolbar X. Phone drawers still dismiss with
-Escape, backdrop or swipe. File-viewer folder paths open their contents menu only on click; hovering
+the panel; there is no separate toolbar X. On a phone the viewer fills the
+screen and carries its own close button. File-viewer folder paths open their contents menu only on click; hovering
 never opens a menu. Nested folders open adjacent panes on click or keyboard
 ArrowRight. File selection opens that file; browsing or dismissing menus preserves
 the current document.
@@ -176,8 +272,8 @@ Full paths identify tabs in tooltips and overflow entries, and shared file-type
 icons identify artifacts throughout the browser, menus and viewer.
 Open files use the chat tab strip and its capped sizing, overflow, keyboard
 navigation and adjacent-tab close behavior. A path opens once; selecting it
-again activates its existing tab. Closing a file selects its neighbor, while
-dismissing the phone drawer retains its open tabs for the next file opening.
+again activates its existing tab. Closing a file selects its neighbor. A phone has no file tab strip: its viewer
+header names the current file, and other files reopen from the list.
 The Name/Type/Size listing shares file icons with search results. Sidebar pins
 and width preferences from the earlier layout are retained but unused by this
 variant.
@@ -190,10 +286,10 @@ header. Users may select another complete native plugin top bar, or
 Invalid or unavailable selections retain the core header and navigation actions
 and say so.
 
-`/settings/repairs` (Settings → Repairs, not in the main navigation) lists the
+`/settings/repairs` (Settings → Data → Repairs, not in the main navigation) lists the
 issues Pythia could not settle on its own, modelled on Home Assistant's Repairs.
-Rules and the agent normally fix them, so the Settings tab shows a count only
-while issues are open. The page uses the back-office `DataTable` and
+Rules and the agent normally fix them, so the Data section of Settings is marked
+only while issues are open. The page uses the back-office `DataTable` and
 `ActionDialog` from `@pythia/ui`. An issue is generic (kind, title, description,
 subject, plugin, times, status); a kind (`components/repairs/`) only supplies a
 row's context and actions. Today the only kind is an identity question from
@@ -318,6 +414,20 @@ Settings reports the Desk workspace root and native `terminal.cwd` as matched,
 different or unavailable. A differing native cwd is preserved, not reset;
 browser file access remains rooted at the configured Desk workspace. Canonical
 absolute file references continue to identify those files for native tools.
+
+### Phone layout
+
+Below 900px the shell keeps every desktop component and adapts how it is
+shown ([ADR 0008](../../docs/decisions/0008-desk-client-conventions.md#phone-layout-2026-09)):
+the navigation rail opens alone as a drawer from the top bar's menu button;
+top-bar search expands from an icon across the bar; the chat header stays,
+with Show chats and New chat; the chat list stays collapsible and opens over
+the conversation (a top-bar search opens it with the matches); and the chat
+dock beside a destination opens as a full-screen sheet from a floating button.
+There are no tabs on a phone: the dock header names the current chat beside
+New chat and the chat history button, which opens a bottom sheet for switching,
+and the file viewer is a full-screen sheet that names its file beside Close.
+Settings starts at its list of pages and opens one page at a time.
 
 ### Persisted layout
 

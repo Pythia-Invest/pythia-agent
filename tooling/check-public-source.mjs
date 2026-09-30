@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { hermesPinDisagreements } from "../scripts/dev/hermes-pin.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
 
 const ignoredRuntimeProducts = [
@@ -101,6 +102,10 @@ export function checkPublicSource(repository) {
         `runtime/versions.json: incomplete provenance for ${name}`,
       );
     }
+  }
+
+  for (const problem of hermesPinDisagreements(root)) {
+    violations.push(`Hermes pin: ${problem}`);
   }
 
   const projectLicense = readFileSync(join(root, "LICENSE"), "utf8");

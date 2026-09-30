@@ -1,0 +1,61 @@
+{
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/runs",
+        "json": {
+          "input": "Read the whole filing.",
+          "session_id": "capture-session"
+        }
+      },
+      "status": 202,
+      "body": {
+        "run_id": "run_capture_5",
+        "status": "started",
+        "replayed": false
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/runs/run_capture_5/stop",
+        "json": {}
+      },
+      "status": 200,
+      "body": {
+        "run_id": "run_capture_5",
+        "status": "stopping"
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_5/events"
+      },
+      "status": 200,
+      "sse": [
+        "data: {\"event\": \"message.delta\", \"run_id\": \"run_capture_5\", \"timestamp\": 1767225601.0, \"delta\": \"Reading the filing\"}",
+        "data: {\"event\": \"run.cancelled\", \"run_id\": \"run_capture_5\", \"timestamp\": 1767225602.0}",
+        ": stream closed"
+      ]
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_5"
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run",
+        "run_id": "run_capture_5",
+        "status": "cancelled",
+        "updated_at": 1767225603.0,
+        "created_at": 1767225600.0,
+        "session_id": "capture-session",
+        "model": "hermes-agent",
+        "last_event": "run.cancelled"
+      }
+    }
+  ]
+}

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { matchRanges } from "@/workspace/search";
 import { filenameSearch } from "@/workspace/filename-search";
 describe("workspace search matching", () => {
   it("ranks exact and literal names above typos and keeps folder scope useful", () => {
@@ -93,7 +92,7 @@ describe("workspace search matching", () => {
     ).toBeGreaterThan(0);
     expect(filenameSearch("scael").score("scale1.md", "scale1.md")).toBe(0);
   });
-  it("highlights corrected words and keeps Unicode offsets correct", () => {
+  it("highlights corrected words, merges overlaps and keeps Unicode offsets correct", () => {
     const text = "scale-exact-target.md";
     expect(
       filenameSearch("scael exact")
@@ -106,26 +105,8 @@ describe("workspace search matching", () => {
     expect(filenameSearch("résmué").ranges("résumé.pdf")).toEqual([[0, 6]]);
     expect(filenameSearch("акция").ranges("акциия.md")).toEqual([[0, 6]]);
     expect(filenameSearch("a𐐨bcd").ranges("𐐨abcd.md")).toEqual([[0, 6]]);
-  });
-  it("keeps highlight offsets in original Unicode text and merges overlaps", () => {
-    expect(matchRanges("ΟΣ", ["ΟΣ"])).toEqual([[0, 2]]);
-    expect(matchRanges("İ margin", ["margin"])).toEqual([[2, 8]]);
-    expect(matchRanges("İ", ["i"])).toEqual([[0, 1]]);
-    expect(matchRanges("cash flow", ["cash", "cash flow"])).toEqual([[0, 9]]);
-    expect(matchRanges("😀 margin", ["margin"])).toEqual([[3, 9]]);
-  });
-  it("maps many hits after a Unicode expansion without repeated whole-document scans", () => {
-    const prefix = `İ${" ".repeat(2 * 1024 * 1024)}`;
-    const text = prefix + "needle ".repeat(250);
-    const started = performance.now();
-    const ranges = matchRanges(text, ["needle"]);
-    // A generous regression ceiling: repeated scans took several seconds;
-    // the bounded forward scan takes tens of milliseconds on the same fixture.
-    expect(performance.now() - started).toBeLessThan(1000);
-    expect(ranges).toHaveLength(200);
-    expect(ranges[0]).toEqual([prefix.length, prefix.length + 6]);
-    expect(ranges.every((range) => text.slice(...range) === "needle")).toBe(
-      true,
-    );
+    expect(filenameSearch("cash cashflow").ranges("cashflow.md")).toEqual([
+      [0, 8],
+    ]);
   });
 });

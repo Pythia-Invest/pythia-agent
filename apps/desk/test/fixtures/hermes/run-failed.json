@@ -1,0 +1,50 @@
+{
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/runs",
+        "json": {
+          "input": "Summarize the filing.",
+          "session_id": "capture-session"
+        }
+      },
+      "status": 202,
+      "body": {
+        "run_id": "run_capture_4",
+        "status": "started",
+        "replayed": false
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_4/events"
+      },
+      "status": 200,
+      "sse": [
+        "data: {\"event\": \"message.delta\", \"run_id\": \"run_capture_4\", \"timestamp\": 1767225601.0, \"delta\": \"Looking\"}",
+        "data: {\"event\": \"run.failed\", \"run_id\": \"run_capture_4\", \"timestamp\": 1767225602.0, \"error\": \"Error code: 429 - rate limit reached\"}",
+        ": stream closed"
+      ]
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_4"
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run",
+        "run_id": "run_capture_4",
+        "status": "failed",
+        "updated_at": 1767225603.0,
+        "created_at": 1767225600.0,
+        "session_id": "capture-session",
+        "model": "hermes-agent",
+        "error": "Error code: 429 - rate limit reached",
+        "last_event": "run.failed"
+      }
+    }
+  ]
+}

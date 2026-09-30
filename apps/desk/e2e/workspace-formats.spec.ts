@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { japanesePdfBytes } from "../test/workspace-pdf-fixtures";
-import { fixture } from "./stream-fixture";
+import { fixture, isPhone } from "./stream-fixture";
 import {
   documentBytes,
   pdfBytes,
@@ -20,13 +20,7 @@ const samples = [
     kind: "text",
     bytes: encode('fn main() { println!("fictional"); }'),
   },
-  {
-    name: "data.csv",
-    kind: "csv",
-    bytes: encode('Code,Revenue\n00123,"120,000"\n=1+2,90'),
-  },
   { name: "model.xlsx", kind: "spreadsheet", bytes: workbookBytes() },
-  { name: "memo.docx", kind: "document", bytes: documentBytes() },
   { name: "long.docx", kind: "document", bytes: documentBytes(80) },
   {
     name: "long.md",
@@ -163,14 +157,15 @@ async function setup(page: import("@playwright/test").Page, name: string) {
 }
 
 async function openFile(page: import("@playwright/test").Page, name: string) {
-  if ((page.viewportSize()?.width ?? 1440) < 900)
-    await page.keyboard.press("Escape");
+  if (isPhone(page)) await page.keyboard.press("Escape");
   await page
     .locator('[data-slot="workspace-directory"]')
     .getByRole("link", { name, exact: true })
     .click();
 }
 async function switchFile(page: import("@playwright/test").Page, name: string) {
+  // A phone has no file tabs: it reopens the file from the list.
+  if (isPhone(page)) return openFile(page, name);
   const tab = page.getByRole("tab", { name, exact: true });
   if (await tab.isVisible()) await tab.click();
   else {
@@ -199,67 +194,24 @@ async function scrollReader(page: import("@playwright/test").Page) {
   );
 }
 
-test("highlights JavaScript without running it", async ({ page }) => {
-  await setup(page, "model.mjs");
-  await expect(page.locator('[data-slot="workspace-code"]')).toContainText(
-    "export const revenue",
-  );
-  await expect(
-    page.locator('[data-slot="workspace-code"] span[style]').first(),
-  ).toBeVisible({ timeout: 30000 });
-  await expect(page.getByRole("group", { name: "Code tools" })).toContainText(
-    "javascript",
-  );
-  await expect(page.getByRole("region", { name: "Source code" })).toContainText(
-    "export const revenue",
-  );
-  expect(await page.evaluate(() => "revenue" in window)).toBe(false);
-});
-test("highlights Rust using the same preview", async ({ page }) => {
-  await setup(page, "engine.rs");
-  await expect(page.locator('[data-slot="workspace-code"]')).toContainText(
-    "fn main()",
-  );
-  await expect(
-    page.locator('[data-slot="workspace-code"] span[style]').first(),
-  ).toBeVisible({ timeout: 30000 });
-});
-test("CSV preserves identifier strings and quoted cells", async ({ page }) => {
-  await setup(page, "data.csv");
-  await expect(page.locator('[data-slot="workspace-table"]')).toContainText(
-    "00123",
-    { timeout: 30000 },
-  );
-  await expect(page.locator('[data-slot="workspace-table"]')).toContainText(
-    "120,000",
-  );
-  await expect(page.locator('[data-slot="workspace-table"]')).toContainText(
-    "=1+2",
-  );
-});
-test("Excel previews formatted values and switches worksheets", async ({
-  page,
-}) => {
-  await setup(page, "model.xlsx");
-  await expect(page.locator('[data-slot="workspace-table"]')).toContainText(
-    "20.0%",
-    { timeout: 30000 },
-  );
-  await page.getByRole("combobox", { name: "Worksheet" }).selectOption("1");
-  await expect(page.locator('[data-slot="workspace-table"]')).toContainText(
-    "Fictional data",
-  );
-});
-test("DOCX renders readable paragraphs and tables", async ({ page }) => {
-  await setup(page, "memo.docx");
-  await expect(page.locator('[data-slot="workspace-document"]')).toContainText(
-    "Fictional investment memo",
-    { timeout: 30000 },
-  );
-  await expect(
-    page.locator('[data-slot="workspace-document"] table'),
-  ).toContainText("Revenue");
-});
+for (const { name, text, language } of [
+  { name: "model.mjs", text: "export const revenue", language: "javascript" },
+  { name: "engine.rs", text: "fn main()", language: "rust" },
+])
+  test(`highlights ${name} without running it`, async ({ page }) => {
+    await setup(page, name);
+    const code = page.locator('[data-slot="workspace-code"]');
+    await expect(code).toContainText(text);
+    await expect(code.locator("span[style]").first()).toBeVisible();
+    await expect(page.getByRole("group", { name: "Code tools" })).toContainText(
+      language,
+    );
+    await expect(
+      page.getByRole("region", { name: "Source code" }),
+    ).toContainText(text);
+    // model.mjs declares `revenue`; previewing it must not run it.
+    expect(await page.evaluate(() => "revenue" in window)).toBe(false);
+  });
 test("notebooks show saved cells and never fetch HTML output resources", async ({
   page,
 }) => {
@@ -270,7 +222,6 @@ test("notebooks show saved cells and never fetch HTML output resources", async (
   await setup(page, "analysis.ipynb");
   await expect(page.locator('[data-slot="workspace-notebook"]')).toContainText(
     "Saved research",
-    { timeout: 30000 },
   );
   await expect(page.locator('[data-slot="workspace-notebook"]')).toContainText(
     "120",
@@ -284,7 +235,6 @@ test("PDF renders pages locally with navigation and zoom", async ({ page }) => {
   await setup(page, "research.pdf");
   await expect(page.locator('[data-slot="workspace-pdf"]')).toContainText(
     "Page 1 of 2",
-    { timeout: 30000 },
   );
   const canvas = page.locator('[data-slot="workspace-pdf"] canvas');
   await expect

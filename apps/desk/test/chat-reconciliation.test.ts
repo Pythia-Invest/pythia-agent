@@ -58,6 +58,50 @@ describe("completed history reconciliation", () => {
     expect(result[1]?.id).toBe("run");
   });
 
+  it("keeps saved run timing the live run did not measure", () => {
+    const result = reconcileCompletedHistory(
+      [
+        user,
+        { ...live, metadata: { outcome: "completed", run: { model: "m" } } },
+      ],
+      [
+        saved[0],
+        {
+          ...saved[1],
+          metadata: { run: { durationSeconds: 9, completedAt: 5_000 } },
+        },
+      ],
+      "run",
+    );
+    expect(result[1]?.metadata?.run).toEqual({
+      durationSeconds: 9,
+      completedAt: 5_000,
+      model: "m",
+    });
+  });
+
+  it("keeps guidance Hermes does not save, after the tool call it followed", () => {
+    const steer = {
+      type: "data-steer" as const,
+      id: "steer",
+      data: { text: "Use euros" },
+    };
+    const steered: DeskUIMessage = {
+      ...live,
+      parts: [
+        { ...saved[1].parts[0], toolCallId: "live-call" } as never,
+        steer,
+        { type: "text", text: "Done" },
+      ],
+    };
+    const result = reconcileCompletedHistory([user, steered], saved, "run");
+    expect(result[1]?.parts).toEqual([
+      saved[1].parts[0],
+      steer,
+      saved[1].parts[1],
+    ]);
+  });
+
   it("preserves earlier failure notes when a later turn completes", () => {
     const failed: DeskUIMessage = {
       id: "failed",
@@ -68,6 +112,35 @@ describe("completed history reconciliation", () => {
     const history = [saved[0], { ...failed, parts: [] }, ...saved];
     const result = reconcileCompletedHistory(current, history, "run");
     expect(result[1]).toBe(failed);
+  });
+
+  it.each(["Later background answer", "Done"])(
+    "enriches the submitted turn when native background work has since answered: %s",
+    (text) => {
+      const laterUser: DeskUIMessage = {
+        ...user,
+        id: "background-notification",
+        parts: [{ type: "text", text: "Background task finished" }],
+      };
+      const laterAnswer: DeskUIMessage = {
+        ...saved[1],
+        id: "later-answer",
+        parts: [{ type: "text", text }],
+      };
+      const result = reconcileCompletedHistory(
+        [user, live],
+        [...saved, laterUser, laterAnswer],
+        "run",
+      );
+      expect(result).toHaveLength(2);
+      expect(result[1]?.metadata?.historyRows).toEqual(["native-assistant"]);
+      expect(result[1]?.parts).toEqual([live.parts[0], ...saved[1].parts]);
+    },
+  );
+
+  it("does not enrich an answer until its submitted user boundary is present", () => {
+    const current = [user, live];
+    expect(reconcileCompletedHistory(current, [saved[1]], "run")).toBe(current);
   });
 
   it("enriches the newest turn even after older pages have been loaded", () => {

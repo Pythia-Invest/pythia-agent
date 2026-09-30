@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { useSyntheticDesk } from "./synthetic-desk";
+
+useSyntheticDesk();
 
 const LISTING = "listing:isin:XS0000000001:XAMS:EUR";
 

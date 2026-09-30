@@ -1,6 +1,10 @@
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, renameSync, rmSync } from "node:fs";
 import { createJsonExclusive, readJson } from "./files.mjs";
-import { identityMatches, processIdentity } from "./processes.mjs";
+import {
+  identityMatches,
+  processIdentity,
+  processProvablyGone,
+} from "./processes.mjs";
 import {
   bootstrapRuntime,
   recoverInterruptedProfileInitialization,
@@ -19,6 +23,24 @@ export function validateReceipt(paths, receipt) {
     );
   }
   return receipt;
+}
+
+/**
+ * Sets aside this worktree's receipt when its supervisor and every recorded
+ * child are provably gone, as after a supervisor killed without cleanup. The
+ * receipt is renamed next to itself for inspection, never deleted, and nothing
+ * is signalled. Returns the new path, or null when any recorded process may
+ * still be running and the receipt must stay authoritative.
+ */
+export function retireDeadReceipt(paths) {
+  if (!existsSync(paths.receipt)) return null;
+  const receipt = validateReceipt(paths, readJson(paths.receipt));
+  if (!Array.isArray(receipt.children)) return null;
+  if (![receipt.supervisor, ...receipt.children].every(processProvablyGone))
+    return null;
+  const retired = `${paths.receipt}.stale-${Date.now()}`;
+  renameSync(paths.receipt, retired);
+  return retired;
 }
 
 export function lifecycleRequestRecord(
@@ -139,6 +161,11 @@ export function acquirePreparationAdmission(paths, operation) {
   };
 
   try {
+    const retired = retireDeadReceipt(paths);
+    if (retired)
+      console.warn(
+        `Set aside a development receipt whose processes had all exited: ${retired}`,
+      );
     if (existsSync(paths.receipt)) {
       const receipt = validateReceipt(paths, readJson(paths.receipt));
       const state = identityMatches(receipt.supervisor) ? "live" : "stale";

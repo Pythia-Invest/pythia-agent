@@ -65,41 +65,41 @@ export async function recoverUpdate(paths, hooks = {}) {
     failureReceipt(paths, receipt, error, "stop-unconfirmed");
     throw error;
   }
-  const checkout = assertCleanCheckout(paths.checkout);
-  if (checkout.head === receipt.old_revision) {
-    return applyUpdate(paths, hooks, receipt);
-  }
-  if (checkout.head !== receipt.new_revision) {
-    throw new ReleaseError(
-      "The checkout matches neither revision in the recovery receipt. Manual inspection is required.",
-      "recovery_revision_mismatch",
-    );
-  }
-  const release = {
-    channel: receipt.channel,
-    current_revision: receipt.old_revision,
-    target_revision: receipt.new_revision,
-    current_version: receipt.current_version,
-    target_version: receipt.target_version,
-  };
-  const completeCandidate =
-    hooks.completeCandidate ??
-    ((current) => completeWithCandidate(paths, current));
-  const start =
-    hooks.startAndVerify ??
-    (() => startAndVerify(paths, { enableAfterVerify: false }));
-  const enable =
-    hooks.enable ??
-    (hooks.startAndVerify ? () => undefined : () => serviceAction("enable"));
-  assertTargetCheckout(paths, release);
-  if (release.channel === "stable") {
-    refreshTrustRoot(paths, release);
-    assertTargetCheckout(paths, release);
-  }
-  await completeCandidate(receipt);
-  await hooks.afterCandidate?.();
-  assertTargetCheckout(paths, release);
   try {
+    const checkout = assertCleanCheckout(paths.checkout);
+    if (checkout.head === receipt.old_revision) {
+      return await applyUpdate(paths, hooks, receipt);
+    }
+    if (checkout.head !== receipt.new_revision) {
+      throw new ReleaseError(
+        "The checkout matches neither revision in the recovery receipt. Manual inspection is required.",
+        "recovery_revision_mismatch",
+      );
+    }
+    const release = {
+      channel: receipt.channel,
+      current_revision: receipt.old_revision,
+      target_revision: receipt.new_revision,
+      current_version: receipt.current_version,
+      target_version: receipt.target_version,
+    };
+    const completeCandidate =
+      hooks.completeCandidate ??
+      ((current) => completeWithCandidate(paths, current));
+    const start =
+      hooks.startAndVerify ??
+      (() => startAndVerify(paths, { enableAfterVerify: false }));
+    const enable =
+      hooks.enable ??
+      (hooks.startAndVerify ? () => undefined : () => serviceAction("enable"));
+    assertTargetCheckout(paths, release);
+    if (release.channel === "stable") {
+      refreshTrustRoot(paths, release);
+      assertTargetCheckout(paths, release);
+    }
+    await completeCandidate(receipt);
+    await hooks.afterCandidate?.();
+    assertTargetCheckout(paths, release);
     await hooks.beforeStart?.();
     assertTargetCheckout(paths, release);
     await start();

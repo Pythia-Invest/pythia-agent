@@ -3,6 +3,7 @@ import { workspaceTransitionStatus } from "../update/workspace-transition.mjs";
 import { verifyBasicMemoryReadiness } from "../install/basic-memory-readiness.mjs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { hermesPin, isPinnedHermesHealth } from "./hermes-pin.mjs";
 import { identityMatches, processIdentity } from "./processes.mjs";
 import { runtimeCommands } from "./runtime.mjs";
 import { exitOutcome } from "./supervisor-processes.mjs";
@@ -75,8 +76,10 @@ async function hermesHealth(paths, child, timeoutMs = 45_000) {
     timeoutMs,
   );
   const body = await response.json().catch(() => ({}));
-  if (body.status !== "ok") {
-    throw new Error("Hermes health endpoint returned an unexpected response.");
+  if (!isPinnedHermesHealth(body)) {
+    throw new Error(
+      `Hermes health endpoint did not report the pinned hermes-agent ${hermesPin().packageVersion} (got ${JSON.stringify(body?.version ?? null)}).`,
+    );
   }
 }
 
@@ -106,6 +109,17 @@ export async function hermesReady(paths, child) {
   await hermesHealth(paths, child, 5_000);
 }
 
+/** Hermes's settings server answers its public status route once it is up. */
+export async function hermesSettingsReady(paths, child) {
+  await fetchReady(
+    `http://127.0.0.1:${paths.ports.settings}/api/status`,
+    {},
+    "Hermes settings server",
+    child,
+    60_000,
+  );
+}
+
 export async function deskReady(paths, child) {
   await fetchReady(
     `http://127.0.0.1:${paths.ports.desk}/`,
@@ -116,8 +130,13 @@ export async function deskReady(paths, child) {
   );
 }
 
-export function developmentServices(paths, environment) {
+/**
+ * Each service receives only its own bearer: the chat server and Desk the API
+ * server key, the settings server and Desk the settings token.
+ */
+export function developmentServices(paths, environment, settingsToken) {
   const commands = runtimeCommands(paths);
+  const { API_SERVER_KEY: _chatBearer, ...shared } = environment;
   const services = [
     {
       name: "hermes",
@@ -129,12 +148,25 @@ export function developmentServices(paths, environment) {
       ready: () => undefined,
     },
     {
+      name: "hermes-settings",
+      port: paths.ports.settings,
+      command: commands.hermes,
+      args: commands.hermesSettings,
+      cwd: paths.workspace,
+      environment: { ...shared, HERMES_DASHBOARD_SESSION_TOKEN: settingsToken },
+      ready: () => undefined,
+    },
+    {
       name: "desk",
       port: paths.ports.desk,
       command: "pnpm",
       args: commands.desk,
       cwd: paths.repositoryRoot,
-      environment,
+      environment: {
+        ...environment,
+        PYTHIA_HERMES_SETTINGS_URL: `http://127.0.0.1:${paths.ports.settings}`,
+        PYTHIA_HERMES_SETTINGS_TOKEN: settingsToken,
+      },
       ready: () => undefined,
     },
   ];

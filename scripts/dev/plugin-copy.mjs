@@ -213,17 +213,15 @@ function matches(destination, files, hasReceipt) {
   return visit(destination) && seen.size === expected.length;
 }
 
-export function refreshCopiedPlugin(source, destination, files) {
-  const contents = payload(source, files);
-  const hashes = Object.fromEntries(
-    Object.entries(contents).map(([name, bytes]) => [name, digest(bytes)]),
-  );
-  const nextReceipt = `${JSON.stringify({ schema_version: 1, name: basename(destination), files: hashes }, null, 2)}\n`;
-  // JSON escaping can expand unusual names; never publish a receipt we cannot read.
-  if (Buffer.byteLength(nextReceipt) > MAX_RECEIPT_BYTES)
-    throw new Error(
-      `Managed plugin receipt exceeds ${MAX_RECEIPT_BYTES} bytes; shorten its allowlisted file paths.`,
-    );
+function inspectOwnership(destination, hashes) {
+  const parent = dirname(destination);
+  const parentInfo = info(parent);
+  if (parentInfo && (parentInfo.isSymbolicLink() || !parentInfo.isDirectory()))
+    return {
+      safe: false,
+      kind: "unmanaged",
+      reason: `plugin parent is not a real directory: ${parent}`,
+    };
   const existing = info(destination);
   let ownership = hashes;
   let hasReceipt = false;
@@ -231,7 +229,8 @@ export function refreshCopiedPlugin(source, destination, files) {
   if (existing) {
     if (!existing.isDirectory() || existing.isSymbolicLink())
       return {
-        status: "preserved",
+        safe: false,
+        kind: "unmanaged",
         reason: "destination is not a real plugin directory",
       };
     const previous = receipt(destination);
@@ -247,7 +246,8 @@ export function refreshCopiedPlugin(source, destination, files) {
       !matches(destination, ownership, hasReceipt)
     )
       return {
-        status: "preserved",
+        safe: false,
+        kind: "unmanaged",
         reason:
           previous === undefined
             ? "unreceipted contents do not match the selected payload"
@@ -255,13 +255,53 @@ export function refreshCopiedPlugin(source, destination, files) {
       };
     status = previous ? "updated" : "adopted";
   }
+
+  return {
+    safe: true,
+    kind: status,
+    existing: Boolean(existing),
+    ownership,
+    hasReceipt,
+    fingerprint: digest(JSON.stringify({ ownership, hasReceipt, status })),
+  };
+}
+
+export function inspectManagedPluginCopy(source, destination, files) {
+  const contents = payload(source, files);
+  const hashes = Object.fromEntries(
+    Object.entries(contents).map(([name, bytes]) => [name, digest(bytes)]),
+  );
+  const { existing, ownership, hasReceipt, ...result } = inspectOwnership(
+    destination,
+    hashes,
+  );
+  return { ...result, path: destination };
+}
+
+export function assertManagedPluginCopy(source, destination, files) {
+  const result = inspectManagedPluginCopy(source, destination, files);
+  if (!result.safe)
+    throw new Error(
+      `Managed plugin ownership is unrecognized at ${destination}: ${result.reason}. Preserved without changes. Back up and reconcile this directory before retrying; preserve local customizations.`,
+    );
+  return result;
+}
+
+export function refreshCopiedPlugin(source, destination, files) {
+  const contents = payload(source, files);
+  const hashes = Object.fromEntries(
+    Object.entries(contents).map(([name, bytes]) => [name, digest(bytes)]),
+  );
+  const nextReceipt = `${JSON.stringify({ schema_version: 1, name: basename(destination), files: hashes }, null, 2)}\n`;
+  // JSON escaping can expand unusual names; never publish a receipt we cannot read.
+  if (Buffer.byteLength(nextReceipt) > MAX_RECEIPT_BYTES)
+    throw new Error(
+      `Managed plugin receipt exceeds ${MAX_RECEIPT_BYTES} bytes; shorten its allowlisted file paths.`,
+    );
+  const inspected = inspectOwnership(destination, hashes);
+  if (!inspected.safe) return { status: "preserved", reason: inspected.reason };
+  const { existing, ownership, hasReceipt, kind: status } = inspected;
   const parent = dirname(destination);
-  const parentInfo = info(parent);
-  if (parentInfo && (parentInfo.isSymbolicLink() || !parentInfo.isDirectory()))
-    return {
-      status: "preserved",
-      reason: "plugin parent is not a real directory",
-    };
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const stage = mkdtempSync(join(parent, ".pythia-copy-"));
   const next = join(stage, "value");

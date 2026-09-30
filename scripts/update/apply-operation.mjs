@@ -1,3 +1,4 @@
+import { assertTargetPrerequisites } from "./target-prerequisites.mjs";
 import { assertWorkspaceTransitionReady } from "../update/workspace-transition.mjs";
 import { transactionReceipt, writeTransaction } from "../install/files.mjs";
 import { serviceAction } from "../install/systemd.mjs";
@@ -57,6 +58,16 @@ export async function applyUpdate(paths, hooks = {}, resumeReceipt = null) {
           resumeReceipt.channel === "stable" ? "verified" : "preview-unsigned",
       }
     : discoverRelease(paths);
+  if (
+    (hooks.expectedCurrent &&
+      hooks.expectedCurrent !== release.current_revision) ||
+    (hooks.expectedTarget && hooks.expectedTarget !== release.target_revision)
+  ) {
+    throw new ReleaseError(
+      "The selected update build changed. Check for updates again.",
+      "release_changed",
+    );
+  }
   if (!release.update_available) return { updated: false, release };
   let targetReference;
   if (resumeReceipt) {
@@ -91,6 +102,9 @@ export async function applyUpdate(paths, hooks = {}, resumeReceipt = null) {
     targetReference = fetchTarget(paths, release);
   }
   assertDescendant(paths, before.head, targetReference);
+  // Recovery retains old targets that predate the read-only handshake.
+  // Its service stop is already explicit; candidate preparation still checks prerequisites.
+  if (!resumeReceipt) assertTargetPrerequisites(paths, release.target_revision);
   await hooks.beforeStop?.();
   const transaction = writeTransaction(paths, {
     ...(resumeReceipt ?? {}),

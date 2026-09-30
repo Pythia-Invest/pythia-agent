@@ -12,10 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import {
-  DeviceSettingsError,
-  type Readiness,
-} from "./device-settings-contract";
+import { DeviceSettingsError } from "./device-settings-contract";
 
 type JsonStore = Record<string, unknown> & { schema_version?: unknown };
 
@@ -43,15 +40,29 @@ export function privateDirectory(path: string) {
   }
 }
 
-function privateFile(path: string) {
-  const info = lstatSync(path);
-  if (!info.isFile() || info.isSymbolicLink()) return false;
-  return process.platform === "win32" || (info.mode & 0o077) === 0;
+export function resolveConfigRoot(environment: NodeJS.ProcessEnv) {
+  const value = environment.PYTHIA_CONFIG_ROOT;
+  if (value) return resolve(value);
+  const hermesHome = environment.HERMES_HOME;
+  if (hermesHome && isAbsolute(hermesHome)) return dirname(resolve(hermesHome));
+  throw new DeviceSettingsError(
+    "Pythia device settings are not configured for this runtime.",
+    503,
+    "settings_not_configured",
+  );
 }
 
+// The paused list is settings.json's only writer here, so the read and the
+// atomic write stay private to this module.
 function readStore(path: string): JsonStore | null {
   if (!existsSync(path)) return { schema_version: 1 };
-  if (!privateFile(path)) return null;
+  const info = lstatSync(path);
+  if (
+    !info.isFile() ||
+    info.isSymbolicLink() ||
+    (process.platform !== "win32" && (info.mode & 0o077) !== 0)
+  )
+    return null;
   try {
     const value: unknown = JSON.parse(readFileSync(path, "utf8"));
     if (value === null || typeof value !== "object" || Array.isArray(value))
@@ -63,7 +74,7 @@ function readStore(path: string): JsonStore | null {
   }
 }
 
-export function requireStore(path: string) {
+function requireStore(path: string) {
   const store = readStore(path);
   if (store === null) {
     throw new DeviceSettingsError(
@@ -75,7 +86,7 @@ export function requireStore(path: string) {
   return store;
 }
 
-export function atomicWriteStore(path: string, value: JsonStore) {
+function atomicWriteStore(path: string, value: JsonStore) {
   privateDirectory(dirname(path));
   const temporary = join(
     dirname(path),
@@ -98,34 +109,6 @@ export function atomicWriteStore(path: string, value: JsonStore) {
   } finally {
     rmSync(temporary, { force: true });
   }
-}
-
-export function tokenStatus(value: unknown): Readiness {
-  if (value === undefined || value === null || value === "") return "missing";
-  return typeof value === "string" &&
-    value.length <= 512 &&
-    !/\s/u.test(value) &&
-    ![...value].some((character) => {
-      const code = character.codePointAt(0) ?? 0;
-      return code < 32 || code === 127;
-    })
-    ? "configured"
-    : "invalid";
-}
-
-export function resolveConfigRoot(
-  environment: NodeJS.ProcessEnv,
-  explicit?: string,
-) {
-  const value = explicit ?? environment.PYTHIA_CONFIG_ROOT;
-  if (value) return resolve(value);
-  const hermesHome = environment.HERMES_HOME;
-  if (hermesHome && isAbsolute(hermesHome)) return dirname(resolve(hermesHome));
-  throw new DeviceSettingsError(
-    "Pythia device settings are not configured for this runtime.",
-    503,
-    "settings_not_configured",
-  );
 }
 
 /** Adds or removes one plugin in settings.json's paused list, keeping every

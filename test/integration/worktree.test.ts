@@ -1,5 +1,4 @@
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -49,16 +48,6 @@ function run(source: string, worktrees: string, ...args: string[]): string {
   });
 }
 
-function directoryName(branch: string) {
-  const safeName = branch
-    .replace(/[^A-Za-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
-  if (safeName === branch) return branch;
-  const suffix = createHash("sha256").update(branch).digest("hex").slice(0, 8);
-  return `${safeName || "branch"}-${suffix}`;
-}
-
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
@@ -72,9 +61,10 @@ describe("managed contributor worktrees", () => {
     git(source, "branch", branch);
 
     const output = run(source, worktrees, "create", branch);
-    const worktree = path.join(worktrees, directoryName(branch));
+    const worktree = /Worktree created at (.+)/u.exec(output)?.[1] ?? "";
 
-    expect(output).toContain(`Worktree created at ${worktree}`);
+    // The branch's slash does not nest the checkout below the managed base.
+    expect(path.dirname(worktree)).toBe(worktrees);
     expect(existsSync(worktree)).toBe(true);
     expect(git(worktree, "branch", "--show-current")).toBe(branch);
     expect(run(source, worktrees, "list")).toContain(worktree);

@@ -58,11 +58,3 @@ export function closeTab(
     openIds,
   };
 }
-
-/** Opens a chat in the strip, appending it only when it is not already there. */
-export function openTab(
-  ids: readonly string[],
-  openingId: string,
-): readonly string[] {
-  return ids.includes(openingId) ? ids : [...ids, openingId];
-}

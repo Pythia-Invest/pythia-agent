@@ -54,7 +54,7 @@ function text(value: unknown) {
     : "";
 }
 
-// Deliberately exclude endpoints, credential metadata, pricing and unknown fields.
+// Deliberately exclude endpoints, credential metadata and unknown fields.
 export function modelCatalog(value: unknown): ModelCatalog {
   const source = record(value);
   return {

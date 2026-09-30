@@ -7,12 +7,14 @@ import {
   secondary,
   security,
 } from "./instrument-fixture";
+import { useSyntheticDesk } from "./synthetic-desk";
 
 /**
  * Instrument page smoke. Core identity answers, plugin reads and the price
  * widget declaration are synthetic routes, so no provider is contacted and the
- * profile's data never matters; the rest of Desk is the running stack.
+ * profile's data never matters; the rest of Desk is the synthetic fixture.
  */
+useSyntheticDesk();
 async function routeIdentity(page: Page) {
   let release = () => {};
   const resolved = new Promise<void>((resolve) => {
@@ -127,7 +129,8 @@ test("a chosen subject opens its page; cards load and fail independently", async
   page,
 }) => {
   const { release, operations } = await routeIdentity(page);
-  await page.goto("/workspace");
+  // A page with no reads of its own hosts the announcement.
+  await page.goto("/filings");
   await page.evaluate((subject_id) => {
     window.dispatchEvent(
       new CustomEvent("pythia:open-subject", { detail: { subject_id } }),
@@ -366,22 +369,34 @@ test("the header stays the instrument's while a receipt's price is shown", async
   ).toContainText("XS0000000001");
 });
 
-test("a receipt's search row opens the instrument's page on that listing", async ({
+test("a top bar's chosen receipt opens the instrument's page on that listing", async ({
   page,
 }) => {
   await routeIdentity(page);
-  await page.goto("/workspace");
-  const field = page.getByRole("combobox", { name: "Search investments" });
-  await field.click();
-  await field.fill("synthetic");
-  await page.getByRole("option", { name: /^SYNY,/ }).click();
-  // The page is the instrument (the security the receipt folds into); the
-  // receipt is only the listing whose price it shows.
-  await expect(page).toHaveURL(
-    new RegExp(
-      `/instrument/${encodeURIComponent(security)}\\?listing=${encodeURIComponent(receipt)}$`,
-    ),
-  );
+  await page.goto("/filings");
+  // A top-bar module announces a chosen investment and the shell routes it.
+  // The search list's own choice of that receipt is proved in the market-data
+  // unit tests; no plugin module is served here. The shell listens once it
+  // has hydrated, so announce until the route changes.
+  await expect(async () => {
+    await page.evaluate(
+      ([subject_id, listing_id]) =>
+        window.dispatchEvent(
+          new CustomEvent("pythia:open-subject", {
+            detail: { subject_id, listing_id },
+          }),
+        ),
+      [security, receipt],
+    );
+    // The page is the instrument (the security the receipt folds into); the
+    // receipt is only the listing whose price it shows.
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/instrument/${encodeURIComponent(security)}\\?listing=${encodeURIComponent(receipt)}$`,
+      ),
+      { timeout: 1_000 },
+    );
+  }).toPass();
   await expect(
     page.getByRole("button", { name: /^Listing: SYNY · Nasdaq · USD/ }),
   ).toBeVisible();

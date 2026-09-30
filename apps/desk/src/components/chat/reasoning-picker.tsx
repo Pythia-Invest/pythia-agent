@@ -89,14 +89,14 @@ export function ReasoningPicker({
       <SelectTrigger
         appearance="inline"
         aria-label="Reasoning effort"
-        className="h-7 max-w-44 shrink-0 px-1.5 text-foreground-disabled text-xs hover:text-foreground-secondary"
+        className="h-7 max-w-44 shrink-0 px-1.5 text-foreground-secondary text-xs hover:text-foreground"
       >
         <SelectValue className="min-w-0 truncate">
           Reasoning · {effortLabels[selection.effort ?? "default"]}
         </SelectValue>
       </SelectTrigger>
       <SelectPortal>
-        <SelectPositioner align="start" side="top">
+        <SelectPositioner align="end" side="top">
           <SelectPopup className="max-h-[min(20rem,var(--available-height))] w-52">
             <SelectList className="max-h-[min(15.25rem,calc(var(--available-height)-0.5rem))]">
               <SelectGroup className="flex gap-1 px-1 pt-1 pb-0.5">

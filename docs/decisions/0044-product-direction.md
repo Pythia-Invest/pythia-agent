@@ -376,7 +376,7 @@ central curator exists.
 - **Sources are read only when asked.** A catalogue is read from Settings →
   Data sources ("Sync now"), and one identifier is looked up from search's
   "Look up in X". There is no scheduler.
-- **A source switches off at once, from Settings.** Settings → Data sources
+- **A source switches off at once, from Settings.** Settings → Data → Data sources
   has a switch per source that pauses it: a paused plugin counts as disabled
   for data, with no restart, and its subjects and saved references keep
   resolving, labelled as paused. The section shows first which subjects only

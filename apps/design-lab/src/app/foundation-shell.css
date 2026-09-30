@@ -124,8 +124,6 @@
 .lab-segments button[aria-pressed="true"] {
   background: var(--py-surface-raised);
   color: var(--py-text-primary);
-  box-shadow: 0 1px 2px
-    color-mix(in srgb, var(--py-text-primary) 10%, transparent);
 }
 
 .lab-viewport-stage {

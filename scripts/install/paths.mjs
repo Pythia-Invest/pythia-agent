@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { hermesPin } from "../dev/hermes-pin.mjs";
 
 function root(environment, explicit, xdg, fallback) {
   return resolve(
@@ -57,7 +58,7 @@ export function resolveInstallPaths(environment = process.env) {
   return {
     id: "production",
     profile,
-    ports: { hermes: 8645, memory: 8643, desk: 8644 },
+    ports: { hermes: 8645, memory: 8643, desk: 8644, settings: 8646 },
     checkout,
     repositoryRoot: checkout,
     configRoot,
@@ -91,6 +92,7 @@ export function resolveInstallPaths(environment = process.env) {
     ),
     serviceEnvironments: {
       hermes: join(configRoot, "service-hermes.environment"),
+      settings: join(configRoot, "service-hermes-settings.environment"),
       desk: join(configRoot, "service-desk.environment"),
     },
     serviceLauncher: checkout
@@ -100,11 +102,7 @@ export function resolveInstallPaths(environment = process.env) {
     binRoot: binBase,
     installedCommand: join(binBase, "pythia"),
     fetchCache: join(cacheRoot, "downloads"),
-    hermesSource: join(
-      runtimeRoot,
-      "hermes",
-      "29112bef099274229cadff79cdff7bf7b99c4b77",
-    ),
+    hermesSource: join(runtimeRoot, "hermes", hermesPin().commit),
     managedRoot: checkout ? join(checkout, "runtime", "managed") : null,
     // Historical environment retained only for the explicit Basic Memory transition.
     legacyPython: join(runtimeRoot, "managed-python"),
@@ -124,7 +122,11 @@ export function publicPathSummary(paths) {
     data: paths.dataRoot,
     runtime: paths.runtimeRoot,
     profile: paths.profile,
-    ports: { hermes: paths.ports.hermes, desk: paths.ports.desk },
+    ports: {
+      hermes: paths.ports.hermes,
+      settings: paths.ports.settings,
+      desk: paths.ports.desk,
+    },
     desk_url: `http://127.0.0.1:${paths.ports.desk}`,
   };
 }

@@ -6,7 +6,10 @@ import {
 
 it("pins installed authentication and status to the root profile", () => {
   vi.stubEnv("PYTHIA_PYTHON_EXECUTABLE", "/fixture/python");
-  const run = vi.fn(() => ({ status: 0, stdout: "" }));
+  const run = vi.fn((_command: string, _args: string[], _options: object) => ({
+    status: 0,
+    stdout: "",
+  }));
   try {
     for (const status of [false, true]) {
       nativeAuth(
@@ -35,29 +38,26 @@ it("pins installed authentication and status to the root profile", () => {
 });
 
 describe("installed lifecycle failure guidance", () => {
-  it("routes each failed mutation to its owning recovery command", () => {
-    const stopped = { services: "stopped" };
-    const rebuild = lifecycleFailureGuidance("rebuild", stopped);
-    expect(rebuild).toContain("pythia rebuild");
-    expect(rebuild).not.toContain("pythia recover");
+  const stopped = { services: "stopped" };
+  const unconfirmed = { services: "stop-unconfirmed" };
+  it.each([
+    ["rebuild", stopped, "pythia rebuild", "pythia recover"],
+    ["rebuild", unconfirmed, "pythia rebuild", "pythia recover"],
+    ["rebuild", null, "rebuild was refused", "pythia recover"],
+    ["update", stopped, "pythia recover", null],
+    ["recover", stopped, "pythia recover", null],
+    ["install", stopped, "./install.sh", "pythia recover"],
+    ["install", null, "./install.sh", "pythia recover"],
+  ] as const)(
+    "routes a failed %s (%j) to its owning recovery command",
+    (command, services, expected, notExpected) => {
+      const guidance = lifecycleFailureGuidance(command, services);
+      expect(guidance).toContain(expected);
+      if (notExpected) expect(guidance).not.toContain(notExpected);
+    },
+  );
 
-    for (const command of ["update", "recover"]) {
-      expect(lifecycleFailureGuidance(command, stopped)).toContain(
-        "pythia recover",
-      );
-    }
-
-    const install = lifecycleFailureGuidance("install", stopped);
-    expect(install).toContain("./install.sh");
-    expect(install).not.toContain("pythia recover");
-  });
-
-  it("keeps pre-stop and unconfirmed-stop guidance operation-specific", () => {
-    expect(lifecycleFailureGuidance("rebuild", null)).toContain("rebuild");
-    expect(
-      lifecycleFailureGuidance("rebuild", { services: "stop-unconfirmed" }),
-    ).toContain("pythia rebuild");
-    expect(lifecycleFailureGuidance("install", null)).toContain("./install.sh");
+  it("offers no recovery guidance for a read-only command", () => {
     expect(lifecycleFailureGuidance("doctor", null)).toBeNull();
   });
 });

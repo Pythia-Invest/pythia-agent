@@ -1,10 +1,6 @@
-import {
-  hasWorkspaceContext,
-  splitWorkspaceNotes,
-} from "@/workspace/references";
 import type { UIMessageChunk } from "ai";
 import type { DeskRunEvent, RunStatus } from "@/server/types";
-import type { DeskDataParts } from "./chat-message";
+import { type DeskDataParts, steerData } from "./chat-message";
 import type { ModelSelection } from "@/server/model-catalog";
 import { RunDelegations } from "./run-delegations";
 import { terminalEvent } from "./run-terminal-event";
@@ -123,6 +119,30 @@ export class RunEventMapper {
     return { durationSeconds: (endedAt - this.#firstEventAt) / 1000 };
   }
 
+  #steeredAt: number | undefined;
+
+  /** Guidance Hermes accepted, under the id its optimistic copy was shown with. */
+  steered(
+    event: DeskRunEvent,
+    steer: { id: string; text: string } | undefined,
+  ): DeskChunk[] {
+    const out = this.map(event);
+    if (!steer) return out;
+    const at = millis(event.timestamp) ?? Date.now();
+    const since = this.#steeredAt ?? this.#firstEventAt;
+    this.#steeredAt = at;
+    out.push({
+      type: "data-steer",
+      id: steer.id,
+      data: steerData(
+        steer.text,
+        at,
+        since === undefined ? undefined : (at - since) / 1000,
+      ),
+    });
+    return out;
+  }
+
   map(event: DeskRunEvent): DeskChunk[] {
     const out: DeskChunk[] = [];
     if (this.#firstEventAt === undefined)
@@ -165,6 +185,7 @@ export class RunEventMapper {
         break;
       }
       case "subagent.start": {
+        out.push(...this.#delegations.event(event));
         // Hermes narrates each delegated task; attach it to the open
         // delegate_task call, or stand one up when the call itself was filtered.
         const open =
@@ -176,6 +197,7 @@ export class RunEventMapper {
         break;
       }
       case "subagent.complete": {
+        out.push(...this.#delegations.event(event));
         const open = this.#pendingTools.get("delegate_task")?.at(-1);
         if (!open) break;
         out.push(...this.#delegations.complete(event, open.toolCallId));
@@ -253,21 +275,9 @@ export class RunEventMapper {
         });
         break;
       }
-      case "run.steered": {
-        if (!event.text) break;
-        const steer = splitWorkspaceNotes(event.text);
-        out.push({
-          type: "data-steer",
-          id: this.#id("steer"),
-          data: {
-            text: steer.text,
-            ...(hasWorkspaceContext(steer.context)
-              ? { context: steer.context }
-              : {}),
-          },
-        });
+      case "run.steered":
+        // Only `steered` knows which guidance Hermes accepted.
         break;
-      }
       case "run.completed": {
         // AI SDK text deltas append. Its native reset-step replaces only the
         // current text step, preserving earlier commentary, tools and approvals.
@@ -297,6 +307,7 @@ export class RunEventMapper {
             outcome: "completed",
             run: {
               ...this.#runDuration(event),
+              completedAt: millis(event.timestamp) ?? Date.now(),
               ...(event.usage ? { usage: event.usage } : {}),
               ...(this.#selection?.model
                 ? { model: this.#selection.model }

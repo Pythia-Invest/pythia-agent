@@ -2,70 +2,44 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { dirname, join } from "node:path";
+import { describe, expect, it } from "vitest";
 import { atomicWriteJson } from "../../scripts/dev/files.mjs";
 import { resolveStackPaths, stackIdentity } from "../../scripts/dev/paths.mjs";
 import {
   assertHermesRuntimePath,
+  authenticate,
   authenticationStatus,
   ensureNativeWorkspaceCwd,
-  inheritModelDefaults,
   nativeRootAuthArguments,
   runtimeCommands,
 } from "../../scripts/dev/runtime.mjs";
-import { copySourceSnapshot } from "../../tooling/source-snapshot.mjs";
-
-const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
-  /\/$/u,
-  "",
-);
-const temporaryRoots: string[] = [];
-
-function temporaryRoot() {
-  const root = mkdtempSync(join(tmpdir(), "pythia-dev-test-"));
-  temporaryRoots.push(root);
-  return root;
-}
-
-function environment(root: string, repo?: string) {
-  const checkout = repo ?? join(root, "checkout");
-  // Port identity follows the checkout, not XDG roots. Give each fixture its
-  // own source path so running tests never claims an open developer stack.
-  if (repo === undefined && !existsSync(checkout))
-    copySourceSnapshot(repositoryRoot, checkout);
-  return {
-    ...process.env,
-    PYTHIA_DEV_REPO_ROOT: checkout,
-    PYTHIA_DEV_CONFIG_HOME: join(root, "config"),
-    PYTHIA_DEV_STATE_HOME: join(root, "state"),
-    PYTHIA_DEV_DATA_HOME: join(root, "data"),
-    PYTHIA_DEV_CACHE_HOME: join(root, "cache"),
-  };
-}
-
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
+import {
+  developmentEnvironment,
+  developmentPaths,
+  temporaryRoot,
+} from "../support/dev-stack.js";
 
 describe("worktree identity and native command construction", () => {
-  it("observes native root auth status without initializing or writing secrets", async () => {
+  it("runs native root auth and status without initializing, preparing or writing secrets", async () => {
     const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
-    mkdirSync(join(paths.hermesSource, ".venv", "bin"), {
-      recursive: true,
-    });
+    const paths = developmentPaths(root);
     mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 });
     const hermes = runtimeCommands(paths).hermes;
-    writeFileSync(hermes, "#!/bin/sh\nprintf '%s\\n' \"$HERMES_HOME|$*\"\n");
+    const authLog = join(root, "native-auth.log");
+    mkdirSync(dirname(hermes), { recursive: true });
+    writeFileSync(
+      hermes,
+      `#!/bin/sh\nprintf '%s\\n' "$HERMES_HOME|$*" | tee -a '${authLog}'\n`,
+    );
     chmodSync(hermes, 0o700);
+    const copiedPlugin = join(paths.profileRoot, "plugins/pythia/plugin.yaml");
+    mkdirSync(dirname(copiedPlugin), { recursive: true, mode: 0o700 });
+    writeFileSync(copiedPlugin, "preserved-auth-copy\n");
     atomicWriteJson(paths.runtimeReceipt, {
       schema_version: 1,
       stack: paths.id,
@@ -75,14 +49,30 @@ describe("worktree identity and native command construction", () => {
       state_root: paths.stateRoot,
     });
 
+    await authenticate(paths, "openai-codex");
     await expect(authenticationStatus(paths, "openai-codex")).resolves.toBe(
       `${paths.hermesRoot}|-p default auth status openai-codex`,
     );
+    const nativeCalls = [
+      `${paths.hermesRoot}|-p default auth add --type oauth openai-codex`,
+      `${paths.hermesRoot}|-p default auth status openai-codex`,
+    ];
+    expect(readFileSync(authLog, "utf8").trim().split("\n")).toEqual(
+      nativeCalls,
+    );
+    expect(readFileSync(copiedPlugin, "utf8")).toBe("preserved-auth-copy\n");
     expect(existsSync(join(paths.configRoot, "secrets.json"))).toBe(false);
+    expect(existsSync(paths.preparationAdmission)).toBe(false);
 
     rmSync(paths.runtimeReceipt);
+    await expect(authenticate(paths, "openai-codex")).rejects.toThrow(
+      /just dev-init/u,
+    );
     await expect(authenticationStatus(paths, "openai-codex")).rejects.toThrow(
       /just dev-init/u,
+    );
+    expect(readFileSync(authLog, "utf8").trim().split("\n")).toEqual(
+      nativeCalls,
     );
     expect(existsSync(join(paths.configRoot, "secrets.json"))).toBe(false);
   });
@@ -93,7 +83,10 @@ describe("worktree identity and native command construction", () => {
     const second = join(base, "second");
     mkdirSync(first);
     mkdirSync(second);
-    const shared = environment(base, first);
+    const shared = {
+      ...developmentEnvironment(base),
+      PYTHIA_DEV_REPO_ROOT: first,
+    };
     const a = resolveStackPaths({ environment: shared });
     const b = resolveStackPaths({
       environment: { ...shared, PYTHIA_DEV_REPO_ROOT: second },
@@ -112,24 +105,27 @@ describe("worktree identity and native command construction", () => {
     const identity = stackIdentity("/tmp/Example Worktree");
     expect(identity).toEqual(stackIdentity("/tmp/Example Worktree"));
     expect(identity.profile).toMatch(/^pythia-[a-f0-9]{12}$/u);
-    expect(new Set(Object.values(identity.ports)).size).toBe(3);
+    expect(new Set(Object.values(identity.ports)).size).toBe(4);
+    // Every stack's three consecutive ports fall below 43000, so no stack's
+    // settings server can take another stack's Hermes, memory or Desk port.
+    expect(Math.max(identity.ports.hermes, identity.ports.desk)).toBeLessThan(
+      43000,
+    );
+    expect(identity.ports.settings).toBeGreaterThanOrEqual(43000);
+    expect(identity.ports.settings).toBeLessThan(50000);
   });
 
   it("rejects a profile root that would disable Hermes loop liveness", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({
-      environment: environment(
-        join(root, "an-extremely-long-segment".repeat(5)),
-      ),
-    });
+    const paths = developmentPaths(
+      join(temporaryRoot(), "an-extremely-long-segment".repeat(5)),
+    );
     expect(() => assertHermesRuntimePath(paths, "darwin")).toThrow(
       /too long.*loop-liveness socket/u,
     );
   });
 
   it("constructs only the qualified native commands", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     const commands = runtimeCommands(paths);
     expect(commands.profileCreate).toEqual([
       "profile",
@@ -145,7 +141,6 @@ describe("worktree identity and native command construction", () => {
       "run",
       "--external-supervisor",
     ]);
-    expect(commands).not.toHaveProperty("basicMemoryMcp");
     expect(commands.managedRunnerBuild).toEqual(["run", "build:runtime"]);
     expect(commands.desk).toEqual([
       "--filter",
@@ -173,53 +168,6 @@ describe("worktree identity and native command construction", () => {
       "logout",
       "openai-codex",
     ]);
-    for (const action of ["add", "status", "logout"]) {
-      expect(nativeRootAuthArguments(action, "openai-codex")).not.toContain(
-        "-p",
-      );
-    }
-  });
-
-  it("inherits only shared model fields once through native config commands", () => {
-    const paths = resolveStackPaths({
-      environment: environment(temporaryRoot()),
-    });
-    let current: unknown = "";
-    const commands: string[][] = [];
-    const shared = {
-      provider: "openai-codex",
-      default: "fixture-model",
-      api_key: "must-not-copy",
-    };
-    const execute = (_paths: unknown, args: string[]) => {
-      commands.push(args);
-      if (args[1] === "default") return JSON.stringify(shared);
-      if (args[3] === "set") {
-        current = {
-          ...(typeof current === "object" ? current : {}),
-          [args[4].slice("model.".length)]: args[5],
-        };
-        return "saved";
-      }
-      return JSON.stringify(current);
-    };
-    expect(inheritModelDefaults(paths, "fixture-key", { execute })).toBe(true);
-    expect(current).toEqual({
-      provider: "openai-codex",
-      default: "fixture-model",
-    });
-    commands.length = 0;
-    shared.provider = "openrouter";
-    expect(inheritModelDefaults(paths, "fixture-key", { execute })).toBe(false);
-    expect(commands).toHaveLength(1);
-    current = { provider: "anthropic" };
-    expect(inheritModelDefaults(paths, "fixture-key", { execute })).toBe(false);
-    current = "";
-    expect(inheritModelDefaults(paths, "fixture-key", { execute })).toBe(true);
-    expect(current).toEqual({
-      provider: "openrouter",
-      default: "fixture-model",
-    });
     expect(nativeRootAuthArguments("add", "openrouter", "api-key")).toEqual([
       "auth",
       "add",
@@ -230,67 +178,16 @@ describe("worktree identity and native command construction", () => {
     expect(() =>
       nativeRootAuthArguments("add", "openrouter", "unknown"),
     ).toThrow();
-  });
-
-  it("leaves an unconfigured profile alone when shared defaults are absent", () => {
-    const paths = resolveStackPaths({
-      environment: environment(temporaryRoot()),
-    });
-    const execute = vi.fn(() => JSON.stringify(""));
-    expect(inheritModelDefaults(paths, "fixture-key", { execute })).toBe(false);
-    expect(execute).toHaveBeenCalledTimes(2);
-  });
-
-  it.each([
-    "https://user:secret@models.example/v1",
-    "https://models.example/v1?key=secret",
-    "https://models.example/v1#secret",
-  ])(
-    "rejects credential-bearing shared endpoints before writing: %s",
-    (base_url) => {
-      const paths = resolveStackPaths({
-        environment: environment(temporaryRoot()),
-      });
-      const execute = vi.fn((_paths: unknown, args: string[]) =>
-        JSON.stringify(
-          args[1] === "default"
-            ? { provider: "openrouter", default: "fixture-model", base_url }
-            : "",
-        ),
+    for (const action of ["add", "status", "logout"]) {
+      expect(nativeRootAuthArguments(action, "openai-codex")).not.toContain(
+        "-p",
       );
-      expect(() =>
-        inheritModelDefaults(paths, "fixture-key", { execute }),
-      ).toThrow("Shared model endpoint must not contain");
-      expect(execute.mock.calls.some(([, args]) => args.includes("set"))).toBe(
-        false,
-      );
-    },
-  );
-
-  it("requires native readback and preserves a string model choice", () => {
-    const paths = resolveStackPaths({
-      environment: environment(temporaryRoot()),
-    });
-    const execute = vi.fn((_paths: unknown, args: string[]) =>
-      JSON.stringify(
-        args[1] === "default"
-          ? { provider: "openrouter", default: "fixture-model" }
-          : "",
-      ),
-    );
-    expect(() =>
-      inheritModelDefaults(paths, "fixture-key", { execute }),
-    ).toThrow("Hermes did not retain");
-    const existing = vi.fn(() => JSON.stringify("my-model"));
-    expect(
-      inheritModelDefaults(paths, "fixture-key", { execute: existing }),
-    ).toBe(false);
-    expect(existing).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("seeds native terminal.cwd once, reads it back, and preserves an override", () => {
     const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths(root);
     let configured: string | null = null;
     const commands: string[][] = [];
     const execute = (_paths: unknown, args: string[]) => {
@@ -324,8 +221,7 @@ describe("worktree identity and native command construction", () => {
   });
 
   it("diagnoses an older profile without silently migrating terminal.cwd", () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     const commands: string[][] = [];
     expect(() =>
       ensureNativeWorkspaceCwd(paths, "fixture-api-key", {

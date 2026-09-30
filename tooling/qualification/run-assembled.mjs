@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   CONTEXT_PASS_TOOLSET,
   CONTEXT_TOOL,
+  pinnedHermesArchive,
   QUALIFICATION_PARENT,
+  sha256,
 } from "./assembled-cache.mjs";
 import {
   instrumentContextProbe,
@@ -23,6 +25,12 @@ import {
   runAssembledCommand,
   seedSyntheticState,
 } from "./assembled-operations.mjs";
+import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
+import { runHermesCapture } from "./hermes-capture.mjs";
+
+const REPOSITORY_ROOT = resolve(
+  fileURLToPath(new URL("../..", import.meta.url)),
+);
 
 const READY_TIMEOUT_MS = 4 * 60_000;
 const STOP_TIMEOUT_MS = 20_000;
@@ -150,17 +158,47 @@ async function stopOwnedStack(root, stack, child) {
   await waitForExit(child, STOP_TIMEOUT_MS);
 }
 
+/** Keep the verified archive dev-init just downloaded for the next run. */
+function keepHermesArchive(environment, directory) {
+  const pinned = pinnedHermesArchive(REPOSITORY_ROOT);
+  const kept = join(directory, pinned.name);
+  if (existsSync(kept)) return;
+  const downloaded = join(
+    resolveStackPaths({ environment }).fetchCache,
+    pinned.name,
+  );
+  if (!existsSync(downloaded) || sha256(downloaded) !== pinned.sha256) return;
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  copyFileSync(downloaded, kept);
+}
+
 export async function runAssembledQualification() {
   mkdirSync(QUALIFICATION_PARENT, { recursive: true, mode: 0o700 });
   const root = join(QUALIFICATION_PARENT, `assembled-${randomUUID()}`);
   let assembled;
   let child;
   try {
-    assembled = prepareAssembledFixture(root);
+    // CI keeps the verified Hermes archive between nightly runs so each run
+    // does not depend on an unauthenticated download.
+    const archiveCache = process.env.PYTHIA_QUALIFICATION_ARCHIVE_CACHE;
+    assembled = prepareAssembledFixture(root, { archiveCache });
     const stack = assembled.stacks.one;
     instrumentContextProbe(root, "one");
     runAssembledCommand(root, "one", ["just", "dev-init"]);
+    if (archiveCache) keepHermesArchive(stack.environment, archiveCache);
     qualifyAgentTools(stack);
+    // The fixture has just hydrated the pinned Hermes; compare the committed
+    // goldens with a fresh provider-free capture from it (ADR 0020).
+    if (
+      runHermesCapture({
+        hermesSource: stack.paths.hermesSource,
+        repositoryRoot: REPOSITORY_ROOT,
+        check: true,
+      }) !== 0
+    )
+      throw new Error(
+        "Committed Hermes goldens differ from the pinned capture.",
+      );
     const seededState = seedSyntheticState(root, "one");
     const seededSession = seedNativeSession(root, "one");
     child = spawn("just", ["dev"], {
@@ -183,6 +221,7 @@ export async function runAssembledQualification() {
       agent_tools: "qualified",
       context_probe: CONTEXT_PASS_TOOLSET,
       native_skills: observation.native_skills,
+      hermes_capture: "match",
       provider_or_model_call: false,
       stack: stack.id,
     };

@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { workspaceFixture, returnToBrowser } from "./workspace-fixture";
+import {
+  closeFile,
+  returnToBrowser,
+  workspaceFixture,
+} from "./workspace-fixture";
 import { fixture } from "./stream-fixture";
 
 test("opens host file URLs through Workspace and reports unavailable paths", async ({
@@ -138,7 +142,7 @@ test("opens an artifact beside its originating chat and returns keyboard focus",
     "Synthetic research version 1",
   );
   await expect(page).toHaveURL(/\/c\/synthetic-chat$/);
-  await returnToBrowser(page);
+  await closeFile(page, "notes.md");
   await expect(page.locator('[data-slot="workspace-companion"]')).toHaveCount(
     0,
   );
@@ -283,9 +287,7 @@ test("Workspace keeps the folder browser while files open in the shared companio
   await expect(page.locator('[data-slot="workspace-sidebar"]')).toHaveCount(0);
   if (testInfo.project.name === "desktop")
     await expect(directory).toBeVisible();
-  await page
-    .getByRole("button", { name: "Close notes.md", exact: true })
-    .click();
+  await closeFile(page, "notes.md");
   await expect(directory).toBeVisible();
   await expect(page.locator('[data-slot="workspace-companion"]')).toHaveCount(
     0,

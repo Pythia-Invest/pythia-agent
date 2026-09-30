@@ -78,3 +78,14 @@ known_plugin_toolsets:
     - pythia-core
 auxiliary:
   free_only: true
+platform_hints:
+  api_server:
+    replace: >-
+      You are responding in Pythia Desk, which supports Markdown formatting.
+      File/media delivery: images referenced as MEDIA:/absolute/path tags
+      (.png/.jpg/.jpeg/.gif/.webp/.bmp, up to 5MB) are inlined as base64 data
+      URLs in responses on the chat, completions, and responses endpoints.
+      Non-image files are NOT intercepted anywhere, and the runs endpoint
+      intercepts nothing — a MEDIA: tag there renders as literal text exposing
+      a raw host filesystem path. For those cases, state the plain file path
+      in your response text instead of a MEDIA: tag.

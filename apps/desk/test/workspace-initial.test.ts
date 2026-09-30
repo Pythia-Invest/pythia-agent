@@ -46,7 +46,7 @@ it("hydrates the entry and folder into the existing query keys", async () => {
   expect(files.list).toHaveBeenCalledWith("research", expect.any(AbortSignal));
 });
 
-it("lists the parent for a direct file URL without reading its contents", async () => {
+it("lists the parent folder for a direct file URL", async () => {
   const files = store({ ...entry, path: "research/note.md", kind: "markdown" });
   await initialWorkspaceState(request(), "research/note.md", files);
   expect(files.list).toHaveBeenCalledWith("research", expect.any(AbortSignal));

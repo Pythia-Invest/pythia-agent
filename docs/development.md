@@ -61,30 +61,44 @@ that host; the Lab has no API identity check, so keep it on a trusted tailnet.
 Run these commands from the repository root:
 
 ```sh
-just bootstrap # hydrate the exact pnpm lockfile
-just check     # deterministic syntax, structure, dependency, lint, type, build
-just test      # ordinary pull-request tests, including the platform smoke
-just qualify   # broad install, update, and assembled-runtime qualification
-just audit     # registry/network dependency audit
+just bootstrap    # hydrate the exact pnpm lockfile
+just check-static # seconds: format, lint, structure, boundaries, workflows
+just check        # check-static plus every type surface and the production builds
+just test         # ordinary pull-request tests, including the platform smoke
+just qualify      # broad install, update, and assembled-runtime qualification
+just audit        # registry/network audit of production dependencies
 ```
 
-`just check` does not run tests or contact a package registry. `just audit` is
-the only registry audit and checks the production dependency surface. Tests
-and CI are credential-free and use synthetic provider fixtures. Use
-`just test-fast` for the deterministic behavior suite and `just test-system`
-for the small real-process lifecycle smoke. Qualification runs after changes
-land on `main` and on explicit release-oriented runs; it is intentionally not
-part of every pull request.
+Run `just check-static` before every push and `just check` before asking for a
+merge; most CI failures are static checks that take seconds locally.
+`just check` does not run tests or contact a package registry. Tests and CI are
+credential-free and use synthetic provider fixtures. Use `just test-fast` for
+the deterministic behavior suite and `just test-system` for the small
+real-process lifecycle smoke.
 
-### Browser smoke tests
+CI ([ADR 0037](decisions/0037-one-required-ci-gate.md)) runs the same recipes
+as parallel jobs behind one required `CI gate` check. Merge only when it is
+green. The nightly workflow runs broad qualification and a full dependency
+audit on every push to `main`, daily, and by dispatch. It is intentionally not
+part of every pull request, but a red nightly run is fixed first.
 
-Desk has a Playwright smoke suite in `apps/desk/e2e/` that drives a Desk you
-already started with `just dev`. It is not part of `just test`. Install the
-pinned Chromium once (the workspace sets `ignore-scripts`, so Playwright does
-not download it on install), then pass the Desk origin from `just dev-paths`:
+### Browser tests
+
+Desk's Playwright suite lives in `apps/desk/e2e/`. Install the pinned Chromium
+once (the workspace sets `ignore-scripts`, so Playwright does not download it
+on install). After `just check-build`, run the hermetic suite against this
+checkout's production Desk with disposable state and no Hermes. CI requires
+this suite:
 
 ```sh
 pnpm --filter @pythia/desk exec playwright install chromium
+just test-e2e-hermetic
+```
+
+Specs in `apps/desk/e2e/live/` need a real profile. Run every spec against a
+Desk you started with `just dev`, passing its origin from `just dev-paths`:
+
+```sh
 just test-e2e http://127.0.0.1:<desk-port>
 ```
 
@@ -104,7 +118,7 @@ or adopts another running service.
 ```sh
 just dev-init               # hydrate and configure exact pinned runtimes
 just dev-init-recover       # remove a receipt-proven partial first profile
-just dev                    # Hermes + Desk, one foreground owner
+just dev                    # Hermes, its settings server and Desk, one foreground owner
 just dev-refresh            # explicitly prepare and replace selected consumers
 just status                 # owner-verified state for this worktree only
 just stop                   # graceful stop for this worktree only
@@ -115,12 +129,30 @@ just auth-status openai-codex
 just model                 # choose shared provider/model defaults, once
 ```
 
-`just dev` binds only `127.0.0.1` and exits with an actionable error if one of
-its ports is occupied. Before launching Hermes, it also waits boundedly for the
+`just dev` runs three services: Hermes's API server, Hermes's settings server
+(`hermes serve --isolated`, which Desk's Settings reads and writes through; see
+[ADR 0021](decisions/0021-hermes-settings-server.md)) and Desk. The settings
+server's port is `43000` plus the stack's slot, apart from the three
+consecutive ports of the other services. `just dev` binds only `127.0.0.1` and
+exits with an actionable error if one of its ports is occupied. Before launching Hermes, it also waits boundedly for the
 API port to become reusable under Hermes's native bind semantics. `Ctrl-C` and
 `just stop` propagate through the same foreground owner and clean up both
 children. A stale or foreign process receipt is reported but never signalled,
-adopted, or deleted around.
+adopted, or deleted around. The one exception is a receipt whose supervisor
+and every child have provably exited, as after the owner was killed without
+cleanup: each recorded PID is free or now belongs to a process with a
+different start time or command. `just dev`, `just dev-init`, `just stop` and
+`just dev-reset` then rename it to `foreground.json.stale-<time>` beside itself
+and continue, without signalling anything. If any recorded process might still
+be running, or its identity cannot be read, the receipt stays authoritative.
+
+When the supervisor has provably exited but a recorded child still runs and
+holds a port (as when the owner died while its Hermes kept listening),
+`just stop` terminates each child whose live PID, start time and command match
+the receipt exactly, skips any recorded PID that is free or now belongs to
+another process, waits for the stack's ports to be released, then sets the
+receipt aside and reports what it stopped. It never signals a process it cannot
+match to the receipt, and never touches another worktree's stack.
 
 Desk source uses Next.js hot reload while `just dev` is running. There is no
 automatic watcher for managed Hermes, plugin, runner, or dependency source.
@@ -180,6 +212,40 @@ and model must be selected; Pythia does not guess from available accounts or
 switch to a paid provider. Endpoints containing embedded credentials, query
 parameters, or fragments are rejected.
 
+If that selection names a custom provider, preparation first inherits its
+matching native `providers` or `custom_providers` definition. It copies only
+the selected definition's supported non-secret fields (endpoint, transport,
+model metadata and environment-variable names), through native config setters
+with readback. Legacy list entries are translated as Hermes translates them
+(the endpoint becomes `api`, `model` becomes `default_model`, `api_mode`
+becomes `transport`); an existing profile definition takes precedence. A
+`providers.<id>` block for a built-in provider (timeouts, per-model options)
+is settings, not a definition, and is left alone, as is a disabled entry.
+Inline keys, headers, credential commands and arbitrary request bodies are
+rejected with guidance to configure the profile through Hermes. Unrelated
+providers and general configuration are never merged. If a provider write
+succeeds but its readback does not match, preparation stops; the written row
+then belongs to the profile, and a later run leaves it in place.
+
+Hermes expands `${VAR}` references when it reads configuration, so a root
+definition whose fields reference environment variables is copied with the
+values they had at that moment, including values from the root `.env`. Keep
+secrets out of templated provider fields; credentials belong in `key_env`
+names or the native credential pool.
+
+An environment-variable name is not a credential: Hermes does not inherit the
+root `.env` into named profiles. Shared authentication belongs in Hermes's
+native root credential pool, configured explicitly with `just auth <provider>
+api-key`. Defining a custom endpoint does not prove its credentials work. In
+this pin, custom model discovery reads the profile's configured key/environment;
+a shared credential pool usable for inference does not by itself guarantee
+authenticated live model discovery. Saved model metadata remains available.
+The pinned `auth status` dispatcher also lacks a custom-provider branch and
+reports those providers as logged out even when their native pool resolves.
+Do not use that message, or a configured picker row alone, as proof of custom
+inference readiness. Native credential resolution and an explicitly authorized
+inference check answer different questions.
+
 For ordinary chat, use Desk's provider/model/reasoning picker instead. On the
 first send from an empty profile, Desk saves the explicitly selected,
 authenticated provider and model through native profile config commands and
@@ -196,9 +262,8 @@ defaults affects only unconfigured profiles, not stacks already using them.
 After choosing defaults for an already-running unconfigured stack, run
 `just stop` and `just dev`, then start a new conversation. Set a different
 stack choice through native `hermes -p <profile> model` with the executable and
-`HERMES_HOME` printed by `just dev-paths`. Advanced custom-provider definitions
-and other root configuration are not copied; configure those in the target
-profile through Hermes.
+`HERMES_HOME` printed by `just dev-paths`. More advanced custom-provider settings
+outside the supported inheritance fields remain native profile configuration.
 
 The native dotted setters write each eligible field and verify the resulting
 selection. If a write is interrupted, startup fails rather than guessing how
@@ -314,6 +379,20 @@ use a trusted development tailnet and restrict network access with Tailscale
 ACLs. This is not a multi-user hosted service or an authentication layer for
 arbitrary reverse proxies. Tailscale handles certificates and forwarding; Desk
 uses Next's native `allowedDevOrigins` for remote hot reload.
+
+## Upgrading Hermes
+
+Hermes is one exact release recorded in `runtime/versions.json`; code reads the
+pin from there and `just check` rejects a disagreeing
+`runtime/hermes/hermes-source.json`. Every Pythia dependency on Hermes
+behavior has a row in the contract's
+[touchpoint index](../runtime/contracts/hermes.md#touchpoint-index), and its
+[known defects](../runtime/contracts/hermes.md#known-defects-at-this-pin) say
+what the next release must fix. An upgrade is an explicit
+`upgrade-hermes` workflow: review the candidate against the index, bump the
+pin, hydrate with `just dev-init`, rerun the wire capture and review its diff,
+fix and document, then run `just check`, `just test`, `just qualify` and a Desk
+smoke test. [ADR 0019](decisions/0019-hermes-upgrade-procedure.md) records why.
 
 ## Where changes belong
 

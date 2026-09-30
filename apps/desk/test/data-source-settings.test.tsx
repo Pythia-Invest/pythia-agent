@@ -8,7 +8,7 @@ import {
   DataSourceSettings,
   effectLine,
   syncLine,
-} from "@/components/shell/data-source-settings";
+} from "@/components/settings/data-sources";
 
 const state = vi.hoisted(() => ({
   plugins: [] as unknown[],

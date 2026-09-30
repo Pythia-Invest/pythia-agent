@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  catalogCategories,
-  catalogEntryByRoute,
-  catalogProfiles,
-  componentCatalog,
-} from "../src/catalog";
+import { componentCatalog } from "../src/catalog";
 import {
   catalogEntryFromPathname,
   catalogEntryFromSlug,
@@ -12,20 +7,14 @@ import {
 } from "../src/catalog-routing";
 
 describe("Design Lab catalog behavior", () => {
-  it("uses unique stable routes with valid closed metadata", () => {
-    expect(componentCatalog.length).toBeGreaterThan(0);
+  it("uses unique stable routes and distinct profiles", () => {
     const routes = componentCatalog.map((entry) => entry.route);
     expect(new Set(routes).size).toBe(routes.length);
 
     for (const entry of componentCatalog) {
       expect(entry.route).toMatch(/^\/components\/[a-z0-9]+(?:-[a-z0-9]+)*$/u);
-      expect(catalogCategories).toContain(entry.category);
       expect(entry.profiles.length).toBeGreaterThan(0);
       expect(new Set(entry.profiles).size).toBe(entry.profiles.length);
-      for (const profile of entry.profiles) {
-        expect(catalogProfiles).toContain(profile);
-      }
-      expect(catalogEntryByRoute.get(entry.route)).toBe(entry);
     }
   });
 

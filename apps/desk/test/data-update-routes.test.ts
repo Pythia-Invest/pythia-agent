@@ -65,13 +65,9 @@ test("missing or unsafe plugin ownership and untrusted browser requests never re
   const routes = createDataUpdateRoutes(environment);
   const valid = { plugin: "local", operation: "query", arguments: {} };
   expect((await routes.dataUpdates(request([valid], false))).status).toBe(403);
-  for (const resource of [
-    { operation: "query", arguments: {} },
-    { ...valid, plugin: "../local" },
-    { ...valid, plugin: "local%2Fother" },
-    { ...valid, operation: "../query" },
-  ])
-    expect((await routes.dataUpdates(request([resource]))).status).toBe(400);
+  // Path-shaped names are refused by the shared plugin request schema.
+  const unowned = { operation: "query", arguments: {} };
+  expect((await routes.dataUpdates(request([unowned]))).status).toBe(400);
   expect(fetcher).not.toHaveBeenCalled();
 });
 

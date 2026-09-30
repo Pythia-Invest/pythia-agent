@@ -1,14 +1,22 @@
 "use client";
 
-import { WorkspaceReferenceCards } from "./workspace-reference-cards";
-
-import { useMemo } from "react";
+import { Fragment, useContext, useMemo } from "react";
 import type { DeskUIMessage } from "@/client/chat-message";
+import type { OptimisticSteer } from "@/client/desk-chat";
 import type { ApprovalChoice } from "@/server/types";
 import { ApprovalCard, AssistantText, RunStatusNote } from "./message-parts";
-import { ProcessBlock } from "./process-block";
-import { splitTurn } from "./turn-model";
+import { hasVisibleWork, TurnActivity } from "./turn-activity";
+import { TurnWork, turnAgents } from "./turn-work";
+import {
+  activityTurn,
+  type SteerPart,
+  segmentSeconds,
+  steerSegments,
+  toolPending,
+} from "./turn-model";
 import { AnswerActions } from "./answer-actions";
+import { SteerMessage } from "./user-message";
+import { CitationPagesProvider } from "./citations";
 
 export type RespondToApproval = (
   runId: string,
@@ -16,117 +24,179 @@ export type RespondToApproval = (
   requestId?: string,
 ) => void;
 
-export function AssistantMessage({
-  approvalPending,
-  message,
-  onRetry,
-  onRespondToApproval,
-  streaming,
-  turnStartedAt,
-}: {
+type AssistantMessageProps = {
   approvalPending: boolean;
   message: DeskUIMessage;
   onRetry?: (() => void) | undefined;
   onRespondToApproval: RespondToApproval;
   streaming: boolean;
   turnStartedAt: number;
+  /** False while an agent followed through its saved steps is still working. */
+  finalized?: boolean;
+  onInspectActivity?: (() => void) | undefined;
+  /** The newest reply keeps its actions visible; earlier ones reveal on hover. */
+  latest?: boolean;
+};
+
+/**
+ * One Hermes run. Guidance the user sent while it worked is shown where the
+ * run received it, as their own message: the work before it closes there, and
+ * the work after it continues below.
+ */
+export function AssistantMessage({
+  sending = [],
+  ...props
+}: AssistantMessageProps & {
+  /** Guidance already shown to the reader that the run has not reported yet. */
+  sending?: OptimisticSteer[];
 }) {
+  const { message, turnStartedAt } = props;
+  const segments = useMemo(
+    () =>
+      steerSegments([
+        ...message.parts,
+        // The same id the reported part will carry, so the hand-off is stable.
+        ...sending.map(
+          (steer): SteerPart => ({
+            type: "data-steer",
+            id: steer.id,
+            data: {
+              text: steer.text,
+              at: steer.at,
+              ...(steer.context ? { context: steer.context } : {}),
+            },
+          }),
+        ),
+      ]),
+    [message.parts, sending],
+  );
+  const seconds = segmentSeconds(
+    segments,
+    turnStartedAt,
+    message.metadata?.run?.durationSeconds,
+  );
+  // Always a list, so earlier work keeps its state when guidance arrives.
+  return (
+    <CitationPagesProvider parts={message.parts}>
+      {segments.map((segment, index) => (
+        <Fragment key={index}>
+          {segment.steer ? (
+            <SteerMessage
+              entering={sending.some((item) => item.id === segment.steer?.id)}
+              id={segment.steer.id ?? `${message.id}:steer:${index}`}
+              key={segment.steer.id ?? "steer"}
+              steer={segment.steer.data}
+            />
+          ) : null}
+          <AssistantTurn
+            {...props}
+            key="turn"
+            message={{ ...message, parts: segment.parts }}
+            turnStartedAt={segment.steer?.data.at ?? turnStartedAt}
+            duration={seconds[index]}
+            closed={index < segments.length - 1}
+          />
+        </Fragment>
+      ))}
+    </CitationPagesProvider>
+  );
+}
+
+function AssistantTurn({
+  approvalPending,
+  message,
+  onRetry,
+  onRespondToApproval,
+  streaming,
+  turnStartedAt,
+  finalized,
+  onInspectActivity,
+  latest = true,
+  duration = message.metadata?.run?.durationSeconds,
+  closed = false,
+}: AssistantMessageProps & {
+  duration?: number | undefined;
+  /** Work that ended where the user added guidance; never live, never the answer. */
+  closed?: boolean;
+}) {
+  // An agent followed through its saved steps has no token stream: its text
+  // is commentary until it finishes, and its last turn stays live until then.
+  const stepwise = finalized === false;
   const turn = useMemo(
-    () => splitTurn(message.id, message.parts),
-    [message.id, message.parts],
+    () => activityTurn(message, streaming && !stepwise),
+    [message, streaming, stepwise],
   );
-  const active = streaming && !turn.approvals.length && !turn.status.length;
-  const processSteps = turn.blocks.flatMap((block) =>
-    block.kind === "process" ? block.steps : [],
+  // A turn Hermes reported complete is no longer live, even for the one render
+  // in which its saved copy arrives before the stream state settles.
+  const active =
+    !closed &&
+    streaming &&
+    !turn.status.length &&
+    message.metadata?.outcome !== "completed";
+  // Work that begins after the answer started brings the live line back;
+  // unfinished calls from before it never do.
+  const firstProse = message.parts.findIndex(
+    (part) =>
+      part.type === "text" &&
+      part.text.trim() &&
+      part.providerMetadata?.pythia?.preview !== true,
   );
-  const firstProcess = turn.blocks.findIndex(
-    (block) => block.kind === "process",
+  const resumed =
+    firstProse >= 0 &&
+    message.parts
+      .slice(firstProse)
+      .some((part) => part.type === "dynamic-tool" && toolPending(part));
+  const work = useContext(TurnWork);
+  const agents = useMemo(
+    () =>
+      turnAgents(
+        turn.steps,
+        message.parts.flatMap((part) =>
+          part.type === "data-agent" ? [part.data] : [],
+        ),
+        work?.agents ?? [],
+      ),
+    [turn.steps, message.parts, work?.agents],
   );
-  const latestProcess = turn.blocks.findLastIndex(
-    (block) => block.kind === "process",
-  );
-  const latestPreview = turn.blocks.findLastIndex(
-    (block) =>
-      block.kind === "text" &&
-      block.part.providerMetadata?.pythia?.preview === true,
-  );
-  const activityText =
-    latestPreview > latestProcess && turn.blocks[latestPreview]?.kind === "text"
-      ? turn.blocks[latestPreview].part.text
-      : undefined;
-  const answerStreaming =
-    active &&
-    turn.blocks.some(
-      (block, index) =>
-        index > latestProcess &&
-        block.kind === "text" &&
-        block.part.providerMetadata?.pythia?.preview !== true &&
-        block.part.state === "streaming",
-    );
-  const processActive = active && !answerStreaming;
-  const answerText = turn.blocks
-    .flatMap((block) =>
-      block.kind === "text" &&
-      block.part.providerMetadata?.pythia?.preview !== true
-        ? [block.part.text]
-        : [],
-    )
-    .join("\n\n");
+  const showActivity =
+    hasVisibleWork(turn.steps, agents) || (active && turn.prose.length === 0);
+  // Guidance that arrived before any visible work closes nothing to show.
+  if (
+    closed &&
+    !showActivity &&
+    !turn.prose.length &&
+    !turn.approvals.length &&
+    !turn.status.length
+  )
+    return null;
   return (
     <div
-      className="grid min-w-0 gap-1.5 text-start"
+      className="group/message grid min-w-0 gap-1.5 text-start"
       data-role="assistant"
       data-slot="message"
     >
-      {turn.blocks.map((block, index) => {
-        if (block.kind === "process") {
-          if (index !== firstProcess) return null;
-          return (
-            <ProcessBlock
-              active={processActive}
-              activityText={activityText}
-              duration={message.metadata?.run?.durationSeconds}
-              key={block.key}
-              runActive={streaming}
-              since={turnStartedAt}
-              steps={processSteps}
-            />
-          );
-        }
-        if (block.kind === "steer") {
-          return (
-            <div
-              className="grid justify-start gap-1 py-0.5"
-              data-slot="steer-note"
-              key={block.key}
-            >
-              <p className="m-0 max-w-[85%] truncate text-foreground-disabled text-xs leading-ui">
-                Direction added · {block.part.data.text}
-              </p>
-              <WorkspaceReferenceCards context={block.part.data.context} />
-            </div>
-          );
-        }
-        if (active && block.part.providerMetadata?.pythia?.preview === true)
-          return null;
-        return (
-          <div className="min-w-0" key={block.key}>
-            <AssistantText
-              streaming={streaming && block.part.state === "streaming"}
-              text={block.part.text}
-            />
-          </div>
-        );
-      })}
-      {processActive && firstProcess === -1 ? (
-        <ProcessBlock
-          active
-          activityText={activityText}
-          runActive
+      {showActivity ? (
+        <TurnActivity
           since={turnStartedAt}
-          steps={[]}
+          active={active}
+          answering={!stepwise && turn.prose.length > 0}
+          onInspect={onInspectActivity}
+          duration={duration}
+          runActive={streaming}
+          steps={turn.steps}
+          agents={agents}
+          paused={turn.approvals.length > 0}
+          resumed={resumed}
         />
       ) : null}
+      {turn.prose.map((block) => (
+        <div key={block.key} data-slot="assistant-prose">
+          <AssistantText
+            streaming={active && block.part.state === "streaming"}
+            text={block.part.text}
+          />
+        </div>
+      ))}
       {turn.approvals.map((part, index) => (
         <ApprovalCard
           active={streaming && !turn.status.length}
@@ -145,7 +215,13 @@ export function AssistantMessage({
           onRetry={onRetry}
         />
       ))}
-      {!streaming && answerText ? <AnswerActions text={answerText} /> : null}
+      {!streaming && !closed && turn.answer ? (
+        <AnswerActions
+          completedAt={message.metadata?.run?.completedAt}
+          latest={latest}
+          text={turn.answer.text}
+        />
+      ) : null}
     </div>
   );
 }

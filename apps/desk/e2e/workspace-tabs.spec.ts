@@ -1,9 +1,22 @@
+import { isPhone } from "./stream-fixture";
 import { expect, test } from "@playwright/test";
-import { workspaceFixture, returnToBrowser } from "./workspace-fixture";
+import {
+  closeFile,
+  expectOpenFiles,
+  returnToBrowser,
+  switchFile,
+  workspaceFixture,
+} from "./workspace-fixture";
+
+// File tabs are desktop only: a phone shows one file at a time and reopens
+// another from the file list, which workspace-formats covers.
+const noTabs = (page: import("@playwright/test").Page) =>
+  test.skip(isPhone(page), "No file tabs on a phone.");
 
 test("file tabs reuse chat switching, keyboard selection and adjacent close behavior", async ({
   page,
 }) => {
+  noTabs(page);
   await workspaceFixture(page);
   await page.goto("/workspace/research");
   await page
@@ -33,9 +46,8 @@ test("file tabs reuse chat switching, keyboard selection and adjacent close beha
     .getByRole("searchbox", { name: "Search files and folders" })
     .fill("risk");
   await page.getByRole("link", { name: "comparison.md", exact: true }).click();
-  const tabs = page.getByRole("tablist", { name: "Open files", exact: true });
-  await expect(tabs.getByRole("tab")).toHaveCount(2);
-  await tabs.getByRole("tab", { name: "notes.md", exact: true }).click();
+  await expectOpenFiles(page, 2);
+  await switchFile(page, "notes.md");
   await expect(page.locator('[data-slot="workspace-markdown"] h1')).toHaveText(
     "Synthetic research version 1",
   );
@@ -43,6 +55,8 @@ test("file tabs reuse chat switching, keyboard selection and adjacent close beha
     .poll(() => viewport.evaluate((element) => element.scrollTop))
     .toBe(450);
   await expect(page).toHaveURL(/\/workspace\/research$/);
+  // The strip is a tablist: arrow keys move between files.
+  const tabs = page.getByRole("tablist", { name: "Open files", exact: true });
   await tabs.getByRole("tab", { name: "notes.md", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
   await expect(
@@ -51,15 +65,11 @@ test("file tabs reuse chat switching, keyboard selection and adjacent close beha
   await expect(page.locator('[data-slot="workspace-markdown"] h1')).toHaveText(
     "Synthetic risk comparison",
   );
-  await tabs
-    .getByRole("button", { name: "Close comparison.md", exact: true })
-    .click();
-  await expect(
-    tabs.getByRole("tab", { name: "notes.md", exact: true }),
-  ).toHaveAttribute("aria-selected", "true");
-  await tabs
-    .getByRole("button", { name: "Close notes.md", exact: true })
-    .click();
+  await closeFile(page, "comparison.md");
+  await expect(page.locator('[data-slot="workspace-markdown"] h1')).toHaveText(
+    "Synthetic research version 1",
+  );
+  await closeFile(page, "notes.md");
   await expect(page.locator('[data-slot="workspace-companion"]')).toHaveCount(
     0,
   );
@@ -74,6 +84,7 @@ for (const initialHeading of ["", "#evidence"]) {
   test(`an explicit heading wins over pending tab scroll restoration (${initialHeading || "new heading"})`, async ({
     page,
   }) => {
+    noTabs(page);
     await workspaceFixture(page);
     await page.goto(`/workspace/research/notes.md${initialHeading}`);
     const viewport = page.locator('[data-slot="workspace-reader-scroll"]');
@@ -107,7 +118,7 @@ for (const initialHeading of ["", "#evidence"]) {
       await route.fallback();
     });
     await page.clock.setFixedTime(new Date(Date.now() + 20_000));
-    await page.getByRole("tab", { name: "notes.md", exact: true }).click();
+    await switchFile(page, "notes.md");
     await pending;
     await page
       .getByRole("link", { name: "Jump to evidence", exact: true })
@@ -160,7 +171,7 @@ test("explorer breadcrumbs navigate folders without opening menus or changing fi
   await expect(page.getByRole("menu")).toHaveCount(0);
   await nav.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(/\/workspace\/research$/);
-  if ((page.viewportSize()?.width ?? 1440) >= 900) {
+  if (!isPhone(page)) {
     await expect(
       page.getByRole("tab", { name: "notes.md", exact: true }),
     ).toHaveAttribute("title", "research/nested/notes.md");
@@ -195,6 +206,8 @@ test("Up follows the displayed folder on direct file links", async ({
 test("automatically shows new bytes and preserves the reading position", async ({
   page,
 }) => {
+  // The open file's revision is polled; advance the page clock past it.
+  await page.clock.install();
   const f = await workspaceFixture(page);
   await page.goto("/workspace/research/notes.md#evidence");
   const content = page.locator('[data-slot="workspace-markdown"] h1');
@@ -219,9 +232,10 @@ test("automatically shows new bytes and preserves the reading position", async (
     )
     .toBeGreaterThan(0);
   f.nextVersion();
+  await page.clock.runFor(5_000);
   await expect(
     page.locator('[data-slot="workspace-file-updated"]'),
-  ).toBeVisible({ timeout: 12000 });
+  ).toBeVisible();
   await expect(content).toHaveText("Synthetic research version 2");
   await expect(
     page.locator('[data-slot="workspace-file-updated"]'),
@@ -299,7 +313,7 @@ test("workspace references stay with the selected independent draft through its 
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "Cross-panel targeting qualification; narrow reference behavior is covered above.",
   );
   const f = await workspaceFixture(page);

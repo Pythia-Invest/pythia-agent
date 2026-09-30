@@ -13,7 +13,7 @@ describe("action semantics", () => {
     const html = renderToStaticMarkup(<Button loading>Delete thesis</Button>);
     expect(html).toContain("Delete thesis");
     expect(html).toContain('aria-busy="true"');
-    expect(html).toContain("disabled");
+    expect(html).toMatch(/^<button[^>]* disabled=""/u);
   });
 
   it("requires a precise accessible label for an icon-only action", () => {

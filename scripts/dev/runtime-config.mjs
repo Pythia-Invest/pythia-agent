@@ -9,6 +9,10 @@ import {
 } from "./files.mjs";
 import { runtimeEnvironment } from "./environment.mjs";
 import { run } from "./runtime-source.mjs";
+import {
+  inheritCustomProvider,
+  validateSharedEndpoint,
+} from "./runtime-provider-defaults.mjs";
 
 export function runtimeCommands(paths) {
   const hermes = join(paths.hermesSource, ".venv", "bin", "hermes");
@@ -27,6 +31,18 @@ export function runtimeCommands(paths) {
       "gateway",
       "run",
       "--external-supervisor",
+    ],
+    // Hermes's own settings server: the same backend Hermes Desktop uses,
+    // scoped to Pythia's profile and reachable only from this device.
+    hermesSettings: [
+      "-p",
+      paths.profile,
+      "serve",
+      "--isolated",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(paths.ports.settings),
     ],
     managedRunnerBuild: ["run", "build:runtime"],
     desk: [
@@ -53,6 +69,13 @@ export function nativeRootAuthArguments(action, provider, type = "oauth") {
   throw new Error(`Unsupported native Hermes auth action: ${action}`);
 }
 
+const newBearer = () => randomBytes(32).toString("base64url");
+
+/**
+ * The device's two Hermes bearers: one for the chat API server and one for
+ * the Hermes settings server. A store from before the settings server gains
+ * its bearer in place; neither value is ever rotated here.
+ */
 export function secrets(paths) {
   const path = join(paths.configRoot, "secrets.json");
   if (existsSync(path)) {
@@ -66,11 +89,25 @@ export function secrets(paths) {
         `Hermes API bearer is missing or invalid in ${path}; repair it through the Pythia device-settings owner.`,
       );
     }
+    if (value.hermes_settings_token === undefined) {
+      const upgraded = { ...value, hermes_settings_token: newBearer() };
+      atomicWriteJson(path, upgraded);
+      return upgraded;
+    }
+    if (
+      typeof value.hermes_settings_token !== "string" ||
+      value.hermes_settings_token.length < 16
+    ) {
+      throw new Error(
+        `Hermes settings bearer is invalid in ${path}; remove it to have Pythia issue a new one.`,
+      );
+    }
     return value;
   }
   const value = {
     schema_version: 1,
-    hermes_api_key: randomBytes(32).toString("base64url"),
+    hermes_api_key: newBearer(),
+    hermes_settings_token: newBearer(),
   };
   atomicWriteJson(path, value);
   return value;
@@ -177,14 +214,28 @@ export function inheritModelDefaults(
     if (typeof value !== "string")
       throw new Error("Shared model selection must use native string fields.");
     if (key === "base_url") {
-      const url = new URL(value);
-      if (url.username || url.password || url.search || url.hash)
-        throw new Error(
-          "Shared model endpoint must not contain credentials, query parameters or fragments.",
-        );
+      validateSharedEndpoint(value);
     }
     selection[key] = value;
   }
+  const read = (profile, key, missing) => {
+    try {
+      return JSON.parse(
+        execute(paths, ["-p", profile, "config", "get", key, "--json"], apiKey),
+      );
+    } catch (error) {
+      if (
+        missing !== undefined &&
+        error instanceof Error &&
+        error.message.includes(`Config key not set: ${key}`)
+      )
+        return missing;
+      throw error;
+    }
+  };
+  inheritCustomProvider(selection, paths.profile, read, (profile, key, value) =>
+    execute(paths, ["-p", profile, "config", "set", key, value], apiKey),
+  );
   // Upstream treats bare `model` as string-typed even for a JSON object.
   // Dotted native setters create the mapping without writing YAML ourselves.
   for (const [key, value] of Object.entries(selection)) {

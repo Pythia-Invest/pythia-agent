@@ -67,3 +67,28 @@ coverage gates, source and CSS snapshots, automatic flaky-test retries, full
 assembled qualification on every pull request, default live-provider tests,
 and advisory-only file limits. It also rejects importing a second lint stack,
 dependency graph framework, or mandatory Git hook without a demonstrated need.
+
+## Test audit (2026-09)
+
+By September 2026 the suite had grown to about 30,000 lines. That is typical
+of agent-written tests: each small change added a test, whether or not it
+protected anything new. The project adopted OpenClaw's test-audit method as
+the `test-audit` builder skill, with its authoring gate and junk-pattern list,
+and ran one campaign across every workspace. Seven read-only lanes produced
+per-test ledgers, and implementation lanes applied them with a deliberate
+mutation proving each repaired guard. Independent reviewers then checked that
+no contract lost its only proof.
+
+The campaign removed about a tenth of the test lines and several hundred lines
+of production code that only tests kept alive. It stopped short of the 20%
+goal because most remaining tests guarded real contracts; deleting without a
+named remaining proof is not allowed. It found about a dozen negative tests
+that passed for the wrong reason, a desktop focus bug, a test-run hazard that
+could delete a live stack's view records, and a qualification fixture that had
+kept the nightly run red for 19 days.
+
+Every new or changed test now passes the skill's authoring gate
+([test allocation](../../.agents/testing.md)). `tooling/check-tests.mjs`
+refuses the mechanical patterns: focused, unexplained or permanent skips, hard
+waits, snapshots, retries, and an empty selection passing. Coverage is
+measured during a campaign to show protection was kept, never set as a target.

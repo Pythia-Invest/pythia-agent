@@ -20,6 +20,7 @@ import {
 import { CHAT_MEASURE_CLASS, ChatOpeningLayout } from "./chat-opening";
 import { CatalogError, ConnectionNote } from "./chat-status";
 import { Composer } from "./composer";
+import { ChatWork } from "./chat-work";
 import { Conversation } from "./conversation";
 import { ErrorMessage } from "./message-parts";
 import { takePendingPrompt } from "./pending-prompt";
@@ -69,6 +70,7 @@ function ChatSession({
     connection,
     startedAt: turnStartedAt,
     stopError,
+    steers,
   } = useSyncExternalStore(
     session.subscribe,
     session.snapshot,
@@ -143,15 +145,6 @@ function ChatSession({
   );
 
   const busy = chat.status === "streaming" || chat.status === "submitted";
-  const steer = useCallback(
-    (
-      text: string,
-      context?: import("@/workspace/references").WorkspaceContext,
-    ) =>
-      session.transport.steer(sessionId, text, context).then(() => undefined),
-    [sessionId, session],
-  );
-
   /*
    * A chat Hermes has but nothing has been said in yet looks like a new one:
    * the question and the composer together, with the room left underneath.
@@ -207,7 +200,7 @@ function ChatSession({
           ) : undefined
         }
         onSend={send}
-        onSteer={capabilities.data?.runSteer ? steer : undefined}
+        onSteer={capabilities.data?.runSteer ? session.steer : undefined}
         onStop={() => void session.stop()}
         streaming={busy}
       />
@@ -229,20 +222,31 @@ function ChatSession({
       className="@container/chat flex min-h-0 flex-1 flex-col text-body"
       data-slot="chat-view"
     >
-      <Conversation
-        approvalPending={approvalPending}
+      <ChatWork
+        sessionId={sessionId}
         messages={chat.messages}
-        hasEarlier={hasEarlier}
-        loadingEarlier={loadingEarlier}
-        onLoadEarlier={loadEarlier}
-        onRetry={retry}
-        onRespondToApproval={(runId, choice, requestId) =>
-          void respondToApproval(runId, choice, requestId)
-        }
-        streaming={busy}
-        turnStartedAt={turnStartedAt}
+        busy={busy}
+        composer={composer}
+        conversation={(position, onAtLatestChange, awaiting) => (
+          <Conversation
+            awaitingReply={awaiting}
+            onAtLatestChange={onAtLatestChange}
+            position={position}
+            approvalPending={approvalPending}
+            messages={chat.messages}
+            hasEarlier={hasEarlier}
+            loadingEarlier={loadingEarlier}
+            onLoadEarlier={loadEarlier}
+            onRetry={retry}
+            onRespondToApproval={(runId, choice, requestId) =>
+              void respondToApproval(runId, choice, requestId)
+            }
+            streaming={busy}
+            steers={steers}
+            turnStartedAt={turnStartedAt}
+          />
+        )}
       />
-      <div className="flex-none @[48rem]/chat:px-6 px-4 pb-2.5">{composer}</div>
     </div>
   );
 }

@@ -23,7 +23,6 @@ export type DeviceSettingsSnapshot = {
   model_auth: {
     provider: typeof MODEL_PROVIDER;
     status: Readiness | "unavailable";
-    setup_command: string;
   };
   skills: DeviceSkill[];
   skills_status: ServiceReadiness;
@@ -54,10 +53,7 @@ export type CommandRunner = (args: string[]) => Promise<{ stdout: string }>;
 export type DeviceSettingsOptions = {
   client?: HermesClient;
   command?: CommandRunner;
-  configRoot?: string;
   environment?: NodeJS.ProcessEnv;
-  lockPath?: string;
-  profile?: string;
   restartHermes?: () => Promise<void>;
   readbackAttempts?: number;
   readbackDelayMs?: number;

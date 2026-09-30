@@ -29,6 +29,8 @@ export interface AgentDockProps {
   sessions: readonly HermesSession[];
   /** Open chats, in strip order. */
   tabs: readonly (ChatTab & DockTab)[];
+  workingIds?: ReadonlySet<string> | undefined;
+  unreadIds?: ReadonlySet<string> | undefined;
 }
 
 /**
@@ -52,6 +54,8 @@ export function AgentDock({
   onStarted,
   sessions,
   tabs,
+  workingIds,
+  unreadIds,
 }: AgentDockProps) {
   return (
     <aside
@@ -65,15 +69,23 @@ export function AgentDock({
           if (typeof value === "string") onSelectTab(value);
         }}
       >
-        <header className="flex h-10 flex-none items-stretch border-border/50 border-b bg-canvas">
+        <header className="flex h-10 flex-none items-stretch border-border/50 border-b bg-canvas max-[899px]:h-12">
           <ChatTabs
             activeId={activeId}
             onClose={onCloseChat}
             onSelect={onSelectTab}
             tabs={tabs}
+            runningIds={workingIds}
+            unreadIds={unreadIds}
           />
           <div className="flex flex-none items-center gap-0.5 px-1">
-            <IconButton label="New chat" onClick={onNewChat} size="sm">
+            {/* A phone header takes full-size touch targets. */}
+            <IconButton
+              className="max-[899px]:size-11"
+              label="New chat"
+              onClick={onNewChat}
+              size="sm"
+            >
               <SquarePen className="stroke-[1.6]" />
             </IconButton>
             <ChatHistory
@@ -86,8 +98,15 @@ export function AgentDock({
               }
               pinnedIds={pinnedIds}
               sessions={sessions}
+              workingIds={workingIds}
+              unreadIds={unreadIds}
             />
-            <IconButton label="Hide Pythia" onClick={onHide} size="sm">
+            <IconButton
+              className="max-[899px]:size-11"
+              label="Hide Pythia"
+              onClick={onHide}
+              size="sm"
+            >
               <X className="stroke-[1.6]" />
             </IconButton>
           </div>
@@ -147,6 +166,33 @@ export function AgentDockRail({
       type="button"
     >
       <MessageCircle aria-hidden="true" className="size-3.5 stroke-[1.6]" />
+    </button>
+  );
+}
+
+/**
+ * The closed dock on a phone: the edge strip would take width from the page,
+ * so it becomes a floating button in the corner that opens the same dock as a
+ * sheet.
+ */
+export function AgentDockButton({
+  className,
+  onOpen,
+}: {
+  className?: string;
+  onOpen: () => void;
+}): ReactNode {
+  return (
+    <button
+      aria-label="Open Pythia"
+      className={cn(
+        "motion-fast fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 grid size-12 cursor-pointer place-items-center rounded-pill border-0 bg-primary text-primary-foreground shadow-popup transition-transform focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95",
+        className,
+      )}
+      onClick={onOpen}
+      type="button"
+    >
+      <MessageCircle aria-hidden="true" className="size-5 stroke-[1.75]" />
     </button>
   );
 }

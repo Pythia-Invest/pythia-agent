@@ -55,15 +55,24 @@ class CoreTest(unittest.TestCase):
         skill = context.skills['identity-data'][0]  # the skill `pythia_instrument` points to, with its queries
         self.assertTrue(skill.is_file() and (skill.parent / 'references/queries.md').is_file())
 
-    def test_operating_section_fits_its_budget_on_every_platform(self):
+    def test_prompt_sections_fit_their_budgets_on_every_platform(self):
         # Hermes skips, not truncates, a section longer than max_chars (hermes_cli/plugins.py
         # render_system_prompt_sections); every Desk chat then reads as carrying earlier instructions.
         context = RegistryContractContext()
         MODULE.register(context)
-        (_, render), options = next(item for item in context.sections if item[0][0] == 'pythia.operating')
         for platform in ('api_server', 'cli', 'cron'):
             with self.subTest(platform=platform):
-                self.assertLessEqual(len(render({'platform': platform}).strip()), options['max_chars'])
+                rendered = [(args[0], len(args[1]({'platform': platform}).strip()), options['max_chars'])
+                            for args, options in context.sections]
+                for name, size, cap in rendered:
+                    self.assertLessEqual(size, cap, name)
+                # Hermes also caps the combined sections (runtime/contracts/hermes.md).
+                self.assertLessEqual(sum(size for _, size, _ in rendered), 8000)
+        routed = {platform: render({'platform': platform}).strip()
+                  for platform in ('api_server', 'cli')
+                  for (name, render), _ in context.sections if name == 'pythia.routing'}
+        self.assertTrue(routed['api_server'])
+        self.assertEqual(routed['cli'], '')  # Pythia's data tools serve Desk chat only
 
 
 if __name__ == '__main__':

@@ -73,6 +73,10 @@ export function session(value: unknown): HermesSession {
   if (preview !== undefined) result.preview = preview;
   if (messageCount !== undefined) result.message_count = messageCount;
   if (endedAt !== undefined) result.ended_at = endedAt;
+  for (const field of ["parent_session_id", "source", "model"] as const) {
+    const value = string(source[field]);
+    if (value !== undefined) result[field] = value;
+  }
   return result;
 }
 

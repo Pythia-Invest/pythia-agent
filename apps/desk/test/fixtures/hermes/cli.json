@@ -1,0 +1,27 @@
+{
+  "auth_status_logged_out": {
+    "args": [
+      "-p",
+      "default",
+      "auth",
+      "status",
+      "openai-codex"
+    ],
+    "exit_code": 0,
+    "stdout": "openai-codex: logged out (No Codex credentials stored. Run `hermes auth` to authenticate.)\n",
+    "stderr": ""
+  },
+  "config_get_missing": {
+    "args": [
+      "-p",
+      "default",
+      "config",
+      "get",
+      "capture.missing",
+      "--json"
+    ],
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Config key not set: capture.missing\n"
+  }
+}

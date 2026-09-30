@@ -156,11 +156,13 @@ configurable blank canvas.
 
 ### Typography
 
-Use **IBM Plex Sans** for the interface in both profiles. The one sanctioned
-exception is conversation text in the application: what the person types and
-what Pythia answers are set in **Inter**, a neutral reading face that
-separates the exchange from the chrome around it. Do not introduce any further
-display, serif, or monospace family merely to make the product feel premium.
+Use **IBM Plex Sans** for the interface in both profiles, including what the
+person types in the application. The one sanctioned exception is Pythia's
+answers: their prose is set in **IBM Plex Serif**, the brand's reading face,
+which separates Pythia's voice from the person's words and the chrome around
+it ([ADR 0022](decisions/0022-serif-reading-face-for-answers.md)). Do not
+introduce any further display, serif, or monospace family merely to make the
+product feel premium.
 Hierarchy should come from disciplined size, weight, line height, measure,
 spacing, and placement.
 
@@ -200,12 +202,21 @@ The approved identity palette is:
   support treatment around an explicitly identified signal; and
 - **Warm White** `#FDFDFD` — light-on-dark text and identity detail.
 
-Signal Amber has one special meaning: **Pythia found the signal that matters**.
+Signal Amber has one special meaning: **Pythia found the signal that matters**,
+apart from the working indicator described below.
 Within the Product application, it must not become a generic brand decoration,
 primary-button color, warning color, default chart series, selected-row state,
 current tab, or general focus color. “Active analytical focus” may use amber
 only when the active object is the Pythia signal itself. Primary actions should
 normally use Oracle Ink.
+
+One Product exception is approved: **Pythia is working**. One small Signal
+Amber dot per location marks live agent work: beside the turn's status line and
+on that chat's row in navigation. It appears only while work runs, never with a
+second amber cue in the same component, and disappears when work ends. Its
+contrast on light surfaces is below 3:1, so it is never the only cue: it sits
+beside a text status or carries an accessible name such as "Working". It
+breathes slowly and holds still when reduced motion is requested.
 
 The two profiles intentionally have different amber budgets. The Public
 website may feel visibly warm and branded; the Product application should feel
@@ -300,7 +311,10 @@ screens, city skylines, coins, candlesticks, Greek temples, oracle characters,
 celestial motifs, or abstract AI artwork.
 
 Motion should be restrained and functional. Use short transitions and subtle
-entrances only when they clarify state or causality. Avoid autoplay spectacle,
+entrances only when they clarify state or causality. In the Product
+application that vocabulary is small: new content settles in with a short fade
+and rise, a replaced icon pops in, streaming answer words fade in, and the
+Pythia working dot breathes slowly. Avoid autoplay spectacle,
 scroll choreography, glowing “thinking” effects, and animation whose purpose
 is simply to look technological. Reduced-motion behavior is mandatory.
 
@@ -375,7 +389,8 @@ never be silently rewritten as Pythia's conclusion. Unsupported or unknown
 content must remain explicit rather than borrowing one of these states.
 
 Second, a Pythia signal is a material item surfaced by Pythia as deserving
-attention. Signal Amber retains this branded meaning and no other.
+attention. Signal Amber retains this branded meaning and no other, apart from
+the "Pythia is working" indicator under Color and themes.
 
 ### Put provenance beside the conclusion
 
@@ -436,7 +451,7 @@ disclosures or focused views. Preserve horizontal scrolling when a genuinely
 comparative table would lose meaning if dismantled; do not mechanically turn
 every row into a mobile card.
 
-Back-office pages (Settings → Repairs and later operator lists) share one
+Back-office pages (Settings → Data → Repairs and later operator lists) share one
 compact pattern, `DataTable` with `ActionDialog` from `@pythia/ui`, at the full
 content width: one line per row (about 40px, small text, no wrapping; long
 values end in an ellipsis with the full text as a tooltip), a small status
@@ -611,3 +626,10 @@ for folders, blue for documents and media, green for data and code, and neutral
 for other files. Distinct icon shapes and filenames remain the primary cues.
 These decorative roles adapt to light and dark themes and do not imply research
 status, performance, or a Pythia signal.
+
+## Elevation
+
+Floating menus and popovers use a small, close dark shadow; dialogs and drawers
+use a broader but restrained dark shadow. In dark mode, surface contrast and
+borders define separation—shadows must never turn into pale glows. Modal
+backdrops darken the page in both themes. Ordinary content remains flat.

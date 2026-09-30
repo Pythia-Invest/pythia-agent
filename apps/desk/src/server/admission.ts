@@ -195,7 +195,4 @@ export function issueBrowserSession(request: Request) {
   );
 }
 
-export const browserAdmissionNames = {
-  csrfHeader: CSRF_HEADER,
-  sessionCookie: SESSION_COOKIE,
-};
+export const browserAdmissionNames = { csrfHeader: CSRF_HEADER };

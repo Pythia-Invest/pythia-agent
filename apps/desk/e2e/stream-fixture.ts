@@ -1,3 +1,5 @@
+import { emptyCoreRead } from "./core-reads";
+import type { WorkPage, AgentPage } from "../src/work/types";
 import type { WorkspaceTurn } from "../src/workspace/references";
 import type { DeskViewPublication } from "../src/view-context/types";
 import { expect, type Page } from "@playwright/test";
@@ -14,11 +16,27 @@ export async function fixture(
   initialHistory: HermesMessage[] = [],
 ) {
   let history: HermesMessage[] = initialHistory;
+  let work: WorkPage = {
+    plans: [],
+    agents: [],
+    assignments: [],
+    offset: 0,
+    historyMore: false,
+    agentsMore: false,
+  };
+  let agentPage: AgentPage = {
+    assignment: "Verify source coverage",
+    messages: [],
+    ended: false,
+    offset: 0,
+    more: false,
+  };
+  const workPages = new Map<number, WorkPage>();
+  const agentPages = new Map<string, AgentPage>();
   let status: RunStatus = { run_id: "synthetic-run", status: "running" };
   let queueAvailable = true;
   let streamRequests = 0;
   let steerFailure = false;
-  let creating: Promise<void> | undefined;
   const stops: string[] = [];
   const sessions = [{ id: "synthetic-chat", title: "Synthetic chat review" }];
   await page.exposeFunction("claimSyntheticQueue", () => {
@@ -37,6 +55,18 @@ export async function fixture(
   const steers: string[] = [];
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (/^\/api\/sessions\/[^/]+\/work$/.test(path))
+      return route.fulfill({
+        json: new URL(route.request().url()).searchParams.has("child")
+          ? (agentPages.get(
+              new URL(route.request().url()).searchParams.get("child") ?? "",
+            ) ?? agentPage)
+          : (workPages.get(
+              Number(
+                new URL(route.request().url()).searchParams.get("offset") ?? 0,
+              ),
+            ) ?? work),
+      });
     if (path === "/api/browser-session")
       return route.fulfill({ json: { csrf_token: "synthetic" } });
     // The shell asks which top bar to render: the core header.
@@ -44,6 +74,16 @@ export async function fixture(
       return route.fulfill({ json: { renderer: null, settings: {} } });
     if (path === "/api/capabilities")
       return route.fulfill({ json: { runSteer: true, modelOptions: true } });
+    if (path === "/api/update-status" && route.request().method() === "GET")
+      return route.fulfill({
+        json: {
+          status: "ready",
+          channel: "preview",
+          current_version: "Preview",
+          current_revision: "a".repeat(40),
+          apply_supported: false,
+        },
+      });
     if (path === "/api/models")
       return route.fulfill({
         json: {
@@ -150,7 +190,6 @@ export async function fixture(
       submissions.push(body.input);
       workspaces.push(body.workspace);
       selections.push(body.selection);
-      if (creating) await creating;
       queueAvailable = true;
       status = { run_id: "synthetic-run", status: "running" };
       return route.fulfill({
@@ -194,7 +233,16 @@ export async function fixture(
         json: { run_id: "synthetic-run", accepted: true },
       });
     }
-    unexpected.push(path);
+    // Pages and Settings read core for what is saved on the device: nothing.
+    if (path === "/api/data/read") {
+      const answer = emptyCoreRead(route.request().postDataJSON()?.operation);
+      if (answer) return route.fulfill({ json: answer });
+    }
+    unexpected.push(
+      path === "/api/data/read"
+        ? `${path} ${route.request().postDataJSON()?.operation}`
+        : path,
+    );
     return route.fulfill({
       status: 500,
       json: { error: { message: "Unexpected synthetic request" } },
@@ -251,14 +299,23 @@ export async function fixture(
     };
   });
   // Synthetic API fixtures do not own the host filesystem. Exercise the
-  // unseeded fallback for workspace documents rather than reading real files.
+  // unseeded fallback for workspace documents rather than reading real files:
+  // a foreign Origin makes Desk refuse the server-rendered snapshot. The browser
+  // drops that header from a navigation, so fetch the page outside it.
+  // Next prefetches these pages, so a fetch can outlive the test's page.
   await page.route(/^https?:\/\/[^/]+\/workspace(?:\/|\?|$)/, async (route) => {
-    return route.continue({
-      headers: {
-        ...route.request().headers(),
-        origin: "https://synthetic.invalid",
-      },
-    });
+    const response = await route
+      .fetch({
+        headers: {
+          ...route.request().headers(),
+          origin: "https://synthetic.invalid",
+        },
+        maxRedirects: 0,
+      })
+      .catch(() => null);
+    await (response ? route.fulfill({ response }) : route.abort()).catch(
+      () => {},
+    );
   });
   await page.goto("/c/synthetic-chat");
   await expect(
@@ -271,9 +328,6 @@ export async function fixture(
     rejectSteer: () => {
       steerFailure = true;
     },
-    delayCreation: (pending: Promise<void>) => {
-      creating = pending;
-    },
     setStatus: (next: RunStatus) => {
       status = next;
     },
@@ -284,6 +338,16 @@ export async function fixture(
     viewTerminations,
     selections,
     steers,
+    setWork: (next: WorkPage) => {
+      work = next;
+    },
+    setAgentPage: (next: AgentPage, childId?: string) => {
+      if (childId) agentPages.set(childId, next);
+      else agentPage = next;
+    },
+    setWorkPage: (next: WorkPage) => {
+      workPages.set(next.offset, next);
+    },
     setHistory: (messages: HermesMessage[]) => {
       history = messages;
     },
@@ -317,6 +381,9 @@ export async function fixture(
     },
   };
 }
+
+/** Below 900px Desk uses its phone layout: drawers and sheets, no tab strips. */
+export const isPhone = (page: Page) => (page.viewportSize()?.width ?? 0) < 900;
 
 export async function send(page: Page) {
   await expect(
