@@ -9,6 +9,7 @@
  */
 import type { PluginTransport } from "@pythia/widget-sdk";
 import { z } from "zod";
+import { contributorSchema } from "./contributors";
 import { INSTRUMENT_KINDS } from "./search";
 import { providerRefSchema } from "./widgets/contract";
 
@@ -160,6 +161,9 @@ export const subjectPageSchema = z.object({
   security: z.object({ id: text, name: text, isin: optionalText }).nullish(),
   listings: z.array(subjectListingSchema).default([]),
   related: z.array(relatedSubjectSchema).default([]),
+  /** The plugins behind the subject: a device subject's names the one that
+   * introduced it, whose status its page shows. */
+  contributors: z.array(contributorSchema).default([]),
   /** The company's other instruments (share classes, preferreds): its search
    * group less this instrument, each with its representative listing. Empty
    * for a fund, note or crypto asset. */

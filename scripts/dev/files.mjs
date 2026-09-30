@@ -44,6 +44,7 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity_ops.py",
   "queue_ops.py",
   "ingest_ops.py",
+  "plugin_effect.py",
   "agent_tools.py",
   "agent_reads.py",
   "agent_depth.py",

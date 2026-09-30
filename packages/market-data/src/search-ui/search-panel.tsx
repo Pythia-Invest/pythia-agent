@@ -18,7 +18,17 @@ export type LookupState = {
   query: string;
   status: "running" | "done" | "error";
   groups: SearchGroup[];
+  /** Subjects the lookup stored that no group for the query lists. */
+  placed?: number | undefined;
 };
+
+/** A finished lookup that shows no rows: no match, or what it stored that
+ * search does not list for the query (never "no match" then). */
+export function lookupEmpty({ label, query, placed }: LookupState) {
+  return placed
+    ? `${label} added ${placed} ${placed === 1 ? "subject" : "subjects"}, but none is listed for “${query}”.`
+    : `${label} has no match for “${query}”.`;
+}
 
 export type SearchPanelProps = {
   /** Trimmed query the panel describes. */
@@ -200,7 +210,7 @@ export function SearchPanel(props: SearchPanelProps) {
         ) : null}
         {lookup?.status === "done" && !found.length ? (
           <p className="px-2.5 py-3 text-foreground-secondary text-xs">
-            {lookup.label} has no match for “{lookup.query}”.
+            {lookupEmpty(lookup)}
           </p>
         ) : null}
         {lookup?.status === "error" ? (

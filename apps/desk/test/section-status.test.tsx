@@ -273,6 +273,57 @@ describe("an identifier whose sources disagree", () => {
   });
 });
 
+describe("a subject a plugin introduced", () => {
+  // What core's `identity-subject` lists for a pool a DeFi plugin introduced.
+  const header = (source: Record<string, unknown> | null) =>
+    renderToStaticMarkup(
+      <InstrumentHeader
+        page={subjectPageSchema.parse({
+          subject: {
+            id: "market:provisional:tidepool:pool:P1",
+            level: "market",
+            name: "Example Lend USDC",
+          },
+          contributors: source
+            ? [
+                {
+                  plugin: "tidepool",
+                  label: "Tidepool",
+                  status: "enabled",
+                  stated: [],
+                  introduced: true,
+                  not_offered_since: null,
+                  ...source,
+                },
+              ]
+            : [],
+        })}
+        subjectId="market:provisional:tidepool:pool:P1"
+      />,
+    );
+
+  it("names its source, and says when that source is off or no longer offers it", () => {
+    expect(header({})).toContain("From Tidepool</p>");
+    expect(header({ status: "disabled" })).toContain(
+      "From Tidepool, which is disabled",
+    );
+    expect(header({ status: "removed" })).toContain(
+      "From Tidepool, which is no longer installed",
+    );
+    expect(
+      header({ status: "disabled", not_offered_since: "2026-09-30T08:00:00Z" }),
+    ).toContain(
+      "From Tidepool, which is disabled and no longer offers it (since 2026-09-30)",
+    );
+    expect(header({ status: "later" })).toContain("From Tidepool</p>"); // an unknown status reads as on
+  });
+
+  it("says nothing for a subject no plugin introduced", () => {
+    expect(header(null)).not.toContain('data-slot="instrument-source"');
+    expect(header({ introduced: false })).not.toContain("From Tidepool");
+  });
+});
+
 describe("reports of one period", () => {
   it("name a parallel report and one report filed in two places", () => {
     const period = "issuer|annual|2025-12-31";

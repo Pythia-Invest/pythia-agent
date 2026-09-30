@@ -202,8 +202,11 @@ listing reports its instrument's subject id and its own listing id.
 
 The feature's `top-bar` presentation composes the bar with the Desk title and
 actions under ADR 0036 and is Desk's product default top bar; a workspace
-`desk/top-bar.json` selects another bar or `renderer: null` for the core one. It
-offers no lookup yet. While a row is highlighted it prefetches the instrument's
+`desk/top-bar.json` selects another bar or `renderer: null` for the core one. Its
+lookup runner (`transportLookup`) invokes core's `pythia`/`identity-lookup` for
+the offer pressed, then answers the directory's groups for the query that hold
+a subject the lookup placed; no match is an empty answer and a failure an
+error. While a row is highlighted it prefetches the instrument's
 and the listing's page compositions (`pythia`/`identity-subject`) under the key
 Desk's instrument route reads (`@pythia/market-data/subject`), and a choice is
 announced as a `pythia:open-subject` window event with

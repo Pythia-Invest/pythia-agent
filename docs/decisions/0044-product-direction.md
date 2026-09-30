@@ -358,45 +358,68 @@ question on every installation.
 
 ### Today
 
-Where it is built, the code implements the first version of rulings 7 to 10,
-until roadmap stage 0 lands. No package is published and no central curator
-exists:
+Roadmap stage 0 implements this amendment. No package is published and no
+central curator exists.
 
-- The build's open questions are queued only when an instrument is opened,
-  watched or used by the agent, and the user's answer is a local override
-  ([ADR 0037](0037-identity-backbone.md), amendment "questions on touch").
-  Holdings, forecasts and operations join as triggers in stage 1.
-- Any plugin can introduce subjects and contribute evidence through core's
-  ingest, joined by identifier at each record's own scope and introduced only
-  under the key schemes its contract declares; pages and search show them, and
-  a plugin's evidence, with no reference package ([ADR 0037](0037-identity-backbone.md),
-  amendments "device subjects", "ingest" and "search over reference and
-  device"). Reading a plugin's catalogue (`identity-sync`) and looking one
-  identifier up (`identity-lookup`) are Desk operations with no scheduler;
-  search offers the lookup, and the Desk controls that start them land with
-  W3-lifecycle.
-- Reference sources are builder adapters. A build can leave out any of them
-  (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
-  sources it includes; only the ISO 10383 venue codes and core's curated
-  crypto table are always in. A device can remove its installed package:
-  search and pages then read the device's subjects alone, and saved
-  references open as labelled stubs ([ADR 0037](0037-identity-backbone.md),
-  amendment "search over reference and device").
-- Trust follows a digest of each plugin's files, never its name: Pythia's
+- **Plugins extend the universe on equal terms.** Any plugin can introduce
+  subjects and contribute evidence through core's ingest, joined by identifier
+  at each record's own scope and introduced only under the key schemes its
+  contract declares. Pages and search show them with or without a reference
+  package. A saved reference keeps resolving through disabling, re-enabling
+  and updates, and its page names its source and says whether that source is
+  off or no longer offers it ([ADR 0037](0037-identity-backbone.md),
+  amendments "device subjects", "ingest", "search over reference and device"
+  and "saved references through a plugin's lifecycle").
+- **Sources are read only when asked.** A catalogue is read from Settings →
+  Data sources ("Sync now"), and one identifier is looked up from search's
+  "Look up in X". There is no scheduler.
+- **Disabling a plugin is Hermes's command.** Settings → Data sources shows
+  first which subjects only that plugin supplies and which saved watchlist and
+  card entries name them.
+- **Trust follows a digest of each plugin's files, never its name.** Pythia's
   release grants confirm its signed-off and grandfathered plugins, and the
   user's own grants may confirm another or demote one (ADR 0042, amendment of
   2026-09-30). Only a confirm-level plugin binds, onto reference or device
   subjects; a display plugin binds only a subject it introduced (ADR 0042,
   amendment "binding by trust level").
-- A crypto deployment key (`listing:caip19:`) may come from any plugin, and
-  an asset key (`security:caip19:`) from any plugin's canonical-issuance
-  claim; only a confirm-level claim aliases a provisional coin to it (a
-  user's alias has no path yet), and a platform list never keys an asset
+- **Questions on touch.** The build's open questions and a confirm-level
+  plugin's conflicts are asked when an instrument is opened, watched or used
+  by the agent, and the user's answer is a local override
+  ([ADR 0037](0037-identity-backbone.md), amendment "questions on touch").
+- **Reference sources are builder adapters.** A build can leave out any of
+  them (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
+  sources it includes; only the ISO 10383 venue codes and core's curated
+  crypto table are always in. A device can remove its installed package:
+  search and pages then read the device's subjects alone, and saved
+  references open as labelled stubs ([ADR 0037](0037-identity-backbone.md),
+  amendment "search over reference and device").
+- **Crypto keys come from claims.** A deployment key (`listing:caip19:`) may
+  come from any plugin, and an asset key (`security:caip19:`) from any
+  plugin's canonical-issuance claim; a platform list never keys an asset
   ([ADR 0037](0037-identity-backbone.md), amendment "ingest"). Core's curated
   table stays the maintained default supplier of those claims, through the
   reference build.
 
-Documents that cite the first version of these rulings describe this current
+Still open:
+
+- Holdings, forecasts and operations join as question triggers in stage 1.
+- The reference sources' direct and prebuilt forms, and the exact
+  evidence-weighing rules, stay open (A8). The defaults name kinds of evidence
+  and trust levels.
+- Two trust levels exist, display and confirm. Suggest identity arrives with
+  the first plugin that needs it, and trust follows a digest, not yet a signed
+  release.
+- A contested fact about a subject only the device holds is shown and
+  flagged, not asked. A user cannot yet alias a provisional coin.
+- The effect of disabling a plugin counts coverage (the subjects only it
+  supplies), not the identifiers a subject other sources also supply would
+  lose.
+- Sync, lookup and the effect are Desk operations; the agent's tool list has
+  no room for them.
+- CoinGecko's and CoinMarketCap's catalogues still answer an older row format,
+  so sync cannot read them.
+
+Documents that cite the first version of these rulings describe earlier
 behaviour or its original plan. The central curator's back office they mention
 becomes the Pythia-maintained answer list of A7, and the "finish line" of the
 first ruling 9 is superseded by the stage 0 work below.

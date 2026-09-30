@@ -366,7 +366,7 @@ class NoReferenceTest(unittest.TestCase):
         self.assertEqual((quote["plugin"], quote["status"], quote["binding_status"], quote["binding"], quote["unaudited"]),
                          ("pool-source", "ready", "confirmed", self.pool.wire(), True))  # labelled not yet audited
         self.assertEqual(view["contributors"], [{"plugin": "pool-source", "label": "poolsource", "status": "enabled",
-                                                 "stated": []}])
+                                                 "stated": [], "introduced": True, "not_offered_since": None}])
         self.assertEqual(view["related"], [{"id": PROTOCOL, "type": "part_of", "direction": "to", "kind": "protocol",
                                             "name": "Navi", "source": "pool-source"}])  # labelled with its plugin
         protocol = self.page(PROTOCOL)["data"]  # a protocol's page: its label and its pools, no data section

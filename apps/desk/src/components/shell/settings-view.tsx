@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { useRepairs } from "@/client/repairs";
+import { DataSourceSettings } from "./data-source-settings";
 import {
   CapabilitySettings,
   ModelSettings,
@@ -48,6 +49,12 @@ const sections = [
     label: "Reference data",
     description:
       "The open reference catalogue that search and instrument pages read on this device.",
+  },
+  {
+    id: "sources",
+    label: "Data sources",
+    description:
+      "Plugins that add subjects or look identifiers up, and what disabling one would take away. Hermes enables and disables them.",
   },
   {
     id: "updates",
@@ -183,6 +190,7 @@ export function SettingsView() {
                 {item.id === "models" ? <ModelSettings /> : null}
                 {item.id === "capabilities" ? <CapabilitySettings /> : null}
                 {item.id === "reference" ? <ReferenceSettings /> : null}
+                {item.id === "sources" ? <DataSourceSettings /> : null}
                 {item.id === "updates" ? <UpdateSettings /> : null}
                 {item.id === "repairs" ? (
                   <SettingRow

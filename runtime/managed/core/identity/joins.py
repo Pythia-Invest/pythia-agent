@@ -119,12 +119,16 @@ class Joins:
 
     def settled_parent(self, subject: str, introducer: str) -> str | None:
         """A device subject's parent from the records placed on it: the one those at the highest trust level among the
-        ones naming a parent agree on, never counting a level below its introducer's; none where they disagree."""
+        ones naming a parent agree on, never counting a level below its introducer's; none where they disagree. A
+        record kept as a conflict whose own earlier statement named the current parent (a conflict keeps it) still
+        names that parent, so a source contradicting itself never re-parents the subject, sync after sync, until it
+        states the parent's value again."""
         up, floor = device.PARENT[Level(subject_kind(subject))], self.granted.get(introducer, DISPLAY)
+        current = (device.subject_row(self.store, subject) or {}).get("parent_id")
         named: dict[str, set[str]] = {}
-        for plugin, scope, text in self.store.select(
-                "SELECT plugin, scope, claim FROM claims WHERE subject_id = ? AND state IN ('joined', 'introduced',"
-                " 'conflict')", (subject,)):
+        for plugin, scope, text, state, native_scope, native_id in self.store.select(
+                "SELECT plugin, scope, claim, state, native_scope, native_id FROM claims WHERE subject_id = ? AND state"
+                " IN ('joined', 'introduced', 'conflict')", (subject,)):
             level = self.granted.get(plugin, DISPLAY)
             if floor == CONFIRM and level != CONFIRM:
                 continue
@@ -133,8 +137,12 @@ class Joins:
             own = {item.scheme: item.value for item in claim.identifiers if item.role is IdentifierRole.SELF
                    and SCHEME_LEVEL[item.scheme] is up and item.scheme not in echoes}
             parent, contested = self.parent(up, own, claim.attributes)
+            if state == "conflict" and current and parent != current and self.store.select(
+                    "SELECT 1 FROM device_assertions WHERE subject_id = ? AND plugin = ? AND native_scope = ? AND"
+                    " native_id = ? LIMIT 1", (current, plugin, native_scope, native_id)):
+                parent, contested = current, False  # it contradicts its own earlier statement, kept on the parent
             if parent or contested:
-                named.setdefault(level, set()).add(parent or "")  # "": a contest
+                named.setdefault(level, set()).add("" if contested else parent)  # "": a contest
         top = named.get(CONFIRM) or named.get(DISPLAY) or set()
         return next(iter(top)) if len(top) == 1 and "" not in top else None
 

@@ -78,6 +78,7 @@ export function InstrumentHeader({
           {page.subject.description}
         </p>
       ) : null}
+      <SourceLine page={page} />
       {issuer ? (
         <p className="text-foreground-secondary text-xs">Issued by {issuer}</p>
       ) : issuerUnknown ? (
@@ -110,6 +111,30 @@ export function InstrumentHeader({
         </dl>
       ) : null}
     </header>
+  );
+}
+
+/** Where a subject a plugin introduced comes from, and whether that plugin
+ * is still on and still offers it. Its page, and a saved reference to it,
+ * stay readable either way (ADR 0044 A3). */
+export function SourceLine({ page }: { page: SubjectPage }) {
+  const source = page.contributors.find((item) => item.introduced);
+  if (!source) return null;
+  const clauses = [
+    ...(source.status === "disabled" ? ["is disabled"] : []),
+    ...(source.status === "removed" ? ["is no longer installed"] : []),
+    ...(source.not_offered_since
+      ? [`no longer offers it (since ${source.not_offered_since.slice(0, 10)})`]
+      : []),
+  ];
+  return (
+    <p
+      data-slot="instrument-source"
+      className="text-foreground-secondary text-xs"
+    >
+      From {source.label}
+      {clauses.length ? `, which ${clauses.join(" and ")}` : ""}
+    </p>
   );
 }
 

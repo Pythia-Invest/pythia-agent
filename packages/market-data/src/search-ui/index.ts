@@ -12,6 +12,7 @@ export {
 } from "./search-panel";
 export {
   searchQueryKey,
+  transportLookup,
   transportSearch,
   useDirectorySearch,
   type LookupRunner,

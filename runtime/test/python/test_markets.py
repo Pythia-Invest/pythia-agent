@@ -6,6 +6,7 @@ import dataclasses
 import importlib.util
 import json
 import sqlite3
+import tempfile
 import types
 import unittest
 import unittest.mock
@@ -105,8 +106,12 @@ class MarketReadsTest(unittest.TestCase):
         self.reference.execute("CREATE TABLE assertions (subject_id TEXT, scheme TEXT, value TEXT, valid_to TEXT)")
         self.reference.executemany("INSERT INTO assertions VALUES (?, 'ticker_mic', ?, NULL)", [
             ("listing:figi:BBG000BBK0R0", "NVDA@XNAS"), ("listing:figi:A", "TWIN@XNYS"), ("listing:figi:B", "TWIN@XNYS")])
-        core = types.SimpleNamespace(ctx=None, order=lambda: (),
+        from pythia_core_queue_fixture.identity import store
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        core = types.SimpleNamespace(ctx=None, order=lambda: (), store=store.IdentityStore(Path(folder.name)),
                                      reference=lambda: (None, _Borrowed(self.reference)))
+        self.addCleanup(core.store.db.close)
         self.reads = markets_ops.MarketReads(core)
         patcher = unittest.mock.patch.object(concept_ops.ConceptReads, "eligible", staticmethod(lambda: None))
         patcher.start()
@@ -205,6 +210,21 @@ class MarketReadsTest(unittest.TestCase):
             body = json.loads(self.reads.overview({}))
         # Names come from core's own tables, so they show without reference data; others have none.
         self.assertEqual(body["data"]["names"], {"index:pythia:dax": "DAX", bitcoin: "Bitcoin"})
+
+    def test_the_overview_names_a_device_subject_by_its_label_through_its_aliases(self):
+        # A pool a DeFi plugin introduced keeps its name while the plugin is off; a re-keyed line keeps its saved ID.
+        from pythia_core_queue_fixture.identity import device
+        from pythia_core_queue_fixture.platform import configuration
+        pool, line, better = "market:provisional:pools:pool:P1", "listing:figi:BBG000BLNXT1", \
+            "listing:isin:DE0007164600:XETR:EUR"
+        store = self.reads.identity.store
+        device.put_subject(store, pool, plugin="pools", name="Example Lend USDC")
+        device.put_subject(store, better, plugin="lines", name="SAP SE")
+        device.put_alias(store, line, better)
+        values = {"markets_cards": ("missing", None), "markets_watchlist": ("configured", f"{pool} {line}")}
+        with unittest.mock.patch.object(configuration, "value", lambda _ctx, key: values[key]):
+            names = json.loads(self.reads.overview({}))["data"]["names"]
+        self.assertEqual({key: names[key] for key in (pool, line)}, {pool: "Example Lend USDC", line: "SAP SE"})
 
 
 class _Borrowed:

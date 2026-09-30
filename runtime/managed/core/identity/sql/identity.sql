@@ -148,7 +148,7 @@ CREATE TABLE claims (
   claim TEXT NOT NULL,             -- the RecordClaim as emitted (claims.batch_to_json form)
   claim_digest TEXT NOT NULL,      -- unchanged digest => no re-join
   first_seen TEXT NOT NULL,
-  last_seen TEXT NOT NULL,         -- not seen in a complete scope != delisted; never unbinds by itself
+  last_seen TEXT NOT NULL,         -- last stored; for `not_seen`, when a complete scope lacked it (not delisted; never unbinds)
   subject_id TEXT,                 -- the subject the record joined or introduced; NULL until core ingests it
   state TEXT,                      -- how it was placed (device.CLAIM_STATES); NULL until core ingests it
   PRIMARY KEY (plugin, native_scope, native_id)

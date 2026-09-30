@@ -121,8 +121,9 @@ def lookup(identity: Identity, arguments: dict, **_context: Any) -> str:
         result = _call(identity, tool, {"identifiers": {scheme: value}}, LOOKUP_SECONDS)
         batch = batch_from_json(result["data"])
         done = keep(identity, info, batch)
-    except LookupError:
-        return _envelope("empty", None, issue=f"{info.label} found no match.")
+    except LookupError:  # an answer, not a failure: the counts are all zero
+        return _envelope("empty", {**dict.fromkeys(ingest.COUNTS, 0), "subjects": []},
+                         issue=f"{info.label} found no match.")
     except (concurrent.futures.TimeoutError, PluginFailed, ValueError, ClaimError, sqlite3.Error, OSError) as error:
         logger.warning("identity lookup in %s failed: %s", info.key, error)
         return _envelope("empty", None, issue=f"{info.label} lookup failed: {_why(error)}")

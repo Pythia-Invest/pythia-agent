@@ -2,7 +2,9 @@
 
 `market-overview` returns the subject IDs of the overview's cards and watchlist
 from settings.json (`markets_cards`, `markets_watchlist`), else the defaults
-below, with the names core's curated tables give them. `market-movers` reads one `market_movers` list from the first eligible
+below, with the names core's curated tables give them, else a device subject's
+label, which stays while the plugin that introduced it is off. `market-movers`
+reads one `market_movers` list from the first eligible
 source in the investor's order, then core's; a failed read never switches
 source. Each row is named by its Pythia listing when the reference holds
 exactly one line for its ticker on its operating MIC; otherwise it stays
@@ -18,7 +20,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from .identity import markets, page
+from .identity import device, markets, page
 from .identity.concepts import REGISTRY, Concept, not_covered, ranked, select
 from .identity.schemes import SUBJECT_ID as SUBJECT_PATTERN
 
@@ -50,7 +52,7 @@ OVERVIEW_SCHEMA = {
     "name": "pythia_market_overview",
     "description": "The investor's markets overview: the subject IDs of its cards (indexes, futures, rates, FX, crypto) "
                    "and of its watchlist, from settings.json (markets_cards, markets_watchlist) or Pythia's defaults, with "
-                   "the names Pythia curates for them. "
+                   "the names Pythia has for them. "
                    "Read each subject with pythia_identity_subject and its prices with pythia_market_data.",
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
@@ -84,10 +86,25 @@ class MarketReads:
         issues: list[dict] = []
         cards = [{"subject": subject, "group": _group(subject)} for subject in self._subjects(CARDS, DEFAULT_CARDS, issues)]
         watchlist = self._subjects(WATCHLIST, DEFAULT_WATCHLIST, issues)
-        # Core's curated names, so a subject that cannot be read still shows a name, never its ID.
+        # Core's curated names, else a device subject's label, so a subject that cannot be read (or whose plugin is
+        # off) still shows a name, never its ID.
         names = {subject: name for subject in [card["subject"] for card in cards] + watchlist
-                 if (name := _name(subject))}
+                 if (name := _name(subject) or self._label(subject))}
         return _envelope("ok", {"cards": cards, "watchlist": watchlist, "names": names}, issues)
+
+    def saved(self) -> dict[str, list[str]]:
+        """The overview's saved subject IDs by setting, as the overview reads them (a default where none is set)."""
+        return {key: self._subjects(key, default, []) for key, default in ((WATCHLIST, DEFAULT_WATCHLIST),
+                                                                             (CARDS, DEFAULT_CARDS))}
+
+    def _label(self, subject: str) -> str | None:
+        """A device subject's durable label (ADR 0037, amendment "device subjects"), through its device aliases."""
+        try:
+            store = self.identity.store
+            row = device.subject_row(store, device.current_id(None, store, subject))
+        except (sqlite3.Error, OSError):  # a store that cannot be read: the curated names stand
+            return None
+        return row["name"] if row else None
 
     def _subjects(self, key: str, default: tuple[str, ...], issues: list[dict]) -> list[str]:
         """The configured subject IDs (comma or space separated), else the default. Malformed IDs are left out and

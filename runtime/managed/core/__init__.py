@@ -27,6 +27,9 @@ def register(ctx: Any) -> None:
     from . import ingest_ops
 
     ingest_ops.register(ctx, identity_ops.CURRENT)
+    from . import plugin_effect
+
+    plugin_effect.register(ctx, identity_ops.CURRENT)
     ctx.register_tool(
         name="pythia_desk_view",
         toolset=agent_tools.TOOLSET,

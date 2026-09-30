@@ -371,7 +371,7 @@ one ingest ([ADR 0037](0037-identity-backbone.md), amendment "ingest").
   scope, whose last page sets `complete` and no cursor. The adapter maps it
   like any other operation.
 - **`identity-sync {plugin}`** reads one plugin's catalogue, a Desk operation
-  with no scheduler (its Desk control lands with W3-lifecycle): each declared
+  with no scheduler (Settings → Data sources runs it on "Sync now"): each declared
   scope in the order the contract lists them, page by
   page, within a page and time bound (then `partial`). A scope may name what an
   earlier one introduced (a DeFi source's pools name the protocols its
@@ -382,7 +382,9 @@ one ingest ([ADR 0037](0037-identity-backbone.md), amendment "ingest").
   query's identifier (ISIN, FIGI, LEI or CIK, as search classifies it) is sent
   once to the plugin's resolve under a scheme it accepts (a FIGI under the
   first FIGI scheme it takes), and every record it answers is ingested. It
-  answers the counts and the subjects placed.
+  answers the counts and the subjects placed; no match is an empty answer with
+  zero counts, a failure an issue with no data. The search bar's "Look up in
+  X" invokes it, then shows the directory's groups holding what it placed.
 - **`identity-resolve`** stores its answer through the same ingest before
   deciding its binding.
 - Only an enabled, configured plugin is called. Sync and lookup are Desk
