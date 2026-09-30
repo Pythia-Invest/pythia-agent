@@ -22,10 +22,10 @@ from .identity import (
     INSTRUMENT_KINDS, MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch,
     RelationType, subject_kind, validate_manifest, vouched,
 )
-from . import queue_ops, read_checks, search_venues
+from . import ingest_ops, queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
-from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
-from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
+from .queue_ops import ISSUE_CODES, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
+from .identity import batch_from_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
 from .identity import declared, device, flags, search_device, stub, trust
 
 logger = logging.getLogger(__name__)
@@ -39,9 +39,10 @@ SOURCE_ORDER = "source_order"             # declared in configuration.json: the 
 
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
-    "description": "Search the device's local directory of securities, listings and crypto assets by name, ticker "
-                   "or identifier (ISIN, LEI, FIGI, CIK). Answers groups (a company, a fund or a crypto asset), "
-                   "each with its most relevant listings and its total listing count. Pass `group` with a group's "
+    "description": "Search the device's local directory of securities, listings, crypto assets and the pools and "
+                   "protocols plugins added, by name, ticker or identifier (ISIN, LEI, FIGI, CIK). Answers groups "
+                   "(a company, a fund, a crypto asset, a pool or a protocol), each with its most relevant listings "
+                   "and its total listing count. Pass `group` with a group's "
                    f"id instead of `query` to list its listings, up to {search.GROUP_ROWS}; `limit` (groups, "
                    "default 20) does not apply there. Local only; no provider is called.",
     "parameters": {"type": "object", "properties": {
@@ -127,7 +128,8 @@ class Identity:
             data = (directory.group(group, kinds=kinds) if group
                     else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
                                           suffixes=search_venues.suffixes, priced=search_venues.priced) if query else empty)
-            data["lookup"] = search_device.offers(query, plugins) if query and not group else []
+            from .platform.request_context import usage  # "Look up in X" is the investor's Desk action, never the agent's
+            data["lookup"] = search_device.offers(query, plugins) if query and not group and usage.get() == "dashboard" else []
         except (sqlite3.Error, OSError) as error:  # search degrades, never errors out; a closed store says why
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue=f"Search is unavailable. {location.reason(error)}")
@@ -137,7 +139,7 @@ class Identity:
     def reference_status(self, _arguments: dict, **_context: Any) -> str:
         data = {**reference_package.status(self.data_dir), "both_present": location.both_present(self.data_dir)}
         installed = data["installed"]  # one this Pythia cannot read says so and what to do (`problem`)
-        return _envelope("ok" if installed else "empty", data, issue=installed["problem"] if installed else NO_REFERENCE)
+        return _envelope("ok" if installed else "empty", data, issue=installed["problem"] if installed else no_reference(self.data_dir))
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -241,17 +243,17 @@ class Identity:
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject with the store lookups pages read: a curated market (no reference needed), a
         reference subject with the user's answers, else a device subject (`device`); a declared alias is followed."""
-        aliases = declared.aliases(info.manifest for info in installed()) if ":provisional:" in subject_id else {}
-        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(
-            markets.curated(), aliases.get(subject_id, subject_id))
+        plugins = installed()  # their evidence counts at their levels (`device.merge`)
+        aliases = declared.aliases(info.manifest for info in plugins) if ":provisional:" in subject_id else {}
+        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(markets.curated(), aliases.get(subject_id, subject_id))
         path, ref = (None, None) if curated else self.reference()
         try:
             subject_id = subject_id if curated else device.current_id(ref, self.store, subject_id, aliases)
-            subject = curated or ref and build_questions.load_subject(ref, subject_id, None, self.store)
-            default = subject and not curated and self._default_listing(path, subject)
+            subject = curated or ref and build_questions.load_subject(ref, subject_id, None, self.store, plugins)
+            default = subject and not curated and self._default_listing(path, subject, plugins)
             if default and default != (subject["listing"] or {"id": None})["id"]:
-                subject = build_questions.load_subject(ref, subject_id, default, self.store)
-            subject = subject or device.load(ref, self.store, subject_id, installed())
+                subject = build_questions.load_subject(ref, subject_id, default, self.store, plugins)
+            subject = subject or device.load(ref, self.store, subject_id, plugins)
         finally:
             if ref is not None:
                 ref.close()
@@ -274,14 +276,14 @@ class Identity:
     def directory(self, path: Path | None, plugins: list | None = None) -> search.Directory:  # with what plugins add
         return search_device.directory(path, self.store, installed() if plugins is None else plugins)
 
-    def _default_listing(self, path: Path, subject: dict) -> str | None:
+    def _default_listing(self, path: Path, subject: dict, plugins: list | None = None) -> str | None:
         """The line an equity security or issuer subject is priced through: the first of the instrument's own
         lines in the listing selector's order (a flagged primary, else the best exchange line), so the page
         and market-data reads agree with the selector. None for a listing subject or anything else."""
         security = subject["ids"].get(Level.SECURITY)
         if subject["level"] == Level.LISTING or subject["asset_class"] != "equity" or not security:
             return None
-        own = [line for line in self.directory(path).instrument_listings(security) if not line["folded"]]
+        own = [line for line in self.directory(path, plugins).instrument_listings(security) if not line["folded"]]
         return own[0]["id"] if own else None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
@@ -313,8 +315,7 @@ class Identity:
             logger.warning("resolve answer rejected for %s: %s", info.key, error)
             return f"{info.label} gave an unusable answer", False
         now = store.now()
-        for claim in batch_to_json(batch)["claims"]:
-            self.store.put_claim(batch.plugin, batch.provider, claim)
+        ingest_ops.keep(self, info, batch)  # every record placed by identifier (`identity.ingest`)
         for level in sorted(levels, key=lambda item: item != Level.LISTING):
             binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now,
                                                          bound_to=self.store.bound_subject)

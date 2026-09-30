@@ -6,6 +6,7 @@ subjects alone and a saved instrument opens as a labelled stub. Removing the pac
 nothing and retires no question. Search writes nothing and calls no provider. Device rows are written through the
 store's API, as ingest writes them.
 """
+import contextvars
 import json
 import sqlite3
 import sys
@@ -19,7 +20,8 @@ from test_identity_contracts import load, load_reference
 from test_identity_trust import TrustCase, identity, identity_ops, page, reference_package, trust
 from test_reference_package import make_package
 from pythia_core_queue_fixture import queue_ops  # noqa: E402  (the core test_identity_trust loaded)
-from pythia_core_queue_fixture.identity import device, lifecycle, search  # noqa: E402
+from pythia_core_queue_fixture.identity import device, lifecycle, search, search_index  # noqa: E402
+from pythia_core_queue_fixture.platform.request_context import usage  # noqa: E402
 
 NOW = "2026-09-30T10:00:00Z"
 ASML, ASML_SECURITY = "listing:isin:NL0010273215:XAMS:EUR", "security:isin:NL0010273215"
@@ -110,8 +112,12 @@ class DeviceSearch(TrustCase):
         self.addCleanup(lambda: ops._store and ops._store.db.close())
         return ops
 
-    def search(self, query, ops=None, **arguments):
-        return json.loads((ops or self.ops).search({"query": query, **arguments}))
+    def search(self, query, ops=None, desk=False):
+        """The search answer, as the agent reads it, or with `desk` as the Desk does."""
+        context = contextvars.copy_context()
+        if desk:
+            context.run(usage.set, "dashboard")
+        return json.loads(context.run((ops or self.ops).search, {"query": query}))
 
     def groups(self, query, ops=None):
         return [group["id"] for group in self.search(query, ops)["data"]["groups"]]
@@ -162,6 +168,19 @@ class FoundTest(DeviceSearch):
         self.assertEqual({key: group["rows"][0][key] for key in ("id", "ticker", "currency")},
                          {"id": ASML_XETRA, "ticker": "QW9", "currency": "EUR"})
         self.assertNotIn("source", group["rows"][0])  # the line is the reference's; the plugin only stated its ticker
+        self.plugins = [replace(LISTER, enabled=False), POOLS]  # the reference's own line is back as it was
+        self.assertEqual((self.groups("QW9"), self.search("asml")["data"]["groups"][0]["listings"]), ([], 2))
+
+    def test_a_plugins_line_under_a_reference_security_joins_its_company_whatever_kind_it_states(self):
+        shown = replace(LISTER, manifest=identity.vouched(LISTER.manifest, trust.DISPLAY))
+        self.plugins, line = [shown, POOLS], "listing:provisional:lister:line:asml-tokyo"
+        device.put_subject(self.ops.store, line, plugin="lister", name="ASML", parent_id=ASML_SECURITY, attributes={
+            "ticker": "ASMLJ", "operating_mic": "XJPX", "currency": "JPY", "kind": "etf", "asset_class": "crypto"})
+        place(self.ops.store, shown, "ASMLJ", line, name="ASML")
+        group = self.search("asml")["data"]["groups"][0]
+        self.assertEqual((group["id"], group["kind"], group["listings"]), (ASML_GROUP, "ordinary", 3))
+        self.assertEqual({row["id"]: row["kind"] for row in self.search("ASMLJ")["data"]["groups"][0]["rows"]}[line],
+                         "ordinary")  # the security's kind, not the record's
 
     def test_with_no_package_search_reads_the_device_alone(self):
         bare = self.identity(self.root / "bare")
@@ -208,16 +227,23 @@ class RankingTest(DeviceSearch):
 
 
 class ReadOnlyTest(DeviceSearch):
-    def test_the_directory_renews_on_a_new_generation_and_never_per_query(self):
+    def test_a_device_change_renews_the_device_part_and_never_rebuilds_the_reference(self):
         introduce_sap(self.ops.store)
         self.search("sap")
         built = search._cache["current"][1]
-        self.search("asml")
-        self.search("navi")
+        renewed = mock.patch.object(built, "renew", wraps=built.renew)
+        with mock.patch.object(search_index.Index, "_load", side_effect=AssertionError("the reference rebuilt")), \
+                renewed as renew:
+            self.search("asml")
+            self.search("navi")
+            json.loads(queue_ops.read_subject(self.ops, {"subject_id": ASML}))  # a page read uses the same directory
+            renew.assert_not_called()  # nothing changed: nothing renewed
+            pool = introduce_pool(self.ops.store)  # a write bumps the store's generation
+            self.assertEqual(self.groups("navi"), [pool])
+            self.plugins = [LISTER, replace(POOLS, enabled=False)]
+            self.assertEqual(self.groups("navi"), [])
+            self.assertEqual(renew.call_count, 2)
         self.assertIs(search._cache["current"][1], built)
-        pool = introduce_pool(self.ops.store)  # a write bumps the store's generation
-        self.assertEqual(self.groups("navi"), [pool])
-        self.assertIsNot(search._cache["current"][1], built)
 
     def test_search_writes_nothing_and_calls_no_provider_and_offers_lookups(self):
         introduce_sap(self.ops.store)
@@ -227,17 +253,20 @@ class ReadOnlyTest(DeviceSearch):
         registry = types.ModuleType("tools.registry")
         registry.registry = mock.Mock()
         with mock.patch.dict(sys.modules, {"tools": types.ModuleType("tools"), "tools.registry": registry}):
-            answers = {query: self.search(query) for query in ("sap", "navi", "NL0010273215", "DE0007164600", "asml")}
+            answers = {query: self.search(query, desk=True)
+                       for query in ("sap", "navi", "NL0010273215", "DE0007164600", "asml")}
             json.loads(self.ops.search({"group": ASML_GROUP}))
         registry.registry.dispatch.assert_not_called()
         self.assertEqual(list(self.ops.store.db.iterdump()), before)
-        # An identifier the lister's resolve takes offers its lookup, found or not; text and a disabled plugin offer none.
+        # An identifier the lister's resolve takes offers its lookup on the Desk, found or not; text, the agent and a
+        # disabled plugin get none.
         offer = [{"plugin": "pythia-lister", "label": "lister"}]
         self.assertEqual({query: body["data"]["lookup"] for query, body in answers.items()},
                          {"sap": [], "navi": [], "NL0010273215": offer, "DE0007164600": offer, "asml": []})
-        self.assertEqual(self.search("NL0010273215000")["data"]["lookup"], [])  # not an ISIN
+        self.assertEqual(self.search("NL0010273215000", desk=True)["data"]["lookup"], [])  # not an ISIN
+        self.assertEqual(self.search("NL0010273215")["data"]["lookup"], [])  # the agent cannot run a Desk lookup
         self.plugins = [replace(LISTER, enabled=False), POOLS]
-        self.assertEqual(self.search("NL0010273215")["data"]["lookup"], [])
+        self.assertEqual(self.search("NL0010273215", desk=True)["data"]["lookup"], [])
 
 
 class RemovalTest(DeviceSearch):
@@ -259,8 +288,9 @@ class RemovalTest(DeviceSearch):
         self.assertEqual(body["outcome"], "ok")
         self.assertEqual((body["data"]["subject"], body["data"]["identifiers"], body["data"]["sections"]),
                          ({"id": ASML, "level": "listing", "name": "ASML Holding NV", "kind": None, "listing": None,
-                           "description": queue_ops.NO_REFERENCE}, {"figi": "BBG000C1HT47"}, []))
-        self.assertEqual(body["issues"][0]["message"], queue_ops.NO_REFERENCE)
+                           "description": queue_ops.REMOVED}, {"figi": "BBG000C1HT47"}, []))
+        self.assertEqual(body["issues"][0]["message"], queue_ops.REMOVED)
+        self.assertEqual(json.loads(self.ops.reference_status({}))["issues"][0]["message"], queue_ops.REMOVED)
         unknown = json.loads(queue_ops.read_subject(self.ops, {"subject_id": "security:isin:DE0007164600"}))
         self.assertEqual((unknown["outcome"], unknown["data"]["subject"]["name"]), ("ok", "security:isin:DE0007164600"))
         self.assertEqual(self.groups("asml"), [])

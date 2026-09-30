@@ -127,6 +127,10 @@ RELATIONS: dict[RelationType, RelationRule] = {
                                             Grouping.RELATED),
 }
 FOLD = frozenset(type for type, rule in RELATIONS.items() if rule.grouping is Grouping.FOLD)
+# Relations whose subject has one target of the type (a receipt represents one share, a pool is part of one protocol):
+# another target stated for the same subject contradicts it. A market's assets and a successor's predecessors are many.
+ONE_TARGET = FOLD | {RelationType.SHARE_CLASS_OF, RelationType.WRAPS, RelationType.BRIDGED_FROM, RelationType.TRACKS,
+                     RelationType.DERIVATIVE_ON, RelationType.TOKENIZED_FROM, RelationType.PART_OF}
 # The search group is the investable entity: the company for its equity (these kinds group under their issuer), the
 # product itself for funds, ETFs, ETNs and ETCs, the asset for crypto.
 ISSUER_INTERESTS = frozenset({InstrumentKind.ORDINARY, InstrumentKind.PREFERRED, InstrumentKind.DEPOSITARY_RECEIPT,

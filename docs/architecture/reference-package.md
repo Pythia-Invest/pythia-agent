@@ -117,8 +117,8 @@ nothing. Nothing in `identity.sqlite3` changes:
 - A saved reference to a reference subject (a watchlist entry, a card, a link
   in a chat) opens as a labelled stub: its own ID, named by the latest record a
   plugin placed on it, the identifiers the device's plugins state about it, and
-  a line saying why there is no more. It is never another subject and never
-  unknown.
+  a line saying the package was removed. It is never another subject and never
+  unknown. Settings and `reference-status` say so too.
 - Device evidence stays: plugins' claims and statements, bindings, answers and
   open questions are kept.
 

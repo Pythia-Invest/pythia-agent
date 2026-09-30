@@ -365,8 +365,8 @@ class IdentityStore:
         return {row["plugin"]: row["reason"] for row in rows}
 
     @_locked
-    def put_claim(self, plugin: str, provider: str, claim_json: dict) -> None:
-        ref = claim_json.get("native_ref") or {}
+    def put_claim(self, plugin: str, provider: str, claim_json: dict, scope: str | None = None, ref: dict | None = None) -> None:
+        ref = ref or claim_json.get("native_ref") or {}  # `ref`: the key of a record without a native ref (`ingest`)
         if not ref:
             return
         text = json.dumps(claim_json, sort_keys=True, separators=(",", ":"))
@@ -375,8 +375,8 @@ class IdentityStore:
             "INSERT INTO claims (plugin, provider, native_scope, native_id, scope, level, name, claim, claim_digest,"
             " first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (plugin, native_scope, native_id)"
             " DO UPDATE SET claim=excluded.claim, claim_digest=excluded.claim_digest, name=excluded.name,"
-            " last_seen=excluded.last_seen",
-            (plugin, provider, ref["native_scope"], ref["native_id"], None, claim_json["level"],
+            " last_seen=excluded.last_seen, scope=COALESCE(excluded.scope, claims.scope)",  # a catalogue page's scope
+            (plugin, provider, ref["native_scope"], ref["native_id"], scope, claim_json["level"],
              (claim_json.get("attributes") or {}).get("name"), text, "sha256:" + hashlib.sha256(text.encode()).hexdigest(), stamp, stamp))
 
 

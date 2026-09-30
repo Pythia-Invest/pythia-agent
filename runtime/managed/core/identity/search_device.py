@@ -11,9 +11,11 @@ enabled plugins state (`additions`):
   findable), the names its placed records give, and its identifiers weighed with the package's
   (`evidence.weigh_each`), so a contested one indexes neither value.
 
-A disabled plugin adds nothing: its subjects leave search, and their pages still open by ID. The directory is rebuilt
-when the reference file, the store's `generation` or the enabled plugins and their levels change (`key`), never per
-query. `offers` names the lookups a search answer offers.
+Only records a plugin still offers count (placed `joined`, `introduced` or `conflict`). A disabled plugin adds nothing:
+its subjects leave search, and their pages still open by ID. The additions are laid over the reference's lines in place
+(`search_index.Index.renew`) whenever the store's `generation`, the enabled plugins and their levels, or the package's
+level change (`key`); the reference's part is rebuilt only with the reference file. `offers` names the lookups a search
+answer offers.
 """
 from __future__ import annotations
 
@@ -24,9 +26,10 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from . import Store, device, evidence as weighing, schema_sql
+from . import Store, device, evidence as weighing, reference_package, relations, schema_sql, trust
 from .ranking import logrank, notability
 from .schemes import IdentifierError, Kind, normalize_identifier
+from .search import Directory, classify, directory as cached
 from .store import IdentityStore, open_reference
 from .subject import _assertion
 from .trust import CONFIRM
@@ -35,6 +38,7 @@ SEARCHED = ("isin", "lei", "cik", "figi", "composite_figi", "share_class_figi", 
 FIGIS = ("figi", "share_class_figi", "composite_figi")  # a FIGI's text does not say its level
 NAMED_KINDS = (Kind.MARKET, Kind.PROTOCOL, Kind.INDEX, Kind.FX)  # search's kinds outside the hierarchy; others: other
 OFFERS = 8  # lookups one answer offers at most (packages/market-data/src/search.ts)
+OFFERED = json.dumps(["joined", "introduced", "conflict"])  # placings of a record its plugin still offers
 
 
 @dataclass
@@ -47,6 +51,7 @@ class Additions:
     names: dict[str, list[str]] = field(default_factory=dict)  # a subject -> the names plugins give it
     ids: dict[str, list[str]] = field(default_factory=dict)  # a subject -> "scheme:value", in place of the reference's
     issuers: dict[str, tuple] = field(default_factory=dict)  # a device issuer -> (name, country)
+    package: int = 0  # 1 while the installed package is granted confirm: its lines' trust
 
 
 def enabled(plugins: Iterable) -> dict[str, str]:
@@ -54,30 +59,38 @@ def enabled(plugins: Iterable) -> dict[str, str]:
     return device.levels(info for info in plugins if info.enabled)
 
 
-def key(store: IdentityStore, plugins: Iterable) -> tuple:
-    """What a directory build reads from the device: the store's generation and the enabled plugins with their levels."""
-    return device.generation(store), tuple(sorted(enabled(plugins).items()))
+def key(store: IdentityStore, plugins: Iterable, path: Path | None = None) -> tuple:
+    """What the device's part of a directory reads: the store's generation, the enabled plugins with their levels, and
+    the level of the package at `path` (its lines' trust and its identifiers' weight)."""
+    try:
+        package = trust.package_level(reference_package.read_manifest(Path(path).parent)) if path else None
+    except (OSError, reference_package.PackageError):
+        package = trust.DISPLAY
+    return device.generation(store), tuple(sorted(enabled(plugins).items())), package
 
 
-def directory(path: Path | None, store: IdentityStore, plugins: Iterable):
-    """Search's directory (`search.directory`): the installed reference file (None: none) with what the enabled plugins
-    add, rebuilt only when either changes."""
-    from .search import directory as cached  # search reads this module's additions
+def directory(path: Path | None, store: IdentityStore, plugins: Iterable) -> Directory:
+    """Search's directory (`search.directory`): the installed reference file (None: none), its part rebuilt only with
+    the file, with what the enabled plugins add laid over it whenever that changes."""
     plugins = list(plugins)
-    return cached(path, open_reference, partial(additions, store=store, plugins=plugins), key(store, plugins))
+    return cached(path, lambda at: open_reference(at) if at else empty_reference(),
+                  relations.contested(store, device.levels(plugins)), partial(additions, store=store, plugins=plugins),
+                  key(store, plugins, path))
 
 
 def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterable) -> Additions:
     """What the enabled plugins add to the directory of the reference `ref` (an empty one when none is installed)."""
     plugins = list(plugins)
-    granted, out = enabled(plugins), Additions()
+    granted, out = enabled(plugins), Additions(package=int(weighing.level(ref) == CONFIRM))
     if not granted:
         return out
     marks = json.dumps(sorted(granted))
-    claims = store.select("SELECT subject_id, plugin, name, state FROM claims WHERE subject_id IS NOT NULL"
-                          " AND plugin IN (SELECT value FROM json_each(?))", (marks,))
-    stated = [dict(row) for row in store.select(
-        "SELECT * FROM device_assertions WHERE plugin IN (SELECT value FROM json_each(?))", (marks,))]
+    claims = store.select("SELECT subject_id, plugin, name, state FROM claims WHERE subject_id IS NOT NULL AND plugin IN"
+                          " (SELECT value FROM json_each(?)) AND state IN (SELECT value FROM json_each(?))", (marks, OFFERED))
+    stated = [dict(row) for row in store.select(  # what a record still offered states
+        "SELECT a.*, c.state FROM device_assertions a JOIN claims c ON c.plugin = a.plugin AND c.native_scope ="
+        " a.native_scope AND c.native_id = a.native_id WHERE a.plugin IN (SELECT value FROM json_each(?)) AND c.state IN"
+        " (SELECT value FROM json_each(?))", (marks, OFFERED))]
     touched: dict[str, set[str]] = {}  # each subject, with the enabled plugins that state anything about it
     for row in [*claims, *stated]:
         touched.setdefault(row["subject_id"], set()).add(row["plugin"])
@@ -85,7 +98,7 @@ def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterabl
         if row["name"] and row["state"] != "conflict":
             out.names.setdefault(row["subject_id"], []).append(row["name"])
     for row in stated:
-        if row["scheme"] == "ticker_mic" and row["role"] == "self":
+        if row["scheme"] == "ticker_mic" and row["role"] == "self" and row["state"] != "conflict":
             out.tickers.setdefault(row["subject_id"], []).append(row["value"].rsplit("@", 1)[0])
     out.ids = _weighed(ref, [row for row in stated if row["role"] == "self" and row["scheme"] in SEARCHED], granted)
     every = {row["id"]: {**dict(row), "attributes": json.loads(row["attributes"])}
@@ -110,23 +123,23 @@ def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterabl
 
 def offers(query: str, plugins: Iterable) -> list[dict[str, str]]:
     """The lookups a search answer offers (ADR 0037, "Look up in X"): each enabled, configured plugin whose resolve
-    takes the identifier the query is (a FIGI in any FIGI scheme). A text query offers none."""
-    from .search import classify  # search reads this module's additions
+    takes the identifier the query is (`identifier`). A text query offers none."""
+    return [{"plugin": info.key, "label": info.label} for info in plugins
+            if info.enabled and not info.missing and info.manifest.resolve is not None
+            and info.manifest.resolve.operation in info.operations
+            and identifier(query, info.manifest.resolve) is not None][:OFFERS]
+
+
+def identifier(query: str, resolve: Any) -> tuple[str, str] | None:
+    """The scheme and value of the identifier the query is (`search.classify`) in a scheme `resolve` takes (a FIGI in
+    any FIGI scheme, since its text does not say its level), else None: text, or a malformed identifier."""
     kind, value = classify(query)
-    found = []
-    for info in plugins:
-        resolve = info.manifest.resolve
-        if not info.enabled or info.missing or resolve is None or resolve.operation not in info.operations:
-            continue
-        scheme = next((str(item) for item in resolve.input_schemes
-                       if str(item) in (FIGIS if kind == "figi" else (kind,))), None)
-        try:
-            usable = scheme is not None and bool(normalize_identifier(scheme, value))
-        except IdentifierError:  # its pattern, not its check digit
-            usable = False
-        if usable:
-            found.append({"plugin": info.key, "label": info.label})
-    return found[:OFFERS]
+    accepted = {str(item) for item in resolve.input_schemes}
+    scheme = next((name for name in (FIGIS if kind == "figi" else (kind,)) if name in accepted), None)
+    try:
+        return (scheme, normalize_identifier(scheme, value)) if scheme else None
+    except IdentifierError:  # its pattern, not its check digit
+        return None
 
 
 def empty_reference() -> sqlite3.Connection:
@@ -150,8 +163,9 @@ def _listing(ref: sqlite3.Connection, row: Mapping[str, Any], every: Mapping[str
                             (parent,)).fetchone() if parent else None
         issuer, name, kind, asset_class, rank = found or (None,) * 5
         size = logrank(rank)
-    asset_class = attributes.get("asset_class") or asset_class
-    kind = attributes.get("kind") or kind or ("token" if asset_class == "crypto" else "other")
+    # Under a known security, its kind and class are the security's: a plugin's line never regroups it.
+    asset_class = asset_class or attributes.get("asset_class")
+    kind = kind or attributes.get("kind") or ("token" if asset_class == "crypto" else "other")
     operating, ticker = attributes.get("operating_mic") or attributes.get("mic"), attributes.get("ticker")
     line = (row["id"], parent or row["id"], None, attributes.get("mic") or operating, operating, ticker,
             attributes.get("currency"), None, 0, issuer, name or row["name"] or ticker or row["id"], kind, asset_class,
@@ -160,9 +174,9 @@ def _listing(ref: sqlite3.Connection, row: Mapping[str, Any], every: Mapping[str
 
 
 def _own(row: Mapping[str, Any], kind: Kind) -> tuple[tuple, float | None]:
-    """A subject outside the hierarchy (a pool, a protocol) as a line of its own group, and its size."""
+    """A subject outside the hierarchy (a pool, a protocol) as the one, primary line of its own group, and its size."""
     attributes = row["attributes"]
-    line = (row["id"], row["id"], None, None, None, attributes.get("ticker"), attributes.get("currency"), None, 0, None,
+    line = (row["id"], row["id"], None, None, None, attributes.get("ticker"), attributes.get("currency"), None, 1, None,
             row["name"] or row["id"], str(kind) if kind in NAMED_KINDS else "other", attributes.get("asset_class"),
             None, 0)
     return line, notability(attributes.get("rank"))

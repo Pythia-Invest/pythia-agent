@@ -1,0 +1,166 @@
+{
+  "provenance_note": "Hand-written fixture for the OpenFIGI-shaped ingest tests (test_identity_ingest.py, roadmap stage 0 S7). Toyota Motor Corporation's ISIN JP3633400001 is real; its venues follow the shape of an ESMA FIRDS build (German lines without a ticker, two Hanover lines, a Stuttgart line with one) and of OpenFIGI's /v3/mapping answer for that ISIN (https://www.openfigi.com/api/documentation). Every FIGI here is synthetic (BBG000TY..., valid check digit): no provider response is recorded.",
+  "securities": [
+    {
+      "id": "security:isin:JP3633400001",
+      "name": "Toyota Motor Corporation",
+      "asset_class": "equity",
+      "kind": "ordinary"
+    }
+  ],
+  "listings": [
+    {
+      "id": "listing:isin:JP3633400001:XJPX:JPY",
+      "security_id": "security:isin:JP3633400001",
+      "mic": "XJPX",
+      "operating_mic": "XJPX",
+      "currency": "JPY",
+      "trading_currency": "JPY",
+      "ticker": "7203",
+      "primary": true
+    },
+    {
+      "id": "listing:isin:JP3633400001:XETR:EUR",
+      "security_id": "security:isin:JP3633400001",
+      "mic": "XETR",
+      "operating_mic": "XETR",
+      "currency": "EUR",
+      "trading_currency": "EUR",
+      "ticker": "TOM"
+    },
+    {
+      "id": "listing:isin:JP3633400001:XFRA:EUR",
+      "security_id": "security:isin:JP3633400001",
+      "mic": "XFRA",
+      "operating_mic": "XFRA",
+      "currency": "EUR",
+      "trading_currency": "EUR"
+    },
+    {
+      "id": "listing:isin:JP3633400001:XHAN:EUR",
+      "security_id": "security:isin:JP3633400001",
+      "mic": "XHAN",
+      "operating_mic": "XHAN",
+      "currency": "EUR",
+      "trading_currency": "EUR"
+    },
+    {
+      "id": "listing:isin:JP3633400001:XHAN:USD",
+      "security_id": "security:isin:JP3633400001",
+      "mic": "XHAN",
+      "operating_mic": "XHAN",
+      "currency": "USD",
+      "trading_currency": "USD"
+    },
+    {
+      "id": "listing:isin:JP3633400001:XMUN:EUR",
+      "security_id": "security:isin:JP3633400001",
+      "mic": "XMUN",
+      "operating_mic": "XMUN",
+      "currency": "EUR",
+      "trading_currency": "EUR"
+    },
+    {
+      "id": "listing:isin:JP3633400001:XSTU:EUR",
+      "security_id": "security:isin:JP3633400001",
+      "mic": "XSTU",
+      "operating_mic": "XSTU",
+      "currency": "EUR",
+      "trading_currency": "EUR",
+      "ticker": "TOM"
+    }
+  ],
+  "assertions": [
+    {
+      "subject_id": "security:isin:JP3633400001",
+      "scheme": "isin",
+      "value": "JP3633400001",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-30T00:00:00Z",
+        "source_record": "firds:JP3633400001"
+      }
+    },
+    {
+      "subject_id": "security:isin:JP3633400001",
+      "scheme": "share_class_figi",
+      "value": "BBG000TYSCF0",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-30T00:00:00Z",
+        "source_record": "openfigi:JP3633400001"
+      }
+    },
+    {
+      "subject_id": "listing:isin:JP3633400001:XJPX:JPY",
+      "scheme": "figi",
+      "value": "BBG000TYTKY0",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-30T00:00:00Z",
+        "source_record": "openfigi:JP3633400001"
+      }
+    },
+    {
+      "subject_id": "listing:isin:JP3633400001:XJPX:JPY",
+      "scheme": "ticker_mic",
+      "value": "7203@XJPX",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-30T00:00:00Z",
+        "source_record": "firds:JP3633400001"
+      }
+    },
+    {
+      "subject_id": "listing:isin:JP3633400001:XETR:EUR",
+      "scheme": "figi",
+      "value": "BBG000TYXTR4",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-30T00:00:00Z",
+        "source_record": "openfigi:JP3633400001"
+      }
+    },
+    {
+      "subject_id": "listing:isin:JP3633400001:XETR:EUR",
+      "scheme": "ticker_mic",
+      "value": "TOM@XETR",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-30T00:00:00Z",
+        "source_record": "firds:JP3633400001"
+      }
+    },
+    {
+      "subject_id": "listing:isin:JP3633400001:XMUN:EUR",
+      "scheme": "figi",
+      "value": "BBG000TYMNC5",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-30T00:00:00Z",
+        "source_record": "openfigi:JP3633400001"
+      }
+    }
+  ]
+}

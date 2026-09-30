@@ -16,7 +16,7 @@ export type Company = {
 
 export function line(
   id: string,
-  ticker: string,
+  ticker: string | null,
   name: string,
   venue: string | null,
   fields: Partial<SearchRow> = {},
@@ -259,10 +259,10 @@ export const demoCompanies: readonly Company[] = [
     rows: [
       line(
         "market:provisional:defillama:pool:demo-navi-usdc",
-        "",
+        null,
         "NAVI Lending USDC",
         null,
-        { ticker: null, kind: "market", source: "DefiLlama" },
+        { kind: "market", source: "DefiLlama" },
       ),
     ],
   },

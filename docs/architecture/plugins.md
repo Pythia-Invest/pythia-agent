@@ -356,9 +356,25 @@ version 1):
   "contract version 2"). While the plugin is enabled, its subjects appear in
   search with its label and rank like any other; a record's `rank` signals in
   US dollars (keys ending `_usd`, such as `market_cap_usd` or `tvl_usd`) set
-  their notability. A search for an identifier that its `resolve` takes offers
-  "Look up in" the plugin ([ADR 0037](../decisions/0037-identity-backbone.md),
-  amendment "search over reference and device").
+  their notability. A line under a known security takes the security's kind.
+  A Desk search for an identifier that its `resolve` takes offers "Look up in"
+  the plugin ([ADR 0037](../decisions/0037-identity-backbone.md), amendment
+  "search over reference and device").
+- A bulk `catalogue` operation takes `{"scope", "cursor"}` and answers
+  `{"data": <ClaimBatch>, "next_cursor"}`, the last page of a scope `complete`
+  with no cursor. Core reads it through `identity-sync`, a Desk operation with
+  no scheduler, scope by scope in the order the contract lists them, so a
+  scope may name what an earlier one introduced. Core joins or introduces
+  every record, and a record with no native reference (a token named only by
+  CAIP-19) is kept by its identifiers
+  ([ADR 0038](../decisions/0038-plugin-addressing-contract.md), amendment
+  "core dispatches catalogue and resolve").
+- A record's `currency` is the one the line trades in as the source states it,
+  and core compares it as stated: a GBX record never joins the GBP line by ISIN,
+  exchange and currency, so name such a line by its FIGI as well. A record
+  that states no currency joins by ISIN only where its exchange holds exactly
+  one of the security's lines. A receipt's line states the share's ISIN as
+  `underlying`, never `self`: a `self` ISIN names the share.
 - A `resolve` answer's records mark each identifier's `role`: `self` names the
   record itself, `underlying` its underlying and `unqualified` a value the
   source cannot place. On a crypto asset record, `self` on a CAIP-19 claims

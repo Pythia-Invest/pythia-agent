@@ -366,11 +366,15 @@ exists:
   watched or used by the agent, and the user's answer is a local override
   ([ADR 0037](0037-identity-backbone.md), amendment "questions on touch").
   Holdings, forecasts and operations join as triggers in stage 1.
-- Subjects come only from the reference build and core's curated tables.
-  The store, reads and search for device subjects exist, and pages and search
-  work for them with no reference package; plugins introduce them once ingest
-  lands in W3-ingest ([ADR 0037](0037-identity-backbone.md), amendments
-  "device subjects" and "search over reference and device").
+- Any plugin can introduce subjects and contribute evidence through core's
+  ingest, joined by identifier at each record's own scope and introduced only
+  under the key schemes its contract declares; pages and search show them, and
+  a plugin's evidence, with no reference package ([ADR 0037](0037-identity-backbone.md),
+  amendments "device subjects", "ingest" and "search over reference and
+  device"). Reading a plugin's catalogue (`identity-sync`) and looking one
+  identifier up (`identity-lookup`) are Desk operations with no scheduler;
+  search offers the lookup, and the Desk controls that start them land with
+  W3-lifecycle.
 - Reference sources are builder adapters. A build can leave out any of them
   (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
   sources it includes; only the ISO 10383 venue codes and core's curated
@@ -384,7 +388,13 @@ exists:
   2026-09-30). Only a confirm-level plugin binds, onto reference or device
   subjects; a display plugin binds only a subject it introduced (ADR 0042,
   amendment "binding by trust level").
-- Portable crypto keys come only from core's curated table.
+- A crypto deployment key (`listing:caip19:`) may come from any plugin, and
+  an asset key (`security:caip19:`) from any plugin's canonical-issuance
+  claim; only a confirm-level claim aliases a provisional coin to it (a
+  user's alias has no path yet), and a platform list never keys an asset
+  ([ADR 0037](0037-identity-backbone.md), amendment "ingest"). Core's curated
+  table stays the maintained default supplier of those claims, through the
+  reference build.
 
 Documents that cite the first version of these rulings describe this current
 behaviour or its original plan. The central curator's back office they mention

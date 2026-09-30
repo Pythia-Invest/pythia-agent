@@ -19,7 +19,7 @@ from pathlib import Path
 from identity_world import AS_OF, NOW, PROVENANCE, World, record, vendor
 from test_identity_contracts import FIXTURES, identity
 from test_identity_queue import load_core
-from pythia_identity_fixture import build_questions, device, page, queue, reference_package, store, trust  # noqa: E402
+from pythia_identity_fixture import build_questions, device, page, queue, reference_package, relations, store, trust  # noqa: E402
 
 SAP_ISIN, GSK_ISIN = "DE0007164600", "GB00BN7SWP63"  # SAP is in no reference here; GSK is in the world's
 SAP, SAP_XETRA = f"security:isin:{SAP_ISIN}", f"listing:isin:{SAP_ISIN}:XETR:EUR"
@@ -203,7 +203,9 @@ class RekeyTest(DeviceWorld):
         self.assertNotEqual(moved["evidence_id"], cited)
         bound = identity_store.binding_for(ref)
         self.assertEqual((bound["subject_id"], json.loads(bound["evidence_ids"])), (SAP, [moved["evidence_id"]]))
-        self.assertEqual(identity_store.select("SELECT from_id, to_id FROM relations")[0][:], (SAP, ERIC_B))
+        [moved_relation] = identity_store.select("SELECT * FROM relations")
+        self.assertEqual((moved_relation["from_id"], moved_relation["to_id"]), (SAP, ERIC_B))
+        self.assertEqual(moved_relation["evidence_id"], relations.relation_id(moved_relation))  # its new ends' ID
         self.assertEqual(identity_store.select("SELECT subject_id, state FROM claims")[0][:], (SAP, "introduced"))
         self.assertGreater(device.generation(identity_store), generation)
         # A saved old ID reads as the subject it became, and the line's page names it as its security.
@@ -283,6 +285,10 @@ class BindingTest(DeviceWorld):
         row = self.world.identity.binding_for(own)
         self.assertEqual((row["subject_id"], row["authority"], row["rule_id"]), (SAP_XETRA, "rule_confirmed", "introduced@1"))
         self.assertIsNone(self.world.identity.binding_for(other))
+        # The user rejected it: its own record never confirms it again.
+        self.world.identity.db.execute("UPDATE bindings SET status = 'rejected' WHERE native_id = 'SAP.XETRA'")
+        self.assertFalse(device.bind_introduced(self.world.identity, "lister", own, SAP_XETRA))
+        self.assertEqual(self.world.identity.binding_for(own)["status"], "rejected")
 
     def test_a_display_plugin_never_binds_the_parent_of_a_subject_it_introduced(self):
         # The lister introduced a line under Ericsson B's security, which the reference holds. Its security-level
@@ -359,9 +365,10 @@ class NoReferenceTest(unittest.TestCase):
         self.assertEqual((view["subject"]["name"], view["subject"]["level"]), ("USDC lending on Navi", "market"))
         self.assertEqual((quote["plugin"], quote["status"], quote["binding_status"], quote["binding"], quote["unaudited"]),
                          ("pool-source", "ready", "confirmed", self.pool.wire(), True))  # labelled not yet audited
-        self.assertEqual(view["contributors"], [{"plugin": "pool-source", "label": "poolsource", "status": "enabled"}])
+        self.assertEqual(view["contributors"], [{"plugin": "pool-source", "label": "poolsource", "status": "enabled",
+                                                 "stated": []}])
         self.assertEqual(view["related"], [{"id": PROTOCOL, "type": "part_of", "direction": "to", "kind": "protocol",
-                                            "name": "Navi"}])
+                                            "name": "Navi", "source": "pool-source"}])  # labelled with its plugin
         protocol = self.page(PROTOCOL)["data"]  # a protocol's page: its label and its pools, no data section
         self.assertEqual((protocol["subject"]["name"], protocol["related"][0]["id"], protocol["sections"]),
                          ("Navi", POOL, []))

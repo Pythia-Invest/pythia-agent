@@ -6,8 +6,9 @@ user's attestation, from a model tool call the agent's verdict; the transport
 decides which, never an argument. `settle` lets the rules resolver re-ask the
 join inside write operations, never on search or page reads. `surface` queues
 the reference build's questions about an instrument the investor or the agent
-touches, and the conflicts its evidence raises (a contested fact, an answer the
-release contradicts): a bounded, idempotent write on those reads (ADR 0044 A2).
+touches, and the conflicts its evidence raises (a contested fact, a plugin's
+included, and an answer the release contradicts): a bounded, idempotent write
+on those reads (ADR 0044 A2). Ingest itself queues nothing.
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 REOPEN = "reopen"  # the Desk's undo of the user's answer to a build question; never the agent's
 RELEASE = "reference_release"  # identity.sqlite3 metadata: the reference build the rules last settled against
 NO_REFERENCE = "No reference data on this device yet."
+REMOVED = "The reference package was removed from this device. Install one to see this again."
 UNKNOWN_SUBJECT = "Unknown subject."
 ISSUE_CODES = {UNKNOWN_SUBJECT: "unknown_subject"}  # an issue asking again cannot help carries its own code
 # Any well-formed subject ID, of any kind: a residual may name an `index:` or `fx:` subject.
@@ -73,6 +75,7 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> 
     or the agent read them. With `family`, a listing also brings its security's, issuer's and composite's. Their
     conflicts are queued too (`conflicts`). The build's other questions stay in its package. Search, market movers,
     price routing and settling never call this. Returns how many were added."""
+    from .identity_ops import installed
     if not subject_ids:
         return 0
     try:
@@ -82,7 +85,7 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> 
         try:
             wanted = [value for subject in subject_ids for value in questions.family(ref, subject)] if family \
                 else list(subject_ids)
-            raised = conflicts.raised(ref, identity.store, subject_ids)
+            raised = conflicts.raised(ref, identity.store, subject_ids, installed())  # plugins' conflicts too
         finally:
             ref.close()
         return build_questions.import_build(identity.store, [*build_questions.about(path, wanted), *raised], store.now())
@@ -99,8 +102,9 @@ def read_subject(identity: Identity, arguments: dict, **context: Any) -> str:
 
 
 def no_reference(data_dir) -> str:
-    """Why no reference data is read: a package this Pythia cannot read says so and what to do, never "none"."""
-    return reference_package.unreadable(data_dir) or NO_REFERENCE
+    """Why no reference data is read: a package this Pythia cannot read says so and what to do, never "none"; one the
+    investor removed says so."""
+    return reference_package.unreadable(data_dir) or (REMOVED if reference_package.removed(data_dir) else NO_REFERENCE)
 
 
 def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:

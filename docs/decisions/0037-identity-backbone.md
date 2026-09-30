@@ -552,12 +552,11 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
   claims establish depends on claim type and trust level, not on its origin,
   and the absence of competing evidence never increases it.
 
-Not built yet: subjects come only from the reference build and core's curated
-tables. The store and reads for device subjects exist (amendment "device
-subjects" below); plugins introduce them once core ingests plugin records in
-roadmap stage 0 (ADR 0044's amendment "data any plugin can extend"). Questions
-for relevant instruments are built; see the amendment "questions on touch,
-answers as local overrides" below.
+Plugins introduce subjects through core's ingest (amendments "device subjects"
+and "ingest" below); search over them is still to come in roadmap stage 0
+(ADR 0044's amendment "data any plugin can extend"). Questions for relevant
+instruments are built; see the amendment "questions on touch, answers as local
+overrides" below.
 
 ### Consequential failures (roadmap stage 0)
 
@@ -672,8 +671,8 @@ opinion, not a statement of issuance.
 - **The curated table is the maintained default.**
   `canonical_assets.json` stays Pythia's supplier of canonical-issuance
   claims, through the reference build, with its evidence rules, audit and
-  drift check unchanged. A plugin's claim keys nothing until core ingests
-  plugin claims into subjects (roadmap stage 0). An uncurated coin keeps
+  drift check unchanged. A plugin's canonical-issuance claim keys an asset
+  through core's ingest (amendment "ingest"). An uncurated coin keeps
   `security:provisional:<provider>:coin:<id>`.
 
 ### The Pythia-local Sui profile is minted
@@ -839,8 +838,8 @@ asks it; the agent cannot.
 
 **A later release that contradicts an override** raises a conflict question
 when relevant, showing both values; the override stays applied until the user
-answers it (amendment of 2026-09-30). Plugin claims that contradict one join
-with plugin evidence (roadmap stage 0, W3-ingest).
+answers it (amendment of 2026-09-30). A confirm-level plugin's evidence counts
+there as the release's does (amendment "ingest").
 
 **Repairs.** A build question is titled by what it asks ("Issuer unclear",
 "Same company?", "Receipt's share unknown", "Share or receipt?"), shows its
@@ -1017,9 +1016,8 @@ and stores working without a schema bump.
 - A package installed with `--display` confirms nothing: resolve answers wait
   in the queue, and its coin addresses show as derived.
 - The mapping covers relations too (a receipt edge the builder's rule derived is
-  `rule_confirmed`), but no relation is weighed yet: a confirm-level plugin
-  relation that contradicts a package relation is handled where plugin
-  relations first enter (roadmap stage 0, W3-ingest).
+  `rule_confirmed`). A confirm-level plugin relation that contradicts a package
+  relation makes it contested (amendment "ingest").
 
 **Rejected alternatives.**
 
@@ -1139,11 +1137,9 @@ reference package installed every page said so.
   `introduced@1`; [ADR 0042](0042-source-onboarding-standard.md), amendment
   "binding by trust level"). The user's answer may choose a device subject.
 
-Not built yet: core's ingest of plugin records, which writes device subjects,
-joins records by identifier and places claims (roadmap stage 0, W3-ingest).
-Until ingest lands, device evidence about a subject the reference holds is not
-merged into that subject's page. Search over device subjects is built
-(amendment "search over reference and device").
+Core's ingest writes device subjects, joins records by identifier and places
+claims (amendment "ingest" below). Search covers device subjects (amendment
+"search over reference and device" below).
 
 **Rationale.** One store keeps a device subject's label, identifiers, bindings
 and answers in one transaction, as the original ruling chose for claims.
@@ -1276,6 +1272,168 @@ provisional-coin aliases until its next format". In [ADR 0042](0042-source-onboa
 - **Keeping the provider tables for the drift check:** `just
   canonical-assets-drift` reads the contracts.
 
+## Amendment (2026-09-30): ingest
+
+**Context.** [ADR 0044](0044-product-direction.md) A1 and A3 let every plugin
+introduce subjects and contribute evidence through one contract. Device
+subjects had a store and reads (amendment above), but nothing wrote them:
+`identity-resolve` kept a plugin's records unplaced, catalogues were not read,
+and device evidence never reached a subject the reference holds.
+
+**Ruling.** Core has one path for plugin claims, `identity/ingest.py`. Every
+batch a plugin returns, a catalogue page, a resolve answer or a lookup, goes
+through it.
+
+- **A record joins by identifier agreement at its own scope,** by the values
+  it states for itself (`self`), in this order:
+
+  | Record | Joins by |
+  | --- | --- |
+  | listing | ISIN with its operating MIC and currency, then FIGI, then CAIP-19 deployment; for a line that states no currency (OpenFIGI's), failing those, its security's one active line on its exchange |
+  | security | ISIN, then share-class FIGI, then canonical CAIP-19 |
+  | issuer | LEI, then CIK |
+  | market, protocol | the plugin's own native reference only (or the subject its contract addresses by it) |
+
+  A line with no currency joins its security's one active line on its
+  exchange when that line has no FIGI or the record's and no ticker or the
+  record's, adding the FIGI and ticker as evidence (a ticker-less FIRDS line
+  gains them). The record stays `unmatched`, and is never introduced as a
+  second line on one exchange, where the exchange has several of the
+  security's lines, or one with another FIGI or ticker, or where the answer
+  itself has more than one line for that ISIN on that exchange (OpenFIGI's USD
+  and EUR lines on one exchange: only one can be the build's, and the answer
+  does not say which), or where the ISIN names more than one security. Only
+  lines the reference holds, or that a confirm-level
+  plugin (or the ingesting one) introduced, count there. It never joins by issuer, ticker, symbol or name, so a shared issuer
+  never makes two instruments one. An `underlying` or `unqualified` value never
+  joins, and a value a resolve answer only echoes from its question is not
+  evidence. A record's parents are found the same way at their own scope. An
+  identifier names a subject where the package asserts it, a confirm-level
+  plugin states it on the device, or the ingesting plugin itself does (a
+  display plugin's own statements join the subjects it introduced), or where
+  it keys a subject the device or the reference holds.
+- **Conflicts are kept, never resolved by ingest.** A second subject found, or
+  a single-valued value that confirm-level evidence about the subject or its
+  parent states otherwise (or that names another subject there), makes the
+  claim a `conflict`. The record stays with the first subject found, its values
+  are kept beside the others', nothing is re-parented, and a new listing whose
+  security is contested (two named, or the one named contradicted at confirm
+  level, as by another share-class FIGI) gets none. No queue row is written at
+  ingest.
+- **A device subject's parent** is the one its records name at the highest
+  trust level among those naming one, never counting a level below the
+  subject's introducer's; where the records at that level disagree it has
+  none. A record placed on a device subject names its own parent (introducing
+  it where its contract lets it), so a confirm-level record gives the parent
+  of a line a display plugin introduced, and a display record never fills or
+  replaces a confirm-level one's. The outcome is the same in either order.
+- **Evidence.** A joined record's identifiers, and a listing's ticker at its
+  operating MIC, become device evidence on the subject and its parents, counted
+  at the plugin's trust level (amendment "evidence counts by kind and trust
+  level"). Reads merge it into a reference subject's page too
+  (`device.merge`): a confirm-level plugin's other value contests the fact, a
+  display-level one is shown with its source, and the page lists each plugin
+  behind the subject with what it states (`contributors`). An identifier the
+  page shows names the plugin that stated it. A record changed by its plugin
+  replaces its earlier statements; a conflicting one's are kept beside them. A
+  parent's identifier goes onto the subject's parent where it names that
+  parent, or where the subject is the reference's, whose parent the package
+  gave (a differing value then contests the package's); else onto the one
+  subject it names. A device subject's parent, whoever chose it, never takes
+  a value that does not name it, so a display plugin's line under another
+  company never carries a confirm-level source's identifiers onto that
+  company.
+- **A plugin conflict is asked when relevant.** Its contested fact is raised by
+  `queue_ops.surface`, with the build's questions and the contested facts of
+  the evidence amendment, once, when the subject is opened, watched or used.
+  The user's answer is the local override. A display-level plugin's conflict
+  is shown and never asked.
+- **Introduced subjects.** A record that joins nothing introduces a device
+  subject only when its contract's `introduces` declares the kind and the key
+  scheme its identifiers give (`subject_id`, the same ID on every install), or
+  `native` where they give none. A listing needs an operating MIC or a chain as
+  well: a FIGI line with no mapped exchange joins by FIGI where it matches and
+  is otherwise `unmatched`, never introduced. Otherwise the claim stays
+  `unmatched`. The plugin's record binds the subject it introduced
+  (`introduced@1`), unless the user rejected that binding.
+- **Keys move up only.** A confirm-level record that gives a device subject a
+  better key writes a device alias and re-points the rows (Lifecycle A,
+  again). A display-level record does so only for a subject that is its
+  plugin's alone (it introduced it and no other plugin's record is on it), and
+  never for a provisional one; it never re-points a subject others rely on. A
+  record that now names another existing subject than the one it was placed on
+  is a conflict, with the ID and binding unchanged, except that a
+  confirm-level plugin's own provisional subject (an uncurated coin whose
+  record now makes a canonical-issuance claim) is aliased to the subject it
+  names. Two open-keyed subjects are never merged. A confirm-level release that holds a device subject
+  under another ID, asserting the identifier the device subject is keyed by
+  (a London line OpenFIGI introduced by its FIGI, now in the build), aliases it
+  there on the release's first use (`lifecycle.covered`): saved IDs and
+  bindings follow, and search shows one line.
+- **Crypto keys.** A `listing:caip19:` deployment key may come from any plugin.
+  A `security:caip19:` asset key comes only from a canonical-issuance claim (a
+  security record with one explicit `self` CAIP-19), and a provisional coin is
+  aliased to it only by a confirm-level claim (a user's alias has no path yet).
+  A platform list never keys an asset.
+- **Relations.** A plugin's relation is kept with its plugin. One that gives a
+  subject another target of a one-target type (a receipt's share, a pool's
+  protocol) than the package's contradicts it: a confirm-level plugin's makes
+  the package relation contested, shown and marked but not applied, so a
+  contested receipt no longer folds into its share's listings. A relation the
+  package states too changes nothing, and a display-level one is only shown.
+- **Records without a native reference** (a token a DeFi source names only by
+  CAIP-19) are kept under a digest of their level and identifiers, so a renamed
+  record keeps its row. They join and introduce like any other and bind
+  nothing.
+- **Unchanged and missing records.** A record that has not changed writes
+  nothing. One left `unmatched` or `conflict` is placed again once the
+  installed release, the plugin's trust level or its contract changed since
+  the plugin's last batch. The last page of a `complete` catalogue scope marks the scope's
+  records that no page of it carried `not_seen`; their subjects and bindings
+  stay.
+
+**Rationale.** One path makes a plugin's records count the same however they
+arrive. Joining at the record's own scope is the rule the original ruling set
+for the build; keeping every conflict and deciding none leaves ambiguity with
+the user, raised only where it matters (A2). Keys that depend on identifiers
+alone keep IDs portable, and letting only confirm-level evidence re-point a
+saved ID means the absence of competing evidence never raises authority (A3).
+
+**Consequences.**
+
+- `identity-resolve` stores its answer through ingest; `identity-sync` and
+  `identity-lookup` read a plugin's catalogue or look one identifier up
+  ([ADR 0038](0038-plugin-addressing-contract.md), amendment "core dispatches
+  catalogue and resolve").
+- A confirm-level vendor whose record contradicts the package contests the
+  fact for every reader until the user answers or demotes a contributor.
+- A contested fact about a subject only the device holds is shown and flagged,
+  not yet asked: questions are asked about reference subjects.
+- The identity store gains lookup indexes (a record's statements, relations by
+  end, children, the records on a subject) in its additive section, with no
+  schema bump. DeFiLlama's full catalogue (23 pages; 17,402 relations) syncs
+  in about 4 seconds instead of 17, and an unchanged re-sync in about 1 instead
+  of 24.
+- Plugin authors: a record's currency is compared as stated, so a GBX record
+  never joins the GBP line by ISIN, exchange and currency (its FIGI still
+  joins), and a receipt's line names the share's ISIN as `underlying`, never
+  `self` ([plugin authoring](../architecture/plugins.md)).
+- The question about a registrant the user matched to a company, raised when a
+  later release gives it identifiers of its own, offers the registrant alone and
+  says why: those identifiers refuse the earlier answer and "none" alike
+  (evidence amendment's unanimous-proof rule).
+
+**Rejected alternatives.**
+
+- **Queueing a question at ingest:** a bulk catalogue would flood Repairs,
+  which A2 rules out.
+- **Joining through an issuer, ticker or name:** the Ericsson class A and B
+  lines share an LEI and CIK, and tickers are reused.
+- **Deciding a conflict by trust, recency or source:** the exact weighing rules
+  stay open (A8).
+- **A second table for plugin relations or conflicts:** the device tables and
+  the claim state already hold them.
+
 ## Amendment (2026-09-30): search over reference and device
 
 **Context.** [ADR 0044](0044-product-direction.md) A1 and A3 let any plugin
@@ -1289,12 +1447,16 @@ nothing showed what search and saved references do without one.
 **Ruling.**
 
 - **The directory holds the reference's lines and the device's**
-  (`identity/search_device.py`). A device subject is in it while at least one
-  enabled plugin has a placed claim or an assertion about it. A listing is a
-  line; a pool, a protocol or another subject outside the instrument hierarchy
-  is a line and its own search group, like a fund. Issuers, securities and
-  composites are not lines, as in the reference. A device listing under a
-  security the reference holds joins that security's company group.
+  (`identity/search_device.py`). A device subject is in it while an enabled
+  plugin has a record on it that it still offers (placed `joined`,
+  `introduced` or `conflict`; a record a complete catalogue no longer carries
+  is `not_seen` and adds nothing). A listing is a line. A pool, a protocol or
+  another subject outside the instrument hierarchy is the one, primary line of
+  its own search group, like a fund. Issuers, securities and composites are
+  not lines, as in the reference. A device listing under a security the
+  reference or the device holds takes that security's kind and asset class,
+  never its own record's, so it joins the security's company group and never
+  regroups it.
 - **Enabled plugins' evidence adds to the reference's lines.** A plugin's
   ticker fills a line that has none (a FIRDS line becomes findable) and its
   other tickers are search names, as are the names its placed records give
@@ -1303,58 +1465,81 @@ nothing showed what search and saved references do without one.
   "evidence counts by kind and trust level"): a contested identifier indexes
   neither value, so search never presents one as a fact, and a display-level
   plugin's other value never displaces the package's. The line stays findable
-  by its name and ticker.
-- **One ranking for every line.** A device line is built in the shape of the
-  reference's listing join and scored by the same code. A plugin record's rank
-  signals (its `*_usd` amounts: market cap, total value locked) map onto the
-  reference rank's notability scale, $1M to 0 and $1T to 1. Between groups
-  with the same score, a confirm-level contributor comes before a display-level
-  one. Origin never counts: a subject is not ranked lower for being a device
-  subject.
+  by its name and ticker. A contest inside the package alone still indexes one
+  value, as before.
+- **One ranking for every line.** Every line is built by one function in the
+  shape of the reference's listing join and scored by the same code. A plugin
+  record's rank signals (its `*_usd` amounts: market cap, total value locked)
+  map onto the reference rank's notability scale, $1M to 0 and $1T to 1; the
+  two scales are not calibrated against each other (the reference's is a
+  FITRS turnover or file position, so the same company can come out about 0.2
+  to 0.35 higher from a plugin's market cap), which is a simple default under
+  A8. Between groups with the same score, a confirm-level contributor comes
+  before a display-level one. Origin never counts: a subject is not ranked
+  lower for being a device subject.
 - **A row names the plugin that introduced its subject** (`source`, the
   plugin's label); the reference's own rows name none.
 - **A disabled plugin adds nothing.** Its subjects leave search at once and
   come back when it is enabled again, with nothing re-read; their pages still
   open by ID (amendment "device subjects").
-- **The directory is rebuilt only when what it reads changes:** the reference
-  file, the identity store's `generation`, or the enabled plugins and their
-  trust levels. Every writer of device rows bumps the generation.
+- **Two parts, one index** (`identity/search_index.py`). The reference's lines
+  are built once per reference file (and again only when the plugin relations
+  contesting its folds change, amendment "ingest"). What the device adds is
+  laid over them in place whenever the identity store's `generation`, the
+  enabled plugins and their trust levels, or the package's trust level change:
+  the device's lines get IDs above the reference's, a reference line the device
+  restates is replaced under its own ID, and its own row is put back once the
+  device no longer restates it. Only rows that changed are written. Page reads,
+  price routing and search wait only for that, never for the reference to be
+  rebuilt; every writer of device rows bumps the generation.
 - **With no package installed,** search reads the device's subjects alone. An
-  answer with no results still says why there is no reference data.
-- **Lookup offers.** A search answer's `lookup` lists the enabled, configured
-  plugins whose declared resolve takes the identifier the query is (an ISIN, a
-  LEI, a CIK, or a FIGI in any FIGI scheme). A text query offers none. Offering
-  calls nothing; the lookup itself is the explicit single-plugin
-  `identity-lookup` that core's ingest adds (roadmap stage 0, W3-ingest).
+  answer with no results still says why there is no reference data, and after
+  a removal it says the package was removed.
+- **Lookup offers.** A Desk search answer's `lookup` lists the enabled,
+  configured plugins whose declared resolve takes the identifier the query is
+  (an ISIN, a LEI, a CIK, or a FIGI in any FIGI scheme;
+  `search_device.identifier`, which `identity-lookup` uses too). A text query
+  offers none, and the agent's search none: the lookup is the investor's Desk
+  action (amendment "ingest"). Offering calls nothing.
 - **The search contract** (`packages/market-data/src/search.ts`) gains the
   kinds `market` and `protocol`, a nullable `ticker` and an optional `source`.
+  The Crypto type filter includes pools and protocols.
 - **Removing the package.** `reference_package.py remove` (`just
   reference-remove`) sets the install record aside as `removed.json`, so no
   package is active ([reference packages](../architecture/reference-package.md#removing)).
   A saved reference to a reference subject then opens as a labelled stub: its
   own ID, named by the latest record a plugin placed on it, the identifiers the
-  device's plugins state, and a line saying why there is no more. It is never
-  `UNKNOWN_SUBJECT` and never another subject. Device evidence stays.
+  device's plugins state, and a line saying the package was removed. It is
+  never `UNKNOWN_SUBJECT` and never another subject. Device evidence stays.
   Installing the same package again gives the same release key, so nothing is
   re-keyed and no question is retired.
 
-**Rationale.** Building device lines in the reference's shape keeps one
-ranking, so origin cannot enter it by accident, and one index keeps a search a
-single read. The store's generation counter exists for exactly this cache.
-Weighing identifiers as pages weigh them keeps search from answering a
-contested identifier as if it were settled. Setting the install record aside is
-one atomic rename that a later install undoes; it touches no device state.
+**Rationale.** Building every line with one function keeps one ranking, so
+origin cannot enter it by accident, and one index keeps a search a single read.
+Laying the device's part over a reference part built once keeps the cost of a
+device change proportional to the device: after ingest, every page open's
+resolve can change device data, so a full rebuild per change (about 2 s on a
+real package) would stall pages. Weighing identifiers as pages weigh them keeps
+search from answering a contested identifier as if it were settled. Setting the
+install record aside is one atomic rename that a later install undoes; it
+touches no device state.
 
 **Consequences.**
 
-- Measured on the 2026-09-28 build (211 MB, 92,941 lines): building the
-  directory takes 2.0 s before and after this change with no device rows, and
-  2.15 s with 6,300 device lines plus 1,500 statements about reference subjects
-  (reading them takes 0.05 s). Queries take 0.2 to 1.1 ms before and after;
-  one that matches thousands of device lines takes longer ("lending", matching
-  3,000 pools: 4.6 ms). A search checks the cache key (the generation and the
-  enabled plugins) and otherwise reuses the directory. Every search now lists
-  the installed plugins (`installed()`) for that key and for the lookup offers.
+- Measured on the 2026-09-28 build (211 MB, 92,941 lines):
+  - Building the reference part takes 2.0 s before and after this change, with
+    identical rows and answers.
+  - Laying 6,300 device lines plus 1,500 statements about reference subjects
+    over it takes 0.33 s the first time; after one more change (a new pool),
+    0.14 s, of which reading the device's state is 0.06 s. With 130 device
+    lines, 3 to 7 ms. A read after a device change used to rebuild the whole
+    directory (about 2 s, measured on a page read in review).
+  - Queries take 0.2 to 1.1 ms before and after; one that matches thousands
+    of device lines takes longer ("lending", matching 3,000 pools: 4.6 ms).
+  - The cache key costs 0.05 ms. Every search lists the installed plugins
+    (`installed()`, 0.7 to 1.5 ms on 7 to 11 real plugin directories, measured
+    in review) for that key and for the lookup offers; a page read passes the
+    list it already has.
 - An instrument's page lists the device lines of its security (a line a plugin
   introduced under a security the build holds), and the listing selector may
   price through one.
@@ -1373,7 +1558,12 @@ one atomic rename that a later install undoes; it touches no device state.
 - **Showing both values of a contested identifier:** it needs multi-valued
   identifier columns, and no search row shows an identifier; showing neither is
   the simpler reading of "never a fact".
-- **A second index for device subjects, merged per query:** two rankings to
-  reconcile on every keystroke.
+- **Rebuilding the whole directory on a device change, in the foreground or in
+  the background:** in the foreground a page waits about 2 s; in the
+  background search lags each change by as long, and every page open costs a
+  full rebuild of CPU.
+- **A second index for device subjects, merged per query:** two rankings
+  (FTS5's bm25 depends on its corpus) and group sizes to reconcile on every
+  keystroke.
 - **Deleting the package's files on removal:** it would lose the verified copy
   for nothing, since the next install replaces them anyway.

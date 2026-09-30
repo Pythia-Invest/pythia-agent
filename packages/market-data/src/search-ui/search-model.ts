@@ -18,7 +18,12 @@ export const TYPE_FILTERS: readonly {
     kinds: ["ordinary", "preferred", "depositary_receipt"],
   },
   { value: "etfs", label: "ETFs", kinds: ["etf"] },
-  { value: "crypto", label: "Crypto", kinds: ["coin", "token"] },
+  // A pool or protocol a DeFi plugin introduced is found under Crypto too.
+  {
+    value: "crypto",
+    label: "Crypto",
+    kinds: ["coin", "token", "market", "protocol"],
+  },
   { value: "funds", label: "Funds", kinds: ["fund"] },
 ];
 

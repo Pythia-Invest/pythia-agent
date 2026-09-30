@@ -48,7 +48,8 @@ STATUS_SCHEMA = {  # core's read-only `reference-status` operation (identity_ops
     "name": "pythia_reference_status",
     "description": "Describe the reference data installed on this device: its build, as-of date, the sources the "
                    "build included, and each source file with its as-of date, licence and the notice to show when "
-                   "citing it; also the last package that was refused, and why. Local only.",
+                   "citing it; also the last package that was refused, and why, and one removed from the device "
+                   "(`removed`). Local only.",
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
 
@@ -103,7 +104,12 @@ def status(data_dir: Path) -> dict:
     except (OSError, ValueError):
         refused = None
     return {"installed": installed, "refused": refused if isinstance(refused, dict) else None,
-            "removed": _pointer(root, REMOVED_FILE)}
+            "removed": removed(data_dir)}
+
+
+def removed(data_dir: Path) -> dict | None:
+    """The install record `remove` set aside (the package's name and when it was installed), until a package installs."""
+    return _pointer(reference_dir(data_dir), REMOVED_FILE)
 
 
 def _summary(manifest: dict) -> dict:

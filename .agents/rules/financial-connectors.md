@@ -37,6 +37,9 @@ native references and qualified evidence; tickers, names and catalogue membershi
 do not prove cross-provider equivalence. Keep issuer, instrument, listing and
 source-series identity distinct. Core owns identity ([ADR 0037](../../docs/decisions/0037-identity-backbone.md),
 [ADR 0038](../../docs/decisions/0038-plugin-addressing-contract.md)); unresolved associations stay unresolved.
+State each identifier's role and a line's currency as the source gives them: core joins a line by ISIN, exchange and
+currency as stated (a GBX record never joins the GBP line), and a receipt's line names the share's ISIN as
+`underlying`, never `self` ([plugin authoring](../../docs/architecture/plugins.md)).
 
 A connector declares its own reference for a subject core keys (`addressing.subjects`)
 and the kinds of subject it may introduce (`introduces`) in its contract; core's
