@@ -240,11 +240,11 @@ class Identity:
         return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
-        """The reference path and the subject, with the store lookups page composition reads: a curated market (no
-        reference file needed), a reference subject with the user's answers applied, else a device subject (`device`).
-        A provisional ID a confirm-level contract now addresses under its subject's key is that subject."""
+        """The reference path and the subject with the store lookups pages read: a curated market (no reference needed), a
+        reference subject with the user's answers, else a device subject (`device`); a declared alias is followed."""
         aliases = declared.aliases(info.manifest for info in installed()) if ":provisional:" in subject_id else {}
-        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(markets.curated(), aliases.get(subject_id, subject_id))
+        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(
+            markets.curated(), aliases.get(subject_id, subject_id))
         path, ref = (None, None) if curated else self.reference()
         try:
             subject_id = subject_id if curated else device.current_id(ref, self.store, subject_id, aliases)

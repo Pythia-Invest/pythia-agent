@@ -1057,8 +1057,9 @@ binding. That made the address depend on a provider's name in a core table.
 - **Provisional coin IDs alias through confirm-level declarations.** A saved
   `security:provisional:coingecko:coin:bitcoin` resolves to Bitcoin's key
   because a confirm-level contract declares `bitcoin` for it; `current_id`
-  follows that alias with the package's own, on reads. Lifecycle A still
-  follows only the package's aliases when it re-points stored rows. Only a
+  follows that alias with the package's own, on reads. Lifecycle A never
+  follows it when it re-points stored rows (it follows the package's aliases
+  and, since the amendment "device subjects", the device's). Only a
   confirm-level declaration, a confirm-level canonical-issuance claim or the
   user may alias a provisional coin; a display plugin's declaration gives an
   address, never an alias.
@@ -1101,8 +1102,9 @@ reference package installed every page said so.
     (`joined`, `introduced`, `conflict`, `unmatched` or `not_seen`).
   - `device_aliases` records a device subject's better key, and the metadata
     `generation` counts changes to device subjects, so a cached read renews.
-- **Reads cover reference and device** (`identity/device.py`). An ID follows
-  the reference's aliases, then the device's. A subject is read from the
+- **Reads cover reference and device** (`identity/device.py`). At each step an
+  ID follows the reference's aliases, else on reads a confirm-level contract's
+  declared alias (amendment above), else the device's. A subject is read from the
   reference, else from the device store, in the same shape plus `sources`: the
   plugins behind it, each `enabled`, `disabled` or `removed`. An instrument's
   parents are its own device rows, else the reference's, so a line a plugin

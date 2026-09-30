@@ -157,11 +157,11 @@ def levels(plugins: Iterable) -> dict[str, str]:
 
 def current_id(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
                declared: Mapping[str, str] = {}) -> str:
-    """The ID a subject has now: each step follows the reference's `id_aliases`, else the device's, else `declared`
-    (the provisional IDs confirm-level contracts alias, `declared.aliases`). A cycle is a defect: its IDs stay as
-    they are."""
+    """The ID a subject has now: each step follows the reference's `id_aliases`, else `declared` (the provisional IDs
+    confirm-level contracts alias, `declared.aliases`; reads pass them, the re-key does not), else the device's
+    aliases. A cycle is a defect: its IDs stay as they are."""
     seen = [subject_id]
-    while (new := _alias(ref, store, seen[-1]) or declared.get(seen[-1])) is not None:
+    while (new := _alias(ref, store, seen[-1], declared)) is not None:
         if new in seen:
             return subject_id
         seen.append(new)
@@ -270,10 +270,11 @@ def repoint(store: IdentityStore, moved: Mapping[str, str]) -> dict[str, str]:
 
 # ---- internals ---------------------------------------------------------------------------------------------------
 
-def _alias(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str) -> str | None:
+def _alias(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
+           declared: Mapping[str, str]) -> str | None:
     row = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone() \
         if ref is not None else None
-    return row[0] if row else alias(store, subject_id)
+    return row[0] if row else declared.get(subject_id) or alias(store, subject_id)
 
 
 def _assertion(row: Mapping[str, Any]) -> IdentifierAssertion:
