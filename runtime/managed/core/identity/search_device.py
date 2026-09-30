@@ -33,6 +33,7 @@ from .search import Directory, classify, directory as cached
 from .store import IdentityStore, open_reference
 from .subject import _assertion
 from .trust import CONFIRM
+from .vocabulary import FOLD
 
 SEARCHED = ("isin", "lei", "cik", "figi", "composite_figi", "share_class_figi", "caip19")  # the directory's identifiers
 FIGIS = ("figi", "share_class_figi", "composite_figi")  # a FIGI's text does not say its level
@@ -74,7 +75,8 @@ def directory(path: Path | None, store: IdentityStore, plugins: Iterable) -> Dir
     the file, with what the enabled plugins add laid over it whenever that changes."""
     plugins = list(plugins)
     return cached(path, lambda at: open_reference(at) if at else empty_reference(),
-                  relations.contested(store, device.levels(plugins)), partial(additions, store=store, plugins=plugins),
+                  relations.contested(store, device.levels(plugins), FOLD),  # only a fold changes the reference part
+                  partial(additions, store=store, plugins=plugins),
                   key(store, plugins, path))
 
 

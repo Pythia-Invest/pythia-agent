@@ -280,6 +280,9 @@ def directory(path: Path | None, open_reference: Callable[[Path | None], sqlite3
                 built = built or Directory(reference, contested)
                 if device is not None:
                     built.renew(reference, device(reference), key)
+            except BaseException:  # a renew that failed partway never serves its half-written index
+                _cache.pop("current", None)
+                raise
             finally:
                 reference.close()
             _cache["current"] = (stamp, built)

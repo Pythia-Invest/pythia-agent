@@ -189,7 +189,7 @@ class Identity:
             return "primary"
         return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
 
-    def order(self) -> tuple[str, ...]:
+    def order(self, plugins: list | None = None) -> tuple[str, ...]:
         """The investor's `source_order` (settings.json): plugin ids or provider names; empty means core's order."""
         from .identity.concepts import parse_order
         from .platform import configuration
@@ -197,7 +197,7 @@ class Identity:
             _status, value = configuration.value(self.ctx, SOURCE_ORDER)
         except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
             return ()
-        plugins = installed()  # common names ("edgar", "esef") mean the plugin; unknown names are kept as written
+        plugins = installed() if plugins is None else plugins  # common names ("edgar", "esef") mean the plugin
         return tuple(dict.fromkeys(page.named(name, plugins) or name for name in parse_order(value)))
 
     # ---- internals -----------------------------------------------------------------------------------------------
@@ -207,7 +207,8 @@ class Identity:
         its quote and chart in core's order, the providers the investor named in `source_order` and those not
         yet audited (ADR 0042), or the reason there are none. Local only."""
         try:
-            path, subject, lookups, _issue = self._load(subject_id)
+            plugins = installed()
+            path, subject, lookups, _issue = self._load(subject_id, plugins)
         except ValueError:  # a malformed subject id
             return unrouted("unknown_subject")
         except (sqlite3.Error, OSError):
@@ -216,7 +217,6 @@ class Identity:
         if subject is None:
             # A market needs no reference file, so an unknown one is unknown, not missing reference data.
             return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS else "no_reference_data")
-        plugins = installed()
         named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
         unaudited = [info.manifest.provider for info in plugins if info.manifest.unaudited]
         return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, plugins, **lookups),
@@ -240,10 +240,10 @@ class Identity:
         sections = page.compose(subject, plugins, **lookups)
         return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 
-    def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
+    def _load(self, subject_id: str, plugins: list | None = None) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject with the store lookups pages read: a curated market (no reference needed), a
         reference subject with the user's answers, else a device subject (`device`); a declared alias is followed."""
-        plugins = installed()  # their evidence counts at their levels (`device.merge`)
+        plugins = installed() if plugins is None else plugins  # their evidence counts at their levels (`device.merge`)
         aliases = declared.aliases(info.manifest for info in plugins) if ":provisional:" in subject_id else {}
         curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(markets.curated(), aliases.get(subject_id, subject_id))
         path, ref = (None, None) if curated else self.reference()
@@ -259,9 +259,9 @@ class Identity:
                 ref.close()
         if subject is None:  # an instrument with no reference installed may yet be in one
             return path, None, {}, no_reference(self.data_dir) if path is None and subject_kind(subject_id) in INSTRUMENT_KINDS else UNKNOWN_SUBJECT
-        return path, subject, self._lookups(subject), None
+        return path, subject, self._lookups(subject, plugins), None
 
-    def _lookups(self, subject: dict) -> dict:
+    def _lookups(self, subject: dict, plugins: list | None = None) -> dict:
         """The store lookups page composition reads for a subject: bindings, queue items and misses at each level."""
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
@@ -271,7 +271,7 @@ class Identity:
                 "queue": identity_store.open_queue(subject_ids),
                 "misses": {(target, plugin): reason for target in subject_ids
                            for plugin, reason in identity_store.misses(target).items()},
-                "order": self.order(), **read_checks.lookups(self, subject_ids)}
+                "order": self.order(plugins), **read_checks.lookups(self, subject_ids)}
 
     def directory(self, path: Path | None, plugins: list | None = None) -> search.Directory:  # with what plugins add
         return search_device.directory(path, self.store, installed() if plugins is None else plugins)

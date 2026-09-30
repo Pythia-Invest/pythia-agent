@@ -17,10 +17,10 @@ from dataclasses import replace
 from unittest import mock
 
 from test_identity_contracts import load, load_reference
-from test_identity_trust import TrustCase, identity, identity_ops, page, reference_package, trust
+from test_identity_trust import TrustCase, identity, identity_ops, page, reference_package, store, trust
 from test_reference_package import make_package
 from pythia_core_queue_fixture import queue_ops  # noqa: E402  (the core test_identity_trust loaded)
-from pythia_core_queue_fixture.identity import device, lifecycle, search, search_index  # noqa: E402
+from pythia_core_queue_fixture.identity import device, lifecycle, search, search_device, search_index  # noqa: E402
 from pythia_core_queue_fixture.platform.request_context import usage  # noqa: E402
 
 NOW = "2026-09-30T10:00:00Z"
@@ -267,6 +267,61 @@ class ReadOnlyTest(DeviceSearch):
         self.assertEqual(self.search("NL0010273215")["data"]["lookup"], [])  # the agent cannot run a Desk lookup
         self.plugins = [replace(LISTER, enabled=False), POOLS]
         self.assertEqual(self.search("NL0010273215", desk=True)["data"]["lookup"], [])
+
+
+class OverlayTest(DeviceSearch):
+    """The device's part, laid over the reference's in place, is what a build from scratch gives."""
+
+    def assert_as_built(self):
+        self.search("sap")  # lays the device's current state
+        laid = search._cache["current"][1]
+        with closing(store.open_reference(reference_package.current(self.data))) as ref:
+            fresh = search.Directory(ref)
+            fresh.renew(ref, search_device.additions(ref, store=self.ops.store, plugins=self.plugins), ("fresh",))
+        rows = lambda index: sorted(row[1:] for row in index.db.execute("SELECT * FROM doc"))  # noqa: E731
+        self.assertEqual(rows(laid), rows(fresh))
+        self.assertEqual(sorted(laid.db.execute("SELECT * FROM gsize")), sorted(fresh.db.execute("SELECT * FROM gsize")))
+        self.assertEqual(dict(laid.vocab), dict(fresh.vocab))
+        laid.db.execute("INSERT INTO fts(fts, rank) VALUES ('integrity-check', 1)")  # the FTS index matches its rows
+        for query in ("sap", "asml", "QW9", "navi", "NL0010273215", "DE0007164600", "scallop"):
+            self.assertEqual(laid.search(query, limit=20), fresh.search(query, limit=20), query)
+        fresh.db.close()
+
+    def test_adding_dropping_and_disabling_leaves_what_a_full_build_gives(self):
+        at, xetra = self.ops.store, identity.ProviderRef("lister", "ASML-XETR", "line")
+        introduce_sap(at)
+        introduce_pool(at)
+        place(at, LISTER, "ASML-XETR", ASML_XETRA, state="joined", name="ASML Holding NV",
+              stated=[(ASML_XETRA, "ticker_mic", "QW9@XETR")])
+        place(at, LISTER, "ASML-AMS", ASML, state="joined", stated=[(ASML_SECURITY, "isin", "DE0007164600")])
+        self.assert_as_built()
+        device.place_claim(at, "lister", xetra, ASML_XETRA, "not_seen")  # no longer offered: its ticker goes
+        device.bump(at)
+        self.assert_as_built()
+        self.plugins = [LISTER, replace(POOLS, enabled=False)]  # the pools and their words go
+        self.assert_as_built()
+        self.assertNotIn("navi", search._cache["current"][1].vocab)
+        introduce_pool(at, native_id="scallop-sui", name="SUI lending on Scallop")
+        self.plugins = [replace(LISTER, manifest=identity.vouched(LISTER.manifest, trust.DISPLAY)), POOLS]
+        self.assert_as_built()  # both pools back; the ISIN no longer contested
+
+    def test_a_pools_protocol_never_rebuilds_the_reference_and_a_failed_renew_is_not_kept(self):
+        confirmed = pools("zetapools", "grandfathered")
+        self.plugins = [LISTER, confirmed]
+        pool = introduce_pool(self.ops.store, confirmed, "blue", "Blue Pool USDC")
+        self.search("sap")
+        with mock.patch.object(search_index.Index, "_load", side_effect=AssertionError("the reference rebuilt")):
+            self.ops.store.db.execute(  # a confirm-level plugin's `part_of`: one target, but not a fold
+                "INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, retrieved_at)"
+                " VALUES ('ev:part-of', 'part_of', ?, ?, 'source_asserted', 'zetapools', 'zetapools-plugin', ?)",
+                (pool, "protocol:provisional:zetapools:protocol:blue", NOW))
+            device.bump(self.ops.store)
+            self.assertEqual(self.groups("blue pool"), [pool])
+        device.bump(self.ops.store)
+        with mock.patch.object(search_index.Index, "renew", side_effect=sqlite3.OperationalError("disk I/O error")):
+            self.assertIn("Search is unavailable", self.search("sap")["issues"][0]["message"])
+        self.assertNotIn("current", search._cache)  # a half-laid index is never served
+        self.assertEqual(self.groups("blue pool"), [pool])
 
 
 class RemovalTest(DeviceSearch):

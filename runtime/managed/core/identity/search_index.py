@@ -14,7 +14,7 @@ import logging
 import sqlite3
 import threading
 from collections import ChainMap
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from . import ranking, relations
 from .evidence import level
@@ -63,8 +63,8 @@ class Index:
             self.db.execute(f"CREATE INDEX doc_{column} ON doc ({column})")
         self.db.execute("CREATE TABLE gsize AS SELECT grp, max(size) g FROM doc GROUP BY grp")
         self.db.execute("CREATE UNIQUE INDEX gsize_grp ON gsize (grp)")
-        self.vocab: dict[str, float] = {}
-        self._words(self.db.execute("SELECT d.names, d.ticker, s.g FROM doc d JOIN gsize s USING (grp)"))
+        self.words = self._words(self.db.execute("SELECT d.names, d.ticker, s.g FROM doc d JOIN gsize s USING (grp)"))
+        self.vocab: Mapping[str, float] = self.words  # with the device's words once `renew` lays them
         self.db.commit()
         self.lock = threading.Lock()
         # The reference's lines have IDs up to `base`; the device's part adds lines above it and replaces the
@@ -171,12 +171,15 @@ class Index:
             company = issuers_of[unit] if kinds[unit] in ISSUER_INTERESTS else None
             doc.update(inst=unit, ikind=kinds[unit], grp=company or unit)
 
-    def _words(self, rows: Iterable[tuple]) -> None:
-        """Add these lines' names and tickers to the vocabulary fuzzy matching corrects towards."""
+    @staticmethod
+    def _words(rows: Iterable[tuple]) -> dict[str, float]:
+        """The vocabulary fuzzy matching corrects towards: these lines' names and tickers, each with its largest size."""
+        words: dict[str, float] = {}
         for names, ticker, size in rows:
             for token in set(norm(names).split()) | ({ticker.lower()} if ticker else set()):
                 if len(token) >= 3:
-                    self.vocab[token] = max(self.vocab.get(token, 0), size or 0)
+                    words[token] = max(words.get(token, 0), size or 0)
+        return words
 
     def renew(self, ref: sqlite3.Connection, device: Any, key: tuple) -> None:
         """Lay `device` (`search_device.Additions`, the state `key` names) over the reference's lines in place of what
@@ -233,6 +236,8 @@ class Index:
             db.execute("DELETE FROM gsize WHERE grp IN (SELECT value FROM json_each(?))", (groups,))
             db.execute("INSERT INTO gsize SELECT grp, max(size) FROM doc WHERE grp IN (SELECT value FROM json_each(?))"
                        " GROUP BY grp", (groups,))
-            self._words((row[names], row[ticker], row[DOC_COLUMNS.index("size")]) for row in changed)
+            if gone or changed:  # the device's words are its current lines' only, so a disabled plugin's leave too
+                size = DOC_COLUMNS.index("size")
+                self.vocab = ChainMap(self._words((row[names], row[ticker], row[size]) for row in new.values()), self.words)
             db.commit()
             self.key = key
