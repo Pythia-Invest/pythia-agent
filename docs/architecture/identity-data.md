@@ -79,6 +79,10 @@ on `relations`; one asset under two roles is two rows. A plugin may declare
 as well as `as_reported` and `standardized`; core does not yet define the metric
 rows, so each source states its own definition, source and as-of beside a figure.
 
+The `pythia-sui` plugin (slice E2) is the first source of these keys: it states ten protocols by
+original package, tokens by CAIP-19 with bridge provenance, and the DeepBook, AlphaLend and Bucket
+markets by object with their roles, read from Sui's GraphQL ([source record](../sources/sui.md)).
+
 ### The reference file
 
 | Table | Holds |

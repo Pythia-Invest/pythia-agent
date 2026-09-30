@@ -1,0 +1,76 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-sui",
+  "provider": "sui",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "market",
+        "level": "market",
+        "asset_classes": [
+          "crypto"
+        ]
+      },
+      {
+        "native_scope": "protocol",
+        "level": "protocol"
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "caip19"
+      ]
+    }
+  },
+  "introduces": {
+    "market": [
+      "native",
+      "sui_object"
+    ],
+    "protocol": [
+      "native",
+      "sui_package"
+    ],
+    "listing": [
+      "caip19"
+    ]
+  },
+  "concepts": {
+    "fundamentals": {
+      "level": "market",
+      "via": "market",
+      "operations": {
+        "metrics": "metrics"
+      },
+      "qualities": {
+        "metrics": {
+          "basis": [
+            "on_chain"
+          ]
+        }
+      }
+    }
+  },
+  "catalogue": {
+    "mode": "bulk",
+    "operation": "catalogue",
+    "scopes": [
+      "protocols",
+      "tokens",
+      "markets"
+    ]
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "unlimited",
+    "hostable": false,
+    "attribution": {
+      "text": "Data read from the Sui blockchain",
+      "url": "https://docs.sui.io/references/sui-api/sui-graphql"
+    }
+  },
+  "signoff": {
+    "status": "unsigned",
+    "record": "docs/sources/sui.md"
+  }
+}
