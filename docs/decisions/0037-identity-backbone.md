@@ -1198,13 +1198,18 @@ through it.
 
   | Record | Joins by |
   | --- | --- |
-  | listing | ISIN with its operating MIC and currency, then FIGI, then CAIP-19 deployment |
+  | listing | ISIN with its operating MIC and currency, then FIGI, then CAIP-19 deployment; for a line that states no currency (OpenFIGI's), failing those, its security's one active line on its exchange |
   | security | ISIN, then share-class FIGI, then canonical CAIP-19 |
   | issuer | LEI, then CIK |
   | market, protocol | the plugin's own native reference only (or the subject its contract addresses by it) |
 
-  It never joins by issuer, ticker, symbol or name, so a shared issuer never
-  makes two instruments one. An `underlying` or `unqualified` value never
+  A line with no currency joins its security's one active line on its
+  exchange when that line has no FIGI or the record's, adding the FIGI and
+  ticker as evidence (a ticker-less FIRDS line gains them). Where the exchange
+  has several of the security's lines, or one with another FIGI, the record
+  stays `unmatched` and is never introduced: it would be a second line on one
+  exchange. It never joins by issuer, ticker, symbol or name, so a shared issuer
+  never makes two instruments one. An `underlying` or `unqualified` value never
   joins, and a value a resolve answer only echoes from its question is not
   evidence. A record's parents are found the same way at their own scope.
 - **Conflicts are kept, never resolved by ingest.** A second subject found, or
@@ -1212,7 +1217,9 @@ through it.
   parent states otherwise (or that names another subject there), makes the
   claim a `conflict`. The record stays with the first subject found, its values
   are kept beside the others', nothing is re-parented, and a new listing whose
-  security is contested gets none. No queue row is written at ingest.
+  security is contested (two named, or the one named contradicted at confirm
+  level, as by another share-class FIGI) gets none. No queue row is written at
+  ingest.
 - **Evidence.** A joined record's identifiers, and a listing's ticker at its
   operating MIC, become device evidence on the subject and its parents, counted
   at the plugin's trust level (amendment "evidence counts by kind and trust
@@ -1239,7 +1246,11 @@ through it.
   record that gives a device subject a better key, or names the existing
   subject that the plugin's own provisional one is, writes a device alias and
   re-points the rows (Lifecycle A, again). A display-level record never
-  re-points a saved ID.
+  re-points a saved ID. A confirm-level release that holds a device subject
+  under another ID, asserting the identifier the device subject is keyed by
+  (a London line OpenFIGI introduced by its FIGI, now in the build), aliases it
+  there on the release's first use (`lifecycle.covered`): saved IDs and
+  bindings follow, and search shows one line.
 - **Crypto keys.** A `listing:caip19:` deployment key may come from any plugin.
   A `security:caip19:` asset key comes only from a canonical-issuance claim (a
   security record with one explicit `self` CAIP-19), and a provisional coin is
@@ -1277,8 +1288,6 @@ saved ID means the absence of competing evidence never raises authority (A3).
   fact for every reader until the user answers or demotes a contributor.
 - A contested fact about a subject only the device holds is shown and flagged,
   not yet asked: questions are asked about reference subjects.
-- A release that later covers a device subject under another key leaves the
-  two apart until a lifecycle rule joins them (roadmap stage 0, W3-lifecycle).
 - The question about a registrant the user matched to a company, raised when a
   later release gives it identifiers of its own, offers the registrant alone and
   says why: those identifiers refuse the earlier answer and "none" alike

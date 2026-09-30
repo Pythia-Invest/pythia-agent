@@ -3,25 +3,16 @@ agreement at its own scope, a contradiction is kept as a conflict and asked abou
 introduced only under a key scheme its contract declares, and keys move up only on confirm-level evidence.
 
 The world is `identity_world` (Ericsson, Alphabet, GSK, Shell and US Steel from the identity truth set); the plugins
-are fixtures core never names.
+are fixtures core never names. Sources as they emit, and the operations, are test_identity_ingest_sources's.
 """
-import json
-import os
 import random
-import sqlite3
-import sys
 import tempfile
-import types
 import unittest
-import unittest.mock
-from contextlib import closing
 from pathlib import Path
 
 from identity_world import World
-from test_identity_contracts import PROVENANCE, identity, load_reference
-from test_identity_queue import load_core
-from test_reference_package import make_package
-from pythia_identity_fixture import device, page, reference_package, relations, search, store, trust  # noqa: E402
+from test_identity_contracts import PROVENANCE, identity
+from pythia_identity_fixture import device, page, relations, search, store, trust  # noqa: E402
 
 ERICSSON_LEI, ERICSSON = "549300W9JLPW15XIFM52", "issuer:lei:549300W9JLPW15XIFM52"
 ERIC_A, ERIC_B = "security:isin:SE0000108649", "security:isin:SE0000108656"
@@ -31,7 +22,7 @@ GOOGL, GOOG, GOOG_LINE = "security:figi:BBG009S39JY5", "security:figi:BBG009S3NB
 GSK, GSK_BEFORE, GSK_LINE = "security:isin:GB00BN7SWP63", "security:isin:GB0009252882", "listing:isin:GB00BN7SWP63:XLON:GBP"
 SAP_ISIN, SAP_FIGI, SAP_FRANKFURT, NOWHERE = "DE0007164600", "BBG000BLNXT1", "BBG000BLNQ16", "BBG000BLNX93"
 SAP_SHARE = "BBG001S9GX16"
-ETH = "eip155:1/slip44:60"
+ETH, USDC = "eip155:1/slip44:60", "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
 SUI_USDC = "sui:mainnet/coin:0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7%3A%3Ausdc%3A%3AUSDC"
 POOL_ID = "00000002-0000-4000-8000-000000000000"
 
@@ -380,235 +371,6 @@ class IntroductionTest(IngestTest):
         self.assertEqual(contributor["stated"], [{"scheme": "figi", "value": "BBG000BX2SW5"},
                                                  {"scheme": "ticker_mic", "value": "ERIC B@XSTO"}])
         self.assertNotIn("contributors", self.world.subject(GSK_LINE)["view"])  # nothing stated there
-
-
-class DeFiPageTest(IngestTest):
-    """Pages shaped as the DeFiLlama plugin emits them (stage0-defillama, `catalogue.page`): protocols by their native
-    reference, pools `part_of` a protocol and `market_asset` of each token, and tokens named by CAIP-19 alone."""
-
-    def pages(self, llama, name="USDC on Sui"):
-        pool, protocol = {"provider": "llama", "native_scope": "ref", "native_id": POOL_ID}, \
-            {"provider": "llama", "native_scope": "protocol", "native_id": "9001"}
-        token = {"level": "listing", "identifiers": [{"scheme": "caip19", "value": SUI_USDC}],
-                 "attributes": {"asset_class": "crypto", "name": name},
-                 "provenance": {**PROVENANCE, "plugin": "llama", "source": "llama"}}
-        ether = {**token, "identifiers": [{"scheme": "caip19", "value": ETH}], "attributes": {"asset_class": "crypto"}}
-        protocols = [record(llama, "9001", scope="protocol", name="Example Lend")]
-        pools = [record(llama, POOL_ID, name="Example Lend USDC", asset_class="crypto"), token, ether,
-                 relation(llama, "part_of", pool, protocol),
-                 *(relation(llama, "market_asset", pool, {"scheme": "caip19", "value": value}) for value in (SUI_USDC, ETH))]
-        return protocols, pools
-
-    def test_tokens_named_by_caip19_alone_are_kept_and_placed(self):
-        world = self.fresh(("asml.json", "failures.json", "crypto.json"))
-        llama = source("llama", level="market", display=True, scopes=("protocols", "pools"),
-                       introduces={"market": ["native"], "protocol": ["native"], "listing": ["caip19"]},
-                       native=({"native_scope": "protocol", "level": "protocol"},))
-        protocols, pools = self.pages(llama)
-        self.ingest(llama, *protocols, world=world, scope="protocols", complete=True)
-        done = self.ingest(llama, *pools, world=world, scope="pools", complete=True)
-        pool, token, ether = f"market:provisional:llama:ref:{POOL_ID}", f"listing:caip19:{SUI_USDC}", f"listing:caip19:{ETH}"
-        self.assertEqual({key: done[key] for key in ("introduced", "joined", "unmatched", "not_seen")},
-                         {"introduced": 2, "joined": 4, "unmatched": 0, "not_seen": 0})  # the relations joined too
-        kept = world.identity.select("SELECT native_scope, subject_id, state FROM claims WHERE plugin = 'llama' AND"
-                                     " native_scope = '#record' ORDER BY subject_id")
-        self.assertEqual([tuple(row) for row in kept], [("#record", ether, "joined"), ("#record", token, "introduced")])
-        related = {(item["id"], item["type"], item["source"]) for item in world.subject(pool)["view"]["related"]}
-        self.assertEqual(related, {("protocol:provisional:llama:protocol:9001", "part_of", "llama"),
-                                   (token, "market_asset", "llama"), (ether, "market_asset", "llama")})
-        self.assertEqual(world.subject(ether)["view"]["contributors"][0]["stated"], [{"scheme": "caip19", "value": ETH}])
-        # The same pages again write nothing, and a renamed token keeps its row.
-        before = world.identity.db.total_changes
-        self.ingest(llama, *pools, world=world, scope="pools", complete=True)
-        self.assertEqual(world.identity.db.total_changes, before)
-        self.ingest(llama, *self.pages(llama, name="Native USDC")[1], world=world, scope="pools", complete=True)
-        self.assertEqual(len(world.identity.select("SELECT 1 FROM claims WHERE native_scope = '#record'")), 2)
-        self.assertEqual(device.subject_row(world.identity, token)["name"], "Native USDC")
-
-
-TOYOTA, TOYOTA_ISIN = "security:isin:JP3633400001", "JP3633400001"
-OPENFIGI_VENUES = {"JT": "XJPX", "GY": "XETR", "GF": "XFRA", "GI": "XHAN", "GM": "XMUN", "LN": "XLON", "SE": "XSWX"}
-
-
-def toyota_line(openfigi, figi, code, ticker=None, share_class="BBG000TYSCF0"):
-    """One line of OpenFIGI's answer for Toyota's ISIN, as its plugin's `mapping.claims` writes it (stage0-openfigi):
-    the FIGI as native reference, the ISIN as the line's own, no currency, and an operating MIC only where the
-    contract's `venue_codes` maps the exchange code."""
-    attributes = {"name": "TOYOTA MOTOR CORP", "ticker": ticker, "provider_venue": code,
-                  "operating_mic": OPENFIGI_VENUES.get(code), "asset_class": "equity"}
-    return record(openfigi, figi, ("figi", figi), ("isin", TOYOTA_ISIN), ("share_class_figi", share_class),
-                  **{key: value for key, value in attributes.items() if value})
-
-
-class OpenFigiTest(IngestTest):
-    """Roadmap stage 0's overlapping financial source (S7): OpenFIGI's lines for one ISIN carry FIGIs and exchange
-    codes, never a currency. Lines the build holds join, a line on an exchange it lacks is introduced under the
-    security, and a line that could only be a second one on an exchange stays unmatched."""
-
-    def setUp(self):
-        super().setUp()
-        self.world = self.fresh(("toyota.json",))
-        self.openfigi = source("openfigi", introduces={"listing": ["figi"]}, resolve=("isin",))
-
-    def line(self, venue, currency="EUR"):
-        return f"listing:isin:{TOYOTA_ISIN}:{venue}:{currency}"
-
-    def test_the_german_lines_join_the_builds_the_ticker_less_frankfurt_line_by_its_exchange(self):
-        done = self.ingest(self.openfigi, toyota_line(self.openfigi, "BBG000TYTKY0", "JT", "7203"),
-                           toyota_line(self.openfigi, "BBG000TYXTR4", "GY", "TOM"),
-                           toyota_line(self.openfigi, "BBG000TYFRN2", "GF", "TOM"),
-                           toyota_line(self.openfigi, "BBG000TYHNV0", "GI", "TOM"),  # two Hanover lines: which?
-                           toyota_line(self.openfigi, "BBG000TYMNX2", "GM"),  # Munich's line has another FIGI
-                           toyota_line(self.openfigi, "BBG000TYHNX8", "XX"), scope=None)  # an unmapped exchange
-        placed = {native: self.placed(self.openfigi, native) for native in
-                  ("BBG000TYTKY0", "BBG000TYXTR4", "BBG000TYFRN2", "BBG000TYHNV0", "BBG000TYMNX2", "BBG000TYHNX8")}
-        self.assertEqual(placed, {"BBG000TYTKY0": (self.line("XJPX", "JPY"), "joined"),
-                                  "BBG000TYXTR4": (self.line("XETR"), "joined"),
-                                  "BBG000TYFRN2": (self.line("XFRA"), "joined"),
-                                  "BBG000TYHNV0": (None, "unmatched"), "BBG000TYMNX2": (None, "unmatched"),
-                                  "BBG000TYHNX8": (None, "unmatched")})
-        self.assertEqual(done["introduced"], 0)  # never a second line on an exchange, nor a line nowhere
-        self.assertEqual(self.world.identity.select("SELECT id FROM subjects"), [])
-        # The Frankfurt line FIRDS gave no ticker gains OpenFIGI's FIGI and ticker, so search can find it by them.
-        frankfurt = self.world.subject(self.line("XFRA"))
-        self.assertEqual((frankfurt["values"]["figi"], frankfurt["values"]["ticker_mic"]), ("BBG000TYFRN2", "TOM@XFRA"))
-        self.assertEqual(frankfurt["view"]["contributors"][0]["plugin"], "openfigi")
-        self.assertNoQuestions()
-
-    def test_a_line_on_an_exchange_the_build_lacks_sits_under_the_security_until_a_release_holds_it(self):
-        london = "listing:figi:BBG000TYLND5"
-        self.ingest(self.openfigi, toyota_line(self.openfigi, "BBG000TYLND5", "LN", "TYT"), scope=None)
-        self.assertEqual(self.placed(self.openfigi, "BBG000TYLND5"), (london, "introduced"))
-        self.assertEqual(device.subject_row(self.world.identity, london)["parent_id"], TOYOTA)
-        ref = identity.ProviderRef("openfigi", "BBG000TYLND5", "ref")
-        # A later release holds the London line under its own key and states its FIGI: the device ID aliases to it.
-        path = self.world.release("with-london")
-        held = self.line("XLON", "GBP")
-        with closing(sqlite3.connect(path)) as db, db:
-            load_reference(db, {"securities": [], "listings": [{"id": held, "security_id": TOYOTA, "mic": "XLON",
-                                                                "operating_mic": "XLON", "currency": "GBP",
-                                                                "ticker": "TYT"}],
-                                "assertions": [{"subject_id": held, "scheme": "figi", "value": "BBG000TYLND5",
-                                                "authority": "source_asserted", "provenance": {
-                                                    **PROVENANCE, "source": "fixture", "source_record": "firds"}}]})
-        self.world.ref.close()
-        self.world.ref = store.open_reference(path, "confirm")
-        self.world.rekey(path)
-        self.assertEqual((device.current_id(self.world.ref, self.world.identity, london),
-                          self.world.identity.bound_subject(ref), self.world.subject(london)["id"]), (held, held, held))
-        lines = [line["id"] for line in search.Directory(self.world.ref).instrument_listings(TOYOTA)
-                 if line["mic"] == "XLON"]
-        self.assertEqual(lines, [held])  # one row
-        before = self.world.identity.db.total_changes  # the same answer again: placed on the held line, nothing new
-        again = self.ingest(self.openfigi, toyota_line(self.openfigi, "BBG000TYLND5", "LN", "TYT"), scope=None)
-        self.assertEqual((again["subjects"], self.world.identity.db.total_changes), ([held], before))
-
-    def test_a_differing_share_class_figi_stays_an_unresolved_conflict(self):
-        other = "BBG000TYSCX0"
-        self.ingest(self.openfigi, toyota_line(self.openfigi, "BBG000TYXTR4", "GY", "TOM", share_class=other),
-                    toyota_line(self.openfigi, "BBG000TYSWX6", "SE", "TOM", share_class=other), scope=None)
-        self.assertEqual(self.placed(self.openfigi, "BBG000TYXTR4"), (self.line("XETR"), "conflict"))
-        self.assertEqual(self.world.subject(self.line("XETR"))["ids"][identity.Level.SECURITY], TOYOTA)
-        # A new line whose security the evidence contests is introduced without one, never under Toyota.
-        self.assertEqual(self.placed(self.openfigi, "BBG000TYSWX6"), ("listing:figi:BBG000TYSWX6", "conflict"))
-        self.assertIsNone(device.subject_row(self.world.identity, "listing:figi:BBG000TYSWX6")["parent_id"])
-        self.assertNoQuestions()
-        self.assertEqual((self.world.touch(self.line("XETR")), self.world.touch(TOYOTA)), (1, 0))
-        [asked] = self.world.identity.queue_items()
-        self.assertEqual((asked["reason"], asked["scheme"], asked["subject_ids"]), ("identifier", "share_class_figi",
-                                                                                    [TOYOTA]))
-
-
-class OperationTest(unittest.TestCase):
-    """identity-sync and identity-lookup as the Desk invokes them: core dispatches the plugin's own operation and ingests
-    what it answers; a conflict it finds is asked about once the subject is read."""
-
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        root = Path(tmp.name)
-        (root / "world").mkdir()
-        world = World(root / "world", ("asml.json", "failures.json", "crypto.json"))
-        world.close()
-        self.enterContext(unittest.mock.patch.dict(os.environ, {"PYTHIA_CONFIG_ROOT": str(root / "config")}))
-        load_core()
-        from pythia_core_queue_fixture import identity_ops, ingest_ops, queue_ops
-        from pythia_core_queue_fixture.identity import page as core_page, validate_manifest
-        self.ingest_ops, self.queue_ops, self.core_page, self.validate = ingest_ops, queue_ops, core_page, validate_manifest
-        reference_package.install(make_package(root / "package", source=world.path), root / "core", trust.CONFIRM)
-        self.plugins, self.calls, self.answers = [], [], {}
-        self.enterContext(unittest.mock.patch.object(identity_ops, "installed", lambda: self.plugins))
-        registry = types.SimpleNamespace(dispatch=self.dispatch)
-        self.enterContext(unittest.mock.patch.dict(sys.modules, {"tools": types.ModuleType("tools"),
-                                                                 "tools.registry": types.SimpleNamespace(registry=registry)}))
-        self.ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=root / "core")
-        self.addCleanup(lambda: self.ops.store.db.close())
-
-    def dispatch(self, tool, arguments):
-        self.calls.append((tool, json.loads(json.dumps(arguments))))
-        return json.dumps(self.answers[tool](arguments))
-
-    def plugin(self, name, contract):
-        info = self.core_page.PluginInfo(key=f"pythia-{name}", manifest=self.validate(contract),
-                                         operations={"catalogue": f"{name}_catalogue", "resolve": f"{name}_resolve"})
-        self.plugins.append(info)
-        return info
-
-    @staticmethod
-    def batch(name, claims, scope=None, complete=False):
-        return {"plugin": name, "provider": name, "adapter_version": PROVENANCE["adapter_version"],
-                "origin": "catalogue" if scope else "resolve", "scope": scope, "complete": complete, "claims": claims}
-
-    def test_sync_reads_every_scope_in_the_contracts_order_page_by_page(self):
-        llama = source("llama", level="market", scopes=("protocols", "pools"),
-                       introduces={"market": ["native"], "protocol": ["native"]},
-                       native=({"native_scope": "protocol", "level": "protocol"},))
-        info = self.plugin("llama", {**_contract(llama), "signoff": {"status": "unsigned"}})
-        protocol = {"provider": "llama", "native_scope": "protocol", "native_id": "9001"}
-        pages = {("protocols", None): ([record(llama, "9001", scope="protocol", name="Example Lend")], None),
-                 ("pools", None): ([record(llama, POOL_ID, name="Example Lend USDC")], "1"),
-                 ("pools", "1"): ([relation(llama, "part_of", {"provider": "llama", "native_scope": "ref",
-                                                               "native_id": POOL_ID}, protocol)], None)}
-        self.answers["llama_catalogue"] = lambda arguments: {
-            "data": self.batch("llama", pages[(arguments["scope"], arguments.get("cursor"))][0], arguments["scope"],
-                               complete=pages[(arguments["scope"], arguments.get("cursor"))][1] is None),
-            "next_cursor": pages[(arguments["scope"], arguments.get("cursor"))][1]}
-        body = json.loads(self.ingest_ops.sync(self.ops, {"plugin": info.key}))
-        self.assertEqual([arguments for _tool, arguments in self.calls],
-                         [{"scope": "protocols"}, {"scope": "pools"}, {"scope": "pools", "cursor": "1"}])
-        self.assertEqual({key: body["data"][key] for key in ("introduced", "joined", "unmatched", "pages", "partial")},
-                         {"introduced": 2, "joined": 1, "unmatched": 0, "pages": 3, "partial": False})
-        self.assertEqual(json.loads(self.ingest_ops.sync(self.ops, {"plugin": "nobody"}))["issues"][0]["message"],
-                         "Unknown plugin.")
-
-    def test_a_lookup_ingests_the_answer_and_its_conflict_is_asked_once_the_subject_is_read(self):
-        info = self.plugin("vendor", {**_contract(source("vendor")),
-                                      "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": []}})
-        self.answers["vendor_resolve"] = lambda _arguments: {"data": self.batch("vendor", [record(
-            source("vendor"), "GSK.L", ("figi", "BBG000CT5GJ1"), ("isin", "GB0009252882"))])}
-        body = json.loads(self.ingest_ops.lookup(self.ops, {"plugin": info.key, "query": " gb00bn7swp63 "}))
-        self.assertEqual(self.calls, [("vendor_resolve", {"identifiers": {"isin": "GB00BN7SWP63"}})])
-        self.assertEqual((body["data"]["conflicts"], body["data"]["subjects"]), (1, [GSK_LINE]))
-        self.assertEqual(self.ops.store.queue_items(), [])  # ingest asks nothing
-        for _read in range(2):
-            json.loads(self.queue_ops.read_subject(self.ops, {"subject_id": GSK_LINE}))
-        [asked] = self.ops.store.queue_items()
-        self.assertEqual((asked["reason"], asked["candidate_ids"]), ("identifier", [GSK_BEFORE, GSK]))
-        refused = json.loads(self.ingest_ops.lookup(self.ops, {"plugin": info.key, "query": "Glaxo"}))
-        self.assertEqual(refused["issues"][0]["message"], "vendor cannot look up Glaxo.")
-
-
-def _contract(info):
-    """The contract a fixture plugin was built from, for core's own validator."""
-    manifest = info.manifest
-    return {"contract_version": 2, "plugin": manifest.plugin, "provider": manifest.provider,
-            "addressing": {"native": [{"native_scope": scope.native_scope, "level": str(scope.level)}
-                                      for scope in manifest.native]},
-            "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": list(manifest.catalogue_scopes)},
-            **({"introduces": {str(kind): list(tags) for kind, tags in manifest.introduces.items()}}
-               if manifest.introduces else {}),
-            "rights": {"licence": "personal", "cache": "none", "hostable": False},
-            "signoff": {"status": "grandfathered"}}
 
 
 if __name__ == "__main__":
