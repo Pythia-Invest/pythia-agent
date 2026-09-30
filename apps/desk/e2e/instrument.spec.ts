@@ -128,16 +128,20 @@ test("a chosen subject opens its page; cards load and fail independently", async
   page,
 }) => {
   const { release, operations } = await routeIdentity(page);
-  // A page with no reads of its own hosts the announcement.
+  // A page with no reads of its own hosts the announcement. The shell listens
+  // once it has hydrated, so announce until the route changes.
   await page.goto("/filings");
-  await page.evaluate((subject_id) => {
-    window.dispatchEvent(
-      new CustomEvent("pythia:open-subject", { detail: { subject_id } }),
+  await expect(async () => {
+    await page.evaluate((subject_id) => {
+      window.dispatchEvent(
+        new CustomEvent("pythia:open-subject", { detail: { subject_id } }),
+      );
+    }, primary);
+    await expect(page).toHaveURL(
+      new RegExp(`/instrument/${encodeURIComponent(primary)}$`),
+      { timeout: 1_000 },
     );
-  }, primary);
-  await expect(page).toHaveURL(
-    new RegExp(`/instrument/${encodeURIComponent(primary)}$`),
-  );
+  }).toPass();
   await expect(
     page.getByRole("heading", { level: 1, name: "Synthetic Holding N.V." }),
   ).toBeVisible();
