@@ -79,13 +79,13 @@ describe("the lead line's home", () => {
     );
   });
 
-  it("says the home is unknown on the lead line when no primary is decided", () => {
+  it("labels the lead line Pythia's default when no primary is decided", () => {
     const shel = line("shel", { venue: "London Stock Exchange", mic: "XLON" });
     const xetr = line("r6c", { venue: "Xetra", mic: "XETR" });
     const adr = line("shel-us", { mic: "XNYS", folded: true });
     const listings = [shel, xetr, adr];
     expect(listings.map((listing) => listingVenue(listing, listings))).toEqual([
-      "London Stock Exchange (home unknown)",
+      "London Stock Exchange (default)",
       "Xetra",
       "XNYS",
     ]);

@@ -35,9 +35,10 @@ export function listingGroups(
 /**
  * What the instrument's lead line is, so order never implies a home: core's
  * decided primary is the home; with none, the lead is FIRDS' most liquid EU
- * line or its home is unknown. Core puts a primary first, so a lead that is
- * neither has no primary anywhere. A line without a venue (a crypto
- * deployment) has no home to know.
+ * line or else Pythia's default (ADR 0044 A5: which listing a view shows is a
+ * documented default, not an identity fact). Core puts a primary first, so a
+ * lead that is neither has no primary anywhere. A line without a venue (a
+ * crypto deployment) has no home to know.
  */
 function homeNote(
   listing: SubjectListing,
@@ -47,7 +48,7 @@ function homeNote(
   if (listing.primary) return "home";
   if (listing.most_liquid) return "most liquid EU line";
   const lead = listings.find((line) => !line.folded);
-  return listing.mic && listing.id === lead?.id ? "home unknown" : null;
+  return listing.mic && listing.id === lead?.id ? "default" : null;
 }
 
 /** The venue, and on the lead line whether it is the home. */
