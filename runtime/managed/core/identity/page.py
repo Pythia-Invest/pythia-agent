@@ -53,7 +53,8 @@ SECTIONS = (Section.QUOTE, Section.CHART, Section.LIVE, Section.PROFILE, Section
 PRICED = (Section.QUOTE, Section.CHART, Section.LIVE)  # the sections a source the investor pinned leads (`corrections`)
 LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMarketCap", "coingecko": "CoinGecko",
           "gleif": "GLEIF", "xbrl-filings": "filings.xbrl.org", "sec": "SEC EDGAR", "openfigi": "OpenFIGI",
-          "hyperliquid": "Hyperliquid", "nsm": "UK FCA NSM", "esma_firds": "ESMA FIRDS", "defillama": "DeFiLlama"}
+          "hyperliquid": "Hyperliquid", "nsm": "UK FCA NSM", "esma_firds": "ESMA FIRDS", "defillama": "DeFiLlama",
+          "navi": "NAVI"}
 SAME = {Level.LISTING: VerdictRelation.SAME_LISTING, Level.COMPOSITE: VerdictRelation.SAME_COMPOSITE,
         Level.SECURITY: VerdictRelation.SAME_SECURITY, Level.ISSUER: VerdictRelation.SAME_ISSUER}
 RESOLVE_RULE = "resolve_answer@1"  # a resolve answer to open identifiers binds unless identifier evidence contradicts it

@@ -246,6 +246,23 @@ export const MANAGED_PLUGINS = Object.freeze([
     ]),
   }),
   Object.freeze({
+    name: "pythia-navi",
+    install: true,
+    // Opt-in by product default: NAVI publishes no data terms, so its
+    // open API is used as a personal, local source. Keyless; no worker process.
+    enabledByDefault: false,
+    doctor: false,
+    source: "plugins/navi",
+    files: Object.freeze([
+      "__init__.py",
+      "contract.json",
+      "plugin.yaml",
+      "README.md",
+      "definition.py",
+      "catalogue.py",
+    ]),
+  }),
+  Object.freeze({
     name: "pythia-eodhd",
     install: true,
     // Makes no provider request until its declared configuration

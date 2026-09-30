@@ -8,7 +8,7 @@ enabled plugins state (`additions`):
   line in the shape of the reference's listing join, so the same rules rank every line whatever its origin. A pool or
   a protocol is its own search group, like a fund. A line names the plugin that introduced it (`source`).
 - **Evidence about the reference's subjects:** a plugin's ticker for a line (a FIRDS line without one becomes
-  findable), the names its placed records give, and its identifiers weighed with the package's
+  findable), the names and aliases its placed records give, and its identifiers weighed with the package's
   (`evidence.weigh_each`), so a contested one indexes neither value.
 
 Only records a plugin still offers count (placed `joined`, `introduced` or `conflict`). A disabled plugin adds nothing:
@@ -77,16 +77,18 @@ def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterabl
         out.ids = _weighed(ref, [], corrected) if corrected else {}
         return out
     marks = json.dumps(sorted(active))
-    claims = store.select("SELECT subject_id, plugin, name, state FROM claims WHERE subject_id IS NOT NULL AND plugin IN"
-                          " (SELECT value FROM json_each(?)) AND state IN (SELECT value FROM json_each(?))", (marks, OFFERED))
+    claims = store.select("SELECT subject_id, plugin, name, json_extract(claim, '$.attributes.aliases') AS aliases, state"
+                          " FROM claims WHERE subject_id IS NOT NULL AND plugin IN (SELECT value FROM json_each(?)) AND"
+                          " state IN (SELECT value FROM json_each(?))", (marks, OFFERED))
     stated = [dict(row) for row in store.select(  # what a record still offered states
         "SELECT a.*, c.state FROM device_assertions a JOIN claims c ON c.plugin = a.plugin AND c.native_scope ="
         " a.native_scope AND c.native_id = a.native_id WHERE a.plugin IN (SELECT value FROM json_each(?)) AND c.state IN"
         " (SELECT value FROM json_each(?))", (marks, OFFERED))]
     touched = {row["subject_id"] for row in [*claims, *stated]}  # each subject an enabled plugin states anything about
     for row in claims:  # a record kept as a conflict names another subject than this one
-        if row["name"] and row["state"] != "conflict":
-            out.names.setdefault(row["subject_id"], []).append(row["name"])
+        if row["state"] != "conflict":  # its name and its aliases (`RecordAttributes.aliases`): other names for it
+            out.names.setdefault(row["subject_id"], []).extend(
+                filter(None, [row["name"], *json.loads(row["aliases"] or "[]")]))
     for row in stated:
         if row["scheme"] == "ticker_mic" and row["role"] == "self" and row["state"] != "conflict":
             out.tickers.setdefault(row["subject_id"], []).append(row["value"].rsplit("@", 1)[0])

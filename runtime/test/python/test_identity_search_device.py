@@ -52,13 +52,14 @@ def pools(provider: str, status: str = "unsigned") -> page.PluginInfo:
 POOLS = pools("poolsource")
 
 
-def place(at, info, native_id, subject, *, scope=None, state="introduced", name=None, stated=()):
+def place(at, info, native_id, subject, *, scope=None, state="introduced", name=None, aliases=(), stated=()):
     """One record of `info` kept and placed on `subject` as ingest places it, with the identifiers it states
-    (`stated`: (subject, scheme, value)), then a new generation."""
+    (`stated`: (subject, scheme, value)) and the aliases it gives, then a new generation."""
     manifest = info.manifest
     ref = identity.ProviderRef(manifest.provider, native_id, scope or manifest.native[0].native_scope)
+    attributes = {**({"name": name} if name else {}), **({"aliases": list(aliases)} if aliases else {})}
     at.put_claim(manifest.plugin, manifest.provider, {"level": identity.subject_kind(subject), "native_ref": ref.wire(),
-                                                      "attributes": {"name": name} if name else {}})
+                                                      "attributes": attributes})
     device.place_claim(at, manifest.plugin, ref, subject, state)
     for owner, scheme, value in stated:
         device.put_assertion(at, owner, scheme, value, plugin=manifest.plugin, ref=ref)
@@ -144,6 +145,24 @@ class FoundTest(DeviceSearch):
                           PROTOCOL: ("protocol", "Navi", None, "poolsource")})
         # The reference's own lines carry no plugin label.
         self.assertNotIn("source", self.search("asml")["data"]["groups"][0]["rows"][0])
+
+    def test_a_plugins_aliases_are_found_like_its_name_for_its_own_subject_and_a_reference_one(self):
+        # An alias is another name the plugin states for the subject it placed the record on: its own pool, and ASML's
+        # listing, which the reference holds.
+        pool = introduce_pool(self.ops.store, name="USDC lending on Navi")
+        place(self.ops.store, POOLS, "usdc-navi", pool, name="USDC lending on Navi", aliases=["Stable Vault", "sUSDC"])
+        place(self.ops.store, LISTER, "ASML-AMS", ASML, state="joined", name="ASML Holding NV", aliases=["Veldhoven Litho"])
+        self.assertEqual((self.groups("stable vault"), self.groups("susdc"), self.groups("veldhoven")),
+                         ([pool], [pool], [ASML_GROUP]))
+        self.assertEqual(self.search("stable vault")["data"]["groups"][0]["name"], "USDC lending on Navi")  # the name leads
+        self.plugins = [LISTER, replace(POOLS, enabled=False)]  # a disabled plugin's aliases leave with its subjects
+        self.assertEqual((self.groups("stable vault"), self.groups("veldhoven")), ([], [ASML_GROUP]))
+        self.plugins = [replace(LISTER, enabled=False), POOLS]
+        self.assertEqual((self.groups("stable vault"), self.groups("veldhoven")), ([pool], []))
+
+    def test_the_aliases_of_a_record_kept_as_a_conflict_name_nothing(self):
+        place(self.ops.store, LISTER, "ASML-AMS", ASML, state="conflict", aliases=["Veldhoven Litho"])
+        self.assertEqual(self.groups("veldhoven"), [])
 
     def test_a_disabled_plugins_subjects_leave_search_and_their_pages_still_open(self):
         introduce_sap(self.ops.store)
